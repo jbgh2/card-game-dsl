@@ -3,7 +3,8 @@
   "promoted_from_runs": [
     "2026-09-12T16-07-40Z",
     "2026-09-15T12-43-44Z",
-    "2026-09-15T22-01-48Z"
+    "2026-09-15T22-01-48Z",
+    "2026-09-16T19-17-52Z"
   ],
   "matchups": [
     {
@@ -133,6 +134,139 @@
         }
       },
       "transcript": "experiments/llm_eval/results_cheat_gap/transcripts/llm_cheap_table.jsonl.gz"
+    },
+    {
+      "games": 10,
+      "games_truncated": 0,
+      "decisions": 7359,
+      "agents": {
+        "llm_frontier": {
+          "agent": "llm_frontier",
+          "games": 10,
+          "games_scored": 10,
+          "wins": 0,
+          "decisions": 2067,
+          "open_decisions": 1765,
+          "fallbacks": 0,
+          "llm_calls": 1765,
+          "input_tokens": 22337063,
+          "output_tokens": 120483,
+          "cache_read_input_tokens": 20824961,
+          "cache_creation_input_tokens": 200920,
+          "plays": 302,
+          "lies": 46,
+          "forced_lies": 45,
+          "elective_lies": 1,
+          "plays_with_truthful_option": 257,
+          "challenge_opportunities": 669,
+          "challenges_made": 531,
+          "challenges_correct": 262,
+          "false_claims_faced": 315,
+          "false_claims_caught": 262,
+          "provable_opportunities": 211,
+          "provable_caught": 204,
+          "improbable_opportunities": 104,
+          "improbable_caught": 58,
+          "provable_hand_only_opportunities": 171,
+          "provable_hand_only_caught": 168,
+          "input_tokens_per_game": 2233706.3,
+          "output_tokens_per_game": 12048.3,
+          "cache_read_share": 0.9323052453225386,
+          "llm_calls_per_game": 176.5,
+          "win_rate": 0.0,
+          "fallback_rate": 0.0,
+          "lying_rate": 0.152317880794702,
+          "forced_lie_rate": 0.1490066225165563,
+          "elective_lie_rate": 0.0038910505836575876,
+          "challenge_rate": 0.7937219730941704,
+          "challenge_precision": 0.4934086629001883,
+          "challenge_recall": 0.8317460317460318,
+          "provable_lie_detection": 0.966824644549763,
+          "improbable_lie_detection": 0.5576923076923077,
+          "provable_lie_detection_hand_only": 0.9824561403508771
+        },
+        "rule": {
+          "agent": "rule",
+          "games": 30,
+          "games_scored": 30,
+          "wins": 10,
+          "decisions": 5292,
+          "open_decisions": 4359,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "plays": 907,
+          "lies": 516,
+          "forced_lies": 364,
+          "elective_lies": 152,
+          "plays_with_truthful_option": 543,
+          "challenge_opportunities": 1765,
+          "challenges_made": 350,
+          "challenges_correct": 252,
+          "false_claims_faced": 554,
+          "false_claims_caught": 252,
+          "provable_opportunities": 219,
+          "provable_caught": 219,
+          "improbable_opportunities": 335,
+          "improbable_caught": 33,
+          "provable_hand_only_opportunities": 102,
+          "provable_hand_only_caught": 102,
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "cache_read_share": null,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.3333333333333333,
+          "fallback_rate": 0.0,
+          "lying_rate": 0.5689084895259096,
+          "forced_lie_rate": 0.4013230429988975,
+          "elective_lie_rate": 0.27992633517495397,
+          "challenge_rate": 0.19830028328611898,
+          "challenge_precision": 0.72,
+          "challenge_recall": 0.4548736462093863,
+          "provable_lie_detection": 1.0,
+          "improbable_lie_detection": 0.09850746268656717,
+          "provable_lie_detection_hand_only": 1.0
+        }
+      },
+      "matchup": "llm_frontier_table",
+      "n_requested": 10,
+      "n_completed": 10,
+      "resumed_from": null,
+      "games_this_invocation": 10,
+      "stopped_early": null,
+      "aborted": null,
+      "usage": {
+        "frontier": {
+          "input_tokens": 22337063,
+          "output_tokens": 120483,
+          "cache_read_input_tokens": 20824961,
+          "cache_creation_input_tokens": 200920,
+          "cost_usd": 21.2362,
+          "model": "claude-opus-5",
+          "params": {
+            "max_tokens": 512,
+            "thinking": {
+              "type": "disabled"
+            },
+            "output_config": {
+              "effort": "low"
+            }
+          },
+          "run_total": {
+            "calls": 1765,
+            "input_tokens": 22337063,
+            "output_tokens": 120483,
+            "cache_read_input_tokens": 20824961,
+            "cache_creation_input_tokens": 200920,
+            "cost_usd": 21.2362
+          },
+          "cost_usd_per_game": 2.1236
+        }
+      },
+      "transcript": "experiments/llm_eval/results_cheat_gap/transcripts/llm_frontier_table.jsonl.gz"
     },
     {
       "games": 20,
@@ -444,6 +578,15 @@
       "cache_creation_input_tokens": 361332,
       "cost_usd": 22.7752,
       "model": "claude-sonnet-5"
+    },
+    "frontier": {
+      "calls": 1765,
+      "input_tokens": 22337063,
+      "output_tokens": 120483,
+      "cache_read_input_tokens": 20824961,
+      "cache_creation_input_tokens": 200920,
+      "cost_usd": 21.2362,
+      "model": "claude-opus-5"
     }
   }
 }

@@ -3,6 +3,8 @@
 
 3b6e683a3222c27d7dcd189ea3111735379f572a58d5fa2f2d779e6c8ec9ad53     468,496  llm_cheap_table.jsonl.gz
 bf73c81d6ca8a13f9b2666b77e5506cccd144940e9afb1814008815f0bc14929       1,085  llm_cheap_table.treatment.json
+ab82491f94e3a34c053437b898717826c3f091681b9fc8dbeef2e90dee503f7c     246,515  llm_frontier_table.jsonl.gz
+a3cd69dd99f82642883e85f55cd23816c8e57a3241cf253b03554712a135e035       1,191  llm_frontier_table.treatment.json
 0cf002d35f745a1decff615ad2b55067c33849e0313946b4d6534ef1c6b4f486     479,312  llm_mid_table.jsonl.gz
 fc8367c2b76ba5a168a99a3ed7a447c60ac85576855c3e4e9516b04263a6ff1b       1,178  llm_mid_table.treatment.json
 549357ffd456196b4a3b17df77aa4f162574e21dffd233317273b4bcaa59db5a     914,058  rule_table.jsonl.gz

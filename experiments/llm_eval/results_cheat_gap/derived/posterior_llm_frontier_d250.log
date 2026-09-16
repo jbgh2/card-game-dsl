@@ -1,0 +1,3 @@
+llm_frontier_table: eligible=242 (of 2434, max_depth=250) abstains=216/216 fires=26/26 selected=242/2000
+
+wrote 242 posterior record(s) to /private/tmp/claude-501/-Users-benh-Projects-Card-game-DSL--claude-worktrees-openspiel-card-game-design-9aa2fe/bd812d17-30da-4118-a4e4-43c137a29c1f/scratchpad/posterior_llm_frontier_d250.jsonl (242/242 converged at ess-floor 200.0)

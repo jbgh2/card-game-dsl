@@ -1,0 +1,33 @@
+(convergence floor: 0.95 of selected windows)
+
+=== llm_frontier_table ===
+  windows enumerated: 2434   selected: 242   converged: 242 / 242 = 1.0000   dropped: 0
+
+  -- seat class: llm_frontier --
+    convergence: 242 / 242 = 1.0000   dropped: 0
+         all / challenged  n=158  lie_rate=65 / 158 = 0.4114  mean_R_literal=0.9783  GAP=-56.69pp  95% CI=[-63.56,-50.78]pp
+      residual (lie-p_lie): mean=-0.5669 sd=0.4856
+         all / allowed     n=84   lie_rate=38 / 84 = 0.4524  mean_R_literal=0.9342  GAP=-48.18pp  95% CI=[-61.63,-37.03]pp
+      residual (lie-p_lie): mean=-0.4818 sd=0.4919
+         all / any         n=242  lie_rate=103 / 242 = 0.4256  mean_R_literal=0.9630  GAP=-53.74pp  95% CI=[-57.59,-49.41]pp
+      residual (lie-p_lie): mean=-0.5374 sd=0.4895
+         all / CONTRAST     GAP(challenged) - GAP(any) = -2.95pp  95% CI=[-8.67,+2.91]pp
+    abstains / challenged  n=132  lie_rate=39 / 132 = 0.2955  mean_R_literal=0.9741  GAP=-67.86pp  95% CI=[-74.56,-60.28]pp
+      residual (lie-p_lie): mean=-0.6786 sd=0.4544
+    abstains / allowed     n=84   lie_rate=38 / 84 = 0.4524  mean_R_literal=0.9342  GAP=-48.18pp  95% CI=[-61.63,-37.03]pp
+      residual (lie-p_lie): mean=-0.4818 sd=0.4919
+    abstains / any         n=216  lie_rate=77 / 216 = 0.3565  mean_R_literal=0.9586  GAP=-60.21pp  95% CI=[-65.40,-55.30]pp
+      residual (lie-p_lie): mean=-0.6021 sd=0.4790
+    abstains / CONTRAST     GAP(challenged) - GAP(any) = -7.65pp  95% CI=[-13.92,-0.31]pp
+    abstains / SIGN TEST    per-game CONTRAST vs 0: n_games=10 pos=2 neg=8 p_two_sided=0.10938
+       fires / challenged  n=26   lie_rate=26 / 26 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
+      residual (lie-p_lie): mean=+0.0000 sd=0.0000
+       fires / allowed     n=0 (no windows)
+       fires / any         n=26   lie_rate=26 / 26 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
+      residual (lie-p_lie): mean=+0.0000 sd=0.0000
+       fires / CONTRAST     GAP(challenged) - GAP(any) = +0.00pp  95% CI=[+0.00,+0.00]pp
+
+=== NULL CONTROL (noise floor) ===
+  cells whose observers are ALL rule agents, on the R1-abstains subset, which a rule agent challenges by a coin flip independent of the cards: the SELECTION CONTRAST is zero in expectation and its interval is the instrument's noise floor. The raw GAP beside it is the literal reference's own miscalibration, a property of the reference and not of the reader.
+
+(bootstrap: 2000 resamples over games, seed=0)
