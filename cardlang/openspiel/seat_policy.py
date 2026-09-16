@@ -95,6 +95,14 @@ class Opponent:
     make: Callable[[SeatBinding], SeatPolicy]
 
 
+def _ranked(binding: SeatBinding) -> SeatPolicy:
+    """The ranking opponent, imported where it is built: it reads this module's
+    binding and uniform draw, so the table cannot import it at module scope."""
+    from cardlang.openspiel.ranked import RankedSeatPolicy
+
+    return RankedSeatPolicy(binding)
+
+
 OPPONENTS: dict[str, Opponent] = {
     opponent.name: opponent
     for opponent in (
@@ -107,6 +115,11 @@ OPPONENTS: dict[str, Opponent] = {
             "random",
             "picks uniformly at random",
             lambda binding: UniformSeatPolicy(binding.seed),
+        ),
+        Opponent(
+            "ranked",
+            "plays by the game's own ranking",
+            _ranked,
         ),
     )
 }
