@@ -13,7 +13,8 @@ package: its input and its output are that boundary's currency.
 
 `OPPONENTS` is the table of [[opponent]]s, the Seat Policies a person seats by
 name. It is the one place an opponent is defined, and every listing of them is
-rendered from it.
+rendered from it. Each row builds its policy from a `SeatBinding` — everything
+an opponent may read before the first decision.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from cardlang.ast import nodes as n
+from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.infostate import SeatView, render_information_state
 
 
@@ -69,19 +72,41 @@ class FirstSeatPolicy:
 
 
 @dataclass(frozen=True)
+class SeatBinding:
+    """What an opponent is built from, before the first decision: the checked
+    game and its action space, the seat it fills, and the session's seed.
+
+    Not the World, a decision node, or the person's reader and writer — a
+    policy answers from its seat's view and what the game declares."""
+
+    game: n.Game
+    space: ActionSpace
+    seat: int
+    seed: int
+
+
+@dataclass(frozen=True)
 class Opponent:
     """A Seat Policy a person seats by name: `description` says in one line
-    what it does, and `make` builds it from the session's seed."""
+    what it does, and `make` builds it from a `SeatBinding`."""
 
     name: str
     description: str
-    make: Callable[[int], SeatPolicy]
+    make: Callable[[SeatBinding], SeatPolicy]
 
 
 OPPONENTS: dict[str, Opponent] = {
     opponent.name: opponent
     for opponent in (
-        Opponent("first", "always takes the first pick on the menu", lambda seed: FirstSeatPolicy()),
-        Opponent("random", "picks uniformly at random", UniformSeatPolicy),
+        Opponent(
+            "first",
+            "always takes the first pick on the menu",
+            lambda binding: FirstSeatPolicy(),
+        ),
+        Opponent(
+            "random",
+            "picks uniformly at random",
+            lambda binding: UniformSeatPolicy(binding.seed),
+        ),
     )
 }

@@ -64,7 +64,12 @@ from cardlang.cli import main
 from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.registry import GAMES
 from cardlang.openspiel.replay import LiveLine, load
-from cardlang.openspiel.seat_policy import OPPONENTS, FirstSeatPolicy, UniformSeatPolicy
+from cardlang.openspiel.seat_policy import (
+    OPPONENTS,
+    FirstSeatPolicy,
+    SeatBinding,
+    UniformSeatPolicy,
+)
 from tests.test_play_session import (
     FIXTURES,
     _a_save,
@@ -121,7 +126,7 @@ def test_each_opponent_answers_a_legal_id_as_a_function_of_its_seed_and_view(nam
     red under: a `random` row whose policy draws from one `random.Random(seed)`
     stream."""
     path = _path(short_name)
-    game, _ = load(path)
+    game, space = load(path)
     row = OPPONENTS[name]
     asked = 0
 
@@ -131,7 +136,8 @@ def test_each_opponent_answers_a_legal_id_as_a_function_of_its_seed_and_view(nam
             picked = policy(view, legal)
             assert picked in legal, f"{name} answered {picked}, which is not legal"
             assert policy(view, legal) == picked, f"{name}, asked again, answers otherwise"
-            assert row.make(_SEED)(view, legal) == picked, f"{name}, made again, answers otherwise"
+            made = row.make(SeatBinding(game, space, view.player, _SEED))
+            assert made(view, legal) == picked, f"{name}, made again, answers otherwise"
             asked += 1
             if asked == _ASKED:
                 raise _Stopped
@@ -140,7 +146,12 @@ def test_each_opponent_answers_a_legal_id_as_a_function_of_its_seed_and_view(nam
         return answer
 
     with contextlib.suppress(_Stopped):
-        LiveLine(path, _SEED).play({seat: seated(row.make(_SEED)) for seat in range(game.players.low)})
+        LiveLine(path, _SEED).play(
+            {
+                seat: seated(row.make(SeatBinding(game, space, seat, _SEED)))
+                for seat in range(game.players.low)
+            }
+        )
     assert asked, f"{short_name}: nobody was asked"
 
 
