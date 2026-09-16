@@ -103,7 +103,7 @@ def test_the_shooter_is_offered_both_ways_a_moon_scores() -> None:
     g = _game()
     scoring = _phase(_phase(g, "hand_sequence"), "scoring")
     branch = next(i for i in scoring.items if isinstance(i, n.IfStmt))
-    offer = next(s for s in branch.then_body if isinstance(s, n.AuctionRound))
+    offer = next(s for s in branch.then_body if isinstance(s, n.Offer))
     assert offer.offering == ("charge_the_others", "credit_the_shooter")
     # The plain-hand arm is the else: nobody is asked when there is no moon.
     assert branch.else_body is not None

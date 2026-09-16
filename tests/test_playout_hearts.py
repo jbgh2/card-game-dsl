@@ -65,16 +65,21 @@ def test_a_moon_scores_the_way_its_shooter_chose() -> None:
         tricks: list[tuple[int, Any]] = []
         chosen: list[tuple[int, int, str]] = []
         hand_ends: list[tuple[int, dict[int, int]]] = []
+        arm_names = {"charge_the_others", "credit_the_shooter"}
 
         def tracer(event: str, data: Any) -> None:
             if event == "trick":
                 tricks.append(data)  # noqa: B023 -- consumed before the loop advances
-            elif event == "decision" and isinstance(data[1], tuple):
-                chosen.append((len(tricks), data[0], data[1][0]))  # noqa: B023
             elif event == "hand_end":
                 hand_ends.append((len(tricks), dict(data)))  # noqa: B023
 
-        play_game(game, random.Random(seed), tracer)
+        def observer(seat: int, event: tuple[Any, ...]) -> None:
+            # The announcement every seat sees, read once: a scoring choice is
+            # public, which is the channel `cardlang demo` prints from.
+            if seat == 0 and event[0] == "announce" and event[2] in arm_names:  # noqa: B023
+                chosen.append((len(tricks), event[1], event[2]))  # noqa: B023
+
+        play_game(game, random.Random(seed), tracer, observer=observer)
 
         # Replay each hand: penalty points per player from the tricks they won,
         # against the score the hand actually moved.

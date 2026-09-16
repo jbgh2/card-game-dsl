@@ -506,23 +506,6 @@
           "outcome_cases": [],
           "items": [
             {
-              "kind": "state",
-              "decls": [
-                {
-                  "kind": "state_decl",
-                  "name": "moon_settled",
-                  "index": null,
-                  "type": "Boolean",
-                  "optional": false,
-                  "default": {
-                    "kind": "name",
-                    "name": "false",
-                    "ref": "bool"
-                  }
-                }
-              ]
-            },
-            {
               "kind": "let",
               "name": "base",
               "index": "p",
@@ -627,12 +610,8 @@
               },
               "then": [
                 {
-                  "kind": "auction_round",
-                  "offering": [
-                    "charge_the_others",
-                    "credit_the_shooter"
-                  ],
-                  "leader": {
+                  "kind": "offer",
+                  "player": {
                     "kind": "player_query",
                     "query": "pick",
                     "where": {
@@ -657,38 +636,10 @@
                       }
                     }
                   },
-                  "participants": {
-                    "kind": "player_query",
-                    "query": "set",
-                    "where": {
-                      "kind": "binop",
-                      "op": "is",
-                      "left": {
-                        "kind": "subscript",
-                        "obj": {
-                          "kind": "name",
-                          "name": "base",
-                          "ref": "local"
-                        },
-                        "index_expr": {
-                          "kind": "name",
-                          "name": "player",
-                          "ref": "local"
-                        }
-                      },
-                      "right": {
-                        "kind": "int",
-                        "value": 26
-                      }
-                    }
-                  },
-                  "until": {
-                    "kind": "name",
-                    "name": "moon_settled",
-                    "ref": "state_var"
-                  },
-                  "order_mode": null,
-                  "outcome_fn": null
+                  "offering": [
+                    "charge_the_others",
+                    "credit_the_shooter"
+                  ]
                 }
               ],
               "else": [
@@ -964,17 +915,6 @@
             ],
             "else": null
           }
-        },
-        {
-          "kind": "assign",
-          "target": "moon_settled",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "name",
-            "name": "true",
-            "ref": "bool"
-          }
         }
       ]
     },
@@ -996,17 +936,6 @@
           "value": {
             "kind": "int",
             "value": 26
-          }
-        },
-        {
-          "kind": "assign",
-          "target": "moon_settled",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "name",
-            "name": "true",
-            "ref": "bool"
           }
         }
       ]

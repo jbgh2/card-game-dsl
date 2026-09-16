@@ -95,11 +95,6 @@ game Hearts {
     }
 
     phase scoring {
-      state {
-        // Set by whichever arm the shooter takes, and what ends the round.
-        moon_settled : Boolean = false
-      }
-
       // base is a phase-local let, not declared state.
       let base[p] = sum of (if card.suit is hearts       then 1
                             elif card is Q of spades     then 13
@@ -109,10 +104,8 @@ game Hearts {
       // Shooting the moon: all 26 penalty points in one player's tricks. The
       // shooter chooses between the two ways it scores; nobody else is asked.
       if any player where base[player] is 26 {
-        round offering [charge_the_others, credit_the_shooter]
-              from (the player where base[player] is 26)
-              over players where base[player] is 26
-              until moon_settled
+        offer to (the player where base[player] is 26) one of
+          [charge_the_others, credit_the_shooter]
       } else {
         for each player p:
           cumulative_score[p] += base[p]
@@ -141,14 +134,12 @@ move_type charge_the_others {
       if p is not shooter {
         cumulative_score[p] += 26
       }
-    moon_settled := true
   }
 }
 
 move_type credit_the_shooter {
   effect {
     cumulative_score[actor] -= 26
-    moon_settled := true
   }
 }
 

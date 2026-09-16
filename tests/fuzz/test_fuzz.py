@@ -118,12 +118,12 @@ EXCUSED: dict[tuple[str, str, int], str] = {
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",
-    # `hearts_missing_deal_empty_pass` has no live-corpus key either: seed 2
-    # deletes whichever non-blank line the label-seeded rng picks, and the
-    # line it picks in hearts.cardlang is a `shuffle deck` whose mutant plays
-    # out fine. A key here would excuse nothing (the vacuously-green class).
-    # The finding stays in the ledger under its frozen fixture, which still
-    # reproduces it.
+    # `hearts_missing_deal_empty_pass` has no live-corpus key either: the line
+    # a seed deletes is the one its label-seeded rng picks, so an edit
+    # anywhere in the file moves it, and hearts.cardlang's picks are lines
+    # whose mutants play out cleanly. A key here would excuse nothing (the
+    # vacuously-green class). The finding stays in the ledger under its frozen
+    # fixture, which still reproduces it.
     ("oh-hell.cardlang", "delete_line", 2): "oh_hell_missing_trump_turnup",
     # Skat has NO key here anymore, and no ledger entry either. Both of its
     # findings were reads that the Trick Order retired with the Primitives that
