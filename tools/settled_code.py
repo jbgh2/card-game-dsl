@@ -222,7 +222,11 @@ def parse_coverage(
     coverage records the empty context for lines run outside any, and a
     context not in ORACLES is a run this tool did not make -- both are
     counted in `executed` and in no oracle column, so the total never
-    understates and a column never overstates.
+    understates and a column never overstates. Only executed STATEMENTS
+    count: the contexts map is keyed by every physical line the tracer saw,
+    docstring and continuation lines included, so a count over its keys
+    exceeds the statement total; `executed_lines` is the statement-mapped
+    list and the column is its intersection with the context's lines.
     """
     wanted = set(files)
     result: dict[str, Coverage] = {}
@@ -239,20 +243,27 @@ def parse_coverage(
             continue
         summary = entry.get("summary")
         contexts = entry.get("contexts")
-        if not isinstance(summary, Mapping) or not isinstance(contexts, Mapping):
+        executed_lines = entry.get("executed_lines")
+        if (
+            not isinstance(summary, Mapping)
+            or not isinstance(contexts, Mapping)
+            or not isinstance(executed_lines, list)
+        ):
             raise ValueError(
-                f"coverage JSON for {path} lacks summary or contexts -- run with --show-contexts"
+                f"coverage JSON for {path} lacks summary, executed_lines or contexts"
+                " -- run with --show-contexts"
             )
+        statements = {int(str(line)) for line in executed_lines}
         by: dict[str, int] = {name: 0 for name in ORACLES}
-        executed = 0
-        for names in contexts.values():
-            if not isinstance(names, list):
+        for line, names in contexts.items():
+            if int(str(line)) not in statements or not isinstance(names, list):
                 continue
-            executed += 1
             for name in {str(n).split("|", 1)[0] for n in names}:
                 if name in by:
                     by[name] += 1
-        result[path] = Coverage(int(str(summary["num_statements"])), executed, by)
+        result[path] = Coverage(
+            int(str(summary["num_statements"])), len(statements), by
+        )
     return result
 
 

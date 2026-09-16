@@ -100,11 +100,17 @@ def test_citations_by_path_and_dotted_module_never_by_basename() -> None:
     }
 
 
-def _cov(path: str, statements: int, lines: dict[int, list[str]]) -> dict[str, object]:
+def _cov(
+    path: str,
+    statements: int,
+    lines: dict[int, list[str]],
+    executed: list[int] | None = None,
+) -> dict[str, object]:
     return {
         "files": {
             path: {
                 "summary": {"num_statements": statements},
+                "executed_lines": sorted(lines) if executed is None else executed,
                 "contexts": {str(k): v for k, v in lines.items()},
             }
         }
@@ -121,6 +127,25 @@ def test_coverage_counts_per_oracle_and_ignores_unknown_contexts() -> None:
     assert cov.executed == 4  # every executed line counts toward the total
     assert cov.by_oracle[first] == 2  # only the named oracle's column grows
     assert all(cov.by_oracle[n] == 0 for n in sc.ORACLES if n != first)
+
+
+def test_only_executed_statements_count_not_every_traced_line() -> None:
+    """Reddened by counting the contexts map's keys: coverage keys it by every
+    physical line the tracer saw -- a docstring's first line, a continuation
+    line -- so the count exceeds the statement total (measured 2026-09-16 on
+    the real tree: a module rendering 215% executed)."""
+    first = next(iter(sc.ORACLES))
+    data = _cov(
+        "cardlang/a.py",
+        3,
+        {1: [first], 2: [first], 3: [first], 4: [first]},
+        executed=[2, 3],
+    )
+    cov = sc.parse_coverage(data, FILES)["cardlang/a.py"]
+    assert cov.executed == 2 and cov.by_oracle[first] == 2
+    row = sc.Row("cardlang/a.py", 4, None, cov, ())
+    fraction = row.covered_fraction()
+    assert fraction is not None and fraction <= 1.0
 
 
 def test_coverage_keys_relative_to_another_cwd_still_match() -> None:
