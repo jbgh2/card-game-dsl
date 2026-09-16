@@ -15,11 +15,16 @@ What it does with each block of action ids is `DISPOSITIONS`, keyed by
   leading, it leads its dearest where the game wants its score high and its
   cheapest where it wants it low. A card takes the trick when it outranks every
   card of the suit led, and a card of the declared `trump:` suit outranks any
-  card that is not. Three things send the decision to the draw instead: a game
-  that declares no ranking, one that declares a `trick_order { }` of its own
-  (its trumps and strengths are expressions this reads nothing of), and one that
-  keeps more than one trick pile, where which pile holds the trick in progress
-  is not a fact the view carries.
+  card that is not. Where nothing on offer takes and the game wants its score
+  high, it throws the cheapest card of the suit the hand is long in, counted
+  over the zone the decision plays from — which is not always the seat's own,
+  since a game may seat a decision with one player and the cards with another.
+  Four things send the decision to the draw instead: a game that declares no
+  ranking, one that declares a `trick_order { }` of its own (its trumps and
+  strengths are expressions this reads nothing of), one that keeps more than
+  one trick pile, where which pile holds the trick in progress is not a fact
+  the view carries, and a throw whose source zone the view cannot name, which
+  a deck that repeats a card can leave undecidable.
 - **integer** — a number near the tricks its own cards look like taking: the
   cards in the top two ranks of the declared ranking, plus trump length past a
   fair share of the deck's suits, clamped to what is on offer. The same
@@ -46,6 +51,7 @@ a block `DISPOSITIONS` calls delegated.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Sequence
 
 from cardlang.ast import nodes as n
@@ -95,6 +101,30 @@ def _cards_in(view: SeatView, names: frozenset[str]) -> list[Card]:
         if name in names and isinstance(shown, tuple):
             out.extend(card for card in shown if isinstance(card, Card))
     return out
+
+
+def _played_from(view: SeatView, offered: Sequence[Card]) -> list[Card] | None:
+    """Every card of the one zone this decision plays from — the single zone
+    instance the view shows holding all of `offered`.
+
+    Which zone that is cannot be assumed to be the seat's own: a game may seat
+    the decision with one player and the cards with another, as a hand played
+    face up by its partner is. Nor is it a question about zone NAMES, since two
+    instances of one name are two hands. Where a deck repeats a card, two zones
+    can each hold what is offered and the view cannot tell which is the source;
+    it says so by returning None rather than choosing."""
+    wanted = Counter(offered)
+    found: list[Card] | None = None
+    for _, shown in view.zones:
+        if not isinstance(shown, tuple):
+            continue
+        cards = [card for card in shown if isinstance(card, Card)]
+        counted = Counter(cards)
+        if all(counted[card] >= count for card, count in wanted.items()):
+            if found is not None:
+                return None
+            found = cards
+    return found
 
 
 class RankedSeatPolicy:
@@ -185,14 +215,21 @@ class RankedSeatPolicy:
 
     def _thrown(self, view: SeatView, legal: Sequence[int]) -> int:
         """Which card to throw when none on offer takes the trick: the cheapest
-        of the suit the seat holds most of, and its cheapest card overall where
-        it holds no suit twice. Throwing the cheapest card outright spends the
-        last card of a short suit, which is the one still able to take a trick
-        in it. The suits are counted over every card the seat holds, not over
-        the cards on offer: a rule that filters what may be played says nothing
-        about which suit the hand is long in."""
+        of the suit the hand is long in, and its cheapest card overall where it
+        holds no suit twice. Throwing the cheapest card outright spends the last
+        card of a short suit, which is the one still able to take a trick in it.
+
+        The suits are counted over every card of the zone the decision plays
+        from — not over the cards on offer, since a rule that filters what may
+        be played says nothing about which suit the hand is long in; and not
+        over the seat's own zones, since the hand being played may belong to
+        another seat. Where the view cannot name that zone the length of the
+        hand is not a fact this can read, and the card is drawn."""
+        source = _played_from(view, [self.space.decode(aid) for aid in legal])
+        if source is None:
+            return self.draw(view, legal)
         held: dict[str, int] = {}
-        for card in _cards_in(view, self.private_zones):
+        for card in source:
             held[card.suit] = held.get(card.suit, 0) + 1
         return min(
             legal,

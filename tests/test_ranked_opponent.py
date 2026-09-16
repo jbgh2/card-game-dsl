@@ -3,9 +3,11 @@
 property:        `ranked` answers from its seat's view and the game's own
                  declarations, and states what it does with every block of
                  action ids the game's action space declares. At a card
-                 decision it plays to take the trick with the cheapest card
-                 that takes it, or sheds its cheapest, by the declared ranking
-                 and the direction the game's `winner:` names; at a numeric
+                 decision it takes the trick with the cheapest card that takes
+                 it, and where nothing on offer takes, throws the cheapest of
+                 the suit the hand is long in or sheds the dearest card that
+                 takes nothing, by the declared ranking and the direction the
+                 game's `winner:` names; at a numeric
                  decision it answers near its hand's strength, counting a
                  fair share against the deck's suits; at a combination decision
                  it spends the fewest cards; at every other id it draws
@@ -13,25 +15,35 @@ property:        `ranked` answers from its seat's view and the game's own
                  noticed. A card of the declared trump suit takes a trick the
                  suit led cannot, and a game that declares a `trick_order { }`
                  of its own is one whose tricks it reads nothing of, so those
-                 decisions are drawn too. Where a position has a best line
-                 it plays one. Seated at a table it reaches an outcome a
-                 uniform draw does not: Spades' +500, which a uniform table
-                 never scores.
+                 decisions are drawn too. A throw counts the suits of the zone
+                 the decision plays from, which a game may seat with one player
+                 and the cards with another. Seated at a table it reaches an
+                 outcome a uniform draw does not: Spades' +500, which a uniform
+                 table never scores.
 domain:          Dispositions: every block `encoding.BLOCKS` declares, crossed
-                 with what `ranked.DISPOSITIONS` says of it. The solved
-                 position: `tests/fixtures/one_trick_known_best.cardlang`, its
-                 whole game tree enumerated for the ranked seat over `_SEEDS`.
-                 The measured claims: `_MEASURED`, one line per seed per game,
-                 each against the uniform table over the same seeds. The
-                 delegated block: an offering decision compared against the
+                 with what `ranked.DISPOSITIONS` says of it. The miniature,
+                 `tests/fixtures/one_trick_known_best.cardlang`: ONE PLAYED
+                 LINE per seed over `_SEEDS`, the ranked seat against `first`,
+                 counted against what `first` and `random` take from that same
+                 seat over those same seeds. That is a sample of lines and not
+                 the position's tree — the tree's best line is computed knowing
+                 the hidden hand, which no seat can know, so it is no standard
+                 for a policy that sees only its own view. The table claims,
+                 likewise one played line per seed: Spades over `_SPADES_SEEDS`
+                 against `_SPADES_FLOOR`, Hearts over `_HEARTS_SEEDS` against
+                 `_HEARTS_FLOOR`, each beside the uniform table on those seeds.
+                 The delegated block: an offering decision compared against the
                  uniform draw it delegates to, and a card decision of a game
                  with its own Trick Order (Belote) against the same draw. The
                  trick rules, recomputed from the view and the declarations at
                  every decision they cover: the trump that takes where the suit
                  led cannot, and the number bid against the hand's strength
-                 (Spades, the corpus's declared-trump game). The throw is a
-                 built view, a hand long in one suit with one card of it on
-                 offer, which is a shape no corpus game reaches. Legality and purity over every
+                 (Spades, the corpus's declared-trump game). The throw is three
+                 built views, each a shape no corpus game reaches by chance: a
+                 hand long in one suit with one card of it on offer; a decision
+                 whose cards sit in another seat's zone (Bridge's dummy, played
+                 by the declarer); and a doubled deck where two zones both hold
+                 what is offered, which is drawn. Legality and purity over every
                  registered game come from the row pins in
                  tests/test_play_opponents.py, which `ranked` joins as a row.
                  The chooser-level ranking instrument (`tests/playout_policy.py`)
@@ -45,7 +57,12 @@ registry:        blocks: `cardlang.openspiel.encoding.BLOCKS`; opponents:
                  `cardlang.openspiel.registry.GAMES`; the declarations it
                  reads: the checked `n.Game` (`ranking`, `trick_order`,
                  `trump`, `winner`), and `stdlib.zones.ZONE_PROJECTIONS` for
-                 which of its own zones are private to it.
+                 which of its own zones are private to it. The zone a card
+                 decision plays from is derived from the view instead, by the
+                 cards on offer: no declaration says which zone a decision
+                 draws from, and the registry states a zone's visibility and
+                 its capacity but not whether it is one a seat plays from
+                 (issue #711).
 does not prove:  That `ranked` plays a game well. It reads no game's own
                  strategy: it ignores partners, position, what has already been
                  played, and every state variable, and it draws uniformly at
@@ -57,9 +74,20 @@ does not prove:  That `ranked` plays a game well. It reads no game's own
                  a game keeps in a state variable rather than in `trump:` is
                  invisible here, and the opponent plays the suit led as though
                  there were none; the corpus declares no such game today, and a
-                 declared `trick_order { }` is drawn rather than guessed at. Nothing
-                 here measures it against a competent player; the claims are
-                 all against a uniform draw.
+                 declared `trick_order { }` is drawn rather than guessed at.
+                 Two arms are STATED AND NOT MEASURED, because no corpus game
+                 reaches either: a game declaring a second trick pile is drawn,
+                 and no registered game declares two, so nothing here would
+                 redden if the guard went; and the bid reads the seat's own
+                 private zones, which the decision-source derivation cannot
+                 correct for it, an integer carrying no card back to a zone —
+                 a game that bid from a hand held by another seat would be
+                 counted wrong and no cell would say so (issue #711). The
+                 drawn arm costs play: over 2 seeds of Pinochle, whose deck is
+                 doubled, 22 of 66 throws were drawn for want of a namable
+                 source (measured 2026-09-16 on this branch). Nothing here
+                 measures it against a competent player; the claims are all
+                 against a uniform draw.
 """
 
 from __future__ import annotations
@@ -123,7 +151,7 @@ def test_the_opponent_names_no_game() -> None:
 
 
 # ---------------------------------------------------------------------------
-# A position whose best line is computed, not assumed.
+# A position small enough that the trick logic is the only thing measured.
 # ---------------------------------------------------------------------------
 
 _SEEDS = tuple(range(24))
@@ -332,6 +360,59 @@ def test_a_throw_counts_the_suits_the_seat_holds_not_the_cards_on_offer() -> Non
     # Spades wants its score high and holds no spade here, so nothing takes the
     # trick and the card thrown is the cheapest of the longest suit held.
     assert ranked(view, legal) == space.encode(Card("K", "clubs"))
+
+
+def test_a_throw_counts_the_zone_the_decision_plays_from() -> None:
+    """Bridge routes the dummy's plays to the declarer, who decides them from
+    the exposed hand rather than from its own: the suit the hand is long in is
+    the dummy's, and the declarer's own holding says nothing about it.
+
+    red under: count the suits over the seat's private zones."""
+    path = _path("cardlang_bridge")
+    game, space = load(path)
+    ranked = OPPONENTS["ranked"].make(SeatBinding(game, space, 0, _SEED))
+    mine = (Card("3", "clubs"), Card("7", "clubs"), Card("9", "clubs"))
+    dummy = (Card("K", "diamonds"), Card("2", "diamonds"), Card("5", "clubs"))
+    view = SeatView(
+        player=0,
+        zones=(
+            ("trick_pile", (Card("A", "hearts"),)),
+            ("hand[0]", mine),
+            ("dummy_hand[2]", dummy),
+        ),
+        state=(),
+        obs_log=(),
+    )
+    legal = sorted(space.encode(card) for card in dummy)
+    # Nothing on offer takes a led ace, so the throw is the cheapest card of the
+    # suit the DUMMY is long in. Counting the declarer's own three clubs instead
+    # makes clubs the long suit and throws the five.
+    assert ranked(view, legal) == space.encode(Card("2", "diamonds"))
+
+
+def test_a_throw_is_drawn_where_two_zones_could_be_the_source() -> None:
+    """Pinochle deals a doubled deck, so the card on offer can sit both in the
+    hand and in a pile already won. Which of them the decision plays from is
+    not a fact the view carries, and a length counted over the wrong one is the
+    Bridge defect with a different cause.
+
+    red under: return the first zone holding the cards instead of refusing."""
+    path = _path("cardlang_pinochle")
+    game, space = load(path)
+    ranked = OPPONENTS["ranked"].make(SeatBinding(game, space, 0, _SEED))
+    played = (Card("Q", "spades"), Card("10", "spades"))
+    view = SeatView(
+        player=0,
+        zones=(
+            ("trick_pile", (Card("A", "hearts"),)),
+            ("hand[0]", (*played, Card("9", "clubs"), Card("J", "clubs"))),
+            ("captured[0]", played),
+        ),
+        state=(),
+        obs_log=(),
+    )
+    legal = sorted(space.encode(card) for card in played)
+    assert ranked(view, legal) == UniformSeatPolicy(_SEED)(view, legal)
 
 
 def test_a_game_that_declares_its_own_trick_order_is_drawn() -> None:
