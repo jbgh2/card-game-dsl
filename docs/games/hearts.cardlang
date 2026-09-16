@@ -1,4 +1,4 @@
-// Hearts — the American four-player game, 4 players.
+// Hearts — the American game, 4 players.
 //
 // Rules source: https://www.pagat.com/reverse/hearts.html (fetched live per
 // CLAUDE.md), the page's main account. Standard 52 ranked ace high, no trump,
@@ -9,14 +9,15 @@
 // and leads the next. A heart may not be led until one has been played to an
 // earlier trick, unless the hand holds nothing but hearts. Each heart taken
 // costs 1 point and the queen of spades 13. A player who takes all 26 has
-// shot the moon and chooses which way it scores. Hands run until someone
-// reaches 100 or more, and the lowest total wins.
+// shot the moon, and chooses whether to take 26 off their own score or add 26
+// to each other player's. Hands run until someone reaches 100 or more, and
+// the lowest total wins.
 //
 // The first trick is the first pass of `play`'s loop rather than a phase of
-// its own. A Mode's transition sees only its own phase's instance, so a
-// `first_trick` sibling would hide the heart that breaks hearts on trick one
-// (issue #700); and the forced two-of-clubs opening needs no phase, since a
-// Rule demanding the card is empty on every later lead.
+// its own. A `mode`'s transition sees only its own phase's instance, so a
+// `first_trick` sibling would hide the heart that breaks hearts on trick one;
+// and the forced two-of-clubs opening needs no phase of its own, since a
+// `rule` demanding that card is empty on every later lead.
 
 game Hearts {
 
@@ -99,7 +100,7 @@ game Hearts {
         moon_settled : Boolean = false
       }
 
-      // base and hand_score are phase-local lets, not declared state.
+      // base is a phase-local let, not declared state.
       let base[p] = sum of (if card.suit is hearts       then 1
                             elif card is Q of spades     then 13
                             else 0)

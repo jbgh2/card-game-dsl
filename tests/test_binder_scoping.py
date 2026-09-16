@@ -153,9 +153,9 @@ def test_let_is_not_visible_in_a_sibling_phase() -> None:
 
 
 def test_let_is_visible_to_later_statements_and_nested_scopes() -> None:
-    # The Hearts scoring shape: a let read by a later let and a later loop
-    # body — the sequential fold carries the binding down the rest of the
-    # phase's items, including into compound statements.
+    # A scoring shape: a let read by a later let and a later loop body — the
+    # sequential fold carries the binding down the rest of the phase's items,
+    # including into compound statements.
     _accepts(
         """
   phase p {
