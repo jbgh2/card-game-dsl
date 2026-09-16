@@ -141,10 +141,13 @@ item can repeat one exchange until the game's `max_length` refuses it (issue
 view and the game's own declarations and nothing else: the declared ranking
 orders its cards, the `winner:` clause says which way the score runs, and the
 library type of a zone says which of the view's cards are the trick's and which
-are its own. What it does with each block of action ids is a table beside it,
-and the blocks it does not rank it draws, which the table states — an offering's
-two sides are not distinguishable from anything a game declares today (issue
-#703), so it draws there rather than guessing. That is why Tichu, whose calls
+are its own. A card of the declared `trump:` suit takes a
+trick the suit led cannot. What it does with each block of action ids is a table
+beside it, and the blocks it does not rank it draws, which the table states — an
+offering's two sides are not distinguishable from anything a game declares today
+(issue #703), so it draws there rather than guessing. So are the cards of a game
+that declares a `trick_order { }` of its own, whose trumps and strengths are
+expressions this reads nothing of. That is why Tichu, whose calls
 are exactly that decision, is played as a uniform draw plays it.
 
 The pin is `tests/test_live_line.py`. Along every registered game's line, at

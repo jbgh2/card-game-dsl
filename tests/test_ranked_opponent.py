@@ -6,10 +6,14 @@ property:        `ranked` answers from its seat's view and the game's own
                  decision it plays to take the trick with the cheapest card
                  that takes it, or sheds its cheapest, by the declared ranking
                  and the direction the game's `winner:` names; at a numeric
-                 decision it answers near its hand's strength; at a
-                 combination decision it spends the fewest cards; at every
-                 other id it draws uniformly, which the table states rather
-                 than leaves to be noticed. Where a position has a best line
+                 decision it answers near its hand's strength, counting a
+                 fair share against the deck's suits; at a combination decision
+                 it spends the fewest cards; at every other id it draws
+                 uniformly, which the table states rather than leaves to be
+                 noticed. A card of the declared trump suit takes a trick the
+                 suit led cannot, and a game that declares a `trick_order { }`
+                 of its own is one whose tricks it reads nothing of, so those
+                 decisions are drawn too. Where a position has a best line
                  it plays one. Seated at a table it reaches an outcome a
                  uniform draw does not: Spades' +500, which a uniform table
                  never scores.
@@ -20,7 +24,14 @@ domain:          Dispositions: every block `encoding.BLOCKS` declares, crossed
                  The measured claims: `_MEASURED`, one line per seed per game,
                  each against the uniform table over the same seeds. The
                  delegated block: an offering decision compared against the
-                 uniform draw it delegates to. Legality and purity over every
+                 uniform draw it delegates to, and a card decision of a game
+                 with its own Trick Order (Belote) against the same draw. The
+                 trick rules, recomputed from the view and the declarations at
+                 every decision they cover: the trump that takes where the suit
+                 led cannot, and the number bid against the hand's strength
+                 (Spades, the corpus's declared-trump game). The throw is a
+                 built view, a hand long in one suit with one card of it on
+                 offer, which is a shape no corpus game reaches. Legality and purity over every
                  registered game come from the row pins in
                  tests/test_play_opponents.py, which `ranked` joins as a row.
                  The chooser-level ranking instrument (`tests/playout_policy.py`)
@@ -42,7 +53,11 @@ does not prove:  That `ranked` plays a game well. It reads no game's own
                  played as a uniform draw plays it, Tichu's calls included
                  (issue #703, and the wall issue #553 leaves standing). A game
                  that declares no ranking has nothing here to rank by, and the
-                 disposition says so rather than pretending otherwise. Nothing
+                 disposition says so rather than pretending otherwise. A trump
+                 a game keeps in a state variable rather than in `trump:` is
+                 invisible here, and the opponent plays the suit led as though
+                 there were none; the corpus declares no such game today, and a
+                 declared `trick_order { }` is drawn rather than guessed at. Nothing
                  here measures it against a competent player; the claims are
                  all against a uniform draw.
 """
@@ -62,9 +77,11 @@ from cardlang.openspiel.seat_policy import (
     OPPONENTS,
     FirstSeatPolicy,
     SeatBinding,
+    SeatPolicy,
     UniformSeatPolicy,
 )
 from cardlang.runtime.errors import GameDescriptionError
+from cardlang.runtime.values import Card, deck_suits
 from tests.test_play_session import FIXTURES, _path
 
 _SEED = 5
@@ -189,6 +206,156 @@ def test_a_ranked_seat_takes_fewer_penalties_than_the_uniform_seats_beside_it() 
     assert better >= _HEARTS_FLOOR, (
         f"the ranked seat beat the uniform average on {better} of {_HEARTS_SEEDS} seeds"
     )
+
+
+def test_a_trump_takes_a_trick_the_suit_led_cannot() -> None:
+    """Spades declares `trump: spades` and takes its tricks with
+    `highest_trump_or_led_suit`, so a seat void in the suit led takes the trick
+    with its cheapest spade. The expectation is recomputed here from the view
+    and the declarations, never asked of the policy.
+
+    red under: read a card as taking the trick only when its suit is the one
+    led."""
+    path = _path("cardlang_spades")
+    game, space = load(path)
+    ranking = {rank: len(game.ranking) - place for place, rank in enumerate(game.ranking)}
+    trick = frozenset(zone.name for zone in game.zones if zone.type_ref.name == "TrickPile")
+    hands = frozenset(zone.name for zone in game.zones if zone.type_ref.name == "Hand")
+    checked = 0
+
+    def expected(view: SeatView, legal: Sequence[int]) -> int | None:
+        """The cheapest trump that takes, where the seat holds no card of the
+        suit led and some spade beats every spade on the table."""
+        table = [card for label, shown in view.zones if label.split("[", 1)[0] in trick
+                 for card in (shown if isinstance(shown, tuple) else ())]
+        held = [card for label, shown in view.zones if label.split("[", 1)[0] in hands
+                for card in (shown if isinstance(shown, tuple) else ())]
+        cards = {aid: space.decode(aid) for aid in legal}
+        if not table or not all(isinstance(card, Card) for card in cards.values()):
+            return None
+        led = table[0].suit
+        if led == "spades" or any(card.suit == led for card in held):
+            return None  # not the position this cell is about
+        best = max((ranking[card.rank] for card in table if card.suit == "spades"), default=0)
+        beats = {aid: card for aid, card in cards.items() if card.suit == "spades" and ranking[card.rank] > best}
+        if not beats:
+            return None
+        return min(beats, key=lambda aid: (ranking[beats[aid].rank], aid))
+
+    def watched(seat: int, policy: SeatPolicy) -> SeatPolicy:
+        def answer(view: SeatView, legal: Sequence[int]) -> int:
+            nonlocal checked
+            picked: int = policy(view, legal)
+            wanted = expected(view, legal)
+            if wanted is not None:
+                assert picked == wanted, (
+                    f"seat {seat} played {space.to_string(picked)} where the cheapest "
+                    f"trump that takes is {space.to_string(wanted)}"
+                )
+                checked += 1
+            return picked
+
+        return answer
+
+    for seed in range(6):
+        policies = {
+            seat: watched(seat, OPPONENTS["ranked"].make(SeatBinding(game, space, seat, seed)))
+            for seat in range(4)
+        }
+        LiveLine(path, seed).play(policies)
+    assert checked, "no seat was ever void in the suit led holding a spade that takes"
+
+
+def test_a_bid_counts_a_fair_share_of_the_decks_suits() -> None:
+    """Spades' bid is a number, and the hand's strength is its cards in the top
+    two declared ranks plus trump length past a fair share. The fair share is a
+    share of the DECK's suits: a hand missing a suit is not thereby long in
+    trumps. Recomputed here from the view and the declarations.
+
+    red under: divide by the suits the hand happens to hold."""
+    path = _path("cardlang_spades")
+    game, space = load(path)
+    ranking = {rank: len(game.ranking) - place for place, rank in enumerate(game.ranking)}
+    hands = frozenset(zone.name for zone in game.zones if zone.type_ref.name == "Hand")
+    top = len(game.ranking)
+    checked = 0
+
+    def watched(seat: int, policy: SeatPolicy) -> SeatPolicy:
+        def answer(view: SeatView, legal: Sequence[int]) -> int:
+            nonlocal checked
+            picked: int = policy(view, legal)
+            values = [space.decode(aid) for aid in legal]
+            if not all(isinstance(value, int) for value in values):
+                return picked
+            held = [card for label, shown in view.zones if label.split("[", 1)[0] in hands
+                    for card in (shown if isinstance(shown, tuple) else ())]
+            strong = sum(1 for card in held if ranking.get(card.rank, 0) >= top - 1)
+            share = len(held) // len(deck_suits(game.deck))
+            strong += max(0, sum(1 for card in held if card.suit == game.trump) - share)
+            wanted = min(legal, key=lambda aid: (abs(space.decode(aid) - strong), aid))
+            assert picked == wanted, (
+                f"seat {seat} bid {space.decode(picked)} where {strong} winners "
+                f"make {space.decode(wanted)} the nearest on offer"
+            )
+            checked += 1
+            return picked
+
+        return answer
+
+    for seed in range(4):
+        policies = {
+            seat: watched(seat, OPPONENTS["ranked"].make(SeatBinding(game, space, seat, seed)))
+            for seat in range(4)
+        }
+        LiveLine(path, seed).play(policies)
+    assert checked, "no seat was ever asked for a number"
+
+
+def test_a_throw_counts_the_suits_the_seat_holds_not_the_cards_on_offer() -> None:
+    """The view is built here rather than played into, because a rule that
+    offers a multi-suit subset of a hand is a shape no corpus game reaches: the
+    hand is long in clubs, only one club may be played, and the diamond is the
+    cheaper card.
+
+    red under: count the suits over `legal` instead of the seat's own cards."""
+    path = _path("cardlang_spades")
+    game, space = load(path)
+    ranked = OPPONENTS["ranked"].make(SeatBinding(game, space, 1, _SEED))
+    hand = (Card("3", "clubs"), Card("K", "clubs"), Card("2", "diamonds"))
+    view = SeatView(
+        player=1,
+        zones=(("trick_pile", (Card("A", "hearts"),)), ("hand[1]", hand)),
+        state=(),
+        obs_log=(),
+    )
+    legal = sorted(space.encode(card) for card in (Card("K", "clubs"), Card("2", "diamonds")))
+    # Spades wants its score high and holds no spade here, so nothing takes the
+    # trick and the card thrown is the cheapest of the longest suit held.
+    assert ranked(view, legal) == space.encode(Card("K", "clubs"))
+
+
+def test_a_game_that_declares_its_own_trick_order_is_drawn() -> None:
+    """Belote states its trumps and card strengths in a `trick_order { }` of its
+    own, which this opponent reads nothing of, so its card decisions are the
+    draw's.
+
+    red under: rank a card decision whatever the game's Trick Order says."""
+    path = _path("cardlang_belote")
+    game, space = load(path)
+    ranked = OPPONENTS["ranked"].make(SeatBinding(game, space, 0, _SEED))
+    uniform = UniformSeatPolicy(_SEED)
+    asked = 0
+
+    def compare(view: SeatView, legal: Sequence[int]) -> int:
+        nonlocal asked
+        picked: int = ranked(view, legal)
+        if all(space.block_of(aid) == "card" for aid in legal):
+            assert picked == uniform(view, legal), "a card decision was ranked"
+            asked += 1
+        return picked
+
+    LiveLine(path, _SEED).play({0: compare, **{seat: FirstSeatPolicy() for seat in range(1, 4)}})
+    assert asked, "no card decision was reached"
 
 
 def test_an_offering_is_the_uniform_draw_the_table_says_it_is() -> None:

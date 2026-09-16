@@ -9,16 +9,21 @@ shows it, all of which every game states for itself.
 What it does with each block of action ids is `DISPOSITIONS`, keyed by
 `encoding.BLOCKS`:
 
-- **card** — the trick's cards are the view's trick-pile zones. Holding cards
+- **card** — the trick's cards are the view's trick-pile zone. Holding cards
   that would take the trick, it plays the cheapest of them where the game wants
   its score high, and otherwise sheds the dearest card that takes nothing;
   leading, it leads its dearest where the game wants its score high and its
-  cheapest where it wants it low. A game that declares no ranking has nothing
-  to rank by, and the decision is drawn instead.
+  cheapest where it wants it low. A card takes the trick when it outranks every
+  card of the suit led, and a card of the declared `trump:` suit outranks any
+  card that is not. Three things send the decision to the draw instead: a game
+  that declares no ranking, one that declares a `trick_order { }` of its own
+  (its trumps and strengths are expressions this reads nothing of), and one that
+  keeps more than one trick pile, where which pile holds the trick in progress
+  is not a fact the view carries.
 - **integer** — a number near the tricks its own cards look like taking: the
   cards in the top two ranks of the declared ranking, plus trump length past a
-  fair share, clamped to what is on offer. The same heuristic the playout
-  instrument uses, stated deck-agnostically.
+  fair share of the deck's suits, clamped to what is on offer. The same
+  heuristic the playout instrument uses, stated deck-agnostically.
 - **combination** — the fewest cards that are legal, so a hand is spent slowly;
   ties by the lowest id, which keeps the answer a function of the view.
 - **name**, **offering** — drawn uniformly, and the table says so. Which side
@@ -46,7 +51,7 @@ from collections.abc import Sequence
 from cardlang.ast import nodes as n
 from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.seat_policy import SeatBinding, UniformSeatPolicy
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import Card, deck_suits
 from cardlang.stdlib.zones import ZONE_PROJECTIONS
 
 # What `ranked` does with each block of action ids. The keys are
@@ -103,6 +108,11 @@ class RankedSeatPolicy:
         self.strength = _strengths(binding.game)
         self.trick_zones = _zone_names(binding.game, "TrickPile")
         self.private_zones = _private_names(binding.game)
+        self.suits = deck_suits(binding.game.deck)
+        # A declared Trick Order states its trumps and strengths as expressions,
+        # and a second trick pile leaves the trick in progress unidentified.
+        # Either way the cards on the table are not a fact this can read.
+        self.reads_the_trick = binding.game.trick_order is None and len(self.trick_zones) < 2
         self.wants_high = None if binding.game.winner is None else binding.game.winner.rank_dir == "highest"
 
     def __call__(self, view: SeatView, legal: Sequence[int]) -> int:
@@ -138,50 +148,59 @@ class RankedSeatPolicy:
         top = max(self.strength.values())
         likely = sum(1 for card in cards if self.strength.get(card.rank, 0) >= top - 1)
         if self.game.trump is not None:
-            suits = {card.suit for card in cards}
-            fair_share = len(cards) // max(1, len(suits))
+            fair_share = len(cards) // max(1, len(self.suits))
             likely += max(0, sum(1 for card in cards if card.suit == self.game.trump) - fair_share)
         return likely
 
     def _card(self, view: SeatView, legal: Sequence[int]) -> int:
         """The cheapest card that takes the trick, or the dearest that does
         not, by the direction the game's `winner:` clause names."""
+        if not self.reads_the_trick:
+            return self.draw(view, legal)
         table = _cards_in(view, self.trick_zones)
         dearest = sorted(legal, key=lambda aid: (-self._worth(aid), aid))
         cheapest = sorted(legal, key=lambda aid: (self._worth(aid), aid))
         if not table:
             return dearest[0] if self.wants_high else cheapest[0]
         led = table[0].suit
-        best = max(
-            (self.strength.get(card.rank, 0) for card in table if card.suit == led),
-            default=0,
-        )
-        takes = [
-            aid
-            for aid in legal
-            if self.space.decode(aid).suit == led and self._worth(aid) > best
-        ]
+        best = max((self._takes(card, led) for card in table), default=(False, 0))
+        takes = [aid for aid in legal if self._takes(self.space.decode(aid), led) > best]
         if self.wants_high:
             if takes:
                 return min(takes, key=lambda aid: (self._worth(aid), aid))
-            return self._thrown(legal)
+            return self._thrown(view, legal)
         misses = [aid for aid in legal if aid not in takes]
         return max(misses, key=lambda aid: (self._worth(aid), -aid)) if misses else cheapest[0]
 
-    def _thrown(self, legal: Sequence[int]) -> int:
+    def _takes(self, card: Card, led: str) -> tuple[bool, int]:
+        """How far a card gets in the trick: a card of the declared trump suit
+        outranks every card that is not one, and among cards of one suit the
+        declared ranking orders them. A card of neither the trump suit nor the
+        suit led takes nothing."""
+        if self.game.trump is not None and card.suit == self.game.trump:
+            return (True, self.strength.get(card.rank, 0))
+        if card.suit == led:
+            return (False, self.strength.get(card.rank, 0))
+        return (False, 0)
+
+    def _thrown(self, view: SeatView, legal: Sequence[int]) -> int:
         """Which card to throw when none on offer takes the trick: the cheapest
         of the suit the seat holds most of, and its cheapest card overall where
         it holds no suit twice. Throwing the cheapest card outright spends the
         last card of a short suit, which is the one still able to take a trick
-        in it. Where a game makes a seat follow suit, every legal
-        card is of one suit and this is that suit's cheapest."""
+        in it. The suits are counted over every card the seat holds, not over
+        the cards on offer: a rule that filters what may be played says nothing
+        about which suit the hand is long in."""
         held: dict[str, int] = {}
-        for aid in legal:
-            suit = self.space.decode(aid).suit
-            held[suit] = held.get(suit, 0) + 1
+        for card in _cards_in(view, self.private_zones):
+            held[card.suit] = held.get(card.suit, 0) + 1
         return min(
             legal,
-            key=lambda aid: (-held[self.space.decode(aid).suit], self._worth(aid), aid),
+            key=lambda aid: (
+                -held.get(self.space.decode(aid).suit, 0),
+                self._worth(aid),
+                aid,
+            ),
         )
 
     def _worth(self, aid: int) -> int:
