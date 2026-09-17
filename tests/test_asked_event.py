@@ -410,7 +410,8 @@ def _bare_ctx(phase: Any) -> Any:
     two probes below are about decisions a game cannot produce."""
     import random
 
-    from cardlang.runtime.state import Ctx, RuntimeState, Seating, ZoneStore
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime.values import Seating
 
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
     return Ctx(rs=rs, chooser=lambda _p, cands, n: cands[:n], current_phase=phase)

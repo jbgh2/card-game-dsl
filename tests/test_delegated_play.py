@@ -78,7 +78,9 @@ def _chooser_call_sites() -> set[str]:
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
         for node in ast.walk(tree):
-            called = node.func if isinstance(node, ast.Call) else None
+            if not isinstance(node, ast.Call):
+                continue
+            called = node.func
             name = (
                 called.attr
                 if isinstance(called, ast.Attribute)
