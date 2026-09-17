@@ -525,10 +525,20 @@ class _Walk:
                 self._announce(event)
             elif tag == "chose":
                 self._chose(event)
+            elif tag == "asked":
+                # What the seat was ASKED, not what anything did: a phase name,
+                # the construct asking, how many picks it wants and the zone
+                # they land in. None of those is a card identity, and the picks
+                # themselves arrive as the `chose` events that follow, so an ask
+                # constrains no hidden card and moves nothing. Skipped by
+                # DECISION rather than by omission — the refusal below is what
+                # keeps that distinction real.
+                continue
             else:
                 raise ValueError(
                     f"observation event {tag!r} is not one this sampler models "
-                    f"(it replays 'move', 'announce' and 'chose'): {event!r}"
+                    f"(it replays 'move', 'announce' and 'chose', and skips "
+                    f"'asked', which moves nothing): {event!r}"
                 )
         return self._finish()
 

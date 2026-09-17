@@ -130,6 +130,11 @@ machine-generated and terse. Its layout is:
       * ('chose', <what>) — something YOU selected: a card, a move name, or
         the number of cards you announced. Your card choices are private;
         the count you chose was announced to the table as well.
+      * ('asked', <phase>, <kind>, <n>, <where>) — a question YOU were put,
+        just before you answered it: the stage of play, what kind of decision
+        it was, how many picks it wanted, and the zone they went to (or None
+        where that was not settled yet). It says what you were asked, never
+        what anyone holds.
 
 This log is the reason you know what you played even though `played` and `pile`
 show you only counts: your own choices are in your log, and nobody else's are
@@ -346,6 +351,11 @@ entries look like:
   * ('chose', <what>) — something YOU selected: a card, a move name, or the
     number of cards you announced. Your card choices are private; the count
     you chose was announced to the table as well.
+  * ('asked', <phase>, <kind>, <n>, <where>) — a question YOU were put, just
+    before you answered it: the stage of play, what kind of decision it was,
+    how many picks it wanted, and the zone they went to (or None where that
+    was not settled yet). It says what you were asked, never what anyone
+    holds.
 
 The log is the reason you know what you played even though the pile and the
 face-down cards show you only counts: your own choices are in your log, and
