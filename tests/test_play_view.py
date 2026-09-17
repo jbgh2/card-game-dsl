@@ -157,6 +157,14 @@ _NEAR_ALIKE: dict[str, tuple[Any, ...]] = {
     "card": (),
     "view": ((), 0, ("9♣",), 1),
     "value": ("9♣", ("9♣",), 0, False, 1, True, (), None),
+    # An ask's fields each sit in their own clause of the line — the phase in
+    # backticks, the count before its unit, the destination after `to` — so no
+    # two members of one shape can reach the same place in a sentence, and a
+    # zone and a phase of the same name read apart by where they fall.
+    "phase": (),
+    "construct": (),
+    "count": (),
+    "destination": ("play", "passing"),
 }
 
 

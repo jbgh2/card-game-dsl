@@ -51,7 +51,7 @@ from cardlang.runtime.values import COMPONENT_SETS, Card, Player, build_deck
 from cardlang.stdlib.zones import zone_projection
 
 
-def _is_integer(value: object) -> bool:
+def _is_integer(value: object) -> TypeGuard[int]:
     # `isinstance(True, int)` holds, and neither a seat nor a count is a flag.
     return isinstance(value, int) and not isinstance(value, bool)
 
