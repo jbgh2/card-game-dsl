@@ -12,10 +12,15 @@ property:        `ranked` answers from its seat's view and the game's own
                  fair share against the deck's suits; at a combination decision
                  it spends the fewest cards; at every other id it draws
                  uniformly, which the table states rather than leaves to be
-                 noticed. A card of the declared trump suit takes a trick the
-                 suit led cannot, and a game that declares a `trick_order { }`
-                 of its own is one whose tricks it reads nothing of, so those
-                 decisions are drawn too. A throw counts the suits of the zone
+                 noticed. A card of the trump suit takes a trick the suit led
+                 cannot, the trump being the one the game's Trick Round
+                 declares — read through the view where the round names a State
+                 Variable rather than fixing a suit. A card decision is ranked
+                 only while a trick is IN PROGRESS: an empty trick pile does not
+                 mean a lead, and nothing the seat is handed tells a lead from a
+                 hand passed to a neighbour. A game that declares a
+                 `trick_order { }` of its own is one whose tricks it reads
+                 nothing of, so those decisions are drawn too. A throw counts the suits of the zone
                  the decision plays from, which a game may seat with one player
                  and the cards with another. Seated at a table it reaches an
                  outcome a uniform draw does not: Spades' +500, which a uniform
@@ -38,7 +43,11 @@ domain:          Dispositions: every block `encoding.BLOCKS` declares, crossed
                  trick rules, recomputed from the view and the declarations at
                  every decision they cover: the trump that takes where the suit
                  led cannot, and the number bid against the hand's strength
-                 (Spades, the corpus's declared-trump game). The throw is three
+                 (Spades, the corpus's declared-trump game), and the trump a
+                 Trick Round names in a State Variable rather than fixing (Oh
+                 Hell). The card decision with no trick in progress is a built
+                 view over Hearts, whose passing phase offers card ids exactly
+                 as a lead does. The throw is three
                  built views, each a shape no corpus game reaches by chance: a
                  hand long in one suit with one card of it on offer; a decision
                  whose cards sit in another seat's zone (Bridge's dummy, played
@@ -91,6 +100,35 @@ does not prove:  That `ranked` plays a game well. It reads no game's own
                  2026-09-16 on this branch, `ranked` at every seat). Nothing
                  here measures it against a competent player; the claims are
                  all against a uniform draw.
+
+                 Three limits are STATED, each with its measurement:
+
+                 (1) It never chooses a LEAD. An empty trick pile cannot be told
+                 from a pass or a discard, so every lead is drawn — about one
+                 card decision in four at a 13-trick game. Issue #713 is the
+                 fact that would return it: the view does not say which decision
+                 a seat is at, though the game declares it as a phase.
+
+                 (2) A number decision is answered as a BID on the hand, which
+                 is what Oh Hell and Spades ask and NOT what Cheat asks — there
+                 the number is the count a player claims to be playing and may
+                 be lying about. Answering a bluff by hand strength plays a
+                 different game; it is legal, and it is wrong. Drawing instead
+                 is not the fix: measured 2026-09-17, Spades' +500 falls from 12
+                 of 12 seeds to 0 of 12, so both arms are wrong and issue #713
+                 is what settles it.
+
+                 (3) Reading the trump costs play where the opponent has a
+                 PARTNER it does not know about. Margin over the uniform seats
+                 at seat 0 over 16 seeds, measured 2026-09-17: Oh Hell, a solo
+                 game, +46.04 with the round's trump against +42.71 blind to it;
+                 Bridge +873.33 against +1177.50; Pinochle +1.67 against +3.33 —
+                 and Bridge and Pinochle are exactly the two of the three that
+                 declare a team zone. An opponent that can now win a trick
+                 deliberately also takes it from its partner. The rule is the
+                 game's and it is implemented; the lower margin is the cost of
+                 knowing one rule while ignoring another, and partner awareness
+                 is in this opponent at no level.
 """
 
 from __future__ import annotations
@@ -415,6 +453,49 @@ def test_a_throw_is_drawn_where_two_zones_could_be_the_source() -> None:
         obs_log=(),
     )
     legal = sorted(space.encode(card) for card in played)
+    assert ranked(view, legal) == UniformSeatPolicy(_SEED)(view, legal)
+
+
+def test_a_round_local_trump_takes_the_trick_the_led_suit_cannot() -> None:
+    """Oh Hell, Bridge and Pinochle name their trump in a State Variable their
+    Trick Round points at, not in a game-level `trump:`. The round's own
+    declaration says which variable, and the view carries its value.
+
+    red under: read `game.trump` alone, which is None for all three."""
+    path = _path("cardlang_oh_hell")
+    game, space = load(path)
+    ranked = OPPONENTS["ranked"].make(SeatBinding(game, space, 1, _SEED))
+    hand = (Card("2", "diamonds"), Card("A", "clubs"))
+    view = SeatView(
+        player=1,
+        zones=(("trick_pile", (Card("K", "clubs"),)), ("hand[1]", hand)),
+        state=(("trump_suit", "diamonds"),),
+        obs_log=(),
+    )
+    legal = sorted(space.encode(card) for card in hand)
+    # Clubs led. The two of the round's trump suit takes; the ace of the suit
+    # led does not. Oh Hell wants its score high, so it takes the trick.
+    assert ranked(view, legal) == space.encode(Card("2", "diamonds"))
+
+
+def test_a_card_decision_with_no_trick_in_progress_is_drawn() -> None:
+    """Hearts hands three cards to a neighbour before play. That decision
+    offers card ids exactly as a trick lead does, and nothing the seat is
+    handed tells the two apart — so ranking it would be ranking a decision
+    this opponent cannot identify.
+
+    red under: rank a card decision whenever the trick pile is empty."""
+    path = _path("cardlang_hearts")
+    game, space = load(path)
+    ranked = OPPONENTS["ranked"].make(SeatBinding(game, space, 0, _SEED))
+    hand = (Card("2", "clubs"), Card("Q", "spades"), Card("A", "hearts"))
+    view = SeatView(
+        player=0,
+        zones=(("trick_pile", ()), ("hand[0]", hand)),
+        state=(),
+        obs_log=(),
+    )
+    legal = sorted(space.encode(card) for card in hand)
     assert ranked(view, legal) == UniformSeatPolicy(_SEED)(view, legal)
 
 

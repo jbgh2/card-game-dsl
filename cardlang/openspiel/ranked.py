@@ -9,26 +9,39 @@ shows it, all of which every game states for itself.
 What it does with each block of action ids is `DISPOSITIONS`, keyed by
 `encoding.BLOCKS`:
 
-- **card** — the trick's cards are the view's trick-pile zone. Holding cards
-  that would take the trick, it plays the cheapest of them where the game wants
-  its score high, and otherwise sheds the dearest card that takes nothing;
-  leading, it leads its dearest where the game wants its score high and its
-  cheapest where it wants it low. A card takes the trick when it outranks every
-  card of the suit led, and a card of the declared `trump:` suit outranks any
-  card that is not. Where nothing on offer takes and the game wants its score
-  high, it throws the cheapest card of the suit the hand is long in, counted
-  over the zone the decision plays from — which is not always the seat's own,
-  since a game may seat a decision with one player and the cards with another.
-  Four things send the decision to the draw instead: a game that declares no
-  ranking, one that declares a `trick_order { }` of its own (its trumps and
-  strengths are expressions this reads nothing of), one that keeps more than
-  one trick pile, where which pile holds the trick in progress is not a fact
-  the view carries, and a throw whose source zone the view cannot name, which
-  a deck that repeats a card can leave undecidable.
+- **card** — ranked only while a trick is IN PROGRESS, which the view says by
+  showing cards in the trick pile. Holding cards that would take it, it plays
+  the cheapest of them where the game wants its score high, and otherwise sheds
+  the dearest card that takes nothing. A card takes the trick when it outranks
+  every card of the suit led, and a card of the trump suit outranks any card
+  that is not — the trump being the one the game's Trick Round declares, read
+  through the view where the round names a State Variable rather than fixing a
+  suit, as Oh Hell, Bridge and Pinochle all do. Where nothing on offer takes and
+  the game wants its score high, it throws the cheapest card of the suit the
+  hand is long in, counted over the zone the decision plays from — which is not
+  always the seat's own, since a game may seat a decision with one player and
+  the cards with another.
+
+  Five things send the decision to the draw instead: a game that declares no
+  ranking; one that declares a `trick_order { }` of its own (its trumps and
+  strengths are expressions this reads nothing of); one that keeps more than one
+  trick pile, or whose rounds name different trumps, where which round a
+  decision belongs to is not a fact the view carries; a throw whose source zone
+  the view cannot name, which a deck that repeats a card can leave undecidable;
+  and an EMPTY trick pile, which does not mean a lead. The card block numbers
+  every decision that offers a card — a hand passed to a neighbour before play,
+  a discard, cards staged for a meld — and nothing the seat is handed tells
+  those from leading. Ranking them alike ranks a decision by a rule the game
+  never stated, so the lead goes to the draw until the view carries which
+  decision it is (issue #713).
 - **integer** — a number near the tricks its own cards look like taking: the
   cards in the top two ranks of the declared ranking, plus trump length past a
   fair share of the deck's suits, clamped to what is on offer. The same
-  heuristic the playout instrument uses, stated deck-agnostically.
+  heuristic the playout instrument uses, stated deck-agnostically. This ASSUMES
+  a number decision is a bid on the hand, which the block cannot say and two of
+  the three games offering one mean; Cheat's number is the count a player claims
+  to be playing and may be lying about, and this answers it as though it were a
+  bid (issue #713).
 - **combination** — the fewest cards that are legal, so a hand is spent slowly;
   ties by the lowest id, which keeps the answer a function of the view.
 - **name**, **offering** — drawn uniformly, and the table says so. Which side
@@ -51,8 +64,10 @@ a block `DISPOSITIONS` calls delegated.
 
 from __future__ import annotations
 
+import dataclasses
 from collections import Counter
 from collections.abc import Sequence
+from typing import Any
 
 from cardlang.ast import nodes as n
 from cardlang.openspiel.infostate import SeatView
@@ -127,6 +142,53 @@ def _played_from(view: SeatView, offered: Sequence[Card]) -> list[Card] | None:
     return found
 
 
+_DISAGREE = object()
+
+
+def _declared_trump(game: n.Game) -> Any:
+    """What the game's Trick Rounds say their trump is: a suit name, a
+    `NameRef` to the State Variable holding it, or None where they declare
+    none. A game whose rounds disagree returns `_DISAGREE` — which round a
+    decision belongs to is not a fact the view carries, so a policy that
+    picked one would be picking.
+
+    The top-level `trump:` declaration is the fallback for a game that states
+    it once for the whole game rather than on the round."""
+    specs = [rnd.trump for rnd in _trick_rounds(game)]
+    if not specs:
+        return game.trump
+    first = specs[0]
+    for other in specs[1:]:
+        if _spec_key(other) != _spec_key(first):
+            return _DISAGREE
+    return first if first is not None else game.trump
+
+
+def _spec_key(spec: Any) -> Any:
+    """Two trump declarations are the same declaration when they name the same
+    thing — a `NameRef` is not equal to another by value."""
+    return spec.name if isinstance(spec, n.NameRef) else spec
+
+
+def _trick_rounds(game: n.Game) -> list[Any]:
+    """Every Trick Round the checked game declares, wherever it sits."""
+    out: list[Any] = []
+
+    def walk(node: Any) -> None:
+        if dataclasses.is_dataclass(node) and not isinstance(node, type):
+            if type(node).__name__ == "TrickRound":
+                out.append(node)
+            for field in dataclasses.fields(node):
+                walk(getattr(node, field.name))
+        elif isinstance(node, (list, tuple)):
+            for item in node:
+                walk(item)
+
+    walk(game)
+    return out
+
+
+
 class RankedSeatPolicy:
     """Plays by the game's declarations; see the module docstring."""
 
@@ -139,10 +201,15 @@ class RankedSeatPolicy:
         self.trick_zones = _zone_names(binding.game, "TrickPile")
         self.private_zones = _private_names(binding.game)
         self.suits = deck_suits(binding.game.deck)
+        self.trump_spec = _declared_trump(binding.game)
         # A declared Trick Order states its trumps and strengths as expressions,
         # and a second trick pile leaves the trick in progress unidentified.
         # Either way the cards on the table are not a fact this can read.
-        self.reads_the_trick = binding.game.trick_order is None and len(self.trick_zones) < 2
+        self.reads_the_trick = (
+            binding.game.trick_order is None
+            and len(self.trick_zones) < 2
+            and self.trump_spec is not _DISAGREE
+        )
         self.wants_high = None if binding.game.winner is None else binding.game.winner.rank_dir == "highest"
 
     def __call__(self, view: SeatView, legal: Sequence[int]) -> int:
@@ -177,9 +244,10 @@ class RankedSeatPolicy:
             return 0
         top = max(self.strength.values())
         likely = sum(1 for card in cards if self.strength.get(card.rank, 0) >= top - 1)
-        if self.game.trump is not None:
+        trump = self._trump_now(view)
+        if trump is not None:
             fair_share = len(cards) // max(1, len(self.suits))
-            likely += max(0, sum(1 for card in cards if card.suit == self.game.trump) - fair_share)
+            likely += max(0, sum(1 for card in cards if card.suit == trump) - fair_share)
         return likely
 
     def _card(self, view: SeatView, legal: Sequence[int]) -> int:
@@ -188,13 +256,20 @@ class RankedSeatPolicy:
         if not self.reads_the_trick:
             return self.draw(view, legal)
         table = _cards_in(view, self.trick_zones)
-        dearest = sorted(legal, key=lambda aid: (-self._worth(aid), aid))
-        cheapest = sorted(legal, key=lambda aid: (self._worth(aid), aid))
         if not table:
-            return dearest[0] if self.wants_high else cheapest[0]
+            # An empty trick pile does not say this is a lead. The card block
+            # numbers every decision that offers a card — a hand passed to a
+            # neighbour before play, a discard, cards staged for a meld — and
+            # which of them this is is not a fact the view carries. Ranking it
+            # as a lead ranks a decision by a rule the game never stated.
+            return self.draw(view, legal)
+        trump = self._trump_now(view)
+        cheapest = sorted(legal, key=lambda aid: (self._worth(aid), aid))
         led = table[0].suit
-        best = max((self._takes(card, led) for card in table), default=(False, 0))
-        takes = [aid for aid in legal if self._takes(self.space.decode(aid), led) > best]
+        best = max((self._takes(card, led, trump) for card in table), default=(False, 0))
+        takes = [
+            aid for aid in legal if self._takes(self.space.decode(aid), led, trump) > best
+        ]
         if self.wants_high:
             if takes:
                 return min(takes, key=lambda aid: (self._worth(aid), aid))
@@ -202,12 +277,24 @@ class RankedSeatPolicy:
         misses = [aid for aid in legal if aid not in takes]
         return max(misses, key=lambda aid: (self._worth(aid), -aid)) if misses else cheapest[0]
 
-    def _takes(self, card: Card, led: str) -> tuple[bool, int]:
+    def _trump_now(self, view: SeatView) -> str | None:
+        """The suit that trumps at this decision. A game may fix it once for
+        the whole game, or name a State Variable its Trick Round points at and
+        set it as the deal turns it up — Oh Hell, Bridge and Pinochle all do
+        the second, so reading the fixed declaration alone reads no trump at
+        all in three of the corpus's trick games."""
+        spec = self.trump_spec
+        if isinstance(spec, n.NameRef):
+            value = dict(view.state).get(spec.name)
+            return value if isinstance(value, str) else None
+        return spec if isinstance(spec, str) else None
+
+    def _takes(self, card: Card, led: str, trump: str | None) -> tuple[bool, int]:
         """How far a card gets in the trick: a card of the declared trump suit
         outranks every card that is not one, and among cards of one suit the
         declared ranking orders them. A card of neither the trump suit nor the
         suit led takes nothing."""
-        if self.game.trump is not None and card.suit == self.game.trump:
+        if trump is not None and card.suit == trump:
             return (True, self.strength.get(card.rank, 0))
         if card.suit == led:
             return (False, self.strength.get(card.rank, 0))
