@@ -69,6 +69,13 @@ CARD_VERB = "<card>"
 INT_VERB = "<int>"
 COMBO_VERB = "<combo>"
 
+# The blocks the space is the disjoint union of, in layout order. `block_of`
+# partitions every id among them, which is what a consumer keys on when it must
+# treat the blocks differently — the ids themselves carry no other structure,
+# and what each block's ids mean is `decode`'s answer at the granularity the
+# module docstring states.
+BLOCKS: tuple[str, ...] = ("card", "name", "integer", "offering", "combination")
+
 
 def card_to_action(card: Card) -> int:
     return SUITS.index(card.suit) * len(RANKS) + RANKS.index(card.rank)
@@ -548,6 +555,23 @@ class ActionSpace:
                 f"recorded action {aid} ({self.to_string(aid)}) is not among the live candidates"
             )
         return found
+
+    def block_of(self, aid: int) -> str:
+        """Which of `BLOCKS` numbers `aid`. Partitions
+        `0..num_distinct_actions` exactly, on `decode`'s own boundaries — and
+        an id outside the space is refused by asking `decode` for it, so the
+        space has one refusal for that and not two spellings of it."""
+        if not 0 <= aid < self.num_distinct_actions:
+            self.decode(aid)
+        if aid < self._name_base:
+            return "card"
+        if aid < self._int_base:
+            return "name"
+        if aid < self._offering_base:
+            return "integer"
+        if aid < self._combo_base:
+            return "offering"
+        return "combination"
 
     def verb_of(self, aid: int) -> str:
         """The move-type name `aid` denotes, at the granularity the encoding

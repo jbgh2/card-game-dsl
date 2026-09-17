@@ -51,7 +51,7 @@ from cardlang.ast import nodes as n
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.replay import HistoryMismatch, LiveEnd, LiveLine
-from cardlang.openspiel.seat_policy import OPPONENTS, SeatPolicy
+from cardlang.openspiel.seat_policy import OPPONENTS, SeatBinding, SeatPolicy
 from cardlang.pipeline import game_identity
 from cardlang.play.opponents import by_opponent
 from cardlang.play.view import render_view
@@ -356,7 +356,10 @@ class Session:
         self.opponents = dict(sorted(opponents.items()))
         self.policies: Mapping[int, SeatPolicy] = {
             seat: self._ask,
-            **{other: OPPONENTS[name].make(seed) for other, name in self.opponents.items()},
+            **{
+                other: OPPONENTS[name].make(SeatBinding(game, space, other, seed))
+                for other, name in self.opponents.items()
+            },
         }
         self.line = LiveLine(path, seed, self.history)
 

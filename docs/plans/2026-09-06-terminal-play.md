@@ -248,8 +248,19 @@ The policy graduates from `tests/` and changes level in the same work: a
 `Chooser` over Candidate values becomes a Seat Policy over a Decision Node.
 Doing it in two steps would ship a policy no other tier can join.
 
-- *Proves it*: Tichu plays through to a terminal position — the measured
-  witness that a uniform draw cannot reach.
+- *Proves it*: a competence claim measured per game, which a planted fault
+  reddens, with a solved miniature as the first witness.
+
+  **Amended 2026-09-15 (operator).** This line read "Tichu plays through to a
+  terminal position". Measured on `claude/issue-553`: the policy this stage
+  graduates plays Tichu byte-identically to a uniform draw (sha256 over the
+  picks, seeds 0-4), because its one ranker covers numeric bids, which Tichu
+  does not offer, and Tichu declares no card order. No general signal
+  distinguishes Tichu's call windows either — the Architect's counsel on #553
+  records the three tested and why each fails. So the stage ships the opponent
+  that ranks what a game declares, the acceptance becomes the claim above, and
+  the fact a game would have to state for an opponent to decline a bad optional
+  bid is issue #703.
 - *Placement*: an `_EXEMPT_RAW_ACCESS` row stating the rationale, not a
   directory chosen to sit outside the scrape's glob. The wall's domain is the
   coupling between a game file's declared names and Python that spells them;

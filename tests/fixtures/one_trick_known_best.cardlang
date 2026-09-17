@@ -1,0 +1,43 @@
+// Two seats, three tricks, and the lead passing to whoever took the last one:
+// small enough that every line a seat can play is enumerable, so the best a
+// seat can do against a fixed opponent is computed rather than assumed. The
+// specified oracle a ranking policy is measured against (the Architect's
+// sourcebook, P12) — every rank is ranked and the trick is decided the default
+// way, with no declared Trick Order of its own.
+game OneTrickKnownBest {
+  players: 2
+  direction: clockwise
+  max_length: 40
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile
+    won[player]  : PlayerPile<player>
+  }
+
+  state {
+    taken[player] : Integer = 0
+    leader        : Player  = 0
+  }
+
+  phase setup {
+    shuffle deck
+    deal 3 cards from deck to each hand
+  }
+
+  phase play {
+    legal_moves: [play_to_trick]
+    repeat until (number of cards in hand[0]) is 0 {
+      round play_to_trick from leader over all players source hand into trick_pile
+            winner highest_of_led_suit
+      taken[winner] += 1
+      leader := winner
+      move all cards from trick_pile to won[winner]
+    }
+  }
+
+  winner: highest taken
+}
