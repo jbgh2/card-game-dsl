@@ -20,6 +20,10 @@ dev = [
     # `-n` is pinned by tests/test_partition_record_modes.py.
     "pytest-xdist>=3.6",
     "mypy>=1.8",
+    # `python -m tools.settled_code --measure` runs the execution oracles
+    # under coverage, one context per oracle; declared so the report's
+    # measurement is the same in every venv, not whichever happens to have it.
+    "coverage>=7.6",
     # Exact pin, not a floor: with no `[tool.ruff]` config the enabled rule set
     # IS the version's default, so a range would silently change what the lint
     # means from one install to the next.
