@@ -134,5 +134,7 @@ or when a game forces the issue.
 
 Naming and aesthetic choices. Pick when convenient.
 
-- [hearts-sub-phase-shape](hearts-sub-phase-shape.md) — `first_trick` as
-  sibling vs nested sub-phase of `play`.
+*None open. The one that sat here is settled in
+[decisions.md](../decisions.md), "The boolean-as-sub-phase criterion": a first
+trick with no body of its own is the first pass of the trick loop, because a
+sibling phase hides that trick from the modes the later ones run under.*

@@ -383,11 +383,16 @@ def test_each_policy_is_asked_for_its_own_seat_over_sorted_legal_ids(short_name:
 
 
 def test_a_policy_is_handed_the_state_variables_its_phases_declare() -> None:
-    """Hearts declares `leader` and `pass_direction` in its hand phase; a node,
-    unwound past that phase, has neither."""
-    _, recording = _played("cardlang_hearts", 0)
-    state = dict(recording.asks[0].view.state)
-    assert {"leader", "pass_direction", "cumulative_score"} <= set(state)
+    """Hearts declares `pass_direction` in its hand phase and `leader` in the
+    play phase inside it, so what a seat is handed follows the frames it
+    stands in: a node unwound past a phase has none of that phase's."""
+    # Past the pass, which is twelve picks (three cards per seat).
+    _, recording = _played("cardlang_hearts", 20)
+    passing = dict(recording.asks[0].view.state)  # the pass, before `play`
+    assert {"pass_direction", "cumulative_score"} <= set(passing)
+    assert "leader" not in passing
+    playing = dict(recording.asks[-1].view.state)  # a card, inside `play`
+    assert {"leader", "pass_direction", "cumulative_score"} <= set(playing)
 
 
 # ---------------------------------------------------------------------------

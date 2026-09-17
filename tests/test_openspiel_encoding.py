@@ -75,8 +75,15 @@ def _space(path: str) -> ActionSpace:
     return ActionSpace.for_game(check_source(GAMES / path))
 
 
-def test_hearts_space_is_cards_only() -> None:
-    assert _space("hearts.cardlang").num_distinct_actions == 52
+def test_hearts_space_is_cards_plus_the_two_ways_a_moon_scores() -> None:
+    space = _space("hearts.cardlang")
+    # The deck block, then one id per parameterless move type: the shooter's
+    # two arms are the only non-card decision Hearts offers.
+    assert space.num_distinct_actions == 52 + 2
+    assert {space.to_string(52), space.to_string(53)} == {
+        "charge_the_others",
+        "credit_the_shooter",
+    }
 
 
 def test_spades_space_adds_the_integer_block() -> None:
