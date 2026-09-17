@@ -101,10 +101,14 @@ def decide(
     word = construct if construct is not None else DECISION_POINTS[site].construct
     if ctx.current_phase is None:
         # A decision names the stretch of play it is asked in, and there is no
-        # honest name for one asked outside every phase. Setup deals and the
-        # result read make no decisions, so nothing legitimate lands here; a
-        # sentinel would put an unreadable phase in every seat's information
-        # state instead of naming the malformed game.
+        # honest name for one asked outside every phase. Shadow Guard: the
+        # OWNER is the grammar, whose `game_item` list admits declarations and
+        # `phase` and no statement of its own, so every executable statement is
+        # inside a phase and the driver runs `game.phases` alone. What this
+        # catches is an engine caller assembling a decision by hand — it turns
+        # an attribute error deep in the payload into a refusal that names the
+        # site, and keeps a sentinel phase out of every seat's information
+        # state.
         raise OwnerGuardError(
             f"a {word} decision at {site} is asked outside every phase, so "
             f"it can name no stretch of play — a decision belongs to a phase"
