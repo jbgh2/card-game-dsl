@@ -150,17 +150,21 @@ def test_the_observation_stream_is_pinned(member: Path) -> None:
 # Captured from the converted family, whose streams are byte-identical to the
 # pre-library ones (12 members x 12 seeds), so these digests pin the property
 # forward from a state proven equal to the state before the import existed.
+# An engine-wide change that adds to every stream re-captures them, and only
+# after each digest recomputed WITHOUT the new events matches the one it
+# replaces — the measurement is what carries the property across the
+# re-capture, not the re-capture itself.
 _DIGESTS: dict[str, str] = {
-    "green-lane-mini.cardlang": "2b5c1383f48e2cbf",
-    "green-lane.cardlang": "8dbb383e8f4af5b8",
-    "variants/v1-impound-mini.cardlang": "2b5c1383f48e2cbf",
-    "variants/v1-impound.cardlang": "8dbb383e8f4af5b8",
-    "variants/v2-bounty-mini.cardlang": "2b5c1383f48e2cbf",
-    "variants/v2-bounty.cardlang": "9dd5cce9c1644a88",
-    "variants/v2b-delayed-bounty-mini.cardlang": "2b5c1383f48e2cbf",
-    "variants/v2b-delayed-bounty.cardlang": "9dd5cce9c1644a88",
-    "variants/v3-graded-mini.cardlang": "51d1f19873b4d74d",
-    "variants/v3-graded.cardlang": "931c749a7507a2f1",
-    "variants/v4-composed-mini.cardlang": "51d1f19873b4d74d",
-    "variants/v4-composed.cardlang": "931c749a7507a2f1",
+    'green-lane-mini.cardlang': '0638e75423ee25be',
+    'green-lane.cardlang': '6217890caa2fdba0',
+    'variants/v1-impound-mini.cardlang': '0638e75423ee25be',
+    'variants/v1-impound.cardlang': '6217890caa2fdba0',
+    'variants/v2-bounty-mini.cardlang': '0638e75423ee25be',
+    'variants/v2-bounty.cardlang': 'a4fe6c1da17cf2e7',
+    'variants/v2b-delayed-bounty-mini.cardlang': '0638e75423ee25be',
+    'variants/v2b-delayed-bounty.cardlang': 'a4fe6c1da17cf2e7',
+    'variants/v3-graded-mini.cardlang': '6feb529104208f54',
+    'variants/v3-graded.cardlang': 'ed3291de47600173',
+    'variants/v4-composed-mini.cardlang': '6feb529104208f54',
+    'variants/v4-composed.cardlang': 'ed3291de47600173',
 }
