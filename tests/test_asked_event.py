@@ -17,7 +17,13 @@ domain:          The decision sites are the rows of
                  `observe.PAYLOAD_SHAPES`, each shape to the values it admits.
                  Destination naming is quantified over every site, in three
                  classes stated per site below: knowable before the pick,
-                 knowable only after it, and absent.
+                 knowable only after it, and absent. The misuse probes cover
+                 the three ways a decision can reach the Chooser wrongly — a
+                 phase-less decision, a site the table does not hold, and an
+                 undeclared construct word — each proven loud in the layer that
+                 owns it: the choke point refuses the first two in the
+                 runtime's channel, and the third is refused at every consumer
+                 that reads it, since emission is unfenced by design.
 registry:        decision sites, `cardlang.runtime.delegation.DECISION_POINTS`
                  and the scrape at
                  tests/test_delegated_play.py::test_every_decision_point_is_classified;
@@ -391,3 +397,55 @@ def test_the_ask_is_derived_in_one_place() -> None:
         "play/events.py",  # spells it for a person
         "openspiel/infostate.py",  # derives it — the one reading
     }, f"a module beside the derivation reads the ask: {sorted(readers)}"
+
+
+# =============================================================================
+# Misuse probes — the plausible wrong ways to reach the Chooser
+# =============================================================================
+
+
+def _bare_ctx(phase: Any) -> Any:
+    """A context holding only what `decide` reads: the phase, and a Chooser
+    that answers. Built by hand rather than played out of a game, because the
+    two probes below are about decisions a game cannot produce."""
+    import random
+
+    from cardlang.runtime.state import Ctx, RuntimeState, Seating, ZoneStore
+
+    rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
+    return Ctx(rs=rs, chooser=lambda _p, cands, n: cands[:n], current_phase=phase)
+
+
+def test_a_decision_asked_outside_every_phase_is_refused() -> None:
+    """A decision belongs to a phase, and one asked outside every phase can
+    name no stretch of play. Refused in the runtime's own channel, naming the
+    site — never sentinelled into a seat's information state."""
+    from cardlang.runtime.chooser import decide
+    from cardlang.runtime.errors import OwnerGuardError
+
+    with pytest.raises(OwnerGuardError, match="outside every phase"):
+        decide(_bare_ctx(None), 0, [1, 2], 1, "evaluate._choose")
+
+
+def test_a_decision_site_the_table_does_not_hold_is_refused() -> None:
+    """The construct word is the table's, not the call's, so a site absent
+    from `DECISION_POINTS` cannot quietly ask by some default."""
+    from cardlang.runtime.chooser import decide
+
+    class Phase:
+        name = "play"
+
+    with pytest.raises(KeyError):
+        decide(_bare_ctx(Phase()), 0, [1, 2], 1, "execute._invented_site")
+
+
+def test_an_ask_carrying_an_undeclared_construct_is_refused_where_it_is_read() -> None:
+    """Emission is unfenced by design, so a wrong word is refused at every
+    consumer that has to read it rather than where it was made."""
+    from cardlang.play.events import event_line
+    from cardlang.runtime.observe import payload_refusal
+
+    bad = ("asked", "play", "shuffle", 1, None)
+    assert payload_refusal(bad) is not None
+    with pytest.raises(AssertionError, match="construct"):
+        event_line(bad)
