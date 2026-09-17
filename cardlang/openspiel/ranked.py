@@ -9,8 +9,12 @@ shows it, all of which every game states for itself.
 What it does with each block of action ids is `DISPOSITIONS`, keyed by
 `encoding.BLOCKS`:
 
-- **card** — ranked only while a trick is IN PROGRESS, which the view says by
-  showing cards in the trick pile. Holding cards that would take it, it plays
+- **card** — ranked at a trick play, which the view says by what the seat is
+  asked: the `round` forms name the trick they ask by, and a game playing its
+  tricks as movements of its own names the trick pile the cards land in.
+  Leading, it plays the dearest card where the game wants its score high and
+  the cheapest where it wants it low. Into a trick already in progress, holding
+  cards that would take it, it plays
   the cheapest of them where the game wants its score high, and otherwise sheds
   the dearest card that takes nothing. A card takes the trick when it outranks
   every card of the suit led, and a card of the trump suit outranks any card
@@ -28,20 +32,18 @@ What it does with each block of action ids is `DISPOSITIONS`, keyed by
   trick pile, or whose rounds name different trumps, where which round a
   decision belongs to is not a fact the view carries; a throw whose source zone
   the view cannot name, which a deck that repeats a card can leave undecidable;
-  and an EMPTY trick pile, which does not mean a lead. The card block numbers
-  every decision that offers a card — a hand passed to a neighbour before play,
-  a discard, cards staged for a meld — and nothing the seat is handed tells
-  those from leading. Ranking them alike ranks a decision by a rule the game
-  never stated, so the lead goes to the draw until the view carries which
-  decision it is (issue #713).
+  and a card decision that is no trick play at all — a hand passed to a
+  neighbour, a discard, cards staged for a meld — which the ask tells apart and
+  which this has no declared ranking over.
 - **integer** — a number near the tricks its own cards look like taking: the
   cards in the top two ranks of the declared ranking, plus trump length past a
   fair share of the deck's suits, clamped to what is on offer. The same
   heuristic the playout instrument uses, stated deck-agnostically. This ASSUMES
-  a number decision is a bid on the hand, which the block cannot say and two of
-  the three games offering one mean; Cheat's number is the count a player claims
-  to be playing and may be lying about, and this answers it as though it were a
-  bid (issue #713).
+  a number decision is a bid on the hand, which two of the three games offering
+  one mean; Cheat's number is the count a player claims to be playing and may be
+  lying about, and this answers it as though it were a bid. Knowing which
+  sentence asked does not settle it: what a number MEANS is a fact no game
+  states today (issue #703).
 - **combination** — the fewest cards that are legal, so a hand is spent slowly;
   ties by the lowest id, which keeps the answer a function of the view.
 - **name**, **offering** — drawn uniformly, and the table says so. Which side
@@ -70,7 +72,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from cardlang.ast import nodes as n
-from cardlang.openspiel.infostate import SeatView
+from cardlang.openspiel.infostate import SeatView, current_ask
 from cardlang.openspiel.seat_policy import SeatBinding, UniformSeatPolicy
 from cardlang.runtime.values import Card, deck_suits
 from cardlang.stdlib.zones import ZONE_PROJECTIONS
@@ -107,12 +109,17 @@ def _private_names(game: n.Game) -> frozenset[str]:
     return frozenset(out)
 
 
+def _zone_of(label: str) -> str:
+    """The zone a label names, without its family instance's key."""
+    return label.split("[", 1)[0]
+
+
 def _cards_in(view: SeatView, names: frozenset[str]) -> list[Card]:
     """Every card the view shows in a zone of one of `names`. A zone the view
     shows as a count is another seat's and reads as no cards at all."""
     out: list[Card] = []
     for label, shown in view.zones:
-        name = label.split("[", 1)[0]
+        name = _zone_of(label)
         if name in names and isinstance(shown, tuple):
             out.extend(card for card in shown if isinstance(card, Card))
     return out
@@ -257,12 +264,13 @@ class RankedSeatPolicy:
             return self.draw(view, legal)
         table = _cards_in(view, self.trick_zones)
         if not table:
-            # An empty trick pile does not say this is a lead. The card block
-            # numbers every decision that offers a card — a hand passed to a
-            # neighbour before play, a discard, cards staged for a meld — and
-            # which of them this is is not a fact the view carries. Ranking it
-            # as a lead ranks a decision by a rule the game never stated.
-            return self.draw(view, legal)
+            # An empty trick pile is a lead only when the decision IS a trick
+            # play. The card block numbers every decision that offers a card —
+            # a hand passed to a neighbour, a discard, cards staged for a meld
+            # — and the ask is what tells those from leading.
+            if not self._leads_a_trick(view):
+                return self.draw(view, legal)
+            return self._lead(view, legal)
         trump = self._trump_now(view)
         cheapest = sorted(legal, key=lambda aid: (self._worth(aid), aid))
         led = table[0].suit
@@ -276,6 +284,32 @@ class RankedSeatPolicy:
             return self._thrown(view, legal)
         misses = [aid for aid in legal if aid not in takes]
         return max(misses, key=lambda aid: (self._worth(aid), -aid)) if misses else cheapest[0]
+
+    def _leads_a_trick(self, view: SeatView) -> bool:
+        """Whether the decision on offer plays a card to a trick.
+
+        Two ways a game writes one, so two ways this reads it: the `round`
+        forms say so in the construct they ask by, and a game that plays its
+        tricks as chosen movements of its own says so in the zone the cards
+        land in — which is the register this already ranks by, never the
+        construct word alone (Doppelkopf, Five Hundred, Skat and Schnapsen all
+        write the second)."""
+        ask = current_ask(view)
+        if ask is None:
+            return False
+        if ask.construct == "trick":
+            return True
+        return ask.destination is not None and _zone_of(ask.destination) in self.trick_zones
+
+    def _lead(self, view: SeatView, legal: Sequence[int]) -> int:
+        """The lead: nothing on the table to beat, so the choice is which card
+        to put up. Where the game wants its score high, lead the dearest, which
+        is the card most likely to take while the suit is still unspent; where
+        it wants its score low, lead the cheapest and keep the dear ones for
+        tricks somebody else is winning."""
+        if self.wants_high:
+            return max(legal, key=lambda aid: (self._worth(aid), -aid))
+        return min(legal, key=lambda aid: (self._worth(aid), aid))
 
     def _trump_now(self, view: SeatView) -> str | None:
         """The suit that trumps at this decision. A game may fix it once for
