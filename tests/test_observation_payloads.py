@@ -71,6 +71,7 @@ from cardlang.openspiel.replay import load
 from cardlang.runtime import observe
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.delegation import CONSTRUCTS
 from cardlang.runtime.errors import GameDescriptionError
 from cardlang.runtime.state import IllegalMove
 from cardlang.runtime.values import COMPONENT_SETS, Card, build_deck
@@ -92,6 +93,12 @@ SHAPE_MEMBERS: dict[str, tuple[Any, ...]] = {
     "card": ("Q♠", "10♥", "Joker:joker", "mark:x"),
     "view": (("2♣", "9♥"), ("Joker:joker", "Joker:joker"), (), 2, 0, None),
     "value": ("pass", "bid(3)", 7, True, None, ("2♣", "A♠")),
+    "phase": ("play", "passing", "hand_sequence", "_setup"),
+    # The whole closed set, derived rather than listed: a word minted without
+    # a phrase or a table row arrives here as an uncovered cell.
+    "construct": tuple(sorted(CONSTRUCTS)),
+    "count": (1, 3, 52),
+    "destination": ("trick_pile", "hand[2]", "square[a1]", None),
 }
 
 # The nearest wrong values per shape: what a site that forgot to render,
@@ -111,6 +118,17 @@ _REFUSALS: dict[str, tuple[Any, ...]] = {
         (Card("2", "clubs"),),
     ),
     "value": (("A♠", "2♣"), ("pass",), object(), 1.5, ["pass"], (Card("2", "clubs"),)),
+    # A phase names one declaration, so a zone label, a qualified path, the
+    # sentinel a site would reach for outside every phase, and a seat are all
+    # refused where a phase belongs.
+    "phase": ("hand[2]", "play.passing", "", None, 3, "two words"),
+    # The verb a designer wrote, the Title Case the prose uses, a zone, and
+    # the neighbouring fields — none of them is the construct's own word.
+    "construct": ("move", "Transfer", "trick_pile", "", None, 1),
+    "count": (0, -1, True, None, "1", 1.5),
+    # A card handed over as a zone, a perturbed label, and the neighbouring
+    # shapes; None is a MEMBER here, not a refusal.
+    "destination": ("Q♠", "hand[2]«perturbed»", 3, ("hand", 1), True),
 }
 
 # Every card and piece rendering the component sets hold.

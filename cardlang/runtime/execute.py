@@ -524,7 +524,11 @@ def _select_joint(
 
 
 def _select_filtered(
-    source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player
+    source: Zone,
+    stmt: n.Transfer,
+    ctx: Ctx,
+    player: Player,
+    destination: str | None = None,
 ) -> list[Card]:
     """The `where <lambda>` form: the pool is the source's matching cards, in
     source order (non-matching cards are left untouched in the source). `all`

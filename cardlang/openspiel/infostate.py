@@ -158,6 +158,44 @@ def derive(
     )
 
 
+@dataclass(frozen=True)
+class Ask:
+    """What a seat is being asked at the decision it is answering.
+
+    `picks_made` is how many of the call's picks the seat has already taken, so
+    a policy can tell the first card of a three-card selection from the third:
+    one Chooser call is `count` decisions of the game tree, and the seat's own
+    `chose` events since the ask are the ones it has answered.
+    """
+
+    phase: str
+    construct: str
+    count: int
+    destination: str | None
+    picks_made: int
+
+
+def current_ask(view: SeatView) -> Ask | None:
+    """What `view`'s seat is being asked, or None at a position where it has
+    not been asked anything.
+
+    The ONE reading of the ask. A consumer wanting to know which decision it is
+    answering — a [[seat-policy]], a person's frame, a listing of a game's
+    decisions — reads it here rather than scanning the log beside this, because
+    a second reading of a seat's knowledge is a second implementation of the
+    property the language exists to guarantee (this module's own contract).
+    """
+    for index in range(len(view.obs_log) - 1, -1, -1):
+        event = view.obs_log[index]
+        if event and event[0] == "asked":
+            _kind, phase, construct, count, destination = event
+            taken = sum(
+                1 for later in view.obs_log[index + 1 :] if later and later[0] == "chose"
+            )
+            return Ask(phase, construct, count, destination, taken)
+    return None
+
+
 def _zone_line(label: str, view: ZoneView) -> str:
     if view is None:
         return f"{label}=?"
