@@ -204,8 +204,10 @@ names for the thing a decision selects among. The glossary picks **candidate**.
 **F-20 ·** DDD's other failure mode: concepts everyone talks about with no name in the
 code. The strongest cases, each currently expressed as repeated prose or a raw tuple:
 
-- The **decision point** — `ctx.chooser(...)` called inline at 7 sites, each
-  re-implementing the non-emptiness contract and observe pairing.
+- The **decision point** — named: `delegation.DecisionPoint` is the concept and
+  `DECISION_POINTS` the enumeration, each row naming the construct a seat asked
+  there is asked by, and every site reaching the Chooser through
+  `chooser.decide`.
 - The **wall / backstop / twin** roles (66 "wall" mentions in typecheck alone) — no
   marker distinguishes a live check from a backstop; the choke-point exemption is a
   magic comment string (`# choke-point-exempt`) enforced by grep.
@@ -264,6 +266,6 @@ on their own because they are latent defects rather than reading hazards: the IR
 the two), the `hands_played` phase-name literal (F-6 — silently wrong for any corpus
 game without a phase named `scoring`), and the `unknown index role 'suit'` diagnostic
 (F-17 — actively misleads the designer it is addressed to). The unnamed concepts
-(F-20) are the highest-leverage naming work: naming the decision point, the tagged
-variant, and the primitive bundle would each collapse repeated prose contracts into a
-symbol the language of the codebase can then use.
+(F-20) are the highest-leverage naming work: naming the tagged variant and the
+primitive bundle would each collapse repeated prose contracts into a symbol the
+language of the codebase can then use, as naming the decision point has.
