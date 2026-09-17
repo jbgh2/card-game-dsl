@@ -34,6 +34,7 @@ from cardlang.domains import (
     role_of,
 )
 from cardlang.runtime import mechanics, observe, subsets
+from cardlang.runtime.chooser import decide
 from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
@@ -249,7 +250,9 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
         else:
             src_addr = ctx.rs.zones.locate(source)
             for player in ctx.rs.seating.players:
-                cards = _select(source, stmt, ctx, player)
+                cards = _select(
+                    source, stmt, ctx, player, f"{stmt.dest.name}[{player}]"
+                )
                 # A chosen to-each selection is decided by its receiving
                 # player (the chooser draw in `_select_from` is theirs); a dealt
                 # or random one has no per-card decider — the bound acting
@@ -273,7 +276,7 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
             if stmt.selection_mode == "chosen"
             else ctx.current_player or 0
         )
-        selected = _select(source, stmt, ctx, player)
+        selected = _select(source, stmt, ctx, player, zone_label(ctx, dest))
         src_addr = ctx.rs.zones.locate(source)
         # The record's actor is the DECIDER, never `player`'s 0-for-None
         # default: the chooser's seat for a chosen selection, else the bound
@@ -389,20 +392,32 @@ def _check_count(count: int, mode: str | None) -> int:
     return count
 
 
-def _select(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Card]:
+def _select(
+    source: Zone,
+    stmt: n.Transfer,
+    ctx: Ctx,
+    player: Player,
+    destination: str | None = None,
+) -> list[Card]:
     """Take the movement's cards from its source, naming that source on any
     refusal. Every way a movement can come up short — the chooser's, the
     dealt count's, the filtered pool's, the joint enumeration's — refuses
     inside here, and the message says how many were wanted and how many there
     were without saying of WHAT."""
     try:
-        return _select_from(source, stmt, ctx, player)
+        return _select_from(source, stmt, ctx, player, destination)
     except REFUSALS as exc:
         exc.locate(zone=_stamped_zone(ctx, source))
         raise
 
 
-def _select_from(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Card]:
+def _select_from(
+    source: Zone,
+    stmt: n.Transfer,
+    ctx: Ctx,
+    player: Player,
+    destination: str | None = None,
+) -> list[Card]:
     # The joint form is its own branch above the per-card filter: the
     # selection unit is a SUBSET, not a card (decisions.md "Joint-predicate
     # selection"). The `where` filter is a fully separate branch (not folded
@@ -410,9 +425,9 @@ def _select_from(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> li
     # the corpus — runs the exact, untouched code it always has: no shared
     # refactor that could shift an RNG draw and move an unrelated score golden.
     if stmt.joint:
-        return _select_joint(source, stmt, ctx, player)
+        return _select_joint(source, stmt, ctx, player, destination)
     if stmt.where is not None:
-        return _select_filtered(source, stmt, ctx, player)
+        return _select_filtered(source, stmt, ctx, player, destination)
     amount = stmt.amount
     if amount == "all":
         return source.take_all()
@@ -426,7 +441,9 @@ def _select_from(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> li
         assert not isinstance(amount, str)
         count = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
     if stmt.selection_mode == "chosen":
-        chosen = ctx.chooser(player, list(source.cards), count)
+        chosen = decide(
+            ctx, player, list(source.cards), count, "execute._select_from", destination
+        )
         for card in chosen:
             source.remove(card)
         return chosen
@@ -442,7 +459,13 @@ def _select_from(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> li
     return source.take_top(count)  # deal off the top
 
 
-def _select_joint(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Card]:
+def _select_joint(
+    source: Zone,
+    stmt: n.Transfer,
+    ctx: Ctx,
+    player: Player,
+    destination: str | None = None,
+) -> list[Card]:
     """The `where jointly <pred>` form: ONE decision whose candidates are the
     source's subsets satisfying the joint predicate (`cards` bound to each
     candidate set), sized per the amount — `some` is any non-empty size, an
@@ -494,7 +517,7 @@ def _select_joint(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> l
             "predicate — guard the movement (`if <exists> { … }`) so it is "
             "only reached when one exists"
         )
-    chosen = ctx.chooser(player, candidates, 1)[0]
+    chosen = decide(ctx, player, candidates, 1, "execute._select_joint", destination)[0]
     for card in chosen.cards:
         source.remove(card)
     return list(chosen.cards)
@@ -527,7 +550,9 @@ def _select_filtered(
         assert not isinstance(amount, str)
         count = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
     if stmt.selection_mode == "chosen":
-        chosen = ctx.chooser(player, pool, count)
+        chosen = decide(
+            ctx, player, pool, count, "execute._select_filtered", destination
+        )
         for card in chosen:
             source.remove(card)
         return chosen
@@ -777,7 +802,7 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
             f"Add an always-legal move (an unguarded `pass`/`decline`) or guard the "
             f"offer so it is only made when the player can act."
         )
-    chosen = ctx.chooser(player, candidates, 1)[0]
+    chosen = decide(ctx, player, candidates, 1, "execute._offer")[0]
     observe.choice(ctx, player, chosen)
     observe.announce(ctx, player, chosen)
     name, value = chosen
@@ -898,7 +923,9 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
     count = int(evaluate(body.amount, ctx))
     actor = ctx.require_actor("a simultaneous-pass selection")
     try:
-        chosen = ctx.chooser(actor, list(source.cards), count)
+        chosen = decide(
+            ctx, actor, list(source.cards), count, "execute._pass_selection"
+        )
     except REFUSALS as exc:
         exc.locate(zone=_stamped_zone(ctx, source))
         raise

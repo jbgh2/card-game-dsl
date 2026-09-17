@@ -52,9 +52,41 @@ def _decided(choice: str | int | tuple[str, ...] | None) -> str:
     return str(choice)
 
 
+# What each construct asks for, in the register a person reads rather than the
+# word the tables key on: a seat is told "move 3 cards", not "transfer". Total
+# over `delegation.CONSTRUCTS` — a word with no phrase raises here rather than
+# showing a seat a line it cannot read — and reconciled by
+# tests/test_asked_event.py.
+_ASK_PHRASES: dict[str, str] = {
+    "transfer": "move {picks}",
+    "joint": "pick a set of cards that go together",
+    "simultaneous": "move {picks}, at the same time as the others",
+    "offer": "take one of the moves offered",
+    "choose": "choose a number",
+    "trick": "play a card",
+    "auction": "bid",
+    "climb": "play a combination, or pass",
+}
+
+
+def _landing(construct: str, destination: str | None) -> str:
+    """Where the picks go. A named zone is said; a simultaneous pass says the
+    zone is settled once everyone has chosen, which is what its absence MEANS —
+    a seat told "nowhere" would read its own pass as going nowhere."""
+    if destination is not None:
+        return f" to `{destination}`"
+    if construct == "simultaneous":
+        return ", landing where every seat's choice settles"
+    return ""
+
+
 # Each line takes its kind's fields in `EVENT_PAYLOADS` order, then the noun a
 # count is spelled with.
 EVENT_LINES: dict[str, Callable[..., str]] = {
+    "asked": lambda phase, construct, count, destination, noun: (
+        f"asked in `{phase}` to {_ASK_PHRASES[construct].format(picks=counted(count, noun))}"
+        f"{_landing(construct, destination)}"
+    ),
     "chose": lambda choice, noun: f"you chose {_decided(choice)}",
     "announce": lambda seat, choice, noun: f"P{seat} announced {_decided(choice)}",
     "move": lambda source, source_view, destination, destination_view, noun: (

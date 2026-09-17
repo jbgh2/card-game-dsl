@@ -12,15 +12,18 @@ Contract
 --------
 Assumes: a checked game (helpers, where defined, have passed the signature
 Owner Guard in resolve). Establishes: `DECISION_POINTS` classifies every
-chooser call site in the engine as routable or actor-only, reconciled
-against an AST scrape by `tests/test_delegated_play.py`, so a new decision
-point must declare its routing posture to land. Illegal after this: a
-`ctx.chooser(...)` call site absent from the table, and consulting the
-helpers from an actor-only site.
+chooser call site in the engine as routable or actor-only AND names the
+construct a seat asked there is asked by, reconciled against an AST scrape
+by `tests/test_delegated_play.py`, so a new decision point must declare both
+to land; `FORM_CONSTRUCTS` fans the round site out over the forms
+`mechanics.build_form` dispatches to. Illegal after this: a
+`ctx.chooser(...)` call site absent from the table, consulting the helpers
+from an actor-only site, and a construct word outside `CONSTRUCTS`.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from cardlang.runtime.errors import OwnerGuardError
@@ -39,6 +42,26 @@ CHOOSER_HELPER = "chooser_for"
 SOURCE_HELPER = "play_source_for"
 HELPER_NAMES: frozenset[str] = frozenset({CHOOSER_HELPER, SOURCE_HELPER})
 
+# The construct words a decision is asked by, as the glossary spells the
+# construct rather than as a verb a designer happened to pick: the six movement
+# verbs are sugar over one Transfer, so a chosen movement is `transfer`
+# whichever of them wrote it. A word here lands in every information state a
+# game produces and is read aloud by the seat whose decision it names, so the
+# set is the language's, not the engine's.
+CONSTRUCTS: frozenset[str] = frozenset(
+    {"transfer", "joint", "simultaneous", "offer", "choose", "trick", "auction", "climb"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionPoint:
+    """One chooser call site: whether it routes a Delegated Play decision, and
+    the construct a seat asked there is being asked by."""
+
+    posture: str
+    construct: str
+
+
 # Every chooser call site in the engine — the decision points (glossary
 # "Chooser") — classified. "routable": the site consults the helpers.
 # "actor_only": the site never consults them, and a game whose helpers can
@@ -46,14 +69,33 @@ HELPER_NAMES: frozenset[str] = frozenset({CHOOSER_HELPER, SOURCE_HELPER})
 # Keys are "module.function" of the call site; the grid's AST scrape
 # reconciles this table against the tree, so the table cannot go stale
 # silently in either direction.
-DECISION_POINTS: dict[str, str] = {
-    "mechanics.run_decision_round": "routable",
-    "execute._select_from": "actor_only",
-    "execute._select_filtered": "actor_only",
-    "execute._select_joint": "actor_only",
-    "execute._offer": "actor_only",  # designed but witness-gated — issue #458
-    "execute._pass_selection": "actor_only",
-    "evaluate._choose": "actor_only",
+#
+# One table, two columns, rather than a second dict keyed alike: three parallel
+# hand-maintained dicts over one key domain is how a type present in one and
+# absent from another becomes a KeyError instead of a diagnostic.
+DECISION_POINTS: dict[str, DecisionPoint] = {
+    # The round site's construct is the FORM's, not this row's: one sentence
+    # shape asks a trick, an auction and a climb. `FORM_CONSTRUCTS` fans it out
+    # and this row names the fallback nothing reaches.
+    "mechanics.run_decision_round": DecisionPoint("routable", "trick"),
+    "execute._select_from": DecisionPoint("actor_only", "transfer"),
+    "execute._select_filtered": DecisionPoint("actor_only", "transfer"),
+    "execute._select_joint": DecisionPoint("actor_only", "joint"),
+    # designed but witness-gated — issue #458
+    "execute._offer": DecisionPoint("actor_only", "offer"),
+    "execute._pass_selection": DecisionPoint("actor_only", "simultaneous"),
+    "evaluate._choose": DecisionPoint("actor_only", "choose"),
+}
+
+# The round forms, by the class name `build_form` dispatches to, each with the
+# construct a seat asked by that form is being asked by. A seat asked inside a
+# `round` is asked by the form that round runs, and the three are different
+# decisions to a designer: `round` is the surface keyword the glossary keeps a
+# concept name for in every case.
+FORM_CONSTRUCTS: dict[str, str] = {
+    "TrickRound": "trick",
+    "AuctionRound": "auction",
+    "ClimbRound": "climb",
 }
 
 

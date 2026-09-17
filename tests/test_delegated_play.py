@@ -99,9 +99,9 @@ def test_every_decision_point_is_classified() -> None:
 def test_the_postures_are_the_scoped_split() -> None:
     """Exactly one routable site — the round loop — per issue #452's scope
     ruling. Widening this set is issue #458's work, not a drive-by edit."""
-    routable = {k for k, v in DECISION_POINTS.items() if v == "routable"}
+    routable = {k for k, v in DECISION_POINTS.items() if v.posture == "routable"}
     assert routable == {"mechanics.run_decision_round"}
-    assert set(DECISION_POINTS.values()) <= {"routable", "actor_only"}
+    assert {v.posture for v in DECISION_POINTS.values()} <= {"routable", "actor_only"}
     assert HELPER_NAMES == {"chooser_for", "play_source_for"}
 
 

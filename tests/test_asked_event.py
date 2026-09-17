@@ -88,6 +88,19 @@ DESTINATION_KNOWABILITY: dict[str, str] = {
     "mechanics.run_decision_round": BEFORE,
 }
 
+# The construct each site asks by, as the table spells it. A witness game
+# reaches several sites, so a behavioural cell that asked only whether SOME ask
+# arrived would pass on a neighbour's — the cells below look for this word.
+SITE_CONSTRUCT: dict[str, str] = {
+    "execute._select_from": "transfer",
+    "execute._select_filtered": "transfer",
+    "execute._select_joint": "joint",
+    "execute._pass_selection": "simultaneous",
+    "execute._offer": "offer",
+    "evaluate._choose": "choose",
+    "mechanics.run_decision_round": "trick",
+}
+
 # One registered game per site that reaches it, so every behavioural cell runs
 # against a real game rather than a fixture. The mapping is authored and the
 # cell below proves each witness reaches the site it is named for, so a game
@@ -179,7 +192,6 @@ def _asks(log: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
 # =============================================================================
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: the kind is not declared yet")
 def test_asked_is_a_declared_event_kind() -> None:
     assert "asked" in EVENT_PAYLOADS, (
         "a seat is told what it is asked through an observation, so `asked` is "
@@ -187,12 +199,10 @@ def test_asked_is_a_declared_event_kind() -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: the kind is not declared yet")
 def test_asked_carries_the_ruled_fields() -> None:
     assert EVENT_PAYLOADS.get("asked") == ASKED_ROW
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: the shapes are not declared yet")
 @pytest.mark.parametrize("shape", ASKED_ROW)
 def test_every_asked_field_shape_is_declared(shape: str) -> None:
     assert shape in PAYLOAD_SHAPES, (
@@ -201,7 +211,6 @@ def test_every_asked_field_shape_is_declared(shape: str) -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: the table has one column")
 @pytest.mark.parametrize("site", sorted(DECISION_POINTS))
 def test_every_decision_point_names_a_construct(site: str) -> None:
     """A decision site says which construct asks there, or an ask made from it
@@ -213,7 +222,6 @@ def test_every_decision_point_names_a_construct(site: str) -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: forms name no construct yet")
 @pytest.mark.parametrize("form", sorted(_round_forms()))
 def test_every_round_form_names_a_construct(form: str) -> None:
     """The round site asks a different construct per form, so the fan-out
@@ -227,7 +235,6 @@ def test_every_round_form_names_a_construct(form: str) -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: the choke point does not exist")
 def test_the_choke_point_is_the_only_caller_of_the_chooser() -> None:
     """One route from a decision site to the Chooser, so an ask cannot be
     skipped by reaching the Chooser another way.
@@ -265,6 +272,33 @@ def test_destination_knowability_is_stated_for_every_site() -> None:
     assert set(DESTINATION_KNOWABILITY.values()) <= {BEFORE, AFTER, ABSENT}
 
 
+def test_every_construct_has_a_phrase_a_person_reads() -> None:
+    """Every construct word a seat can be told is one their own view can say.
+
+    red under: delete a row from `play.events._ASK_PHRASES` — the key sets
+    part, and the seat whose decision used that construct sees a raised line
+    instead of its own."""
+    from cardlang.play.events import _ASK_PHRASES
+    from cardlang.runtime.delegation import CONSTRUCTS
+
+    assert set(_ASK_PHRASES) == CONSTRUCTS, (
+        "a construct a decision can be asked by has no phrase a person reads"
+    )
+
+
+def test_every_word_the_tables_name_is_a_declared_construct() -> None:
+    """The two places a construct word is written agree with the closed set.
+
+    red under: change a construct in `DECISION_POINTS` or `FORM_CONSTRUCTS` to
+    a word `CONSTRUCTS` does not hold."""
+    from cardlang.runtime.delegation import CONSTRUCTS, FORM_CONSTRUCTS
+
+    written = {row.construct for row in DECISION_POINTS.values()} | set(
+        FORM_CONSTRUCTS.values()
+    )
+    assert written <= CONSTRUCTS, f"undeclared construct words: {sorted(written - CONSTRUCTS)}"
+
+
 def test_every_site_has_a_witness_game() -> None:
     """Each site is witnessed by a game that reaches it.
 
@@ -272,6 +306,7 @@ def test_every_site_has_a_witness_game() -> None:
     site — the reached-sites assertion below fails for that row."""
     assert set(SITE_WITNESS) == set(DECISION_POINTS)
     assert set(SITE_WITNESS.values()) <= set(GAMES)
+    assert set(SITE_CONSTRUCT) == set(DECISION_POINTS)
 
 
 # =============================================================================
@@ -279,22 +314,22 @@ def test_every_site_has_a_witness_game() -> None:
 # =============================================================================
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: no site emits an ask yet")
 @pytest.mark.parametrize("site", sorted(SITE_WITNESS))
 def test_a_decider_is_told_what_it_is_asked(site: str) -> None:
     """Every decision a seat makes is preceded by that seat's own ask."""
+    word = SITE_CONSTRUCT[site]
     decisions, logs = _play_collecting(SITE_WITNESS[site])
     assert decisions, f"{SITE_WITNESS[site]} made no decision at seed {SEED}"
     asked = {seat: _asks(log) for seat, log in logs.items()}
-    assert any(asked.values()), (
-        f"{SITE_WITNESS[site]} made {len(decisions)} decisions and told no seat "
-        f"what any of them was"
+    assert any(ask[2] == word for asks in asked.values() for ask in asks), (
+        f"{SITE_WITNESS[site]} reaches {site} and no seat was told it was being "
+        f"asked by {word!r} — an ask from a NEIGHBOURING site would pass a "
+        f"weaker cell than this one"
     )
     for seat, _candidates, _n in decisions:
         assert asked.get(seat), f"seat {seat} decided without being told what it was asked"
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: no site emits an ask yet")
 @pytest.mark.parametrize("site", sorted(SITE_WITNESS))
 def test_an_ask_names_a_phase_and_a_declared_construct(site: str) -> None:
     """An ask's phase is a name and its construct is one the tables declare —
@@ -311,20 +346,26 @@ def test_an_ask_names_a_phase_and_a_declared_construct(site: str) -> None:
         assert isinstance(count, int) and not isinstance(count, bool) and count > 0
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #713: no site emits an ask yet")
 @pytest.mark.parametrize("site", sorted(SITE_WITNESS))
 def test_the_destination_is_named_exactly_where_it_is_knowable(site: str) -> None:
     """A site that knows where the picks land says so; one that cannot know it
     before the choice says nothing, rather than a plausible wrong zone."""
+    word = SITE_CONSTRUCT[site]
     _decisions, logs = _play_collecting(SITE_WITNESS[site])
-    seen = [ask for log in logs.values() for ask in _asks(log)]
-    assert seen, f"{SITE_WITNESS[site]} emitted no ask at seed {SEED}"
+    seen = [ask for log in logs.values() for ask in _asks(log) if ask[2] == word]
+    assert seen, f"{SITE_WITNESS[site]} emitted no {word!r} ask at seed {SEED}"
     knowable = DESTINATION_KNOWABILITY[site] is BEFORE
     named = [ask[4] for ask in seen]
     if knowable:
         assert any(label is not None for label in named), (
             f"{site} evaluates its destination before it selects, so an ask "
             f"made there names the zone the picks land in"
+        )
+    else:
+        assert all(label is None for label in named), (
+            f"{site} cannot know where its picks land before the choice is "
+            f"made, so an ask made there names no zone rather than a "
+            f"plausible wrong one"
         )
     assert all(label is None or isinstance(label, str) for label in named)
 
