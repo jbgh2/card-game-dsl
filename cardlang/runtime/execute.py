@@ -924,7 +924,7 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
             f"simultaneous-pass source is not a zone (got {type(source).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
-    count = int(evaluate(body.amount, ctx))
+    count = _check_count(int(evaluate(body.amount, ctx)), body.selection_mode)
     actor = ctx.require_actor("a simultaneous-pass selection")
     try:
         chosen = decide(

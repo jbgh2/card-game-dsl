@@ -166,6 +166,29 @@ def test_a_shape_refuses_the_nearest_wrong_value(shape: str, value: Any) -> None
     assert not observe.PAYLOAD_SHAPES[shape](value)
 
 
+# Values no emitter should produce, but which an unfenced `Ctx.observe` can
+# carry: a predicate that RAISES on one answers nothing, and the consumer that
+# called it to get a refusal crashes instead of refusing.
+_HOSTILE: tuple[Any, ...] = (["a"], {"a": 1}, {"a"}, bytearray(b"a"), object(), 1.5, None)
+
+
+@pytest.mark.parametrize("shape", sorted(observe.PAYLOAD_SHAPES))
+@pytest.mark.parametrize("value", _HOSTILE, ids=lambda v: type(v).__name__)
+def test_every_shape_answers_rather_than_raises(shape: str, value: Any) -> None:
+    """Every shape predicate is TOTAL: it answers True or False for any object,
+    because its callers call it to be told, and one that raises turns a
+    declared refusal into a crash.
+
+    Quantified over the whole shape registry, not the shapes that happen to
+    look risky — a bare `in` against a frozenset is the shape of the fault and
+    any shape could grow one.
+
+    red under: drop the `isinstance` from the `construct` predicate in
+    `observe.PAYLOAD_SHAPES` — an unhashable value then raises `TypeError`
+    here, and `payload_refusal` and `event_line` crash on it in turn."""
+    assert observe.PAYLOAD_SHAPES[shape](value) in (True, False)
+
+
 @pytest.mark.parametrize("rendering", _RENDERINGS)
 def test_every_card_a_component_set_holds_is_a_card_and_never_a_label(
     rendering: str,

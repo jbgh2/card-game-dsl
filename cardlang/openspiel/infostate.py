@@ -160,39 +160,46 @@ def derive(
 
 @dataclass(frozen=True)
 class Ask:
-    """What a seat is being asked at the decision it is answering.
+    """The last question put to a seat: the phase it was asked in, the
+    construct asking, how many picks it wants, and the zone they land in where
+    the site knew it before the choice.
 
-    `picks_made` is how many of the call's picks the seat has already taken, so
-    a policy can tell the first card of a three-card selection from the third:
-    one Chooser call is `count` decisions of the game tree, and the seat's own
-    `chose` events since the ask are the ones it has answered.
+    How far THROUGH the call the seat is, is deliberately not a field. One
+    Chooser call is `count` decisions of the game tree, but the `chose` events
+    that would count them are route-dependent — a native playout emits one
+    aggregate for the whole call while a replayed one emits a per-pick event
+    too — so a progress count read off the log answers differently on the two
+    routes for the same completed decision. A seat's position within a call is
+    the caller's to track until the log says it unambiguously (issue #718).
     """
 
     phase: str
     construct: str
     count: int
     destination: str | None
-    picks_made: int
 
 
 def current_ask(view: SeatView) -> Ask | None:
-    """What `view`'s seat is being asked, or None at a position where it has
-    not been asked anything.
+    """The last question put to `view`'s seat, or None before it has been asked
+    anything.
+
+    At a decision point — where a [[seat-policy]] is asked, which is every
+    position one is handed a view — the last question IS the live one, because
+    the ask is emitted before the Chooser is consulted. Away from one, on a
+    stored or terminal view, it is the last question the seat was put and not a
+    claim that the seat is still answering it: the log carries no completion
+    marker, so this reports what was asked rather than whether it is over.
 
     The ONE reading of the ask. A consumer wanting to know which decision it is
-    answering — a [[seat-policy]], a person's frame, a listing of a game's
+    answering — a Seat Policy, a person's frame, a listing of a game's
     decisions — reads it here rather than scanning the log beside this, because
     a second reading of a seat's knowledge is a second implementation of the
     property the language exists to guarantee (this module's own contract).
     """
-    for index in range(len(view.obs_log) - 1, -1, -1):
-        event = view.obs_log[index]
+    for event in reversed(view.obs_log):
         if event and event[0] == "asked":
             _kind, phase, construct, count, destination = event
-            taken = sum(
-                1 for later in view.obs_log[index + 1 :] if later and later[0] == "chose"
-            )
-            return Ask(phase, construct, count, destination, taken)
+            return Ask(phase, construct, count, destination)
     return None
 
 

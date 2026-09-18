@@ -452,3 +452,73 @@ def test_an_ask_carrying_an_undeclared_construct_is_refused_where_it_is_read() -
     assert payload_refusal(bad) is not None
     with pytest.raises(AssertionError, match="construct"):
         event_line(bad)
+
+
+def test_every_decide_site_validates_its_count_before_asking() -> None:
+    """A count reaching the choke point is one the amount Owner Guard has
+    passed, so no ask can carry a count its own payload shape refuses.
+
+    The class is every `decide(` site's count argument, derived from the
+    scrape: five pass the literal 1, and the two that evaluate a designer's
+    amount expression route it through `execute._check_count` first. A site
+    passing an unchecked expression is the cell this holds.
+
+    red under: drop the `_check_count` call from `execute._pass_selection` —
+    a simultaneous pass of a computed zero then reaches the ask, whose `count`
+    shape refuses it at every consumer that reads the log.
+    """
+    source = (CARDLANG / "runtime" / "execute.py").read_text()
+    tree = ast.parse(source)
+    unchecked: list[str] = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        # Scoped to THIS function's body: a `count` checked in a sibling says
+        # nothing about this one, and a module-wide search makes the cell
+        # unable to fail.
+        checked_names = {
+            target.id
+            for node in ast.walk(fn)
+            if isinstance(node, ast.Assign)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+            and any(
+                isinstance(call.func, ast.Name) and call.func.id == "_check_count"
+                for call in ast.walk(node)
+                if isinstance(call, ast.Call)
+            )
+        }
+        for node in ast.walk(fn):
+            if not isinstance(node, ast.Call):
+                continue
+            called = node.func
+            name = (
+                called.attr if isinstance(called, ast.Attribute) else getattr(called, "id", None)
+            )
+            if name != "decide" or len(node.args) < 4:
+                continue
+            count = node.args[3]
+            if isinstance(count, ast.Constant):
+                continue  # a literal count is valid by construction
+            assert isinstance(count, ast.Name), (
+                f"{fn.name}: a count that is neither a literal nor a name, line {node.lineno}"
+            )
+            if count.id not in checked_names:
+                unchecked.append(f"{fn.name} (line {node.lineno}): `{count.id}`")
+    assert not unchecked, (
+        "a decision site hands the choke point an amount the Owner Guard has "
+        f"not passed: {unchecked}"
+    )
+
+
+def test_a_chosen_selection_of_no_cards_is_refused() -> None:
+    """The instance the class above generalises, at the Owner Guard itself: a
+    chosen amount of zero is a vacuous decision node and never reaches an ask,
+    while a dealt zero stays the allowed no-op it has always been."""
+    import cardlang.runtime.execute as ex
+    from cardlang.runtime.errors import OwnerGuardError
+
+    with pytest.raises(OwnerGuardError):
+        ex._check_count(0, "chosen")
+    assert ex._check_count(3, "chosen") == 3
+    assert ex._check_count(0, "random") == 0

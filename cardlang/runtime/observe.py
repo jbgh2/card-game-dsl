@@ -107,8 +107,11 @@ PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
     # None: a decision asked outside every phase names no stretch of play, and
     # the ask is refused at its choke point rather than sentinelled here.
     "phase": lambda value: isinstance(value, str) and _NAME.fullmatch(value) is not None,
-    # the construct asking, one of the closed set the language spells
-    "construct": lambda value: value in CONSTRUCTS,
+    # the construct asking, one of the closed set the language spells. The
+    # type test is load-bearing, not decoration: emission is unfenced, so a
+    # site may hand over an unhashable value, and a bare `in` would raise
+    # where this table's whole job is to ANSWER.
+    "construct": lambda value: isinstance(value, str) and value in CONSTRUCTS,
     # how many picks the decision wants: a count, never a flag and never zero
     "count": lambda value: _is_integer(value) and value > 0,
     # the zone the picks land in, or nothing where the site cannot know it
