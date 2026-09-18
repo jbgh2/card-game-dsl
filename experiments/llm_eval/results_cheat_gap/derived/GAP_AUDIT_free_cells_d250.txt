@@ -29,14 +29,14 @@
   windows enumerated: 2991   selected: 600   converged: 600 / 600 = 1.0000   dropped: 0
 
   -- seat class: random --
-    convergence: 446 / 446 = 1.0000   dropped: 0
-         all / challenged  n=228  lie_rate=175 / 228 = 0.7675  mean_R_literal=0.9730  GAP=-20.55pp  95% CI=[-25.21,-16.17]pp
-      residual (lie-p_lie): mean=-0.2055 sd=0.4031
-         all / allowed     n=218  lie_rate=156 / 218 = 0.7156  mean_R_literal=0.9692  GAP=-25.36pp  95% CI=[-31.88,-19.39]pp
-      residual (lie-p_lie): mean=-0.2536 sd=0.4273
-         all / any         n=446  lie_rate=331 / 446 = 0.7422  mean_R_literal=0.9711  GAP=-22.90pp  95% CI=[-27.09,-18.88]pp
-      residual (lie-p_lie): mean=-0.2290 sd=0.4158
-         all / CONTRAST     GAP(challenged) - GAP(any) = +2.35pp  95% CI=[-0.97,+6.01]pp
+    convergence: 450 / 450 = 1.0000   dropped: 0
+         all / challenged  n=227  lie_rate=174 / 227 = 0.7665  mean_R_literal=0.9729  GAP=-20.64pp  95% CI=[-25.30,-16.10]pp
+      residual (lie-p_lie): mean=-0.2064 sd=0.4037
+         all / allowed     n=223  lie_rate=161 / 223 = 0.7220  mean_R_literal=0.9698  GAP=-24.79pp  95% CI=[-31.01,-18.90]pp
+      residual (lie-p_lie): mean=-0.2479 sd=0.4242
+         all / any         n=450  lie_rate=335 / 450 = 0.7444  mean_R_literal=0.9714  GAP=-22.69pp  95% CI=[-26.72,-18.68]pp
+      residual (lie-p_lie): mean=-0.2269 sd=0.4145
+         all / CONTRAST     GAP(challenged) - GAP(any) = +2.06pp  95% CI=[-1.19,+5.69]pp
     abstains / challenged  n=108  lie_rate=55 / 108 = 0.5093  mean_R_literal=0.9430  GAP=-43.38pp  95% CI=[-52.55,-35.11]pp
       residual (lie-p_lie): mean=-0.4338 sd=0.4939
     abstains / allowed     n=114  lie_rate=52 / 114 = 0.4561  mean_R_literal=0.9410  GAP=-48.49pp  95% CI=[-60.58,-37.88]pp
@@ -45,23 +45,23 @@
       residual (lie-p_lie): mean=-0.4600 sd=0.4910
     abstains / CONTRAST     GAP(challenged) - GAP(any) = +2.62pp  95% CI=[-2.40,+8.38]pp
     abstains / SIGN TEST    per-game CONTRAST vs 0: n_games=20 pos=13 neg=7 p_two_sided=0.26318
-       fires / challenged  n=120  lie_rate=120 / 120 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
+       fires / challenged  n=119  lie_rate=119 / 119 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
       residual (lie-p_lie): mean=+0.0000 sd=0.0000
-       fires / allowed     n=104  lie_rate=104 / 104 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
+       fires / allowed     n=109  lie_rate=109 / 109 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
       residual (lie-p_lie): mean=+0.0000 sd=0.0000
-       fires / any         n=224  lie_rate=224 / 224 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
+       fires / any         n=228  lie_rate=228 / 228 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
       residual (lie-p_lie): mean=+0.0000 sd=0.0000
        fires / CONTRAST     GAP(challenged) - GAP(any) = +0.00pp  95% CI=[+0.00,+0.00]pp
 
   -- seat class: rule --
-    convergence: 154 / 154 = 1.0000   dropped: 0
-         all / challenged  n=126  lie_rate=126 / 126 = 1.0000  mean_R_literal=0.9998  GAP=+0.02pp  95% CI=[+0.00,+0.05]pp
+    convergence: 150 / 150 = 1.0000   dropped: 0
+         all / challenged  n=122  lie_rate=122 / 122 = 1.0000  mean_R_literal=0.9998  GAP=+0.02pp  95% CI=[+0.00,+0.05]pp
       residual (lie-p_lie): mean=+0.0002 sd=0.0015
          all / allowed     n=28   lie_rate=25 / 28 = 0.8929  mean_R_literal=0.9472  GAP=-5.43pp  95% CI=[-17.05,+4.62]pp
       residual (lie-p_lie): mean=-0.0543 sd=0.3010
-         all / any         n=154  lie_rate=151 / 154 = 0.9805  mean_R_literal=0.9902  GAP=-0.97pp  95% CI=[-3.03,+0.81]pp
-      residual (lie-p_lie): mean=-0.0097 sd=0.1301
-         all / CONTRAST     GAP(challenged) - GAP(any) = +0.99pp  95% CI=[-0.78,+3.03]pp
+         all / any         n=150  lie_rate=147 / 150 = 0.9800  mean_R_literal=0.9900  GAP=-1.00pp  95% CI=[-3.00,+0.86]pp
+      residual (lie-p_lie): mean=-0.0100 sd=0.1318
+         all / CONTRAST     GAP(challenged) - GAP(any) = +1.02pp  95% CI=[-0.84,+3.01]pp
     abstains / challenged  n=3    lie_rate=3 / 3 = 1.0000  mean_R_literal=0.9914  GAP=+0.86pp  95% CI=[+0.17,+1.25]pp
       residual (lie-p_lie): mean=+0.0086 sd=0.0049
     abstains / allowed     n=28   lie_rate=25 / 28 = 0.8929  mean_R_literal=0.9472  GAP=-5.43pp  95% CI=[-17.05,+4.62]pp
@@ -70,10 +70,10 @@
       residual (lie-p_lie): mean=-0.0483 sd=0.2867
     abstains / CONTRAST     GAP(challenged) - GAP(any) = +5.68pp  95% CI=[-3.13,+16.35]pp
     abstains / SIGN TEST    per-game CONTRAST vs 0: n_games=1 pos=0 neg=1 p_two_sided=1.00000
-       fires / challenged  n=123  lie_rate=123 / 123 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
+       fires / challenged  n=119  lie_rate=119 / 119 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
       residual (lie-p_lie): mean=+0.0000 sd=0.0000
        fires / allowed     n=0 (no windows)
-       fires / any         n=123  lie_rate=123 / 123 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
+       fires / any         n=119  lie_rate=119 / 119 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
       residual (lie-p_lie): mean=+0.0000 sd=0.0000
        fires / CONTRAST     GAP(challenged) - GAP(any) = +0.00pp  95% CI=[+0.00,+0.00]pp
 

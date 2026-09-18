@@ -428,10 +428,11 @@ writes at `CACHE_WRITE_RATE`, output at list. The $6.33 above is the main invoca
 
 ## The `cheat_gap` study — reading beyond the literal channel
 
-A separate study on Cheat, with its own config, archive, preregistration and
-audit: `config_cheat_gap.yaml`, `results_cheat_gap/`,
+A separate study on Cheat, with its own config, archive, preregistration,
+audit and report: `config_cheat_gap.yaml`, `results_cheat_gap/`,
 [`PREREGISTRATION_CHEAT_GAP.md`](PREREGISTRATION_CHEAT_GAP.md),
-`verify_cheat_gap.py`. It shares the referee, the agents, the providers and
+`verify_cheat_gap.py`, [`REPORT_CHEAT_GAP.md`](REPORT_CHEAT_GAP.md) — the
+result, what it does not establish, and how to reproduce it. It shares the referee, the agents, the providers and
 the budget with the Cheat study above and reads none of that study's archive.
 
 The unit is the challenge window. At each one an observer sees a standing
@@ -476,6 +477,11 @@ python -m experiments.llm_eval.gap_posterior \
 # The independent recomputation: stdlib only, no engine, no sampler.
 python -m experiments.llm_eval.verify_cheat_gap \
   --windows windows.jsonl --posterior posterior.jsonl --out GAP_AUDIT.txt
+
+# The memoryless policy-aware reference (exploratory): exact, no sampling,
+# the same record shape, scored by the same command.
+python -m experiments.llm_eval.gap_policy \
+  --windows windows.jsonl --out policy.jsonl --observer-agent llm_cheap --max-depth 250
 ```
 
 `windows.jsonl` carries an information-state string per window, and it and the
