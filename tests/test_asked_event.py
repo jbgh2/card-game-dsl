@@ -35,19 +35,21 @@ registry:        decision sites, `cardlang.runtime.delegation.DECISION_POINTS`
                  `cardlang.openspiel.registry.GAMES`; the shapes' own member
                  and refusal cells,
                  tests/test_observation_payloads.py.
-does not prove:  That the phase an ask names is one the deciding seat is
-                 entitled to know. A phase guard may read a zone the seat
-                 cannot see, and the ask then states that guard's value to the
-                 decider; the swap proof replays one recorded history in both
-                 worlds of a pair and drops the pairs where a recorded action
-                 becomes illegal, so a divergence inside the replayed prefix is
-                 invisible to it and one first appearing at the pause is
-                 caught. The seeded witness that would redden the class is
-                 epic #312's, and issue #281 owns the class itself. Nor that a
-                 construct is a MEANING: a number decision's label says which
-                 sentence asked, never whether the number is a bid on a hand or
-                 a claim a seat may be lying about, which is issue #703's
-                 class. The sweep plays each witness game along a bounded
+does not prove:  That a game gates its phases on facts its own rules
+                 disclose. The phase is one every seat is entitled to know, and
+                 the engine models players who disclose what the rules say they
+                 must (issue #717); a game whose gate reads ANOTHER seat's
+                 concealed cards is mis-modelled, and an ask states that gate's
+                 value to the decider rather than refusing it. Issue #281 owns
+                 the class. The swap proof that would catch it replays one
+                 recorded history in both worlds of a pair and drops the pairs
+                 where a recorded action becomes illegal, so a divergence
+                 inside the replayed prefix is invisible to it and one first
+                 appearing at the pause is caught; the seeded witness is epic
+                 #312's. Nor that a construct is a MEANING: a number decision's
+                 label says which sentence asked, never whether the number is a
+                 bid on a hand or a claim a seat may be lying about, which is
+                 issue #703's class. The sweep plays each witness game along a bounded
                  seeded line, so a construct only a longer line reaches is
                  unwitnessed by it and covered by the registry cells alone.
 """

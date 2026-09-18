@@ -221,3 +221,32 @@ right criterion because a gate has no actor. What remains is ownership: the
 wall needs the visibility-aware expression reading that is #281's own engine.
 Accepting it rules a hidden gate a defect; declining it rules it a reveal to
 the decider. Either way this lands.
+
+## Addendum, 2026-09-18 — the operator's honest-play ruling
+
+The counsel above frames the open gate question as "a designed reveal to the
+decider, or a defect for #281's wall to refuse". The operator ruled a third
+reading, and it is the one that governs: **the engine assumes honest play** —
+every seat discloses what the rules say it must, and information reaches a seat
+only through its zones' declared projections and the observations a move emits.
+
+Read that way a gate on another seat's concealed cards is neither a reveal nor
+a leak but a **mis-modelled rule**. A real rulebook makes the holder announce
+or show, and the gate reads the announcement: Hearts breaks hearts on the
+played card, Gin Rummy opens its showdown on a State Variable the knock sets.
+So the refusal a designer wants names the missing announcement, not a
+visibility level.
+
+Two consequences for the record, neither of which moves this change's
+mechanism:
+
+- The gate wall stays #281's, as counselled, but its justification changes:
+  it catches a modelling error rather than an information leak.
+- The witness quoted in #281 is a probe built by the review of PR #268, not a
+  rule from any rulebook. Under honest play no real game produces the class,
+  which is why the corpus has no witness for it.
+
+The assumption itself was unrecorded anywhere in the repo until now; issue #717
+holds both writing it down and the work of relaxing it, and carries the
+inversion that matters later — under collusion, a gate readable off the offered
+menu stops being an error and becomes the side channel a partnership exploits.
