@@ -73,6 +73,11 @@ def sequential_decisions(
     return taken
 
 
+def _is_count(n: object) -> bool:
+    # A flag is not a count: `isinstance(True, int)` holds.
+    return isinstance(n, int) and not isinstance(n, bool) and n >= 1
+
+
 def decide(
     ctx: Ctx,
     decider: Player,
@@ -112,6 +117,18 @@ def decide(
         raise OwnerGuardError(
             f"a {word} decision at {site} is asked outside every phase, so "
             f"it can name no stretch of play — a decision belongs to a phase"
+        )
+    if not _is_count(n):
+        # Shadow Guard: the OWNER is `execute._check_count`, which every
+        # designer amount expression passes through and which names the author
+        # in their own words. This is the choke point's backstop, and it is
+        # here rather than in a test because a count is data — proving
+        # syntactically that each of the sites checked its own is an analysis
+        # that can be wrong, while a refusal on the one route they all take
+        # cannot be bypassed.
+        raise OwnerGuardError(
+            f"a {word} decision at {site} asks for {n!r} picks — a decision "
+            f"offers at least one, and an amount is checked before it is asked"
         )
     ctx.observe(decider, ("asked", ctx.current_phase.name, word, n, destination))
     return ctx.chooser(decider, candidates, n)

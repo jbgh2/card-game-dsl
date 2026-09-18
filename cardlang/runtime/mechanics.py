@@ -593,9 +593,11 @@ class ClimbForm:
 
     def __init__(self, stmt: n.ClimbRound, ctx: Ctx) -> None:
         self.construct = FORM_CONSTRUCTS[type(stmt).__name__]
-        # A pass moves nothing, but a play lands here, and the ask is made
-        # before the seat has said which it is.
-        self.play_label: str | None = stmt.play_zone
+        # No zone, because a climb turn offers `pass` beside its plays and a
+        # pass moves nothing — and the ask is made BEFORE the seat says which
+        # it is choosing. Naming the pile here would tell a seat that passes
+        # its picks land somewhere they do not.
+        self.play_label: str | None = None
         from cardlang.runtime import primitives
 
         self.until: n.Expr = stmt.until

@@ -81,19 +81,24 @@ GAMES_DIR = Path(__file__).resolve().parent.parent / "docs" / "games"
 # the choice is made.
 ASKED_ROW: tuple[str, ...] = ("phase", "construct", "count", "destination")
 
-# Where each site's destination zone stands at the moment the seat is asked,
-# derived from the code that evaluates it: a movement evaluates its destination
-# before it selects, the simultaneous pass not until every seat has chosen, and
-# an offer or a bare value choice moves nothing of its own.
+# Where the destination stands at the moment the seat is asked, keyed by the
+# CONSTRUCT rather than by the site: one `round` sentence asks a trick, an
+# auction or a climb, and the three answer differently, so a per-site row
+# could only state one of them. A movement evaluates its destination before it
+# selects; a simultaneous pass not until every seat has chosen; an offer, a
+# bare value choice, a bid and a climb turn name none — the climb because it
+# offers `pass` beside its plays and the ask is made before the seat says
+# which it chose.
 BEFORE, AFTER, ABSENT = "before", "after", "absent"
 DESTINATION_KNOWABILITY: dict[str, str] = {
-    "execute._select_from": BEFORE,
-    "execute._select_filtered": BEFORE,
-    "execute._select_joint": BEFORE,
-    "execute._pass_selection": AFTER,
-    "execute._offer": ABSENT,
-    "evaluate._choose": ABSENT,
-    "mechanics.run_decision_round": BEFORE,
+    "transfer": BEFORE,
+    "joint": BEFORE,
+    "simultaneous": AFTER,
+    "offer": ABSENT,
+    "choose": ABSENT,
+    "trick": BEFORE,
+    "auction": ABSENT,
+    "climb": ABSENT,
 }
 
 # The construct each site asks by, as the table spells it. A witness game
@@ -270,13 +275,15 @@ def test_every_declared_kind_has_a_line() -> None:
     )
 
 
-def test_destination_knowability_is_stated_for_every_site() -> None:
-    """Every decision site says where its destination stands when the seat is
-    asked, so no site's answer is left to the emitter's judgment.
+def test_destination_knowability_is_stated_for_every_construct() -> None:
+    """Every construct a seat can be asked by says where its destination stands
+    when the ask is made, so no construct's answer is left to the emitter.
 
-    red under: delete a row from `DESTINATION_KNOWABILITY` — the key sets
-    part."""
-    assert set(DESTINATION_KNOWABILITY) == set(DECISION_POINTS)
+    red under: delete a row from `DESTINATION_KNOWABILITY`, or mint a
+    construct in `delegation.CONSTRUCTS` without one — the key sets part."""
+    from cardlang.runtime.delegation import CONSTRUCTS
+
+    assert set(DESTINATION_KNOWABILITY) == CONSTRUCTS
     assert set(DESTINATION_KNOWABILITY.values()) <= {BEFORE, AFTER, ABSENT}
 
 
@@ -362,7 +369,7 @@ def test_the_destination_is_named_exactly_where_it_is_knowable(site: str) -> Non
     _decisions, logs = _play_collecting(SITE_WITNESS[site])
     seen = [ask for log in logs.values() for ask in _asks(log) if ask[2] == word]
     assert seen, f"{SITE_WITNESS[site]} emitted no {word!r} ask at seed {SEED}"
-    knowable = DESTINATION_KNOWABILITY[site] is BEFORE
+    knowable = DESTINATION_KNOWABILITY[word] is BEFORE
     named = [ask[4] for ask in seen]
     if knowable:
         assert any(label is not None for label in named), (
@@ -454,60 +461,44 @@ def test_an_ask_carrying_an_undeclared_construct_is_refused_where_it_is_read() -
         event_line(bad)
 
 
-def test_every_decide_site_validates_its_count_before_asking() -> None:
-    """A count reaching the choke point is one the amount Owner Guard has
-    passed, so no ask can carry a count its own payload shape refuses.
+def test_a_decision_that_asks_for_no_picks_is_refused() -> None:
+    """A decision offers at least one pick, and the choke point refuses one
+    that does not — on the single route every decision site takes.
 
-    The class is every `decide(` site's count argument, derived from the
-    scrape: five pass the literal 1, and the two that evaluate a designer's
-    amount expression route it through `execute._check_count` first. A site
-    passing an unchecked expression is the cell this holds.
+    This replaced a scrape that tried to prove, per site, that each count had
+    passed `_check_count`. Twice that analysis was wrong in a way that let it
+    pass while the count was unguarded (first by searching the whole module for
+    the binding, then by ignoring where the binding sat relative to the call).
+    A count is data, so the property is enforced where the data flows rather
+    than argued from the shape of the code around it.
 
-    red under: drop the `_check_count` call from `execute._pass_selection` —
-    a simultaneous pass of a computed zero then reaches the ask, whose `count`
-    shape refuses it at every consumer that reads the log.
-    """
-    source = (CARDLANG / "runtime" / "execute.py").read_text()
-    tree = ast.parse(source)
-    unchecked: list[str] = []
-    for fn in ast.walk(tree):
-        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        # Scoped to THIS function's body: a `count` checked in a sibling says
-        # nothing about this one, and a module-wide search makes the cell
-        # unable to fail.
-        checked_names = {
-            target.id
-            for node in ast.walk(fn)
-            if isinstance(node, ast.Assign)
-            for target in node.targets
-            if isinstance(target, ast.Name)
-            and any(
-                isinstance(call.func, ast.Name) and call.func.id == "_check_count"
-                for call in ast.walk(node)
-                if isinstance(call, ast.Call)
-            )
-        }
-        for node in ast.walk(fn):
-            if not isinstance(node, ast.Call):
-                continue
-            called = node.func
-            name = (
-                called.attr if isinstance(called, ast.Attribute) else getattr(called, "id", None)
-            )
-            if name != "decide" or len(node.args) < 4:
-                continue
-            count = node.args[3]
-            if isinstance(count, ast.Constant):
-                continue  # a literal count is valid by construction
-            assert isinstance(count, ast.Name), (
-                f"{fn.name}: a count that is neither a literal nor a name, line {node.lineno}"
-            )
-            if count.id not in checked_names:
-                unchecked.append(f"{fn.name} (line {node.lineno}): `{count.id}`")
-    assert not unchecked, (
-        "a decision site hands the choke point an amount the Owner Guard has "
-        f"not passed: {unchecked}"
+    red under: drop the `_is_count` refusal from `chooser.decide` — a zero or a
+    flag then reaches the ask and carries a count the payload shape refuses at
+    every consumer that reads the log."""
+    from cardlang.runtime.chooser import decide
+    from cardlang.runtime.errors import OwnerGuardError
+
+    class Phase:
+        name = "play"
+
+    for bad in (0, -1, True, 1.0, None):
+        with pytest.raises(OwnerGuardError, match="picks"):
+            decide(_bare_ctx(Phase()), 0, [1, 2], bad, "evaluate._choose")  # type: ignore[arg-type]
+    # ...and a real count still passes, so the guard is not refusing everything
+    assert decide(_bare_ctx(Phase()), 0, [1, 2], 1, "evaluate._choose") == [1]
+
+
+def test_a_climb_turn_names_no_zone_because_it_may_pass() -> None:
+    """A climb offers `pass` beside its plays and the ask is made before the
+    seat says which it chose, so it names no destination.
+
+    red under: set `ClimbForm.play_label` to the round's `play_zone` — a seat
+    that passes is then told its picks land in the pile."""
+    _decisions, logs = _play_collecting("cardlang_big_two")
+    climbs = [ask for log in logs.values() for ask in _asks(log) if ask[2] == "climb"]
+    assert climbs, "big two reached no climb decision at this seed"
+    assert all(ask[4] is None for ask in climbs), (
+        "a climb ask names a zone, but a passing seat's picks land nowhere"
     )
 
 
