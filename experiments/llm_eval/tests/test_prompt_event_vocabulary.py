@@ -30,7 +30,7 @@ import pytest
 from cardlang.openspiel.registry import GAMES
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
-from experiments.llm_eval.agents import GAME_TEXT
+from ..agents import GAME_TEXT
 
 REPO = Path(__file__).resolve().parents[3]
 
