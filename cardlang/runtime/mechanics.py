@@ -21,6 +21,8 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS
 from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime import active_rules, delegation, narrowing, observe, reads, rules
+from cardlang.runtime.chooser import decide
+from cardlang.runtime.delegation import FORM_CONSTRUCTS
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
@@ -50,7 +52,17 @@ Outcome = Player | tuple[str, list[Any]] | None
 
 
 class DecisionForm(Protocol):
-    """The six pluggable slots of one kernel `round` [[form]]."""
+    """The six pluggable slots of one kernel `round` [[form]], and the word a
+    seat asked by this form is told it is being asked by."""
+
+    # Read off the form's own round node, so a form cannot name another's
+    # construct; declared here so a fourth form must answer for one to land.
+    construct: str
+    # The zone a play made under this form lands in, or None for a form whose
+    # decision moves nothing of its own. Declared rather than read off whichever
+    # attribute a form happens to keep: a soft lookup would answer None for a
+    # form that simply spelled its pile differently.
+    play_label: str | None
 
     def init(self, state: RoundState, ctx: Ctx) -> RoundState:
         """Seed the accumulator and cursor into `state`, returning it."""
@@ -126,7 +138,17 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
             # which opaque expression bodies do not statically reveal; the
             # DECLARED source's own visibility is resolve's static wall.
             delegation.check_decider_sees(ctx, decider, actor, form)
-        choice = ctx.chooser(decider, candidates, 1)[0]  # the single per-step draw
+        # The single per-step draw, through the one route that tells the
+        # decider what it is asked (`chooser.decide`).
+        choice = decide(
+            ctx,
+            decider,
+            candidates,
+            1,
+            "mechanics.run_decision_round",
+            form.play_label,
+            form.construct,
+        )[0]
         ctx.trace("decision", (actor, choice))  # the canonical decision event (§4)
         observe.choice(ctx, decider, choice)
         state = form.apply(actor, choice, state, ctx)
@@ -150,6 +172,8 @@ class TrickForm:
     `state.trick_terminated_early` afterward."""
 
     def __init__(self, stmt: n.TrickRound, ctx: Ctx) -> None:
+        self.construct = FORM_CONSTRUCTS[type(stmt).__name__]
+        self.play_label: str | None = stmt.play_zone
         from cardlang.runtime import primitives
 
         # `winner_fn` / `early_termination` are bare native value-function names
@@ -402,6 +426,10 @@ class AuctionForm:
     """
 
     def __init__(self, stmt: n.AuctionRound, ctx: Ctx) -> None:
+        self.construct = FORM_CONSTRUCTS[type(stmt).__name__]
+        # A bid moves no card of its own: what an auction pick sets in
+        # motion happens inside the chosen move type's effect.
+        self.play_label: str | None = None
         # The OWNER GUARD for "the order axis holds no row this form cannot walk".
         # It shadows nothing: resolve owns whether a DECLARED mode is in the
         # registry, and no guard anywhere owns whether the registry has outgrown
@@ -564,6 +592,12 @@ class ClimbForm:
     """
 
     def __init__(self, stmt: n.ClimbRound, ctx: Ctx) -> None:
+        self.construct = FORM_CONSTRUCTS[type(stmt).__name__]
+        # No zone, because a climb turn offers `pass` beside its plays and a
+        # pass moves nothing — and the ask is made BEFORE the seat says which
+        # it is choosing. Naming the pile here would tell a seat that passes
+        # its picks land somewhere they do not.
+        self.play_label: str | None = None
         from cardlang.runtime import primitives
 
         self.until: n.Expr = stmt.until

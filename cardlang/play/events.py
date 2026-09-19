@@ -52,9 +52,54 @@ def _decided(choice: str | int | tuple[str, ...] | None) -> str:
     return str(choice)
 
 
+# What each construct asks for: the verb a person reads, and the unit its count
+# is counted in — a card for a movement, a number for a `choose`, a move for an
+# offer. An empty unit means the content noun (card or piece). Every construct
+# spells its count, because a field a line does not show is a field the
+# soundness matrix cannot certify (tests/test_play_view.py). Total over
+# `delegation.CONSTRUCTS`, reconciled by tests/test_asked_event.py.
+_ASK_PHRASES: dict[str, tuple[str, str, str]] = {
+    "transfer": ("move", "", ""),
+    # "commit", not "move": a seat choosing simultaneously is committing
+    # before any other seat's pick is shown, which is the whole of what the
+    # construct means to a designer — and a plain "move" would read alike to
+    # a `transfer` into the same zone, showing two decisions as one.
+    "simultaneous": ("commit", "", ""),
+    "trick": ("play", "", ""),
+    "joint": ("pick", "set that goes together", "sets that go together"),
+    "offer": ("take", "of the moves offered", "of the moves offered"),
+    "choose": ("choose", "number", "numbers"),
+    "auction": ("make", "bid", "bids"),
+    "climb": ("play", "combination (or pass)", "combinations (or pass)"),
+}
+
+
+def _asking(construct: str, count: int, noun: Flavor) -> str:
+    """What the seat is invited to do, counted."""
+    verb, singular, plural = _ASK_PHRASES[construct]
+    if not singular:
+        return f"{verb} {counted(count, noun)}"
+    return f"{verb} {count} {singular if count == 1 else plural}"
+
+
+def _landing(construct: str, destination: str | None) -> str:
+    """Where the picks go. A named zone is said; a simultaneous pass says the
+    zone is settled once everyone has chosen, which is what its absence MEANS —
+    a seat told "nowhere" would read its own pass as going nowhere."""
+    if destination is not None:
+        return f" to `{destination}`"
+    if construct == "simultaneous":
+        return ", landing where every seat's choice settles"
+    return ""
+
+
 # Each line takes its kind's fields in `EVENT_PAYLOADS` order, then the noun a
 # count is spelled with.
 EVENT_LINES: dict[str, Callable[..., str]] = {
+    "asked": lambda phase, construct, count, destination, noun: (
+        f"asked in `{phase}` to {_asking(construct, count, noun)}"
+        f"{_landing(construct, destination)}"
+    ),
     "chose": lambda choice, noun: f"you chose {_decided(choice)}",
     "announce": lambda seat, choice, noun: f"P{seat} announced {_decided(choice)}",
     "move": lambda source, source_view, destination, destination_view, noun: (

@@ -605,6 +605,19 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # (tests/test_openspiel_registration.py).
     "openspiel/game.py": ["not SHORT_NAME_CHARS.fullmatch(short_name)"],
     "openspiel/registry.py": ["not SHORT_NAME_CHARS.fullmatch(name)"],
+    # The choke point asking the payload table whether a count is one an
+    # `asked` event may carry. Outside the literal shape because it consults a
+    # registry ENTRY as a predicate rather than testing membership in a
+    # collection — and that is the point of it: what this refuses and what the
+    # event's `count` field admits are one definition, so a count the guard
+    # accepts cannot be one every consumer of the log rejects. The Owner it
+    # shadows is `execute._check_count`, which names the designer in their own
+    # words; this is the backstop on the single route every decision takes.
+    # Its reddening mutation is executed in
+    # test_a_decision_that_asks_for_no_picks_is_refused
+    # (tests/test_asked_event.py): drop the refusal and a zero, a flag or a
+    # float reaches the ask.
+    "runtime/chooser.py": ["not PAYLOAD_SHAPES['count'](n)"],
     # `runtime/reads.py`'s shape, one module over: it reconciles two registries
     # against each other rather than pinning one against a literal, so there is
     # no collection to widen and no witness of this module's shape. What it

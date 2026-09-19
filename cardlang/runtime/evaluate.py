@@ -14,6 +14,7 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.domains import require_role, role_members
 from cardlang.runtime import builtins, observe, primitives, reads, subsets
+from cardlang.runtime.chooser import decide
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, Move, StructValue, Zone, elements
 from cardlang.runtime.values import Card
@@ -168,7 +169,7 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
             f"a choice must offer at least one candidate"
         )
     actor = ctx.require_actor("a `choose`")
-    value = ctx.chooser(actor, candidates, 1)[0]
+    value = decide(ctx, actor, candidates, 1, "evaluate._choose")[0]
     observe.choice(ctx, actor, value)
     observe.announce(ctx, actor, value)
     return value

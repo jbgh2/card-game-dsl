@@ -245,8 +245,15 @@ BLESS = os.environ.get("CARDLANG_STREAM_BLESS") == "1"
 
 @dataclass(frozen=True)
 class Migration:
-    """One migrated game's pin. The hash file is captured on the commit
+    """One migrated game's pin. The hash file is first captured on the commit
     BEFORE the migration lands, so its provenance is the git log.
+
+    An engine-wide change that adds to EVERY observation stream re-captures it,
+    and only after showing that the delta is exactly that addition: recompute
+    each pinned digest with the new events filtered out and match it against
+    the stored hash, so the re-capture rests on a measurement rather than on
+    the claim that nothing else moved. A re-capture without that check would
+    launder a real regression into a new baseline.
 
     The two exclusion halves are claims about the post-migration tree, each
     executed by its own test, and never a way to quiet a diff:

@@ -158,6 +158,51 @@ def derive(
     )
 
 
+@dataclass(frozen=True)
+class Ask:
+    """The last question put to a seat: the phase it was asked in, the
+    construct asking, how many picks it wants, and the zone they land in where
+    the site knew it before the choice.
+
+    How far THROUGH the call the seat is, is deliberately not a field. One
+    Chooser call is `count` decisions of the game tree, but the `chose` events
+    that would count them are route-dependent — a native playout emits one
+    aggregate for the whole call while a replayed one emits a per-pick event
+    too — so a progress count read off the log answers differently on the two
+    routes for the same completed decision. A seat's position within a call is
+    the caller's to track until the log says it unambiguously (issue #718).
+    """
+
+    phase: str
+    construct: str
+    count: int
+    destination: str | None
+
+
+def current_ask(view: SeatView) -> Ask | None:
+    """The last question put to `view`'s seat, or None before it has been asked
+    anything.
+
+    At a decision point — where a [[seat-policy]] is asked, which is every
+    position one is handed a view — the last question IS the live one, because
+    the ask is emitted before the Chooser is consulted. Away from one, on a
+    stored or terminal view, it is the last question the seat was put and not a
+    claim that the seat is still answering it: the log carries no completion
+    marker, so this reports what was asked rather than whether it is over.
+
+    The ONE reading of the ask. A consumer wanting to know which decision it is
+    answering — a Seat Policy, a person's frame, a listing of a game's
+    decisions — reads it here rather than scanning the log beside this, because
+    a second reading of a seat's knowledge is a second implementation of the
+    property the language exists to guarantee (this module's own contract).
+    """
+    for event in reversed(view.obs_log):
+        if event and event[0] == "asked":
+            _kind, phase, construct, count, destination = event
+            return Ask(phase, construct, count, destination)
+    return None
+
+
 def _zone_line(label: str, view: ZoneView) -> str:
     if view is None:
         return f"{label}=?"

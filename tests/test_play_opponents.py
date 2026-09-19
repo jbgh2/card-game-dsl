@@ -783,19 +783,19 @@ def test_first_answers_as_a_person_picking_the_first_item(short_name: str, tmp_p
 # Each line on seed 5 with the person answering 1 six times and a uniform draw
 # at every other seat, as the saved history holds it.
 _UNIFORM_LINES: dict[tuple[str, int], list[int]] = {
-    ("cardlang_kuhn_poker", 0): [0, 0],
-    ("cardlang_holdem", 2): [2, 2, 0, 0, 0, 0, 0, 0, 1, 2, 2, 0, 0, 0, 2, 4, 2],
     ("cardlang_hearts", 0): [
-        9, 11, 18, 17, 12, 34, 23, 6, 7, 3, 44, 41, 0,
-        6, 3, 2, 22, 25, 21, 17, 40, 11, 45, 39, 13, 16,
+        9, 11, 18, 20, 21, 12, 7, 0, 30, 10, 46, 47, 0, 10, 11, 8, 17, 23, 22,
+        25, 40, 14, 45, 41, 24, 16
     ],
     ("cardlang_hearts", 3): [
-        36, 50, 27, 17, 12, 34, 23, 6, 7, 1, 3, 10, 0,
-        6, 3, 4, 7, 1, 2, 8, 12, 15, 11, 28, 24,
+        11, 51, 49, 20, 21, 12, 7, 0, 30, 1, 3, 10, 0, 3, 11, 5, 19, 23, 15, 18,
+        20, 16, 25, 14, 48, 51, 42
     ],
+    ("cardlang_holdem", 2): [4, 2, 2, 0, 0, 1, 2, 4, 3, 2, 0, 1, 2],
+    ("cardlang_kuhn_poker", 0): [0, 1, 2],
     ("cardlang_president", 1): [
-        193, 52, 52, 52, 52, 101, 52, 52, 67, 63, 90, 52, 93, 91, 52, 52,
-        52, 52, 82, 104, 80, 52, 52, 79, 54, 52, 52, 52, 52, 100, 64,
+        95, 52, 74, 67, 54, 80, 52, 52, 91, 52, 52, 52, 93, 52, 52, 52, 52, 61,
+        79, 52, 52, 52, 52, 66, 52, 52, 52, 52, 82, 52, 52
     ],
 }
 

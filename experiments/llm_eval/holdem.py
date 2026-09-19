@@ -139,6 +139,15 @@ entitled to observe:
   ('move','deck',1,'hole[0]',('4H',))  a card moved and you saw WHICH.
   ('move','deck',1,'hole[1]',1)        a card moved and you saw only HOW MANY.
   ('announce',0,'call')                seat 0 played `call`, publicly.
+  ('chose','call')                     what YOU picked, recorded for you alone.
+                                       Your own choices are also announced, so
+                                       both entries appear for one action.
+  ('asked','preflop','offer',1,None)   YOU were asked to act: the street, the
+                                       kind of decision, how many picks it
+                                       wanted, and where they land (None when
+                                       the decision moves no card of its own).
+                                       It says what you were asked, never what
+                                       anyone holds.
 The log is how you know the betting so far. A card that reached a hidden zone
 appears as a count, never an identity — the state simply does not contain what
 you are not entitled to.

@@ -75,6 +75,14 @@ PAYLOAD_PROBES: dict[str, Callable[[Any], Any]] = {
     "card": lambda card: _OTHER_PROBE_CARD if card == _PROBE_CARD else _PROBE_CARD,
     "view": _perturbed_view,
     "value": _perturbed_value,
+    "phase": lambda phase: "perturbed_" + phase,
+    # Stays inside the closed vocabulary: a probe that left it would be
+    # refused as malformed rather than read as a different decision.
+    "construct": lambda word: "offer" if word != "offer" else "choose",
+    "count": lambda count: count + 1,
+    # None is a member of this shape, so the probe names a zone where the
+    # event named none, and another where it named one.
+    "destination": lambda label: "elsewhere" if label != "elsewhere" else "other_zone",
 }
 
 # One member of every field shape, from which the matrix builds an event of
@@ -86,6 +94,10 @@ SYNTHETIC_PAYLOAD: dict[str, Any] = {
     "card": _PROBE_CARD,
     "view": 1,
     "value": "«synthetic»",
+    "phase": "synthetic_phase",
+    "construct": "offer",
+    "count": 1,
+    "destination": "synthetic",
 }
 
 

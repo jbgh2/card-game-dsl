@@ -488,6 +488,13 @@ machine-generated and terse. Its layout is:
         the other seat.
       * ('announce', <seat>, <move>) — a public announcement: this is the
         betting history, and it is how you know what has been done to you.
+      * ('chose', <move>) — what YOU picked, recorded for you alone. Your own
+        moves are announced as well, so one action of yours leaves both.
+      * ('asked', <phase>, <kind>, <n>, <where>) — the question YOU were put,
+        just before you answered it: the stage of play, what kind of decision
+        it was, how many picks it wanted, and where they land (None when the
+        decision moves no card of its own). It says what you were asked, never
+        what anyone holds.
 """
 
 FORMAT_TEXT_RENDERED = """\

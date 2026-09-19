@@ -71,6 +71,7 @@ from cardlang.openspiel.replay import load
 from cardlang.runtime import observe
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.delegation import CONSTRUCTS
 from cardlang.runtime.errors import GameDescriptionError
 from cardlang.runtime.state import IllegalMove
 from cardlang.runtime.values import COMPONENT_SETS, Card, build_deck
@@ -92,6 +93,12 @@ SHAPE_MEMBERS: dict[str, tuple[Any, ...]] = {
     "card": ("Q♠", "10♥", "Joker:joker", "mark:x"),
     "view": (("2♣", "9♥"), ("Joker:joker", "Joker:joker"), (), 2, 0, None),
     "value": ("pass", "bid(3)", 7, True, None, ("2♣", "A♠")),
+    "phase": ("play", "passing", "hand_sequence", "_setup"),
+    # The whole closed set, derived rather than listed: a word minted without
+    # a phrase or a table row arrives here as an uncovered cell.
+    "construct": tuple(sorted(CONSTRUCTS)),
+    "count": (1, 3, 52),
+    "destination": ("trick_pile", "hand[2]", "square[a1]", None),
 }
 
 # The nearest wrong values per shape: what a site that forgot to render,
@@ -111,6 +118,17 @@ _REFUSALS: dict[str, tuple[Any, ...]] = {
         (Card("2", "clubs"),),
     ),
     "value": (("A♠", "2♣"), ("pass",), object(), 1.5, ["pass"], (Card("2", "clubs"),)),
+    # A phase names one declaration, so a zone label, a qualified path, the
+    # sentinel a site would reach for outside every phase, and a seat are all
+    # refused where a phase belongs.
+    "phase": ("hand[2]", "play.passing", "", None, 3, "two words"),
+    # The verb a designer wrote, the Title Case the prose uses, a zone, and
+    # the neighbouring fields — none of them is the construct's own word.
+    "construct": ("move", "Transfer", "trick_pile", "", None, 1),
+    "count": (0, -1, True, None, "1", 1.5),
+    # A card handed over as a zone, a perturbed label, and the neighbouring
+    # shapes; None is a MEMBER here, not a refusal.
+    "destination": ("Q♠", "hand[2]«perturbed»", 3, ("hand", 1), True),
 }
 
 # Every card and piece rendering the component sets hold.
@@ -146,6 +164,29 @@ def test_a_shape_admits_each_of_its_alternatives(shape: str, member: Any) -> Non
 )
 def test_a_shape_refuses_the_nearest_wrong_value(shape: str, value: Any) -> None:
     assert not observe.PAYLOAD_SHAPES[shape](value)
+
+
+# Values no emitter should produce, but which an unfenced `Ctx.observe` can
+# carry: a predicate that RAISES on one answers nothing, and the consumer that
+# called it to get a refusal crashes instead of refusing.
+_HOSTILE: tuple[Any, ...] = (["a"], {"a": 1}, {"a"}, bytearray(b"a"), object(), 1.5, None)
+
+
+@pytest.mark.parametrize("shape", sorted(observe.PAYLOAD_SHAPES))
+@pytest.mark.parametrize("value", _HOSTILE, ids=lambda v: type(v).__name__)
+def test_every_shape_answers_rather_than_raises(shape: str, value: Any) -> None:
+    """Every shape predicate is TOTAL: it answers True or False for any object,
+    because its callers call it to be told, and one that raises turns a
+    declared refusal into a crash.
+
+    Quantified over the whole shape registry, not the shapes that happen to
+    look risky — a bare `in` against a frozenset is the shape of the fault and
+    any shape could grow one.
+
+    red under: drop the `isinstance` from the `construct` predicate in
+    `observe.PAYLOAD_SHAPES` — an unhashable value then raises `TypeError`
+    here, and `payload_refusal` and `event_line` crash on it in turn."""
+    assert observe.PAYLOAD_SHAPES[shape](value) in (True, False)
 
 
 @pytest.mark.parametrize("rendering", _RENDERINGS)

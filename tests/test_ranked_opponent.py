@@ -555,3 +555,46 @@ def test_the_help_and_the_table_carry_the_new_row() -> None:
     """The row joins the table, so every listing renders it (tests/test_play_opponents.py)."""
     assert "ranked" in OPPONENTS
     assert re.fullmatch(r"[a-z][a-z0-9-]*", OPPONENTS["ranked"].name)
+
+
+def test_the_lead_is_ranked_now_that_the_seat_is_told_it_leads() -> None:
+    """An empty trick pile is a lead when the ask says the decision plays to a
+    trick, and Spades wants its score high, so the lead is the dearest card.
+
+    red under: drop the `asked` event from the log — the decision is then a
+    card offered for reasons the view does not carry, and goes to the draw."""
+    path = _path("cardlang_spades")
+    game, space = load(path)
+    ranked = OPPONENTS["ranked"].make(SeatBinding(game, space, 1, _SEED))
+    hand = (Card("3", "clubs"), Card("K", "clubs"), Card("2", "diamonds"))
+    view = SeatView(
+        player=1,
+        zones=(("trick_pile", ()), ("hand[1]", hand)),
+        state=(),
+        obs_log=(("asked", "play", "trick", 1, "trick_pile"),),
+    )
+    legal = sorted(space.encode(card) for card in hand)
+    assert ranked(view, legal) == space.encode(Card("K", "clubs"))
+
+
+def test_a_card_decision_that_is_no_trick_play_still_draws() -> None:
+    """The same empty pile, with the seat asked by a movement of its own into
+    a zone that is not a trick pile: nothing the game declares ranks a discard,
+    so it goes to the draw rather than being ranked as a lead.
+
+    red under: rank on the empty pile alone, ignoring what the seat was
+    asked — the discard is then answered by the lead's rule."""
+    path = _path("cardlang_spades")
+    game, space = load(path)
+    seed = _SEED
+    ranked = OPPONENTS["ranked"].make(SeatBinding(game, space, 1, seed))
+    drawn = OPPONENTS["random"].make(SeatBinding(game, space, 1, seed))
+    hand = (Card("3", "clubs"), Card("K", "clubs"), Card("2", "diamonds"))
+    view = SeatView(
+        player=1,
+        zones=(("trick_pile", ()), ("hand[1]", hand)),
+        state=(),
+        obs_log=(("asked", "play", "transfer", 1, "discards"),),
+    )
+    legal = sorted(space.encode(card) for card in hand)
+    assert ranked(view, legal) == drawn(view, legal)

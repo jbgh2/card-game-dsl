@@ -2679,12 +2679,21 @@ mechanism is [design-notes/terminal-play.md](design-notes/terminal-play.md).
   so a certified rendering shows all of them. A window onto the most recent
   events is a presentation choice for a session in which the rest stays
   reachable.
-- **A decision's facts are not the seat's.** Which decision a position is,
-  whose it is, and what can be chosen are facts of the decision node, not of
-  the Seat View. A rendering shows one only when a proof holds it for the seat.
-  The seat's own turn is the one that qualifies, held by the swap proof. Every
-  other such fact is the caller's to show beside the rendering. The running
-  phase and a hand number wait for a structural source (issues #605, #573).
+- **A decision's facts are not the seat's, except the one the seat is told.**
+  Whose turn a position is, and what can be chosen, are facts of the decision
+  node rather than of the Seat View. A rendering shows one only when a proof
+  holds it for the seat; the seat's own turn is the one that qualifies, held by
+  the swap proof, and every other such fact is the caller's to show beside the
+  rendering. **Which decision a position is, the deciding seat is TOLD.** The
+  kernel delivers it an `asked` [observation event](#observation-events) at
+  every decision, from the one route a decision reaches the [Chooser](glossary/chooser.md)
+  by and before that Chooser is consulted, naming the phase it is asked in, the
+  construct asking, how many picks it wants, and the zone the picks land in
+  where the site knows that zone before the choice is made. So it reaches a
+  Seat View the way every other observation does — through the log, with no
+  second channel and no fact beside the view — and one derivation
+  (`infostate.current_ask`) reads it for every consumer. A hand number still
+  waits for a structural source (issue #573).
 
 ### What answers for a seat
 
@@ -2698,6 +2707,13 @@ fills a seat answers through it. The mechanism is
   whole input, so what it answers is constant across positions its seat cannot
   tell apart. An opponent that reads the World measures something else, and it
   is a type with its own name, never this one widened.
+- **A policy reads what its seat is asked from that same view.** The `asked`
+  observation is in the seat's log, so knowing a lead from a pass costs the
+  interface nothing: the signature does not widen, and every later tier — a
+  rule-based opponent, a trained policy, a language model — sees the fact the
+  first one does. A policy that reconstructed the decision by scanning the log
+  beside `infostate.current_ask` would be a second derivation of the seat's
+  knowledge, which is the thing this design exists to prevent.
 - **A line of play is `(seed, history)` played on through the replay
   chooser.** The recorded picks replay through the adapter's own chooser, and
   past them each seat's policy is asked where the adapter would pause. The view

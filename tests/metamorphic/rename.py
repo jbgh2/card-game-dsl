@@ -367,7 +367,7 @@ def alpha_rename(game: n.Game) -> n.Game:
 
 def trace_rename(zone_map: dict[str, str]) -> Callable[[Event], Event]:
     """The trace-level `rename` hook `pairing.compare_traces` wants: labels
-    in the TRANSFORMED side's "move"/"reveal" events carry the NEW zone
+    in the TRANSFORMED side's "move"/"reveal"/"asked" events carry the NEW zone
     spelling (`_label` in `runtime/observe.py`: `name` or `name[key]`); this
     maps them back to the original so the transformed side's trace compares
     byte-for-byte against the untransformed side's."""
@@ -387,6 +387,19 @@ def trace_rename(zone_map: dict[str, str]) -> Callable[[Event], Event]:
         if tag == "reveal":
             _, label, card = event
             return (tag, relabel(label), card)
+        if tag == "asked":
+            # The zone an ask names is a label like any other. Its phase and
+            # construct are not renamed — a phase name is swept by the
+            # freshness check but never rewritten, and a construct is the
+            # language's own closed word — so both compare as they stand.
+            _, phase, construct, count, destination = event
+            return (
+                tag,
+                phase,
+                construct,
+                count,
+                None if destination is None else relabel(destination),
+            )
         return event
 
     return rename

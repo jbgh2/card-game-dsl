@@ -59,11 +59,18 @@ CARDLANG = pathlib.Path(__file__).resolve().parent.parent / "cardlang"
 
 
 def _chooser_call_sites() -> set[str]:
-    """Every `<expr>.chooser(...)` call site under `cardlang/`, as
-    "module.enclosing_function". The scrape reads attribute-call shape, not a
-    string, so a renamed local alias still counts and a comment never does."""
+    """Every decision site under `cardlang/`, as "module.enclosing_function".
+
+    A decision site is a call to `chooser.decide`, which is the one route from
+    a site to the Chooser itself — so this scrapes the choke point rather than
+    `ctx.chooser(`, whose single remaining caller IS the choke point
+    (tests/test_asked_event.py holds that half). The scrape reads call shape,
+    not a string, so a renamed local alias still counts and a comment never
+    does."""
     sites: set[str] = set()
     for path in sorted(CARDLANG.rglob("*.py")):
+        if path.name == "chooser.py":
+            continue  # the choke point is the route, never a site of its own
         tree = ast.parse(path.read_text())
         spans = [
             (n.lineno, max(getattr(n, "end_lineno", n.lineno) or n.lineno, n.lineno), n.name)
@@ -71,12 +78,18 @@ def _chooser_call_sites() -> set[str]:
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "chooser"
-            ):
-                enclosing = [name for lo, hi, name in spans if lo <= node.lineno <= hi]
+            if not isinstance(node, ast.Call):
+                continue
+            called = node.func
+            name = (
+                called.attr
+                if isinstance(called, ast.Attribute)
+                else called.id
+                if isinstance(called, ast.Name)
+                else None
+            )
+            if name == "decide":
+                enclosing = [n_ for lo, hi, n_ in spans if lo <= node.lineno <= hi]
                 sites.add(f"{path.stem}.{enclosing[-1] if enclosing else '<module>'}")
     return sites
 
@@ -86,9 +99,8 @@ def test_every_decision_point_is_classified() -> None:
     chooser call site must take a routing posture to land, and a removed one
     must leave the table.
 
-    red under: add `ctx.chooser(actor, [1], 1)` anywhere under `cardlang/` —
-    the scrape gains a key the table lacks (verified at authoring: the scrape
-    finds exactly the seven sites the glossary counts)."""
+    red under: add a `decide(...)` call in a new function under `cardlang/` —
+    the scrape gains a key the table lacks."""
     assert _chooser_call_sites() == set(DECISION_POINTS), (
         "chooser call sites and runtime.delegation.DECISION_POINTS disagree — "
         "classify the new site as routable or actor_only (issue #458 records "
@@ -99,9 +111,9 @@ def test_every_decision_point_is_classified() -> None:
 def test_the_postures_are_the_scoped_split() -> None:
     """Exactly one routable site — the round loop — per issue #452's scope
     ruling. Widening this set is issue #458's work, not a drive-by edit."""
-    routable = {k for k, v in DECISION_POINTS.items() if v == "routable"}
+    routable = {k for k, v in DECISION_POINTS.items() if v.posture == "routable"}
     assert routable == {"mechanics.run_decision_round"}
-    assert set(DECISION_POINTS.values()) <= {"routable", "actor_only"}
+    assert {v.posture for v in DECISION_POINTS.values()} <= {"routable", "actor_only"}
     assert HELPER_NAMES == {"chooser_for", "play_source_for"}
 
 

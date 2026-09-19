@@ -5,6 +5,14 @@ shape of every field each kind carries, are `EVENT_PAYLOADS` below — the close
 set and the authority, with `PAYLOAD_SHAPES` saying what each field shape
 admits. This is what each carries:
 
+  ("asked", phase, construct, count, destination)
+                                          delivered to the DECIDER alone,
+                                          before the Chooser is consulted: the
+                                          phase it is asked in, the construct
+                                          asking, how many picks it wants, and
+                                          the zone they land in — None where
+                                          the site cannot know that zone before
+                                          the choice is made
   ("chose", <rendered value>)             delivered to the actor only, at the
                                           moment of the chooser draw (perfect
                                           recall of one's own decisions)
@@ -37,12 +45,13 @@ from collections.abc import Callable
 from typing import Any, TypeGuard
 
 from cardlang.domains import zone_observer_key
+from cardlang.runtime.delegation import CONSTRUCTS
 from cardlang.runtime.state import Ctx, RuntimeState
 from cardlang.runtime.values import COMPONENT_SETS, Card, Player, build_deck
 from cardlang.stdlib.zones import zone_projection
 
 
-def _is_integer(value: object) -> bool:
+def _is_integer(value: object) -> TypeGuard[int]:
     # `isinstance(True, int)` holds, and neither a seat nor a count is a flag.
     return isinstance(value, int) and not isinstance(value, bool)
 
@@ -51,6 +60,9 @@ def _is_integer(value: object) -> bool:
 # alone or with a family instance's key — a seat, a team, a position index or
 # a board cell.
 _LABEL = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\[[A-Za-z0-9_]+\])?")
+
+# A declared name as the grammar's NAME terminal spells it — a phase's own.
+_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 # The rendering of every card and piece a component set holds.
 _CARD_RENDERINGS = frozenset(
@@ -91,6 +103,22 @@ PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
     "value": lambda value: (
         value is None or isinstance(value, (str, int)) or _is_card_renderings(value)
     ),
+    # the phase a decision is asked in, by the name the designer wrote. Never
+    # None: a decision asked outside every phase names no stretch of play, and
+    # the ask is refused at its choke point rather than sentinelled here.
+    "phase": lambda value: isinstance(value, str) and _NAME.fullmatch(value) is not None,
+    # the construct asking, one of the closed set the language spells. The
+    # type test is load-bearing, not decoration: emission is unfenced, so a
+    # site may hand over an unhashable value, and a bare `in` would raise
+    # where this table's whole job is to ANSWER.
+    "construct": lambda value: isinstance(value, str) and value in CONSTRUCTS,
+    # how many picks the decision wants: a count, never a flag and never zero
+    "count": lambda value: _is_integer(value) and value > 0,
+    # the zone the picks land in, or nothing where the site cannot know it
+    # before the choice is made
+    "destination": lambda value: (
+        value is None or (isinstance(value, str) and _LABEL.fullmatch(value) is not None)
+    ),
 }
 
 # The closed set of observation-event kinds, each with the shape of every field
@@ -108,6 +136,7 @@ PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
 # full width. Emission is therefore unfenced: `Ctx.observe` delivers whatever
 # a site hands it.
 EVENT_PAYLOADS: dict[str, tuple[str, ...]] = {
+    "asked": ("phase", "construct", "count", "destination"),
     "chose": ("value",),
     "announce": ("seat", "value"),
     "move": ("label", "view", "label", "view"),

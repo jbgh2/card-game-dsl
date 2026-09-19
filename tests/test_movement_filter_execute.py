@@ -17,6 +17,10 @@ from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.execute import execute
+
+# The phase a hand-built context stands in: a decision names the stretch of
+# play it is asked in, and the grammar puts every statement inside one.
+_PHASE = n.Phase(name="play", qualifier=None, items=())
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
@@ -48,7 +52,9 @@ game Mini {{
 def _ctx(game: n.Game, hand_cards: list[Card], chooser: Any) -> Ctx:
     rs = RuntimeState(Seating(1), ZoneStore(game.zones, (0,)), random.Random(0))
     rs.zones.instance("hand", 0).add_all(hand_cards)
-    return Ctx(rs=rs, chooser=chooser).acting_as(0)
+    # A decision is asked inside a phase (the grammar admits statements
+    # nowhere else), so a context built by hand binds one too.
+    return Ctx(rs=rs, chooser=chooser, current_phase=_PHASE).acting_as(0)
 
 
 def test_chosen_draws_from_the_filtered_pool_only() -> None:
@@ -165,7 +171,7 @@ def _deal_ctx(game: n.Game, n_players: int, deck_cards: list[Card]) -> Ctx:
     )
     rs.zones.single("deck").add_all(deck_cards)
     # A round-robin deal never draws; the chooser is present but unused.
-    return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
+    return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]), current_phase=_PHASE)
 
 
 def test_filtered_round_robin_deals_only_the_matching_subset() -> None:
@@ -199,7 +205,7 @@ def test_filtered_to_each_draws_each_players_pick_from_the_pool() -> None:
         return list(c[:k])
 
     ctx = _deal_ctx(game, 2, [HEARTS_A, CLUBS_K, HEARTS_2, SPADES_3])
-    ctx = Ctx(rs=ctx.rs, chooser=chooser)
+    ctx = Ctx(rs=ctx.rs, chooser=chooser, current_phase=_PHASE)
     execute(stmt, ctx)
 
     # Each player chose from the hearts-only pool; the pool shrank 2 -> 1.
