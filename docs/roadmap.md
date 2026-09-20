@@ -39,11 +39,11 @@ reframes it. Per-card mutable attributes (tapping, counters, status effects)
 are not part of the surface, since the oriented- and CCG-style card state they
 would serve is what is deferred here.
 
-Collusion and cheating are out of scope, and the engine assumes honest
-play: a seat discloses what the rules say it must, and information
-reaches it through declared projections and emitted observations
-(decisions.md, "Honest play is assumed, so a rule reading concealed
-cards is mis-modelled"). Signalling outside the declared moves,
+Collusion and cheating are out of scope, and the engine assumes Honest
+Play: a seat discloses what the rules say it must, and information
+reaches it through its zones' declared projections, the public state
+variables, and the observations its moves emit (decisions.md, "Honest
+Play is assumed, so a rule reading concealed cards is mis-modelled"). Signalling outside the declared moves,
 misreporting a holding, peeking past a projection, and what a game does
 when it catches one are undesigned; issue #717 holds what relaxing the
 assumption would take. A bluff is not in this list — a move whose truth

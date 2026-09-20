@@ -2352,18 +2352,20 @@ the language models about information asymmetry. Cards and resources
 both live in zones; visibility is a per-observer projection
 assignment rather than a binary hidden/public flag.
 
-### Honest play is assumed, so a rule reading concealed cards is mis-modelled
+### Honest Play is assumed, so a rule reading concealed cards is mis-modelled
 
 Everything below describes what a player is *entitled* to know. It says
 nothing about a player who takes more, and it does not have to: the
 engine models players who follow the game's own disclosure rules.
 
-Information reaches a seat through the projections its zones declare and
-the [[observation-event]]s its moves emit, and through nothing else. What
-a seat may then *derive* is unbounded and is simply the game: the rules,
-the running phase, whose turn it is, the zone structure and a seat's own
-observations are all knowledge it holds, and reasoning from them is
-playing well rather than cheating.
+Information reaches a seat through the projections its zones declare, the
+public [[state-variable]]s, and the [[observation-event]]s its moves emit
+— the three the next section names and a [[seat-view]] carries — and
+through nothing else. What a seat may then *derive* from them is
+unbounded and is simply the game: the rules, the running phase, whose
+turn it is, the zone structure and a seat's own observations are all
+knowledge it holds, and reasoning from them is playing well rather than
+cheating.
 
 Where a stage or a rule turns on something only one player can see, a
 rulebook makes that player announce or show it, and the rule reads the
