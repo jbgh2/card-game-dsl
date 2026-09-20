@@ -252,8 +252,9 @@ milestone is the unit the fleet is finishing: it holds one epic issue and
 that epic's parts, its description carries the finish line in the game's
 or the designer's terms, and it closes against that sentence — never
 against the sub-issue count. The sweep lists each open milestone as one
-takeable row, the epic's, ahead of every tiered issue, and holds every
-other issue in the milestone off the front: the epic is taken as a unit,
+takeable row, the epic's, ahead of every tiered issue — the nearest due
+date first, so the due date is how the review says which of the two is
+taken first — and holds every other issue in the milestone off the front: the epic is taken as a unit,
 its Lease is the epic's, and one PR or one short series closes it. Only
 the direction review opens or closes a milestone, at most two open at a
 time, so the number of open milestones is the work-in-progress cap and

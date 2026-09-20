@@ -12,10 +12,11 @@
 #         First the ACTIVE rows: each open milestone is an Active Epic
 #         (docs/harness.md, "The Ready Front"), and its epic issue is the
 #         one row that stands for it — reachability column "M", tier column
-#         its completed/total sub-issues, title the milestone's then the
-#         epic's. Every other issue in an open milestone is held off the
-#         front: the epic is taken as a unit, and its children are that
-#         unit's parts. Then the Ready rows: tier (P1, P2, none), then
+#         the milestone's closed/total issues, title the milestone's then the
+#         epic's — the nearest due date first, an undated milestone last.
+#         Every other issue in an open milestone is held off the front:
+#         the epic is taken as a unit, and its children are that unit's
+#         parts. Then the Ready rows: tier (P1, P2, none), then
 #         reachability, then number. A blocker inherits the tier of every
 #         open issue it blocks, transitively, so a tiered issue's
 #         unblocking work ranks where the issue does. The tier and the
@@ -46,8 +47,7 @@ issues_json=$(gh api graphql --paginate \
             labels(first: 50) { totalCount nodes { name } }
             blockedBy(first: 50) { totalCount nodes { number state } }
             assignees(first: 10) { totalCount }
-            milestone { number title state }
-            subIssuesSummary { total completed }
+            milestone { number title state dueOn done: issues(states: [CLOSED]) { totalCount } all: issues { totalCount } }
           }
         }
       }
@@ -127,12 +127,13 @@ result=$(jq -s \
                 | sub("^reachability:"; "")),
         tier: own_tier,
         milestone: (if in_open_milestone then .milestone else null end),
-        progress: "\(.subIssuesSummary.completed)/\(.subIssuesSummary.total)",
+        progress: (if in_open_milestone then "\(.milestone.done.totalCount)/\(.milestone.all.totalCount)" else "" end),
         blockers: [.blockedBy.nodes[] | select(.state == "OPEN") | .number]})
    | (inherit_tiers) as $tiers
    | map(.tier = $tiers[.number | tostring])
    | {stats: (group_by(.bucket) | map({bucket: .[0].bucket, n: length})),
-      active: ([.[] | select(.bucket == "ACTIVE")] | sort_by(.milestone.number)),
+      active: ([.[] | select(.bucket == "ACTIVE")]
+               | sort_by([(.milestone.dueOn // "9999"), .milestone.number])),
       ready: ([.[] | select(.bucket == "READY")]
               | sort_by([.tier, .reach, .number]))})
   ' <<<"$issues_json")
