@@ -162,7 +162,7 @@ def test_a_street_is_anchored_on_the_best_board_even_when_it_cannot_act() -> Non
     would put the game in the configuration the claim is about. The sweep is
     wide because the cell is incidental rather than aimed at — the assertion
     reports how many openings it actually found, so a line that stopped reaching
-    them fails as loudly as a wrong order would. Measured 2026-09-06: 49 such
+    them fails as loudly as a wrong order would. Measured 2026-09-20: 49 such
     openings across these seeds, and the floor below is set to notice a collapse
     rather than drift.
     """
