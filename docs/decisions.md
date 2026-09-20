@@ -2352,6 +2352,42 @@ the language models about information asymmetry. Cards and resources
 both live in zones; visibility is a per-observer projection
 assignment rather than a binary hidden/public flag.
 
+### Honest Play is assumed, so a rule reading concealed cards is mis-modelled
+
+Everything below describes what a player is *entitled* to know. It says
+nothing about a player who takes more, and it does not have to: the
+engine models players who follow the game's own disclosure rules.
+
+Information reaches a seat through the projections its zones declare, the
+public [[state-variable]]s, and the [[observation-event]]s its moves emit
+— the three the next section names and a [[seat-view]] carries — and
+through nothing else. What a seat may then *derive* from them is
+unbounded and is simply the game: the rules, the running phase, whose
+turn it is, the zone structure and a seat's own observations are all
+knowledge it holds, and reasoning from them is playing well rather than
+cheating.
+
+Where a stage or a rule turns on something only one player can see, a
+rulebook makes that player announce or show it, and the rule reads the
+announcement. Hearts breaks hearts on the card that was *played*; Gin
+Rummy opens its showdown on a [[state-variable]] the knock sets. So a
+rule that gates, counts or routes on another seat's concealed cards is
+not an information leak to be walled — it is a **mis-modelled rule**,
+and what the designer wants is the announcement the real rules have.
+Where such a rule is refused, the refusal names the missing
+announcement.
+
+This is an assumption, and naming it is what makes the derived
+information state mean anything: a player who peeks, signals to a
+partner, or misreports what they hold has knowledge no projection
+models, and every proof taken against that game is a proof about a game
+nobody is playing. Relaxing it — signalling, concealment, peeking, and
+what a game does when it catches one — is out of scope
+([roadmap.md](roadmap.md), "Out of scope"); issue #717 holds the work.
+A *bluff* is already modelled and is not that: Cheat's claim is a legal
+move whose truth nothing checks, which is the claim-versus-content
+encoding the next section describes.
+
 ### Hidden information lives only in zones; state is public
 
 The projection vocabulary below applies to **zones and nothing else**.
