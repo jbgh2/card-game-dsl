@@ -231,7 +231,7 @@ reserved slots.
 - **Ring search** (`first seat from p in order where P, with default`) kills:
   `coup_next_in_game`, `tichu_next_holder`, builtin `player_holding`; with a
   compound-key argmax/argmin variant also `bring_in_seat`, `best_showing_seat`
-  (stud `_lowest_door`, `_highest_upcards`).
+  (stud `_lowest_door`, `_best_showing`).
 - **Integer `//` / ceiling** kills: `skat_effective_loss`, `five_hundred_bid_level`.
 - **First/last of an ordered zone** kills: builtins `top_of`/`bottom_of`,
   canasta `_top_card`/`canasta_pile_rank`.
