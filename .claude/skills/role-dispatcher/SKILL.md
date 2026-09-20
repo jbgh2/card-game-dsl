@@ -27,7 +27,9 @@ single CI runner; raising it is a charter edit.
    Tier, then reachability, then number — skipping what the charter forbids (below) and preferring
    disjoint subsystems across simultaneous slots. An ACTIVE row is one
    item: Lease the epic, work its held parts on one branch or one short
-   series, and the PR closes them. When #143 names a cluster ("four
+   series, and each PR closes the parts it completes — a part that needs
+   its own planning cycle is named in the PR as the unit's next step,
+   never fragmented into a round of its own. When #143 names a cluster ("four
    issues, one defect"), the cluster is one item the same way: Lease
    the primary, comment the linkage on each sibling, one PR closes all.
    (Single-Dispatcher assumption, recorded: sibling issues stay
