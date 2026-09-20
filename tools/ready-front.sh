@@ -7,13 +7,21 @@
 # what Ready means is a change to that file first (its Merge Lane table,
 # "tools/ harness scripts — semantics").
 #
-# stdout: one Ready issue per line — number, reachability, priority tier
-#         ("-" where no tier applies), title — in the front's own order:
-#         tier (P1, P2, none), then reachability, then number. A blocker
-#         inherits the tier of every open issue it blocks, transitively,
-#         so a tiered issue's unblocking work ranks where the issue does.
-#         The tier is the direction review's triage decision
-#         (docs/harness.md, "The Ready Front"); nothing here reads #143.
+# stdout: one takeable row per line — number, reachability, priority tier
+#         ("-" where no tier applies), title — in the front's own order.
+#         First the ACTIVE rows: each open milestone is an Active Epic
+#         (docs/harness.md, "The Ready Front"), and its epic issue is the
+#         one row that stands for it — reachability column "M", tier column
+#         its completed/total sub-issues, title the milestone's then the
+#         epic's. Every other issue in an open milestone is held off the
+#         front: the epic is taken as a unit, and its children are that
+#         unit's parts. Then the Ready rows: tier (P1, P2, none), then
+#         reachability, then number. A blocker inherits the tier of every
+#         open issue it blocks, transitively, so a tiered issue's
+#         unblocking work ranks where the issue does. The tier and the
+#         milestones are the direction review's decisions; nothing here
+#         reads #143. An open milestone with no epic issue in it aborts:
+#         a unit with no row to take it by is a milestone nobody can work.
 # stderr: every open issue accounted for, as counted exclusion buckets.
 #         The sweep never truncates silently: a capped fetch is a loud
 #         failure, never a shorter list, and a failed Lease or label
@@ -38,6 +46,8 @@ issues_json=$(gh api graphql --paginate \
             labels(first: 50) { totalCount nodes { name } }
             blockedBy(first: 50) { totalCount nodes { number state } }
             assignees(first: 10) { totalCount }
+            milestone { number title state }
+            subIssuesSummary { total completed }
           }
         }
       }
@@ -75,10 +85,18 @@ result=$(jq -s \
               (.[$b | tostring] // 3) as $cur
               | ($t[$r.number | tostring] // 3) as $from
               | if $from < $cur then .[$b | tostring] = $from else . end)));
+  def in_open_milestone: (.milestone != null) and (.milestone.state == "OPEN");
   # One bucket per issue, first match wins, in docs/harness.md list order.
+  # The epic of an open milestone is ACTIVE unless a hand is on it; the
+  # rest of the milestone is held, whatever else it carries.
   def bucket:
     .number as $n
     | if $n == $ordering then "ordering issue (not work)"
+    elif in_open_milestone and (labelnames | index("epic")) then
+      (if .assignees.totalCount > 0 then "claimed (assigned)"
+       elif $leased | index($n) then "leased"
+       else "ACTIVE" end)
+    elif in_open_milestone then "held by an open milestone"
     elif labelnames | index("epic") then "epic (container)"
     elif (labelnames | index("needs-triage"))
          or (((labelnames - (labelnames - kinds)) | length) == 0)
@@ -97,14 +115,24 @@ result=$(jq -s \
      | if length > 0
        then error("capped fetch on issue(s) \([.[].number]) — a connection passed first: 50; raise it")
        else empty end),
+    # Every open milestone must be stood for by exactly one epic issue.
+    (map(select(in_open_milestone)) | group_by(.milestone.number)
+     | map({m: .[0].milestone, epics: [.[] | select(labelnames | index("epic")) | .number]})
+     | map(select((.epics | length) != 1))
+     | if length > 0
+       then error("open milestone(s) without exactly one epic issue: \(map("\(.m.title) (epics: \(.epics))") | join("; "))")
+       else empty end),
   (map({number, title, bucket: bucket,
         reach: (([labelnames[] | select(startswith("reachability:"))][0] // "")
                 | sub("^reachability:"; "")),
         tier: own_tier,
+        milestone: (if in_open_milestone then .milestone else null end),
+        progress: "\(.subIssuesSummary.completed)/\(.subIssuesSummary.total)",
         blockers: [.blockedBy.nodes[] | select(.state == "OPEN") | .number]})
    | (inherit_tiers) as $tiers
    | map(.tier = $tiers[.number | tostring])
    | {stats: (group_by(.bucket) | map({bucket: .[0].bucket, n: length})),
+      active: ([.[] | select(.bucket == "ACTIVE")] | sort_by(.milestone.number)),
       ready: ([.[] | select(.bucket == "READY")]
               | sort_by([.tier, .reach, .number]))})
   ' <<<"$issues_json")
@@ -114,4 +142,5 @@ result=$(jq -s \
   jq -r '.stats[] | "  \(.n)\t\(.bucket)"' <<<"$result"
 } >&2
 
-jq -r '.ready[] | [.number, .reach, (if .tier == 1 then "P1" elif .tier == 2 then "P2" else "-" end), .title] | @tsv' <<<"$result"
+jq -r '(.active[] | [.number, "M", .progress, "\(.milestone.title) -- \(.title)"] | @tsv),
+       (.ready[] | [.number, .reach, (if .tier == 1 then "P1" elif .tier == 2 then "P2" else "-" end), .title] | @tsv)' <<<"$result"

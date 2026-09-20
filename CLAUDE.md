@@ -380,7 +380,9 @@ Lease protocol live in `docs/harness.md`; its sweep,
 
 [Issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the pinned
 ordering issue and the authority on cross-cutting task sequence; what an
-agent takes next is the Priority Tier, which the Ready Front sorts by.
+agent takes next is an Active Epic — an open milestone, opened only by the
+direction review — and then the Priority Tier, which the Ready Front
+sorts by (`docs/harness.md`, "The Ready Front").
 
 ## Operating rules (load-bearing)
 

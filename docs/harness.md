@@ -247,6 +247,23 @@ does not decide, and it never truncates silently: any capped or partial
 fetch is a loud failure, and every excluded issue lands in a counted
 bucket on stderr.
 
+**An Active Epic is an open milestone, and the epic is the row.** A
+milestone is the unit the fleet is finishing: it holds one epic issue and
+that epic's parts, its description carries the finish line in the game's
+or the designer's terms, and it closes against that sentence — never
+against the sub-issue count. The sweep lists each open milestone as one
+takeable row, the epic's, ahead of every tiered issue, and holds every
+other issue in the milestone off the front: the epic is taken as a unit,
+its Lease is the epic's, and one PR or one short series closes it. Only
+the direction review opens or closes a milestone, at most two open at a
+time, so the number of open milestones is the work-in-progress cap and
+needs no label to keep it honest. A milestone with no epic issue, or two,
+aborts the sweep rather than sorting somewhere. **A generator waits for
+what it spawns**: an issue whose work is to find work — a read against a
+rules source, a sweep of a class — is made blocked-by the epic each pick
+spawns, so it leaves the front until that epic closes and returns on its
+own; a finding stream that never drains is how a read outran its fixes.
+
 **The tier is triage, and triage is the direction review's.** A filer
 states facts — kind, reachability, the body — and never a tier: the
 weight of an issue is a portfolio judgment, and the role with the whole

@@ -25,8 +25,10 @@ single CI runner; raising it is a charter edit.
    Leases.
 2. **Select**, top of the front first — the sweep's own order: Priority
    Tier, then reachability, then number — skipping what the charter forbids (below) and preferring
-   disjoint subsystems across simultaneous slots. When #143 names a
-   cluster ("four issues, one defect"), the cluster is one item: Lease
+   disjoint subsystems across simultaneous slots. An ACTIVE row is one
+   item: Lease the epic, work its held parts on one branch or one short
+   series, and the PR closes them. When #143 names a cluster ("four
+   issues, one defect"), the cluster is one item the same way: Lease
    the primary, comment the linkage on each sibling, one PR closes all.
    (Single-Dispatcher assumption, recorded: sibling issues stay
    technically Ready while worked; a second concurrent Dispatcher would

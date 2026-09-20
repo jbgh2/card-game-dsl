@@ -40,8 +40,9 @@ chartered:
   claude/issue-* PRs and live Leases. A parked Lease with pushed work (a
   linkage comment on the issue says so) is the round's FIRST pick —
   finish parked work before taking new.
-- Select from the top of the front (its own order: Priority Tier, then
-  reachability, then number), skipping Merge Lane A work, spend-requiring items, and blocked
+- Select from the top of the front (its own order: an ACTIVE row — an
+  open milestone's epic, taken as one Lease with its held parts — then
+  Priority Tier, then reachability, then number), skipping Merge Lane A work, spend-requiring items, and blocked
   issues; honor #143 clusters as one item (Lease the primary, comment
   the linkage on siblings). Prefer disjoint subsystems across
   simultaneous slots.

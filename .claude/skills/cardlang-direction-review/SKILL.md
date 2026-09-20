@@ -58,6 +58,14 @@ A short verdict (one screen): the shape the window shows, the two or three
 reallocation moves with the most leverage, and — only where a trend check
 demands it — a doctrine amendment, drafted as the exact edit.
 
+**Then the Active Epics.** The review is the one role that opens or closes
+a milestone (docs/harness.md, "The Ready Front"): at most two open at a
+time, each holding one epic and its parts, its description the finish
+line. Close one only against that sentence, read against the tree — a
+sub-issue count is not it. Open the next only when one closes, and make a
+generator issue (a read, a sweep) blocked-by the epic its pick spawned so
+the finding stream drains before it fills again.
+
 **Then triage.** The review is the one role that sets a Priority Tier
 (docs/harness.md, "The Ready Front"): every designer-reachable issue filed
 since the previous verdict gets `priority:P1` (a silent defect a designer
