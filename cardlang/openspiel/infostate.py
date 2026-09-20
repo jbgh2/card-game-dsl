@@ -170,7 +170,7 @@ class Ask:
     aggregate for the whole call while a replayed one emits a per-pick event
     too — so a progress count read off the log answers differently on the two
     routes for the same completed decision. A seat's position within a call is
-    the caller's to track until the log says it unambiguously (issue #718).
+    the caller's to track until the log says it unambiguously (issue #592).
     """
 
     phase: str
