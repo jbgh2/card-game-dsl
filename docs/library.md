@@ -352,7 +352,7 @@ in tests/test_trump_slot_class.py.
   intra-street bookkeeping; action-legality is the
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
-  seats come from the `bring_in_seat()` / `first_to_act_seat()` Primitive selectors.
+  seats come from the `bring_in_seat()` / `best_showing_seat()` Primitive selectors.
   A whole street, verbatim from
   [games/leduc-poker.cardlang](games/leduc-poker.cardlang), whose streets open
   from a plain state variable rather than a selector:

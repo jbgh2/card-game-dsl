@@ -120,7 +120,7 @@ next to the game it serves, and the language package
 genuinely general names stay in the stdlib: `team_of`, `player_holding`,
 `suit_of`, `rank_value`, `card_points`, `error` (and `best_five_card_hand`,
 specified in [library.md](../library.md) but not yet wired) — and
-the poker-*family* selectors (`bring_in_seat`, `first_to_act_seat`)
+the poker-*family* selectors (`bring_in_seat`, `best_showing_seat`)
 graduate there at their second witness, per the usual corpus-first
 promotion (the Hold'em games, with no bring-in, are not it). The pot-share
 queries stay per-game — each declares its own reads — over the family-wide

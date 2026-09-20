@@ -90,13 +90,13 @@
 // small.
 //
 // THE ANTE-ALL-IN LOW CARD, which the page does not reach. A seat left with
-// nothing by the ante is still dealt cards and can show the lowest door.
-// `bring_in_seat` compares only the seats holding chips, so the street is then
-// anchored on the lowest FUNDED door and posted by that seat. Pagat is silent
-// on a player who cannot post, and someone must put the money in — but the
-// anchor and the payment are different things, and every LATER street in this
-// file anchors on the best board whether or not that seat can act. Issue #650
-// holds the inconsistency and what a fix has to settle.
+// nothing by the ante is still dealt cards and can show the lowest door, and
+// the street is anchored on that card: `bring_in_seat` reads its membership off
+// the boards, as every other street's selector does. The post itself is what
+// the seat can pay, which is nothing, so the standing bet is what was actually
+// put in and the seats behind are offered an unopened street. Pagat is silent
+// on the player who cannot post; anchoring on the card is the reading that
+// keeps the first street the same kind of thing as the rest.
 //
 // NO BURN CARD. Pagat's five-card-stud page does not burn between streets, so
 // this file does not.
@@ -128,7 +128,7 @@ game FiveCardStud {
   // a read of one names that phase; `stack` is game-level and carries no tail.
   primitives {
     bring_in_seat() : Player
-        reads stack, upcards
+        reads upcards
     best_showing_seat() : Player
         reads folded in play, upcards
     pot_share(p : Player) : Integer
@@ -198,7 +198,7 @@ game FiveCardStud {
         bet_by[bringer] := if 4 < stack[bringer] then 4 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
-        bet_to_match := 4
+        bet_to_match := bet_by[bringer]
         // The ring opens ON the poster, because the poster holds the round's
         // first decision: "The player who opens the betting has the option to
         // place a full small bet ($5) instead of just the compulsory minimum

@@ -274,7 +274,7 @@ amount syntax" / "Resource transfer failure").
   auction form of `round`"). The order axis needed no value of its own.
 - **Seat selectors as Primitives.** The bring-in (lowest door card) and the
   first-to-act (highest visible upcards) are argmin/argmax over players keyed on
-  card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `first_to_act_seat()`
+  card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `best_showing_seat()`
   are Stud-local Primitives, called from the betting phase by name exactly as
   the Builtin `team_of` is,
   pure reads of the dealt cards (no RNG).

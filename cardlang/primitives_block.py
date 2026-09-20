@@ -280,10 +280,6 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.canasta", "canasta_stage_ok", InvocationContract.BUNDLED,
         Sig((TPlayer(), TCard()), TBoolean()),
     ),
-    "first_to_act_seat": Implementation(
-        "cardlang.runtime.stud", "first_to_act_seat", InvocationContract.BUNDLED,
-        Sig((), TPlayer()),
-    ),
     "five_hundred_bid_level": Implementation(
         "cardlang.runtime.five_hundred", "five_hundred_bid_level", InvocationContract.PURE,
         Sig((TInteger(),), TInteger()),

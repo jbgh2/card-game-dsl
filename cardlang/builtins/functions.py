@@ -199,7 +199,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
         "best_showing_seat",  # Stud: the best-hand-showing seat that opens a street
-        "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query for the two-seat variant
@@ -418,7 +417,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_stage_ok",
         "card_points",
         "card_strength",
-        "first_to_act_seat",
         "five_hundred_bid_value",
         "five_hundred_next_bid",
         "follow_class",

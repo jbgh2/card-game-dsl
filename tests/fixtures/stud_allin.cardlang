@@ -19,9 +19,9 @@ game StudAllIn {
   // `phase play`'s own variables named with their phase.
   primitives {
     bring_in_seat() : Player
-        reads stack, upcards
-    first_to_act_seat() : Player
-        reads stack, folded in play, upcards
+        reads upcards
+    best_showing_seat() : Player
+        reads folded in play, upcards
     pot_share(p : Player) : Integer
         reads committed in play, folded in play, in_hand in play, hole, upcards
   }
@@ -88,7 +88,7 @@ game StudAllIn {
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
-        bet_to_match := 2
+        bet_to_match := bet_by[bringer]
         raises := 1
         limit := 5
         round offering [check, bet, call, fold, raise] from bringer offset_by left
@@ -117,7 +117,7 @@ game StudAllIn {
           limit := 5
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
@@ -138,7 +138,7 @@ game StudAllIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
@@ -159,7 +159,7 @@ game StudAllIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
@@ -180,7 +180,7 @@ game StudAllIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
