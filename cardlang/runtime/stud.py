@@ -27,9 +27,11 @@ game, how five of them compare is not.
 Random players bet/call/raise/fold uniformly among the legal actions. Total chips
 are invariant — the falsifiable invariant for the betting and pot logic.
 
-Simplifications (see docs/games/seven-card-stud.md): Seven-Card Stud's 4th-street
-open-pair limit doubling is omitted (lower limit on 3rd/4th, upper on 5th–7th).
-Five-Card Stud carries its own open-pair conditional in the language.
+Neither game offers the open-pair BIG BET as an option beside the small one:
+a street is opened at a single bet size, so the rule's second action is not in
+the tree (issue #648 owns the language gap). Seven-Card Stud runs 4th street at
+the lower limit and Five-Card Stud writes the size as a conditional, which makes
+the big bet compulsory instead — the same gap from its two sides.
 """
 
 from __future__ import annotations
