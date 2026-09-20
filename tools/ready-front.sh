@@ -21,8 +21,12 @@
 #         open issue it blocks, transitively, so a tiered issue's
 #         unblocking work ranks where the issue does. The tier and the
 #         milestones are the direction review's decisions; nothing here
-#         reads #143. An open milestone with no epic issue in it aborts:
-#         a unit with no row to take it by is a milestone nobody can work.
+#         reads #143. The open milestones are fetched on their own, so an
+#         open milestone without exactly one OPEN epic issue aborts whether
+#         it is malformed or merely finished: a unit with no row to take it
+#         by is a milestone nobody can work, and one whose every issue has
+#         closed is the review's to close against its finish line — until
+#         it does, it still counts toward the cap, and the sweep says so.
 # stderr: every open issue accounted for, as counted exclusion buckets.
 #         The sweep never truncates silently: a capped fetch is a loud
 #         failure, never a shorter list, and a failed Lease or label
@@ -61,8 +65,24 @@ leased_json=$(gh api --paginate "repos/$OWNER/$NAME/git/matching-refs/heads/clau
            | [.[].ref | select(test("^refs/heads/claude/issue-[0-9]+$"))
               | sub("^refs/heads/claude/issue-"; "") | tonumber]')
 
+# The open milestones, fetched on their own: an open milestone whose every
+# issue has closed is invisible to the open-issue query above, and it is
+# exactly the one the validation below must still see.
+milestones_json=$(gh api graphql \
+  -F owner="$OWNER" -F name="$NAME" -f query='
+    query($owner: String!, $name: String!) {
+      repository(owner: $owner, name: $name) {
+        milestones(states: [OPEN], first: 50) {
+          totalCount
+          nodes { number title
+            issues(states: [OPEN], first: 100) { totalCount nodes { number labels(first: 50) { nodes { name } } } } }
+        }
+      }
+    }' | jq '.data.repository.milestones')
+
 result=$(jq -s \
   --argjson leased "$leased_json" \
+  --argjson milestones "$milestones_json" \
   --argjson ordering "$ORDERING_ISSUE" '
   def labelnames: [.labels.nodes[].name];
   def kinds: ["bug", "enhancement", "documentation", "tech-debt"];
@@ -115,12 +135,17 @@ result=$(jq -s \
      | if length > 0
        then error("capped fetch on issue(s) \([.[].number]) — a connection passed first: 50; raise it")
        else empty end),
-    # Every open milestone must be stood for by exactly one epic issue.
-    (map(select(in_open_milestone)) | group_by(.milestone.number)
-     | map({m: .[0].milestone, epics: [.[] | select(labelnames | index("epic")) | .number]})
+    # Every open milestone must be stood for by exactly one OPEN epic issue,
+    # judged from the milestone list, not from the open issues that happen
+    # to carry it.
+    (if $milestones.totalCount > 50 or ([$milestones.nodes[] | select(.issues.totalCount > 100)] | length) > 0
+     then error("capped fetch on milestones — a connection passed first: 50/100; raise it")
+     else empty end),
+    ($milestones.nodes
+     | map({title, epics: [.issues.nodes[] | select([.labels.nodes[].name] | index("epic")) | .number]})
      | map(select((.epics | length) != 1))
      | if length > 0
-       then error("open milestone(s) without exactly one epic issue: \(map("\(.m.title) (epics: \(.epics))") | join("; "))")
+       then error("open milestone(s) without exactly one open epic issue — close each against its finish line, or give it its epic: \(map("\(.title) (open epics: \(.epics))") | join("; "))")
        else empty end),
   (map({number, title, bucket: bucket,
         reach: (([labelnames[] | select(startswith("reachability:"))][0] // "")
