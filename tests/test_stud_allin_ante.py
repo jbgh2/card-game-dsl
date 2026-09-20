@@ -68,6 +68,11 @@ def test_a_short_bring_in_leaves_the_standing_bet_at_what_was_posted() -> None:
     red under: restore the nominal post at the call site, `bet_to_match := 2` in
     tests/fixtures/stud_partial_bringin.cardlang — RUN, not predicted: every
     seed then reports a standing bet of 2 over a posted 1.
+
+    Measured 2026-09-20: every one of these seeds reaches a bring-in street with
+    a post standing, so the floor below is the seed count rather than a token
+    non-vacuity guard — a line that stopped reaching the branch fails here as
+    loudly as a wrong standing bet would.
     """
     game = check_source(PARTIAL)
     seen = 0
@@ -103,4 +108,7 @@ def test_a_short_bring_in_leaves_the_standing_bet_at_what_was_posted() -> None:
 
         play_game(game, random.Random(seed), chooser=chooser, on_first_decision=capture)
 
-    assert seen > 0, "no seed reached a bring-in street with a post standing"
+    assert seen >= 30, (
+        f"only {seen} of 30 seeds reached a bring-in street with a post "
+        f"standing, so this line barely reaches the branch the claim is about"
+    )
