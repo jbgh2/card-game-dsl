@@ -98,7 +98,10 @@ skill's Phase 0 classification, with its "docs prose" and "tests/goldens"
 classes each split in two; the remaining rows are the classes that
 classification does not carry. A change class missing from this table is
 a defect in this table: the change merges at Merge Lane B — unsure
-resolution stops there — and the same change fixes the table.
+resolution stops there — and the missing row is filed, never added in
+passing. A row is a merge permission, so the operator adds it; an agent
+that could map its own diff to a lane could map it to the one that lets
+it merge itself.
 
 **The pilot posture.** Every language-pipeline class starts at Merge
 Lane B — and the grammar lives at Merge Lane A — deliberately: lanes
@@ -259,7 +262,10 @@ taken first — and holds every other issue in the milestone off the front: the 
 its Lease is the epic's, and one PR or one short series closes it. Only
 the direction review opens or closes a milestone, at most two open at a
 time, so the number of open milestones is the work-in-progress cap and
-needs no label to keep it honest. A milestone with no epic issue, or two,
+needs no label to keep it honest. An Active Epic holds no Merge Lane A
+part: grammar is the operator's with the Language Owner, and a unit an
+agent takes cannot wait on it — the review has the part done first, or
+activates the epic without it and queues it as the operator's own unit. A milestone with no epic issue, or two,
 aborts the sweep rather than sorting somewhere. **A generator waits for
 what it spawns**: an issue whose work is to find work — a read against a
 rules source, a sweep of a class — is made blocked-by the epic each pick
