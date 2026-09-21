@@ -3549,24 +3549,50 @@
         "op": "and",
         "left": {
           "kind": "binop",
-          "op": "is",
+          "op": "and",
           "left": {
-            "kind": "name",
-            "name": "bet_to_match",
-            "ref": "state_var"
+            "kind": "binop",
+            "op": "is",
+            "left": {
+              "kind": "name",
+              "name": "bet_to_match",
+              "ref": "state_var"
+            },
+            "right": {
+              "kind": "int",
+              "value": 0
+            }
           },
           "right": {
-            "kind": "int",
-            "value": 0
+            "kind": "binop",
+            "op": ">",
+            "left": {
+              "kind": "name",
+              "name": "big_limit",
+              "ref": "state_var"
+            },
+            "right": {
+              "kind": "name",
+              "name": "limit",
+              "ref": "state_var"
+            }
           }
         },
         "right": {
           "kind": "binop",
           "op": ">",
           "left": {
-            "kind": "name",
-            "name": "big_limit",
-            "ref": "state_var"
+            "kind": "subscript",
+            "obj": {
+              "kind": "name",
+              "name": "stack",
+              "ref": "state_var"
+            },
+            "index_expr": {
+              "kind": "name",
+              "name": "actor",
+              "ref": "pronoun"
+            }
           },
           "right": {
             "kind": "name",
@@ -4154,29 +4180,99 @@
                 "op": "and",
                 "left": {
                   "kind": "binop",
-                  "op": ">",
+                  "op": "and",
                   "left": {
-                    "kind": "name",
-                    "name": "bet_to_match",
-                    "ref": "state_var"
+                    "kind": "binop",
+                    "op": ">",
+                    "left": {
+                      "kind": "name",
+                      "name": "bet_to_match",
+                      "ref": "state_var"
+                    },
+                    "right": {
+                      "kind": "int",
+                      "value": 0
+                    }
                   },
                   "right": {
-                    "kind": "int",
-                    "value": 0
+                    "kind": "binop",
+                    "op": ">",
+                    "left": {
+                      "kind": "name",
+                      "name": "big_limit",
+                      "ref": "state_var"
+                    },
+                    "right": {
+                      "kind": "name",
+                      "name": "limit",
+                      "ref": "state_var"
+                    }
                   }
                 },
                 "right": {
                   "kind": "binop",
-                  "op": ">",
+                  "op": "or",
                   "left": {
-                    "kind": "name",
-                    "name": "big_limit",
-                    "ref": "state_var"
+                    "kind": "binop",
+                    "op": "<",
+                    "left": {
+                      "kind": "name",
+                      "name": "limit",
+                      "ref": "state_var"
+                    },
+                    "right": {
+                      "kind": "name",
+                      "name": "floor",
+                      "ref": "state_var"
+                    }
                   },
                   "right": {
-                    "kind": "name",
-                    "name": "limit",
-                    "ref": "state_var"
+                    "kind": "binop",
+                    "op": ">",
+                    "left": {
+                      "kind": "binop",
+                      "op": "+",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "bet_by",
+                          "ref": "state_var"
+                        },
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "actor",
+                          "ref": "pronoun"
+                        }
+                      },
+                      "right": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "stack",
+                          "ref": "state_var"
+                        },
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "actor",
+                          "ref": "pronoun"
+                        }
+                      }
+                    },
+                    "right": {
+                      "kind": "binop",
+                      "op": "+",
+                      "left": {
+                        "kind": "name",
+                        "name": "level",
+                        "ref": "state_var"
+                      },
+                      "right": {
+                        "kind": "name",
+                        "name": "limit",
+                        "ref": "state_var"
+                      }
+                    }
                   }
                 }
               },

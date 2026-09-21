@@ -4845,8 +4845,9 @@ declares: Stud allows three raises per street and Leduc two, so `raise_cap` is
 `requires`d. A per-OCCASION constant belongs to the occasion, so it is a
 procedure argument: a poker bet size is a property of a street, not of a game
 (Stud runs 5/5/10/10/10), so `limit` is provided state that the library's
-`open_street(bet_size)` sets, and each street names its own size where the street
-is written. Neither difference reaches the import surface, which stays a bare
+`open_street(bet_size, big_size)` sets, and each street names its own sizes
+where the street is written — the second being the street's other legal wager,
+or 0 where its rules give only one. Neither difference reaches the import surface, which stays a bare
 name.
 
 The test for which of the two a constant is: could one declaration in the game

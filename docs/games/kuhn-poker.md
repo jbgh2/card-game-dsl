@@ -78,5 +78,7 @@ nothing else in common. Three things about that sharing are visible here:
   declares seven of `poker_betting`'s variables and never mentions `acted`
   or `limit`: those the library *provides*, with its own defaults, and Kuhn
   may read them but not write them. That is why Kuhn's one street is opened
-  with `run open_street(1)` — the bet size is the argument, since a bet size
-  is a property of a street rather than of a game.
+  with `run open_street(1, 0)` — the sizes are the arguments, since a bet size
+  is a property of a street rather than of a game. The second is the street's
+  SECOND legal size, for the streets whose rules give one; Kuhn's does not, so
+  it passes 0.

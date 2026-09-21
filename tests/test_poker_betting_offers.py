@@ -322,6 +322,15 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
     only be driven by playing to that wager: it lives in
     tests/test_poker_betting_transitions.py, whose `level` cells hold it.
 
+    A BIG WAGER IS OFFERED ONLY WHERE IT IS A DIFFERENT WAGER. Both sizes pay
+    what the seat can pay, so a stack that cannot exceed the small bet posts
+    the same chips under either name — one action wearing two ids. Going all in
+    is one decision however the seat spells it, and a second id for it inflates
+    the tree and biases any policy drawing uniformly over the offered set. That
+    is why the two `_big` rows carry a stack term their small twins do not, and
+    it is a claim about the ACTION SPACE rather than about chips: the money is
+    identical either way, so no conservation check can see it.
+
     `bet`'s row is the exception: it CAPTURES what the library does rather than
     what the rules say, because `bet` carries only `bet_to_match is 0` where
     `raise` carries four conjuncts. So an opening bet is offered into a field
@@ -337,7 +346,7 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
     offered = {"call" if owes else "check"}
     if cell.bet_to_match == 0:
         offered.add("bet")
-        if cell.big:
+        if cell.big > cell.limit and cell.stack > cell.limit:
             offered.add("bet_big")
     elif (
         (not cell.acted or cell.bet_to_match > cell.level)
@@ -346,7 +355,7 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
         and cell.stack > cell.owed
     ):
         offered.add("raise")
-        if cell.big:
+        if cell.big > cell.limit and cell.bet_by + cell.stack > cell.level + cell.limit:
             offered.add("raise_big")
     return frozenset(offered)
 
@@ -779,6 +788,77 @@ def test_a_second_size_that_is_not_bigger_offers_no_big_wager(
     except _Offered as offered:
         assert not (offered.names & {"bet_big", "raise_big"}), (
             f"{why}: the street offered a big wager ({sorted(offered.names)})"
+        )
+        return
+    raise AssertionError("the probe reached no decision")
+
+
+# --- a big wager that cannot out-wager its twin is not a second action --------
+
+# The cells cross `stack` against the CALL, never against the street's sizes,
+# and their ratchet arm is unreachable because no cell plays a wager. These
+# rows drive both: each is a stack where the two sizes would pay the same
+# chips, and the last two are the interaction — the ratchet has withdrawn the
+# small raise, so the big one must stay whether or not it can out-wager a twin
+# that is no longer there.
+@pytest.mark.parametrize(
+    ("stack", "prior", "expect_big", "why"),
+    [
+        (4, [], False, "a stack at or below the small bet posts all of it either way"),
+        (5, [], False, "a stack exactly the small bet posts all of it either way"),
+        (6, [], True, "a stack above the small bet can wager more"),
+        (7, ["bet"], False, "cannot reach even the small raise's target"),
+        (100, ["bet"], True, "can raise past the small target"),
+        (100, ["bet_big"], True, "ratcheted: the big raise is the only raise"),
+        (12, ["bet_big"], True, "ratcheted AND short: still the only raise"),
+    ],
+    ids=["bet-under", "bet-exact", "bet-over", "raise-short", "raise-deep",
+         "ratcheted-deep", "ratcheted-short"],
+)
+def test_a_big_wager_is_offered_only_where_it_is_a_different_wager(
+    stack: int, prior: list[str], expect_big: bool, why: str
+) -> None:
+    """Two ids for one wager is an action-space defect, not a chip defect.
+
+    Both sizes pay `min(what the rules want, what the seat holds)`, so a seat
+    that cannot exceed the smaller size posts the same chips under either name
+    and the two moves become one action wearing two ids. The money is identical
+    either way, which is exactly why no conservation check can see this: it is
+    about what the tree OFFERS, and a duplicate biases any policy that draws
+    uniformly over the offered set.
+
+    The last two rows are the guard's other half. Once a placed big wager has
+    withdrawn the small raise, the big raise is the only raise there is and
+    must stay offered even where it cannot out-wager the twin it no longer has.
+
+    red under: drop `and stack[actor] > limit` from `bet_big` — the three `bet-`
+    rows disagree; drop the arithmetic arm from `raise_big` — `raise-short`
+    does. Dropping its `limit < floor` arm instead reddens `ratcheted-short`.
+    """
+    src = _RATCHET_PROBE.format(ratchet="true", vocabulary=", ".join(VOCABULARY))
+    src = src.replace(
+        "stack[player]     : Integer = 100", f"stack[player]     : Integer = {stack}"
+    )
+    game = check_dsl(src, "twins.cardlang")
+    step = 0
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        nonlocal step
+        if step < len(prior):
+            want = prior[step]
+            step += 1
+            picked = [c for c in candidates if c[0] == want]
+            assert picked, f"{why}: cannot play {want} at step {step}"
+            return picked
+        raise _Offered(frozenset(name for name, _ in candidates))
+
+    try:
+        play_game(game, random.Random(0), None, chooser)
+    except _Offered as offered:
+        big = bool(offered.names & {"bet_big", "raise_big"})
+        assert big == expect_big, (
+            f"{why}: offered {sorted(offered.names)}, "
+            f"{'expected a big wager' if expect_big else 'expected none'}"
         )
         return
     raise AssertionError("the probe reached no decision")

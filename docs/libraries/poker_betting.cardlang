@@ -170,11 +170,20 @@ library poker_betting {
   // and a game that never names it in a vocabulary list mints no action id for
   // it either.
   //
+  // IT MUST ALSO BE ABLE TO OUT-WAGER ITS SMALL TWIN. Both moves post what the
+  // seat can pay, so a stack at or below the small bet posts the same chips
+  // either way and the two moves become one action wearing two ids. An all-in
+  // for everything is ONE decision however the seat names it, and two ids for
+  // it inflate the tree and bias any policy that draws uniformly over the
+  // offered set. `stack[actor] > limit` is exactly when the two differ.
+  //
   // The floor climbs only on a wager that actually REACHED the big size: a
   // shove short of it has not "placed a big bet", so it does not withdraw the
   // small raise from the seats behind.
   move_type bet_big {
-    when: bet_to_match is 0 and big_limit > limit
+    when: bet_to_match is 0
+          and big_limit > limit
+          and stack[actor] > limit
     effect {
       let post = if big_limit < stack[actor] then big_limit else stack[actor]
       stack[actor] := stack[actor] - post
@@ -268,9 +277,22 @@ library poker_betting {
   // makes the street two-size (see `bet_big`), and it is why the ratchet never
   // withdraws this move: a size above the small bet is above the floor, which
   // is one of the two values the floor takes.
+  //
+  // The last conjunct is `bet_big`'s twin-distinctness rule, in the form a
+  // raise takes. Both raises pay `min(what the rules want, what the seat
+  // holds)`, so a seat that cannot reach even the SMALL raise's target pays
+  // its whole stack either way and the two moves collapse to one action with
+  // two ids. They differ exactly when the seat can put more than the small
+  // target in, which is what the arithmetic arm says.
+  //
+  // Its first arm is what keeps the ratchet honest: once the floor has climbed
+  // the small raise is gone, so this move is the only raise there is and must
+  // stay offered whether or not it can beat a target nobody may reach.
   move_type raise_big {
     when: bet_to_match > 0
           and big_limit > limit
+          and (limit < floor
+               or bet_by[actor] + stack[actor] > level + limit)
           and (not acted[actor] or bet_to_match > level)
           and raises < raise_cap
           and (number of players where can_act(player)) > 1
