@@ -58,10 +58,24 @@ LIBRARY = load_library("poker_betting")
 VOCABULARY: tuple[str, ...] = tuple(m.name for m in LIBRARY.move_types)
 SIZING_MOVES: tuple[str, ...] = tuple(m for m in VOCABULARY if m != "check")
 
-LIMIT = 5  # the street's bet size
+LIMIT = 5  # the street's small (base) bet size
+BIG = 2 * LIMIT  # its second size, for the two moves that wager one
 
 
-def _raise_target(standing: int) -> int:
+def _size(move: str) -> int:
+    """The size a move wagers from. The two `_big` moves size from the street's
+    second wager; every other move sizes from its first. A street carries both
+    and the MOVE picks, which is what makes the big bet an option beside the
+    small one rather than a replacement for it."""
+    return BIG if move.endswith("_big") else LIMIT
+
+
+def _opens(move: str) -> bool:
+    """Does this move open a street (no standing bet) rather than answer one?"""
+    return move in ("bet", "bet_big")
+
+
+def _raise_target(standing: int, size: int = LIMIT) -> int:
     """Where the rules put a raise's target, measured from the LEVEL.
 
     A raise goes to the last wager anyone made IN FULL, plus the street's size.
@@ -83,7 +97,7 @@ def _raise_target(standing: int) -> int:
     That case is pinned in tests/test_poker_betting_rulebook.py, and reached
     by play in tests/test_poker_betting_transitions.py.
     """
-    return LEVEL + LIMIT
+    return LEVEL + size
 
 
 class Cell(NamedTuple):
@@ -132,15 +146,15 @@ def _cells() -> list[Cell]:
         for rung, standing in RUNGS.items():
             # `bet` opens a street, so it only ever sizes from no standing bet;
             # `call` and `raise` answer one, so they never size from none.
-            if (move == "bet") != (standing == 0):
+            if _opens(move) != (standing == 0):
                 continue
             for bet_by in sorted({0, standing}):
                 if move == "call" and bet_by == standing:
                     continue  # nothing owed; `check` is that decision, not `call`
                 wants = (
-                    LIMIT if move == "bet" else standing - bet_by
+                    _size(move) if _opens(move) else standing - bet_by
                     if move == "call"
-                    else _raise_target(standing) - bet_by
+                    else _raise_target(standing, _size(move)) - bet_by
                 )
                 for purse, stack in (("covers", wants + 1), ("short", max(1, wants - 1))):
                     if stack <= 0:
@@ -149,7 +163,7 @@ def _cells() -> list[Cell]:
                     # is calling all-in and `call` is that decision. Where the
                     # target sits one chip above the call there is no short
                     # purse that can still raise, and the cell does not exist.
-                    if move == "raise" and stack <= standing - bet_by:
+                    if move in ("raise", "raise_big") and stack <= standing - bet_by:
                         continue
                     posted = "posted" if bet_by else "fresh"
                     out.append(
@@ -180,12 +194,12 @@ def _expected(cell: Cell) -> Outcome:
     what its game does, so an expected column read from one agrees with
     whatever defect the game has.
     """
-    if cell.move == "bet":
-        wants = LIMIT  # a street opens at its own size
+    if _opens(cell.move):
+        wants = _size(cell.move)  # a street opens at the size the move wagers
     elif cell.move == "call":
         wants = cell.standing - cell.bet_by
     else:
-        wants = _raise_target(cell.standing) - cell.bet_by
+        wants = _raise_target(cell.standing, _size(cell.move)) - cell.bet_by
     paid = min(wants, cell.stack)
     standing = cell.standing if cell.move == "call" else max(cell.standing, cell.bet_by + paid)
     return Outcome(paid=paid, standing=standing)
@@ -211,7 +225,7 @@ game Sizing {{
     big_raise_only    : Boolean = false
   }}
   phase play {{
-    run open_street({limit}, 0)
+    run open_street({limit}, {big})
     bet_to_match := {standing}
     for each player p: bet_by[p] := {bet_by}
     for each player p: stack[p] := {stack}
@@ -236,6 +250,7 @@ class _Done(Exception):
 def _drive(cell: Cell) -> Outcome:
     source = _PROBE.format(
         limit=LIMIT,
+        big=BIG if cell.move.endswith("_big") else 0,
         standing=cell.standing,
         bet_by=cell.bet_by,
         stack=cell.stack,
