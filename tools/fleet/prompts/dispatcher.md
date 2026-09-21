@@ -43,7 +43,7 @@ chartered:
 - Select from the top of the front (its own order: an ACTIVE row — an
   open milestone's epic, taken as one Lease with its held parts — then
   Priority Tier, then reachability, then number), skipping Merge Lane A work, spend-requiring items, and blocked
-  issues; honor #143 clusters as one item (Lease the primary, comment
+  issues; honor a cluster an issue body names as one item (Lease the primary, comment
   the linkage on siblings). Prefer disjoint subsystems across
   simultaneous slots.
 - Per item: Lease via the create-only ref API (422 = taken, next) →
