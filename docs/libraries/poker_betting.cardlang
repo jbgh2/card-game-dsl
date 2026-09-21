@@ -48,7 +48,9 @@ library poker_betting {
   // `open_street` would size its bets at the previous hand's street.
   state {
     acted[player] : Boolean = false   // has acted since the last aggression
-    limit         : Integer = 0       // the open street's bet size
+    limit         : Integer = 0       // the open street's small (base) wager
+    big_limit     : Integer = 0       // its second legal wager; 0 = one size
+    floor         : Integer = 0       // the smallest wager that is a full one
   }
 
   // What the including game must declare. Checked at its `uses` line, so an
@@ -62,7 +64,16 @@ library poker_betting {
   // bet, so it sets the level and a raise measures from it; Stud's bring-in is
   // short of one, so it leaves the level at zero and the next wager COMPLETES
   // rather than raises. A library that owned `level` could not tell them apart.
-  // `raise_cap` is the family's one per-game constant.
+  // `raise_cap` and `big_raise_only` are the family's per-game constants.
+  //
+  // `big_raise_only` is the house rule Pagat states as an option rather than as
+  // the rule: "if the rule is played that each raise must be at least as large
+  // as the last bet or raise, then after a player places a big bet, only big
+  // raises are allowed in that round. However, many home poker games do not
+  // have this rule". Which arm a table plays is a property of the GAME, not of
+  // one street, so it sits here beside `raise_cap` rather than riding on
+  // `open_street`. A game with no two-size street declares it and never reaches
+  // it: nothing reads it until a street carries a second size.
   requires {
     stack[player]     : Integer   // chips held
     committed[player] : Integer   // chips put in this hand (for side pots)
@@ -72,6 +83,7 @@ library poker_betting {
     level             : Integer   // the last wager made IN FULL this street
     raises            : Integer   // raises so far on this street
     raise_cap         : Integer   // raises allowed per street
+    big_raise_only    : Boolean   // does a big wager withdraw the small raise?
   }
 
   // Open a betting street at a bet size of `bet_size`: no standing bet, no
@@ -80,10 +92,30 @@ library poker_betting {
   // makes it one procedure rather than a block repeated per street. A game that
   // opens its street with a forced post (Stud's bring-in) runs this first and
   // then posts, so the post's own bookkeeping is not undone.
-  procedure open_street(bet_size : Integer) {
+  //
+  // `big_size` is the street's SECOND legal wager, or 0 where it has only one.
+  // Stud's open-pair street is the rule that wants two: "big bets ($10) are
+  // allowed if any player has a pair (or better) showing. In this case anyone
+  // can place a big bet or raise, even if they do not themselves have a pair."
+  // Allowed, not compulsory — both sizes stay live, which is why the street
+  // carries two rather than switching to one. Sizing the STREET is also what
+  // reaches the whole table: a guard keyed to the actor would offer the big bet
+  // only to the seat showing the pair, which is not the rule.
+  //
+  // The gate a game evaluates to choose `big_size` is a read of the boards, and
+  // boards do not change mid-street — cards are dealt between streets — so
+  // evaluating it once, here, is faithful. It does not need to be live.
+  //
+  // The size rides here rather than in a state block for the reason `limit`
+  // always has: it is a per-STREET value, and a street is where it belongs.
+  // Both sizes reset on every open, so a one-size street opened after a
+  // two-size one cannot inherit a second wager the rules do not give it.
+  procedure open_street(bet_size : Integer, big_size : Integer) {
     bet_to_match := 0
     raises := 0
     limit := bet_size
+    big_limit := big_size
+    floor := bet_size
     level := 0
     for each player p: bet_by[p] := 0
     for each player p: acted[p] := false
@@ -116,9 +148,34 @@ library poker_betting {
       committed[actor] := committed[actor] + post
       bet_by[actor] := bet_by[actor] + post
       bet_to_match := bet_by[actor]
-      let counts = post + post >= limit
+      let counts = post + post >= floor
       raises := if counts then raises + 1 else raises
       level := if counts then post else level
+      for each player p: if counts { acted[p] := false }
+      acted[actor] := true
+    }
+  }
+
+  // The big wager on a two-size street. `big_limit > 0` is what makes a street
+  // two-size at all, so on every one-size street in the family this guard is
+  // false and the move is never offered — and a game that never names it in a
+  // vocabulary list mints no action id for it either.
+  //
+  // The floor climbs only on a wager that actually REACHED the big size: a
+  // shove short of it has not "placed a big bet", so it does not withdraw the
+  // small raise from the seats behind.
+  move_type bet_big {
+    when: bet_to_match is 0 and big_limit > 0
+    effect {
+      let post = if big_limit < stack[actor] then big_limit else stack[actor]
+      stack[actor] := stack[actor] - post
+      committed[actor] := committed[actor] + post
+      bet_by[actor] := bet_by[actor] + post
+      bet_to_match := bet_by[actor]
+      let counts = post + post >= floor
+      raises := if counts then raises + 1 else raises
+      level := if counts then post else level
+      floor := if big_raise_only and (post >= big_limit) then big_limit else floor
       for each player p: if counts { acted[p] := false }
       acted[actor] := true
     }
@@ -197,8 +254,38 @@ library poker_betting {
   // `raise` there would bump `raises` and clear everyone's `acted`, reopening
   // betting that nobody reopened. A short all-in is a call, and `call` already
   // pays it correctly.
+  // The big raise: `raise`'s guard with `big_limit > 0` where its twin carries
+  // the floor term. The big size is never below the floor, so the ratchet that
+  // withdraws the small raise never withdraws this one.
+  move_type raise_big {
+    when: bet_to_match > 0
+          and big_limit > 0
+          and (not acted[actor] or bet_to_match > level)
+          and raises < raise_cap
+          and (number of players where can_act(player)) > 1
+          and stack[actor] > bet_to_match - bet_by[actor]
+    effect {
+      let target = level + big_limit
+      let want = target - bet_by[actor]
+      let pay = if want < stack[actor] then want else stack[actor]
+      let now = bet_by[actor] + pay
+      let moved = now - bet_to_match
+      let counts = now >= target or moved + moved >= floor
+      stack[actor] := stack[actor] - pay
+      committed[actor] := committed[actor] + pay
+      bet_by[actor] := now
+      bet_to_match := if bet_to_match > now then bet_to_match else now
+      raises := if counts then raises + 1 else raises
+      level := if counts then now else level
+      floor := if big_raise_only and (now >= target) then big_limit else floor
+      for each player p: if counts { acted[p] := false }
+      acted[actor] := true
+    }
+  }
+
   move_type raise {
     when: bet_to_match > 0
+          and limit >= floor
           and (not acted[actor] or bet_to_match > level)
           and raises < raise_cap
           and (number of players where can_act(player)) > 1
@@ -209,7 +296,7 @@ library poker_betting {
       let pay = if want < stack[actor] then want else stack[actor]
       let now = bet_by[actor] + pay
       let moved = now - bet_to_match
-      let counts = now >= target or moved + moved >= limit
+      let counts = now >= target or moved + moved >= floor
       stack[actor] := stack[actor] - pay
       committed[actor] := committed[actor] + pay
       bet_by[actor] := now

@@ -64,6 +64,7 @@ game LeducPoker {
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 2        // two aggressive actions per street
+    big_raise_only    : Boolean = false   // no two-size street; nothing reads it
 
     first_actor       : Player = 0         // P0 opens both streets
   }
@@ -81,7 +82,7 @@ game LeducPoker {
   // ring closes exactly when it empties; the second arm covers the
   // case where only one player can still act.
   phase first_street {
-    run open_street(2)
+    run open_street(2, 0)
     round offering [check, bet, call, fold, raise] from first_actor
           over players where pending(player)
           until (number of players where pending(player)) is 0
@@ -96,7 +97,7 @@ game LeducPoker {
   phase second_street {
     if (number of players where not folded[player]) > 1 {
       deal 1 card from deck to board
-      run open_street(4)
+      run open_street(4, 0)
       round offering [check, bet, call, fold, raise] from first_actor
             over players where pending(player)
             until (number of players where pending(player)) is 0

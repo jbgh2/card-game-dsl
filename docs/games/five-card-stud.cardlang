@@ -163,6 +163,7 @@ game FiveCardStud {
         level             : Integer = 0       // the last FULL wager this street
         raises            : Integer = 0       // aggressions so far this street
         raise_cap         : Integer = 4       // set per street, below
+        big_raise_only    : Boolean = true    // the casino arm: a big wager withdraws the small raise
       }
 
       // The entrants: everyone holding a chip. Ante and deal follow this set.
@@ -182,7 +183,7 @@ game FiveCardStud {
       // Skipped only when fewer than two entrants can act (everyone all-in on
       // the ante), in which case the hand runs straight to the showdown.
       if (number of players where stack[player] > 0) >= 2 {
-        run open_street(10)
+        run open_street(10, 0)
         // Uncapped heads-up. The language takes an Integer, so "no cap" is a
         // number no street can reach. A counted aggression lifts `level` by at
         // least half the street's limit (`raise`'s half-bet arm), the smallest
@@ -226,9 +227,9 @@ game FiveCardStud {
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(if (number of players where shows_pair(player)) > 0 then 20 else 10)
+          run open_street(10, if (number of players where shows_pair(player)) > 0 then 20 else 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
+          round offering [check, bet, bet_big, call, fold, raise, raise_big] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
@@ -240,7 +241,7 @@ game FiveCardStud {
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(20)
+          run open_street(20, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
@@ -254,7 +255,7 @@ game FiveCardStud {
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(20)
+          run open_street(20, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)

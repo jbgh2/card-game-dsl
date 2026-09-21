@@ -66,6 +66,7 @@ game KuhnPoker {
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 1        // no raises: a bet sets raises to 1
+    big_raise_only    : Boolean = false   // no two-size street; nothing reads it
 
     first_actor       : Player = 0         // Kuhn's non-dealer convention: P0 opens
   }
@@ -83,7 +84,7 @@ game KuhnPoker {
     // nothing has happened yet, so every value `open_street` clears is already
     // clear — but it is how the bet size gets set, and it is the same sentence
     // Leduc and Stud open each of their streets with.
-    run open_street(1)
+    run open_street(1, 0)
 
     // The ring's `over` filter and its `until` terminator name the same set
     // (`pending`), so the ring closes exactly when it empties; the

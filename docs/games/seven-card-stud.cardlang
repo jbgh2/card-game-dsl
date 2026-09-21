@@ -129,6 +129,7 @@ game SevenCardStud {
         level             : Integer = 0        // the last FULL wager this street
         raises            : Integer = 0        // raises so far on this street
         raise_cap         : Integer = 4        // a bet and three raises
+        big_raise_only    : Boolean = true    // the casino arm: a big wager withdraws the small raise
       }
 
       // Snapshot the entrants (held chips); ante and deal follow this set.
@@ -150,7 +151,7 @@ game SevenCardStud {
       // Bring-in + 3rd street. Skipped only when fewer than two entrants can act
       // (everyone all-in on the ante); then the hand is dealt straight to showdown.
       if (number of players where stack[player] > 0) >= 2 {
-        run open_street(5)
+        run open_street(5, 0)
         let bringer = bring_in_seat()
         // The bring-in is a forced post (no decision): the lowest door puts 2 — a
         // partial all-in if it holds only one chip — and stands as the opening bet.
@@ -186,13 +187,23 @@ game SevenCardStud {
       // the repeated round *block* into one loop is still open (no list/street
       // loop) — see open-questions/round-config-factoring.md.
 
-      // 4th street (face up, lower limit).
+      // 4th street (face up, lower limit — and the street the open-pair rule
+      // reaches). "From fourth street onward, big bets ($10) are allowed if any
+      // player has a pair (or better) showing. In this case anyone can place a
+      // big bet or raise, even if they do not themselves have a pair." Allowed,
+      // not compulsory: where a pair shows, BOTH sizes are legal and a seat
+      // choosing to wager picks between them, so the street opens at two sizes
+      // rather than switching to one. Where none shows, the second size is 0
+      // and the street is the small-bet street it always was.
+      //
+      // 5th street on is big-bet-only under this file's variant, so the rule
+      // has nothing left to open there — this is the one street it changes.
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(5)
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
+          run open_street(5, if (number of players where shows_pair(player)) > 0 then 10 else 0)
+          round offering [check, bet, bet_big, call, fold, raise, raise_big] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
@@ -205,7 +216,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10)
+          run open_street(10, 0)
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
@@ -219,7 +230,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10)
+          run open_street(10, 0)
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
@@ -233,7 +244,7 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10)
+          run open_street(10, 0)
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
@@ -287,3 +298,11 @@ move_type fold {
     move all cards from upcards[actor] to muck
   }
 }
+
+// Does this seat show a pair or better among its face-up cards? Two face-up
+// cards of a rank is a pair showing; three is trips, which is "or better" and
+// the same test. A folder's up cards are already in the muck, so this cannot
+// see them. Factored as a function so the rank binder does not nest inside the
+// player binder.
+function up_rank_count(p : Player, r : Rank) = number of cards in upcards[p] where card.rank is r
+function shows_pair(p : Player) = any rank where up_rank_count(p, rank) >= 2
