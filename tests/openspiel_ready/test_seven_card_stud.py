@@ -30,6 +30,10 @@ class TestReadiness(ReadinessProofs):
         hidden_zone="hole",
         conformance_steps=120,
         swap_axis="any",
+        conformance_verbs_unreached=(
+            ("bet_big", ("the big wager is legal only on the open-pair street, and the greedy legal[0] line never wagers there: an earlier candidate — `check` free, `call` facing a bet — precedes it at every node it is offered at, so no bound reaches it. Both arms of the two-size street are driven directly by tests/test_poker_betting_sizing.py (what each size pays) and tests/test_poker_betting_reopening.py (whether each re-opens), and both verbs are reached by real play — a uniform-choice sweep over 12 seeds takes `bet_big` and `raise_big` on this game")),
+            ("raise_big", "same street, same line, same grids"),
+        ),
     )
 
 
