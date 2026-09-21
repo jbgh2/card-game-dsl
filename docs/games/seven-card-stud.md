@@ -45,13 +45,12 @@ door-card seat selectors (`bring_in_seat` / `best_showing_seat`) and the
 side-pot query (`pot_share`); the poker evaluator behind them is unit-tested.
 From 4th street on, a pair showing opens the **big bet** to every active
 player — as an option beside the small bet, so a player choosing to bet picks
-between the two sizes. The file cannot say that: a street is opened at one bet
-size and `bet`/`raise` both size from it, so the only conditional a game can
-write makes the big bet compulsory. Fourth street therefore runs at the small
-bet, and the big-bet action is missing from the tree.
-[Issue #648](https://github.com/jbgh2/card-game-dsl/issues/648) owns the
-language gap; [issue #546](https://github.com/jbgh2/card-game-dsl/issues/546)
-owns this game's rule.
+between the two sizes. The street opens at both: `open_street` takes a second
+size, and `bet_big` / `raise_big` are the two actions it puts at the node. 5th
+street on is big-bet-only in this variant, so 4th is the only street the rule
+changes. Once a big wager is *placed*, the small raise is withdrawn for the
+rest of the round — the casino arm of a rule Pagat states as an option, which
+this file names in its header and the library carries both arms of.
 
 The betting state splits two ways. What Stud touches it declares itself
 (`bet_to_match`, `level`, `raises`, `raise_cap`, per-player `bet_by`/`folded`/`committed`);
