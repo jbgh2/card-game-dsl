@@ -122,13 +122,20 @@ def test_stud_space_adds_the_betting_vocabulary() -> None:
     # deals cards and bets on them, so no decision is card-valued and no card
     # block is reserved — the vocabulary starts at 0. No bare names, no integer
     # block, no combos.
-    assert space.num_distinct_actions == 5
-    assert [space.to_string(a) for a in range(0, 5)] == [
+    #
+    # The two big wagers come LAST because the order is first encounter over
+    # the walk: third street names the five small moves, and fourth street —
+    # the open-pair street, the only one offered two sizes — is where
+    # `bet_big` and `raise_big` are first seen.
+    assert space.num_distinct_actions == 7
+    assert [space.to_string(a) for a in range(0, 7)] == [
         "check",
         "bet",
         "call",
         "fold",
         "raise",
+        "bet_big",
+        "raise_big",
     ]
 
 

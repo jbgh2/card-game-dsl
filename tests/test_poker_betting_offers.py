@@ -55,7 +55,15 @@ registry:        vocabulary and state surface: `n.Library.move_types`,
                  performs is pinned in tests/test_playout_holdem.py,
                  tests/test_playout_holdem_heads_up.py and
                  tests/test_holdem_settle.py.
-does not prove:  the cells are driven at one bet size against one seat count,
+does not prove:  `floor` is crossed only at the value `open_street` leaves it
+                 — the street's small size. Every cell writes its standing bet
+                 rather than playing to one, and only a PLACED big wager moves
+                 the floor, so `raise`'s `limit >= floor` term is true in all
+                 777 of them. The term is driven false in exactly one place,
+                 `test_a_placed_big_bet_withdraws_the_small_raise_only_on_the_
+                 casino_arm` below, which plays the wager and asserts both arms;
+                 that test, and not this grid, is what makes `big_raise_only`
+                 more than a declaration. The cells are driven at one seat count,
                  so nothing here bounds a street's TOTAL aggression — that a
                  street stops at its declared number of bets is
                  tests/test_playout_holdem_heads_up.py's cap pin. And a zero in
@@ -135,6 +143,10 @@ GUARD_INPUTS: frozenset[str] = frozenset(
 # (`can_act` reads it); `stack` the purse (and `can_act` reads it too).
 AXIS_VARIABLES: frozenset[str] = frozenset(
     [
+        "limit",
+        "big_limit",
+        "floor",
+        "big_raise_only",
         "bet_to_match",
         "bet_by",
         "acted",
@@ -166,6 +178,20 @@ LIBRARY_OWNED: frozenset[str] = frozenset(
 LIMITS: tuple[int, ...] = (2, 10)
 STANDING: tuple[int, ...] = (0, 4)
 
+# The street's SECOND size, and the arm the game plays. 0 is a one-size street
+# — every street in the family before this one — and a positive value is the
+# open-pair street, where the rules leave both sizes legal. Twice the small bet
+# is the family's own ladder.
+#
+# `big_raise_only` reads in NO guard: the ratchet reaches the offered set one
+# decision later, through `floor`, which a big wager writes. The axis registry
+# below would therefore excuse it as "reads in no guard" — and that excusal
+# would be wrong, because a variable an effect writes into a guard input is an
+# offer axis whatever the guards mention. It is crossed here, and what these
+# cells prove is that it changes nothing until a big wager lands.
+BIGS: tuple[int, ...] = (0, 2)
+RATCHETS: tuple[bool, ...] = (False, True)
+
 
 class Cell(NamedTuple):
     """One betting situation, as the probe game's own numbers."""
@@ -180,6 +206,8 @@ class Cell(NamedTuple):
     field: bool
     stack: int
     purse: str
+    big: int          # the street's second size, 0 on a one-size street
+    ratchet: bool     # `big_raise_only`: the arm the game plays
 
     @property
     def owed(self) -> int:
@@ -198,7 +226,9 @@ class Cell(NamedTuple):
             f"limit{self.limit}-{standing}-{debt}-"
             f"{'acted' if self.acted else 'unacted'}-"
             f"{'room' if self.raises < self.raise_cap else 'capped'}-"
-            f"{'field' if self.field else 'nofield'}-{self.purse}"
+            f"{'field' if self.field else 'nofield'}-{self.purse}-"
+            f"{'twosize' if self.big else 'onesize'}-"
+            f"{'ratchet' if self.ratchet else 'soft'}"
         )
 
 
@@ -230,7 +260,9 @@ def _cells() -> list[Cell]:
                       for acted in (False, True):
                           for raises, raise_cap in ((1, 4), (4, 4)):
                               for field in (True, False):
-                                  out.append(
+                                for big in BIGS:
+                                  for ratchet in RATCHETS:
+                                    out.append(
                                       Cell(
                                           limit=limit,
                                           level=level,
@@ -242,8 +274,10 @@ def _cells() -> list[Cell]:
                                           field=field,
                                           stack=stack,
                                           purse=purse,
+                                          big=big * limit,
+                                          ratchet=ratchet,
                                       )
-                                  )
+                                    )
     return out
 
 
@@ -300,6 +334,8 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
     offered = {"call" if owes else "check"}
     if cell.bet_to_match == 0:
         offered.add("bet")
+        if cell.big:
+            offered.add("bet_big")
     elif (
         (not cell.acted or cell.bet_to_match > cell.level)
         and cell.raises < cell.raise_cap
@@ -307,6 +343,8 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
         and cell.stack > cell.owed
     ):
         offered.add("raise")
+        if cell.big:
+            offered.add("raise_big")
     return frozenset(offered)
 
 
@@ -327,10 +365,10 @@ game Probe {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 4
-    big_raise_only    : Boolean = false
+    big_raise_only    : Boolean = {ratchet}
   }}
   phase play {{
-    run open_street({limit}, 0)
+    run open_street({limit}, {big})
 {prime}    bet_to_match := {bet_to_match}
     level := {level}
     raises := {raises}
@@ -373,6 +411,8 @@ class _Offered(Exception):
 def _offer(cell: Cell) -> frozenset[str]:
     source = _PROBE.format(
         limit=cell.limit,
+        big=cell.big,
+        ratchet="true" if cell.ratchet else "false",
         prime=_PRIME if cell.acted else "",
         bet_to_match=cell.bet_to_match,
         level=cell.level,
@@ -415,9 +455,13 @@ def test_every_declared_variable_is_an_axis_or_reads_in_no_guard() -> None:
     alone, so what it holds shapes a SETTLEMENT and never an offer; what the
     chips then do is the playout modules' to pin.
 
-    red under: drop `limit` from `AXIS_VARIABLES` — `raise` reads it to tell a
-    standing bet short of a full wager from one at a full wager, so the second
-    assertion names it at once.
+    red under: drop `limit` from `AXIS_VARIABLES` — `raise` reads it against
+    the street's floor, which is how the casino arm withdraws the small raise,
+    so the second assertion names it at once. It is the FLOOR comparison that
+    puts `limit` in a guard, not the standing bet's position: telling a bet
+    short of a full wager from one at a full wager is `level`'s job, and a
+    plant that names `limit` for that reason describes a guard the library does
+    not have.
     """
     unvaried = DECLARED_STATE - AXIS_VARIABLES
     assert AXIS_VARIABLES <= DECLARED_STATE, (
@@ -453,10 +497,19 @@ def test_the_probe_drives_the_library_the_corpus_uses() -> None:
     hold would fail every cell, but a probe holding EXTRA moves would quietly
     widen the offered set and read as a partition failure.
     """
-    assert set(VOCABULARY) == {"check", "bet", "call", "raise"}
+    assert set(VOCABULARY) == {
+        "check",
+        "bet",
+        "bet_big",
+        "call",
+        "raise",
+        "raise_big",
+    }
     probe = parse_text(
         _PROBE.format(
             limit=LIMITS[0],
+            big=0,
+            ratchet="false",
             prime="",
             bet_to_match=0,
             level=0,
@@ -582,3 +635,93 @@ def test_only_a_forced_post_reaches_the_un_acted_level_seat(name: str) -> None:
             f"{name} posts no forced bet, so no seat can be level against a "
             f"standing bet without having acted — {hits} decisions were"
         )
+
+
+# --- the ratchet: the one guard term the cells above cannot drive -------------
+
+# Every cell writes its standing bet rather than playing to it, so `floor` sits
+# where `open_street` put it — the street's small size — and `raise`'s
+# `limit >= floor` term is true in all of them. The term goes false only after a
+# big wager is PLACED, which is a state reached by playing, not by writing. This
+# probe plays one.
+_RATCHET_PROBE = """
+game Ratchet {{
+  uses poker_betting
+  players: 2
+  cards: kuhn3
+  max_length: 100
+  zones {{ deck : Deck }}
+  state {{
+    stack[player]     : Integer = 100
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    level             : Integer = 0
+    raises            : Integer = 0
+    raise_cap         : Integer = 4
+    big_raise_only    : Boolean = {ratchet}
+  }}
+  phase play {{
+    run open_street(5, 10)
+    round offering [{vocabulary}] from 0
+          over players where can_act(player)
+          until false
+  }}
+  winner: highest stack
+}}
+"""
+
+
+def _offer_after_a_big_bet(ratchet: bool) -> frozenset[str]:
+    """What the seat behind a placed big bet is offered."""
+    game = check_dsl(_RATCHET_PROBE.format(
+        ratchet="true" if ratchet else "false", vocabulary=", ".join(VOCABULARY)
+    ), "r.cardlang")
+    drawn = 0
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        nonlocal drawn
+        drawn += 1
+        if drawn == 1:
+            picked = [c for c in candidates if c[0] == "bet_big"]
+            assert picked, f"the opener was not offered bet_big: {sorted(c[0] for c in candidates)}"
+            return picked
+        raise _Offered(frozenset(name for name, _ in candidates))
+
+    try:
+        play_game(game, random.Random(0), None, chooser)
+    except _Offered as offered:
+        return offered.names
+    raise AssertionError("the probe reached no second decision")
+
+
+def test_a_placed_big_bet_withdraws_the_small_raise_only_on_the_casino_arm() -> None:
+    """Pagat states the ratchet as an option, so the corpus plays both arms and
+    the game declares which: "if the rule is played that each raise must be at
+    least as large as the last bet or raise, then after a player places a big
+    bet, only big raises are allowed in that round. However, many home poker
+    games do not have this rule, in which case a player may respond to a big
+    bet with a small raise".
+
+    This is the discriminating pin between the two arms, and the only place the
+    `limit >= floor` term is driven false. Both arms are asserted, because an
+    arm that changed nothing would be a knob in name only.
+
+    red under: drop `and limit >= floor` from `raise`'s guard — the casino arm
+    then offers the small raise and this reddens on that half.
+    """
+    casino = _offer_after_a_big_bet(ratchet=True)
+    home = _offer_after_a_big_bet(ratchet=False)
+
+    assert "raise" not in casino, (
+        f"the casino arm offered the small raise after a big bet: {sorted(casino)}"
+    )
+    assert "raise" in home, (
+        f"the home arm withdrew the small raise, which is the casino rule: {sorted(home)}"
+    )
+    # The big raise survives on both arms, or the ratchet has closed the street
+    # rather than sized it.
+    assert "raise_big" in casino and "raise_big" in home
+    # Nothing else moves with the arm.
+    assert casino | {"raise"} == home
