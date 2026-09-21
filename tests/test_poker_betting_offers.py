@@ -725,3 +725,57 @@ def test_a_placed_big_bet_withdraws_the_small_raise_only_on_the_casino_arm() -> 
     assert "raise_big" in casino and "raise_big" in home
     # Nothing else moves with the arm.
     assert casino | {"raise"} == home
+
+
+# --- a second size that is not bigger is not a second size --------------------
+
+# `open_street` takes the two sizes as expressions, so nothing static can hold
+# them in order, and the cells above cross only 0 and twice the small bet. The
+# two orderings between those — equal, and below — are what a designer writing
+# the arguments the wrong way round produces, and each would be a defect of its
+# own if the guards read `big_limit > 0`: EQUAL puts a second action id on one
+# wager, and BELOW makes the "big" bet a sub-full wager that still opens the
+# street and still counts. `big_limit > limit` is what makes both inert.
+@pytest.mark.parametrize(
+    ("small", "big", "why"),
+    [
+        (5, 0, "no second size"),
+        (5, 5, "a second size equal to the first"),
+        (10, 5, "a second size below the first"),
+        (5, 1, "a second size far below the first"),
+    ],
+    ids=["none", "equal", "below", "far-below"],
+)
+def test_a_second_size_that_is_not_bigger_offers_no_big_wager(
+    small: int, big: int, why: str
+) -> None:
+    """Such a street runs as the one-size street it effectively is.
+
+    This is the action space's claim, not a convenience: two ids for one wager
+    would make the space ambiguous about which wager a recorded id names, and a
+    "big" bet below the street's own size would re-open the betting on less
+    than a full wager. Neither is a street the rules have.
+
+    What it does NOT claim: that a designer writing the arguments the wrong way
+    round is TOLD. They are not — the street silently loses its second size,
+    which is issue #746. This pin is what keeps that silence harmless rather
+    than wrong.
+
+    red under: restore `big_limit > 0` in either big move's guard — the equal
+    and below rows then offer the wager.
+    """
+    src = _RATCHET_PROBE.format(ratchet="true", vocabulary=", ".join(VOCABULARY))
+    src = src.replace("run open_street(5, 10)", f"run open_street({small}, {big})")
+    game = check_dsl(src, "degenerate.cardlang")
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        raise _Offered(frozenset(name for name, _ in candidates))
+
+    try:
+        play_game(game, random.Random(0), None, chooser)
+    except _Offered as offered:
+        assert not (offered.names & {"bet_big", "raise_big"}), (
+            f"{why}: the street offered a big wager ({sorted(offered.names)})"
+        )
+        return
+    raise AssertionError("the probe reached no decision")

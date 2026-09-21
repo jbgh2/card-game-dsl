@@ -159,16 +159,22 @@ library poker_betting {
     }
   }
 
-  // The big wager on a two-size street. `big_limit > 0` is what makes a street
-  // two-size at all, so on every one-size street in the family this guard is
-  // false and the move is never offered — and a game that never names it in a
-  // vocabulary list mints no action id for it either.
+  // The big wager on a two-size street. The guard is `big_limit > limit` and
+  // not `big_limit > 0`, because that comparison is what makes a street
+  // two-size AT ALL: a second size equal to the first would put a second
+  // action id on one wager, and one below it would make the "big" bet a
+  // sub-full wager that still opens the street. Neither is a street the rules
+  // have, so neither reaches the action space — a street declared with one
+  // runs as the one-size street it effectively is. On an ordinary one-size
+  // street (`big_limit` 0) the guard is false and the move is never offered,
+  // and a game that never names it in a vocabulary list mints no action id for
+  // it either.
   //
   // The floor climbs only on a wager that actually REACHED the big size: a
   // shove short of it has not "placed a big bet", so it does not withdraw the
   // small raise from the seats behind.
   move_type bet_big {
-    when: bet_to_match is 0 and big_limit > 0
+    when: bet_to_match is 0 and big_limit > limit
     effect {
       let post = if big_limit < stack[actor] then big_limit else stack[actor]
       stack[actor] := stack[actor] - post
@@ -257,12 +263,14 @@ library poker_betting {
   // `raise` there would bump `raises` and clear everyone's `acted`, reopening
   // betting that nobody reopened. A short all-in is a call, and `call` already
   // pays it correctly.
-  // The big raise: `raise`'s guard with `big_limit > 0` where its twin carries
-  // the floor term. The big size is never below the floor, so the ratchet that
-  // withdraws the small raise never withdraws this one.
+  // The big raise: `raise`'s guard with `big_limit > limit` where its twin
+  // carries the floor term. That one comparison does both jobs — it is what
+  // makes the street two-size (see `bet_big`), and it is why the ratchet never
+  // withdraws this move: a size above the small bet is above the floor, which
+  // is one of the two values the floor takes.
   move_type raise_big {
     when: bet_to_match > 0
-          and big_limit > 0
+          and big_limit > limit
           and (not acted[actor] or bet_to_match > level)
           and raises < raise_cap
           and (number of players where can_act(player)) > 1
