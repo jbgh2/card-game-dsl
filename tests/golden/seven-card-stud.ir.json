@@ -3569,8 +3569,9 @@
             "ref": "state_var"
           },
           "right": {
-            "kind": "int",
-            "value": 0
+            "kind": "name",
+            "name": "limit",
+            "ref": "state_var"
           }
         }
       },
@@ -4173,8 +4174,9 @@
                     "ref": "state_var"
                   },
                   "right": {
-                    "kind": "int",
-                    "value": 0
+                    "kind": "name",
+                    "name": "limit",
+                    "ref": "state_var"
                   }
                 }
               },
