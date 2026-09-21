@@ -325,6 +325,9 @@ ROUNDS: dict[str, Rounds] = {
         # coming street's size rather than clearing it. `acted` reaches an idle
         # value through that same procedure; `limit` has no such path, and it
         # reads correctly as the size the street about to be bet is played at.
+        # `big_limit` and `floor` are the same shape: `open_street` sets both to
+        # the coming street's sizes rather than clearing them. `big_raise_only`
+        # is a per-game constant the game declares once and nothing writes.
         windows=(
             Window(
                 vocabularies=(_POKER_BETTING,),
@@ -339,8 +342,9 @@ ROUNDS: dict[str, Rounds] = {
         ),
         persistent=frozenset(
             {
-                "committed", "drawn", "first_actor", "folded", "in_hand",
-                "limit", "more", "net", "raise_cap", "stack", "tossed",
+                "big_limit", "big_raise_only", "committed", "drawn",
+                "first_actor", "floor", "folded", "in_hand", "limit", "more",
+                "net", "raise_cap", "stack", "tossed",
             }
         ),
     ),
