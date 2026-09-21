@@ -97,6 +97,16 @@ LIMIT = 4
 ON_SIZE = LIMIT
 SUB_SIZE = 2
 
+# The street's SECOND size, for the two moves that wager it. Twice the small
+# bet, which is the family's own ladder (Stud runs 5 and 10). The yardstick
+# below does NOT move with it: `floor` is the smallest wager that is a full one,
+# and until a big wager is actually placed that is still the small bet — so a
+# big wager falling short is measured against the small size exactly as a small
+# one is. Holding the yardstick still is what keeps these cells comparable with
+# their small twins, so the only thing the big arm varies is how far one
+# aggression can travel.
+BIG = 2 * LIMIT
+
 
 class Cell(NamedTuple):
     move: str
@@ -140,7 +150,7 @@ class Cell(NamedTuple):
         )
         where = (
             "opening"
-            if self.move == "bet"
+            if self.standing == 0
             else "on-size"
             if self.standing == ON_SIZE
             else "sub-size"
@@ -153,7 +163,8 @@ def _cells() -> list[Cell]:
     for move in AGGRESSIONS:
         # `bet` opens a street, so there is no standing bet to answer; `raise`
         # answers one, and the position it answers from is an axis.
-        standings = [0] if move == "bet" else [ON_SIZE, SUB_SIZE]
+        standings = [0] if move in ("bet", "bet_big") else [ON_SIZE, SUB_SIZE]
+        size = BIG if move.endswith("_big") else LIMIT
         for standing in standings:
             # One aggression can carry the bet as far as its target and no
             # further, both effects paying `min(what the rules want, what the
@@ -161,7 +172,7 @@ def _cells() -> list[Cell]:
             # rather than a size beyond the post, so the reachable distances are
             # SHORTER there — which is the same fact that makes the position
             # discriminating, seen from the domain's side.
-            target = LIMIT if standing < LIMIT else standing + LIMIT
+            target = size if standing < LIMIT else standing + size
             for moved in range(1, target - standing + 1):
                 out.append(Cell(move=move, standing=standing, moved=moved))
     return out
@@ -187,9 +198,10 @@ game Reopening {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 9
+    big_raise_only    : Boolean = false
   }}
   phase play {{
-    run open_street({limit})
+    run open_street({limit}, {big})
     round offering [check] from 1
           over players where player is witness and not acted[player]
           until (number of players where acted[player]) is 1
@@ -229,10 +241,12 @@ def _drive(cell: Cell) -> Aftermath:
     exactly that much and no further.
     """
     standing = cell.standing
-    hero_stack = cell.moved if cell.move == "bet" else standing + cell.moved
-    before_raises = 0 if cell.move == "bet" else 1
+    opens = cell.standing == 0
+    hero_stack = cell.moved if opens else standing + cell.moved
+    before_raises = 0 if opens else 1
     source = _PROBE.format(
         limit=LIMIT,
+        big=BIG if cell.move.endswith("_big") else 0,
         standing=standing,
         level=cell.level,
         raises=before_raises,
@@ -286,7 +300,7 @@ def test_the_aggression_registry_is_derived() -> None:
     from `bet` in the library — `bet` drops out of the registry, the grid loses
     every `bet` cell, and this names it.
     """
-    assert set(AGGRESSIONS) == {"bet", "raise"}, (
+    assert set(AGGRESSIONS) == {"bet", "bet_big", "raise", "raise_big"}, (
         f"the moves whose effects write another seat's `acted` are "
         f"{sorted(AGGRESSIONS)} — a move type that re-opens the betting must be "
         f"driven by this grid, and one that no longer does must leave it"

@@ -208,9 +208,10 @@ game Sizing {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 9
+    big_raise_only    : Boolean = false
   }}
   phase play {{
-    run open_street({limit})
+    run open_street({limit}, 0)
     bet_to_match := {standing}
     for each player p: bet_by[p] := {bet_by}
     for each player p: stack[p] := {stack}

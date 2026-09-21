@@ -327,9 +327,10 @@ game Probe {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 4
+    big_raise_only    : Boolean = false
   }}
   phase play {{
-    run open_street({limit})
+    run open_street({limit}, 0)
 {prime}    bet_to_match := {bet_to_match}
     level := {level}
     raises := {raises}

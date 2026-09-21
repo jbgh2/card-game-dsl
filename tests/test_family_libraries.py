@@ -280,7 +280,7 @@ def _game(
     # `poker_betting` holds a procedure, and an uninvoked procedure is its own
     # error — so a probe importing the REAL library has to run it, while one
     # importing a synthetic library must not, having no such procedure to run.
-    run = "run open_street(1)" if "poker_betting" in uses else ""
+    run = "run open_street(1, 0)" if "poker_betting" in uses else ""
     text = _GAME.format(
         extra=extra, extra_state=extra_state, phase_state=phase_state, run=run
     )
