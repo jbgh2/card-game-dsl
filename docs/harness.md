@@ -209,14 +209,15 @@ on the issue:
   that is not an issue: the body names the game or data point that
   unblocks (CLAUDE.md, "The tracker").
 
-Ordering is a label, set by one role:
+Ordering is three derived things, each owned by one role: the open
+milestones are the units being finished now (the Active Epics, below);
 [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the
-authority on cross-cutting sequence — which workstream unblocks what — and
-its maintenance contract (in its own body) says who may reorder it. What
-an agent takes next is the **Priority Tier**, `priority:P1` or
-`priority:P2`, and only the direction review sets it (below). The graph
-answers *what is possible*; the tier answers *what is next*; #143 answers
-*what comes after*.
+queue of units not yet active, in the order the direction review promotes
+them to milestones, and its body says who may edit it; the **Priority
+Tier**, `priority:P1` or `priority:P2`, orders the loose issues that never
+become a unit, and only the direction review sets it (below). The graph
+answers *what is possible*; the milestones and the tier answer *what is
+next*; #143 answers *what comes after*.
 
 ### The Ready Front
 

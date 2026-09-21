@@ -65,7 +65,7 @@ line, and the epic's body naming each part's Merge Lane (`tools/lane-of.sh`
 on the files the part touches) so a taker knows before Leasing whether the
 unit stops at the operator's button. Close one only against that sentence,
 read against the tree — a
-sub-issue count is not it. Open the next only when one closes, and make a
+sub-issue count is not it. Open the next from the head of #143 only when one closes, and make a
 generator issue (a read, a sweep) blocked-by the epic its pick spawned so
 the finding stream drains before it fills again.
 
@@ -79,8 +79,9 @@ whose reason has gone comes off. Then re-run `tools/ready-front.sh` and
 check two things: the top of the front is the work the verdict names,
 and every move the verdict names is selectable by the Ready Front (an
 epic container, a doc paragraph, and the verdict itself are not). Issue
-#143 is the cross-cutting sequence document, edited only when the
-sequence changes — the sweep does not read it, so it ranks nothing. Save
+#143 is the queue of units not yet active: promote its head to a
+milestone when a slot opens, and edit it only when the queue changes —
+the sweep does not read it, so it ranks nothing. Save
 the verdict where the operator will find it and previous verdicts can be
 compared.
 
