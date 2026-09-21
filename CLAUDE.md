@@ -198,7 +198,7 @@ docs/
 - **"How do I start a new piece of work?"** → the `cardlang-planning` skill (`.claude/skills/`) — the ordered planning gates; run it before exploring or entering plan mode
 - **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it); the mechanized gate is the `surface-totality-audit` skill (`.claude/skills/`)
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
-- **"What should we build next?" / "In what order?"** → the GitHub tracker: [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143), the pinned ordering issue, is the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
+- **"What should we build next?" / "In what order?"** → the GitHub tracker: the open milestones are the units being finished now, and [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143), the pinned queue, orders the units after them (`docs/harness.md`, "The Ready Front"). `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
 - **"Who merges what?" / "What work may an agent take?"** → `docs/harness.md` — the Operating Harness: Merge Lanes, the work graph and Ready Front, Leases, Standing Roles
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`
 - **"How do we remove the per-game Python mechanics?"** → `docs/kernel-migration.md`
@@ -378,9 +378,12 @@ Ready Front — the derived set of issues an agent may take — and the
 Lease protocol live in `docs/harness.md`; its sweep,
 `tools/ready-front.sh`, is the third sibling of the two above.
 
-[Issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the pinned
-ordering issue and the authority on cross-cutting task sequence; what an
-agent takes next is the Priority Tier, which the Ready Front sorts by.
+What an agent takes next is an Active Epic — an open milestone, opened
+only by the direction review — and then the Priority Tier, which the
+Ready Front sorts by (`docs/harness.md`, "The Ready Front").
+[Issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the
+pinned queue of units not yet active, in the order the review promotes
+them.
 
 ## Operating rules (load-bearing)
 

@@ -37,6 +37,12 @@ echo "== witness-gated: judge that each body NAMES its witness =="
 gh issue list --repo "$REPO" --state open --label blocked:needs-witness --limit "$LIMIT" \
   --json number,title --jq '.[] | "\(.number) \(.title)"'
 
+echo "== active epics: open milestones, epic and progress (at most two) =="
+gh api graphql -f query='{ repository(owner: "jbgh2", name: "card-game-dsl") {
+  milestones(first: 10, states: [OPEN]) { nodes { number title
+    issues(first: 100, states: [OPEN, CLOSED]) { totalCount nodes { number state labels(first: 50) { nodes { name } } } } } } } }' \
+  --jq '.data.repository.milestones.nodes[] | "\(.number) \(.title): epic #\([.issues.nodes[] | select([.labels.nodes[].name] | index("epic")) | .number] | join(",")) \([.issues.nodes[] | select(.state == "CLOSED")] | length)/\(.issues.totalCount) closed"'
+
 # The newest verdict is the newest file in the verdicts' directory; the
 # script runs from the repo root, as the Warden's charter has it run.
 VERDICTS=docs/superpowers/direction-reviews

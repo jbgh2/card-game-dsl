@@ -209,14 +209,15 @@ on the issue:
   that is not an issue: the body names the game or data point that
   unblocks (CLAUDE.md, "The tracker").
 
-Ordering is a label, set by one role:
+Ordering is three derived things, each owned by one role: the open
+milestones are the units being finished now (the Active Epics, below);
 [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the
-authority on cross-cutting sequence — which workstream unblocks what — and
-its maintenance contract (in its own body) says who may reorder it. What
-an agent takes next is the **Priority Tier**, `priority:P1` or
-`priority:P2`, and only the direction review sets it (below). The graph
-answers *what is possible*; the tier answers *what is next*; #143 answers
-*what comes after*.
+queue of units not yet active, in the order the direction review promotes
+them to milestones, and its body says who may edit it; the **Priority
+Tier**, `priority:P1` or `priority:P2`, orders the loose issues that never
+become a unit, and only the direction review sets it (below). The graph
+answers *what is possible*; the milestones and the tier answer *what is
+next*; #143 answers *what comes after*.
 
 ### The Ready Front
 
@@ -246,6 +247,24 @@ issue's unblocking work ranks where the issue does. The sweep reports, it
 does not decide, and it never truncates silently: any capped or partial
 fetch is a loud failure, and every excluded issue lands in a counted
 bucket on stderr.
+
+**An Active Epic is an open milestone, and the epic is the row.** A
+milestone is the unit the fleet is finishing: it holds one epic issue and
+that epic's parts, its description carries the finish line in the game's
+or the designer's terms, and it closes against that sentence — never
+against the sub-issue count. The sweep lists each open milestone as one
+takeable row, the epic's, ahead of every tiered issue — the nearest due
+date first, so the due date is how the review says which of the two is
+taken first — and holds every other issue in the milestone off the front: the epic is taken as a unit,
+its Lease is the epic's, and one PR or one short series closes it. Only
+the direction review opens or closes a milestone, at most two open at a
+time, so the number of open milestones is the work-in-progress cap and
+needs no label to keep it honest. A milestone with no epic issue, or two,
+aborts the sweep rather than sorting somewhere. **A generator waits for
+what it spawns**: an issue whose work is to find work — a read against a
+rules source, a sweep of a class — is made blocked-by the epic each pick
+spawns, so it leaves the front until that epic closes and returns on its
+own; a finding stream that never drains is how a read outran its fixes.
 
 **The tier is triage, and triage is the direction review's.** A filer
 states facts — kind, reachability, the body — and never a tier: the
