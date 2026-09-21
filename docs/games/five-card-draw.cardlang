@@ -147,6 +147,7 @@ game FiveCardDraw {
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 4        // four aggressions per street, both streets
+    big_raise_only    : Boolean = false   // no two-size street; nothing reads it
 
     // Seat 1 deals, so seat 0 is "the player nearest the dealer's left" and
     // opens the deal, the exchange and both betting rounds. Public — which
@@ -176,7 +177,7 @@ game FiveCardDraw {
     // game in the corpus writes its own ante, blind or bring-in, and the two
     // shapes a designer would copy differ in whether the post IS the street's
     // bet. This game is that duplication's named witness: issue #548.
-    run open_street(2)
+    run open_street(2, 0)
     for each player p: stack[p] := stack[p] - 1
     for each player p: committed[p] := committed[p] + 1
 
@@ -218,7 +219,7 @@ game FiveCardDraw {
       // aggression count reading as a live street all through the draw. The
       // library opens streets and closes none, so that placement is the
       // family's to settle rather than this game's: issue #639.
-      run open_street(4)
+      run open_street(4, 0)
       turns d from first_actor
             over players where not folded[player] and not drawn[player]
             until (number of players where not folded[player]

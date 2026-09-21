@@ -97,6 +97,16 @@ LIMIT = 4
 ON_SIZE = LIMIT
 SUB_SIZE = 2
 
+# The street's SECOND size, for the two moves that wager it. Twice the small
+# bet, which is the family's own ladder (Stud runs 5 and 10). The yardstick
+# below does NOT move with it: `floor` is the smallest wager that is a full one,
+# and until a big wager is actually placed that is still the small bet — so a
+# big wager falling short is measured against the small size exactly as a small
+# one is. Holding the yardstick still is what keeps these cells comparable with
+# their small twins, so the only thing the big arm varies is how far one
+# aggression can travel.
+BIG = 2 * LIMIT
+
 
 class Cell(NamedTuple):
     move: str
@@ -140,7 +150,7 @@ class Cell(NamedTuple):
         )
         where = (
             "opening"
-            if self.move == "bet"
+            if self.standing == 0
             else "on-size"
             if self.standing == ON_SIZE
             else "sub-size"
@@ -153,7 +163,8 @@ def _cells() -> list[Cell]:
     for move in AGGRESSIONS:
         # `bet` opens a street, so there is no standing bet to answer; `raise`
         # answers one, and the position it answers from is an axis.
-        standings = [0] if move == "bet" else [ON_SIZE, SUB_SIZE]
+        standings = [0] if move in ("bet", "bet_big") else [ON_SIZE, SUB_SIZE]
+        size = BIG if move.endswith("_big") else LIMIT
         for standing in standings:
             # One aggression can carry the bet as far as its target and no
             # further, both effects paying `min(what the rules want, what the
@@ -161,8 +172,19 @@ def _cells() -> list[Cell]:
             # rather than a size beyond the post, so the reachable distances are
             # SHORTER there — which is the same fact that makes the position
             # discriminating, seen from the domain's side.
-            target = LIMIT if standing < LIMIT else standing + LIMIT
+            target = size if standing < LIMIT else standing + size
+            small_target = LIMIT if standing < LIMIT else standing + LIMIT
             for moved in range(1, target - standing + 1):
+                # A `_big` move is offered only where it can out-wager its
+                # small twin: both pay `min(what the rules want, what the seat
+                # holds)`, so a seat too short to pass the SMALL target posts
+                # the same chips either way and the library suppresses the big
+                # name rather than mint a second id for one action. Those
+                # distances are therefore not cells of this grid — they are
+                # the small twin's cells, which are already here, and a cell
+                # generated for them could never drive the move it names.
+                if move.endswith("_big") and standing + moved <= small_target:
+                    continue
                 out.append(Cell(move=move, standing=standing, moved=moved))
     return out
 
@@ -187,9 +209,10 @@ game Reopening {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 9
+    big_raise_only    : Boolean = false
   }}
   phase play {{
-    run open_street({limit})
+    run open_street({limit}, {big})
     round offering [check] from 1
           over players where player is witness and not acted[player]
           until (number of players where acted[player]) is 1
@@ -229,10 +252,12 @@ def _drive(cell: Cell) -> Aftermath:
     exactly that much and no further.
     """
     standing = cell.standing
-    hero_stack = cell.moved if cell.move == "bet" else standing + cell.moved
-    before_raises = 0 if cell.move == "bet" else 1
+    opens = cell.standing == 0
+    hero_stack = cell.moved if opens else standing + cell.moved
+    before_raises = 0 if opens else 1
     source = _PROBE.format(
         limit=LIMIT,
+        big=BIG if cell.move.endswith("_big") else 0,
         standing=standing,
         level=cell.level,
         raises=before_raises,
@@ -280,16 +305,38 @@ def _drive(cell: Cell) -> Aftermath:
 
 
 def test_the_aggression_registry_is_derived() -> None:
-    """The two moves that re-open, found by what their effects DO.
+    """The moves that re-open, found by what their effects DO — and each of
+    them actually driven.
 
-    red under: delete the `for each player p: if ... { acted[p] := false }` line
-    from `bet` in the library — `bet` drops out of the registry, the grid loses
-    every `bet` cell, and this names it.
+    The second half is not decoration. The `_big` arm's cells are generated
+    CONDITIONALLY, because a big wager too short to pass its small twin's
+    target is suppressed by the library rather than minted as a second id for
+    one action. A guard that widened that suppression would empty the arm
+    silently, and a registry check that only compared NAMES would stay green
+    over a grid driving nothing.
+
+    red under, both run: delete the `for each player p: if ... { acted[p] :=
+    false }` line from `bet` in the library — `bet` drops out of the registry,
+    the grid loses every `bet` cell, and the first assertion names it. For the
+    second, widen `_cells`' twin filter to `if move.endswith("_big")`, which
+    drops the arm wholesale: exactly this assertion fires, naming both moves.
+
+    A library guard made unsatisfiable does NOT reach here — cells come from
+    this module's own arithmetic, not from what the library offers, so they are
+    still generated and fail one by one in
+    `test_only_a_half_bet_reopens_and_only_a_reopening_counts` with "cannot
+    drive the aggression it names" (measured: 4 rows). The two checks guard
+    different things, and this one guards the FILTER.
     """
-    assert set(AGGRESSIONS) == {"bet", "raise"}, (
+    assert set(AGGRESSIONS) == {"bet", "bet_big", "raise", "raise_big"}, (
         f"the moves whose effects write another seat's `acted` are "
         f"{sorted(AGGRESSIONS)} — a move type that re-opens the betting must be "
         f"driven by this grid, and one that no longer does must leave it"
+    )
+    driven = {cell.move for cell in CELLS}
+    assert driven == set(AGGRESSIONS), (
+        f"{sorted(set(AGGRESSIONS) - driven)} re-open the betting and this grid "
+        f"generates no cell for them, so nothing here drives them at all"
     )
 
 

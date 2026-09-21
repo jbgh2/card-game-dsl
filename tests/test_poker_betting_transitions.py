@@ -276,9 +276,10 @@ game Transitions {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 99
+    big_raise_only    : Boolean = false
   }}
   phase play {{
-    run open_street({limit})
+    run open_street({limit}, 0)
 {stacks}{post}    round offering [check, bet, call, raise] from {first}
           over players where pending(player)
           until false

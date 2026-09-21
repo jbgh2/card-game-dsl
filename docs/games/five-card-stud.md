@@ -85,17 +85,6 @@ comment. The betting is identical; what is missing is the ability to say what
 the rule says.
 [Issue #635](https://github.com/jbgh2/card-game-dsl/issues/635) is that gap.
 
-The **small bet on an open-pair street**. When a pair shows, Pagat *allows* the
-big bet rather than requiring it, so a seat may still open for the small one —
-which is why the page goes on to say what happens "after a player places a big
-bet". A street in this language opens at one size, so the conditional makes the
-big bet the street's only size, and the seat that would bet small into an open
-pair cannot. [Issue #648](https://github.com/jbgh2/card-game-dsl/issues/648) is
-that gap. It is the same shortfall
-[#546](https://github.com/jbgh2/card-game-dsl/issues/546) records against
-Seven-Card Stud, seen from the other side: that file never offers the big bet,
-this one never offers the small.
-
 Pagat describes a cash game with no overall winner. To give the runtime a
 terminal, the executable plays a session until one player holds **all** the
 chips and names that player the winner.
@@ -148,14 +137,12 @@ heads-up arm — and the count excludes an all-in seat because the cap exists,
 in the words of Pagat's
 [betting rules](https://www.pagat.com/poker/rules/betting.html), to protect a
 third player who "has no option but to call", which an all-in seat never is;
-and the second street's size is an expression,
-`if (number of players where shows_pair(player)) > 0 then 20 else 10`, passed
-straight to `open_street`. Sizing the STREET rather than one seat's move is what
-makes the big bet reach every seat rather than only the seat showing the pair,
-which is the half of the rule
-[#546](https://github.com/jbgh2/card-game-dsl/issues/546) is about; the other
-half, that the small bet stays available beside it, is
-[#648](https://github.com/jbgh2/card-game-dsl/issues/648).
+and the second street opens at two sizes,
+`open_street(10, if (number of players where shows_pair(player)) > 0 then 20 else 0)`.
+Sizing the STREET rather than one seat's move is what makes the big bet reach
+every seat rather than only the seat showing the pair; carrying BOTH sizes is
+what keeps the small bet available beside it, which is the half of the rule the
+page states when it says "anyone can place a big bet or raise".
 
 The `until` predicate closes a street when no live player still owes or has yet
 to act, or when one lone contender remains already matched.

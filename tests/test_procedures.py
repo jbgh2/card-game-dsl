@@ -241,8 +241,8 @@ def test_the_supported_domains_are_exactly_player_rank_and_integer() -> None:
     inside `if block_claim is not none`, but there is no flow narrowing, so a bare
     `Rank` parameter would reject the very argument the block sites must pass.
 
-    `Integer` is forced by `poker_betting`'s `open_street(bet_size)`, the
-    procedure that opens a betting street at a given bet size — the five street
+    `Integer` is forced by `poker_betting`'s `open_street(bet_size, big_size)`,
+    the procedure that opens a betting street at the sizes it is played for — the five street
     resets across Leduc and Stud are one shape differing in one integer, which is
     a parameter or it is nothing. Nothing about an Integer argument strains the
     construct: a procedure argument is an arbitrary expression the caller

@@ -160,9 +160,13 @@ Key design notes:
 - `pass` — source: nothing material, marks player as out of auction
 - `declare_trump_suit` — source: nothing material, sets trump state
 - `steal_left` — source: another player's hand, destination: own hand (Getaway)
-- `check` / `bet` / `call` / `raise` / `fold` — Stud's betting vocabulary,
-  **game-defined** `move_type`s (not library moves) that write the betting
-  accumulator phase state; the bring-in is a forced effect, not a move
+- `check` / `bet` / `bet_big` / `call` / `raise` / `raise_big` — the poker
+  family's betting vocabulary, **library** `move_type`s arriving by
+  `uses poker_betting`, which write the betting accumulator phase state; the
+  two `_big` moves are offered only on a street opened at two sizes. `fold` is
+  **game-defined** in each consumer, because which cards a folder gives up, and
+  where they go, is a property of the game. The bring-in is a forced effect,
+  not a move
 - `play_card(c : Card)` / `declare_marriage(s : Suit)` / `exchange_trump_jack` /
   `close_talon` — Schnapsen's lead vocabulary, **game-defined** `move_type`s in
   the same shape: one auction-form candidate list per leader turn. `play_card`
@@ -360,7 +364,7 @@ in tests/test_trump_slot_class.py.
 
   ```cardlang-fragment betting_street
   phase first_street {
-    run open_street(2)
+    run open_street(2, 0)
     round offering [check, bet, call, fold, raise] from first_actor
           over players where pending(player)
           until (number of players where pending(player)) is 0
@@ -395,8 +399,9 @@ in tests/test_trump_slot_class.py.
   betting state and the live hands; `stack[p] := stack[p] + pot_share(p)` is
   what moves the chips. The shared `betting` core is the `poker_betting`
   family library ([decisions.md](decisions.md), "Family libraries"): check,
-  bet, call, raise and the ring predicates arrive by `uses poker_betting`,
-  while `fold` (the one betting move that touches cards) stays game-local.
+  bet, call, raise, the two big wagers a two-size street offers and the ring
+  predicates arrive by `uses poker_betting`, while `fold` (the one betting move
+  that touches cards) stays game-local.
   The side-pot arithmetic is family-wide (`cardlang/runtime/poker.py`), and
   so is the showdown query over it: a game whose showdown ranks holdings
   DECLARES one in its Primitives Block rather than writing Python for it,

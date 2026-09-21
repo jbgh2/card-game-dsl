@@ -55,7 +55,15 @@ registry:        vocabulary and state surface: `n.Library.move_types`,
                  performs is pinned in tests/test_playout_holdem.py,
                  tests/test_playout_holdem_heads_up.py and
                  tests/test_holdem_settle.py.
-does not prove:  the cells are driven at one bet size against one seat count,
+does not prove:  `floor` is crossed only at the value `open_street` leaves it
+                 — the street's small size. Every cell writes its standing bet
+                 rather than playing to one, and only a PLACED big wager moves
+                 the floor, so `raise`'s `limit >= floor` term is true in all
+                 777 of them. The term is driven false in exactly one place,
+                 `test_a_placed_big_bet_withdraws_the_small_raise_only_on_the_
+                 casino_arm` below, which plays the wager and asserts both arms;
+                 that test, and not this grid, is what makes `big_raise_only`
+                 more than a declaration. The cells are driven at one seat count,
                  so nothing here bounds a street's TOTAL aggression — that a
                  street stops at its declared number of bets is
                  tests/test_playout_holdem_heads_up.py's cap pin. And a zero in
@@ -135,6 +143,10 @@ GUARD_INPUTS: frozenset[str] = frozenset(
 # (`can_act` reads it); `stack` the purse (and `can_act` reads it too).
 AXIS_VARIABLES: frozenset[str] = frozenset(
     [
+        "limit",
+        "big_limit",
+        "floor",
+        "big_raise_only",
         "bet_to_match",
         "bet_by",
         "acted",
@@ -166,6 +178,20 @@ LIBRARY_OWNED: frozenset[str] = frozenset(
 LIMITS: tuple[int, ...] = (2, 10)
 STANDING: tuple[int, ...] = (0, 4)
 
+# The street's SECOND size, and the arm the game plays. 0 is a one-size street
+# — every street in the family before this one — and a positive value is the
+# open-pair street, where the rules leave both sizes legal. Twice the small bet
+# is the family's own ladder.
+#
+# `big_raise_only` reads in NO guard: the ratchet reaches the offered set one
+# decision later, through `floor`, which a big wager writes. The axis registry
+# below would therefore excuse it as "reads in no guard" — and that excusal
+# would be wrong, because a variable an effect writes into a guard input is an
+# offer axis whatever the guards mention. It is crossed here, and what these
+# cells prove is that it changes nothing until a big wager lands.
+BIGS: tuple[int, ...] = (0, 2)
+RATCHETS: tuple[bool, ...] = (False, True)
+
 
 class Cell(NamedTuple):
     """One betting situation, as the probe game's own numbers."""
@@ -180,6 +206,8 @@ class Cell(NamedTuple):
     field: bool
     stack: int
     purse: str
+    big: int          # the street's second size, 0 on a one-size street
+    ratchet: bool     # `big_raise_only`: the arm the game plays
 
     @property
     def owed(self) -> int:
@@ -198,7 +226,9 @@ class Cell(NamedTuple):
             f"limit{self.limit}-{standing}-{debt}-"
             f"{'acted' if self.acted else 'unacted'}-"
             f"{'room' if self.raises < self.raise_cap else 'capped'}-"
-            f"{'field' if self.field else 'nofield'}-{self.purse}"
+            f"{'field' if self.field else 'nofield'}-{self.purse}-"
+            f"{'twosize' if self.big else 'onesize'}-"
+            f"{'ratchet' if self.ratchet else 'soft'}"
         )
 
 
@@ -230,7 +260,9 @@ def _cells() -> list[Cell]:
                       for acted in (False, True):
                           for raises, raise_cap in ((1, 4), (4, 4)):
                               for field in (True, False):
-                                  out.append(
+                                for big in BIGS:
+                                  for ratchet in RATCHETS:
+                                    out.append(
                                       Cell(
                                           limit=limit,
                                           level=level,
@@ -242,8 +274,10 @@ def _cells() -> list[Cell]:
                                           field=field,
                                           stack=stack,
                                           purse=purse,
+                                          big=big * limit,
+                                          ratchet=ratchet,
                                       )
-                                  )
+                                    )
     return out
 
 
@@ -288,18 +322,32 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
     only be driven by playing to that wager: it lives in
     tests/test_poker_betting_transitions.py, whose `level` cells hold it.
 
+    A BIG WAGER IS OFFERED ONLY WHERE IT IS A DIFFERENT WAGER. Both sizes pay
+    what the seat can pay, so a stack that cannot exceed the small bet posts
+    the same chips under either name — one action wearing two ids. Going all in
+    is one decision however the seat spells it, and a second id for it inflates
+    the tree and biases any policy drawing uniformly over the offered set. That
+    is why the two `_big` rows carry a stack term their small twins do not, and
+    it is a claim about the ACTION SPACE rather than about chips: the money is
+    identical either way, so no conservation check can see it.
+
     `bet`'s row is the exception: it CAPTURES what the library does rather than
     what the rules say, because `bet` carries only `bet_to_match is 0` where
     `raise` carries four conjuncts. So an opening bet is offered into a field
     that cannot answer it, and offered at a cap with no room — issue #429. The
     `open-…-nofield` and `open-…-capped` cells hold that behaviour and flip when
     it lands, which is the point of capturing it rather than asserting the rule
-    over a guard nobody has decided to change.
+    over a guard nobody has decided to change. `bet_big` is that same row: its
+    guard is `bet`'s plus the street's second size, so it inherits #429 exactly
+    and the capture covers both. Two moves now hold the recorded behaviour, and
+    a fix for #429 moves both rows together.
     """
     owes = cell.owed > 0
     offered = {"call" if owes else "check"}
     if cell.bet_to_match == 0:
         offered.add("bet")
+        if cell.big > cell.limit and cell.stack > cell.limit:
+            offered.add("bet_big")
     elif (
         (not cell.acted or cell.bet_to_match > cell.level)
         and cell.raises < cell.raise_cap
@@ -307,6 +355,8 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
         and cell.stack > cell.owed
     ):
         offered.add("raise")
+        if cell.big > cell.limit and cell.bet_by + cell.stack > cell.level + cell.limit:
+            offered.add("raise_big")
     return frozenset(offered)
 
 
@@ -327,9 +377,10 @@ game Probe {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 4
+    big_raise_only    : Boolean = {ratchet}
   }}
   phase play {{
-    run open_street({limit})
+    run open_street({limit}, {big})
 {prime}    bet_to_match := {bet_to_match}
     level := {level}
     raises := {raises}
@@ -372,6 +423,8 @@ class _Offered(Exception):
 def _offer(cell: Cell) -> frozenset[str]:
     source = _PROBE.format(
         limit=cell.limit,
+        big=cell.big,
+        ratchet="true" if cell.ratchet else "false",
         prime=_PRIME if cell.acted else "",
         bet_to_match=cell.bet_to_match,
         level=cell.level,
@@ -414,9 +467,13 @@ def test_every_declared_variable_is_an_axis_or_reads_in_no_guard() -> None:
     alone, so what it holds shapes a SETTLEMENT and never an offer; what the
     chips then do is the playout modules' to pin.
 
-    red under: drop `limit` from `AXIS_VARIABLES` — `raise` reads it to tell a
-    standing bet short of a full wager from one at a full wager, so the second
-    assertion names it at once.
+    red under: drop `limit` from `AXIS_VARIABLES` — `raise` reads it against
+    the street's floor, which is how the casino arm withdraws the small raise,
+    so the second assertion names it at once. It is the FLOOR comparison that
+    puts `limit` in a guard, not the standing bet's position: telling a bet
+    short of a full wager from one at a full wager is `level`'s job, and a
+    plant that names `limit` for that reason describes a guard the library does
+    not have.
     """
     unvaried = DECLARED_STATE - AXIS_VARIABLES
     assert AXIS_VARIABLES <= DECLARED_STATE, (
@@ -452,10 +509,19 @@ def test_the_probe_drives_the_library_the_corpus_uses() -> None:
     hold would fail every cell, but a probe holding EXTRA moves would quietly
     widen the offered set and read as a partition failure.
     """
-    assert set(VOCABULARY) == {"check", "bet", "call", "raise"}
+    assert set(VOCABULARY) == {
+        "check",
+        "bet",
+        "bet_big",
+        "call",
+        "raise",
+        "raise_big",
+    }
     probe = parse_text(
         _PROBE.format(
             limit=LIMITS[0],
+            big=0,
+            ratchet="false",
             prime="",
             bet_to_match=0,
             level=0,
@@ -581,3 +647,354 @@ def test_only_a_forced_post_reaches_the_un_acted_level_seat(name: str) -> None:
             f"{name} posts no forced bet, so no seat can be level against a "
             f"standing bet without having acted — {hits} decisions were"
         )
+
+
+# --- the ratchet: the one guard term the cells above cannot drive -------------
+
+# Every cell writes its standing bet rather than playing to it, so `floor` sits
+# where `open_street` put it — the street's small size — and `raise`'s
+# `limit >= floor` term is true in all of them. The term goes false only after a
+# big wager is PLACED, which is a state reached by playing, not by writing. This
+# probe plays one.
+_RATCHET_PROBE = """
+game Ratchet {{
+  uses poker_betting
+  players: 2
+  cards: kuhn3
+  max_length: 100
+  zones {{ deck : Deck }}
+  state {{
+    stack[player]     : Integer = 100
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    level             : Integer = 0
+    raises            : Integer = 0
+    raise_cap         : Integer = 4
+    big_raise_only    : Boolean = {ratchet}
+  }}
+  phase play {{
+    run open_street(5, 10)
+    round offering [{vocabulary}] from 0
+          over players where can_act(player)
+          until false
+  }}
+  winner: highest stack
+}}
+"""
+
+
+def _offer_after_a_big_bet(ratchet: bool) -> frozenset[str]:
+    """What the seat behind a placed big bet is offered."""
+    game = check_dsl(_RATCHET_PROBE.format(
+        ratchet="true" if ratchet else "false", vocabulary=", ".join(VOCABULARY)
+    ), "r.cardlang")
+    drawn = 0
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        nonlocal drawn
+        drawn += 1
+        if drawn == 1:
+            picked = [c for c in candidates if c[0] == "bet_big"]
+            assert picked, f"the opener was not offered bet_big: {sorted(c[0] for c in candidates)}"
+            return picked
+        raise _Offered(frozenset(name for name, _ in candidates))
+
+    try:
+        play_game(game, random.Random(0), None, chooser)
+    except _Offered as offered:
+        return offered.names
+    raise AssertionError("the probe reached no second decision")
+
+
+def test_a_placed_big_bet_withdraws_the_small_raise_only_on_the_casino_arm() -> None:
+    """Pagat states the ratchet as an option, so the corpus plays both arms and
+    the game declares which: "if the rule is played that each raise must be at
+    least as large as the last bet or raise, then after a player places a big
+    bet, only big raises are allowed in that round. However, many home poker
+    games do not have this rule, in which case a player may respond to a big
+    bet with a small raise".
+
+    This is the discriminating pin between the two arms, and the only place the
+    `limit >= floor` term is driven false. Both arms are asserted, because an
+    arm that changed nothing would be a knob in name only.
+
+    red under: drop `and limit >= floor` from `raise`'s guard — the casino arm
+    then offers the small raise and this reddens on that half.
+    """
+    casino = _offer_after_a_big_bet(ratchet=True)
+    home = _offer_after_a_big_bet(ratchet=False)
+
+    assert "raise" not in casino, (
+        f"the casino arm offered the small raise after a big bet: {sorted(casino)}"
+    )
+    assert "raise" in home, (
+        f"the home arm withdrew the small raise, which is the casino rule: {sorted(home)}"
+    )
+    # The big raise survives on both arms, or the ratchet has closed the street
+    # rather than sized it.
+    assert "raise_big" in casino and "raise_big" in home
+    # Nothing else moves with the arm.
+    assert casino | {"raise"} == home
+
+
+# --- a second size that is not bigger is not a second size --------------------
+
+# `open_street` takes the two sizes as expressions, so nothing static can hold
+# them in order, and the cells above cross only 0 and twice the small bet. The
+# two orderings between those — equal, and below — are what a designer writing
+# the arguments the wrong way round produces, and each would be a defect of its
+# own if the guards read `big_limit > 0`: EQUAL puts a second action id on one
+# wager, and BELOW makes the "big" bet a sub-full wager that still opens the
+# street and still counts. `big_limit > limit` is what makes both inert.
+@pytest.mark.parametrize(
+    ("small", "big", "why"),
+    [
+        (5, 0, "no second size"),
+        (5, 5, "a second size equal to the first"),
+        (10, 5, "a second size below the first"),
+        (5, 1, "a second size far below the first"),
+    ],
+    ids=["none", "equal", "below", "far-below"],
+)
+def test_a_second_size_that_is_not_bigger_offers_no_big_wager(
+    small: int, big: int, why: str
+) -> None:
+    """Such a street runs as the one-size street it effectively is.
+
+    This is the action space's claim, not a convenience: two ids for one wager
+    would make the space ambiguous about which wager a recorded id names, and a
+    "big" bet below the street's own size would re-open the betting on less
+    than a full wager. Neither is a street the rules have.
+
+    What it does NOT claim: that a designer writing the arguments the wrong way
+    round is TOLD. They are not — the street silently loses its second size,
+    which is issue #746. This pin is what keeps that silence harmless rather
+    than wrong.
+
+    red under: restore `big_limit > 0` in either big move's guard — the equal
+    and below rows then offer the wager.
+    """
+    src = _RATCHET_PROBE.format(ratchet="true", vocabulary=", ".join(VOCABULARY))
+    src = src.replace("run open_street(5, 10)", f"run open_street({small}, {big})")
+    game = check_dsl(src, "degenerate.cardlang")
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        raise _Offered(frozenset(name for name, _ in candidates))
+
+    try:
+        play_game(game, random.Random(0), None, chooser)
+    except _Offered as offered:
+        assert not (offered.names & {"bet_big", "raise_big"}), (
+            f"{why}: the street offered a big wager ({sorted(offered.names)})"
+        )
+        return
+    raise AssertionError("the probe reached no decision")
+
+
+# --- a big wager that cannot out-wager its twin is not a second action --------
+
+# The cells cross `stack` against the CALL, never against the street's sizes,
+# and their ratchet arm is unreachable because no cell plays a wager. These
+# rows drive both: each is a stack where the two sizes would pay the same
+# chips, and the last two are the interaction — the ratchet has withdrawn the
+# small raise, so the big one must stay whether or not it can out-wager a twin
+# that is no longer there.
+@pytest.mark.parametrize(
+    ("stack", "prior", "expect_big", "why"),
+    [
+        (4, [], False, "a stack at or below the small bet posts all of it either way"),
+        (5, [], False, "a stack exactly the small bet posts all of it either way"),
+        (6, [], True, "a stack above the small bet can wager more"),
+        (7, ["bet"], False, "cannot reach even the small raise's target"),
+        (100, ["bet"], True, "can raise past the small target"),
+        (100, ["bet_big"], True, "ratcheted: the big raise is the only raise"),
+        (12, ["bet_big"], True, "ratcheted AND short: still the only raise"),
+    ],
+    ids=["bet-under", "bet-exact", "bet-over", "raise-short", "raise-deep",
+         "ratcheted-deep", "ratcheted-short"],
+)
+def test_a_big_wager_is_offered_only_where_it_is_a_different_wager(
+    stack: int, prior: list[str], expect_big: bool, why: str
+) -> None:
+    """Two ids for one wager is an action-space defect, not a chip defect.
+
+    Both sizes pay `min(what the rules want, what the seat holds)`, so a seat
+    that cannot exceed the smaller size posts the same chips under either name
+    and the two moves become one action wearing two ids. The money is identical
+    either way, which is exactly why no conservation check can see this: it is
+    about what the tree OFFERS, and a duplicate biases any policy that draws
+    uniformly over the offered set.
+
+    The last two rows are the guard's other half. Once a placed big wager has
+    withdrawn the small raise, the big raise is the only raise there is and
+    must stay offered even where it cannot out-wager the twin it no longer has.
+
+    red under: drop `and stack[actor] > limit` from `bet_big` — the three `bet-`
+    rows disagree; drop the arithmetic arm from `raise_big` — `raise-short`
+    does. Dropping its `limit < floor` arm instead reddens `ratcheted-short`.
+    """
+    src = _RATCHET_PROBE.format(ratchet="true", vocabulary=", ".join(VOCABULARY))
+    src = src.replace(
+        "stack[player]     : Integer = 100", f"stack[player]     : Integer = {stack}"
+    )
+    game = check_dsl(src, "twins.cardlang")
+    step = 0
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        nonlocal step
+        if step < len(prior):
+            want = prior[step]
+            step += 1
+            picked = [c for c in candidates if c[0] == want]
+            assert picked, f"{why}: cannot play {want} at step {step}"
+            return picked
+        raise _Offered(frozenset(name for name, _ in candidates))
+
+    try:
+        play_game(game, random.Random(0), None, chooser)
+    except _Offered as offered:
+        big = bool(offered.names & {"bet_big", "raise_big"})
+        assert big == expect_big, (
+            f"{why}: offered {sorted(offered.names)}, "
+            f"{'expected a big wager' if expect_big else 'expected none'}"
+        )
+        return
+    raise AssertionError("the probe reached no decision")
+
+
+# --- the class owner: no two offered moves are the same action ----------------
+
+# The two fixes above were the same defect found twice — a `_big` move that
+# could not out-wager its twin. Patching the second instance is not the answer
+# to finding a class twice, so this derives the pairs instead of naming them:
+# any move whose name is another's plus `_big` is that move's twin, and a third
+# such pair added to the library joins this test on arrival rather than waiting
+# for a reviewer.
+TWIN_PAIRS: tuple[tuple[str, str], ...] = tuple(
+    sorted(
+        (small, big)
+        for big in VOCABULARY
+        for small in [big.removesuffix("_big")]
+        if big.endswith("_big") and small in VOCABULARY
+    )
+)
+
+# The stacks a collision hides at: the decision boundaries are the small size
+# (5) and the small raise's target, so the ladder brackets both from below,
+# on, and above, and runs deep enough that neither move is capped by the purse.
+_STACK_LADDER: tuple[int, ...] = (1, 4, 5, 6, 7, 9, 10, 11, 15, 100)
+
+
+def _state_after(stack: int, script: list[str]) -> tuple[Any, ...] | None:
+    """Play `script` on a 5/10 street and read the betting state after it, or
+    None when the last move of the script is not offered."""
+    src = _RATCHET_PROBE.format(ratchet="true", vocabulary=", ".join(VOCABULARY))
+    src = src.replace(
+        "stack[player]     : Integer = 100", f"stack[player]     : Integer = {stack}"
+    )
+    game = check_dsl(src, "twinstate.cardlang")
+    box: list[Any] = []
+    step = 0
+    missing = False
+
+    def on_first(rs: Any) -> None:
+        box.append(rs)
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        nonlocal step, missing
+        if step < len(script):
+            want = script[step]
+            step += 1
+            picked = [c for c in candidates if c[0] == want]
+            if not picked:
+                missing = True
+                raise _Offered(frozenset())
+            return picked
+        raise _Offered(frozenset())
+
+    try:
+        play_game(game, random.Random(0), None, chooser, None, on_first)
+    except _Offered:
+        pass
+    if missing or not box:
+        return None
+    rs = box[0]
+    return tuple(
+        str(rs.get(name))
+        for name in ("bet_to_match", "level", "raises", "floor", "acted", "stack",
+                     "bet_by", "committed")
+    )
+
+
+@pytest.mark.parametrize("pair", TWIN_PAIRS, ids=lambda p: f"{p[0]}-vs-{p[1]}")
+@pytest.mark.parametrize("stack", _STACK_LADDER, ids=lambda s: f"stack{s}")
+def test_a_twin_pair_never_offers_two_names_for_one_action(
+    pair: tuple[str, str], stack: int
+) -> None:
+    """Wherever BOTH of a twin pair are offered, they must do different things.
+
+    This is the general form of the two guards above, and it is what makes
+    finding the class twice acceptable: a third pair added to `poker_betting`
+    is derived into `TWIN_PAIRS` and driven here without anyone remembering to.
+    The assertion is over the resulting STATE, not over the guards, so a future
+    guard that admits a collision fails here even if it reads plausibly.
+
+    What a green does NOT prove: that the pair is offered at all — a pair
+    suppressed everywhere passes vacuously. The rows that must OFFER the big
+    wager are asserted in
+    `test_a_big_wager_is_offered_only_where_it_is_a_different_wager`, and the
+    count below keeps this test from going quiet if suppression widens.
+
+    red under, both run: drop `and stack[actor] > limit` from `bet_big` (3
+    rows) or the whole `(limit < floor or …)` conjunct from `raise_big` (4).
+    Dropping only that conjunct's ARITHMETIC arm does not redden this test and
+    is not the defect — with the floor still at the small size, `limit < floor`
+    is false and the move is suppressed everywhere instead of colliding. That
+    plant reddens the anti-vacuity check below, which is the division of labour
+    between the two.
+    """
+    small, big = pair
+    a, b = _twin_states(pair, stack)
+    if a is None or b is None:
+        return  # only one of the twins is offered here; nothing to collide
+    assert a != b, (
+        f"stack {stack}: `{small}` and `{big}` are both offered and leave "
+        f"identical state {a} — one action with two ids"
+    )
+
+
+def _twin_states(
+    pair: tuple[str, str], stack: int
+) -> tuple[tuple[Any, ...] | None, tuple[Any, ...] | None]:
+    small, big = pair
+    prefix: list[str] = [] if small == "bet" else ["bet"]
+    return _state_after(stack, [*prefix, small]), _state_after(stack, [*prefix, big])
+
+
+@pytest.mark.parametrize("pair", TWIN_PAIRS, ids=lambda p: f"{p[0]}-vs-{p[1]}")
+def test_the_twin_ladder_reaches_the_case_it_guards(pair: tuple[str, str]) -> None:
+    """The anti-vacuity check for the test above: for every derived pair, the
+    ladder must contain at least one stack where BOTH twins are offered. A pair
+    suppressed at every rung would pass that test without ever comparing
+    anything.
+
+    It re-runs the ladder rather than reading what the cells recorded: a module
+    global filled by other tests is empty on any worker that did not run them,
+    so under `-n` the check would pass or fail by scheduling — which is the
+    vacuity it exists to catch, wearing a different hat.
+
+    red under: add `and false` to either big move's guard — the pair is never
+    co-offered and this names it.
+    """
+    assert TWIN_PAIRS, "no twin pair was derived from the library's vocabulary"
+    hits = [
+        stack
+        for stack in _STACK_LADDER
+        if all(x is not None for x in _twin_states(pair, stack))
+    ]
+    assert hits, (
+        f"{pair}: no stack on the ladder offers both twins, so the "
+        f"comparison above never ran for this pair"
+    )

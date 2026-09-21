@@ -79,10 +79,11 @@ game Invariants {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 4
+    big_raise_only    : Boolean = false
     snapped           : Boolean = false
   }}
   phase play {{
-    run open_street({limit})
+    run open_street({limit}, 0)
 {stacks}    round offering [check, bet, call, raise] from 0
           over players where pending(player)
           until (number of players where pending(player)) is 0

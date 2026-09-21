@@ -17,10 +17,11 @@ game BinderShadowsProvided {
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 2
+    big_raise_only    : Boolean = false
   }
   phase play {
     for each player limit: stack[limit] += 0
-    run open_street(1)
+    run open_street(1, 0)
   }
   winner: highest stack
 }

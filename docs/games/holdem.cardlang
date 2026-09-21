@@ -89,6 +89,7 @@ game Holdem {
         level             : Integer = 0       // the last FULL wager this street
         raises            : Integer = 0       // aggressive actions so far this street
         raise_cap         : Integer = 4       // set per street, below
+        big_raise_only    : Boolean = false   // no two-size street; nothing reads it
 
         // The button and the big blind, resolved to seats that actually entered
         // this hand. Public information: which seats hold the blinds is visible
@@ -125,7 +126,7 @@ game Holdem {
       // the street's opening bet, taking the first of the four aggressive
       // actions the cap allows. Either blind is a partial all-in when the seat
       // cannot cover it.
-      run open_street(5)
+      run open_street(5, 0)
       // One bet plus three raises when the street opens with MORE than two
       // active players; opening two-handed, Pagat lifts the cap entirely. 99
       // stands in for "no limit": the table holds 300 chips and the smallest
@@ -201,7 +202,7 @@ game Holdem {
         deal 1 card from deck to burn
         deal 3 cards from deck to board
         if (number of players where can_act(player)) >= 2 {
-          run open_street(5)
+          run open_street(5, 0)
       // One bet plus three raises when the street opens with MORE than two
       // active players; opening two-handed, Pagat lifts the cap entirely. 99
       // stands in for "no limit": the table holds 300 chips and the smallest
@@ -221,7 +222,7 @@ game Holdem {
         deal 1 card from deck to burn
         deal 1 card from deck to board
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10)
+          run open_street(10, 0)
       // One bet plus three raises when the street opens with MORE than two
       // active players; opening two-handed, Pagat lifts the cap entirely. 99
       // stands in for "no limit": the table holds 300 chips and the smallest
@@ -241,7 +242,7 @@ game Holdem {
         deal 1 card from deck to burn
         deal 1 card from deck to board
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10)
+          run open_street(10, 0)
       // One bet plus three raises when the street opens with MORE than two
       // active players; opening two-handed, Pagat lifts the cap entirely. 99
       // stands in for "no limit": the table holds 300 chips and the smallest

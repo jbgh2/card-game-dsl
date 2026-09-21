@@ -224,8 +224,8 @@ def test_the_street_caps_are_the_documented_numbers() -> None:
     RIGHT SIZE". A game that doubled the limit on the flop instead of the turn
     would pass `test_four_aggressions_per_street_is_the_cap` unchanged.
 
-    red under: change the game file's flop `run open_street(2)` to
-    `open_street(4)`. RUN, not predicted: this test fails naming the flop at 16
+    red under: change the game file's flop `run open_street(2, 0)` to
+    `open_street(4, 0)`. RUN, not predicted: this test fails naming the flop at 16
     against a documented 8, and `test_four_aggressions_per_street_is_the_cap`
     stays GREEN — which is the separation this test exists for, demonstrated
     rather than argued. (`test_no_seat_is_ever_all_in` falls too: the bigger

@@ -425,6 +425,7 @@ game Skeleton {{
     level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 2
+    big_raise_only    : Boolean = false
     first_actor       : Player  = 0
   }}
   phase deal {{

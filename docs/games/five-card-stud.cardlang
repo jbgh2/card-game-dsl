@@ -28,8 +28,9 @@
 //   Round 2 (three cards): "big bets ($10) are allowed if any player has a pair
 //     (or better) showing." The page adds "In this case anyone can place a big
 //     bet or raise, even if they do not themselves have a pair", which is why
-//     the condition sizes the STREET rather than one seat's move. See the
-//     second deviation below for the half of that sentence the file cannot say.
+//     the condition sizes the STREET rather than one seat's move. Allowed, not
+//     compulsory: the street opens at BOTH sizes where a pair shows, so a seat
+//     may still open for the small bet.
 //   Rounds 3 and 4 (four and five cards): big bet. "Some play that in the last
 //     two betting rounds, after players are dealt their fourth and fifth cards,
 //     only big bets are allowed. This is the normal rule in casino hosted
@@ -68,26 +69,15 @@
 // not count as a bet for this purpose - after it is completed there can be
 // three raises."
 //
-// DEVIATIONS. Two, and both are rules the language cannot yet state. Every
-// other rule above is in the file as itself.
+// DEVIATION. One, and it is a rule the language cannot yet state. Every other
+// rule above is in the file as itself.
 //
-// FIRST: the heads-up arm of the raise cap is UNCAPPED, and there is no way to
+// The heads-up arm of the raise cap is UNCAPPED, and there is no way to
 // say so (issue #635, which this game is the witness for). `raise_cap` is an
 // Integer, so "no cap" is written as a bound the street cannot reach — see the
 // first street's comment for the derivation. The betting behaves identically,
 // but a reader meets a magic number where the rule says "unlimited", and a
 // variant with deeper stacks would need the number recomputed.
-//
-// SECOND: on the open-pair street the big bet is ALLOWED, not compulsory —
-// "anyone can place a big bet or raise" — so both sizes are legal there and a
-// seat may still open for the small bet. A street opens at ONE size
-// (`open_street` sets `limit`, which the library owns and the game may not
-// write), so the conditional below makes the big bet the street's only size
-// where the rules make it the street's second one. A seat that would bet 10
-// into an open pair cannot. That is issue #648, which this game also witnesses,
-// and it is the same shortfall #546 records against Seven-Card Stud from the
-// other side: that file never offers the big bet, this one never offers the
-// small.
 //
 // THE ANTE-ALL-IN LOW CARD, which the page does not reach. A seat left with
 // nothing by the ante is still dealt cards and can show the lowest door, and
@@ -163,6 +153,7 @@ game FiveCardStud {
         level             : Integer = 0       // the last FULL wager this street
         raises            : Integer = 0       // aggressions so far this street
         raise_cap         : Integer = 4       // set per street, below
+        big_raise_only    : Boolean = true    // the casino arm: a big wager withdraws the small raise
       }
 
       // The entrants: everyone holding a chip. Ante and deal follow this set.
@@ -182,7 +173,7 @@ game FiveCardStud {
       // Skipped only when fewer than two entrants can act (everyone all-in on
       // the ante), in which case the hand runs straight to the showdown.
       if (number of players where stack[player] > 0) >= 2 {
-        run open_street(10)
+        run open_street(10, 0)
         // Uncapped heads-up. The language takes an Integer, so "no cap" is a
         // number no street can reach. A counted aggression lifts `level` by at
         // least half the street's limit (`raise`'s half-bet arm), the smallest
@@ -218,17 +209,17 @@ game FiveCardStud {
                      and (number of players where can_act(player) and owes(player)) is 0)
       }
 
-      // SECOND BETTING ROUND — third card face up. Small bet, or the big bet if
-      // any player shows a pair or better. A folder's up cards are already in
-      // the muck, so `shows_pair` cannot see them. The rules leave BOTH sizes
-      // legal when a pair shows and a street carries one; the header's second
-      // deviation and issue #648 hold what that costs.
+      // SECOND BETTING ROUND — third card face up. The small bet, and the big
+      // bet beside it if any player shows a pair or better: the rules leave
+      // BOTH sizes legal there, so the street opens at two and `bet_big` /
+      // `raise_big` join the vocabulary. A folder's up cards are already in the
+      // muck, so `shows_pair` cannot see them.
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(if (number of players where shows_pair(player)) > 0 then 20 else 10)
+          run open_street(10, if (number of players where shows_pair(player)) > 0 then 20 else 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
+          round offering [check, bet, bet_big, call, fold, raise, raise_big] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
@@ -240,7 +231,7 @@ game FiveCardStud {
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(20)
+          run open_street(20, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
@@ -254,7 +245,7 @@ game FiveCardStud {
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(20)
+          run open_street(20, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
