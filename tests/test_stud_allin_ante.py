@@ -112,3 +112,79 @@ def test_a_short_bring_in_leaves_the_standing_bet_at_what_was_posted() -> None:
         f"only {seen} of 30 seeds reached a bring-in street with a post "
         f"standing, so this line barely reaches the branch the claim is about"
     )
+
+
+GAME = Path(__file__).parent.parent / "docs" / "games" / "seven-card-stud.cardlang"
+
+
+def _three_seats_two_chips() -> Any:
+    """Seven-Card Stud at a table where the bring-in post busts its poster.
+
+    Derived from the corpus file by substitution rather than copied, so it
+    cannot drift from the game the way a hand-written fixture can: three seats
+    with two chips each, so the one-chip ante leaves one chip and the bring-in
+    of `min(2, 1)` takes it. Three seats can ante; two can act once the post
+    is made.
+    """
+    src = GAME.read_text()
+    swapped = src.replace("  players: 4\n", "  players: 3\n", 1).replace(
+        "stack[player] : Integer = 100", "stack[player] : Integer = 2", 1
+    )
+    assert swapped != src and "players: 3" in swapped, "the substitution missed"
+    return check_source_text(swapped)
+
+
+def check_source_text(text: str) -> Any:
+    from cardlang.pipeline import check_dsl
+
+    return check_dsl(text, "seven-card-stud.cardlang")
+
+
+def test_the_cap_counts_the_seats_that_can_act_after_the_forced_post() -> None:
+    """Pagat caps a street that began with "more than two active players", and
+    the start of the betting round is AFTER the bring-in: the post is forced,
+    not a turn, so a poster it leaves with nothing is not one of the seats the
+    cap protects.
+
+    Counting before the post reads three seats where two will act, and caps a
+    street the rules leave uncapped. The 50-seed golden never reaches this
+    state, so nothing else in the suite would notice the count moving back.
+
+    Does NOT cover Five-Card Stud, which carries the same ordering and the same
+    fix. Its bring-in is 4 on a 10-chip street, so the busting table is a
+    different substitution, and it has no per-seed golden either — that game's
+    half of this correction is unpinned.
+
+    red under, run: move `raise_cap := …` above `let bringer =
+    bring_in_seat()` in `docs/games/seven-card-stud.cardlang`'s third street —
+    the cap reads 4 here instead of the uncapped bound, and this fails naming
+    both numbers.
+    """
+    game = _three_seats_two_chips()
+    seen: list[tuple[int, int]] = []
+    box: list[Any] = []
+
+    def on_first(rs: Any) -> None:
+        box.append(rs)
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        rs = box[0]
+        if not seen:
+            stacks = rs.get("stack")
+            seen.append((rs.get("raise_cap"), sum(1 for v in stacks.values() if v > 0)))
+        return list(candidates[:1])
+
+    for seed in range(4):
+        seen.clear()
+        box.clear()
+        try:
+            play_game(game, random.Random(seed), None, chooser, None, on_first)
+        except Exception:
+            pass  # the session need not finish; the first decision is the claim
+        assert seen, f"seed {seed}: no decision was reached"
+        cap, can_act = seen[0]
+        assert can_act == 2, f"seed {seed}: the post left {can_act} able to act, wanted 2"
+        assert cap > 4, (
+            f"seed {seed}: two seats can act and the cap is {cap} — the count was "
+            f"taken before the forced post, where the rules take it after"
+        )

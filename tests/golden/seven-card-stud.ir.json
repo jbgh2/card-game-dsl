@@ -821,47 +821,6 @@
                   ]
                 },
                 {
-                  "kind": "assign",
-                  "target": "raise_cap",
-                  "index_expr": null,
-                  "op": ":=",
-                  "value": {
-                    "kind": "if_expr",
-                    "cond": {
-                      "kind": "binop",
-                      "op": ">",
-                      "left": {
-                        "kind": "player_query",
-                        "query": "count",
-                        "where": {
-                          "kind": "call",
-                          "func": "can_act",
-                          "args": [
-                            {
-                              "kind": "name",
-                              "name": "player",
-                              "ref": "local"
-                            }
-                          ]
-                        }
-                      },
-                      "right": {
-                        "kind": "int",
-                        "value": 2
-                      }
-                    },
-                    "then": {
-                      "kind": "int",
-                      "value": 4
-                    },
-                    "elifs": [],
-                    "otherwise": {
-                      "kind": "int",
-                      "value": 160
-                    }
-                  }
-                },
-                {
                   "kind": "let",
                   "name": "bringer",
                   "index": null,
@@ -1019,6 +978,47 @@
                       "kind": "name",
                       "name": "bringer",
                       "ref": "local"
+                    }
+                  }
+                },
+                {
+                  "kind": "assign",
+                  "target": "raise_cap",
+                  "index_expr": null,
+                  "op": ":=",
+                  "value": {
+                    "kind": "if_expr",
+                    "cond": {
+                      "kind": "binop",
+                      "op": ">",
+                      "left": {
+                        "kind": "player_query",
+                        "query": "count",
+                        "where": {
+                          "kind": "call",
+                          "func": "can_act",
+                          "args": [
+                            {
+                              "kind": "name",
+                              "name": "player",
+                              "ref": "local"
+                            }
+                          ]
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 2
+                      }
+                    },
+                    "then": {
+                      "kind": "int",
+                      "value": 4
+                    },
+                    "elifs": [],
+                    "otherwise": {
+                      "kind": "int",
+                      "value": 160
                     }
                   }
                 },
