@@ -360,7 +360,7 @@ in tests/test_trump_slot_class.py.
 
   ```cardlang-fragment betting_street
   phase first_street {
-    run open_street(2)
+    run open_street(2, 0)
     round offering [check, bet, call, fold, raise] from first_actor
           over players where pending(player)
           until (number of players where pending(player)) is 0

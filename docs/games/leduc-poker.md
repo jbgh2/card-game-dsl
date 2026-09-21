@@ -65,7 +65,7 @@ side here. `raise_cap` is **2** where Stud's is **3** — a per-game constant,
 so it is `requires`d and Leduc declares it. The bet size is not a per-game
 constant at all (it is **2** then **4**), so no declaration could carry it:
 `limit` is state the library *provides*, and each street names its own size
-by opening with `run open_street(2)` / `run open_street(4)`. Neither the
+by opening with `run open_street(2, 0)` / `run open_street(4, 0)`. Neither the
 library text nor the `uses` line mentions the difference. `fold` is Leduc's own, as in every
 poker game — folding touches cards, and where the folded card goes is a
 property of the table, not of the betting.

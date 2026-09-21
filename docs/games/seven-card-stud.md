@@ -74,5 +74,5 @@ Stud's zones, and an observation opponents' information sets carry — and the
 `raise_cap` of 4 it declares as required state — a bet and three raises,
 counted from the street's first FULL wager, so the sub-size bring-in and the
 completion that answers it spend none of them — where Leduc declares 2. Every
-street opens with the library's `open_street(<size>)`, which is where Stud's
+street opens with the library's `open_street(<size>, <big>)`, which is where Stud's
 5 / 5 / 10 / 10 / 10 limits are written.
