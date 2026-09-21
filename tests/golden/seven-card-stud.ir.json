@@ -37,12 +37,6 @@
         "reads": [
           {
             "kind": "primitive_read",
-            "name": "stack",
-            "binder": null,
-            "phase": null
-          },
-          {
-            "kind": "primitive_read",
             "name": "upcards",
             "binder": null,
             "phase": null
@@ -51,16 +45,10 @@
       },
       {
         "kind": "primitive_decl",
-        "name": "first_to_act_seat",
+        "name": "best_showing_seat",
         "params": [],
         "return_type": "Player",
         "reads": [
-          {
-            "kind": "primitive_read",
-            "name": "stack",
-            "binder": null,
-            "phase": null
-          },
           {
             "kind": "primitive_read",
             "name": "folded",
@@ -915,8 +903,17 @@
                   "index_expr": null,
                   "op": ":=",
                   "value": {
-                    "kind": "int",
-                    "value": 2
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "bet_by",
+                      "ref": "state_var"
+                    },
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "bringer",
+                      "ref": "local"
+                    }
                   }
                 },
                 {
@@ -1332,7 +1329,7 @@
                       ],
                       "leader": {
                         "kind": "call",
-                        "func": "first_to_act_seat",
+                        "func": "best_showing_seat",
                         "args": []
                       },
                       "participants": {
@@ -1728,7 +1725,7 @@
                       ],
                       "leader": {
                         "kind": "call",
-                        "func": "first_to_act_seat",
+                        "func": "best_showing_seat",
                         "args": []
                       },
                       "participants": {
@@ -2124,7 +2121,7 @@
                       ],
                       "leader": {
                         "kind": "call",
-                        "func": "first_to_act_seat",
+                        "func": "best_showing_seat",
                         "args": []
                       },
                       "participants": {
@@ -2520,7 +2517,7 @@
                       ],
                       "leader": {
                         "kind": "call",
-                        "func": "first_to_act_seat",
+                        "func": "best_showing_seat",
                         "args": []
                       },
                       "participants": {

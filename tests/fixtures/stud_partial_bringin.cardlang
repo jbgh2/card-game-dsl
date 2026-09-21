@@ -1,6 +1,7 @@
 // Regression fixture for the PARTIAL bring-in branch: every player starts with
 // exactly two chips, so after the one-chip ante the bringer holds one chip and
-// the bring-in is min(2, 1) = 1 — a partial all-in while bet_to_match stays 2.
+// the bring-in is min(2, 1) = 1 — a partial all-in, and the standing bet is that
+// one chip, since the street's bet is what was actually posted.
 // The 100-chip golden never reaches this branch. Other players then call for
 // their last chip (also partial all-ins). Body copied from
 // seven-card-stud.cardlang with players: 3 and a two-chip stack.
@@ -19,9 +20,9 @@ game StudPartialBringIn {
   // `phase play`'s own variables named with their phase.
   primitives {
     bring_in_seat() : Player
-        reads stack, upcards
-    first_to_act_seat() : Player
-        reads stack, folded in play, upcards
+        reads upcards
+    best_showing_seat() : Player
+        reads folded in play, upcards
     pot_share(p : Player) : Integer
         reads committed in play, folded in play, in_hand in play, hole, upcards
   }
@@ -88,7 +89,7 @@ game StudPartialBringIn {
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
-        bet_to_match := 2
+        bet_to_match := bet_by[bringer]
         raises := 1
         limit := 5
         round offering [check, bet, call, fold, raise] from bringer offset_by left
@@ -117,7 +118,7 @@ game StudPartialBringIn {
           limit := 5
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
@@ -138,7 +139,7 @@ game StudPartialBringIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
@@ -159,7 +160,7 @@ game StudPartialBringIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
@@ -180,7 +181,7 @@ game StudPartialBringIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0

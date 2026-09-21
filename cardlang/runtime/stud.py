@@ -9,15 +9,16 @@ holds only the pure functions not expressible there:
 - `bring_in_seat` — the lowest door card, the [[seat]] that posts the bring-in;
 - `best_showing_seat` — the best POKER hand showing, the seat that opens each
   later street: multiplicities ahead of card values, straights and flushes not
-  counted, ties broken on the suit of the highest card;
-- `first_to_act_seat` — card values compared one at a time, which is a DIFFERENT
-  order: an unpaired board beats any pair below its high card.
-  `seven-card-stud.cardlang` is its only caller, and issue #636 owns moving that
-  game onto `best_showing_seat` and deleting this selector. The two stand
-  together because the move changes which seat Seven-Card Stud asks on every
-  street from 4th on, and that regeneration is a change of its own;
+  counted, ties broken on the suit of the highest card. Both Stud games open
+  their later streets with it, and a lexicographic compare of card values —
+  under which an unpaired board beats any pair below its high card — is a
+  different rule, not a cheaper approximation of this one;
 - `pot_share` — the showdown side-pot query (argmax over poker-rank tuples per
   layer), the Primitive the showdown's settle statement calls.
+
+Both selectors read their membership off the CARDS: a seat holding a board is a
+seat the street is anchored on, all-in included, and the round's own `pending`
+filter walks the action to the first seat clockwise that can act.
 
 The hand evaluator itself is family-wide and lives in `cardlang/runtime/poker.py`,
 shared with Hold'em: which cards a player has available is a property of the
@@ -26,9 +27,11 @@ game, how five of them compare is not.
 Random players bet/call/raise/fold uniformly among the legal actions. Total chips
 are invariant — the falsifiable invariant for the betting and pot logic.
 
-Simplifications (see docs/games/seven-card-stud.md): Seven-Card Stud's 4th-street
-open-pair limit doubling is omitted (lower limit on 3rd/4th, upper on 5th–7th).
-Five-Card Stud carries its own open-pair conditional in the language.
+Neither game offers the open-pair BIG BET as an option beside the small one:
+a street is opened at a single bet size, so the rule's second action is not in
+the tree (issue #648 owns the language gap). Seven-Card Stud runs 4th street at
+the lower limit and Five-Card Stud writes the size as a conditional, which makes
+the big bet compulsory instead — the same gap from its two sides.
 """
 
 from __future__ import annotations
@@ -61,13 +64,6 @@ def _lowest_door(seats: list[Player], door: dict[Player, Card]) -> Player:
     """The bring-in seat: the lowest door card (the single upcard), ties broken by
     suit (clubs < diamonds < hearts < spades)."""
     return min(seats, key=lambda p: (RANK_VALUE[door[p].rank], _SUIT_ORDER[door[p].suit]))
-
-
-def _highest_upcards(seats: list[Player], up: dict[Player, list[Card]]) -> Player:
-    """The first-to-act seat (4th-7th street): the highest visible upcards, ranked
-    by descending card values. A partial board may be fewer than five cards, so a
-    lexicographic compare of the sorted ranks, not the full poker evaluator."""
-    return max(seats, key=lambda p: sorted((RANK_VALUE[c.rank] for c in up[p]), reverse=True))
 
 
 def _showing_key(cards: list[Card]) -> tuple[list[int], list[int], tuple[int, int]]:
@@ -110,11 +106,25 @@ def _best_showing(seats: list[Player], up: dict[Player, list[Card]]) -> Player:
 
 
 def bring_in_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
-    """The player who must post the bring-in: the lowest door card among players
-    still holding chips (no one has folded at bring-in time)."""
-    stack = gr.state["stack"]
+    """The player who must post the bring-in: the lowest door card among the seats
+    holding one.
+
+    Membership is read off the CARDS, not off the chips, exactly as
+    `best_showing_seat` reads it. A seat left with nothing by the ante is still
+    an entrant and is still dealt a door card, and the rule anchors the street on
+    the lowest card at the table — "a compulsory (bring-in) bet by the player
+    showing the lowest card" — whoever can pay. Anchoring and paying are
+    different things: what a seat with no chips posts is nothing, which the call
+    site's own short-post arithmetic already yields, and the seats behind it are
+    then offered a street with no standing bet.
+
+    A seat that never entered the hand was dealt no cards, so the empty zone is
+    exactly the membership to drop — and dropping it is also what keeps the
+    comparison total, since a door card is the first card of a board that an
+    absent seat has not got. Nobody has folded at bring-in time, so no muck
+    empties a zone here."""
     up = gr.families["upcards"]
-    able = [p for p in facts.seating.players if stack[p] > 0]
+    able = [p for p in facts.seating.players if len(up[p]) > 0]
     door = {p: up[p][0] for p in able}
     return _lowest_door(able, door)
 
@@ -144,20 +154,6 @@ def best_showing_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
     if not showing:  # unreachable in a real hand (a street runs only with >= 2 live)
         return players[0]
     return _best_showing(showing, {p: list(up[p]) for p in showing})
-
-
-def first_to_act_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
-    """The first player to act on a later street: the highest visible upcards among
-    players still live (holding chips and not folded)."""
-    stack = gr.state["stack"]
-    folded = gr.state["folded"]
-    players = list(facts.seating.players)
-    up = gr.families["upcards"]
-    live = [p for p in players if stack[p] > 0 and not folded[p]]
-    if not live:  # unreachable in a real hand (a street runs only with >= 2 live)
-        return players[0]
-    cards = {p: list(up[p]) for p in live}
-    return _highest_upcards(live, cards)
 
 
 def showdown_hands(

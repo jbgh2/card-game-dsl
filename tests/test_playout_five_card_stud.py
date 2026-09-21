@@ -162,7 +162,7 @@ def test_a_street_is_anchored_on_the_best_board_even_when_it_cannot_act() -> Non
     would put the game in the configuration the claim is about. The sweep is
     wide because the cell is incidental rather than aimed at — the assertion
     reports how many openings it actually found, so a line that stopped reaching
-    them fails as loudly as a wrong order would. Measured 2026-09-06: 49 such
+    them fails as loudly as a wrong order would. Measured 2026-09-20: 49 such
     openings across these seeds, and the floor below is set to notice a collapse
     rather than drift.
     """
@@ -195,12 +195,19 @@ def test_a_street_is_anchored_on_the_best_board_even_when_it_cannot_act() -> Non
             # than off the cards: `open_street` zeroes every `bet_by` and clears
             # every `acted`, and nothing else leaves both in that state — a
             # re-open clears `acted`, but only after a wager moved a `bet_by`.
-            # Reading the cards instead would misfire, because a fold takes a
-            # board out of `upcards` mid-street. The FIRST street never matches,
-            # which is right: its bring-in posts before the round, and it is
-            # anchored on the poster rather than on a board.
+            # Reading the cards for the STREET would misfire, because a fold
+            # takes a board out of `upcards` mid-street.
+            #
+            # The first street is excluded by its WIDTH, which is the one thing
+            # about it that no betting can change: it is the only street where a
+            # seat shows a single upcard, since each later one deals another.
+            # Its bring-in posts before the round and anchors the street on the
+            # poster rather than on a board — and a bring-in the poster cannot
+            # pay posts NOTHING, leaving every `bet_by` at zero, so the
+            # bookkeeping alone does not tell the two apart.
             acted, bet_by = read("acted"), read("bet_by")
-            if not any(acted.values()) and not any(bet_by.values()):
+            later_street = any(len(boards[q]) > 1 for q in showing)
+            if later_street and not any(acted.values()) and not any(bet_by.values()):
                 if able and set(showing) != set(able):
                     openings += 1
                     anchor = _best_showing(showing, boards)

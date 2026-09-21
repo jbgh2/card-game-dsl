@@ -67,12 +67,13 @@ nothing in the game reads a button, since every street's opener is chosen from
 the up cards and the deck is shuffled whole each hand.
 
 One case the page does not reach: a seat left with nothing by the ante is still
-dealt cards and can show the lowest door. The file anchors the first street on
-the lowest door among the seats holding chips, so such a seat neither posts nor
-opens. Pagat is silent on a player who cannot post, and someone has to put the
-money in — but every later street here anchors on the best board whether that
-seat can act or not, so the first one is the odd case out.
-[Issue #650](https://github.com/jbgh2/card-game-dsl/issues/650) holds it.
+dealt cards and can show the lowest door. The street is anchored on that card
+anyway — anchoring and paying are different things, and every street in this
+file, first and later alike, is anchored on a board rather than on a stack. What
+such a seat posts is nothing, so the seats behind it are offered a street with
+no standing bet, which is what a bring-in nobody could make leaves on the table.
+Pagat is silent on the player who cannot post, and this is the reading that
+keeps the anchor a property of the cards.
 
 Two rules the file **cannot state**, and it is the witness for both.
 

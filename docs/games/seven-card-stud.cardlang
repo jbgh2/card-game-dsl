@@ -31,11 +31,26 @@
 //
 // Antes, the deal, the bring-in post, the five streets, and the showdown (a
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
-// statements; the bring-in / first-to-act seat selectors and the `pot_share`
-// side-pot query are Primitives (argmin/argmax over door cards; argmax
-// over poker-rank tuples). The poker evaluator is unit-tested. Chips are plain
-// integers, and the 4th-street open-pair limit doubling is simplified out
-// (see seven-card-stud.md).
+// statements; the bring-in / best-showing seat selectors and the `pot_share`
+// side-pot query are Primitives (argmin over door cards; argmax over the
+// showing-hand order and over poker-rank tuples). The poker evaluator is
+// unit-tested. Chips are plain integers.
+//
+// Both selectors are anchored on the CARDS, never on the chips: a seat left
+// with nothing by the ante still shows a door card and can be the bring-in, and
+// an all-in seat can hold the best board a later street opens on. What such a
+// seat posts is what it has, and the round's own `pending` filter walks the
+// action to the first seat clockwise that can act.
+//
+// THE ONE RULE THIS FILE CANNOT STATE. From 4th street on, a pair showing opens
+// the big bet to every active player — as an OPTION beside the small bet, not
+// in place of it, so a player choosing to bet picks between the two sizes. That
+// is a second legal action at the node, and the language cannot say it: a
+// street is opened at one `limit`, `bet` and `raise` size from that one number,
+// and the conditional a game can write (`open_street(if ... then 20 else 10)`)
+// makes the big bet compulsory, which is a different game again. So 4th street
+// runs at the small bet and the rule's own action is missing from the tree.
+// Issue #648 owns the language gap; issue #546 owns this game's rule.
 
 game SevenCardStud {
 
@@ -67,9 +82,9 @@ game SevenCardStud {
   // and the streets' round configurations.
   primitives {
     bring_in_seat() : Player
-        reads stack, upcards
-    first_to_act_seat() : Player
-        reads stack, folded in play, upcards
+        reads upcards
+    best_showing_seat() : Player
+        reads folded in play, upcards
     pot_share(p : Player) : Integer
         reads committed in play, folded in play, in_hand in play, hole, upcards
   }
@@ -154,7 +169,7 @@ game SevenCardStud {
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
-        bet_to_match := 2
+        bet_to_match := bet_by[bringer]
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
               until (number of players where pending(player)) is 0
@@ -177,7 +192,7 @@ game SevenCardStud {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
           run open_street(5)
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
@@ -191,7 +206,7 @@ game SevenCardStud {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
           run open_street(10)
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
@@ -205,7 +220,7 @@ game SevenCardStud {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
           run open_street(10)
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
@@ -219,7 +234,7 @@ game SevenCardStud {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
         if (number of players where can_act(player)) >= 2 {
           run open_street(10)
-          round offering [check, bet, call, fold, raise] from first_to_act_seat()
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1

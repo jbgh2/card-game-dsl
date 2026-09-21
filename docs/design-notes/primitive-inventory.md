@@ -102,7 +102,8 @@ doctrine said "never":
    an empty table for standard52.
 2. **Ring search** — "the first seat from p in order where P, with default". Kills
    `coup_next_in_game`, `tichu_next_holder`, `player_holding`, and plausibly stud's
-   `bring_in_seat`/`first_to_act_seat` (with a compound-key argmax).
+   `bring_in_seat` (with a compound-key argmax over one card). Stud's other
+   selector is a harder case, not the same one: see the Ring-search row below.
 3. **Integer `//` / ceiling** — kills `skat_effective_loss`, `five_hundred_bid_level`.
 4. **First/last of an ordered zone** — kills `top_of`/`bottom_of` builtins and
    `canasta_pile_rank`-shaped accessors.
@@ -230,8 +231,13 @@ reserved slots.
   declaration syntax only.
 - **Ring search** (`first seat from p in order where P, with default`) kills:
   `coup_next_in_game`, `tichu_next_holder`, builtin `player_holding`; with a
-  compound-key argmax/argmin variant also `bring_in_seat`, `first_to_act_seat`
-  (stud `_lowest_door`, `_highest_upcards`).
+  compound-key argmax/argmin variant also `bring_in_seat` (stud `_lowest_door`,
+  a min over one card's rank and suit). It does NOT reach `best_showing_seat`
+  on this reading: that key is the rank MULTIPLICITIES of a whole board,
+  descending, before any card value — a shape derived from the board rather
+  than read off a card — so a construct that ranges seats by a key over their
+  cards still needs somewhere to compute that shape. Which construct would is
+  unanalysed; the kill is not claimed.
 - **Integer `//` / ceiling** kills: `skat_effective_loss`, `five_hundred_bid_level`.
 - **First/last of an ordered zone** kills: builtins `top_of`/`bottom_of`,
   canasta `_top_card`/`canasta_pile_rank`.
