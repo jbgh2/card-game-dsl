@@ -862,3 +862,139 @@ def test_a_big_wager_is_offered_only_where_it_is_a_different_wager(
         )
         return
     raise AssertionError("the probe reached no decision")
+
+
+# --- the class owner: no two offered moves are the same action ----------------
+
+# The two fixes above were the same defect found twice — a `_big` move that
+# could not out-wager its twin. Patching the second instance is not the answer
+# to finding a class twice, so this derives the pairs instead of naming them:
+# any move whose name is another's plus `_big` is that move's twin, and a third
+# such pair added to the library joins this test on arrival rather than waiting
+# for a reviewer.
+TWIN_PAIRS: tuple[tuple[str, str], ...] = tuple(
+    sorted(
+        (small, big)
+        for big in VOCABULARY
+        for small in [big.removesuffix("_big")]
+        if big.endswith("_big") and small in VOCABULARY
+    )
+)
+
+# The stacks a collision hides at: the decision boundaries are the small size
+# (5) and the small raise's target, so the ladder brackets both from below,
+# on, and above, and runs deep enough that neither move is capped by the purse.
+_STACK_LADDER: tuple[int, ...] = (1, 4, 5, 6, 7, 9, 10, 11, 15, 100)
+
+
+def _state_after(stack: int, script: list[str]) -> tuple[Any, ...] | None:
+    """Play `script` on a 5/10 street and read the betting state after it, or
+    None when the last move of the script is not offered."""
+    src = _RATCHET_PROBE.format(ratchet="true", vocabulary=", ".join(VOCABULARY))
+    src = src.replace(
+        "stack[player]     : Integer = 100", f"stack[player]     : Integer = {stack}"
+    )
+    game = check_dsl(src, "twinstate.cardlang")
+    box: list[Any] = []
+    step = 0
+    missing = False
+
+    def on_first(rs: Any) -> None:
+        box.append(rs)
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        nonlocal step, missing
+        if step < len(script):
+            want = script[step]
+            step += 1
+            picked = [c for c in candidates if c[0] == want]
+            if not picked:
+                missing = True
+                raise _Offered(frozenset())
+            return picked
+        raise _Offered(frozenset())
+
+    try:
+        play_game(game, random.Random(0), None, chooser, None, on_first)
+    except _Offered:
+        pass
+    if missing or not box:
+        return None
+    rs = box[0]
+    return tuple(
+        str(rs.get(name))
+        for name in ("bet_to_match", "level", "raises", "floor", "acted", "stack",
+                     "bet_by", "committed")
+    )
+
+
+@pytest.mark.parametrize("pair", TWIN_PAIRS, ids=lambda p: f"{p[0]}-vs-{p[1]}")
+@pytest.mark.parametrize("stack", _STACK_LADDER, ids=lambda s: f"stack{s}")
+def test_a_twin_pair_never_offers_two_names_for_one_action(
+    pair: tuple[str, str], stack: int
+) -> None:
+    """Wherever BOTH of a twin pair are offered, they must do different things.
+
+    This is the general form of the two guards above, and it is what makes
+    finding the class twice acceptable: a third pair added to `poker_betting`
+    is derived into `TWIN_PAIRS` and driven here without anyone remembering to.
+    The assertion is over the resulting STATE, not over the guards, so a future
+    guard that admits a collision fails here even if it reads plausibly.
+
+    What a green does NOT prove: that the pair is offered at all — a pair
+    suppressed everywhere passes vacuously. The rows that must OFFER the big
+    wager are asserted in
+    `test_a_big_wager_is_offered_only_where_it_is_a_different_wager`, and the
+    count below keeps this test from going quiet if suppression widens.
+
+    red under, both run: drop `and stack[actor] > limit` from `bet_big` (3
+    rows) or the whole `(limit < floor or …)` conjunct from `raise_big` (4).
+    Dropping only that conjunct's ARITHMETIC arm does not redden this test and
+    is not the defect — with the floor still at the small size, `limit < floor`
+    is false and the move is suppressed everywhere instead of colliding. That
+    plant reddens the anti-vacuity check below, which is the division of labour
+    between the two.
+    """
+    small, big = pair
+    a, b = _twin_states(pair, stack)
+    if a is None or b is None:
+        return  # only one of the twins is offered here; nothing to collide
+    assert a != b, (
+        f"stack {stack}: `{small}` and `{big}` are both offered and leave "
+        f"identical state {a} — one action with two ids"
+    )
+
+
+def _twin_states(
+    pair: tuple[str, str], stack: int
+) -> tuple[tuple[Any, ...] | None, tuple[Any, ...] | None]:
+    small, big = pair
+    prefix: list[str] = [] if small == "bet" else ["bet"]
+    return _state_after(stack, [*prefix, small]), _state_after(stack, [*prefix, big])
+
+
+@pytest.mark.parametrize("pair", TWIN_PAIRS, ids=lambda p: f"{p[0]}-vs-{p[1]}")
+def test_the_twin_ladder_reaches_the_case_it_guards(pair: tuple[str, str]) -> None:
+    """The anti-vacuity check for the test above: for every derived pair, the
+    ladder must contain at least one stack where BOTH twins are offered. A pair
+    suppressed at every rung would pass that test without ever comparing
+    anything.
+
+    It re-runs the ladder rather than reading what the cells recorded: a module
+    global filled by other tests is empty on any worker that did not run them,
+    so under `-n` the check would pass or fail by scheduling — which is the
+    vacuity it exists to catch, wearing a different hat.
+
+    red under: add `and false` to either big move's guard — the pair is never
+    co-offered and this names it.
+    """
+    assert TWIN_PAIRS, "no twin pair was derived from the library's vocabulary"
+    hits = [
+        stack
+        for stack in _STACK_LADDER
+        if all(x is not None for x in _twin_states(pair, stack))
+    ]
+    assert hits, (
+        f"{pair}: no stack on the ladder offers both twins, so the "
+        f"comparison above never ran for this pair"
+    )
