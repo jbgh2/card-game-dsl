@@ -139,7 +139,10 @@ library poker_betting {
   // `counts` is `raise`'s rule with the reach arm collapsed: a bet fires only
   // on an open street, where the level is zero, so reaching `level + limit`
   // and posting the full `limit` are the same test and the half-bet arm alone
-  // decides (the rule itself is the comment above `raise`).
+  // decides (the rule itself is the comment above `raise`). The half-bet arm
+  // measures against the FLOOR, as every `counts` in this library does; on an
+  // open street that is `limit`, because only a placed wager moves the floor
+  // and none has been placed.
   move_type bet {
     when: bet_to_match is 0
     effect {
