@@ -13,16 +13,23 @@ Each hand:
 2. The lowest upcard (ties by suit) **brings in** for 2, short of the street's
    own size. Raising it **completes** the bet to 5 rather than adding 5 to it,
    so 3rd street's ladder is 2 / 5 / 10 — a bring-in is the one forced bet the
-   street has to climb back up from. Called around, the seat that
-   posted holds the **option**: it may raise its own post as well as check,
-   because posting is not the same as having taken a turn. Pagat covers only the
-   *subsequent* players' rights and is silent on this moment, where it spells the
-   same option out for Hold'em's big blind — so this is **this file's own rule**,
-   chosen to match the blind rather than quoted from a source.
+   street has to climb back up from. The poster then makes the street's
+   **first decision**: Pagat gives the opener "the option to place a full small
+   bet ($5) instead of just the compulsory minimum $2", so the action starts on
+   the poster, which may check (standing on the 2) or raise (completing to 5).
+   Which it takes is what the seats behind it face — the page states their
+   rights as a consequence of the opener's choice, so the order carries the
+   rule. Called around later, that same seat holds the **option** again: it may
+   raise its own post as well as check, because posting is not the same as
+   having taken a turn. Pagat is silent on that *later* moment, where it spells
+   the same option out for Hold'em's big blind — so the second right is **this
+   file's own rule**, and the first is quoted.
+
 3. Five betting streets — 3rd through 7th — interleaved with a dealt card each
    (an upcard on 4th/5th/6th, a face-down card on 7th, a burn before each). On
    each street a player may check, bet, call, raise (a bet and three raises
-   per street; completing the bring-in is the bet, not a raise), or fold; the
+   per street where more than two players can act, uncapped heads-up;
+   completing the bring-in is the bet, not a raise), or fold; the
    best poker hand showing acts first from 4th street on — multiplicities ahead
    of card values, incomplete straights and flushes not counted, ties broken on
    the suit of the highest card. The lower limit applies
@@ -71,8 +78,11 @@ predicates — from the family library shared with Kuhn and Leduc
 rulebook sentence "betting proceeds as in standard fixed-limit poker". Stud's
 own contribution is `fold`, which mucks the folder's **upcards** — a fact about
 Stud's zones, and an observation opponents' information sets carry — and the
-`raise_cap` of 4 it declares as required state — a bet and three raises,
-counted from the street's first FULL wager, so the sub-size bring-in and the
-completion that answers it spend none of them — where Leduc declares 2. Every
-street opens with the library's `open_street(<size>, <big>)`, which is where Stud's
-5 / 5 / 10 / 10 / 10 limits are written.
+`raise_cap` it declares as required state — a bet and three raises, counted
+from the street's first FULL wager, so the sub-size bring-in and the completion
+that answers it spend none of them — where Leduc declares 2. Stud sets it PER
+STREET rather than once, because Pagat caps only a street that began with more
+than two active players and leaves a heads-up street uncapped; "uncapped" is a
+bound no street can reach, derived at the third street where it is written.
+Every street opens with the library's `open_street(<size>, <big>)`, which is
+where Stud's 5 / 5 / 10 / 10 / 10 limits are written.
