@@ -63,7 +63,11 @@ a milestone (docs/harness.md, "The Ready Front"): at most two open at a
 time, each holding one epic and its parts, its description the finish
 line, and the epic's body naming each part's Merge Lane (`tools/lane-of.sh`
 on the files the part touches) so a taker knows before Leasing whether the
-unit stops at the operator's button. Close one only against that sentence,
+unit stops at the operator's button — and no part is Merge Lane A: that
+part is done by the operator with Hoyle before activation, or excluded
+and left on its own issue as the operator's step, named in the epic's
+body — never queued in #143, whose head must be promotable to a
+milestone, which a Lane A unit cannot be. Close one only against that sentence,
 read against the tree — a
 sub-issue count is not it. Open the next from the head of #143 only when one closes, and make a
 generator issue (a read, a sweep) blocked-by the epic its pick spawned so
