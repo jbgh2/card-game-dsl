@@ -821,6 +821,47 @@
                   ]
                 },
                 {
+                  "kind": "assign",
+                  "target": "raise_cap",
+                  "index_expr": null,
+                  "op": ":=",
+                  "value": {
+                    "kind": "if_expr",
+                    "cond": {
+                      "kind": "binop",
+                      "op": ">",
+                      "left": {
+                        "kind": "player_query",
+                        "query": "count",
+                        "where": {
+                          "kind": "call",
+                          "func": "can_act",
+                          "args": [
+                            {
+                              "kind": "name",
+                              "name": "player",
+                              "ref": "local"
+                            }
+                          ]
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 2
+                      }
+                    },
+                    "then": {
+                      "kind": "int",
+                      "value": 4
+                    },
+                    "elifs": [],
+                    "otherwise": {
+                      "kind": "int",
+                      "value": 160
+                    }
+                  }
+                },
+                {
                   "kind": "let",
                   "name": "bringer",
                   "index": null,
@@ -991,18 +1032,9 @@
                     "raise"
                   ],
                   "leader": {
-                    "kind": "binop",
-                    "op": "offset_by",
-                    "left": {
-                      "kind": "name",
-                      "name": "bringer",
-                      "ref": "local"
-                    },
-                    "right": {
-                      "kind": "name",
-                      "name": "left",
-                      "ref": "enum_value"
-                    }
+                    "kind": "name",
+                    "name": "bringer",
+                    "ref": "local"
                   },
                   "participants": {
                     "kind": "player_query",
@@ -1446,6 +1478,47 @@
                       ]
                     },
                     {
+                      "kind": "assign",
+                      "target": "raise_cap",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "if_expr",
+                        "cond": {
+                          "kind": "binop",
+                          "op": ">",
+                          "left": {
+                            "kind": "player_query",
+                            "query": "count",
+                            "where": {
+                              "kind": "call",
+                              "func": "can_act",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              ]
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 2
+                          }
+                        },
+                        "then": {
+                          "kind": "int",
+                          "value": 4
+                        },
+                        "elifs": [],
+                        "otherwise": {
+                          "kind": "int",
+                          "value": 160
+                        }
+                      }
+                    },
+                    {
                       "kind": "auction_round",
                       "offering": [
                         "check",
@@ -1875,6 +1948,47 @@
                       ]
                     },
                     {
+                      "kind": "assign",
+                      "target": "raise_cap",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "if_expr",
+                        "cond": {
+                          "kind": "binop",
+                          "op": ">",
+                          "left": {
+                            "kind": "player_query",
+                            "query": "count",
+                            "where": {
+                              "kind": "call",
+                              "func": "can_act",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              ]
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 2
+                          }
+                        },
+                        "then": {
+                          "kind": "int",
+                          "value": 4
+                        },
+                        "elifs": [],
+                        "otherwise": {
+                          "kind": "int",
+                          "value": 160
+                        }
+                      }
+                    },
+                    {
                       "kind": "auction_round",
                       "offering": [
                         "check",
@@ -2302,6 +2416,47 @@
                       ]
                     },
                     {
+                      "kind": "assign",
+                      "target": "raise_cap",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "if_expr",
+                        "cond": {
+                          "kind": "binop",
+                          "op": ">",
+                          "left": {
+                            "kind": "player_query",
+                            "query": "count",
+                            "where": {
+                              "kind": "call",
+                              "func": "can_act",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              ]
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 2
+                          }
+                        },
+                        "then": {
+                          "kind": "int",
+                          "value": 4
+                        },
+                        "elifs": [],
+                        "otherwise": {
+                          "kind": "int",
+                          "value": 160
+                        }
+                      }
+                    },
+                    {
                       "kind": "auction_round",
                       "offering": [
                         "check",
@@ -2727,6 +2882,47 @@
                           }
                         }
                       ]
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "raise_cap",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "if_expr",
+                        "cond": {
+                          "kind": "binop",
+                          "op": ">",
+                          "left": {
+                            "kind": "player_query",
+                            "query": "count",
+                            "where": {
+                              "kind": "call",
+                              "func": "can_act",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              ]
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 2
+                          }
+                        },
+                        "then": {
+                          "kind": "int",
+                          "value": 4
+                        },
+                        "elifs": [],
+                        "otherwise": {
+                          "kind": "int",
+                          "value": 160
+                        }
+                      }
                     },
                     {
                       "kind": "auction_round",
