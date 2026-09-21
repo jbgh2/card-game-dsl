@@ -265,7 +265,9 @@ time, so the number of open milestones is the work-in-progress cap and
 needs no label to keep it honest. An Active Epic holds no Merge Lane A
 part: grammar is the operator's with the Language Owner, and a unit an
 agent takes cannot wait on it — the review has the part done first, or
-activates the epic without it and queues it as the operator's own unit. A milestone with no epic issue, or two,
+activates the epic without it and leaves it on its own issue as the
+operator's step, named in the epic's body; it is not queued in #143,
+whose head must be promotable to a milestone. A milestone with no epic issue, or two,
 aborts the sweep rather than sorting somewhere. **A generator waits for
 what it spawns**: an issue whose work is to find work — a read against a
 rules source, a sweep of a class — is made blocked-by the epic each pick
