@@ -14,20 +14,43 @@
 // before every draw, so a street closes the moment nobody is pending rather
 // than at the end of a lap.
 //
-// THE BRING-IN POSTER HOLDS THE OPTION — this variant's own rule, pinned here
-// because no authority settles it. Called around, the seat that posted the
-// bring-in may raise its own post as well as check, exactly as Hold'em's big
-// blind may: the library reaches it because a post placed before the round
-// begins is not a turn taken within it (decisions.md, "Named functions"), and
-// nothing the library can read separates the two forced posts. Pagat, fetched
-// live, describes only the SUBSEQUENT players' rights ("subsequent players have
-// the option to complete the bet to a small bet ($5), to call the bring-in ($2)
-// or to fold") and is silent on the poster's own later turn, on the variant page
-// and on poker/rules/betting.html alike — where the big blind's option is
-// spelled out. So this is a choice, made once and recorded, not a rule quoted
-// from a source. What the poster's raise COSTS is Pagat's own ladder: the
+// THE BRING-IN POSTER DECIDES FIRST, AND KEEPS ITS LATER OPTION. Two rights,
+// at two different nodes, and only the second is this file's own choice.
+//
+// The FIRST is Pagat's, quoted: "The player who opens the betting has the
+// option to place a full small bet ($5) instead of just the compulsory minimum
+// $2." So the ring opens ON the poster. The post is already made, so the
+// poster owes nothing and `check` stands on the minimum while `raise`
+// completes to the street's size. The order is load-bearing rather than
+// cosmetic, because the page states what the seats behind may do as a
+// CONSEQUENCE of which size the opener chose: "If the opener just places the
+// minimum bring-in, subsequent players have the option to complete the bet to
+// a small bet ($5), to call the bring-in ($2) or to fold ... If the opener
+// chooses to begin with a full bet ($5), subsequent players can raise." A tree
+// that asked them first could not express that dependency.
+//
+// The SECOND — called around, the poster may raise its own post as well as
+// check, exactly as Hold'em's big blind may — is this variant's own rule,
+// pinned here because no authority settles it. The library reaches it because
+// a post placed before the round begins is not a turn taken within it
+// (decisions.md, "Named functions"), and nothing the library can read
+// separates the two forced posts. Pagat is silent on the poster's own LATER
+// turn, on the variant page and on poker/rules/betting.html alike — where the
+// big blind's option is spelled out. So that one is a choice, made once and
+// recorded, not a rule quoted from a source.
+//
+// What the poster's raise COSTS is Pagat's own ladder, at either node: the
 // bring-in is 2, completing it makes the bet 5 — the street's size, not the
 // bring-in plus it — and a raise from there makes it 10.
+//
+// THE RAISE CAP IS PER STREET, not per game: "Only one bet and a maximum of
+// three raises are allowed in any betting round, if there were more than two
+// active players at the start of the betting round." Heads-up, the rule leaves
+// the street uncapped, and the derivation of the stand-in bound is at the
+// third street where it is written. A street that runs long under a policy
+// that raises freely is the rule behaving, not the file misbehaving; what
+// finishes a hand is the chips, and the corpus harness reaches every terminal
+// it did before.
 //
 // Antes, the deal, the bring-in post, the five streets, and the showdown (a
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
@@ -168,6 +191,26 @@ game SevenCardStud {
       // (everyone all-in on the ante); then the hand is dealt straight to showdown.
       if (number of players where stack[player] > 0) >= 2 {
         run open_street(5, 0)
+        // The cap is a property of the STREET, not of the game: "Only one bet
+        // and a maximum of three raises are allowed in any betting round, IF
+        // THERE WERE MORE THAN TWO ACTIVE PLAYERS at the start of the betting
+        // round." Heads-up the rule leaves the street uncapped, and the count
+        // is of seats that can ACT rather than seats in the hand — Pagat gives
+        // the cap its purpose on `poker/rules/betting.html`, to stop two seats
+        // colluding by a long series of small raises "which a third player
+        // wishing to remain in the pot has no option but to call", and an
+        // all-in seat can be made to call nothing.
+        //
+        // "Uncapped" is written as a bound no street can reach, because the
+        // language takes an Integer (issue #635, which Five-Card Stud also
+        // witnesses — at a different chip scale, which is the point of two).
+        // The derivation is this table's own: a counted aggression lifts
+        // `level` by at least half the street's limit (`raise`'s half-bet
+        // arm), the smallest limit here is 5, and `level` cannot pass what one
+        // seat can put in. This game plays until a seat holds every chip, so
+        // that ceiling is the whole table's 400 — at most 400/2.5 counted
+        // aggressions, and 160 stands in for "unlimited". A deeper table would
+        // need it recomputed.
         let bringer = bring_in_seat()
         // The bring-in is a forced post (no decision): the lowest door puts 2 — a
         // partial all-in if it holds only one chip — and stands as the opening bet.
@@ -187,7 +230,25 @@ game SevenCardStud {
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
         bet_to_match := bet_by[bringer]
-        round offering [check, bet, call, fold, raise] from bringer offset_by left
+        // Counted AFTER the post, because "at the start of the betting round"
+        // is after it: the bring-in is forced, not a turn, and a poster the
+        // post leaves with nothing is not one of the seats the cap protects.
+        // Three seats that can ante are not three seats that can act.
+        raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
+        // The ring opens ON the poster, because the poster holds the round's
+        // first decision: "The player who opens the betting has the option to
+        // place a full small bet ($5) instead of just the compulsory minimum
+        // $2." The post is made, so the poster owes nothing and `check` is the
+        // move that stands on the minimum; `raise` is the option, and it
+        // completes to the street's size rather than adding one to the post.
+        // Which of the two the poster takes is what the seats behind it then
+        // face, which is why the order is the rule and not a detail: "If the
+        // opener just places the minimum bring-in, subsequent players have the
+        // option to complete the bet to a small bet ($5), to call the bring-in
+        // ($2) or to fold. Only if someone completes the bet are later players
+        // allowed to raise. If the opener chooses to begin with a full bet
+        // ($5), subsequent players can raise."
+        round offering [check, bet, call, fold, raise] from bringer
               over players where pending(player)
               until (number of players where pending(player)) is 0
                  or ((number of players where can_act(player)) <= 1
@@ -219,6 +280,7 @@ game SevenCardStud {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
           run open_street(5, if (number of players where shows_pair(player)) > 0 then 10 else 0)
+          raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
           round offering [check, bet, bet_big, call, fold, raise, raise_big] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
@@ -233,6 +295,7 @@ game SevenCardStud {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
           run open_street(10, 0)
+          raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
@@ -247,6 +310,7 @@ game SevenCardStud {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
           run open_street(10, 0)
+          raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
@@ -261,6 +325,7 @@ game SevenCardStud {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
         if (number of players where can_act(player)) >= 2 {
           run open_street(10, 0)
+          raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
           round offering [check, bet, call, fold, raise] from best_showing_seat()
                 over players where pending(player)
                 until (number of players where pending(player)) is 0
