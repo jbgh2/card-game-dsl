@@ -328,7 +328,10 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
     that cannot answer it, and offered at a cap with no room — issue #429. The
     `open-…-nofield` and `open-…-capped` cells hold that behaviour and flip when
     it lands, which is the point of capturing it rather than asserting the rule
-    over a guard nobody has decided to change.
+    over a guard nobody has decided to change. `bet_big` is that same row: its
+    guard is `bet`'s plus the street's second size, so it inherits #429 exactly
+    and the capture covers both. Two moves now hold the recorded behaviour, and
+    a fix for #429 moves both rows together.
     """
     owes = cell.owed > 0
     offered = {"call" if owes else "check"}
