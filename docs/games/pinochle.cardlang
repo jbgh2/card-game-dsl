@@ -7,12 +7,15 @@
 // reduced, so the game needs no variant name beyond the page's own title.
 //
 // Companion to pinochle.md. Single Deck Partnership Pinochle, one 48-card pack,
-// four players in fixed teams sitting across. Each hand: an ascending
-// auction, the high bidder names trump (any suit), his partner passes four
-// cards across and he passes four back, both sides score their meld, then
-// twelve strict tricks score 10 per A/10/K captured plus 10 for the last
-// trick. The bidding side must reach its bid in meld + tricks or be set back
-// by the bid amount. First team to 150 wins.
+// four players in fixed teams sitting across. Each hand: an ascending auction
+// opening at 250 and climbing in tens; the high bidder names trump, any suit;
+// his partner passes four cards across and he passes four back; every seat
+// lays its meld face up and both sides score it; then twelve strict tricks
+// score 10 per A/10/K captured plus 10 for the last trick. The bidding side
+// must reach its bid in meld + tricks or be set back by the bid amount. First
+// team to 1500 wins — and when both sides pass 1500 on the same hand the game
+// is the bidders' whatever the totals, which is why `winner:` ranks `result`
+// and not `score`.
 //
 // Two settlements end a hand before the tricks. The bidders are not "on the
 // board" when the bid stands more than 250 above their meld, the whole of the
@@ -25,16 +28,19 @@
 //
 // The whole hand runs in the DSL. The ascending auction runs on the kernel
 // `round` (the move vocabulary below, a shrinking participants ring, and
-// `pinochle_auction_outcome`). Trump declaration is a one-draw `round offering
-// [declare_trump_suit]` guarded by `has_marriage`; meld is a forced (not
-// chosen) per-player `pinochle_meld_value(p)` Primitive query, credited to each
-// player's team. The twelve strict tricks run on the trick form of `round`,
-// legality narrowed by the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/
-// MustOverTrump rule cascade (follow suit and head the trick if able; else
-// trump and over-trump if able; else anything). `pinochle_meld_value`'s
-// Counter-based tally stays a runtime primitive (cardlang/runtime/pinochle.py) —
-// not yet the shared combination model (docs/kernel-migration.md, Workstream 3).
-
+// `pinochle_auction_outcome`); the bid names a number, chosen in tens, so a
+// bidder may raise by ten or jump by more. Trump declaration, each half of the
+// exchange, and the declarer's concession are one-draw `round offering` sites.
+// Meld is a forced (not chosen) per-player `pinochle_meld_value(p)` Primitive
+// query, credited to each player's team, and the cards behind it are laid face
+// up one at a time through the size/slot pair. The twelve strict tricks run on
+// the trick form of `round`, legality narrowed by the MustFollowSuit/
+// MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade (follow suit and
+// beat the card controlling the trick if able; else trump and over-trump if
+// able; else anything). The meld tally stays a runtime primitive
+// (cardlang/runtime/pinochle.py) — not yet the shared combination model
+// (docs/kernel-migration.md, Workstream 3).
+//
 game Pinochle {
 
   players: 4
