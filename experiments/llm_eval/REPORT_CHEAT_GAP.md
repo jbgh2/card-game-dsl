@@ -204,6 +204,14 @@ agent's own method by simulation over every holding and hand size.
   prompt cache — recorded as a dated amendment; the treatment record moved
   with it). Any sentence placing these contrasts beside the paper's +26 pp, or
   beside the earlier Cheat study's challenge rates, compares across testbeds.
+- **The cells ran under the engine that preceded the `asked` observation
+  event.** The engine now logs, for every decision, the question the seat
+  was put, and the prompt guide explains that event, so a cell run, resumed
+  or replicated today shows the model a different stimulus and is a
+  different treatment from these three. Checked 2026-09-22 against main at
+  `8b283099`: every audit here recomputes byte-identically from the
+  committed records, and the logs differ from the ones the models saw only
+  by the `asked` events.
 - **The exploratory cell** (`llm_cheap_four`) was not run; nothing here
   speaks to a table of four models.
 
