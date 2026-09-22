@@ -131,9 +131,9 @@ game Pinochle {
       trump_suit := none
     }
 
-    // The ascending auction settles on a declarer and his bid; the remaining
-    // hand (trump declaration, meld, the twelve strict tricks) runs on the
-    // kernel below.
+    // The ascending auction settles on a declarer and his bid; the rest of the
+    // hand — trump declaration, the exchange, the meld, the declarer's
+    // concession and the twelve strict tricks — runs on the kernel below.
     phase auction -> outcome { bid_won(Player, Integer) } {
       // Each non-passed seat — never the standing high bidder — names a number
       // at least 10 above the standing bid, or leaves the auction. The
