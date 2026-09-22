@@ -2345,7 +2345,7 @@
         },
         "right": {
           "kind": "int",
-          "value": 150
+          "value": 400
         }
       },
       "effect": [
@@ -2372,9 +2372,9 @@
             },
             "hi": {
               "kind": "int",
-              "value": 150
+              "value": 400
             },
-            "ceiling": 150
+            "ceiling": 400
           }
         },
         {

@@ -47,9 +47,10 @@ game Pinochle {
   teams: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
   // Measured under the reference policy (tests/test_playout_pinochle.py),
-  // 2026-09-21: over the convention's 250 seeds, median 952 decisions and a
+  // 2026-09-22: over the convention's 250 seeds, median 952 decisions and a
   // maximum of 3,517 — but a race to 1500 has a long tail, and over 1,000
-  // seeds the maximum is 5,767. The bound is sized from the wider sample,
+  // seeds the maximum is 5,767. (Both figures are unmoved by the bid ceiling,
+  // which no policy auction comes near.) The bound is sized from the wider sample,
   // because a bound that refuses a game the rules allow is the instrument
   // winning the disagreement. A uniform chooser finishes no line at all at
   // this scale, which is why the bound is sized against the policy's lines and
@@ -112,8 +113,13 @@ game Pinochle {
       high_bidder       : Player? = none
       hand_played       : Boolean = true
       meld_score[team]  : Integer = 0
-      // The part of a team's meld that is nines of trump, which score whether
-      // or not the side saves its meld.
+      // The part of a team's meld that is nines of trump, which is what the
+      // save-the-meld exception tests against. The rules' exception is that a
+      // meld of NOTHING BUT deeces scores anyway — not that the deece is
+      // always kept out of an otherwise lost meld. Read the other way, a side
+      // holding a deece and a marriage would keep the 10 while losing the 20,
+      // and the page says instead "if their only meld was one or both deeces,
+      // the points are scored".
       deece_meld[team]  : Integer = 0
       trick_score[team] : Integer = 0
       leader            : Player? = none
@@ -282,16 +288,29 @@ game Pinochle {
 // multiple of ten by construction. A bid names no suit (contrast Bridge, whose
 // bid names a strain).
 //
-// 150 tens is 1500, the number that wins the whole game. It is the instrument's
-// ceiling, not the rules' — the rules set none — and it is placed where no
-// auction can reach it, since one hand holds 250 trick points plus meld. The
-// `when:` is what keeps the ceiling honest: at the top rung there is no legal
-// number left to name, so the seat is offered only the two ways out.
+// 400 tens is 4000 points. It is the instrument's ceiling, not the rules' — the
+// rules set none — and it is placed above every contract anyone can make, which
+// is what "a bound no real auction reaches" has to mean here.
+//
+// DERIVED, not picked. A hand holds at most 1800 in meld (a double run in
+// trumps is ten cards at 1500, and both jacks of diamonds make the run's two
+// queens a double pinochle for 300 more — exactly twelve cards). A side is two
+// hands, so its meld is at most 3600, and a hand carries 250 trick points, so
+// no contract above 3850 can be made. The game target is NOT that bound: a side
+// melding a double run can make a contract well past 1500, so a ceiling there
+// would deny a raise a real player would want.
+//
+// And it is a bound no real auction meets: over 1,000 games under the reference
+// policy the highest contract reached is 470 (2026-09-22).
+//
+// The `when:` is what keeps the ceiling honest: at the top rung there is no
+// legal number left to name, so the seat is offered only the two ways out
+// rather than a `choose` over an empty range.
 
 move_type submit_bid {
-  when: bid_tens < 150
+  when: bid_tens < 400
   effect {
-    bid_tens    := choose integer in bid_tens + 1 .. 150
+    bid_tens    := choose integer in bid_tens + 1 .. 400
     working_bid := bid_tens * 10
     lead_bidder := actor
   }
@@ -313,9 +332,21 @@ move_type pass_with_help {
 function team_score_in_hand(t : Team) = meld_score[t] + trick_score[t]
 
 // What a defending side's meld is worth once the tricks are in. Taking any
-// trick point saves the whole meld; taking none loses it, except a meld that
-// was nothing but nines of trump, which save themselves. The last trick is
-// worth 10, so a side that took it has a positive trick score.
+// trick POINT saves the whole meld; taking none loses it, except a meld that
+// was nothing but nines of trump, which save themselves.
+//
+// Two neighbouring readings are wrong, and both look right from here.
+//
+// It is not "took no TRICK". The rules say a side fails to save its meld when
+// it "pulled no counters and failed to capture the final trick" — their own
+// gloss on the condition — so a side that wins an early trick of queens, jacks
+// and nines and not the last one has still saved nothing. The last trick is
+// worth 10, so `trick_score[t] > 0` is exactly that test.
+//
+// And the deece exception is not "the deece is always kept". The rules except
+// a meld that was ONLY deeces, so a side holding a deece beside a marriage
+// loses both; keeping the 10 and losing the 20 is a rule the page does not
+// state.
 function saved_meld(t : Team) =
   if trick_score[t] > 0 then meld_score[t]
   elif meld_score[t] is deece_meld[t] then deece_meld[t]
