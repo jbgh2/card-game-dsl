@@ -1,37 +1,52 @@
 # Pinochle
 
 The companion formal file is [pinochle.cardlang](pinochle.cardlang); this is the
-readable twin. Team Bid Pinochle, single 48-card pack (two copies each of
-A 10 K Q J 9 per suit; 10 ranks between K and A), four players in fixed
-teams sitting across. First team to **150** wins.
+readable twin. Single Deck Partnership Pinochle, one 48-card pack (two copies
+each of A 10 K Q J 9 per suit; 10 ranks between K and A), four players in fixed
+teams sitting across. First team to **150** wins. **Rules source:**
+https://www.pagat.com/marriage/pinmain.html (fetched live), the page's main
+account.
 
 Each hand:
 
 1. Deal 12 cards each.
 2. **Auction** — an ascending bid opening at 50 and rising in 10s; players pass
-   out, the last bidder takes the contract.
-3. **Declare trump** — the high bidder names a suit he holds a *marriage* (K-Q)
-   in. With no marriage anywhere he abandons the bid and his side is set back by
-   the bid amount.
-4. **Meld** — both sides score their meld combinations (runs, marriages, dix,
+   out, the last bidder takes the contract and becomes the declarer.
+3. **Declare trump** — the declarer names any suit.
+4. **Pass** — the declarer's partner passes four cards face down across the
+   table, and the declarer passes four back, which may include cards just
+   received. Exactly four each way.
+5. **Meld** — both sides score their meld combinations (runs, marriages, dix,
    pinochle, and the four-around sets — the standard single-pack values, with
    doubles scoring the published double values).
-5. **Play** — twelve strict tricks: follow suit and head the led suit if you
-   can; if void, trump and over-trump if you can. A/10/K captured score 10 each,
-   and the last trick is worth 10 (250 trick points in all).
-6. **Score** — the bidding side adds meld + tricks if it reached its bid, else is
-   set back by the bid; the other side always adds its meld + tricks.
+6. **Settle or play** — a bid standing more than 250 above the declarer's own
+   side's meld cannot be made, so the side is not *on the board* and the hand
+   is not played. Otherwise the declarer chooses: throw the hand in, or play it
+   out. Either way of ending a hand unplayed pays the same — the bidders lose
+   the bid, and the defenders score their meld with nothing for tricks.
+7. **Play** — twelve strict tricks: follow suit, and beat the card controlling
+   the trick if you can; if void, trump and over-trump if you can. A/10/K
+   captured score 10 each, and the last trick is worth 10 (250 trick points in
+   all).
+8. **Score** — the bidding side adds meld + tricks if it reached its bid, else
+   is set back by the bid and scores nothing else. The defending side adds its
+   tricks, and its meld only if it *saved* it by taking some trick point —
+   a counter or the last trick. A defence that took none loses its meld, unless
+   that meld was nothing but nines of trump, which save themselves.
 
 The whole hand runs in the DSL. The ascending auction runs on the kernel
 `round` (a shrinking participants ring over the `submit_bid`/`pass` vocabulary,
-settling on a declarer and his bid). Trump declaration is a second,
-one-draw `round offering [declare_trump_suit]`, guarded by a `has_marriage`
-function checked over each of the four suits (no marriage anywhere abandons
-the bid with no decision offered at all). Meld is a forced
-`pinochle_meld_value(p)` Primitive query per player, credited to his team. The
-twelve strict tricks run on the trick form of `round`, legality narrowed by
-the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade
-(follow suit and head the trick if able; else trump and over-trump if
-able; else anything). The meld evaluator (`pinochle_meld_value`) is a pure
-Primitive (`cardlang/runtime/pinochle.py`) — not yet the shared
-combination model.
+settling on a declarer and his bid). Trump declaration is a second, one-draw
+`round offering [declare_trump_suit]` over all four suits. The exchange is two
+one-seat `round offering [pass_four]` draws, the partner's and then the
+declarer's, each a `move chosen 4 cards` whose count is the rule; a passer's
+log names the four cards leaving and the receiver's names them arriving, while
+the opponents see four cards cross the table and no identity at either end.
+Meld is a forced `pinochle_meld_value(p)` Primitive query per player, credited
+to his team. The concession is a one-seat `round offering [throw_in, play_on]`.
+The twelve strict tricks run on the trick form of `round`, legality narrowed by
+the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade —
+note that the duty to beat the trick lapses once a plain-suit lead has been
+trumped, because no card of the led suit can beat a trump. The meld evaluator
+(`pinochle_meld_value`) is a pure Primitive (`cardlang/runtime/pinochle.py`) —
+not yet the shared combination model.
