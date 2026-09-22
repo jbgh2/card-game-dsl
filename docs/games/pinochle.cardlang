@@ -34,7 +34,12 @@ game Pinochle {
   players: 4
   teams: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
-  max_length: 1000
+  // Measured under the reference policy (tests/test_playout_pinochle.py),
+  // 250 seeds, 2026-09-21: median 952 decisions, p99 2,749, max 3,517. A
+  // uniform chooser finishes no line at all at this scale, which is why the
+  // bound is sized against the policy's lines and not a uniform draw's
+  // (decisions.md, "Game length as a declared contract").
+  max_length: 5000
 
   cards: pinochle48
   ranking: ace-ten            // 10 sits between K and A
@@ -68,7 +73,7 @@ game Pinochle {
     score[team] : Integer = 0
   }
 
-  phase hand_sequence repeat until (any team where score[team] >= 150) {
+  phase hand_sequence repeat until (any team where score[team] >= 1500) {
     state {
       dealer            : Player  = 0
       trump_suit        : Suit?   = none
@@ -99,24 +104,33 @@ game Pinochle {
     // hand (trump declaration, meld, the twelve strict tricks) runs on the
     // kernel below.
     phase auction -> outcome { bid_won(Player, Integer) } {
-      // Each non-passed seat — never the standing high bidder — bids the next
-      // 10 up (50 to open) or passes for good; the participants ring re-evaluates
-      // each turn, so a passed seat or the high bidder is never offered again.
-      // The ring shrinks until one seat remains or the 16-bid cap is hit. The
-      // 16-bid cap also bounds the bid value: 50 + 15*10 = 200, so no further
-      // ceiling is needed (raising the cap would let working_bid exceed 200).
+      // Each non-passed seat — never the standing high bidder — names a number
+      // at least 10 above the standing bid, or leaves the auction. The
+      // participants ring re-evaluates each turn, so a seat that has left and
+      // the standing high bidder are never offered again, and the ring shrinks
+      // until one seat remains.
+      //
+      // The ladder is counted in TENS, which is what makes every rung a
+      // multiple of 10 without a division anywhere: `bid_tens` starts at 24,
+      // one rung below the rules' 250 minimum opening, so the opener and every
+      // later bidder read the same `bid_tens + 1` floor.
       state {
         passed[player] : Boolean = false
-        bids           : Integer = 0
         lead_bidder    : Player? = none   // standing high bidder (auction-local)
-        working_bid    : Integer = 0      // his standing bid (auction-local)
+        bid_tens       : Integer = 24     // the standing bid in tens (240 = no bid)
+        working_bid    : Integer = 0      // his standing bid in points
         opener         : Player? = none
+        // The dealer is "under": when the other three seats leave the auction,
+        // the round ends before he is asked anything and the contract is his
+        // at the minimum. Named here so the outcome reads the rule's seat.
+        seat_under     : Player? = none
       }
       opener := dealer offset_by left
-      round offering [submit_bid, pass] from opener
+      seat_under := dealer
+      round offering [submit_bid, pass, pass_with_help] from opener
             over players where not passed[player]
                               and (lead_bidder is none or player is not lead_bidder)
-            until (number of players where not passed[player]) <= 1 or bids >= 16
+            until (number of players where not passed[player]) <= 1
             outcome pinochle_auction_outcome
     }
     auction produces:
@@ -212,19 +226,34 @@ game Pinochle {
 
 // === Auction move vocabulary ===
 //
-// The bid value is derived, not chosen: 50 to open, then a fixed 10 higher each
-// time. A seat either bids that or passes for good — the participants ring then
-// drops it. `submit_bid` is nullary (contrast Bridge, whose bid names a strain).
+// The bid names a number, not a step: a bidder may raise by ten or jump by any
+// larger multiple of ten. The choice is the number of TENS, so every rung is a
+// multiple of ten by construction. A bid names no suit (contrast Bridge, whose
+// bid names a strain).
+//
+// 150 tens is 1500, the number that wins the whole game. It is the instrument's
+// ceiling, not the rules' — the rules set none — and it is placed where no
+// auction can reach it, since one hand holds 250 trick points plus meld. The
+// `when:` is what keeps the ceiling honest: at the top rung there is no legal
+// number left to name, so the seat is offered only the two ways out.
 
 move_type submit_bid {
+  when: bid_tens < 150
   effect {
-    working_bid := if working_bid is 0 then 50 else working_bid + 10
+    bid_tens    := choose integer in bid_tens + 1 .. 150
+    working_bid := bid_tens * 10
     lead_bidder := actor
-    bids        := bids + 1
   }
 }
 
 move_type pass {
+  effect { passed[actor] := true }
+}
+
+// Leaving the auction while telling partner you hold help. It is a signalling
+// action: its name is its whole announcement, no rule reads it, and what it
+// means is the partnership's convention rather than an effect of the rules.
+move_type pass_with_help {
   effect { passed[actor] := true }
 }
 

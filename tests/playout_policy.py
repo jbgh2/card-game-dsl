@@ -40,6 +40,38 @@ from cardlang.runtime.values import Card
 from cardlang.stdlib.zones import ZONE_PROJECTIONS
 
 
+# The games no uniform draw finishes, and the reference policy each one's
+# playouts and captures run under. ONE table, because a capture that reached for
+# a policy and a capture that forgot to would both run — the forgetful one
+# producing a refusal that reads as a long game, or a golden pinned over lines
+# nobody plays.
+#
+# A game earns a row here by MEASUREMENT, recorded in its own playout module:
+# Tichu because a uniform chooser calls tichu at ~50% of every offer and the
+# 1000-point race never terminates; Pinochle because a uniform chooser jumps to
+# any rung and concedes about half the hands, so both sides go set without bound
+# (0 of 30 lines within 20,000 decisions, 2026-09-21).
+REFERENCE_POLICIES: dict[str, tuple[str, str]] = {
+    "tichu": ("tests.test_playout_tichu", "tichu_reference_policy"),
+    "pinochle": ("tests.test_playout_pinochle", "pinochle_reference_policy"),
+}
+
+
+def reference_policy_for(name: str, rng: random.Random) -> Any | None:
+    """The reference policy `name`'s playouts run under, or None for a game a
+    uniform draw finishes.
+
+    Imported on demand rather than at module scope: the playout modules import
+    game-specific engine pieces, and a capture subprocess for one game should
+    not pay for another's.
+    """
+    row = REFERENCE_POLICIES.get(name)
+    if row is None:
+        return None
+    module, factory = row
+    return getattr(__import__(module, fromlist=[factory]), factory)(rng)
+
+
 def is_length_guard(exc: OwnerGuardError) -> bool:
     """Whether this refusal is the driver's declared-length bound, and not one
     of the several other refusals a policy playout can reach.

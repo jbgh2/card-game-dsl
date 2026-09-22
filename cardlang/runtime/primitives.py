@@ -369,21 +369,28 @@ def pinochle_auction_outcome(
     history: AuctionHistory, ctx: Ctx
 ) -> tuple[str, list[Any]]:
     """Pinochle's ascending auction always settles on a declarer: the standing
-    high bidder at the bid he reached, or — if every seat passed without a bid —
-    the opener at the minimum 50. (The bidding side must reach this in meld +
-    tricks or be set back; see `pinochle.cardlang`.)"""
+    high bidder at the bid he reached, or — if every other seat left without a
+    bid — the seat that is under, at the minimum opening. (The bidding side must
+    reach this in meld + tricks or be set back; see `pinochle.cardlang`.)
+
+    The minimum is DERIVED from the game's own ladder rather than restated here:
+    `bid_tens` holds the standing bid in tens and starts one rung below the
+    minimum opening, so the rung above it is what the opener would have had to
+    name. A literal would be a second definition of a number the game already
+    states, and the two would drift the first time the scale moved."""
     rs = ctx.rs
     lead_bidder = reads.state(rs, _PINOCHLE_R, "lead_bidder")
     if lead_bidder is None:
-        declarer, bid = reads.state(rs, _PINOCHLE_R, "opener"), 50
+        declarer = reads.state(rs, _PINOCHLE_R, "seat_under")
+        bid = (reads.state(rs, _PINOCHLE_R, "bid_tens") + 1) * 10
         if declarer is None:
-            # Whether `opener` was set before the round is runtime data — the
-            # hosting game's own setup — so its absence is the description's
+            # Whether `seat_under` was set before the round is runtime data —
+            # the hosting game's own setup — so its absence is the description's
             # error, so this raise is its Owner Guard.
             raise OwnerGuardError(
-                "pinochle auction: all-pass fallback has no opener — the "
-                "`auction` phase must set `opener := dealer offset_by left` "
-                "before the round"
+                "pinochle auction: all-pass fallback has no seat under — the "
+                "`auction` phase must set `seat_under := dealer` before the "
+                "round"
             )
         ctx.trace("pinochle_contract", {"all_pass": True, "declarer": declarer, "bid": bid})
         return ("bid_won", [declarer, bid])

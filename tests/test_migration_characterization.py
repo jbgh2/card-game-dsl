@@ -346,11 +346,14 @@ from pathlib import Path
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 
+from tests.playout_policy import reference_policy_for
+
 name = sys.argv[1]
 game = check_dsl(Path(f"docs/games/{name}.cardlang").read_text(), f"{name}.cardlang")
 out = {}
 for seed in range(int(sys.argv[2])):
-    r = play_game(game, random.Random(seed))
+    rng = random.Random(seed)
+    r = play_game(game, rng, chooser=reference_policy_for(name, rng))
     out[str(seed)] = {
         "scores": {str(k): v for k, v in sorted(r.scores.items())},
         "winner": r.winner,
@@ -502,10 +505,8 @@ for seed in range(int(sys.argv[2])):
     def observer(player, event, _r=record):
         _r.append(["observe", repr(player), repr(event)])
 
-    chooser = None
-    if name == "tichu":
-        from tests.test_playout_tichu import tichu_reference_policy
-        chooser = tichu_reference_policy(rng)
+    from tests.playout_policy import reference_policy_for
+    chooser = reference_policy_for(name, rng)
     result = play_game(game, rng, tracer, chooser, observer=observer)
     out[str(seed)] = {
         "result": {f: repr(getattr(result, f)) for f in fields},

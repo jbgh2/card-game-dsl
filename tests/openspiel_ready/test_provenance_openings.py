@@ -252,6 +252,7 @@ _COVERED: dict[str, str] = {
     "provenance_opening": "this module",
     "conformance_steps": "test_conformance_bounds.py",
     "conformance_verbs_unreached": "test_conformance_bounds.py",
+    "greedy_prefers": "test_greedy_preference.py",
 }
 # Judgment fields with no staleness grid. Each is consumed by a proof that
 # asserts over it, so a value that breaks the proof reddens there; what none of
