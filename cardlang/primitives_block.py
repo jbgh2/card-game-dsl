@@ -355,6 +355,14 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.cribbage", "peg_run_points", InvocationContract.BUNDLED,
         Sig((), TInteger()),
     ),
+    "pinochle_meld_size": Implementation(
+        "cardlang.runtime.pinochle", "pinochle_meld_size", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "pinochle_meld_slot": Implementation(
+        "cardlang.runtime.pinochle", "pinochle_meld_slot", InvocationContract.BUNDLED,
+        Sig((TPlayer(), TInteger(), TCard()), TBoolean()),
+    ),
     "pinochle_meld_value": Implementation(
         "cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED,
         Sig((TPlayer(),), TInteger()),

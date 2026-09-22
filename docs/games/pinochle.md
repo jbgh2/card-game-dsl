@@ -3,22 +3,30 @@
 The companion formal file is [pinochle.cardlang](pinochle.cardlang); this is the
 readable twin. Single Deck Partnership Pinochle, one 48-card pack (two copies
 each of A 10 K Q J 9 per suit; 10 ranks between K and A), four players in fixed
-teams sitting across. First team to **150** wins. **Rules source:**
+teams sitting across. First team to **1500** wins. **Rules source:**
 https://www.pagat.com/marriage/pinmain.html (fetched live), the page's main
-account.
+account throughout — the four-card pass rather than the cutthroat variation,
+and the main text's run-extras table (a run with an extra king 190, an extra
+queen 190, an extra marriage 230) rather than the Variations paragraph's.
 
 Each hand:
 
 1. Deal 12 cards each.
-2. **Auction** — an ascending bid opening at 50 and rising in 10s; players pass
-   out, the last bidder takes the contract and becomes the declarer.
+2. **Auction** — an ascending bid opening at 250. A bidder names a number at
+   least 10 above the standing bid, raising by ten or jumping by any larger
+   multiple of ten; or leaves the auction, with or without telling partner it
+   holds help. The last bidder in takes the contract and becomes the declarer,
+   and if the other three leave without a bid the dealer is *under* and takes
+   it at 250.
 3. **Declare trump** — the declarer names any suit.
 4. **Pass** — the declarer's partner passes four cards face down across the
    table, and the declarer passes four back, which may include cards just
    received. Exactly four each way.
-5. **Meld** — both sides score their meld combinations (runs, marriages, dix,
-   pinochle, and the four-around sets — the standard single-pack values, with
-   doubles scoring the published double values).
+5. **Meld** — every seat lays its meld face up and both sides score it (runs,
+   marriages, dix, pinochle, and the four-around sets, with doubles scoring the
+   published double values). Only the cards a piece needs are shown, so the
+   twelve tricks are played with those cards known to the whole table and the
+   rest of every hand still hidden.
 6. **Settle or play** — a bid standing more than 250 above the declarer's own
    side's meld cannot be made, so the side is not *on the board* and the hand
    is not played. Otherwise the declarer chooses: throw the hand in, or play it
@@ -43,7 +51,8 @@ declarer's, each a `move chosen 4 cards` whose count is the rule; a passer's
 log names the four cards leaving and the receiver's names them arriving, while
 the opponents see four cards cross the table and no identity at either end.
 Meld is a forced `pinochle_meld_value(p)` Primitive query per player, credited
-to his team. The concession is a one-seat `round offering [throw_in, play_on]`.
+to his team, with a `pinochle_meld_size`/`pinochle_meld_slot` pair naming the
+cards it lays face up one at a time. The concession is a one-seat `round offering [throw_in, play_on]`.
 The twelve strict tricks run on the trick form of `round`, legality narrowed by
 the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade —
 note that the duty to beat the trick lapses once a plain-suit lead has been

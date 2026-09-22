@@ -4,23 +4,40 @@ confirmation of the declaration's and opening lead's observation shapes."""
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs, greedy_pick
 
 
 class TestReadiness(ReadinessProofs):
     spec = GameSpec(
         "cardlang_pinochle",
         "pinochle.cardlang",
-        # `throw_in` (59) sorts below `play_on` (60), so a plain `legal[0]`
-        # line concedes every hand: no side ever takes a trick point, each is
-        # set by its bid in turn as the deal rotates the declarer, and both
-        # scores fall without bound — 900 greedy steps over 32 hands on seed 3,
-        # still not terminal (measured 2026-09-21). The concession is a real
-        # decision of the game, so the instrument is what changes: preferring
-        # `play_on` walks the auction, the exchange, the meld and all twelve
-        # tricks, and terminates in 76 steps on every manifest seed.
-        greedy_prefers=("play_on",),
-        adapter_terminal_steps=120,  # greedy line measured at 76 steps
+        # A plain `legal[0]` line plays a game nobody plays and never ends it.
+        # `submit_bid` sorts below both ways out, so every seat bids until the
+        # ladder hits its ceiling and the contract is 1500 — unmakeable, so the
+        # declaring side is set every hand; and `throw_in` sorts below
+        # `play_on`, so the hands that are played are conceded instead. Either
+        # way no side takes a trick point, and with the declarer rotating on
+        # the deal both scores fall without bound.
+        #
+        # Both preferences are needed and neither is enough (measured
+        # 2026-09-21, 30,000-step cap, all five manifest seeds): with neither,
+        # with `play_on` alone, and with a way out alone, no line terminates;
+        # with both, every line does, in 693 to 2,772 steps. The line then
+        # walks the auction, the exchange, the meld and all twelve tricks of
+        # every hand to a result.
+        greedy_prefers=("pass", "play_on"),
+        # The greedy line's length puts Pinochle with the other multi-hand
+        # score-target games. With both preferences it DOES reach a result —
+        # 693 to 2,772 steps over the manifest, measured 2026-09-21 — but the
+        # adapter walk re-simulates per applied action, and the corpus's
+        # longest affordable line is Belote's 500. Without them it does not
+        # terminate at all within 30,000.
+        adapter_terminal_steps=None,
+        # A full game under a uniform draw runs past the declared length, so
+        # the API conformance proof takes the bounded walk. Every verb the
+        # action space declares is applied by step 235 (`throw_in`, the last),
+        # measured 2026-09-21.
+        conformance_steps=400,
     )
 
 
@@ -35,16 +52,13 @@ def test_declaration_and_lead_derive_observations() -> None:
     hidden cards don't change the information state, but never positively
     confirms an event's *shape*).
 
-    Policy: `legal[0]`, with one named exception. `submit_bid` sorts before
-    `pass` (ids 52 < 53), so the auction always runs the full 16 bids to the
-    cap and settles deterministically on seat 1 (docs/games/pinochle.cardlang;
-    tests/test_pinochle_auction.py pins the same ring-rotation fact), and the
-    declaration takes the lowest-id enumerated Suit candidate. Between the
-    declaration and the lead the partner passes four cards across and the
-    declarer passes four back, all of them greedy. The exception is the
-    declarer's concession: `throw_in` sorts below `play_on`, so a greedy pick
-    there settles the hand without a trick, and this walk names `play_on` at
-    that one node because an opening lead is what it is here to inspect.
+    Policy: the spec's own greedy line — `legal[0]`, with `pass` and `play_on`
+    preferred where a node offers them. Bare `legal[0]` would bid the ladder to
+    its ceiling and reach no declaration at all, which is why the spec declares
+    those preferences and why this walk reads them from the spec rather than
+    naming its own. The declaration takes the lowest-id enumerated Suit
+    candidate; between it and the lead the partner passes four cards across and
+    the declarer passes four back.
     """
     path = str(GAMES_DIR / "pinochle.cardlang")
     _game, space = load(path)
@@ -59,7 +73,7 @@ def test_declaration_and_lead_derive_observations() -> None:
         names = [space.to_string(a) for a in r.legal]
         if declarer is None and any(n.startswith("declare_trump_suit") for n in names):
             declarer = r.player
-        aid = r.legal[0]
+        aid = greedy_pick(space, list(r.legal), TestReadiness.spec.greedy_prefers)
         chosen = space.to_string(aid)
         if declarer is not None and chosen.startswith("declare_trump_suit"):
             declared = chosen
@@ -82,7 +96,11 @@ def test_declaration_and_lead_derive_observations() -> None:
     while True:
         names = [space.to_string(a) for a in r.legal]
         conceding = "play_on" in names
-        history.append(r.legal[names.index("play_on")] if conceding else r.legal[0])
+        history.append(
+            r.legal[names.index("play_on")]
+            if conceding
+            else greedy_pick(space, list(r.legal), TestReadiness.spec.greedy_prefers)
+        )
         assert len(history) < 60, "the opening lead was never reached"
         nxt = run(path, seed, tuple(history))
         assert isinstance(nxt, DecisionNode), "the hand ended before the opening lead"
@@ -92,7 +110,7 @@ def test_declaration_and_lead_derive_observations() -> None:
 
     # The declarer leads the first trick; one more action plays their card.
     assert r.player == declarer, "the declarer leads the first trick"
-    history.append(r.legal[0])
+    history.append(greedy_pick(space, list(r.legal), TestReadiness.spec.greedy_prefers))
     r2 = run(path, seed, tuple(history))
     assert isinstance(r2, DecisionNode), "the hand ended on the opening lead"
 
@@ -154,7 +172,7 @@ def test_the_exchange_is_in_both_partners_information_sets() -> None:
     assert isinstance(r, DecisionNode)
     declarer: int | None = None
     while declarer is None:
-        aid = r.legal[0]
+        aid = greedy_pick(space, list(r.legal), TestReadiness.spec.greedy_prefers)
         if space.to_string(aid).startswith("declare_trump_suit"):
             declarer = r.player
         history.append(aid)
@@ -169,7 +187,7 @@ def test_the_exchange_is_in_both_partners_information_sets() -> None:
 
     # `pass_four` itself, then its four single-card decisions.
     for _ in range(5):
-        history.append(r.legal[0])
+        history.append(greedy_pick(space, list(r.legal), TestReadiness.spec.greedy_prefers))
         nxt = run(path, seed, tuple(history))
         assert isinstance(nxt, DecisionNode), "the hand ended inside the exchange"
         r = nxt

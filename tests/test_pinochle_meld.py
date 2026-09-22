@@ -44,12 +44,33 @@ def test_run_does_not_also_count_its_own_marriage() -> None:
     assert pinochle_meld(run, "spades") == 150
 
 
+def test_a_spare_trump_king_or_queen_is_priced_as_a_card() -> None:
+    # Pagat's main account prices the SPARE CARD beside a run, not a second
+    # marriage: a run with an extra king is 190, with an extra queen 190, and
+    # with both 230. Scoring the first two at 150 is the Variations table, and
+    # the corpus follows the main text (#686).
+    run = _cards(("A", "spades"), ("10", "spades"), ("K", "spades"), ("Q", "spades"), ("J", "spades"))
+    assert pinochle_meld(run + _cards(("K", "spades")), "spades") == 190
+    assert pinochle_meld(run + _cards(("Q", "spades")), "spades") == 190
+
+
+def test_royal_marriages_score_as_marriages_when_no_run_absorbs_them() -> None:
+    # The card-pricing arm above is conditioned on a run being present. With no
+    # run, a trump K-Q is a royal marriage at 40, and two of them are 80 — not
+    # 40 for each of the four cards.
+    assert pinochle_meld(_cards(("K", "spades"), ("Q", "spades")), "spades") == 40
+    assert pinochle_meld(
+        _cards(("K", "spades"), ("Q", "spades"), ("K", "spades"), ("Q", "spades")),
+        "spades",
+    ) == 80
+
+
 def test_a_second_marriage_beyond_the_run_still_counts() -> None:
-    # One complete run plus a spare K-Q of trump (not part of any run): the
-    # spare marriage is not subsumed, so it scores its own 40 on top of 150.
+    # One complete run plus a spare K-Q of trump: both spare cards are priced,
+    # so the holding is the main account's run-with-an-extra-marriage at 230.
     run = _cards(("A", "spades"), ("10", "spades"), ("K", "spades"), ("Q", "spades"), ("J", "spades"))
     spare_marriage = _cards(("K", "spades"), ("Q", "spades"))
-    assert pinochle_meld(run + spare_marriage, "spades") == 150 + 40
+    assert pinochle_meld(run + spare_marriage, "spades") == 230
 
 
 def test_trump_marriage_scores_40_plain_suit_marriage_scores_20() -> None:

@@ -203,6 +203,8 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query for the two-seat variant
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
+        "pinochle_meld_size",  # Pinochle: how many cards a seat lays face up (showing bound)
+        "pinochle_meld_slot",  # Pinochle: is a card the k-th laid face up (the showing's reveal predicate)?
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
@@ -438,6 +440,8 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "is_trump",
         "peg_pair_points",
         "peg_run_points",
+        "pinochle_meld_size",
+        "pinochle_meld_slot",
         "pinochle_meld_value",
         "pot_share",
         "rank_value",

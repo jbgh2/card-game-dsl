@@ -52,18 +52,25 @@ does not prove:  four things, each about what a green over the registered games
            Pinochle's plain line is non-terminal and its preferred line is 76
            steps on every seed (2026-09-21). A game whose sort DID move with
            the deal would pass here on the head seed alone.
-           (b) A preference naming SEVERAL verbs is implemented and only
-           degenerately executed on a registered game: no spec declares more
-           than one. The probe below drives the multi-verb arm on a synthetic
-           spec.
+           (b) Each declared verb is proved necessary INDIVIDUALLY, so a
+           tuple cannot carry a passenger; what no cell proves is that the
+           SET is sufficient in some minimal sense beyond that, since a pair
+           of verbs neither of which is redundant can still be one of several
+           pairs that work.
            (c) A NEEDED BUT WRONG preference — a different verb that also makes
            the line terminate — passes every cell here, because every claim
            this module makes is about reaching TerminalNode and not about
            which line reached it. What the line is worth as coverage is the
            adapter proof's own business.
-           (d) The perfect-recall walk also reads this field, and nothing here
-           measures what it changes there: that walk is a fixed 40 steps with
-           no termination claim, so it has no needed/stale square to check.
+           (d) The reach criterion reads one seed and the recall walk's own
+           40-step bound, so a preference that buys reach only later, or only
+           on another deal, reads as stale here.
+           (e) For a game with NO cap that declares NO preference, nothing
+           detects a preference it ought to have. Deciding that would mean
+           searching the verb subsets for one that buys reach, which is not a
+           measurement but a design question; the capped games get it free from
+           the adapter proof's own terminal assertion. Pinochle sat in exactly
+           this cell before the field existed.
 """
 
 from __future__ import annotations
@@ -81,7 +88,13 @@ from .harness import (
     greedy_pick,
     preference_status,
 )
-from cardlang.openspiel.replay import load
+from cardlang.openspiel.replay import DecisionNode, load, run
+
+# The perfect-recall proof's own bound, which is the walk `greedy_prefers`
+# steers for a game with no `adapter_terminal_steps`. Read from there rather
+# than chosen here, so the reach criterion below measures the walk that
+# actually exists.
+RECALL_STEPS = 40
 
 
 def _spec(short_name: str) -> GameSpec:
@@ -101,6 +114,13 @@ _ALL: list[GameSpec] = [_spec(short) for short, _ in REGISTERED_GAMES]
 
 def _params(specs: list[GameSpec]) -> list[Any]:
     return [pytest.param(s, id=s.short_name.removeprefix("cardlang_")) for s in specs]
+
+
+def _of(param: Any) -> GameSpec:
+    """The spec inside a `pytest.param`, so a derived parametrization can filter
+    on it without a second list of specs to keep in step."""
+    spec: GameSpec = param.values[0]
+    return spec
 
 
 SPECS: list[Any] = _params(_ALL)
@@ -147,15 +167,17 @@ def test_a_preference_is_declared_exactly_where_the_greedy_line_needs_one(
     adapter proof stays green over a preference that stopped being necessary,
     because a line that terminates terminates either way.
 
-    red under (executed 2026-09-21 and reverted): pinochle's `greedy_prefers`
-    emptied — this cell reads `missing` and fails naming the game, alongside
-    the adapter proof's own terminal assertion.
+    red under (executed 2026-09-21 and reverted, while pinochle still carried a
+    cap): its `greedy_prefers` emptied — this cell read `missing` and failed
+    naming the game, alongside the adapter proof's own terminal assertion. No
+    registered game carries both a cap and a preference today, so the cell runs
+    over the capped games' `none` arm and the classifier's own square below
+    carries the other three.
     """
     cap = spec.adapter_terminal_steps
     assert cap is not None  # the parametrization's own gate
-    _plain, plain_returns = greedy_line(spec.path, seed=SEED, cap=cap, prefers=())
     status = preference_status(
-        needed=plain_returns is None, declared=bool(spec.greedy_prefers)
+        needed=_needed(spec, ()), declared=bool(spec.greedy_prefers)
     )
     assert status == ("covered" if spec.greedy_prefers else "none"), {
         "stale": (
@@ -173,19 +195,93 @@ def test_a_preference_is_declared_exactly_where_the_greedy_line_needs_one(
     }[status]
 
 
-@pytest.mark.parametrize("spec", WITHOUT_CAP)
-def test_an_uncapped_game_has_no_needed_square_to_check(spec: GameSpec) -> None:
-    """The cap gate's other arm, asserted rather than skipped.
+DECLARING: list[Any] = [s for s in SPECS if _of(s).greedy_prefers]
 
-    A game with no `adapter_terminal_steps` walks no bounded line, so "did the
-    plain line terminate" has no measurement and the square above is
-    meaningless for it. What remains true is that a preference there still
-    steers the perfect-recall walk — declaring one is legal, and this cell
-    exists so that the uncapped games are counted rather than silently absent
-    from the module's domain.
+
+def _reaches(spec: GameSpec, prefers: tuple[str, ...]) -> frozenset[str]:
+    """The verbs the bounded recall walk applies under `prefers`.
+
+    The criterion for a game with no `adapter_terminal_steps`, where "did the
+    line terminate" has no measurement: what a preference buys such a game is
+    REACH — the walk that would otherwise stall in one stretch of the game gets
+    past it. Bounded by the same 40 steps the perfect-recall proof walks, since
+    that is the walk this field steers there.
+    """
+    _game, space = load(spec.path)
+    verbs: set[str] = set()
+    for seed in ONE_SEED:
+        history: list[int] = []
+        node = run(spec.path, seed, ())
+        for _ in range(RECALL_STEPS):
+            if not isinstance(node, DecisionNode):
+                break
+            aid = greedy_pick(space, list(node.legal), prefers)
+            verbs.add(space.verb_of(aid))
+            history.append(aid)
+            node = run(spec.path, seed, tuple(history))
+    return frozenset(verbs)
+
+
+def _needed(spec: GameSpec, prefers: tuple[str, ...]) -> bool:
+    """Whether the line is worse off without `prefers`, by whichever criterion
+    this game's cap arm makes measurable."""
+    cap = spec.adapter_terminal_steps
+    if cap is not None:
+        _line, returns = greedy_line(spec.path, seed=SEED, cap=cap, prefers=prefers)
+        return returns is None
+    return bool(_reaches(spec, spec.greedy_prefers) - _reaches(spec, prefers))
+
+
+@pytest.mark.parametrize("spec", DECLARING)
+def test_no_declared_verb_is_a_passenger(spec: GameSpec) -> None:
+    """Each verb carries its own weight: dropping any ONE of them leaves a line
+    that no longer reaches TerminalNode within the cap.
+
+    The cell above proves the tuple as a whole is needed, which a tuple with a
+    passenger passes — the passenger rides on its neighbour's necessity and
+    nothing ever reads it. Pinochle declares two, so this arm runs on a
+    registered game rather than a synthetic one.
+
+    red under (executed 2026-09-21 and reverted): pinochle's `greedy_prefers`
+    set to `("submit_bid",)` — "dropping 'submit_bid' ... leaves the line no
+    worse off". Earlier, while pinochle still carried a cap, appending
+    `"pass_with_help"` reddened it naming `pass` rather than the verb added:
+    the two are interchangeable ways out of the auction, so adding one makes
+    the OTHER the passenger. Which of a redundant pair is named is the loop's
+    order; that one of them is redundant is the finding.
+    """
+    for verb in spec.greedy_prefers:
+        without = tuple(v for v in spec.greedy_prefers if v != verb)
+        assert _needed(spec, without), (
+            f"{spec.short_name}: dropping {verb!r} from `greedy_prefers` leaves "
+            f"the line no worse off, so it changes nothing — drop it, or "
+            f"replace the whole declaration with the verbs that do the work"
+        )
+
+
+@pytest.mark.parametrize("spec", WITHOUT_CAP)
+def test_an_uncapped_declaration_buys_reach(spec: GameSpec) -> None:
+    """The cap gate's other arm. "Did the line terminate" has no measurement
+    for a game with no `adapter_terminal_steps`, so what a preference must
+    show there is REACH: verbs the bounded recall walk applies with it and
+    would not without.
+
+    red under (executed 2026-09-21 and reverted): pinochle's `greedy_prefers`
+    set to `("submit_bid",)`, a verb `legal[0]` already takes — "the plain
+    `legal[0]` walk already applies every verb the preferred one does".
+    EMPTYING the field does NOT redden this cell, and that is ledger item (e)
+    rather than a hole in the plant: with nothing declared there is no claim
+    here to be wrong.
     """
     assert spec.adapter_terminal_steps is None  # the parametrization's own gate
-    assert isinstance(spec.greedy_prefers, tuple)
+    if not spec.greedy_prefers:
+        return  # nothing declared, nothing to hold to account — ledger item (e)
+    gained = _reaches(spec, spec.greedy_prefers) - _reaches(spec, ())
+    assert gained, (
+        f"{spec.short_name} declares `greedy_prefers={spec.greedy_prefers!r}` "
+        f"but the plain `legal[0]` walk already applies every verb the "
+        f"preferred one does — the preference has outlived its reason; drop it"
+    )
 
 
 # --- the arms no registered game executes ------------------------------------

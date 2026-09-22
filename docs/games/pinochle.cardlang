@@ -1,6 +1,12 @@
 // Pinochle — formalized DSL (parser/checker/runtime target).
 //
-// Companion to pinochle.md. Team Bid Pinochle, single (48-card) pack,
+// Rules source: https://www.pagat.com/marriage/pinmain.html (fetched live per
+// CLAUDE.md), the page's MAIN ACCOUNT throughout — the four-card pass rather
+// than the cutthroat variation, and the run-extras table of the main text
+// (190 / 190 / 230) rather than the Variations paragraph's. No rule here is
+// reduced, so the game needs no variant name beyond the page's own title.
+//
+// Companion to pinochle.md. Single Deck Partnership Pinochle, one 48-card pack,
 // four players in fixed teams sitting across. Each hand: an ascending
 // auction, the high bidder names trump (any suit), his partner passes four
 // cards across and he passes four back, both sides score their meld, then
@@ -58,6 +64,15 @@ game Pinochle {
   // its dispatch binds.
   primitives {
     pinochle_meld_value(p : Player) : Integer
+        reads hand[p], trump_suit in hand_sequence
+    // The cards behind the number. Meld is laid FACE UP, so the table plays
+    // the tricks knowing where the run, the pinochle and the arounds sit, and
+    // the size/slot pair is what lets the game name those cards one at a time
+    // (Belote's declaration shows its combination the same way). A copy a seat
+    // holds but does not lay down stays hidden.
+    pinochle_meld_size(p : Player) : Integer
+        reads hand[p], trump_suit in hand_sequence
+    pinochle_meld_slot(p : Player, k : Integer, c : Card) : Boolean
         reads hand[p], trump_suit in hand_sequence
   }
 
@@ -144,6 +159,7 @@ game Pinochle {
         passes_done : Integer = 0
         thrown_in   : Boolean = false
         decided     : Boolean = false
+        show_k      : Integer = 0
       }
 
       // The high bidder names trump. Any suit: the rules put no condition on
@@ -162,8 +178,19 @@ game Pinochle {
             until passes_done >= 2
 
       // Meld is forced (a rational player melds everything) — a pure
-      // computation per player, credited to his team.
+      // computation per player, credited to his team — and it is laid FACE UP,
+      // so every seat plays the tricks knowing the cards behind every seat's
+      // number. Only the cards a piece needs are shown; the rest of the hand
+      // stays hidden.
       for each player p: meld_score[team_of(p)] += pinochle_meld_value(p)
+      for each player p:
+        if pinochle_meld_size(p) > 0 {
+          show_k := 0
+          repeat until show_k >= pinochle_meld_size(p) {
+            reveal one card from hand[p] where pinochle_meld_slot(p, show_k, card)
+            show_k += 1
+          }
+        }
       for each player p: deece_meld[team_of(p)] +=
             10 * (number of cards in hand[p]
                     where card.suit is trump_suit and card.rank is "9")
