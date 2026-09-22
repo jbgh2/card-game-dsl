@@ -4,6 +4,7 @@ surfaces the next decision as a DecisionNode with per-player observation logs.""
 
 from __future__ import annotations
 
+import pathlib
 import random
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ import pytest
 
 from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, returns_for, run
 from cardlang.runtime.driver import play_game
+from tests.playout_policy import reference_policy_for
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
 HEARTS = str(GAMES / "hearts.cardlang")
@@ -36,12 +38,26 @@ KERNEL_GAMES = [
 
 
 def _record(path: str, seed: int, policy_seed: int) -> tuple[list[int], list[float]]:
+    """One reference game and the actions that produced it.
+
+    Uniform sampling, except for a game no uniform draw finishes — those play
+    under their reference policy, read from the one table that names them
+    (`tests/playout_policy.REFERENCE_POLICIES`). What is under test is that
+    replaying the recorded actions reproduces the game, which needs a game to
+    reproduce; a uniform line that runs to the declared length instead gives
+    this cell a refusal to reproduce, not a game.
+    """
     game, space = load(path)
     policy = random.Random(policy_seed)
+    reference = reference_policy_for(pathlib.Path(path).stem, policy)
     recorded: list[int] = []
 
     def recording(player: int, candidates: list[Any], n: int) -> list[Any]:
-        chosen = policy.sample(list(candidates), n)
+        chosen = (
+            reference(player, candidates, n)
+            if reference is not None
+            else policy.sample(list(candidates), n)
+        )
         recorded.extend(space.encode(c) for c in chosen)
         return chosen
 

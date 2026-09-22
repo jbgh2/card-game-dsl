@@ -387,8 +387,8 @@ ROUNDS: dict[str, Rounds] = {
             {
                 "current_bid", "dealer", "decided", "deece_meld",
                 "hand_played", "high_bidder", "leader", "meld_score",
-                "passes_done", "score", "thrown_in", "trick_score",
-                "trump_suit",
+                "passes_done", "result", "score", "show_k", "thrown_in",
+                "trick_score", "trump_suit",
             }
         ),
     ),

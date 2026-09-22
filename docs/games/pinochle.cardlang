@@ -47,11 +47,14 @@ game Pinochle {
   teams: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
   // Measured under the reference policy (tests/test_playout_pinochle.py),
-  // 250 seeds, 2026-09-21: median 952 decisions, p99 2,749, max 3,517. A
-  // uniform chooser finishes no line at all at this scale, which is why the
-  // bound is sized against the policy's lines and not a uniform draw's
-  // (decisions.md, "Game length as a declared contract").
-  max_length: 5000
+  // 2026-09-21: over the convention's 250 seeds, median 952 decisions and a
+  // maximum of 3,517 — but a race to 1500 has a long tail, and over 1,000
+  // seeds the maximum is 5,767. The bound is sized from the wider sample,
+  // because a bound that refuses a game the rules allow is the instrument
+  // winning the disagreement. A uniform chooser finishes no line at all at
+  // this scale, which is why the bound is sized against the policy's lines and
+  // not a uniform draw's (decisions.md, "Game length as a declared contract").
+  max_length: 10000
 
   cards: pinochle48
   ranking: ace-ten            // 10 sits between K and A
@@ -300,7 +303,7 @@ move_type pass {
 
 // Leaving the auction while telling partner you hold help. It is a signalling
 // action: its name is its whole announcement, no rule reads it, and what it
-// means is the partnership's convention rather than an effect of the rules.
+// means is what the two partners agree, rather than an effect of the rules.
 move_type pass_with_help {
   effect { passed[actor] := true }
 }

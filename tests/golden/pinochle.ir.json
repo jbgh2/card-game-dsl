@@ -9,7 +9,7 @@
   },
   "deck": "pinochle48",
   "direction": "clockwise",
-  "max_length": 5000,
+  "max_length": 10000,
   "ranking": [
     "A",
     "10",
@@ -212,6 +212,17 @@
       {
         "kind": "state_decl",
         "name": "score",
+        "index": "team",
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      },
+      {
+        "kind": "state_decl",
+        "name": "result",
         "index": "team",
         "type": "Integer",
         "optional": false,
@@ -1744,6 +1755,112 @@
                   }
                 }
               ]
+            },
+            {
+              "kind": "for_each",
+              "role": "team",
+              "binder": "t",
+              "body": {
+                "kind": "assign",
+                "target": "result",
+                "index_expr": {
+                  "kind": "name",
+                  "name": "t",
+                  "ref": "local"
+                },
+                "op": ":=",
+                "value": {
+                  "kind": "if_expr",
+                  "cond": {
+                    "kind": "binop",
+                    "op": "and",
+                    "left": {
+                      "kind": "binop",
+                      "op": ">=",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "score",
+                          "ref": "state_var"
+                        },
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 1500
+                      }
+                    },
+                    "right": {
+                      "kind": "binop",
+                      "op": "or",
+                      "left": {
+                        "kind": "binop",
+                        "op": "is",
+                        "left": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        },
+                        "right": {
+                          "kind": "call",
+                          "func": "team_of",
+                          "args": [
+                            {
+                              "kind": "name",
+                              "name": "high_bidder",
+                              "ref": "state_var"
+                            }
+                          ]
+                        }
+                      },
+                      "right": {
+                        "kind": "not",
+                        "operand": {
+                          "kind": "quantifier",
+                          "quant": "all",
+                          "role": "team",
+                          "binder": "team",
+                          "body": {
+                            "kind": "binop",
+                            "op": ">=",
+                            "left": {
+                              "kind": "subscript",
+                              "obj": {
+                                "kind": "name",
+                                "name": "score",
+                                "ref": "state_var"
+                              },
+                              "index_expr": {
+                                "kind": "name",
+                                "name": "team",
+                                "ref": "local"
+                              }
+                            },
+                            "right": {
+                              "kind": "int",
+                              "value": 1500
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "kind": "int",
+                    "value": 1
+                  },
+                  "elifs": [],
+                  "otherwise": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                }
+              }
             }
           ]
         }
@@ -1753,7 +1870,7 @@
   "winner": {
     "kind": "winner",
     "rank_dir": "highest",
-    "state_var": "score"
+    "state_var": "result"
   },
   "loser": null,
   "rules": [
