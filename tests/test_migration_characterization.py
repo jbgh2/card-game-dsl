@@ -239,7 +239,7 @@ _FULL_WIDTH = "full"
 CAPTURE_GOLDENS: dict[str, tuple[str, ...]] = {
     "bridge": ("bridge_scores.json",),
     "schnapsen": ("schnapsen_scores.json", "schnapsen_hands.json"),
-    "pinochle": ("pinochle_scores.json",),
+    "pinochle": ("pinochle_scores.json", "pinochle_hands.json"),
     "french-tarot": ("french-tarot_scores.json",),
     "skat": ("skat_scores.json", "skat_hands.json"),
     "seven-card-stud": ("seven-card-stud_hands.json",),
@@ -1130,6 +1130,67 @@ def _capture_skat_hands() -> dict[str, Any]:
 def test_skat_migration_preserves_per_hand_scores() -> None:
     expected = json.loads((GOLDEN / "skat_hands.json").read_text())
     assert_golden_seeds("skat", _capture_skat_hands(), expected)
+
+
+# Pinochle ranks `result`, not `score`: the game goes to the bidders when both
+# sides pass the target on one hand (#677), so `winner:` reads a win-and-a-loss
+# variable and `GameResult.scores` — the only score the driver reports — carries
+# 1 and 0. Its `_scores` golden therefore pins (winner, hands_played) and
+# nothing about the totals, which would let any scoring change that did not
+# flip the winner through. So the running totals are pinned here instead, per
+# hand, the way Stud/Cribbage/Schnapsen/Skat pin theirs.
+#
+# `hand_end` cannot carry them, for the same reason: it traces the `winner:`
+# target. The live world does — `on_first_decision` hands over the very object
+# the driver mutates in place, so reading `score` off it at each `hand_end` is
+# the running total at that moment and not a re-simulation.
+_PINOCHLE_CAPTURE = """
+import json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+from tests.playout_policy import reference_policy_for
+
+game = check_dsl(Path("docs/games/pinochle.cardlang").read_text(), "pinochle.cardlang")
+out = {}
+for seed in range(int(sys.argv[1])):
+    hands = []
+    live = []
+
+    def capture(rs, _l=live):
+        _l.append(rs)
+
+    def tracer(event, data, _h=hands, _l=live):
+        if event == "hand_end" and _l:
+            score = _l[0].get("score")
+            _h.append([score[t] for t in sorted(score)])
+
+    rng = random.Random(seed)
+    play_game(
+        game, rng, tracer,
+        chooser=reference_policy_for("pinochle", rng),
+        on_first_decision=capture,
+    )
+    out[str(seed)] = hands
+print(json.dumps(out))
+"""
+
+
+def _capture_pinochle_hands() -> dict[str, Any]:
+    proc = subprocess.run(
+        [sys.executable, "-c", _PINOCHLE_CAPTURE, str(seeds_for("pinochle"))],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result: dict[str, Any] = json.loads(proc.stdout)
+    return result
+
+
+def test_pinochle_preserves_per_hand_scores() -> None:
+    expected = json.loads((GOLDEN / "pinochle_hands.json").read_text())
+    assert_golden_seeds("pinochle", _capture_pinochle_hands(), expected)
 
 
 # Coup at real interactive scope (WS5): every challenge, block, claimed

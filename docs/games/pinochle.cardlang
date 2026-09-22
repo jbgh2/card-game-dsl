@@ -86,6 +86,13 @@ game Pinochle {
   state {
     // Game-level: persist across hands.
     score[team] : Integer = 0
+    // Who won, which is not always who scored most. When both sides pass the
+    // target on the same hand the game goes to the bidding side whatever the
+    // totals, so the ranking `winner:` reads is this and not `score` — and
+    // the returns an OpenSpiel algorithm trains against are a win and a loss
+    // rather than two margins. Giving a scored game a way to name its winner
+    // by rule AND keep its scores as returns is issue #749.
+    result[team] : Integer = 0
   }
 
   phase hand_sequence repeat until (any team where score[team] >= 1500) {
@@ -245,10 +252,18 @@ game Pinochle {
             score[t] += saved_meld(t) + trick_score[t]
           }
       }
+
+      // The game is over as soon as a side passes the target. Both sides can
+      // pass it on one hand, and then it is the bidders' regardless of score.
+      for each team t:
+        result[t] := if score[t] >= 1500 and
+                        (t is team_of(high_bidder)
+                         or not (all teams where score[team] >= 1500))
+                     then 1 else 0
     }
   }
 
-  winner: highest score
+  winner: highest result
 }
 
 // === Auction move vocabulary ===

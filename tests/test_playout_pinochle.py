@@ -137,8 +137,12 @@ def test_150_random_games_satisfy_invariants() -> None:
         rng = random.Random(seed)
         result = play_game(game, rng, tracer, chooser=pinochle_reference_policy(rng))
 
+        # `winner:` ranks `result`, not `score` — the game goes to the bidders
+        # when both sides pass the target on one hand (#677) — so what the
+        # driver reports is a win and a loss, and the raw totals are not
+        # visible from outside at all. Exactly one side wins.
+        assert sorted(result.scores.values()) == [0, 1]
         assert result.winner == max(result.scores, key=lambda t: result.scores[t])
-        assert max(result.scores.values()) >= 1500
 
         # Card and counter-value conservation.
         assert census["total"] == 48, f"seed {seed}: {census}"

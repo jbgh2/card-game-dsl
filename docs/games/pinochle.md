@@ -3,7 +3,9 @@
 The companion formal file is [pinochle.cardlang](pinochle.cardlang); this is the
 readable twin. Single Deck Partnership Pinochle, one 48-card pack (two copies
 each of A 10 K Q J 9 per suit; 10 ranks between K and A), four players in fixed
-teams sitting across. First team to **1500** wins. **Rules source:**
+teams sitting across. First team to **1500** wins — and when both sides pass
+1500 on the same hand the game goes to the side that won the bidding, whatever
+the totals. **Rules source:**
 https://www.pagat.com/marriage/pinmain.html (fetched live), the page's main
 account throughout — the four-card pass rather than the cutthroat variation,
 and the main text's run-extras table (a run with an extra king 190, an extra
@@ -58,4 +60,8 @@ the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade —
 note that the duty to beat the trick lapses once a plain-suit lead has been
 trumped, because no card of the led suit can beat a trump. The meld evaluator
 (`pinochle_meld_value`) is a pure Primitive (`cardlang/runtime/pinochle.py`) —
-not yet the shared combination model.
+not yet the shared combination model. `winner:` ranks a game-level `result`
+rather than `score`, because the bidders' win is a rule the score cannot state;
+that makes the game's OpenSpiel returns a win and a loss rather than two
+totals, which is the open question on
+[#749](https://github.com/jbgh2/card-game-dsl/issues/749).
