@@ -141,19 +141,26 @@ def test_stud_space_adds_the_betting_vocabulary() -> None:
 
 def test_pinochle_space_adds_the_bid_and_trump_vocabulary() -> None:
     space = _space("pinochle.cardlang")
-    # 52 cards + the auction's nullary [submit_bid, pass] + declare_trump_suit
-    # over its four-suit domain, in the order the game file's rounds are
-    # walked (auction first, then the play phase): 52=submit_bid, 53=pass,
-    # 54..57=declare_trump_suit(clubs/diamonds/hearts/spades). No bare names,
-    # no integer block, no combos.
-    assert space.num_distinct_actions == 58
-    assert [space.to_string(a) for a in range(52, 58)] == [
+    # 52 cards, then the integer block the bid ladder declares — 0..400, the
+    # bid in TENS up to the declared 4000 ceiling — then the move names in
+    # the order the game file's rounds are walked (the auction, then the play
+    # phase's declaration, exchange and concession). No bare names, no combos.
+    #
+    # The ceiling is what sizes the block: it is a static width the action
+    # space reserves, not a count of bids any auction makes.
+    assert space.num_distinct_actions == 52 + 401 + 10
+    assert [space.to_string(a) for a in (52, 452)] == ["0", "400"]
+    assert [space.to_string(a) for a in range(453, 463)] == [
         "submit_bid",
         "pass",
+        "pass_with_help",
         "declare_trump_suit(clubs)",
         "declare_trump_suit(diamonds)",
         "declare_trump_suit(hearts)",
         "declare_trump_suit(spades)",
+        "pass_four",
+        "throw_in",
+        "play_on",
     ]
 
 
@@ -285,7 +292,7 @@ def test_existing_games_keep_the_standard_52_card_block() -> None:
     assert _space("hearts.cardlang").encode(Card("A", "clubs")) == card_to_action(
         Card("A", "clubs")
     )
-    assert _space("pinochle.cardlang").num_distinct_actions == 58  # unchanged
+    assert _space("pinochle.cardlang").num_distinct_actions == 463  # unchanged
 
 
 def test_combo_round_trip_and_match() -> None:

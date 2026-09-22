@@ -213,7 +213,11 @@ The library:
 Game-local rules that recur as *names* but not as bodies:
 
 - `MustHeadTrick` — constrains `play_to_trick`; must beat the highest card of
-  the led suit played so far when following (Pinochle)
+  the led suit played so far when following (Pinochle). Its guard is what
+  carries the rule's real scope: the duty is to beat the card CONTROLLING the
+  trick, so on a plain-suit lead that a trump has already taken it lapses —
+  no card of the led suit can beat a trump — and only the follow obligation
+  stands.
 - `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
   led suit (Pinochle, French Tarot — the bodies differ: Pinochle's declared
   `trump_suit` vs Tarot's `is_trump(card)`, its Trick Order's `trump:` row,

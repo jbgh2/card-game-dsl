@@ -291,7 +291,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
     PrimitiveReads(
         module="cardlang/runtime/primitives.py",
         game_file="pinochle.cardlang",
-        state_vars=_fs("lead_bidder", "opener", "working_bid"),
+        state_vars=_fs("lead_bidder", "seat_under", "bid_tens", "working_bid"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/primitives.py",

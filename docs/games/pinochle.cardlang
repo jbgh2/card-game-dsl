@@ -1,31 +1,61 @@
 // Pinochle — formalized DSL (parser/checker/runtime target).
 //
-// Companion to pinochle.md. Team Bid Pinochle, single (48-card) pack,
-// four players in fixed teams sitting across. Each hand: an ascending
-// auction, the high bidder names trump (a suit he holds a marriage in, else he
-// abandons the bid), both sides score their meld, then twelve strict tricks
-// score 10 per A/10/K captured plus 10 for the last trick. The bidding side must
-// reach its bid in meld + tricks or be set back by the bid amount. First team to
-// 150 wins.
+// Rules source: https://www.pagat.com/marriage/pinmain.html (fetched live per
+// CLAUDE.md), the page's MAIN ACCOUNT throughout — the four-card pass rather
+// than the cutthroat variation, and the run-extras table of the main text
+// (190 / 190 / 230) rather than the Variations paragraph's. No rule here is
+// reduced, so the game needs no variant name beyond the page's own title.
+//
+// Companion to pinochle.md. Single Deck Partnership Pinochle, one 48-card pack,
+// four players in fixed teams sitting across. Each hand: an ascending auction
+// opening at 250 and climbing in tens; the high bidder names trump, any suit;
+// his partner passes four cards across and he passes four back; every seat
+// lays its meld face up and both sides score it; then twelve strict tricks
+// score 10 per A/10/K captured plus 10 for the last trick. The bidding side
+// must reach its bid in meld + tricks or be set back by the bid amount. First
+// team to 1500 wins — and when both sides pass 1500 on the same hand the game
+// is the bidders' whatever the totals, which is why `winner:` ranks `result`
+// and not `score`.
+//
+// Two settlements end a hand before the tricks. The bidders are not "on the
+// board" when the bid stands more than 250 above their meld, the whole of the
+// trick phase, and after the meld the declarer may throw the hand in instead
+// of playing it. Both pay the same: the bidders lose the bid and the
+// defenders score their meld and nothing for tricks. A defence that plays the
+// hand and takes no trick points has not saved its meld and scores none of it
+// — unless that meld was nothing but nines of trump (the "deece"), which save
+// themselves.
 //
 // The whole hand runs in the DSL. The ascending auction runs on the kernel
 // `round` (the move vocabulary below, a shrinking participants ring, and
-// `pinochle_auction_outcome`). Trump declaration is a one-draw `round offering
-// [declare_trump_suit]` guarded by `has_marriage`; meld is a forced (not
-// chosen) per-player `pinochle_meld_value(p)` Primitive query, credited to each
-// player's team. The twelve strict tricks run on the trick form of `round`,
-// legality narrowed by the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/
-// MustOverTrump rule cascade (follow suit and head the trick if able; else
-// trump and over-trump if able; else anything). `pinochle_meld_value`'s
-// Counter-based tally stays a runtime primitive (cardlang/runtime/pinochle.py) —
-// not yet the shared combination model (docs/kernel-migration.md, Workstream 3).
-
+// `pinochle_auction_outcome`); the bid names a number, chosen in tens, so a
+// bidder may raise by ten or jump by more. Trump declaration, each half of the
+// exchange, and the declarer's concession are one-draw `round offering` sites.
+// Meld is a forced (not chosen) per-player `pinochle_meld_value(p)` Primitive
+// query, credited to each player's team, and the cards behind it are laid face
+// up one at a time through the size/slot pair. The twelve strict tricks run on
+// the trick form of `round`, legality narrowed by the MustFollowSuit/
+// MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade (follow suit and
+// beat the card controlling the trick if able; else trump and over-trump if
+// able; else anything). The meld tally stays a runtime primitive
+// (cardlang/runtime/pinochle.py) — not yet the shared combination model
+// (docs/kernel-migration.md, Workstream 3).
+//
 game Pinochle {
 
   players: 4
   teams: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
-  max_length: 1000
+  // Measured under the reference policy (tests/test_playout_pinochle.py),
+  // 2026-09-22: over the convention's 250 seeds, median 952 decisions and a
+  // maximum of 3,517 — but a race to 1500 has a long tail, and over 1,000
+  // seeds the maximum is 5,767. (Both figures are unmoved by the bid ceiling,
+  // which no policy auction comes near.) The bound is sized from the wider sample,
+  // because a bound that refuses a game the rules allow is the instrument
+  // winning the disagreement. A uniform chooser finishes no line at all at
+  // this scale, which is why the bound is sized against the policy's lines and
+  // not a uniform draw's (decisions.md, "Game length as a declared contract").
+  max_length: 10000
 
   cards: pinochle48
   ranking: ace-ten            // 10 sits between K and A
@@ -45,6 +75,15 @@ game Pinochle {
   primitives {
     pinochle_meld_value(p : Player) : Integer
         reads hand[p], trump_suit in hand_sequence
+    // The cards behind the number. Meld is laid FACE UP, so the table plays
+    // the tricks knowing where the run, the pinochle and the arounds sit, and
+    // the size/slot pair is what lets the game name those cards one at a time
+    // (Belote's declaration shows its combination the same way). A copy a seat
+    // holds but does not lay down stays hidden.
+    pinochle_meld_size(p : Player) : Integer
+        reads hand[p], trump_suit in hand_sequence
+    pinochle_meld_slot(p : Player, k : Integer, c : Card) : Boolean
+        reads hand[p], trump_suit in hand_sequence
   }
 
   zones {
@@ -57,16 +96,31 @@ game Pinochle {
   state {
     // Game-level: persist across hands.
     score[team] : Integer = 0
+    // Who won, which is not always who scored most. When both sides pass the
+    // target on the same hand the game goes to the bidding side whatever the
+    // totals, so the ranking `winner:` reads is this and not `score` — and
+    // the returns an OpenSpiel algorithm trains against are a win and a loss
+    // rather than two margins. Giving a scored game a way to name its winner
+    // by rule AND keep its scores as returns is issue #749.
+    result[team] : Integer = 0
   }
 
-  phase hand_sequence repeat until (any team where score[team] >= 150) {
+  phase hand_sequence repeat until (any team where score[team] >= 1500) {
     state {
       dealer            : Player  = 0
       trump_suit        : Suit?   = none
       current_bid       : Integer = 0
       high_bidder       : Player? = none
-      bid_abandoned     : Boolean = false
+      hand_played       : Boolean = true
       meld_score[team]  : Integer = 0
+      // The part of a team's meld that is nines of trump, which is what the
+      // save-the-meld exception tests against. The rules' exception is that a
+      // meld of NOTHING BUT deeces scores anyway — not that the deece is
+      // always kept out of an otherwise lost meld. Read the other way, a side
+      // holding a deece and a marriage would keep the 10 while losing the 20,
+      // and the page says instead "if their only meld was one or both deeces,
+      // the points are scored".
+      deece_meld[team]  : Integer = 0
       trick_score[team] : Integer = 0
       leader            : Player? = none
     }
@@ -77,33 +131,43 @@ game Pinochle {
       deal 12 cards from deck to each hand
       dealer := dealer offset_by left
       for each team t: meld_score[t] := 0
+      for each team t: deece_meld[t] := 0
       for each team t: trick_score[t] := 0
-      bid_abandoned := false
+      hand_played := true
       trump_suit := none
     }
 
-    // The ascending auction settles on a declarer and his bid; the remaining
-    // hand (trump declaration, meld, the twelve strict tricks) runs on the
-    // kernel below.
+    // The ascending auction settles on a declarer and his bid; the rest of the
+    // hand — trump declaration, the exchange, the meld, the declarer's
+    // concession and the twelve strict tricks — runs on the kernel below.
     phase auction -> outcome { bid_won(Player, Integer) } {
-      // Each non-passed seat — never the standing high bidder — bids the next
-      // 10 up (50 to open) or passes for good; the participants ring re-evaluates
-      // each turn, so a passed seat or the high bidder is never offered again.
-      // The ring shrinks until one seat remains or the 16-bid cap is hit. The
-      // 16-bid cap also bounds the bid value: 50 + 15*10 = 200, so no further
-      // ceiling is needed (raising the cap would let working_bid exceed 200).
+      // Each non-passed seat — never the standing high bidder — names a number
+      // at least 10 above the standing bid, or leaves the auction. The
+      // participants ring re-evaluates each turn, so a seat that has left and
+      // the standing high bidder are never offered again, and the ring shrinks
+      // until one seat remains.
+      //
+      // The ladder is counted in TENS, which is what makes every rung a
+      // multiple of 10 without a division anywhere: `bid_tens` starts at 24,
+      // one rung below the rules' 250 minimum opening, so the opener and every
+      // later bidder read the same `bid_tens + 1` floor.
       state {
         passed[player] : Boolean = false
-        bids           : Integer = 0
         lead_bidder    : Player? = none   // standing high bidder (auction-local)
-        working_bid    : Integer = 0      // his standing bid (auction-local)
+        bid_tens       : Integer = 24     // the standing bid in tens (240 = no bid)
+        working_bid    : Integer = 0      // his standing bid in points
         opener         : Player? = none
+        // The dealer is "under": when the other three seats leave the auction,
+        // the round ends before he is asked anything and the contract is his
+        // at the minimum. Named here so the outcome reads the rule's seat.
+        seat_under     : Player? = none
       }
       opener := dealer offset_by left
-      round offering [submit_bid, pass] from opener
+      seat_under := dealer
+      round offering [submit_bid, pass, pass_with_help] from opener
             over players where not passed[player]
                               and (lead_bidder is none or player is not lead_bidder)
-            until (number of players where not passed[player]) <= 1 or bids >= 16
+            until (number of players where not passed[player]) <= 1
             outcome pinochle_auction_outcome
     }
     auction produces:
@@ -113,38 +177,84 @@ game Pinochle {
       active_rules: [MustFollowSuit, MustHeadTrick, MustTrumpIfVoid, MustOverTrump]
       legal_moves:  [declare_trump_suit, play_to_trick]
 
-      // The high bidder names trump — a suit he holds a marriage (K-Q) in. With
-      // no marriage anywhere he abandons the bid (no decision is offered) and
-      // the hand goes straight to scoring, where his side is set back.
-      if any suit where has_marriage(high_bidder, suit) {
-        round offering [declare_trump_suit] from high_bidder
-              over players where player is high_bidder
-              until trump_suit is not none
+      state {
+        passes_done : Integer = 0
+        thrown_in   : Boolean = false
+        decided     : Boolean = false
+        show_k      : Integer = 0
+      }
 
-        // Meld is forced (a rational player melds everything) — a pure
-        // computation per player, credited to his team.
-        for each player p: meld_score[team_of(p)] += pinochle_meld_value(p)
+      // The high bidder names trump. Any suit: the rules put no condition on
+      // the choice.
+      round offering [declare_trump_suit] from high_bidder
+            over players where player is high_bidder
+            until trump_suit is not none
 
-        // Twelve strict tricks: high bidder leads; A/10/K score 10 each and
-        // the last trick 10 (card_points reads the game's declared table).
-        leader := high_bidder
-        repeat until (all players where hand[player] is empty) {
-          round play_to_trick from leader over all players source hand into trick_pile
-                winner highest_trump_or_led_suit trump trump_suit
-          trick_score[team_of(winner)] += sum of card_points(card) over cards in trick_pile
-          move all cards from trick_pile to captured[team_of(winner)]
-          leader := winner
+      // The exchange: the declarer's partner passes four across, then the
+      // declarer passes four back, which may include cards just received.
+      round offering [pass_four] from high_bidder offset_by across
+            over players where player is (high_bidder offset_by across)
+            until passes_done >= 1
+      round offering [pass_four] from high_bidder
+            over players where player is high_bidder
+            until passes_done >= 2
+
+      // Meld is forced (a rational player melds everything) — a pure
+      // computation per player, credited to his team — and it is laid FACE UP,
+      // so every seat plays the tricks knowing the cards behind every seat's
+      // number. Only the cards a piece needs are shown; the rest of the hand
+      // stays hidden.
+      for each player p: meld_score[team_of(p)] += pinochle_meld_value(p)
+      for each player p:
+        if pinochle_meld_size(p) > 0 {
+          show_k := 0
+          repeat until show_k >= pinochle_meld_size(p) {
+            reveal one card from hand[p] where pinochle_meld_slot(p, show_k, card)
+            show_k += 1
+          }
         }
-        trick_score[team_of(leader)] += 10   // ten for the last trick
+      for each player p: deece_meld[team_of(p)] +=
+            10 * (number of cards in hand[p]
+                    where card.suit is trump_suit and card.rank is "9")
+
+      // On the board? A bid standing more than the whole trick phase above the
+      // bidders' meld cannot be made, so the hand is not played. Otherwise the
+      // declarer may still throw it in.
+      if current_bid > meld_score[team_of(high_bidder)] + 250 {
+        hand_played := false
       } else {
-        bid_abandoned := true
+        round offering [throw_in, play_on] from high_bidder
+              over players where player is high_bidder
+              until decided
+        if thrown_in {
+          hand_played := false
+        } else {
+          // Twelve strict tricks: high bidder leads; A/10/K score 10 each and
+          // the last trick 10 (card_points reads the game's declared table).
+          leader := high_bidder
+          repeat until (all players where hand[player] is empty) {
+            round play_to_trick from leader over all players source hand into trick_pile
+                  winner highest_trump_or_led_suit trump trump_suit
+            trick_score[team_of(winner)] += sum of card_points(card) over cards in trick_pile
+            move all cards from trick_pile to captured[team_of(winner)]
+            leader := winner
+          }
+          trick_score[team_of(leader)] += 10   // ten for the last trick
+        }
       }
     }
 
     phase scoring {
-      if bid_abandoned {
-        // The bidder found no marriage to name trump: set back by the bid.
-        score[team_of(high_bidder)] -= current_bid
+      if not hand_played {
+        // Not on the board, or thrown in: the bidders lose the bid, and the
+        // defenders score their meld with nothing for tricks, which were never
+        // played.
+        for each team t:
+          if t is team_of(high_bidder) {
+            score[t] -= current_bid
+          } else {
+            score[t] += meld_score[t]
+          }
       } else {
         for each team t:
           if t is team_of(high_bidder) {
@@ -154,26 +264,55 @@ game Pinochle {
               score[t] -= current_bid
             }
           } else {
-            score[t] += team_score_in_hand(t)
+            score[t] += saved_meld(t) + trick_score[t]
           }
       }
+
+      // The game is over as soon as a side passes the target. Both sides can
+      // pass it on one hand, and then it is the bidders' regardless of score.
+      for each team t:
+        result[t] := if score[t] >= 1500 and
+                        (t is team_of(high_bidder)
+                         or not (all teams where score[team] >= 1500))
+                     then 1 else 0
     }
   }
 
-  winner: highest score
+  winner: highest result
 }
 
 // === Auction move vocabulary ===
 //
-// The bid value is derived, not chosen: 50 to open, then a fixed 10 higher each
-// time. A seat either bids that or passes for good — the participants ring then
-// drops it. `submit_bid` is nullary (contrast Bridge, whose bid names a strain).
+// The bid names a number, not a step: a bidder may raise by ten or jump by any
+// larger multiple of ten. The choice is the number of TENS, so every rung is a
+// multiple of ten by construction. A bid names no suit (contrast Bridge, whose
+// bid names a strain).
+//
+// 400 tens is 4000 points. It is the instrument's ceiling, not the rules' — the
+// rules set none — and it is placed above every contract anyone can make, which
+// is what "a bound no real auction reaches" has to mean here.
+//
+// DERIVED, not picked. A hand holds at most 1800 in meld (a double run in
+// trumps is ten cards at 1500, and both jacks of diamonds make the run's two
+// queens a double pinochle for 300 more — exactly twelve cards). A side is two
+// hands, so its meld is at most 3600, and a hand carries 250 trick points, so
+// no contract above 3850 can be made. The game target is NOT that bound: a side
+// melding a double run can make a contract well past 1500, so a ceiling there
+// would deny a raise a real player would want.
+//
+// And it is a bound no real auction meets: over 1,000 games under the reference
+// policy the highest contract reached is 470 (2026-09-22).
+//
+// The `when:` is what keeps the ceiling honest: at the top rung there is no
+// legal number left to name, so the seat is offered only the two ways out
+// rather than a `choose` over an empty range.
 
 move_type submit_bid {
+  when: bid_tens < 400
   effect {
-    working_bid := if working_bid is 0 then 50 else working_bid + 10
+    bid_tens    := choose integer in bid_tens + 1 .. 400
+    working_bid := bid_tens * 10
     lead_bidder := actor
-    bids        := bids + 1
   }
 }
 
@@ -181,25 +320,65 @@ move_type pass {
   effect { passed[actor] := true }
 }
 
+// Leaving the auction while telling partner you hold help. It is a signalling
+// action: its name is its whole announcement, no rule reads it, and what it
+// means is what the two partners agree, rather than an effect of the rules.
+move_type pass_with_help {
+  effect { passed[actor] := true }
+}
+
 // A team's total for the hand: meld plus tricks. Named so the bidder's
 // make-the-bid test and every team's payout add the same total from one place.
 function team_score_in_hand(t : Team) = meld_score[t] + trick_score[t]
 
-// Trump declaration: the guard enumerates `Suit` in deck order and keeps the
-// marriage suits, so the candidate list is the auction's marriage-suit set
-// exactly (same length, same order as `has_marriage` below is checked).
+// What a defending side's meld is worth once the tricks are in. Taking any
+// trick POINT saves the whole meld; taking none loses it, except a meld that
+// was nothing but nines of trump, which save themselves.
+//
+// Two neighbouring readings are wrong, and both look right from here.
+//
+// It is not "took no TRICK". The rules say a side fails to save its meld when
+// it "pulled no counters and failed to capture the final trick" — their own
+// gloss on the condition — so a side that wins an early trick of queens, jacks
+// and nines and not the last one has still saved nothing. The last trick is
+// worth 10, so `trick_score[t] > 0` is exactly that test.
+//
+// And the deece exception is not "the deece is always kept". The rules except
+// a meld that was ONLY deeces, so a side holding a deece beside a marriage
+// loses both; keeping the 10 and losing the 20 is a rule the page does not
+// state.
+function saved_meld(t : Team) =
+  if trick_score[t] > 0 then meld_score[t]
+  elif meld_score[t] is deece_meld[t] then deece_meld[t]
+  else 0
+
+// Trump declaration: the candidate list is `Suit` in deck order, all four of
+// them. Winning the auction is the whole qualification the rules ask for.
 move_type declare_trump_suit(s : Suit) {
-  when: has_marriage(actor, s)
   effect { trump_suit := s }
 }
 
-// Does p hold both the K and the Q of s? (Bare rank names are not enum values
-// in this language — `10`/`9` lex as integers, and there is no bare-name path
-// for `K`/`Q` either — so the rank check compares against the literal string
-// a `Card.rank` actually holds.)
-function has_marriage(p : Player, s : Suit) =
-  (any card in hand[p] where card.suit is s and card.rank is K) and
-  (any card in hand[p] where card.suit is s and card.rank is Q)
+// The exchange. Exactly four cards each way — the `chosen 4` count IS the law,
+// as it is for Hearts' pass. The declarer's partner plays this first and the
+// declarer second, so the declarer's four may include cards just received.
+move_type pass_four {
+  effect {
+    move chosen 4 cards from hand[actor] to hand[actor offset_by across]
+    passes_done := passes_done + 1
+  }
+}
+
+// After the meld the declarer either concedes the hand or plays it out. The
+// concession pays what being off the board pays, which is why a side with no
+// chance prefers it: the defenders take no trick points because there are no
+// tricks.
+move_type throw_in {
+  effect { thrown_in := true  decided := true }
+}
+
+move_type play_on {
+  effect { decided := true }
+}
 
 // === Pinochle strict-trick legality (rule DSL) ===
 //
@@ -212,9 +391,16 @@ function has_marriage(p : Player, s : Suit) =
 // MustFollowSuit is a standard-library rule (library.md "Rules"): activated
 // by name above, defined once in cardlang/stdlib/rules.cardlang.
 
+// The duty is to beat the card CONTROLLING the trick. On a trump lead that is
+// the highest trump, and a led-suit card can reach it. On a plain-suit lead a
+// trump already in the trick controls it, and no card of the led suit can beat
+// a trump — so the duty lapses and any card of the led suit is legal, which is
+// what MustFollowSuit alone then leaves.
 rule MustHeadTrick {
   constrains: play_to_trick
-  applies_when: state.led_suit is not none
+  applies_when: state.led_suit is not none and
+                (state.led_suit is trump_suit or
+                 not (any card in trick_pile where card.suit is trump_suit))
   demands: cards in hand where card.suit is state.led_suit and
              rank_value(card) > (highest rank_value(card) over cards in trick_pile
                where card.suit is state.led_suit or -1)

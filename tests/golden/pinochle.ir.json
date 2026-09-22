@@ -9,7 +9,7 @@
   },
   "deck": "pinochle48",
   "direction": "clockwise",
-  "max_length": 1000,
+  "max_length": 10000,
   "ranking": [
     "A",
     "10",
@@ -69,6 +69,68 @@
           }
         ],
         "return_type": "Integer",
+        "reads": [
+          {
+            "kind": "primitive_read",
+            "name": "hand",
+            "binder": "p",
+            "phase": null
+          },
+          {
+            "kind": "primitive_read",
+            "name": "trump_suit",
+            "binder": null,
+            "phase": "hand_sequence"
+          }
+        ]
+      },
+      {
+        "kind": "primitive_decl",
+        "name": "pinochle_meld_size",
+        "params": [
+          {
+            "kind": "primitive_param",
+            "name": "p",
+            "type": "Player"
+          }
+        ],
+        "return_type": "Integer",
+        "reads": [
+          {
+            "kind": "primitive_read",
+            "name": "hand",
+            "binder": "p",
+            "phase": null
+          },
+          {
+            "kind": "primitive_read",
+            "name": "trump_suit",
+            "binder": null,
+            "phase": "hand_sequence"
+          }
+        ]
+      },
+      {
+        "kind": "primitive_decl",
+        "name": "pinochle_meld_slot",
+        "params": [
+          {
+            "kind": "primitive_param",
+            "name": "p",
+            "type": "Player"
+          },
+          {
+            "kind": "primitive_param",
+            "name": "k",
+            "type": "Integer"
+          },
+          {
+            "kind": "primitive_param",
+            "name": "c",
+            "type": "Card"
+          }
+        ],
+        "return_type": "Boolean",
         "reads": [
           {
             "kind": "primitive_read",
@@ -157,6 +219,17 @@
           "kind": "int",
           "value": 0
         }
+      },
+      {
+        "kind": "state_decl",
+        "name": "result",
+        "index": "team",
+        "type": "Integer",
+        "optional": false,
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
       }
     ]
   },
@@ -190,7 +263,7 @@
             },
             "right": {
               "kind": "int",
-              "value": 150
+              "value": 1500
             }
           }
         }
@@ -248,19 +321,30 @@
             },
             {
               "kind": "state_decl",
-              "name": "bid_abandoned",
+              "name": "hand_played",
               "index": null,
               "type": "Boolean",
               "optional": false,
               "default": {
                 "kind": "name",
-                "name": "false",
+                "name": "true",
                 "ref": "bool"
               }
             },
             {
               "kind": "state_decl",
               "name": "meld_score",
+              "index": "team",
+              "type": "Integer",
+              "optional": false,
+              "default": {
+                "kind": "int",
+                "value": 0
+              }
+            },
+            {
+              "kind": "state_decl",
+              "name": "deece_meld",
               "index": "team",
               "type": "Integer",
               "optional": false,
@@ -390,6 +474,25 @@
               "binder": "t",
               "body": {
                 "kind": "assign",
+                "target": "deece_meld",
+                "index_expr": {
+                  "kind": "name",
+                  "name": "t",
+                  "ref": "local"
+                },
+                "op": ":=",
+                "value": {
+                  "kind": "int",
+                  "value": 0
+                }
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "team",
+              "binder": "t",
+              "body": {
+                "kind": "assign",
                 "target": "trick_score",
                 "index_expr": {
                   "kind": "name",
@@ -405,12 +508,12 @@
             },
             {
               "kind": "assign",
-              "target": "bid_abandoned",
+              "target": "hand_played",
               "index_expr": null,
               "op": ":=",
               "value": {
                 "kind": "name",
-                "name": "false",
+                "name": "true",
                 "ref": "bool"
               }
             },
@@ -459,17 +562,6 @@
                 },
                 {
                   "kind": "state_decl",
-                  "name": "bids",
-                  "index": null,
-                  "type": "Integer",
-                  "optional": false,
-                  "default": {
-                    "kind": "int",
-                    "value": 0
-                  }
-                },
-                {
-                  "kind": "state_decl",
                   "name": "lead_bidder",
                   "index": null,
                   "type": "Player",
@@ -478,6 +570,17 @@
                     "kind": "name",
                     "name": "none",
                     "ref": "null"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "bid_tens",
+                  "index": null,
+                  "type": "Integer",
+                  "optional": false,
+                  "default": {
+                    "kind": "int",
+                    "value": 24
                   }
                 },
                 {
@@ -494,6 +597,18 @@
                 {
                   "kind": "state_decl",
                   "name": "opener",
+                  "index": null,
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "seat_under",
                   "index": null,
                   "type": "Player",
                   "optional": true,
@@ -526,10 +641,22 @@
               }
             },
             {
+              "kind": "assign",
+              "target": "seat_under",
+              "index_expr": null,
+              "op": ":=",
+              "value": {
+                "kind": "name",
+                "name": "dealer",
+                "ref": "state_var"
+              }
+            },
+            {
               "kind": "auction_round",
               "offering": [
                 "submit_bid",
-                "pass"
+                "pass",
+                "pass_with_help"
               ],
               "leader": {
                 "kind": "name",
@@ -589,47 +716,30 @@
               },
               "until": {
                 "kind": "binop",
-                "op": "or",
+                "op": "<=",
                 "left": {
-                  "kind": "binop",
-                  "op": "<=",
-                  "left": {
-                    "kind": "player_query",
-                    "query": "count",
-                    "where": {
-                      "kind": "not",
-                      "operand": {
-                        "kind": "subscript",
-                        "obj": {
-                          "kind": "name",
-                          "name": "passed",
-                          "ref": "state_var"
-                        },
-                        "index_expr": {
-                          "kind": "name",
-                          "name": "player",
-                          "ref": "local"
-                        }
+                  "kind": "player_query",
+                  "query": "count",
+                  "where": {
+                    "kind": "not",
+                    "operand": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "passed",
+                        "ref": "state_var"
+                      },
+                      "index_expr": {
+                        "kind": "name",
+                        "name": "player",
+                        "ref": "local"
                       }
                     }
-                  },
-                  "right": {
-                    "kind": "int",
-                    "value": 1
                   }
                 },
                 "right": {
-                  "kind": "binop",
-                  "op": ">=",
-                  "left": {
-                    "kind": "name",
-                    "name": "bids",
-                    "ref": "state_var"
-                  },
-                  "right": {
-                    "kind": "int",
-                    "value": 16
-                  }
+                  "kind": "int",
+                  "value": 1
                 }
               },
               "order_mode": null,
@@ -718,34 +828,489 @@
               ]
             },
             {
-              "kind": "if",
-              "cond": {
-                "kind": "quantifier",
-                "quant": "any",
-                "role": "suit",
-                "binder": "suit",
-                "body": {
-                  "kind": "call",
-                  "func": "has_marriage",
-                  "args": [
-                    {
+              "kind": "state",
+              "decls": [
+                {
+                  "kind": "state_decl",
+                  "name": "passes_done",
+                  "index": null,
+                  "type": "Integer",
+                  "optional": false,
+                  "default": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "thrown_in",
+                  "index": null,
+                  "type": "Boolean",
+                  "optional": false,
+                  "default": {
+                    "kind": "name",
+                    "name": "false",
+                    "ref": "bool"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "decided",
+                  "index": null,
+                  "type": "Boolean",
+                  "optional": false,
+                  "default": {
+                    "kind": "name",
+                    "name": "false",
+                    "ref": "bool"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "show_k",
+                  "index": null,
+                  "type": "Integer",
+                  "optional": false,
+                  "default": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "auction_round",
+              "offering": [
+                "declare_trump_suit"
+              ],
+              "leader": {
+                "kind": "name",
+                "name": "high_bidder",
+                "ref": "state_var"
+              },
+              "participants": {
+                "kind": "player_query",
+                "query": "set",
+                "where": {
+                  "kind": "binop",
+                  "op": "is",
+                  "left": {
+                    "kind": "name",
+                    "name": "player",
+                    "ref": "local"
+                  },
+                  "right": {
+                    "kind": "name",
+                    "name": "high_bidder",
+                    "ref": "state_var"
+                  }
+                }
+              },
+              "until": {
+                "kind": "is_check",
+                "check": "not_none",
+                "operand": {
+                  "kind": "name",
+                  "name": "trump_suit",
+                  "ref": "state_var"
+                }
+              },
+              "order_mode": null,
+              "outcome_fn": null
+            },
+            {
+              "kind": "auction_round",
+              "offering": [
+                "pass_four"
+              ],
+              "leader": {
+                "kind": "binop",
+                "op": "offset_by",
+                "left": {
+                  "kind": "name",
+                  "name": "high_bidder",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "across",
+                  "ref": "enum_value"
+                }
+              },
+              "participants": {
+                "kind": "player_query",
+                "query": "set",
+                "where": {
+                  "kind": "binop",
+                  "op": "is",
+                  "left": {
+                    "kind": "name",
+                    "name": "player",
+                    "ref": "local"
+                  },
+                  "right": {
+                    "kind": "binop",
+                    "op": "offset_by",
+                    "left": {
                       "kind": "name",
                       "name": "high_bidder",
                       "ref": "state_var"
                     },
+                    "right": {
+                      "kind": "name",
+                      "name": "across",
+                      "ref": "enum_value"
+                    }
+                  }
+                }
+              },
+              "until": {
+                "kind": "binop",
+                "op": ">=",
+                "left": {
+                  "kind": "name",
+                  "name": "passes_done",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 1
+                }
+              },
+              "order_mode": null,
+              "outcome_fn": null
+            },
+            {
+              "kind": "auction_round",
+              "offering": [
+                "pass_four"
+              ],
+              "leader": {
+                "kind": "name",
+                "name": "high_bidder",
+                "ref": "state_var"
+              },
+              "participants": {
+                "kind": "player_query",
+                "query": "set",
+                "where": {
+                  "kind": "binop",
+                  "op": "is",
+                  "left": {
+                    "kind": "name",
+                    "name": "player",
+                    "ref": "local"
+                  },
+                  "right": {
+                    "kind": "name",
+                    "name": "high_bidder",
+                    "ref": "state_var"
+                  }
+                }
+              },
+              "until": {
+                "kind": "binop",
+                "op": ">=",
+                "left": {
+                  "kind": "name",
+                  "name": "passes_done",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 2
+                }
+              },
+              "order_mode": null,
+              "outcome_fn": null
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "assign",
+                "target": "meld_score",
+                "index_expr": {
+                  "kind": "call",
+                  "func": "team_of",
+                  "args": [
                     {
                       "kind": "name",
-                      "name": "suit",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  ]
+                },
+                "op": "+=",
+                "value": {
+                  "kind": "call",
+                  "func": "pinochle_meld_value",
+                  "args": [
+                    {
+                      "kind": "name",
+                      "name": "p",
                       "ref": "local"
                     }
                   ]
                 }
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "binop",
+                  "op": ">",
+                  "left": {
+                    "kind": "call",
+                    "func": "pinochle_meld_size",
+                    "args": [
+                      {
+                        "kind": "name",
+                        "name": "p",
+                        "ref": "local"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "assign",
+                    "target": "show_k",
+                    "index_expr": null,
+                    "op": ":=",
+                    "value": {
+                      "kind": "int",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "kind": "repeat_until",
+                    "until": {
+                      "kind": "binop",
+                      "op": ">=",
+                      "left": {
+                        "kind": "name",
+                        "name": "show_k",
+                        "ref": "state_var"
+                      },
+                      "right": {
+                        "kind": "call",
+                        "func": "pinochle_meld_size",
+                        "args": [
+                          {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        ]
+                      }
+                    },
+                    "body": [
+                      {
+                        "kind": "epistemic_op",
+                        "op": "reveal",
+                        "zone": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "hand",
+                            "ref": "zone"
+                          },
+                          "index_expr": {
+                            "kind": "name",
+                            "name": "p",
+                            "ref": "local"
+                          }
+                        },
+                        "where": {
+                          "kind": "call",
+                          "func": "pinochle_meld_slot",
+                          "args": [
+                            {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            {
+                              "kind": "name",
+                              "name": "show_k",
+                              "ref": "state_var"
+                            },
+                            {
+                              "kind": "name",
+                              "name": "card",
+                              "ref": "local"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "kind": "assign",
+                        "target": "show_k",
+                        "index_expr": null,
+                        "op": "+=",
+                        "value": {
+                          "kind": "int",
+                          "value": 1
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "else": null
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "player",
+              "binder": "p",
+              "body": {
+                "kind": "assign",
+                "target": "deece_meld",
+                "index_expr": {
+                  "kind": "call",
+                  "func": "team_of",
+                  "args": [
+                    {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    }
+                  ]
+                },
+                "op": "+=",
+                "value": {
+                  "kind": "binop",
+                  "op": "*",
+                  "left": {
+                    "kind": "int",
+                    "value": 10
+                  },
+                  "right": {
+                    "kind": "card_query",
+                    "query": "count",
+                    "source": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "hand",
+                        "ref": "zone"
+                      },
+                      "index_expr": {
+                        "kind": "name",
+                        "name": "p",
+                        "ref": "local"
+                      }
+                    },
+                    "where": {
+                      "kind": "binop",
+                      "op": "and",
+                      "left": {
+                        "kind": "binop",
+                        "op": "is",
+                        "left": {
+                          "kind": "member",
+                          "obj": {
+                            "kind": "name",
+                            "name": "card",
+                            "ref": "local"
+                          },
+                          "field": "suit"
+                        },
+                        "right": {
+                          "kind": "name",
+                          "name": "trump_suit",
+                          "ref": "state_var"
+                        }
+                      },
+                      "right": {
+                        "kind": "binop",
+                        "op": "is",
+                        "left": {
+                          "kind": "member",
+                          "obj": {
+                            "kind": "name",
+                            "name": "card",
+                            "ref": "local"
+                          },
+                          "field": "rank"
+                        },
+                        "right": {
+                          "kind": "str",
+                          "value": "9"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "kind": "if",
+              "cond": {
+                "kind": "binop",
+                "op": ">",
+                "left": {
+                  "kind": "name",
+                  "name": "current_bid",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "binop",
+                  "op": "+",
+                  "left": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "meld_score",
+                      "ref": "state_var"
+                    },
+                    "index_expr": {
+                      "kind": "call",
+                      "func": "team_of",
+                      "args": [
+                        {
+                          "kind": "name",
+                          "name": "high_bidder",
+                          "ref": "state_var"
+                        }
+                      ]
+                    }
+                  },
+                  "right": {
+                    "kind": "int",
+                    "value": 250
+                  }
+                }
               },
               "then": [
                 {
+                  "kind": "assign",
+                  "target": "hand_played",
+                  "index_expr": null,
+                  "op": ":=",
+                  "value": {
+                    "kind": "name",
+                    "name": "false",
+                    "ref": "bool"
+                  }
+                }
+              ],
+              "else": [
+                {
                   "kind": "auction_round",
                   "offering": [
-                    "declare_trump_suit"
+                    "throw_in",
+                    "play_on"
                   ],
                   "leader": {
                     "kind": "name",
@@ -771,106 +1336,175 @@
                     }
                   },
                   "until": {
-                    "kind": "is_check",
-                    "check": "not_none",
-                    "operand": {
-                      "kind": "name",
-                      "name": "trump_suit",
-                      "ref": "state_var"
-                    }
+                    "kind": "name",
+                    "name": "decided",
+                    "ref": "state_var"
                   },
                   "order_mode": null,
                   "outcome_fn": null
                 },
                 {
-                  "kind": "for_each",
-                  "role": "player",
-                  "binder": "p",
-                  "body": {
-                    "kind": "assign",
-                    "target": "meld_score",
-                    "index_expr": {
-                      "kind": "call",
-                      "func": "team_of",
-                      "args": [
-                        {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
-                        }
-                      ]
-                    },
-                    "op": "+=",
-                    "value": {
-                      "kind": "call",
-                      "func": "pinochle_meld_value",
-                      "args": [
-                        {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "kind": "assign",
-                  "target": "leader",
-                  "index_expr": null,
-                  "op": ":=",
-                  "value": {
+                  "kind": "if",
+                  "cond": {
                     "kind": "name",
-                    "name": "high_bidder",
+                    "name": "thrown_in",
                     "ref": "state_var"
-                  }
-                },
-                {
-                  "kind": "repeat_until",
-                  "until": {
-                    "kind": "quantifier",
-                    "quant": "all",
-                    "role": "player",
-                    "binder": "player",
-                    "body": {
-                      "kind": "is_check",
-                      "check": "empty",
-                      "operand": {
-                        "kind": "subscript",
-                        "obj": {
-                          "kind": "name",
-                          "name": "hand",
-                          "ref": "zone"
-                        },
-                        "index_expr": {
-                          "kind": "name",
-                          "name": "player",
-                          "ref": "local"
-                        }
+                  },
+                  "then": [
+                    {
+                      "kind": "assign",
+                      "target": "hand_played",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "name",
+                        "name": "false",
+                        "ref": "bool"
                       }
                     }
-                  },
-                  "body": [
+                  ],
+                  "else": [
                     {
-                      "kind": "trick_round",
-                      "move_type": "play_to_trick",
-                      "leader": {
+                      "kind": "assign",
+                      "target": "leader",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
                         "kind": "name",
-                        "name": "leader",
+                        "name": "high_bidder",
                         "ref": "state_var"
+                      }
+                    },
+                    {
+                      "kind": "repeat_until",
+                      "until": {
+                        "kind": "quantifier",
+                        "quant": "all",
+                        "role": "player",
+                        "binder": "player",
+                        "body": {
+                          "kind": "is_check",
+                          "check": "empty",
+                          "operand": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "hand",
+                              "ref": "zone"
+                            },
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "player",
+                              "ref": "local"
+                            }
+                          }
+                        }
                       },
-                      "participants": {
-                        "kind": "all_players"
-                      },
-                      "source_zone": "hand",
-                      "play_zone": "trick_pile",
-                      "winner_fn": "highest_trump_or_led_suit",
-                      "trump": {
-                        "kind": "name",
-                        "name": "trump_suit",
-                        "ref": "state_var"
-                      },
-                      "early_termination": null
+                      "body": [
+                        {
+                          "kind": "trick_round",
+                          "move_type": "play_to_trick",
+                          "leader": {
+                            "kind": "name",
+                            "name": "leader",
+                            "ref": "state_var"
+                          },
+                          "participants": {
+                            "kind": "all_players"
+                          },
+                          "source_zone": "hand",
+                          "play_zone": "trick_pile",
+                          "winner_fn": "highest_trump_or_led_suit",
+                          "trump": {
+                            "kind": "name",
+                            "name": "trump_suit",
+                            "ref": "state_var"
+                          },
+                          "early_termination": null
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "trick_score",
+                          "index_expr": {
+                            "kind": "call",
+                            "func": "team_of",
+                            "args": [
+                              {
+                                "kind": "name",
+                                "name": "winner",
+                                "ref": "pronoun"
+                              }
+                            ]
+                          },
+                          "op": "+=",
+                          "value": {
+                            "kind": "comprehension",
+                            "agg": "sum",
+                            "source": {
+                              "kind": "name",
+                              "name": "trick_pile",
+                              "ref": "zone"
+                            },
+                            "binder": "card",
+                            "body": {
+                              "kind": "call",
+                              "func": "card_points",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "card",
+                                  "ref": "local"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "kind": "transfer",
+                          "verb": "move",
+                          "selection_mode": null,
+                          "amount": "all",
+                          "item": "cards",
+                          "source": {
+                            "kind": "name",
+                            "name": "trick_pile",
+                            "ref": "zone"
+                          },
+                          "dest": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "captured",
+                              "ref": "zone"
+                            },
+                            "index_expr": {
+                              "kind": "call",
+                              "func": "team_of",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "winner",
+                                  "ref": "pronoun"
+                                }
+                              ]
+                            }
+                          },
+                          "dest_each": false,
+                          "distribution": null,
+                          "visibility": null
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "leader",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "winner",
+                            "ref": "pronoun"
+                          }
+                        }
+                      ]
                     },
                     {
                       "kind": "assign",
@@ -881,113 +1515,18 @@
                         "args": [
                           {
                             "kind": "name",
-                            "name": "winner",
-                            "ref": "pronoun"
+                            "name": "leader",
+                            "ref": "state_var"
                           }
                         ]
                       },
                       "op": "+=",
                       "value": {
-                        "kind": "comprehension",
-                        "agg": "sum",
-                        "source": {
-                          "kind": "name",
-                          "name": "trick_pile",
-                          "ref": "zone"
-                        },
-                        "binder": "card",
-                        "body": {
-                          "kind": "call",
-                          "func": "card_points",
-                          "args": [
-                            {
-                              "kind": "name",
-                              "name": "card",
-                              "ref": "local"
-                            }
-                          ]
-                        }
-                      }
-                    },
-                    {
-                      "kind": "transfer",
-                      "verb": "move",
-                      "selection_mode": null,
-                      "amount": "all",
-                      "item": "cards",
-                      "source": {
-                        "kind": "name",
-                        "name": "trick_pile",
-                        "ref": "zone"
-                      },
-                      "dest": {
-                        "kind": "subscript",
-                        "obj": {
-                          "kind": "name",
-                          "name": "captured",
-                          "ref": "zone"
-                        },
-                        "index_expr": {
-                          "kind": "call",
-                          "func": "team_of",
-                          "args": [
-                            {
-                              "kind": "name",
-                              "name": "winner",
-                              "ref": "pronoun"
-                            }
-                          ]
-                        }
-                      },
-                      "dest_each": false,
-                      "distribution": null,
-                      "visibility": null
-                    },
-                    {
-                      "kind": "assign",
-                      "target": "leader",
-                      "index_expr": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "name",
-                        "name": "winner",
-                        "ref": "pronoun"
+                        "kind": "int",
+                        "value": 10
                       }
                     }
                   ]
-                },
-                {
-                  "kind": "assign",
-                  "target": "trick_score",
-                  "index_expr": {
-                    "kind": "call",
-                    "func": "team_of",
-                    "args": [
-                      {
-                        "kind": "name",
-                        "name": "leader",
-                        "ref": "state_var"
-                      }
-                    ]
-                  },
-                  "op": "+=",
-                  "value": {
-                    "kind": "int",
-                    "value": 10
-                  }
-                }
-              ],
-              "else": [
-                {
-                  "kind": "assign",
-                  "target": "bid_abandoned",
-                  "index_expr": null,
-                  "op": ":=",
-                  "value": {
-                    "kind": "name",
-                    "name": "true",
-                    "ref": "bool"
-                  }
                 }
               ]
             }
@@ -1002,30 +1541,82 @@
             {
               "kind": "if",
               "cond": {
-                "kind": "name",
-                "name": "bid_abandoned",
-                "ref": "state_var"
+                "kind": "not",
+                "operand": {
+                  "kind": "name",
+                  "name": "hand_played",
+                  "ref": "state_var"
+                }
               },
               "then": [
                 {
-                  "kind": "assign",
-                  "target": "score",
-                  "index_expr": {
-                    "kind": "call",
-                    "func": "team_of",
-                    "args": [
-                      {
+                  "kind": "for_each",
+                  "role": "team",
+                  "binder": "t",
+                  "body": {
+                    "kind": "if",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "is",
+                      "left": {
                         "kind": "name",
-                        "name": "high_bidder",
-                        "ref": "state_var"
+                        "name": "t",
+                        "ref": "local"
+                      },
+                      "right": {
+                        "kind": "call",
+                        "func": "team_of",
+                        "args": [
+                          {
+                            "kind": "name",
+                            "name": "high_bidder",
+                            "ref": "state_var"
+                          }
+                        ]
+                      }
+                    },
+                    "then": [
+                      {
+                        "kind": "assign",
+                        "target": "score",
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        },
+                        "op": "-=",
+                        "value": {
+                          "kind": "name",
+                          "name": "current_bid",
+                          "ref": "state_var"
+                        }
+                      }
+                    ],
+                    "else": [
+                      {
+                        "kind": "assign",
+                        "target": "score",
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        },
+                        "op": "+=",
+                        "value": {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "meld_score",
+                            "ref": "state_var"
+                          },
+                          "index_expr": {
+                            "kind": "name",
+                            "name": "t",
+                            "ref": "local"
+                          }
+                        }
                       }
                     ]
-                  },
-                  "op": "-=",
-                  "value": {
-                    "kind": "name",
-                    "name": "current_bid",
-                    "ref": "state_var"
                   }
                 }
               ],
@@ -1132,21 +1723,144 @@
                         },
                         "op": "+=",
                         "value": {
-                          "kind": "call",
-                          "func": "team_score_in_hand",
-                          "args": [
-                            {
+                          "kind": "binop",
+                          "op": "+",
+                          "left": {
+                            "kind": "call",
+                            "func": "saved_meld",
+                            "args": [
+                              {
+                                "kind": "name",
+                                "name": "t",
+                                "ref": "local"
+                              }
+                            ]
+                          },
+                          "right": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "trick_score",
+                              "ref": "state_var"
+                            },
+                            "index_expr": {
                               "kind": "name",
                               "name": "t",
                               "ref": "local"
                             }
-                          ]
+                          }
                         }
                       }
                     ]
                   }
                 }
               ]
+            },
+            {
+              "kind": "for_each",
+              "role": "team",
+              "binder": "t",
+              "body": {
+                "kind": "assign",
+                "target": "result",
+                "index_expr": {
+                  "kind": "name",
+                  "name": "t",
+                  "ref": "local"
+                },
+                "op": ":=",
+                "value": {
+                  "kind": "if_expr",
+                  "cond": {
+                    "kind": "binop",
+                    "op": "and",
+                    "left": {
+                      "kind": "binop",
+                      "op": ">=",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "score",
+                          "ref": "state_var"
+                        },
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 1500
+                      }
+                    },
+                    "right": {
+                      "kind": "binop",
+                      "op": "or",
+                      "left": {
+                        "kind": "binop",
+                        "op": "is",
+                        "left": {
+                          "kind": "name",
+                          "name": "t",
+                          "ref": "local"
+                        },
+                        "right": {
+                          "kind": "call",
+                          "func": "team_of",
+                          "args": [
+                            {
+                              "kind": "name",
+                              "name": "high_bidder",
+                              "ref": "state_var"
+                            }
+                          ]
+                        }
+                      },
+                      "right": {
+                        "kind": "not",
+                        "operand": {
+                          "kind": "quantifier",
+                          "quant": "all",
+                          "role": "team",
+                          "binder": "team",
+                          "body": {
+                            "kind": "binop",
+                            "op": ">=",
+                            "left": {
+                              "kind": "subscript",
+                              "obj": {
+                                "kind": "name",
+                                "name": "score",
+                                "ref": "state_var"
+                              },
+                              "index_expr": {
+                                "kind": "name",
+                                "name": "team",
+                                "ref": "local"
+                              }
+                            },
+                            "right": {
+                              "kind": "int",
+                              "value": 1500
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "kind": "int",
+                    "value": 1
+                  },
+                  "elifs": [],
+                  "otherwise": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                }
+              }
             }
           ]
         }
@@ -1156,7 +1870,7 @@
   "winner": {
     "kind": "winner",
     "rank_dir": "highest",
-    "state_var": "score"
+    "state_var": "result"
   },
   "loser": null,
   "rules": [
@@ -1168,16 +1882,72 @@
         "kind": "applies_when",
         "always": false,
         "pred": {
-          "kind": "is_check",
-          "check": "not_none",
-          "operand": {
-            "kind": "member",
-            "obj": {
-              "kind": "name",
-              "name": "state",
-              "ref": "pronoun"
+          "kind": "binop",
+          "op": "and",
+          "left": {
+            "kind": "is_check",
+            "check": "not_none",
+            "operand": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "state",
+                "ref": "pronoun"
+              },
+              "field": "led_suit"
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": "or",
+            "left": {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "state",
+                  "ref": "pronoun"
+                },
+                "field": "led_suit"
+              },
+              "right": {
+                "kind": "name",
+                "name": "trump_suit",
+                "ref": "state_var"
+              }
             },
-            "field": "led_suit"
+            "right": {
+              "kind": "not",
+              "operand": {
+                "kind": "card_query",
+                "query": "any",
+                "source": {
+                  "kind": "name",
+                  "name": "trick_pile",
+                  "ref": "zone"
+                },
+                "where": {
+                  "kind": "binop",
+                  "op": "is",
+                  "left": {
+                    "kind": "member",
+                    "obj": {
+                      "kind": "name",
+                      "name": "card",
+                      "ref": "local"
+                    },
+                    "field": "suit"
+                  },
+                  "right": {
+                    "kind": "name",
+                    "name": "trump_suit",
+                    "ref": "state_var"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -1565,45 +2335,64 @@
       "kind": "move_type",
       "name": "submit_bid",
       "params": [],
-      "when": null,
+      "when": {
+        "kind": "binop",
+        "op": "<",
+        "left": {
+          "kind": "name",
+          "name": "bid_tens",
+          "ref": "state_var"
+        },
+        "right": {
+          "kind": "int",
+          "value": 400
+        }
+      },
       "effect": [
+        {
+          "kind": "assign",
+          "target": "bid_tens",
+          "index_expr": null,
+          "op": ":=",
+          "value": {
+            "kind": "choose",
+            "domain": "integer",
+            "lo": {
+              "kind": "binop",
+              "op": "+",
+              "left": {
+                "kind": "name",
+                "name": "bid_tens",
+                "ref": "state_var"
+              },
+              "right": {
+                "kind": "int",
+                "value": 1
+              }
+            },
+            "hi": {
+              "kind": "int",
+              "value": 400
+            },
+            "ceiling": 400
+          }
+        },
         {
           "kind": "assign",
           "target": "working_bid",
           "index_expr": null,
           "op": ":=",
           "value": {
-            "kind": "if_expr",
-            "cond": {
-              "kind": "binop",
-              "op": "is",
-              "left": {
-                "kind": "name",
-                "name": "working_bid",
-                "ref": "state_var"
-              },
-              "right": {
-                "kind": "int",
-                "value": 0
-              }
+            "kind": "binop",
+            "op": "*",
+            "left": {
+              "kind": "name",
+              "name": "bid_tens",
+              "ref": "state_var"
             },
-            "then": {
+            "right": {
               "kind": "int",
-              "value": 50
-            },
-            "elifs": [],
-            "otherwise": {
-              "kind": "binop",
-              "op": "+",
-              "left": {
-                "kind": "name",
-                "name": "working_bid",
-                "ref": "state_var"
-              },
-              "right": {
-                "kind": "int",
-                "value": 10
-              }
+              "value": 10
             }
           }
         },
@@ -1616,25 +2405,6 @@
             "kind": "name",
             "name": "actor",
             "ref": "pronoun"
-          }
-        },
-        {
-          "kind": "assign",
-          "target": "bids",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "binop",
-            "op": "+",
-            "left": {
-              "kind": "name",
-              "name": "bids",
-              "ref": "state_var"
-            },
-            "right": {
-              "kind": "int",
-              "value": 1
-            }
           }
         }
       ]
@@ -1664,6 +2434,29 @@
     },
     {
       "kind": "move_type",
+      "name": "pass_with_help",
+      "params": [],
+      "when": null,
+      "effect": [
+        {
+          "kind": "assign",
+          "target": "passed",
+          "index_expr": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          },
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
       "name": "declare_trump_suit",
       "params": [
         {
@@ -1671,22 +2464,7 @@
           "type_name": "Suit"
         }
       ],
-      "when": {
-        "kind": "call",
-        "func": "has_marriage",
-        "args": [
-          {
-            "kind": "name",
-            "name": "actor",
-            "ref": "pronoun"
-          },
-          {
-            "kind": "name",
-            "name": "s",
-            "ref": "local"
-          }
-        ]
-      },
+      "when": null,
       "effect": [
         {
           "kind": "assign",
@@ -1697,6 +2475,130 @@
             "kind": "name",
             "name": "s",
             "ref": "local"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
+      "name": "pass_four",
+      "params": [],
+      "when": null,
+      "effect": [
+        {
+          "kind": "transfer",
+          "verb": "move",
+          "selection_mode": "chosen",
+          "amount": {
+            "kind": "int",
+            "value": 4
+          },
+          "item": "cards",
+          "source": {
+            "kind": "subscript",
+            "obj": {
+              "kind": "name",
+              "name": "hand",
+              "ref": "zone"
+            },
+            "index_expr": {
+              "kind": "name",
+              "name": "actor",
+              "ref": "pronoun"
+            }
+          },
+          "dest": {
+            "kind": "subscript",
+            "obj": {
+              "kind": "name",
+              "name": "hand",
+              "ref": "zone"
+            },
+            "index_expr": {
+              "kind": "binop",
+              "op": "offset_by",
+              "left": {
+                "kind": "name",
+                "name": "actor",
+                "ref": "pronoun"
+              },
+              "right": {
+                "kind": "name",
+                "name": "across",
+                "ref": "enum_value"
+              }
+            }
+          },
+          "dest_each": false,
+          "distribution": null,
+          "visibility": null
+        },
+        {
+          "kind": "assign",
+          "target": "passes_done",
+          "index_expr": null,
+          "op": ":=",
+          "value": {
+            "kind": "binop",
+            "op": "+",
+            "left": {
+              "kind": "name",
+              "name": "passes_done",
+              "ref": "state_var"
+            },
+            "right": {
+              "kind": "int",
+              "value": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
+      "name": "throw_in",
+      "params": [],
+      "when": null,
+      "effect": [
+        {
+          "kind": "assign",
+          "target": "thrown_in",
+          "index_expr": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        },
+        {
+          "kind": "assign",
+          "target": "decided",
+          "index_expr": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
+      "name": "play_on",
+      "params": [],
+      "when": null,
+      "effect": [
+        {
+          "kind": "assign",
+          "target": "decided",
+          "index_expr": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
           }
         }
       ]
@@ -1747,133 +2649,99 @@
     },
     {
       "kind": "function",
-      "name": "has_marriage",
+      "name": "saved_meld",
       "params": [
         {
-          "name": "p",
-          "type_name": "Player"
-        },
-        {
-          "name": "s",
-          "type_name": "Suit"
+          "name": "t",
+          "type_name": "Team"
         }
       ],
       "body": {
-        "kind": "binop",
-        "op": "and",
-        "left": {
-          "kind": "card_query",
-          "query": "any",
-          "source": {
+        "kind": "if_expr",
+        "cond": {
+          "kind": "binop",
+          "op": ">",
+          "left": {
             "kind": "subscript",
             "obj": {
               "kind": "name",
-              "name": "hand",
-              "ref": "zone"
+              "name": "trick_score",
+              "ref": "state_var"
             },
             "index_expr": {
               "kind": "name",
-              "name": "p",
+              "name": "t",
               "ref": "local"
             }
           },
-          "where": {
-            "kind": "binop",
-            "op": "and",
-            "left": {
-              "kind": "binop",
-              "op": "is",
-              "left": {
-                "kind": "member",
-                "obj": {
-                  "kind": "name",
-                  "name": "card",
-                  "ref": "local"
-                },
-                "field": "suit"
-              },
-              "right": {
-                "kind": "name",
-                "name": "s",
-                "ref": "local"
-              }
-            },
-            "right": {
-              "kind": "binop",
-              "op": "is",
-              "left": {
-                "kind": "member",
-                "obj": {
-                  "kind": "name",
-                  "name": "card",
-                  "ref": "local"
-                },
-                "field": "rank"
-              },
-              "right": {
-                "kind": "name",
-                "name": "K",
-                "ref": "enum_value"
-              }
-            }
+          "right": {
+            "kind": "int",
+            "value": 0
           }
         },
-        "right": {
-          "kind": "card_query",
-          "query": "any",
-          "source": {
-            "kind": "subscript",
-            "obj": {
-              "kind": "name",
-              "name": "hand",
-              "ref": "zone"
-            },
-            "index_expr": {
-              "kind": "name",
-              "name": "p",
-              "ref": "local"
-            }
+        "then": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "meld_score",
+            "ref": "state_var"
           },
-          "where": {
-            "kind": "binop",
-            "op": "and",
-            "left": {
+          "index_expr": {
+            "kind": "name",
+            "name": "t",
+            "ref": "local"
+          }
+        },
+        "elifs": [
+          [
+            {
               "kind": "binop",
               "op": "is",
               "left": {
-                "kind": "member",
+                "kind": "subscript",
                 "obj": {
                   "kind": "name",
-                  "name": "card",
-                  "ref": "local"
+                  "name": "meld_score",
+                  "ref": "state_var"
                 },
-                "field": "suit"
+                "index_expr": {
+                  "kind": "name",
+                  "name": "t",
+                  "ref": "local"
+                }
               },
               "right": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "deece_meld",
+                  "ref": "state_var"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "t",
+                  "ref": "local"
+                }
+              }
+            },
+            {
+              "kind": "subscript",
+              "obj": {
                 "kind": "name",
-                "name": "s",
+                "name": "deece_meld",
+                "ref": "state_var"
+              },
+              "index_expr": {
+                "kind": "name",
+                "name": "t",
                 "ref": "local"
               }
-            },
-            "right": {
-              "kind": "binop",
-              "op": "is",
-              "left": {
-                "kind": "member",
-                "obj": {
-                  "kind": "name",
-                  "name": "card",
-                  "ref": "local"
-                },
-                "field": "rank"
-              },
-              "right": {
-                "kind": "name",
-                "name": "Q",
-                "ref": "enum_value"
-              }
             }
-          }
+          ]
+        ],
+        "otherwise": {
+          "kind": "int",
+          "value": 0
         }
       }
     }

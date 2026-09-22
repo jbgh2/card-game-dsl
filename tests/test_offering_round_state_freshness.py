@@ -179,6 +179,15 @@ class Window:
 
     vocabularies: tuple[tuple[str, ...], ...]
     idle: tuple[tuple[str, Any], ...]
+    # This window's moves ask for a VALUE as well as a name — Pinochle's
+    # `submit_bid` names a number, so the move decision is followed
+    # immediately, by the same actor, by a `choose` the move's own effect runs.
+    # Such a decision carries no move name, so vocabulary alone reads it as
+    # outside every window, and the window's own bookkeeping is live and
+    # mid-update while it is taken. It belongs to the window that asked for it,
+    # and saying so is what keeps the idle cells honest rather than
+    # reclassifying a round's bookkeeping as persistent to make them pass.
+    value_decisions: bool = False
 
 
 @dataclass(frozen=True)
@@ -351,26 +360,35 @@ ROUNDS: dict[str, Rounds] = {
     "pinochle.cardlang": Rounds(
         # The auction is its own sub-phase, whose whole state block is the
         # ring's own (the outcome function reads it as the ring closes). The
-        # trump declaration is a one-draw window whose `until` reads its
-        # result. Green as written; red under: declare `bids` in the hand's
-        # state block.
+        # other three are one-draw windows whose `until` reads their result:
+        # the trump declaration, the exchange (two sites, one vocabulary — the
+        # partner's pass and the declarer's), and the concession. Their
+        # bookkeeping is `phase play`'s, which outlives each of them, so it is
+        # persistent rather than any window's own. Green as written; red under:
+        # declare `passes_done` in the auction's state block.
         windows=(
             Window(
-                vocabularies=(("submit_bid", "pass"),),
+                vocabularies=(("submit_bid", "pass", "pass_with_help"),),
+                value_decisions=True,  # the bid names a number
                 idle=(
                     ("passed", GONE),
-                    ("bids", GONE),
                     ("lead_bidder", GONE),
+                    ("bid_tens", GONE),
                     ("working_bid", GONE),
                     ("opener", GONE),
+                    ("seat_under", GONE),
                 ),
             ),
             Window(vocabularies=(("declare_trump_suit",),), idle=()),
+            Window(vocabularies=(("pass_four",),), idle=()),
+            Window(vocabularies=(("throw_in", "play_on"),), idle=()),
         ),
         persistent=frozenset(
             {
-                "bid_abandoned", "current_bid", "dealer", "high_bidder",
-                "leader", "meld_score", "score", "trick_score", "trump_suit",
+                "current_bid", "dealer", "decided", "deece_meld",
+                "hand_played", "high_bidder", "leader", "meld_score",
+                "passes_done", "result", "score", "show_k", "thrown_in",
+                "trick_score", "trump_suit",
             }
         ),
     ),
@@ -482,6 +500,10 @@ class Walk:
 
     inside: tuple[int, ...]
     outside: tuple[tuple[dict[str, Any], ...], ...]
+    # Per window, how many value decisions were attributed to it. A window
+    # declaring `value_decisions` and seeing none has a declaration doing
+    # nothing, which `test_a_value_decision_window_sees_one` refuses.
+    value_seen: tuple[int, ...] = ()
 
 
 @cache
@@ -500,16 +522,27 @@ def _walk(filename: str, seed: int) -> Walk:
     outside: list[list[dict[str, Any]]] = [[] for _ in windows]
     rng = random.Random(seed ^ 0x5EED)
     steps = 0
+    # The window the previous decision belonged to, so a value decision can be
+    # attributed to the move that asked for it. Cleared by any decision that is
+    # not itself that value decision, so the attribution reaches exactly one
+    # step and cannot drift across a round boundary.
+    asked_by: int | None = None
+    value_seen = [0] * len(windows)
 
     def capture(rs: RuntimeState) -> None:
         live.append(rs)
 
     def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
-        nonlocal steps
+        nonlocal steps, asked_by
         steps += 1
         if steps > WALK_STEPS:
             raise _WalkDone
-        here = _window_of(_move_names(candidates), windows, offers)
+        names = _move_names(candidates)
+        here = _window_of(names, windows, offers)
+        if here is None and asked_by is not None and windows[asked_by].value_decisions:
+            here = asked_by
+            value_seen[here] += 1
+        asked_by = here if (here is not None and here >= 0 and names) else None
         if here is not None and here >= 0:
             inside[here] += 1
         if here is None or here >= 0:
@@ -532,7 +565,7 @@ def _walk(filename: str, seed: int) -> Walk:
         play_game(game, random.Random(seed), chooser=chooser, on_first_decision=capture)
     except _WalkDone:
         pass
-    return Walk(tuple(inside), tuple(tuple(o) for o in outside))
+    return Walk(tuple(inside), tuple(tuple(o) for o in outside), tuple(value_seen))
 
 
 def _is_idle(merged: dict[str, Any], var: str, idle: Any) -> bool:
@@ -567,6 +600,30 @@ _WINDOW_PARAMS = [
     for index, window in enumerate(rounds.windows)
     if window.idle
 ]
+
+
+_VALUE_PARAMS = [
+    pytest.param(filename, index, id=f"{filename.removesuffix('.cardlang')}:{index}")
+    for filename, rounds in sorted(ROUNDS.items())
+    for index, window in enumerate(rounds.windows)
+    if window.value_decisions
+]
+
+
+@pytest.mark.parametrize(("filename", "index"), _VALUE_PARAMS)
+def test_a_value_decision_window_sees_one(filename: str, index: int) -> None:
+    """`value_decisions` widens what counts as inside a window, so a window
+    that declares it and never sees one has quietly widened nothing — and would
+    go on reading as a window whose value decisions were accounted for.
+
+    red under: drop `value_decisions` from Pinochle's auction window — the
+    bid-amount `choose` is read as outside the window it belongs to, and every
+    one of that window's six idle cells fails instead."""
+    seen = sum(_walk(filename, seed).value_seen[index] for seed in WALK_SEEDS)
+    assert seen, (
+        f"{filename}: window {index} declares `value_decisions` but no "
+        f"decision was attributed to it across {len(WALK_SEEDS)} seeds"
+    )
 
 
 @pytest.mark.parametrize(("filename", "index"), _WINDOW_PARAMS)
