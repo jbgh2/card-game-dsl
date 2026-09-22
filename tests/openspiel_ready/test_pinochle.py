@@ -11,15 +11,16 @@ class TestReadiness(ReadinessProofs):
     spec = GameSpec(
         "cardlang_pinochle",
         "pinochle.cardlang",
-        # The greedy line does not terminate, which puts Pinochle with the
-        # other multi-hand score-target games. `throw_in` sorts below
-        # `play_on`, so `legal[0]` concedes every hand: no side ever takes a
-        # trick point, the declaring side is set by its bid each hand, and the
-        # declarer alternates with the deal, so both scores fall without bound
-        # and neither reaches the target. Measured 2026-09-21: 900 greedy
-        # steps over 32 hands on seed 3, still not terminal. The conformance
-        # walk draws randomly, not greedily, so it still reaches the tricks.
-        adapter_terminal_steps=None,
+        # `throw_in` (59) sorts below `play_on` (60), so a plain `legal[0]`
+        # line concedes every hand: no side ever takes a trick point, each is
+        # set by its bid in turn as the deal rotates the declarer, and both
+        # scores fall without bound — 900 greedy steps over 32 hands on seed 3,
+        # still not terminal (measured 2026-09-21). The concession is a real
+        # decision of the game, so the instrument is what changes: preferring
+        # `play_on` walks the auction, the exchange, the meld and all twelve
+        # tricks, and terminates in 76 steps on every manifest seed.
+        greedy_prefers=("play_on",),
+        adapter_terminal_steps=120,  # greedy line measured at 76 steps
     )
 
 

@@ -319,7 +319,38 @@ class GameSpec:
     # manifest seed (measured 2026-08-15).
     provenance_depth: int = 0
 
-    # Total greedy (legal[0]) steps within which this game's line reaches
+    # A verb the greedy line takes wherever the node offers it, in place of
+    # `legal[0]`.
+    #
+    # `legal[0]` is a measurement policy, not a fact about the game, and at a
+    # decision between playing a hand out and settling it the lowest-encoded
+    # candidate can be the settlement. Pinochle is the case that created the
+    # field: `throw_in` (59) sorts below `play_on` (60), so the greedy line
+    # concedes every hand — no side ever takes a trick point, each is set by
+    # its bid in turn as the deal rotates the declarer, and the scores fall
+    # without bound, so the line neither terminates nor reaches a trick.
+    # Preferring `play_on` and staying greedy everywhere else terminates in 76
+    # steps on every manifest seed (measured 2026-09-21).
+    #
+    # This is `provenance_opening`'s idea at a different scope, and the two do
+    # not substitute for each other: that field names moves by POSITION and
+    # steers the provenance walk alone, while this names a verb wherever the
+    # game offers it.
+    #
+    # It steers the two walks whose point is how far the line GETS — the
+    # adapter proof's and the perfect-recall proof's — and deliberately not
+    # `_advance`, which the swap and rng proofs pause at `depth` on. Those
+    # per-game depths are reasoned about the line as it stands, exactly as
+    # `provenance_opening` records for itself, so steering `_advance` would
+    # silently move every declaring game's pause.
+    #
+    # Declaring a preference that changes nothing is the failure this field can
+    # have and the proof it serves cannot see, so `test_greedy_preference.py`
+    # holds every declaration to being NEEDED.
+    greedy_prefers: tuple[str, ...] = ()
+
+    # Total greedy (legal[0], or `greedy_prefers` where it applies) steps
+    # within which this game's line reaches
     # TerminalNode — measured across EVERY seed in `SWAP_SEEDS`, with headroom.
     # Across the whole manifest because line length varies with the deal, and
     # by a lot: Schnapsen's runs 64-188 over the five seeds, so a cap read off
@@ -455,8 +486,32 @@ class _GreedyCap(Exception):
     """The greedy line ran past its cap without terminating."""
 
 
+def greedy_pick(space: Any, ids: list[int], prefers: tuple[str, ...]) -> int:
+    """The greedy line's action at one node.
+
+    The lowest-encoded candidate, unless the node offers a verb the spec
+    prefers — then the lowest-encoded candidate of that verb. ONE definition,
+    because the adapter proof walks its line twice (a replay per step to check
+    information states, then `greedy_line` linearly to the end) and asserts the
+    two agree: a second spelling of this rule would make that assertion compare
+    two policies rather than one route walked two ways.
+
+    `verb_of` is the action space's own name for a candidate, not a second
+    parse of the rendered string.
+
+    red under: drop the `prefers` arm — pinochle's adapter proof fails with the
+    greedy line no longer reaching TerminalNode within its declared cap."""
+    if prefers:
+        preferred = [aid for aid in ids if space.verb_of(aid) in prefers]
+        if preferred:
+            return min(preferred)
+    return min(ids)
+
+
 @cache
-def greedy_line(path: str, seed: int, cap: int) -> tuple[tuple[int, ...], list[float] | None]:
+def greedy_line(
+    path: str, seed: int, cap: int, prefers: tuple[str, ...] = ()
+) -> tuple[tuple[int, ...], list[float] | None]:
     """The `legal[0]` line, walked ONCE and linearly: the action ids it takes,
     and the terminal returns if it ends within `cap`.
 
@@ -481,7 +536,7 @@ def greedy_line(path: str, seed: int, cap: int) -> tuple[tuple[int, ...], list[f
         pool = list(candidates)
         picked: list[Any] = []
         for _ in range(k):
-            aid = min(space.encode(c) for c in pool)
+            aid = greedy_pick(space, [space.encode(c) for c in pool], prefers)
             choice = space.match(aid, pool)
             pool.remove(choice)
             picked.append(choice)
@@ -572,6 +627,24 @@ def opening_status(needed: bool, declared: bool) -> str:
     that stopped being needed stays green forever -- which is the direction
     every other declaration in this package is tight in and this field was
     not."""
+    if declared:
+        return "covered" if needed else "stale"
+    return "missing" if needed else "none"
+
+
+def preference_status(needed: bool, declared: bool) -> str:
+    """Whether a spec's `greedy_prefers` corresponds to what the greedy line
+    actually does — the classifier the grid's cells read
+    (test_greedy_preference.py), in the shape `opening_status` above already
+    uses for `provenance_opening`.
+
+    `needed` is the measured fact: the plain `legal[0]` line does not reach
+    TerminalNode within the game's own `adapter_terminal_steps`, so without a
+    preference the cap is unmeetable. `declared` is the authored judgment. The
+    two disagree in both directions, and only one of them is loud already: a
+    NEEDED preference nobody declared reddens the adapter proof's own terminal
+    assertion, while a declared preference that stopped being needed stays
+    green forever — the same asymmetry `opening_status` exists for."""
     if declared:
         return "covered" if needed else "stale"
     return "missing" if needed else "none"
@@ -1119,6 +1192,7 @@ class ReadinessProofs:
     def test_perfect_recall_logs_are_append_only(self, seed: int) -> None:
         spec = self.spec
         path = spec.path
+        _game, space = load(path)
         history: list[int] = []
         r = run(path, seed, ())
         prev: dict[int, list[tuple[Any, ...]]] = {}
@@ -1130,7 +1204,7 @@ class ReadinessProofs:
                         f"{spec.short_name}: P{q}'s observation log rewrote history"
                     )
                 prev[q] = list(log)
-            history.append(r.legal[0])
+            history.append(greedy_pick(space, list(r.legal), spec.greedy_prefers))
             r = run(path, seed, tuple(history))
             steps += 1
 
@@ -1206,7 +1280,7 @@ class ReadinessProofs:
                     f"{spec.short_name}: step {steps}: adapter info state for "
                     f"P{q} diverged\nwitness: {first_divergence(expected, got)}"
                 )
-            action = r.legal[0]
+            action = greedy_pick(space, list(r.legal), spec.greedy_prefers)
             state.apply_action(action)
             history.append(action)
             r = run(spec.path, seed, tuple(history))
@@ -1220,7 +1294,7 @@ class ReadinessProofs:
             # expensive phase above walked — so the terminal returns compared
             # below belong to the line whose information states were checked,
             # not merely to a line derived the same way.
-            line, returns = greedy_line(spec.path, seed, cap)
+            line, returns = greedy_line(spec.path, seed, cap, spec.greedy_prefers)
             assert list(line[: len(history)]) == history, (
                 f"{spec.short_name}: the linear greedy walk diverges from the "
                 f"replayed one at step "
