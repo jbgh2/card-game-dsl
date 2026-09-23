@@ -1620,14 +1620,6 @@ _RULE_CHOOSES: dict[str, tuple[str, str, str | None]] = {
     "undelegated-reads-another-hand": ("", "hand[actor offset_by left]", _DECIDER),
 }
 
-_RULE_CHOOSE_RED: dict[str, tuple[type[Exception], str]] = {
-    "routed-to-the-deciders-hand-reads-the-routed-pool": (
-        _Accepted, "a rule's nested `choose` is judged at the decider, not the seat making it"),
-    "routed-reads-the-attributed-hand": (
-        DiagnosticError, "a rule's nested `choose` is judged at the decider, not the seat making it"),
-}
-
-
 def _rule_choose_cells() -> list[object]:
     cells = []
     for cell_id, (helpers, zone_ref, refuse) in _RULE_CHOOSES.items():
@@ -1637,13 +1629,7 @@ def _rule_choose_cells() -> list[object]:
             + _CHOOSE_OF.format(z=zone_ref)
             + " demands: cards in hand where card.suit is hearts if_impossible: hand }"
         )
-        red = _RULE_CHOOSE_RED.get(cell_id)
-        cells.append(
-            _cell(
-                cell_id, body, defs, _SHOWN, False, refuse=refuse,
-                xfail=red[1] if red else None, raises=red[0] if red else _Accepted,
-            )
-        )
+        cells.append(_cell(cell_id, body, defs, _SHOWN, False, refuse=refuse))
     return cells
 
 

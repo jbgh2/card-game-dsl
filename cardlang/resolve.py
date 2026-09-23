@@ -235,7 +235,7 @@ from cardlang.domains import (
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.libraries import library_names, load_library
-from cardlang.runtime.delegation import CHOOSER_HELPER
+from cardlang.runtime.delegation import CHOOSER_HELPER, SOURCE_HELPER
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import content_kind_clause, content_noun
 from cardlang.stdlib.boards import board_entry
@@ -8484,6 +8484,9 @@ class _ReadScope:
     # Under Delegated Play, the families bare-family sugar routes to the pool
     # the decider plays from; None where the acting seat decides.
     routed: frozenset[str] | None = None
+    # The families bare-family sugar routes to a pool `play_source_for`
+    # chooses, read by a seat other than the decider: not provably its own.
+    rerouted: frozenset[str] = frozenset()
 
     def follow(self, binding: _Binding) -> _ReadScope:
         """The scope `binding`'s value is read in, from here: its own, or,
@@ -8863,6 +8866,8 @@ class _HiddenReads:
                     if read.zone in routed
                     else None
                 )
+            if read.zone in read.index_scope.rerouted:
+                return None
             return "bare-family sugar reads the acting seat's own" if read.index_scope.acting else None
         for index, scope in self._spellings(read.index, read.index_scope):
             if role is Role.TEAM:
@@ -8910,6 +8915,7 @@ class _HiddenReads:
     def _judge(
         self, what: str, reads: Iterator[ZoneRead], decider: _Seat, span: Span | None,
         only_choose: bool = False, source: bool = False, evaluator: _Seat | None = None,
+        skip_choose: bool = False,
     ) -> None:
         """Judge each read: at `decider`, the seat whose decision the
         position's value reaches, or -- for a read inside a nested `choose`
@@ -8917,6 +8923,8 @@ class _HiddenReads:
         the seat that makes that `choose`."""
         for read in reads:
             if only_choose and read.choose is None:
+                continue
+            if skip_choose and read.choose is not None:
                 continue
             decl = self.zones.get(read.zone)
             if decl is None or decl.type_ref.name not in ZONE_PROJECTIONS:
@@ -9035,6 +9043,12 @@ class _HiddenReads:
                 )
             self._stmts(mt.effect, scope, _Seat("the acting seat"))
         rule_scope, rule_seat = _ACTOR_SCOPE, _Seat("the acting seat")
+        # The seat evaluating a clause, which makes a `choose` nested in it
+        # (`RULE_CLAUSE_SEATS`): the attributed seat. Where it is not the
+        # decider, it is judged apart. Issue #760 may refuse a `choose` in a
+        # rule clause outright, which would leave this arm unreachable.
+        evaluator_scope: _ReadScope | None = None
+        evaluator_seat = _Seat("`actor`, the seat whose card is played")
         if any(f.name == CHOOSER_HELPER for f in self.game.functions):
             # Every rule is asked at the trick round's card decision, the one
             # decision `chooser_for` routes: its clauses are decided by
@@ -9054,6 +9068,12 @@ class _HiddenReads:
                 routed=frozenset({"hand"}) | every_round,
             )
             rule_seat = _Seat(f"`{CHOOSER_HELPER}(actor)`")
+            rerouted = (
+                rule_scope.routed or frozenset()
+                if any(f.name == SOURCE_HELPER for f in self.game.functions)
+                else frozenset()
+            )
+            evaluator_scope = replace(_ACTOR_SCOPE, rerouted=rerouted)
         for rule in self.game.rules:
             clauses: list[tuple[str, n.Expr | None]] = [
                 ("applies_when", rule.applies_when.pred if rule.applies_when else None),
@@ -9062,10 +9082,22 @@ class _HiddenReads:
                 ("exempts", rule.exempts),
             ]
             for clause, expr in clauses:
-                if expr is not None:
+                if expr is None:
+                    continue
+                seats = {
+                    SEAT_TRICK_DECIDER: (rule_scope, rule_seat),
+                    SEAT_ACTING: (evaluator_scope or rule_scope, evaluator_seat),
+                }
+                decider, evaluator = (seats[seat] for seat in RULE_CLAUSE_SEATS[clause])
+                self._judge(
+                    f"rule `{rule.name}`'s `{clause}:`",
+                    self.reads_of(expr, decider[0]), decider[1], expr.span,
+                    skip_choose=evaluator_scope is not None,
+                )
+                if evaluator_scope is not None:
                     self._judge(
-                        f"rule `{rule.name}`'s `{clause}:`",
-                        self.reads_of(expr, rule_scope), rule_seat, expr.span,
+                        "", self.reads_of(expr, evaluator[0]), evaluator[1], expr.span,
+                        only_choose=True,
                     )
         if self.game.loser is not None:
             self._outside(self.game.loser.selection, _ReadScope(), _NO_SEAT)
