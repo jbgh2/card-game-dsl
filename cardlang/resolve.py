@@ -135,9 +135,12 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               of the deciding seat's own instance of a zone its owner sees.
               The refusal names the announcement the rules are missing. The
               runtime's decision sites may therefore assume every zone read
-              at those positions is visible to its decider; a delegated
-              decision's pool is the one exception, whose Owner Guard is
-              ``runtime/delegation.check_decider_sees``.
+              at those positions is visible to the acting seat. Under
+              Delegated Play the decider is not the acting seat: the routed
+              pool's visibility to the decider is the runtime Owner Guard
+              ``runtime/delegation.check_decider_sees``'s, and a clause read
+              indexed by the acting seat is judged against the acting seat,
+              not the decider.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
