@@ -1516,6 +1516,147 @@ def test_a_family_is_routed_only_where_every_round_routes_it(
     _check(_game(body, defs, zone=zone, teams=teams), refuse)
 
 
+# A `choose` nested in a rule clause is made by the seat the clause is
+# evaluated as -- the attributed seat, whose card is played -- while the
+# clause's value reaches the trick decision, `chooser_for(actor)`'s.
+
+
+_ROUTE_TO_DECIDER = "function play_source_for(p : Player) = if p is 1 then hand[0] else hand[p]\n"
+
+
+def test_a_rule_clauses_seats_are_the_runtimes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`RULE_CLAUSE_SEATS` is what the runtime does: in a game routing seat
+    1's plays to seat 0, a run records the seat every clause is evaluated as,
+    the seat making the `choose` nested in each, and the seat deciding the
+    trick play.
+
+    red under: map `"applies_when"` to `(SEAT_TRICK_DECIDER, SEAT_TRICK_DECIDER)`."""
+    import random
+
+    from cardlang.runtime import chooser, evaluate as runtime_evaluate, rules
+    from cardlang.runtime.driver import play_game
+
+    choose = "(choose integer in 0 .. 1) >= 0"
+    clauses = {
+        "applies_when": f"applies_when: {choose}",
+        "demands": f"demands: cards in hand where {choose}",
+        "if_impossible": f"if_impossible: cards in hand where {choose}",
+        "exempts": f"exempts: cards in hand where {choose}",
+    }
+    for clause, text in clauses.items():
+        # The fallback is asked only where the demand is unmet: none is met.
+        unmet = "card.suit is hearts and card.suit is spades"
+        demands = (
+            "" if clause == "demands"
+            else f"demands: cards in hand where {unmet} " if clause == "if_impossible"
+            else "demands: cards in hand where card.suit is hearts "
+        )
+        fallback = "" if clause == "if_impossible" else "if_impossible: hand "
+        source = _game(
+            "phase play { active_rules: [Probed] " + _TRICK + " }",
+            _CHOOSER + _ROUTE_TO_DECIDER + "rule Probed { constrains: play_to_trick "
+            + (text + " " if clause == "applies_when" else "")
+            + demands
+            + (text + " " if clause == "demands" else "")
+            + fallback
+            + (text + " " if clause in ("if_impossible", "exempts") else "")
+            + "}",
+            zone=_SHOWN,
+        )
+        game = check_dsl(source, "seats.cardlang")
+        evaluated: set[object] = set()
+        chose: set[object] = set()
+        deciders: set[object] = set()
+        real_evaluate = getattr(rules, "evaluate")
+        real_decide = getattr(chooser, "decide")
+        rule = next(r for r in game.rules if r.name == "Probed")
+        node = {
+            "applies_when": rule.applies_when.pred if rule.applies_when else None,
+            "demands": rule.demands.expr if rule.demands else None,
+            "if_impossible": rule.if_impossible,
+            "exempts": rule.exempts,
+        }[clause]
+
+        def recording_evaluate(expr: object, ctx: object) -> object:
+            if expr is node:
+                evaluated.add(ctx.current_player)  # type: ignore[attr-defined]
+            return real_evaluate(expr, ctx)
+
+        def recording_decide(ctx: object, player: object, candidates: object, n: object,
+                             site: object, *rest: object) -> object:
+            if site == "evaluate._choose":
+                chose.add(player)
+            elif site == "mechanics.run_decision_round":
+                deciders.add(player)
+            return real_decide(ctx, player, candidates, n, site, *rest)
+
+        with monkeypatch.context() as patched:
+            patched.setattr(rules, "evaluate", recording_evaluate)
+            patched.setattr(runtime_evaluate, "decide", recording_decide)
+            patched.setattr("cardlang.runtime.mechanics.decide", recording_decide)
+            play_game(game, random.Random(0))
+        decider, evaluator = R.RULE_CLAUSE_SEATS[clause]
+        assert evaluator == R.SEAT_ACTING and decider == R.SEAT_TRICK_DECIDER
+        # Seat 1's plays are decided by seat 0, so seat 1 decides no trick
+        # play; yet its clauses are evaluated as seat 1, and seat 1 makes the
+        # `choose` nested in them.
+        assert 1 not in deciders and 0 in deciders, (clause, deciders)
+        assert 1 in evaluated, (clause, evaluated)
+        assert 1 in chose, (clause, chose)
+    assert set(R.RULE_CLAUSE_SEATS) == set(clauses)
+
+
+_CHOOSE_OF = "(choose integer in 0 .. (number of cards in {z} where card.suit is hearts) up to 13) >= 0"
+
+# cell -> (helpers, the zone the nested `choose` reads, the refusal or None)
+_RULE_CHOOSES: dict[str, tuple[str, str, str | None]] = {
+    "routed-to-the-deciders-hand-reads-the-routed-pool": (
+        _CHOOSER + _ROUTE_TO_DECIDER, "hand", _DECIDER,
+    ),
+    "routed-reads-the-attributed-hand": (_CHOOSER + _ROUTE_TO_DECIDER, "hand[actor]", None),
+    "routed-reads-a-public-zone": (_CHOOSER + _ROUTE_TO_DECIDER, "won[actor offset_by left]", None),
+    "decider-routed-only-reads-the-routed-pool": (_CHOOSER, "hand", None),
+    "undelegated-reads-the-bare-hand": ("", "hand", None),
+    "undelegated-reads-another-hand": ("", "hand[actor offset_by left]", _DECIDER),
+}
+
+_RULE_CHOOSE_RED: dict[str, tuple[type[Exception], str]] = {
+    "routed-to-the-deciders-hand-reads-the-routed-pool": (
+        _Accepted, "a rule's nested `choose` is judged at the decider, not the seat making it"),
+    "routed-reads-the-attributed-hand": (
+        DiagnosticError, "a rule's nested `choose` is judged at the decider, not the seat making it"),
+}
+
+
+def _rule_choose_cells() -> list[object]:
+    cells = []
+    for cell_id, (helpers, zone_ref, refuse) in _RULE_CHOOSES.items():
+        body = "phase play { active_rules: [Probed] " + _TRICK + " }"
+        defs = helpers + (
+            "rule Probed { constrains: play_to_trick applies_when: "
+            + _CHOOSE_OF.format(z=zone_ref)
+            + " demands: cards in hand where card.suit is hearts if_impossible: hand }"
+        )
+        red = _RULE_CHOOSE_RED.get(cell_id)
+        cells.append(
+            _cell(
+                cell_id, body, defs, _SHOWN, False, refuse=refuse,
+                xfail=red[1] if red else None, raises=red[0] if red else _Accepted,
+            )
+        )
+    return cells
+
+
+@pytest.mark.parametrize("body,defs,zone,teams,refuse", _rule_choose_cells())
+def test_a_rules_nested_choose_is_judged_at_the_seat_making_it(
+    body: str, defs: str, zone: str, teams: bool, refuse: str | None
+) -> None:
+    """A `choose` nested in a rule clause is judged at the attributed seat,
+    which makes it; under Delegated Play the routed pool is proven visible
+    only to the decider."""
+    _check(_game(body, defs, zone=zone, teams=teams), refuse)
+
+
 # ---------------------------------------------------------------------------
 # A cycle the reader follows: every name graph it walks may be cyclic before
 # the guard that refuses the cycle has raised, since resolve raises its bag

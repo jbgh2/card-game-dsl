@@ -8438,6 +8438,21 @@ CHOSEN_MOVEMENT_SEATS: dict[tuple[str, bool], tuple[str, str]] = {
 }
 
 
+# A rule clause, asked at the trick round's card decision: clause -> (the seat
+# whose decision its value reaches, the seat that evaluates it and so makes
+# any `choose` nested in it). `rules.legal_cards` evaluates every clause
+# acting as the attributed seat, and the trick decision is the decider's --
+# `chooser_for(actor)` under Delegated Play. Pinned against a run by
+# tests/test_hidden_reads.py::test_a_rule_clauses_seats_are_the_runtimes.
+SEAT_TRICK_DECIDER = "the seat deciding the trick play"
+RULE_CLAUSE_SEATS: dict[str, tuple[str, str]] = {
+    "applies_when": (SEAT_TRICK_DECIDER, SEAT_ACTING),
+    "demands": (SEAT_TRICK_DECIDER, SEAT_ACTING),
+    "if_impossible": (SEAT_TRICK_DECIDER, SEAT_ACTING),
+    "exempts": (SEAT_TRICK_DECIDER, SEAT_ACTING),
+}
+
+
 @dataclass(frozen=True)
 class _Binding:
     """What a local name stands for, as the reader follows it: the expression
