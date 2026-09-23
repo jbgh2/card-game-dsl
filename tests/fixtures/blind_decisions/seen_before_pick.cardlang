@@ -1,0 +1,31 @@
+// A probe, not a corpus game: seat 2's hand passes through seat 0's hand
+// and back before seat 1 is asked twice. Seat 0 sees seat 2's cards while it
+// holds them, so its offer between the two moves legitimately turns on them;
+// seat 1 sees only their count, so its first pick is one the swap proof
+// compares and its second is the pause.
+game SeenBeforePick {
+  players: 3
+  max_length: 20
+  cards: standard52
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    table        : Discard
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase play {
+    as 0 { move chosen 1 card from hand[0] to table }
+    move all cards from hand[2] to hand[0]
+    as 0 { move chosen 1 card from hand[0] to table }
+    move all cards from hand[0] to hand[2]
+    as 1 { move chosen 1 card from hand[1] to table }
+    as 1 { move chosen 1 card from hand[1] to table }
+  }
+  winner: highest score
+}

@@ -1,28 +1,33 @@
 """The swap proof's blind-decision comparison, held to reddening.
 
-property:        The swap proof fails when a seat blind to both swapped cards
-                 is offered different legal actions, or is asked in one world
-                 and not the other, at any recorded pick before the pause or at
-                 the pause itself; and a game reading a hidden card where the
-                 checker refuses as a Hidden Read never reaches the proof.
+property:        The swap proof fails when a seat that has seen neither
+                 swapped card is offered different legal actions, or is asked
+                 in one world and not the other, at any recorded pick before
+                 the pause or at the pause itself, and does not fail at a pick
+                 whose decider has seen one; and a game reading a hidden card
+                 where the checker refuses as a Hidden Read never reaches the
+                 proof.
 domain:          Every recorded pick of the greedy line to the spec's depth
                  after the first Chooser call, whose candidates are computed
                  before the swap fires, for up to `SWAP_PAIRS_PER_SEED` pairs
-                 taken in `spread_pairs` order. A seat is blind when neither
-                 swap side projects card identity to it under the declared
-                 projections at the pause (`harness.blind_seats`), so a swapped
-                 card carried into a blind seat's sight by a movement nobody
-                 chose fails the proof rather than dropping the pair. The
+                 taken in `spread_pairs` order. A decider is blind at a pick
+                 unless its Seat Views there, recorded inside the Chooser call,
+                 name a swapped card a different number of times in the two
+                 worlds (`harness.mentions`): every field of the view is read,
+                 so a zone it sees at identity, a State Variable and every
+                 observation event kind make it sighted alike, however the
+                 card reached it (`seen_before_pick`), and a seat holding the
+                 other copy of a two-deck card in both worlds stays blind. The
                  witnesses that reach the proof read the hidden card at a
                  control position, which the checker's Hidden Read Owner
                  Guard does not judge (issue #755): a phase gate, a rule or a
                  chosen movement's pool that reads it is refused by the
                  checker before any proof runs, and each such witness is
                  held to that refusal here instead.
-registry:        projections, `cardlang.stdlib.zones.ZONE_PROJECTIONS` through
-                 `tests.openspiel_ready.partition.projection_for`; recorded
-                 picks, `cardlang.openspiel.replay.RecordedPick`; the witness games,
-                 `tests/fixtures/blind_decisions/`.
+registry:        what a seat knows, `cardlang.openspiel.infostate.SeatView`;
+                 event kinds, `cardlang.runtime.observe.EVENT_PAYLOADS`;
+                 recorded picks, `cardlang.openspiel.replay.RecordedPick`; the
+                 witness games, `tests/fixtures/blind_decisions/`.
 does not prove:  That a hidden read is caught once a seat that sees a swapped
                  card has diverged: a recorded pick world B does not offer to
                  such a seat drops the pair, and no later pick of it is
@@ -33,7 +38,18 @@ does not prove:  That a hidden read is caught once a seat that sees a swapped
                  ones measured to redden. Nor that a blind seat other than the
                  paused one is TOLD the same thing before the pause: an earlier
                  pick is compared by its decider and its offer, and the
-                 information state at the pause only.
+                 information state at the pause only. Nor that the pause seat
+                 may see a swapped card: a pair it has seen (a public `reveal`
+                 of it) fails the comparison at the pause, since the sampler
+                 draws its pairs as hidden from that seat and a card its view
+                 names cannot be dropped without excusing a leak that names
+                 it. Nor that learning a property of a swapped card without
+                 its identity (a transfer count, a challenge verdict) makes a
+                 seat sighted: the game's swap axis keeps such pairs apart.
+                 Nor that a leak naming a swapped card in a seat's view is
+                 caught at that seat's earlier picks: such a view reads as
+                 sighted there, and the leak is the pause comparison's to
+                 catch at the pause seat.
 """
 
 from __future__ import annotations
@@ -46,7 +62,8 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_source
 
-from .harness import GameSpec, ReadinessProofs, spread_pairs
+from .harness import SWAP_SEEDS, GameSpec, ReadinessProofs, spread_pairs
+from .partition import RECORDS
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "blind_decisions"
 
@@ -112,8 +129,8 @@ def test_a_hidden_read_reddens_the_swap_proof(
 ) -> None:
     """red under: `harness.spread_pairs` returning its input --
     `control_high_card` at seeds 5 and 9 passes. red under:
-    `compare_blind_picks` judging a pick blind by world A's decider alone --
-    `control_reroutes` at seed 18 passes."""
+    `harness._blind_decider` judging seats that differ between the worlds by
+    world A's decider alone -- `control_reroutes` at seed 18 passes."""
     check_source(FIXTURES / f"{fixture}.cardlang")
     with pytest.raises(AssertionError, match=failure):
         _prove(fixture, depth, axis, seed)
@@ -173,6 +190,26 @@ def test_a_control_branch_on_a_hidden_card_reddens_the_swap_proof(
         match="same information, different offer at pick 1 for seat 0: " + failure,
     ):
         _prove("control_branch", 2, "suit", seed)
+
+
+def test_a_seat_that_has_seen_the_swapped_card_is_not_held_to_the_other_world() -> None:
+    """Seat 2's hand passes through seat 0's hand and back, so seat 0's second
+    offer turns on cards it has held; seat 1 has seen only their count and
+    its pick before the pause is compared. The proof passes at every manifest
+    seed, and compared a blind pick at each.
+
+    red under: `harness.mentions` returning 0 -- seat 0's pick is
+    held to the other world and the proof fails at seed 3, "same
+    information, different offer at pick 1 for seat 0". red under:
+    `harness.compare_blind_picks` skipping every pick -- no blind pick is
+    compared."""
+    check_source(FIXTURES / "seen_before_pick.cardlang")
+    for seed in SWAP_SEEDS:
+        before = len(RECORDS)
+        _prove("seen_before_pick", 3, "suit", seed)
+        (row,) = RECORDS[before:]
+        assert row.detail["blind_picks_compared"] > 0, row
+        del RECORDS[before:]
 
 
 def test_spread_pairs_reorders_and_keeps_every_pair() -> None:

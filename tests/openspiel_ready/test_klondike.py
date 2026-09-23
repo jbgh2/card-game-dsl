@@ -53,7 +53,6 @@ from .harness import (
     ReadinessProofs,
     _swap_fn,
     action_strings,
-    blind_seats,
     manifest,
     replay_pair,
     spread_pairs,
@@ -105,7 +104,6 @@ class TestReadiness(ReadinessProofs):
             ("tableau_down", 7),
             ("deck", None),
         )
-        blind = blind_seats(pause_a.rs, range(len(pause_a.obs_logs)), sides)
         picks_a: list[RecordedPick] = []
         run(PATH, seed, tuple(history), picks=picks_a)
 
@@ -115,7 +113,7 @@ class TestReadiness(ReadinessProofs):
         blind_compared = 0
         for x, y in spread_pairs(candidates)[:SWAP_PAIRS_PER_SEED]:
             replayed = replay_pair(
-                spec.short_name, PATH, seed, history, picks_a, blind, sides, (x, y)
+                spec.short_name, PATH, seed, history, picks_a, sides, (x, y)
             )
             blind_compared += replayed.blind_compared
             assert replayed.pause is not None, replayed.dropped
@@ -150,7 +148,6 @@ class TestReadiness(ReadinessProofs):
             pairs_proved=len(proved),
             pairs_cap=SWAP_PAIRS_PER_SEED,
             candidates=len(candidates),
-            blind_seats=";".join(map(str, sorted(blind))),
             blind_picks_compared=blind_compared,
             legal_agreement=True,
             string_agreement=True,
