@@ -3,11 +3,10 @@
 For the [[move-type]] in play, the legal set is the intersection of every active
 [[rule]]'s card-set `demands` whose `applies_when` holds (decisions.md "Rule
 demand forms"). An empty intersection falls back via `if_impossible` (default:
-the whole hand). Move-shape demands (`actions where …`) don't filter card plays,
-and they have NO runtime enforcement point at all — the shape is enforced by
-the construct itself (a [[transfer]]'s `chosen N`, a move's `when:` guard). Where
-they should bind is open (decisions.md "Rule demand forms", enforcement
-status; open-questions/rule-scope-beyond-trick-play.md). A rule's `exempts`
+the whole hand). A constraint on a move's shape is enforced by the construct
+that makes the move (a [[transfer]]'s `chosen N`, a move's `when:` guard); where
+rules should bind beyond this decision is
+open-questions/rule-scope-beyond-trick-play.md. A rule's `exempts`
 (when its `applies_when` holds) removes cards from the cascade entirely and
 appends them after every other candidate, in hand order (Tarot's Excuse:
 always playable, never bound by an obligation, offered last).
@@ -62,7 +61,7 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
     for rule in ctx.active_rules:
         if rule.constrains != move_type or not _applies(rule, pctx):
             continue
-        if rule.demands is None or rule.demands.kind != "cards":
+        if rule.demands is None:
             continue
         narrowed = result & set(evaluate(rule.demands.expr, pctx))
         if narrowed:
@@ -95,7 +94,6 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
 
 def _applies(rule: n.RuleDef, ctx: Ctx) -> bool:
     aw = rule.applies_when
-    if aw is None or aw.always:
+    if aw is None:
         return True
-    assert aw.pred is not None  # parse builds `applies_when` as `always` or a predicate
     return bool(evaluate(aw.pred, ctx))

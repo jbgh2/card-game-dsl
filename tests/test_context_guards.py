@@ -52,8 +52,8 @@ registry:  `n.IsCheck.kind`'s docstring-declared 4-value set; `types.Type`.
 does not prove:  that an un-probed concrete non-optional type is rejected
            as that TYPE. `none`/`not_none`'s reject branch is one
            `isinstance(t, (TAny, TOptional, TNull))` check, not a per-type
-           dispatch, so TBoolean, TCard, TPlayer, TCollection, TString and
-           TStruct share the exact code path as the probed TInteger.
+           dispatch, so TBoolean, TCard, TPlayer, TCollection and TString
+           share the exact code path as the probed TInteger.
            Probing one exercises the branch, and a guard that began
            discriminating between members of its reject set would pass here
            unchanged.

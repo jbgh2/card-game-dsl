@@ -35,11 +35,6 @@ from lark.grammar import NonTerminal
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import _parser, parse_library, parse_text
 
-pytestmark = pytest.mark.xfail(
-    strict=True,
-    raises=(AssertionError, pytest.fail.Exception),
-    reason="issue #693: the retirement lands in the next commit",
-)
 
 RETIRED_ROWS = (
     "type_def",
@@ -204,3 +199,16 @@ def test_always_is_refused_naming_the_clause_to_leave_out(position: str) -> None
     message = exc.value.diagnostic.message
     assert exc.value.diagnostic.span is not None
     assert "`always`" in message and f"`{clause}`" in message and "leave" in message
+
+
+def test_a_refused_word_is_never_offered_as_expected() -> None:
+    """A syntax error at a position that takes `always` lists what the grammar
+    expects there; the refused spelling is not among the suggestions.
+
+    red under: drop the `if name not in refused` filter in
+    `cardlang.parse._expected_words`."""
+    source = _game(top="rule R {\n  constrains: play_to_trick\n  applies_when: :\n}")
+    with pytest.raises(DiagnosticError) as exc:
+        parse_text(source, "expected.cardlang")
+    message = exc.value.diagnostic.message
+    assert "expected" in message and "`always`" not in message

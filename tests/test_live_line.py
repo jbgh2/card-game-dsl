@@ -138,7 +138,7 @@ def _played(short_name: str, last: int, prefix: Sequence[int] = ()) -> tuple[Liv
     path = _path(short_name)
     game, _ = load(path)
     line = LiveLine(path, _SEED, prefix)
-    recording = _Recording(line, game.players.low, last)
+    recording = _Recording(line, game.players.count, last)
     try:
         line.play(recording.policies)
     except (_Enough, GameDescriptionError, IllegalMove):

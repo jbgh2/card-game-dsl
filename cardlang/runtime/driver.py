@@ -295,7 +295,7 @@ def play_game(
     )
     # resolve()'s Owner Guard confines `direction:` to GAME_DIRECTIONS; None
     # means clockwise.
-    seating = Seating(game.players.low, clockwise=game.direction != "counterclockwise")
+    seating = Seating(game.players.count, clockwise=game.direction != "counterclockwise")
     teams = tuple(range(len(game.teams)))
     team_of = {
         p: ti for ti, members in enumerate(game.teams) for p in members
@@ -334,8 +334,6 @@ def play_game(
     rs.ranks = game.ranking if game.ranking else deck_ranks(game.deck)
     rs.rule_index = {r.name: r for r in game.rules}
     rs.move_type_index = {m.name: m for m in game.move_types}
-    rs.type_index = {t.name: t for t in game.types}
-    rs.define_index = {d.name: d for d in game.defines}
     rs.function_index = {f.name: f for f in game.functions}
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))

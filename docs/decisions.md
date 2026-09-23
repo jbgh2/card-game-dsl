@@ -254,8 +254,6 @@ card-set `demands:` or an `exempts:`. The checker rejects the rest rather
 than accepting surface it would silently drop ("Surface totality"):
 
 - a `constrains:` naming any other move type, or omitted entirely;
-- `demands: actions where <predicate>` — a predicate on the move's *shape*
-  rather than on which cards it draws. There is no site that consults it;
 - a rule with neither `demands:` nor `exempts:`, which cannot change what is
   legal however its `applies_when:` reads.
 
@@ -269,9 +267,8 @@ Where rules *should* eventually bind is open — english draughts' mandatory
 capture and nine men's morris's in-mill removal restriction are the
 witnesses that would force a wider answer
 ([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
-Until then the surface is deferred, not deleted (roadmap.md, "Grammar
-surface deferred by the checker"): when enforcement widens, the guards
-retire and the forms return with an implementation behind them.
+When enforcement widens, the refusals above retire and the forms that bind
+elsewhere arrive with an implementation behind them.
 
 **The move under inspection is bound as `action`.** A predicate over a
 player's move — the `when <move-type> where …` trigger of a sub-phase
@@ -507,7 +504,7 @@ The surface:
 
 ```text
 round offering [<move_type>, …] from <seat> over <ring>
-      [order ring] until <predicate> [outcome <fn>]
+      until <predicate> [outcome <fn>]
 ```
 
 - **Move vocabulary (`offering`).** Each turn presents the acting player **one
@@ -552,18 +549,17 @@ round offering [<move_type>, …] from <seat> over <ring>
   being a single pass per participant — is observationally identical; this is one
   participants axis, with the continuous auction ring the case where per-turn
   re-evaluation is visible.
-- **Order (`order`).** How the ring is traversed. One value exists — `ring`,
-  which is also what an absent clause means: the pointer advances each turn, so
+- **Order.** The ring is traversed one way: the pointer advances each turn, so
   after a player acts the next *seat* is offered, wrapping. That is poker's order
   as much as an auction's, and each half of the claim is a neighboring bullet's:
   the pointer advances, so the seats *behind* the aggressor are the next ones
   reached; the participants filter is re-evaluated each turn, so the seats a bet
   re-opened come back when the ring returns to them; and `until` is checked
   before each draw, so the ring closes mid-lap the moment nobody is pending. Bridge's, Pinochle's
-  and Tarot's auctions and every poker game's betting all run on it. The clause is
-  kept although it holds a single value, as the docking point a further traversal
-  arrives at: the axis is closed at `ring` alone; the next value arrives with the
-  game that forces it — and mints its own name.
+  and Tarot's auctions and every poker game's betting all run on it. The form
+  writes no order clause: a traversal no game plays is not kept as a docking
+  point, so a second one arrives with the game that forces it and mints its own
+  surface then.
 - **Call-and-response is a configuration, not an order value.** Skat's Reizen —
   a speaker naming successive ladder values against a responder who holds or
   passes, twice in sequence with the survivor advancing — runs on the plain
@@ -1103,7 +1099,7 @@ Reads and writes are both refused at resolve
 (`resolve._check_state_scope`), which also owns the game-level
 `winner:` clause: it is evaluated after every phase has exited, so it
 ranks on game-level state only. One reference position is outside that
-guard's reach — a move type, rule, function, procedure or define body
+guard's reach — a move type, rule, function or procedure body
 has no enclosing phase, so whether its state reads are live depends on
 which phase invokes it rather than on where it is written. That is a
 reachability question, not a lexical one, and it is tracked rather than
@@ -1510,9 +1506,8 @@ assignments are imperative writes following the same rules.
 
 ## Typed object model
 
-The language has a typed object model with built-in types,
-user-defined types declared per-game, and convenience sugar that
-rewrites to underlying forms.
+The language has a typed object model with built-in types and
+convenience sugar that rewrites to underlying forms.
 
 **Built-in types:**
 
@@ -1555,40 +1550,14 @@ rewrites to underlying forms.
 - Phase outcomes — tagged-union values; pattern-matched, not
   dot-accessed.
 
-**User-definable types.** Games declare struct-like types that the
-language treats as first-class values:
-
-```text
-type Contract = {
-  level        : Integer
-  strain       : Suit?
-  doubled_mult : Integer
-}
-
-type HandResult = {
-  tricks_actual   : Integer
-  tricks_required : Integer
-} derived {
-  made = tricks_actual >= tricks_required
-}
-```
-
-A field's type is a single type name (`Integer`, `Suit?`, another
-declared type); a field is not a place for range or union constraints.
-Derived fields are computable functions of declared fields. They're
-accessed identically to declared fields (`result.made`) but are
-stored nowhere; the compiler inlines them.
-
-A user-defined type is not parameterized: `type_def` takes a name and a
-field list, and the field list is where a game varies what the type
-holds. They are the language's extension
-point for genuine record types. The current corpus models its
-structured values with flat state variables and functions instead —
-Bridge's contract is `contract_level : Integer`, `trump_suit : Suit?`,
-`doubled_mult : Integer`; a poker pot is a chip zone plus an
-eligibility set — so no corpus game declares a `type` yet. The surface
-exists for the game that needs a true record, and the DSL doesn't ship
-a vocabulary covering every possible game.
+**No user-declared record types.** A game models its structured values
+with flat state variables and functions — Bridge's contract is
+`contract_level : Integer`, `trump_suit : Suit?`, `doubled_mult :
+Integer`; a poker pot is a chip zone plus an eligibility set. A record
+declaration is surface no game has needed, and a surface with no
+consumer is not kept as a sanctioned future path: the game that needs a
+true record is the witness that adds one, built against the language as
+it stands then.
 
 **Angle brackets: the head fixes the argument.** `Name<Arg>` means one of two
 things, and which is decided by the head, not by the reader:
@@ -1675,8 +1644,7 @@ access: `hand[player]`, `captured[team_of(winner)]`,
 `hand[player offset_by pass_direction]`, `score[team]`. The dot
 form is **object-member access and nothing else** — fields of a
 `Card` (`card.suit`, `card.rank`, attribute sugar), fields of a
-`Move` (`action.card`), and declared or derived fields of
-user-defined structs (`result.made`). A dot whose receiver is a
+`Move` (`action.card`). A dot whose receiver is a
 player, team, integer, or boolean is a static error pointing at
 the bracket form — including receivers rooted at loop, quantifier,
 player-query, and comprehension binders, which the checker types
@@ -1719,7 +1687,7 @@ is one `Any`, and it means the top. A lookup whose domain is closed does not
 fall back to it:
 
 - **A closed-registry lookup raises.** Binder roles, native call
-  signatures, zone content types, struct types, operator result types,
+  signatures, zone content types, operator result types,
   and `ref_kind` dispatch each have a registry that an earlier pass
   validates against. A miss is a divergence between two registries —
   a compiler bug, not a program error — so it fails in the compiler's
@@ -1734,13 +1702,12 @@ fall back to it:
   hole.
 - **A declared type name is validated where it is declared.** Every
   position that declares a type is checked by the resolver, at the
-  declaration rather than at some use. There are nine, and they are
-  derived from the grammar rather than listed by hand — the productions
-  referencing `type_name` or `payload_type`, plus the struct literal's
-  head — because a hand-listed enumeration of them was twice found
-  incomplete: state variables, struct fields, move parameters, procedure
-  parameters, rule-template parameters, function parameters, `define`
-  payloads, phase-outcome payloads, and struct literals. The grid that
+  declaration rather than at some use. The positions are derived from
+  the grammar rather than listed by hand — the productions referencing
+  `type_name` or `payload_type` — because a hand-listed enumeration of
+  them was found incomplete: state variables, move parameters, procedure
+  parameters, rule-template parameters, function parameters, and
+  phase-outcome payloads. The grid that
   crosses them against every source a name can come from is
   `tests/test_type_name_positions.py`. Otherwise a mere typo maps to the top and *widens* what
   the checker accepts: the misspelled program passes where the
@@ -1763,7 +1730,7 @@ fall back to it:
 test so a new permissive site must be classified rather than added:
 values with no better type (a diverging `error()`, context-dependent
 native returns the signature model cannot express, deferred pronoun
-shapes, a forward struct reference), and propagation downstream of a
+shapes), and propagation downstream of a
 guard that already fired. Gradual typing is preserved — the top still flows
 and still suppresses errors where it is deliberate.
 
@@ -4262,8 +4229,8 @@ levels, the other declaration namespaces, the other malformed inputs),
 and close or guard the whole class in one change. A lone patch converts a
 class defect into a recurring one — the corpus's duplicate-name
 shadowing sat for months as exactly this: the duplicate-move-parameter
-instance was fixed while duplicate zones, state variables, move types,
-and struct types kept shadowing silently until the class was swept. The
+instance was fixed while duplicate zones, state variables and move types
+kept shadowing silently until the class was swept. The
 sweep binds at find time, not fix time: a *report* of one cell of a
 crossable product is an incomplete report — cross the product and report
 the pattern, whoever holds the finding.
@@ -4401,8 +4368,7 @@ So a closed domain gets both halves:
   branch, so widening the table fails *there*, by name —
   `runtime/execute.py` pins its player-only simultaneous executor against
   `SIMULTANEOUS_ROLES`; `resolve` pins its empty-domain guards against
-  `ZONE_INDEX_ROLES`; `runtime/mechanics.py` pins the auction form's single
-  traversal against `ROUND_ORDER_MODES`; `openspiel/replay` pins its returns
+  `ZONE_INDEX_ROLES`; `openspiel/replay` pins its returns
   keying against the same set as `resolve` and raises for a role it cannot invert, exactly as
   `domains.zone_observer_key` does rather than guessing player keying.
   The practising sites are enumerated in code, not here: the census in
@@ -4530,7 +4496,7 @@ planning, out loud, not discovered in review.
 
 A **library** is the import tier between game-local definitions and the stdlib.
 It holds exactly the definition forms a game already holds — move_types, rules,
-functions, procedures, types, defines — plus the two state clauses `state` and
+functions, procedures — plus the two state clauses `state` and
 `requires`, and it lives in
 `docs/libraries/<name>.cardlang`, beside the corpus and maintained with it. The
 stdlib is the part maintained with the *language*; that boundary is the one
@@ -4580,8 +4546,8 @@ unconditional rather than provisional.
 That decision sets the open question for this tier: **what may a library
 contain?** Siblings can only share what a library can hold, so anything two
 variants have in common and a library cannot express comes back as duplication.
-Today a library holds definitions (move types, rules, functions, procedures,
-types, defines) and state, and no other game structure. Poker forced state; a
+Today a library holds definitions (move types, rules, functions, procedures)
+and state, and no other game structure. Poker forced state; a
 pair of variants sharing a phase tree would force phases. Grow it corpus-first,
 one forcing game at a time — but do not describe a library as "a vocabulary, not
 a game", because that framing assumed a delta mechanism would cover the rest, and
@@ -4625,14 +4591,9 @@ obvious one would be two thirds of a guarantee.
 **Nor may the game shadow provided state with a name of its own.** Read-only
 governs writing; this governs reading. A binder or a declaration parameter the
 game introduces — `for each player limit:`, `function f(limit : Integer)`, a
-`let`, a `produces:` payload, a struct field — may not be spelled like a
+`let`, a `produces:` payload — may not be spelled like a
 provided variable, because wherever that name is in scope the bare word is the
-binder and the provided variable cannot be read there at all. A struct field is
-in the list for a narrower reason and the rule keeps it deliberately: its scope
-is the type's `derived { }` bodies, so a struct without one scopes the spelling
-nowhere, and the refusal is the conservative one — adding a single derived field
-makes the shadow live, and the author who would add it is the one who cannot see
-the other half. It is the same visibility
+binder and the provided variable cannot be read there at all. It is the same visibility
 asymmetry the injection rule below turns on, arriving from the other side: the
 base language lets a binder shadow a same-named declaration precisely because
 the author wrote both and can see both, and that reasoning does not survive a
@@ -4756,7 +4717,7 @@ once an including game names a deck, and a family's members do not share one
 
 The check enforces this for every name the resolver classifies **and** for every
 name a construct holds as a bare string instead — a `turns … again <var>`, a
-`round`'s source and play zones, a struct type name, `state.<var>`. The second
+`round`'s source and play zones, `state.<var>`. The second
 half runs off the **reference-slot registry**: one table classifying every
 string-typed field of every AST node as a declaration, a binder, a reference
 into a named namespace, a keyword, opaque text, a classified name, or pass

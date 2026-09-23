@@ -264,7 +264,6 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
                 if ctx.observer is not None:
                     observe.movement(ctx, src_addr, (stmt.dest.name, player), cards)
     else:
-        assert stmt.dest is not None  # typecheck rejects the dest-less `in <zone>` form
         dest = evaluate(stmt.dest, ctx)
         if not isinstance(dest, Zone):
             raise OwnerGuardError(
@@ -818,19 +817,17 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
     # Dispatch to the matching arm and bind the payloads as arm locals. No frame
     # is pushed; `let`-locals thread via the immutable
     # `Ctx`, and the signal unwind leaves no state to clean up. The produced
-    # outcome comes from either an outcome-declaring phase that already ran (and
-    # stashed it by name), or a `define` invoked here.
-    if stmt.define in ctx.rs.phase_outcomes:
-        tag, payloads = ctx.rs.phase_outcomes.pop(stmt.define)
-    elif stmt.define in ctx.rs.define_index:
-        tag, payloads = _run_define(stmt.define, ctx)
+    # outcome comes from the outcome-declaring phase that already ran and
+    # stashed it by name.
+    if stmt.phase in ctx.rs.phase_outcomes:
+        tag, payloads = ctx.rs.phase_outcomes.pop(stmt.phase)
     else:
         # Whether the producing phase actually produced is runtime DATA
         # (resolve's outcome-scope rule orders producer before consumer, but a
         # conditional body can still complete without producing), so the Owner
         # Guard is an Owner Guard, addressed to the game author.
         raise OwnerGuardError(
-            f"phase '{stmt.define}' did not produce an outcome before its "
+            f"phase '{stmt.phase}' did not produce an outcome before its "
             f"consumer — every path through an outcome phase must `produce`"
         )
     arm = next((a for a in stmt.arms if a.tag == tag), None)
@@ -838,36 +835,20 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
         # typecheck requires the arms to be exhaustive over the outcome
         # registry and every `produce` to name a declared outcome.
         raise AssertionError(
-            f"'{stmt.define}' produced '{tag}', which no produces: arm matches"
+            f"'{stmt.phase}' produced '{tag}', which no produces: arm matches"
         )
     # The arm's binders and the produced payloads must match in arity — `zip`
     # would otherwise silently drop extra payloads (or leave binders unbound).
     # typecheck checks both arities against the outcome registry.
     if len(arm.binders) != len(payloads):
         raise AssertionError(
-            f"'{stmt.define}' produced '{tag}' with {len(payloads)} payload(s), but "
+            f"'{stmt.phase}' produced '{tag}' with {len(payloads)} payload(s), but "
             f"its produces: arm binds {len(arm.binders)}"
         )
     arm_ctx = ctx
     for binder, value in zip(arm.binders, payloads):
         arm_ctx = arm_ctx.with_local(binder, value)
     run_body(arm.body, arm_ctx)
-
-
-def _run_define(name: str, ctx: Ctx) -> tuple[str, list[Any]]:
-    """Run a param-light define's body and capture the outcome it produces."""
-    define = ctx.rs.define_index[name]
-    try:
-        run_body(define.body, ctx)
-    except _ProduceSignal as produced:
-        return produced.tag, produced.payloads
-    # Which path a define's body takes is runtime data — a conditional body
-    # can complete without reaching a `produce` — so this is the game
-    # author's error, raised as an Owner Guard, not an assert.
-    raise OwnerGuardError(
-        f"define '{name}' completed without producing — every path through "
-        f"a define body must reach a `produce`"
-    )
 
 
 def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
@@ -945,7 +926,7 @@ def _apply_pass(
     assert isinstance(body, n.Transfer)
     player = ctx.current_player
     # actor bound by the caller; endpoints per resolve's simultaneous-body predicate
-    assert player is not None and body.source is not None and body.dest is not None
+    assert player is not None and body.source is not None
     source = evaluate(body.source, ctx)
     dest = evaluate(body.dest, ctx)
     # Same class as _movement's endpoint checks: values the checker leaves

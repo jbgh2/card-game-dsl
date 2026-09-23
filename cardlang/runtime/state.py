@@ -359,8 +359,6 @@ class RuntimeState:
         self.fired_transitions: set[str] = set()  # transition targets reached this iteration
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
         self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition
-        self.type_index: dict[str, n.TypeDef] = {}  # type name -> definition
-        self.define_index: dict[str, n.DefineDef] = {}  # define name -> definition
         self.function_index: dict[str, n.FunctionDef] = {}  # function name -> definition
         # Outcome a phase produced as it ran, keyed by phase name; consumed (and
         # cleared) by a later-sibling `produces:` block.
@@ -452,15 +450,6 @@ class Move:
 
     card: Card
     actor: Player
-
-
-@dataclass(frozen=True, slots=True)
-class StructValue:
-    """A constructed user-defined struct: its type name plus declared field
-    values. Derived fields are computed on access (see evaluate._member_eval)."""
-
-    type_name: str
-    fields: dict[str, Any]
 
 
 # A chooser picks a subset from a candidate list (random playout: uniform). The

@@ -123,7 +123,7 @@ class DomainSources:
     Two call sites build one of these, from the two origins that must agree:
     `mechanics.param_domain` from the live runtime state (`rs.suits`,
     `rs.rank_index`, `rs.seating.players`) and `openspiel/encoding.py` from the
-    game AST (`deck_suits(game.deck)`, `game.ranking`, `game.players.low`).
+    game AST (`deck_suits(game.deck)`, `game.ranking`, `game.players.count`).
     Passing them as one struct — rather than three positional kwargs threaded
     through every enumerator — is what lets the domain table own the lookup:
     a row says *which* source it reads, the caller only says *where the sources

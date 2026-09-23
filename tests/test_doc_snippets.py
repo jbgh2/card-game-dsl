@@ -199,9 +199,9 @@ game Skeleton {{
 def _wrap_active_rules_shadowing(frag: str) -> str:
     # decisions.md "Sub-phase rule and legal-move deltas": plain shadowing
     # (no +/-/override). The rule names are the doc's own illustrative
-    # letters, given a trivial always-true body against the kernel move type.
+    # letters, given a trivial always-applying body against the kernel move type.
     rules = "\n".join(
-        f"rule {name} {{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }}"
+        f"rule {name} {{ constrains: play_to_trick demands: cards in hand where card.suit is hearts if_impossible: hand }}"
         for name in ("A", "B", "C", "X", "Y")
     )
     return _game(f"{frag}\n  winner: highest score", top_level=rules)
@@ -210,7 +210,7 @@ def _wrap_active_rules_shadowing(frag: str) -> str:
 def _wrap_first_trick_phase(frag: str) -> str:
     rule = (
         "rule MustLeadAceOfSpadesOnFirstPlay "
-        "{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }"
+        "{ constrains: play_to_trick demands: cards in hand where card.suit is hearts if_impossible: hand }"
     )
     return _game(
         f"{frag}\n  winner: highest score", top_level=rule, ranking="ranking: aces high"
@@ -532,8 +532,8 @@ def test_the_block_domain_is_the_size_the_recipes_define() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 54, "library.md": 14, "model.md": 5}
-    assert len(_BLOCKS) == 73
+    assert per_doc == {"decisions.md": 53, "library.md": 14, "model.md": 5}
+    assert len(_BLOCKS) == 72
 
 
 def _block_id(block: FencedBlock) -> str:
@@ -972,7 +972,7 @@ _SELF_BAD_FRAGMENT_SMOKE = "move all cards to deck\n"  # benign filler: passes
 _SELF_BAD_FRAGMENT_BAD = "move all cards to nonexistent_zone\n"  # unresolved zone
 # A definitions-only fragment: parses as `top_item+`, so the pipeline's only
 # refusal available to it is the missing `game { }` block.
-_SELF_DEFINITIONS_ONLY = "rule nothing {\n  demands: actions where true\n}\n"
+_SELF_DEFINITIONS_ONLY = "rule nothing {\n  demands: cards in hand\n}\n"
 
 
 def test_self_cardlang_bad_fragment_block_is_rejected_when_wrapped() -> None:

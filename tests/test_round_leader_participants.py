@@ -18,10 +18,7 @@ domain:     acting path x leader/participants relationship x game direction.
 registry:   acting path -- the AST constructs carrying BOTH `leader` and
                           `participants` (`n.Round` and `n.Turns`), with
                           `n.Round` split into its three forms by
-                          `mechanics.build_form`'s field cascade and the
-                          auction form split again by `n.ROUND_ORDER_MODES`
-                          (one `next_actor` body per traversal the axis
-                          declares). `turns` is a
+                          `mechanics.build_form`'s field cascade. `turns` is a
                           member of this class though it is NOT a `round`
                           form and does not go through `build_form` — the
                           class is the leader/participants shape, not the
@@ -68,8 +65,8 @@ constructs already advance past a shed-out leader. Each has its OWN
 participant filter, so each needs its own mutation — RUN, not reasoned:
   - trick: `TrickForm.next_actor`, `if player in self.participants` -> `if
     True` (mechanics.py). Reddens both `trick-leader_out` rows.
-  - auction-ring: `AuctionForm.next_actor`, `if player in participants` ->
-    `if True` (mechanics.py). Reddens both `auction_ring-leader_out` rows.
+  - auction: `AuctionForm.next_actor`, `if player in participants` ->
+    `if True` (mechanics.py). Reddens both `auction-leader_out` rows.
   - turns: `_turns`, `next((p for p in candidate_seq if p in participants),
     None)` -> drop the `if` clause (execute.py). Reddens both
     `turns-leader_out` rows.
@@ -99,13 +96,12 @@ from cardlang.runtime.values import GAME_DIRECTIONS
 
 # --- the axes, each derived from the registry that defines it ---
 
-# The auction form is the one `round` form whose `next_actor` is selected by the
-# order mode, so it contributes one path per mode the axis declares; `turns` is
-# not a `round` form at all but carries the same `from`/`over` clauses, which is
-# what the class is defined by.
+# One path per `round` form, plus `turns`, which is not a `round` form at all
+# but carries the same `from`/`over` clauses, which is what the class is
+# defined by.
 ACTING_PATHS: tuple[str, ...] = (
     "trick",
-    "auction_ring",
+    "auction",
     "climb",
     "turns",
 )
@@ -143,14 +139,12 @@ FIRST_PARTICIPANT_AFTER_LEADER = {"clockwise": 2, "counterclockwise": 0}
 
 def test_acting_path_axis_is_derived_from_the_registries() -> None:
     """The path axis is the AST constructs carrying BOTH `leader` and
-    `participants` — the shape that defines the class — with the auction form
-    split again by the order modes. A further path (a new construct with a
-    `from`/`over` pair, a fourth round form, a second order mode) must fail here
+    `participants` — the shape that defines the class. A further path (a new
+    construct with a `from`/`over` pair, a fourth round form) must fail here
     rather than go unnoticed.
 
-    red under: add a member to `n.ROUND_ORDER_MODES` — the registry
-    reconciliation below fails by name, and so does the arithmetic, which is
-    what stops a new mode acquiring the ring's rows. Or delete `"turns"` from
+    red under: add `leader`/`participants` fields to `n.Offer` — the carrier
+    reconciliation below fails by name. Or delete `"turns"` from
     `ACTING_PATHS`: the arithmetic fails without any registry edit, which is
     the half a registry mutation alone would not prove."""
     fields_of = {
@@ -180,9 +174,8 @@ def test_acting_path_axis_is_derived_from_the_registries() -> None:
         assert form.__name__ in source, (
             f"{form.__name__} is not accounted for in build_form's cascade"
         )
-    assert n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}
-    # The round forms, the auction one split by its order modes, plus Turns.
-    assert len(ACTING_PATHS) == (len(forms) - 1) + len(n.ROUND_ORDER_MODES) + 1
+    # The round forms, plus Turns.
+    assert len(ACTING_PATHS) == len(forms) + 1
 
 
 def test_direction_axis_is_the_seating_registry() -> None:
@@ -256,7 +249,7 @@ game G {{
   state {{ x[player] : Integer = 0 }}
   phase run {{
     round offering [step] from {leader} over players where {pred}
-{order}          until false
+          until false
   }}
   winner: highest x
 }}
@@ -312,21 +305,9 @@ def _source(path: str, relationship: str, direction: str) -> str:
         return CLIMB.format(dir=direction, leader=leader, pred=pred)
     if path == "turns":
         return TURNS.format(dir=direction, leader=leader, pred=pred)
-    # The auction paths are named `auction_<mode>`, and the clause is written
-    # from the name rather than dispatched on it: a path added for a second
-    # traversal then EMITS that traversal, instead of quietly re-testing the
-    # default while its name says otherwise. An unrecognised suffix raises here
-    # rather than falling through to a clause-free source.
-    mode = path.removeprefix("auction_")
-    if mode not in n.ROUND_ORDER_MODES:
-        raise AssertionError(
-            f"acting path '{path}' names order mode '{mode}', which is not in "
-            f"{sorted(n.ROUND_ORDER_MODES)} — the path would emit no clause and "
-            f"its rows would re-test whichever traversal is the default"
-        )
-    return AUCTION.format(
-        dir=direction, leader=leader, pred=pred, order=f"          order {mode}\n"
-    )
+    if path == "auction":
+        return AUCTION.format(dir=direction, leader=leader, pred=pred)
+    raise AssertionError(f"acting path '{path}' has no fixture")
 
 
 def _first_actor(src: str) -> int:
@@ -356,7 +337,7 @@ def test_leader_participants_grid(
     src = _source(path, relationship, direction)
 
     if relationship == "leader_out_of_range_literal":
-        # UNIFORM across all five paths, and settled one layer UP: the
+        # UNIFORM across every path, and settled one layer UP: the
         # player-literal range guard rejects the game at typecheck, so no path
         # reaches the runtime with an out-of-range leader LITERAL.
         with pytest.raises(DiagnosticError, match="out of range"):

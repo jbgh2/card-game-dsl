@@ -89,13 +89,8 @@ def test_rejects_gather_to_each() -> None:
     _rejects("move all cards to each hand", "`to each` is not supported")
 
 
-# --- deferred surface: the `in <zone>` form, visibility overrides, and
-# resource nouns are rejected until built
-# (roadmap.md, "Grammar surface deferred by the checker") ---
-
-
-def test_rejects_the_in_zone_form() -> None:
-    _rejects("muck one card in deck", "not yet supported")
+# --- deferred surface: visibility overrides and resource nouns are rejected
+# until built (roadmap.md, "Grammar surface deferred by the checker") ---
 
 
 def test_rejects_a_visibility_override() -> None:

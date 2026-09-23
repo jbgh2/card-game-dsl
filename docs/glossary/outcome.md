@@ -1,10 +1,10 @@
 ---
 term: Outcome
-definition: The tagged result a decision construct yields: a phase's `-> outcome { }`, a `define`'s case set, an auction's result. Declared as an **outcome type** of **outcome cases**; carried as a `(tag, payloads)` value. This is the word's only meaning. The player a trick/climb yields is the **winner**.
+definition: The tagged result a decision construct yields: a phase's `-> outcome { }`, an auction's result. Declared as an **outcome type** of **outcome cases**; carried as a `(tag, payloads)` value. This is the word's only meaning. The player a trick/climb yields is the **winner**.
 layer: kernel
 status: canonical
 reserved: true
-home: `n.Phase`, `n.DefineDef`
+home: `n.Phase`
 see: []
 retired_spellings: []
 findings: []

@@ -103,7 +103,7 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
 
     contenders = set(reveal)
     assert len(contenders) > 1, "need a CONTESTED showdown (more than one contender)"
-    assert contenders == set(range(game.players.low)) - {folded_player}
+    assert contenders == set(range(game.players.count)) - {folded_player}
 
     # Every contender's reveal is visible to a NON-contender observer (the
     # folded entrant): source count-only over the merged 7-card hand, dest

@@ -12,13 +12,13 @@ resolve, with no scope information available yet: `resolve._classify`
 (`cardlang/resolve.py`) resolves a bare name against ONE flat, ordered set of
 namespaces — locals, then state vars, then zones, then enum values, then
 pronouns, then native functions — and only ZONES and STATE VARIABLES are
-declared here (rule/move-type/procedure/function/define/type names live in
+declared here (rule/move-type/procedure/function names live in
 their own dedicated syntactic slots — `constrains:`, `active_rules:`,
 `x.field`, `transition_to:` — never reachable as a bare `NameRef`; see
 `resolve._check_duplicate_names`'s docstring). So the only way a blanket
 rename of a zone/state name could change what some OTHER `NameRef` of the
 same spelling denotes is if that other spelling is a LOCAL BINDER (a `let`,
-a loop variable, a move/function/procedure parameter, a struct field)
+a loop variable, a move/function/procedure parameter)
 somewhere in the same game shadowing the zone/state var being renamed — a
 local's classification always wins under `_classify`'s ordering, so a
 same-spelled local reference would otherwise get swept into the rename too,
@@ -197,8 +197,6 @@ def _locally_bound_names(game: n.Game) -> frozenset[str]:
         names.update(_introduced_binders(nd))
         if isinstance(nd, (n.MoveTypeDef, n.FunctionDef, n.ProcedureDef, n.RuleDef)):
             names.update(p.name for p in nd.params)
-        if isinstance(nd, n.TypeDef):
-            names.update(f.name for f in nd.fields)
     return frozenset(names)
 
 

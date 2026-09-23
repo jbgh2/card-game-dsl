@@ -327,13 +327,13 @@ move_type mark(target : Player) {{
 
 
 def _arm_game(filled: str) -> str:
-    """A `produces:` arm nested under a seat loop, its payload binder REUSING
-    the loop binder's name. The arm's `p` is the produced player, not the
-    acting one, so a comparison against `actor` inside it is contingent."""
+    """A `produces:` arm nested under `as p`, its payload binder REUSING the
+    name `as` made an alias of the acting player. The arm's `p` is the
+    produced player, not the acting one, so a comparison against `actor`
+    inside it is contingent. The consumer sits under `as` rather than a seat
+    loop because a loop body is no place to consume a phase outcome
+    (`typecheck._check_outcome_scope`)."""
     return f"""
-define pick -> {{ won(Player) }} {{
-  produce won(0)
-}}
 game G {{
   players: 2
   max_length: 200
@@ -341,10 +341,13 @@ game G {{
   zones {{ deck : Deck  hand[player] : Hand<player>  bid[player] : Hand<player> }}
   state {{ hits[player] : Integer = 0  taker : Player = 0 }}
   phase play {{
-    as 0 {{
-      for each player p:
-        pick produces:
-          won(p) {{ {filled} }}
+    phase pick -> outcome {{ won(Player) }} {{
+      produce won(0)
+    }}
+    let p = 0
+    as p {{
+      pick produces:
+        won(p) {{ {filled} }}
     }}
   }}
   winner: highest hits

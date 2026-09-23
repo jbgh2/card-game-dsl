@@ -2,8 +2,8 @@
 
 Every function here reads a DEFINITION SITE — the grammar text, the parse
 builder's return annotations, an AST registry — and returns the member list.
-Nothing hand-lists a domain: a fourth `round` production, a third order mode,
-or a new optional clause shows up as grid rows nobody wrote, which is the
+Nothing hand-lists a domain: a fourth `round` production or a new optional
+clause shows up as grid rows nobody wrote, which is the
 point (decisions.md, "Closed-domain completeness").
 
 The form axis is derived by RECONCILING two sources rather than reading
@@ -166,33 +166,9 @@ def optional_clauses(production: str) -> tuple[str, ...]:
     return tuple(out)
 
 
-def order_modes() -> tuple[str, ...]:
-    """The values the auction form's `order` clause may take.
-
-    A closed value registry, so the clause is crossed over its members rather
-    than absent/present: `absent` (the default) and each declared mode are
-    distinct cells. With one member the two crossings happen to produce the
-    same number of cells, which is why `test_clause_axis_is_the_grammar_and_
-    the_order_registry` carries a second assertion naming the mode — a count
-    alone cannot tell them apart today. Read from the AST registry rather than
-    the grammar, which admits any NAME here and leaves the domain to resolve.
-    """
-    if not n.ROUND_ORDER_MODES:
-        raise AxisDerivationError("`ROUND_ORDER_MODES` is empty")
-    return tuple(sorted(n.ROUND_ORDER_MODES))
-
-
-# Which optional clauses carry a closed value registry, and where that
-# registry lives. AUTHORED, not derived, and one of two authored mappings in
-# this module: the link from a grammar keyword to the AST field it fills is a
-# naming correspondence, and no artifact states it. Recorded as a residual in
-# the grid's ledger rather than passed off as derived. A clause absent from
-# this mapping is treated as binary (absent/present).
-_CLAUSE_VALUE_REGISTRIES = {"order": order_modes}
-
-
-# The one move type each form's decision site actually runs. AUTHORED for the
-# same reason — the runtime hardwires it, and nothing states the pairing — but
+# The one move type each form's decision site actually runs. AUTHORED: the
+# link from a round node to its move type is a naming correspondence no
+# artifact states — the runtime hardwires it, and nothing states the pairing — but
 # note what IS derived: which forms need an entry. A form carrying a
 # `move_type` field and missing from this table raises rather than dropping
 # out of the axis, which is what makes the gap loud instead of invisible.
@@ -237,9 +213,7 @@ def clause_settings(production: str) -> tuple[tuple[tuple[str, str], ...], ...]:
     """
     axes = []
     for clause in optional_clauses(production):
-        registry = _CLAUSE_VALUE_REGISTRIES.get(clause)
-        values = ("absent",) + (registry() if registry else ("present",))
-        axes.append(tuple((clause, value) for value in values))
+        axes.append(((clause, "absent"), (clause, "present")))
     combinations: list[tuple[tuple[str, str], ...]] = [()]
     for axis in axes:
         combinations = [existing + (choice,) for existing in combinations for choice in axis]

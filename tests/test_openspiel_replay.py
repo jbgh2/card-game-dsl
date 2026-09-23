@@ -124,7 +124,7 @@ def test_returns_for_loser_game() -> None:
     from cardlang.runtime.driver import GameResult
 
     result = GameResult(scores={}, winner=None, loser=2, hands_played=1)
-    n = game.players.low
+    n = game.players.count
     rets = returns_for(game, result)
     assert rets[2] == float(-(n - 1))
     assert all(rets[p] == 1.0 for p in range(n) if p != 2)

@@ -97,43 +97,12 @@ class Subscript:
 
 
 @dataclass(frozen=True, slots=True)
-class FieldInit:
-    """One `name: value` pair in a struct literal."""
-
-    name: str
-    value: Expr
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class StructLit:
-    """`TypeName { field: expr, … }` — constructs a user-defined struct value."""
-
-    type_name: str
-    fields: tuple[FieldInit, ...]
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class Call:
     """A function call, e.g. `player_holding(2 of clubs)`."""
 
     func: str
-    args: tuple[Arg, ...]
+    args: tuple[Expr, ...]
     span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class NamedArg:
-    """A `name = value` argument (named call args)."""
-
-    name: str
-    value: Expr | Transfer
-    span: Span | None = None
-
-
-# A call/method argument is either positional (an expression) or named.
-Arg: TypeAlias = "Expr | NamedArg"
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,8 +357,6 @@ def simultaneous_body_error(body: Stmt) -> str | None:
         return "the movement must be `chosen` — each player picks their own cards"
     if body.source is None:
         return "the movement needs a source zone to draw from (`from <zone>`)"
-    if body.dest is None:
-        return "the movement needs a destination zone (`to <zone>`)"
     if isinstance(body.amount, str):
         return (
             f"the amount must be a countable number, not `{body.amount}` — every "
@@ -444,7 +411,6 @@ Expr = (
     | ListLit
     | Member
     | Subscript
-    | StructLit
     | Call
     | BinOp
     | Not
@@ -468,8 +434,7 @@ Expr = (
 @dataclass(frozen=True, slots=True)
 class Transfer:
     """A movement operation (`deal`/`transfer`/`move`/`burn`/`muck`/`draw`).
-    ``amount`` is ``"all"``, ``"one"``, or an :data:`Expr` count. ``dest`` is
-    ``None`` for the `in <zone>` form where the verb implies the destination.
+    ``amount`` is ``"all"``, ``"one"``, or an :data:`Expr` count.
     ``filter`` (the `from <zone> where <lambda> to <zone>` form only) narrows
     the source pool to the matching cards, in source order, before the
     selection draws from it — `chosen`/`random` draw from the narrowed pool,
@@ -477,13 +442,13 @@ class Transfer:
     top-of-source), and `all` takes every matching card, leaving the rest."""
 
     verb: str
-    # Qualified, like `Round.order_mode`: the bare word names the designer's
+    # Qualified: the bare word names the designer's
     # `mode { }` construct (`Mode`), and no engine field may shadow it.
     selection_mode: str | None  # "chosen" | "random" | None
     amount: str | Expr  # "all" | "one" | "some" | count expression
     item: str  # the item noun: "cards", "coins", …
     source: Expr | None  # a zone reference; None for a gather (collect-from-all)
-    dest: Expr | None
+    dest: Expr
     dest_each: bool
     distribution: str | None = None  # "as_equally_as_possible" for a round-robin deal
     where: Expr | None = None  # a `where <lambda>` predicate narrowing the source pool
@@ -656,9 +621,10 @@ class ProduceArm:
 
 @dataclass(frozen=True, slots=True)
 class Produces:
-    """`NAME produces: <arm>+` — invoke a define and match its outcome result."""
+    """`NAME produces: <arm>+` — match the outcome an earlier outcome phase
+    produced."""
 
-    define: str
+    phase: str
     arms: tuple[ProduceArm, ...]
     span: Span | None = None
 
@@ -722,7 +688,7 @@ class TrickRound:
 @dataclass(frozen=True, slots=True)
 class AuctionRound:
     """`round offering [<move_type>, …] from <leader> over <participants>
-    [order <mode>] until <pred> [outcome <fn>]`.
+    until <pred> [outcome <fn>]`.
 
     A continuous ring over a heterogeneous offering (bids/passes/bets), looping
     until the termination predicate holds. No card source/into zones — these
@@ -743,9 +709,6 @@ class AuctionRound:
     leader: Expr
     participants: Expr
     until: Expr
-    # The order axis: None (the default) and "ring" both walk the ring, the
-    # pointer advancing each turn (decisions.md, "The auction form of `round`").
-    order_mode: str | None = None
     outcome_fn: str | None = None
     span: Span | None = None
 
@@ -773,14 +736,6 @@ class ClimbRound:
     follows_fn: str
     until: Expr
     span: Span | None = None
-
-
-# The values `AuctionRound.order_mode` may take (None is treated as the default,
-# ring). One value stands: the clause is the docking point a second traversal
-# would arrive at, and the argument for keeping it is decisions.md, "The auction
-# form of `round`", under Order.
-ROUND_ORDER_RING = "ring"
-ROUND_ORDER_MODES = frozenset({ROUND_ORDER_RING})
 
 
 @dataclass(frozen=True, slots=True)
@@ -1119,30 +1074,16 @@ PhaseItem: TypeAlias = (
 
 @dataclass(frozen=True, slots=True)
 class AppliesWhen:
-    """`applies_when:` — ``always`` (the wildcard) or a state predicate."""
+    """`applies_when:` — a state predicate."""
 
-    always: bool
-    pred: Expr | None
+    pred: Expr
     span: Span | None = None
-
-
-# The `demands:` clause's two forms, one per `demand_value` grammar
-# alternative. A REGISTRY, not a comment: the enforcement Owner Guard is
-# written as the complement of the enforced kind (`kind != DEMAND_KIND_CARDS`),
-# so a third form added here is rejected on arrival rather than silently
-# ignored — and the rule grid derives its axis from this set instead of
-# hand-listing it.
-DEMAND_KIND_CARDS = "cards"
-DEMAND_KIND_ACTIONS = "actions"
-DEMAND_KINDS: frozenset[str] = frozenset({DEMAND_KIND_CARDS, DEMAND_KIND_ACTIONS})
 
 
 @dataclass(frozen=True, slots=True)
 class Demands:
-    """`demands:` — a candidate-card set (kind=`DEMAND_KIND_CARDS`) or a move
-    predicate (kind=`DEMAND_KIND_ACTIONS`, an `actions where …` clause)."""
+    """`demands:` — the candidate-card set a rule obliges the play to."""
 
-    kind: str  # a member of DEMAND_KINDS
     expr: Expr
     span: Span | None = None
 
@@ -1303,47 +1244,6 @@ class OutcomeCase:
     span: Span | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class DefineDef:
-    """`define NAME -> { case(T) | … } { <stmt>* }` — a param-light definition
-    that produces one outcome. Runs with the enclosing context bound."""
-
-    name: str
-    cases: tuple[OutcomeCase, ...]
-    body: tuple[Stmt, ...]
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class StructField:
-    """A declared struct field: `name : Type['?']`."""
-
-    name: str
-    type_name: str
-    optional: bool
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class DerivedField:
-    """A computed struct field: `name = <expr>` over the declared fields."""
-
-    name: str
-    value: Expr
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class TypeDef:
-    """`type Name = { field: T … } [derived { name = expr … }]` — a user-defined
-    struct value type."""
-
-    name: str
-    fields: tuple[StructField, ...]
-    derived: tuple[DerivedField, ...]
-    span: Span | None = None
-
-
 # ---------------------------------------------------------------------------
 # Game-level
 # ---------------------------------------------------------------------------
@@ -1351,40 +1251,20 @@ class TypeDef:
 
 @dataclass(frozen=True, slots=True)
 class PlayersSpec:
-    low: int
-    high: int | None = None  # None means a fixed count equal to ``low``
+    """`players: <count>` — the game's fixed seat count."""
+
+    count: int
     span: Span | None = None
 
     @property
-    def is_range(self) -> bool:
-        """Whether the count was WRITTEN as a range — a syntactic fact.
-
-        Not the question most callers want: `players: 4..4` is written as a
-        range and denotes exactly four seats. Ask `varies` for the semantic
-        question, or this one only when the surface spelling is the subject.
-        """
-        return self.high is not None
-
-    @property
-    def varies(self) -> bool:
-        """Whether the seat COUNT actually varies between instantiations.
-
-        The property every consumer that reasons about seats wants: a
-        degenerate range (`players: 4..4`) is a fixed four-seat game, and
-        refusing it as variable states something false about the source.
-        """
-        return self.high is not None and self.high != self.low
-
-    @property
     def is_well_formed(self) -> bool:
-        """Whether the bounds make sense at all (at least one seat, and an
-        upper bound that does not precede the lower).
+        """Whether the game seats at least one player.
 
         The condition `typecheck` reports on. Read it — never re-derive it —
         wherever an earlier pass must not build a second, worse diagnostic on
         top of a malformed declaration.
         """
-        return self.low >= 1 and (self.high is None or self.high >= self.low)
+        return self.count >= 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -1422,17 +1302,12 @@ class RequireDecl:
     must declare, with the shape the library's bodies read it at. A `StateDecl`
     minus the default, which the game owns — plus the zone types' `<owner>`
     argument, because an entry may name a `zones { }` declaration as well as a
-    `state { }` one.
-
-    The two shapes are exclusive and `resolve` enforces it: `type_args` is a
-    zone spelling and `optional` a state one, so an entry carrying both names
-    nothing a game can declare."""
+    `state { }` one."""
 
     name: str
     index: str | None
     type_name: str
     type_args: tuple[TypeArg, ...]
-    optional: bool
     span: Span | None = None
 
 
@@ -1457,8 +1332,6 @@ class Library:
     state: StateBlock | None = None
     rules: tuple[RuleDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
-    types: tuple[TypeDef, ...] = ()
-    defines: tuple[DefineDef, ...] = ()
     functions: tuple[FunctionDef, ...] = ()
     procedures: tuple[ProcedureDef, ...] = ()
     span: Span | None = None
@@ -1517,8 +1390,6 @@ class Game:
     loser: Loser | None = None
     rules: tuple[RuleDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
-    types: tuple[TypeDef, ...] = ()
-    defines: tuple[DefineDef, ...] = ()
     functions: tuple[FunctionDef, ...] = ()
     # Consumed by `expand`, which runs after typecheck: every `run` site is
     # replaced by the substituted body and this tuple is emptied. It must be
@@ -1563,11 +1434,7 @@ Node = (
     | PrimitiveDecl
     | PrimitivesBlock
     | OutcomeCase
-    | DefineDef
     | FunctionDef
-    | StructField
-    | DerivedField
-    | TypeDef
     | ZoneDecl
     | CardPointsEntry
     | CardPointsTable
@@ -1615,7 +1482,6 @@ Node = (
     | RunStmt
     | Block
     | ProcedureDef
-    | NamedArg
     | NameRef
     | IntLit
     | StrLit
@@ -1624,8 +1490,6 @@ Node = (
     | AllPlayers
     | Member
     | Subscript
-    | FieldInit
-    | StructLit
     | Call
     | BinOp
     | Not

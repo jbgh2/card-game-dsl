@@ -431,7 +431,7 @@ def test_slot_strings_reads_every_shape_whole() -> None:
         amount="all",
         item="cards",
         source=None,
-        dest=None,
+        dest=n.NameRef("pile"),
         dest_each=False,
     )
     assert slot_strings(union, "amount") == ("all",)

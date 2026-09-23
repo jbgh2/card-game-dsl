@@ -365,7 +365,7 @@ def _walk(
     game = _game(file_name)
     rng = random.Random(_SEED)
     uniform = random_chooser(rng)
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.low)}
+    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
     world: list[RuntimeState] = []
     made = [0]
 

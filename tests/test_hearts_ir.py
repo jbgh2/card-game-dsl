@@ -34,8 +34,5 @@ def test_hearts_ir_is_well_formed() -> None:
     rules = ir["rules"]
     assert isinstance(phases, list) and len(phases) == 1
     # Three: Hearts' own forced-lead rule plus the two library rules resolve
-    # splices in. `PassExactlyThreeCards` was a fourth until its
-    # `demands: actions where` form was guarded as unenforceable
-    # (tests/test_rule_surface_reachability.py) — the pass movement's
-    # `chosen 3` is what binds that count.
+    # splices in. The pass movement's `chosen 3` binds the pass count.
     assert isinstance(rules, list) and len(rules) == 3

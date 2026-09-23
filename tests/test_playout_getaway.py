@@ -45,7 +45,7 @@ def test_200_random_games_satisfy_invariants() -> None:
         assert result.loser is not None
         assert result.winner is None
         assert result.scores == {}
-        assert result.loser in range(game.players.low)
+        assert result.loser in range(game.players.count)
         # Card conservation: all 52 cards are still somewhere (no loss/dup).
         assert census["total"] == 52, f"seed {seed}: {census['total']} cards"
         # The game ends with at most one player still holding cards.

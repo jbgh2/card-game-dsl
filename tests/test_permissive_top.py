@@ -59,17 +59,17 @@ does not prove:  three things, and the third is why this module exists in
             classified, but the count cannot say WHICH site moved, and a
             change that adds one site while deleting another nets to zero and
             passes.
-            Four raises -- the zone-content and `CALL_SIGS` misses, the
-            `run`-site procedure `_env_miss`, and the non-settling fixpoint
-            refusal -- carry registry-closure pins but no direct behaviour
-            test, because each is reachable only by mutating the registry it
-            guards. That they cannot fire for a well-formed program is
+            Three raises -- the zone-content and `CALL_SIGS` misses, and the
+            `run`-site procedure `_env_miss` -- carry registry-closure pins but
+            no direct behaviour test, because each is reachable only by
+            mutating the registry it guards. That they cannot fire for a well-formed program is
             argued from closure, not observed.
             And a green here is about the TYPE MACHINERY, not about a game:
-            every struct probe below builds its own fixture. The end-to-end
-            exercise is tests/test_struct_positions_witness.py
+            every probe below builds its own fixture. The end-to-end
+            exercise of a declared position domain in both parameter
+            positions is tests/test_position_parameters_witness.py
             (`test_the_witness_checks_and_plays`,
-            `test_the_derived_field_reaches_the_score_it_computes`); the
+            `test_the_parameter_reaches_the_score_it_computes`); the
             collection-facet question is tests/test_types.py
             (`test_nested_facets_do_not_distinguish`,
             `test_a_flag_bearing_collection_does_nest`). Neither runs here.
@@ -332,12 +332,6 @@ def test_unresolved_name_raises() -> None:
         infer(n.NameRef("x"), TypeEnv())
 
 
-def test_unknown_struct_literal_type_raises() -> None:
-    with pytest.raises(AssertionError) as ei:
-        infer(n.StructLit("Nonesuch", ()), TypeEnv())
-    assert "absent from `TypeEnv.structs`" in str(ei.value)
-
-
 def test_untyped_operator_raises() -> None:
     with pytest.raises(AssertionError) as ei:
         infer(n.BinOp("**", n.IntLit(1), n.IntLit(2)), TypeEnv())
@@ -387,29 +381,16 @@ def test_move_parameter_domain_is_gated_even_when_never_offered() -> None:
 
 
 def test_variant_payload_type_name_is_validated() -> None:
-    src = (
-        "define d -> { won(Integar) | lost } { produce won(1) }\n"
-        + _game()
+    src = _game().replace(
+        "phase play { for each player p: score[p] := 1 }",
+        "phase play {\n"
+        "    phase d -> outcome { won(Integar) | lost } { produce won(1) }\n"
+        "    d produces: won(k) { score[0] := 1 } lost { score[1] := 1 }\n"
+        "  }",
     )
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     assert "unknown type 'Integar'" in str(ei.value)
-
-
-def test_user_type_as_move_parameter_is_rejected() -> None:
-    """A DECLARED struct is a known type, but not an enumerable move-parameter
-    domain — and `_param_type` builds move params without the struct registry,
-    so admitting one would type it as the top. The domain gate covers it like any other
-    non-enumerable spelling, so there is no second guard to keep in step."""
-    with pytest.raises(DiagnosticError) as ei:
-        check_dsl(
-            _game(
-                "type T = { a : Integer }\n"
-                "move_type mv(x : T) { effect { score[actor] := 1 } }"
-            ),
-            "g.cardlang",
-        )
-    assert "unsupported parameter domain 'T'" in str(ei.value)
 
 
 def test_position_domain_stays_legal_as_a_move_parameter() -> None:
@@ -431,246 +412,21 @@ move_type build(src : column) { effect { score[actor] := 1 } }
     check_dsl(src, "g.cardlang")  # must not raise
 
 
-def test_a_derived_body_calling_a_user_function_is_typed() -> None:
-    """The struct/function cycle, closed. A derived field whose body calls a
-    user function used to reach `infer`'s Call arm with an EMPTY function map
-    (`struct_registry` ran before `_function_sigs`), so the whole derived field
-    typed as the top. Both directions of the cycle must now work."""
-    check_dsl(
-        "type R = { a : Integer } derived { made = tag(a) }\n"
-        + _game(
-            decls="function tag(p : Integer) = p > 0",
-            state="score[player] : Integer = 0  r : R? = none",
-        ),
-        "g.cardlang",
-    )
-
-
-def test_a_function_returning_a_derived_field_keeps_its_real_type() -> None:
-    """The struct/function build must not cost precision in function bodies:
-    `reads()` returns the derived field's Boolean, so comparing it to a Suit is
-    still rejected. Pinned because an intermediate design gave this up — it
-    typed every derived field loosely while the signatures were computed, and
-    silently ACCEPTED this always-false comparison: a new member of the very
-    class this module exists to close. The fixpoint removed the trade, but the
-    pin stays, since any future reordering of the two registries can lose it
-    again."""
-    src = "type R = { a : Integer } derived { made = a > 0 }\n" + _game(
-        decls="function reads(x : R) = x.made",
-        state="score[player] : Integer = 0  r : R? = none",
-    ).replace(
-        "phase play { for each player p: score[p] := 1 }",
-        "phase play { let bad = reads(r) is hearts }",
-    )
-    with pytest.raises(DiagnosticError) as ei:
-        check_dsl(src, "g.cardlang")
-    assert "comparing Suit with Boolean can never be equal" in str(ei.value)
-
-
-def test_a_struct_type_is_nominal_not_structural() -> None:
-    """A declared `type` is NOMINAL: two `R`s are the same type because both
-    are named R. `TStruct` carries its fields, so dataclass equality is
-    structural — and while the registries were built in a fixed number of
-    passes, two of them could disagree about one derived field and yield two
-    unequal `R`s. That produced diagnostics reading `expects R, got R` at eight
-    separate sites and made well-typed programs unwritable. `types.coercible`
-    and `types.join` compare structs by NAME, so the class is closed at the
-    layer every comparison consults rather than site by site."""
-    src = (
-        "type R = { a : Integer } derived { made = a > 0 }\n"
-        "type S = { r : R } derived { same = pick(r) }\n"
-        + _game(
-            decls="function pick(x : R) = x",
-            state=(
-                "s : S = S { r: R { a: 3 } }  r2 : R = R { a: 4 }  "
-                "score[player] : Integer = 0"
-            ),
-        ).replace(
-            "phase play { for each player p: score[p] := 1 }",
-            "phase play { r2 := s.same  if s.same is r2 { score[0] := 1 } }",
-        )
-    )
-    check_dsl(src, "g.cardlang")  # `s.same` genuinely IS an R
-
-
-def test_a_derived_field_reached_through_a_function_keeps_its_real_type() -> None:
-    """The struct/function fixpoint, at the depth that actually bites.
-
-    A function's RETURN type can depend on a derived field, which can depend on
-    another function's return type. A FIXED pass count froze the outermost
-    derived field at the permissive top, silently exempting every expression
-    that read it from every guard — this module's own defect class, reintroduced
-    by the fix for a different bug in the same area, and caught only by an
-    adversarial probe. Both halves are pinned: the case that regressed (through
-    a DERIVED field) and the control proving the guard is real (through a
-    DECLARED one). Both are Integer, so both must reject the Suit."""
-
-    def game_of(fn_body: str) -> str:
-        return (
-            "type R = { a : Integer  b : Integer } derived { surplus = a - b }\n"
-            "type S = { r : R } derived { d = surp(r) }\n"
-            + _game(
-                decls=f"function surp(x : R) = {fn_body}",
-                state="s : S = S { r: R { a: 9, b: 6 } }  score[player] : Integer = 0",
-            ).replace(
-                "phase play { for each player p: score[p] := 1 }",
-                "phase play { for each player p: "
-                "score[p] := (if s.d is hearts then 1 else 0) }",
-            )
-        )
-
-    for body in ("x.surplus", "x.a"):
-        with pytest.raises(DiagnosticError) as ei:
-            check_dsl(game_of(body), "g.cardlang")
-        assert "comparing Suit with Integer can never be equal" in str(ei.value), body
-
-
-@pytest.mark.parametrize(
-    "derived_body",
-    [
-        "hearts",  # an enum value
-        "turn",  # a state variable
-        "deck",  # a zone
-        "actor",  # a pronoun
-        "rank_value(2 of clubs)",  # a native call
-        "x + 1",  # the struct's own declared field
-    ],
-)
-def test_a_derived_body_may_name_anything_resolve_scopes_it(derived_body: str) -> None:
-    """resolve scopes a derived body as the game's names PLUS the struct's own
-    fields (`_classify_type_derived`), so a body may legitimately name a state
-    variable, a zone, an enum value or a pronoun.
-
-    `struct_registry` used to type derived bodies in a BARE `TypeEnv` carrying
-    only the fields, which was survivable while a lookup miss returned the
-    permissive top and became a crash the moment it raised: `derived { s =
-    hearts }` aborted the whole check. Found as one instance (a struct literal,
-    below) in review; this is the swept class (decisions.md, "Closed-domain
-    completeness" — sweep the class before patching the instance)."""
-    check_dsl(
-        f"type R = {{ x : Integer }} derived {{ d = {derived_body} }}\n"
-        + _game(state="score[player] : Integer = 0  turn : Integer = 0"),
-        "g.cardlang",
-    )
-
-
-@pytest.mark.parametrize(
-    "types",
-    [
-        # its OWN type: the reported instance
-        "type R = { x : Integer } derived { copy = R { x: x } }",
-        # a LATER-declared type: same miss, one declaration over
-        "type A = { n : Integer } derived { made = B { m: n } }\ntype B = { m : Integer }",
-        # control: an EARLIER type, which the source-order map already had
-        "type B = { m : Integer }\ntype A = { n : Integer } derived { made = B { m: n } }",
-    ],
-)
-def test_a_derived_body_may_build_any_declared_struct(types: str) -> None:
-    """A derived body may name a struct literal of ANY declared type, including
-    its own and one declared later — resolve validates the literal against
-    every declared type, so these are valid programs. `struct_registry` builds
-    in source order, so the body's environment must be seeded with every
-    declared type rather than only the ones already completed.
-
-    The self-referential case additionally proves the fixpoint TERMINATES on a
-    recursive type: `R`'s field map contains an `R`, so structural comparison
-    would nest one level deeper every round forever. `_registry_key` compares
-    nominally one level down, which is both finite and the right question."""
-    check_dsl(types + "\n" + _game(), "g.cardlang")
-
-
-@pytest.mark.parametrize("outer_first", [True, False])
-def test_a_nested_struct_field_is_typed_whatever_the_declaration_order(
-    outer_first: bool,
-) -> None:
-    """A NESTED struct's fields are observable — `infer`'s Member arm reads
-    them, so `o.inner.flag` types off the `Inner` embedded in `Outer.inner`,
-    not off the registry's `Inner`. Two bugs conspired to leave that embedded
-    copy stale when `Outer` was declared FIRST: the convergence key reduced a
-    nested struct to its bare name, so a round that only sharpened nested
-    fields looked identical; and the loop tested before assigning, so the
-    round that reported convergence — built against the fullest environment —
-    was thrown away. `o.inner.flag` then typed as the permissive top and a
-    Boolean was silently assignable to an Integer state variable.
-
-    Declaration order is the sharp formulation: the same program must get the
-    same verdict either way round, so this asserts both orders reject."""
-    outer = "type Outer = { n : Integer } derived { inner = Inner { m: n } }"
-    inner = "type Inner = { m : Integer } derived { flag = m > 0 }"
-    types = f"{outer}\n{inner}" if outer_first else f"{inner}\n{outer}"
-    src = types + "\n" + _game(
-        decls="function ask(o : Outer) = o.inner.flag",
-        state="o : Outer = Outer { n: 3 }  score[player] : Integer = 0",
-    ).replace(
-        "phase play { for each player p: score[p] := 1 }",
-        "phase play { for each player p: score[p] := ask(o) }",
-    )
-    with pytest.raises(DiagnosticError) as ei:
-        check_dsl(src, "g.cardlang")
-    assert "cannot assign Boolean to 'score' (Integer)" in str(ei.value)
-
-
-@pytest.mark.parametrize("hops", [0, 1, 2, 3, 6, 12])
-def test_a_recursive_struct_path_stays_typed_at_any_depth(hops: int) -> None:
-    """A struct's field map holds a SNAPSHOT of each struct-typed field, and a
-    recursive type has no finite unrolled form — every embedded copy is one
-    round staler than the last. Reading snapshots therefore made the guard decay
-    with traversal depth: `r.copy.flag` and `r.copy.copy.flag` were checked,
-    `r.copy.copy.copy.flag` typed as the permissive top and a Boolean became
-    assignable to an Integer.
-
-    A bounded comparison depth cannot fix this — the path stays observable past
-    any cutoff. Reads resolve through the REGISTRY by name instead
-    (`_canonical`), which is exact at every depth because struct types are
-    nominal. Parametrized well past any plausible cutoff for that reason."""
-    path = "r" + ".copy" * hops + ".flag"
-    src = (
-        "type R = { x : Integer } derived { copy = R { x: x }  flag = x > 0 }\n"
-        + _game(state="r : R = R { x: 3 }  score[player] : Integer = 0").replace(
-            "phase play { for each player p: score[p] := 1 }",
-            f"phase play {{ for each player p: score[p] := {path} }}",
-        )
-    )
-    with pytest.raises(DiagnosticError) as ei:
-        check_dsl(src, "g.cardlang")
-    assert "cannot assign Boolean to 'score' (Integer)" in str(ei.value), path
-
-
-def test_a_declaration_dag_does_not_blow_up_the_fixpoint() -> None:
-    """Each `T_i` holds TWO fields of `T_{i-1}`, so a structural fingerprint
-    revisits the shared child once per path and is exponential in the chain
-    length — a modest source file could stall the checker. Reads resolving
-    through the registry removed the need to fingerprint nested fields at all,
-    so this is linear again. Twenty levels is far past where the exponential
-    form became unusable (seconds, and a million-node fingerprint per round)."""
-    types = ["type T0 = { v : Integer } derived { f0 = v > 0 }"]
-    for i in range(1, 21):
-        types.append(
-            f"type T{i} = {{ a : T{i - 1}  b : T{i - 1} }} "
-            f"derived {{ f{i} = a.f{i - 1} }}"
-        )
-    check_dsl("\n".join(types) + "\n" + _game(), "g.cardlang")
-
-
 @pytest.mark.parametrize(
     "body,expected",
-    [("score", TInteger()), ("hearts", TEnum("Suit")), ("x > 0", TBoolean())],
+    [("score", TInteger()), ("hearts", TEnum("Suit")), ("score > 0", TBoolean())],
 )
-def test_env_from_game_builds_derived_bodies_with_ambient_names(
+def test_env_from_game_types_function_bodies_with_ambient_names(
     body: str, expected: object
 ) -> None:
-    """`env_from_game(game)` — the public helper, called WITHOUT a prebuilt
-    registry — must build derived bodies with the game's ambient names in
-    scope, exactly as the main pipeline does.
-
-    Its default branch used to call `struct_registry(game)` bare, which types
-    derived bodies against an empty `TypeEnv`; once a lookup miss raised, that
-    aborted the helper outright for a valid game. The main `typecheck` path had
-    been fixed by supplying the registry, which is precisely what stopped it
-    from exercising this branch — a public helper is a caller too, and its
+    """`env_from_game(game)` — the public helper, called on its own — types a
+    user function's body with the game's ambient names in scope, exactly as
+    the main pipeline does. A body typed against an empty `TypeEnv` would
+    raise on the first state variable or enum value it names, aborting the
+    helper for a valid game: a public helper is a caller too, and its
     behaviour must not depend on which entry point reached it."""
     src = f"""
-type R = {{ x : Integer }} derived {{ d = {body} }}
+function f() = {body}
 game G {{
   players: 2
   max_length: 1000
@@ -687,19 +443,16 @@ game G {{
     from cardlang.typecheck import env_from_game
 
     env = env_from_game(resolve(parse_text(src, "g.cardlang")))
-    assert env.structs["R"].fields["d"] == expected
+    assert env.functions["f"].ret == expected
 
 
 def test_env_from_game_keeps_the_signatures_it_solved() -> None:
-    """The default branch solves the function signatures on its way to the
-    struct registry — the two are one fixpoint — so it must return them.
+    """`env_from_game` returns the function signatures it solves.
 
-    Discarding them left `TypeEnv.functions` empty, and `infer` on a call to
-    any user function then raised the no-signature `AssertionError` against an
-    environment that had just computed that very signature. Asserting the
+    An env with an empty `TypeEnv.functions` makes `infer` on a call to any
+    user function raise the no-signature `AssertionError`. Asserting the
     inferred TYPE rather than merely that nothing raised: an empty map is
-    exactly what the old code had, and a laxer assertion would not have
-    noticed it."""
+    exactly the failure, and a laxer assertion would not notice it."""
     from cardlang.parse import parse_text
     from cardlang.resolve import resolve
     from cardlang.typecheck import env_from_game
@@ -750,54 +503,6 @@ procedure bump(p : Player) { score[p] := 1 }
     assert any("expects 1 argument(s), got 3" in d.message for d in bag.items)
 
 
-def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> None:
-    """The same defect at an assignment rather than a comparison: `s.flag` is a
-    Boolean reached through a function, and a Boolean may not be written to an
-    Integer-declared state variable. Before the fixpoint this checked clean AND
-    ran to completion in a playout, writing booleans into the score."""
-    src = (
-        "type R = { a : Integer } derived { made = a > 0 }\n"
-        "type S = { r : R } derived { flag = ask(r) }\n"
-        + _game(
-            decls="function ask(x : R) = x.made",
-            state="s : S = S { r: R { a: 3 } }  score[player] : Integer = 0",
-        ).replace(
-            "phase play { for each player p: score[p] := 1 }",
-            "phase play { for each player p: score[p] := s.flag }",
-        )
-    )
-    with pytest.raises(DiagnosticError) as ei:
-        check_dsl(src, "g.cardlang")
-    assert "cannot assign Boolean to 'score' (Integer)" in str(ei.value)
-
-
-def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
-    """Declaration ORDER does not decide a field's type, or its guards.
-
-    `struct_registry` resolves declared field types through the same merged map
-    as derived bodies, so a container declared ABOVE its member types to that
-    member rather than to the permissive top. Resolved against a partial map,
-    the two orders would disagree: the forward order would accept an Integer
-    where a struct is expected, which is a silent guard outage for every field
-    typed by a later declaration — and it would falsify this section's
-    invariant that a name the guard admits is never one the builder still maps
-    to the top.
-
-    red under: in `struct_registry`, resolve declared field types against the
-    partial `structs` map instead of the merged `known`.
-    """
-    messages = []
-    for decls in (
-        "type A = { b : B }\ntype B = { x : Integer }",
-        "type B = { x : Integer }\ntype A = { b : B }",
-    ):
-        with pytest.raises(DiagnosticError) as excinfo:
-            check_dsl(_game(f"{decls}\nfunction f() = A {{ b: 3 }}"), "g.cardlang")
-        messages.append(str(excinfo.value).split("error:", 1)[1].strip())
-    assert "expects B, got Integer" in messages[0]
-    assert messages[0] == messages[1]
-
-
 # =============================================================================
 # The audited top set — enumerated, so a new permissive site must be classified
 # =============================================================================
@@ -808,31 +513,28 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 # surviving site, so a count change can be checked against an argument rather
 # than just re-blessed:
 #
-# typecheck.py (17)
-#   legitimate top (no better type exists) — 5:
-#     `type_from_name`'s unknown name (a FORWARD struct reference, ledger
-#     residual 3); pronoun member access (deferred shape); a non-`actor`
-#     pronoun; a bare function NAME in value position; a procedure `Sig.ret`
-#     (a procedure is a statement — the field is never read).
+# typecheck.py (15)
+#   legitimate top (no better type exists) — 4:
+#     pronoun member access (deferred shape); a non-`actor` pronoun; a bare
+#     function NAME in value position; a procedure `Sig.ret` (a procedure is a
+#     statement — the field is never read).
 #   gradual propagation, downstream of a guard that already fired — 6:
-#     a subscript of a non-collection (`subscriptable`), a comprehension
-#     element off a bad source (`_check_card_source`), an unknown struct field
-#     and an unknown item/Card field (both rejected in `_check_expr`), and the
-#     two `DomainQuery` binder-type lookups (a bare position-domain binder, a
-#     `line`/`cell` collection binder), each reached only after resolve's
-#     `_check_domain_query` validated the noun. Each is reached only with an
-#     error already in the bag, or with a top receiver.
+#     `type_from_name`'s unknown name (every declared-type-name position is
+#     refused at resolve for a name no registry holds, so a resolved game
+#     reaches this branch with none); a subscript of a non-collection
+#     (`subscriptable`), a comprehension element off a bad source
+#     (`_check_card_source`), an unknown item/Card field (rejected in
+#     `_check_expr`), and the two `DomainQuery` binder-type lookups (a bare
+#     position-domain binder, a `line`/`cell` collection binder), each reached
+#     only after resolve's `_check_domain_query` validated the noun. Each is
+#     reached only with an error already in the bag, or with a top receiver.
 #   recorded residual, merge failure — 3: `ListLit` and the two `IfExpr` arms,
-#     where `join` returns None (ledger residual 1).
+#     where `join` returns None (issue #116).
 #   recorded residual, precision — 2: the order aggregators of BOTH
 #     aggregation registers — `max`/`min` over a zone's cards, and the same
 #     two over its subsets. Each takes its result type from the body, which
 #     `infer` does not compute, and `_check_agg_body` is the guard that makes
-#     the looseness safe rather than the type (ledger residual 2).
-#   deliberate, cycle-breaking — 1: `_provisional_structs` types derived
-#     fields as the top so function signatures can be built before them (ledger
-#     residual 4). Written at the site that introduces it, not reached as
-#     a fallback.
+#     the looseness safe rather than the type (issue #116).
 # types.py (2)
 #   `join`'s top absorption, and the sticky-key merge — both ARE the top
 #   semantics, not lookups.
@@ -850,7 +552,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 #   the `Sig` model cannot express — `highest_by_trick_order`'s VALUE_SIGS row
 #   among them — and the `ChipStack` resource zone's element.
 AUDITED_TOP_SITES: dict[str, int] = {
-    "typecheck.py": 17,
+    "typecheck.py": 15,
     "types.py": 2,
     "builtins/signatures.py": 13,
 }

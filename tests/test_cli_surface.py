@@ -66,7 +66,7 @@ registry:        commands and options: `cardlang.cli.build_parser` via
                  `cardlang.cli._COMMAND_TABLE`, which the parser is built from
                  and `COMMANDS` is derived from; the combination cross:
                  `_play_option_subsets` below, over the same parser; seat
-                 bound: `game.players.low`, the same value
+                 bound: `game.players.count`, the same value
                  `cardlang.runtime.driver.play_game` seats; the decomposition
                  of one Chooser call into the tree's decision nodes, the one
                  definition both routes read:
@@ -981,7 +981,7 @@ def _tree_walk(
     rng = random.Random(seed)
     play_uniformly = random_chooser(rng)
     logs: dict[int, list[tuple[Any, ...]]] = {
-        p: [] for p in range(game.players.low)
+        p: [] for p in range(game.players.count)
     }
     world: list[RuntimeState] = []
     line: list[int] = []
@@ -1203,7 +1203,7 @@ def _views_walk(path: Path, seed: int, seat: int, last: int) -> list[tuple[int, 
     game = check_source(path)
     rng = random.Random(seed)
     play_uniformly = random_chooser(rng)
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.low)}
+    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
     world: list[RuntimeState] = []
     views: list[tuple[int, SeatView]] = []
 

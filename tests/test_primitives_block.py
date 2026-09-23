@@ -967,7 +967,7 @@ def test_every_declarable_type_name_is_spellable_in_both_slots(type_name: str) -
 
 
 @pytest.mark.parametrize(
-    "spelling", ["Any", "Line", "dir", "Bid"], ids=["any", "line", "direction", "struct"]
+    "spelling", ["Any", "Line", "dir", "Bid"], ids=["any", "line", "direction", "undeclared"]
 )
 def test_an_unspellable_type_name_is_refused(spelling: str) -> None:
     """The complement of the declarable set, at the parameter slot. Each parses
@@ -2993,7 +2993,7 @@ def test_the_element_allow_list_is_what_the_implementations_take() -> None:
                 )
     declarable = {
         type(
-            type_from_name(name, False, env.structs, env.positions, env.directions)
+            type_from_name(name, False, env.positions, env.directions)
         ).__name__: name
         for name in COLLECTION_ELEMENT_NAMES
     }

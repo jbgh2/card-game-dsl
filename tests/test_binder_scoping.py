@@ -402,18 +402,17 @@ def test_rotate_of_a_let_bound_local_is_rejected() -> None:
     )
 
 
-# The three binding node kinds `_rewrite` scopes in its own arms rather than
+# The binding node kinds `_rewrite` scopes in its own arms rather than
 # through the registry. Each is here for a stated reason, not because it was
 # missed: a `let`'s two names scope in opposite directions (its index inward to
-# its own value, its name forward to later statements), a `ProduceArm`'s binders
-# scope to the arm's body through the outcome machinery, and `_rewrite` returns
-# early for a `TypeDef` and scopes its derived fields itself.
-_SCOPED_BY_HAND = frozenset({"LetStmt", "ProduceArm", "TypeDef"})
+# its own value, its name forward to later statements), and a `ProduceArm`'s
+# binders scope to the arm's body through the outcome machinery.
+_SCOPED_BY_HAND = frozenset({"LetStmt", "ProduceArm"})
 
 
 def test_every_binding_node_kind_scopes_its_binder() -> None:
     """A binding node kind reaches `_rewrite` with a row in
-    `_BINDER_SCOPE_FIELDS`, or it is one of the three that arm scopes by hand.
+    `_BINDER_SCOPE_FIELDS`, or it is one of the kinds that arm scopes by hand.
 
     This is the completeness half its sibling below disclaims, and it is worth
     a pin because the failure is SILENT IN BOTH DIRECTIONS. `_rewrite` reads

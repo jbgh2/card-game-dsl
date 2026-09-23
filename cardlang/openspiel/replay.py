@@ -267,7 +267,7 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
     winners); team-keyed scores map each player to their team's score. An
     elimination (`loser:`) game returns +1 per survivor and -(n-1) for the
     loser, which sums to zero."""
-    n_players = game.players.low
+    n_players = game.players.count
     if game.winner is None:
         assert result.loser is not None
         return [
@@ -343,7 +343,7 @@ class LiveLine:
 
     def play(self, policies: Mapping[int, SeatPolicy]) -> LiveEnd:
         game, space = load(self.path)
-        logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.low)}
+        logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
         world: list[RuntimeState] = []
         views: dict[int, SeatView] = {}
 
@@ -389,7 +389,7 @@ def run(
     """Replay ``history`` under ``seed``; return the next decision or the result."""
     game, space = load(path_str)
     logs: dict[int, list[tuple[Any, ...]]] = {
-        p: [] for p in range(game.players.low)
+        p: [] for p in range(game.players.count)
     }
 
     def observe(player: int, event: tuple[Any, ...]) -> None:

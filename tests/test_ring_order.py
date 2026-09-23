@@ -1,18 +1,14 @@
-"""The auction round's ring, and the one traversal its `order` clause names.
+"""The auction round's ring, and the one traversal it walks.
 
 The auction form walks a *continuous ring* — `order[i % n]`, the pointer advancing
-each turn — and `order ring` is the only value the axis holds, equal to writing no
-clause at all. The clause survives its second value as the docking point a further
-traversal arrives at; why it is kept, and what a further one owes, is
-`docs/decisions.md`, "The auction form of `round`", under Order.
+each turn (`docs/decisions.md`, "The auction form of `round`", under Order).
 
 What is pinned here divides by who meets it. The ring's own stepping and poker's
-continuation order are what a designer sees; the two refusals — a mode the axis
-does not hold, and a ring that empties while `until` is still false — are what a
-designer meets when the game description is wrong.
-The clause's grid cells (parse, resolve, IR, execution, crossed against the
-other optional clauses) live in tests/test_round_forms.py; this module holds
-the behaviour that grid cannot state.
+continuation order are what a designer sees; the refusal — a ring that empties
+while `until` is still false — is what a designer meets when the game
+description is wrong. The form's grid cells (parse, resolve, IR, execution,
+crossed against its optional clauses) live in tests/test_round_forms.py; this
+module holds the behaviour that grid cannot state.
 """
 
 from __future__ import annotations
@@ -43,17 +39,12 @@ game G {
   state { acted_count[player] : Integer = 0 }
   phase run {
     round offering [step] from 0 over players where acted_count[player] < 2
-{order}          until (number of players where acted_count[player] < 2) is 0
+          until (number of players where acted_count[player] < 2) is 0
   }
   winner: highest acted_count
 }
 move_type step { effect { acted_count[actor] := acted_count[actor] + 1 } }
 """
-
-
-def _source(order_clause: str = "") -> str:
-    """The fixture, with the `order` clause written or left absent."""
-    return SRC_DEFAULT.replace("{order}", order_clause)
 
 
 def _actor_sequence(src: str) -> list[int]:
@@ -69,50 +60,7 @@ def _actor_sequence(src: str) -> list[int]:
 
 
 def test_continuous_ring_interleaves_the_seats() -> None:
-    assert _actor_sequence(_source()) == [0, 1, 2, 0, 1, 2]
-
-
-# The misuse probe: the grammar admits `order <NAME>`, so every wrong spelling a
-# designer might reach for arrives at resolve, not at the parser. `priority` is
-# the retired value and the one most likely to be typed — from an older game
-# file, or from anywhere describing poker's betting.
-#
-# There is deliberately no companion pin that `order ring` and an absent clause
-# play the same, though both are legal: nothing below resolve reads
-# `order_mode`, so the two spellings are one code path and such a pin could not
-# fail under any mutation of the traversal it claimed to watch. What the clause
-# DOES prove is that it parses, resolves, emits and runs, and that is the round
-# form grid's `order=ring` cells in tests/test_round_forms.py, whose ledger owns
-# the record.
-PROBE_SPELLINGS = ("priority", "simultaneous", "Ring", "rings")
-
-
-def test_an_order_mode_the_axis_does_not_hold_is_refused() -> None:
-    """Resolve names the legal set, so the message is the whole remedy.
-
-    The expectation is derived from the registry rather than spelled: a value
-    added to `ROUND_ORDER_MODES` changes what this test demands back, and the
-    probe list is checked against the registry rather than filtered by it — a
-    probe silently dropped because it became legal is the vacuously-green shape.
-    The list's own non-emptiness is asserted for the same reason and not as
-    ceremony: an emptied tuple satisfies the disjointness check and the loop
-    alike, which is this repo's recorded empty-input-set defect wearing a
-    probe's name.
-    """
-    assert PROBE_SPELLINGS, (
-        "the probe list is empty, so this test exercises no refusal at all"
-    )
-    legal = set(n.ROUND_ORDER_MODES) & set(PROBE_SPELLINGS)
-    assert not legal, (
-        f"{sorted(legal)} is a legal order mode again, so it no longer probes "
-        f"anything — choose a spelling the axis does not hold"
-    )
-    for spelling in PROBE_SPELLINGS:
-        with pytest.raises(DiagnosticError) as excinfo:
-            check_dsl(_source(f"          order {spelling}\n"), "order.cardlang")
-        message = str(excinfo.value)
-        assert f"round order '{spelling}' is unknown" in message, message
-        assert str(sorted(n.ROUND_ORDER_MODES)) in message, message
+    assert _actor_sequence(SRC_DEFAULT) == [0, 1, 2, 0, 1, 2]
 
 
 EMPTY_RING = """

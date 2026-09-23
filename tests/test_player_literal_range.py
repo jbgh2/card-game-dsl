@@ -25,8 +25,8 @@ grammar and AST for every place an integer reaches a Player/Team, NOT the set of
 sites the guard happens to touch. It is: the EXPRESSION and CALL positions
 (zone-family subscript, keyed-state index read/write, native/game-function/
 procedure call arg, each also with an OPTIONAL `Player?`/`Team?` expectation);
-the DECLARATION and BINDING positions (`state` default, scalar `:=`, struct
-field, variant payload, `as`, `turns from`/`over`); and the clauses that carried
+the DECLARATION and BINDING positions (`state` default, scalar `:=`, variant
+payload, `as`, `turns from`/`over`); and the clauses that carried
 NO player check at all before the choke point (`offer to`, `loser:`, `round
 from`/`over`) -- typed AND ranged in one move now. The TEAM axis is the same
 positions wherever a Team is expected.
@@ -34,8 +34,8 @@ positions wherever a Team is expected.
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   an integer literal in a Player/Team position is accepted iff it names
-            a member the game has (`0 <= k < bound`; bound = a range game's `high`
-            for players, `len(teams)` for teams); otherwise a check-time
+            a member the game has (`0 <= k < bound`; bound = the `players:`
+            count for players, `len(teams)` for teams); otherwise a check-time
             diagnostic. Two-sided -- a negative literal is rejected as well as an
             over-high one. Holds at EVERY position an integer coerces to a
             Player/Team, by construction: all route through `_check_operand`.
@@ -44,8 +44,8 @@ domain:     {position} x {in range | over high} x role {Player | Team}, plus the
             framing-reconciled set above (`_PLAYER_BUILDERS`/`_TEAM_BUILDERS`
             below): expression/call, declaration/binding, and the
             clause positions. Player positions run on a fixed 2-seat game
-            (plus a `players: 2..4` range-count boundary: seat 3 accepted, seat 4
-            rejected); Team positions on a 2-team (`teams: [[0,2],[1,3]]`)
+            (plus a 4-seat count boundary: seat 3 accepted, seat 9 rejected);
+            Team positions on a 2-team (`teams: [[0,2],[1,3]]`)
             game, plus the empty-team boundary -- a TEAMLESS game (`max_teams ==
             0`) is a KNOWN empty domain, so every team literal, even `0`, rejects.
 
@@ -73,20 +73,13 @@ registry:   the range check is `_check_role_literal`, called from the ONE choke
 does not prove:  two things.
             That every TEAM position is ranged. The team grid runs two
             positions -- a team-keyed index and a Team call argument -- and
-            the rest (struct field, variant payload, state default, scalar
-            assign) rest on a COMPOSITION rather than an executed cell: the
-            choke-point pin proves every position routes through
-            `_check_operand`, the Player grid proves each such position
+            the rest (variant payload, state default, scalar assign) rest on
+            a COMPOSITION rather than an executed cell: the choke-point pin
+            proves every position routes through `_check_operand`, the Player grid proves each such position
             reaches it, and the two team rows prove
             `_check_operand` -> `_check_role_literal` ranges a `Team`. Their
             product is an argument that every team position is ranged; nothing
             here runs one.
-            And that an ACCEPTED literal names a seat the played game has. A
-            range game's seat literals are bounded by `high` while the game is
-            played at `low`, so `players: 2..5` accepts `hand[3]` against a
-            bound no run reaches -- the acceptances at the top of that range
-            are the cells nothing executes. What stands there instead is the
-            runtime's typed `OwnerGuardError` on the phantom key.
 """
 
 from __future__ import annotations
@@ -174,18 +167,17 @@ def test_negative_seat_literal_is_rejected() -> None:
     assert "2 player(s) (0..1)" in msg
 
 
-# --- the range-count boundary: the bound is the MAX seats -------------------
+# --- the count boundary: the bound is the declared seat count ---------------
 
 
-def test_range_game_accepts_up_to_the_max_seat() -> None:
-    # players: 2..4 -> seats 0..3 possible; seat 3 is legal at the largest table.
-    check_dsl(card_game(players="  players: 2..4\n", body="    score[3] := 1\n"), "seat.cardlang")
+def test_a_four_seat_game_accepts_its_top_seat() -> None:
+    check_dsl(card_game(players="  players: 4\n", body="    score[3] := 1\n"), "seat.cardlang")
 
 
-def test_range_game_rejects_beyond_the_max_seat() -> None:
-    # Seat 9, count 4 -- distinct, so the range boundary (`high`) is proven the
-    # count source, not echoed from the offending literal.
-    msg = _reject(card_game(players="  players: 2..4\n", body="    score[9] := 1\n"))
+def test_a_four_seat_game_rejects_beyond_its_top_seat() -> None:
+    # Seat 9, count 4 -- distinct, so the declared count is proven the bound's
+    # source, not echoed from the offending literal.
+    msg = _reject(card_game(players="  players: 4\n", body="    score[9] := 1\n"))
     assert "seat 9 is out of range" in msg
     assert "4 player(s) (0..3)" in msg
 
@@ -270,7 +262,7 @@ def test_valid_seat_literal_to_an_optional_player_param_is_accepted() -> None:
 # The positions above are the EXPRESSION and CALL sites the per-site helper
 # already guarded. These are the rest of the class: every position an integer
 # literal coerces to a Player -- a `state` default, a scalar `:=`, an `as`
-# binding, a `turns`/`round` seat, a struct field, a variant payload -- plus the
+# binding, a `turns`/`round` seat, a variant payload -- plus the
 # clauses that carried NO player type-check at all (`offer to`, `loser:`,
 # `round`), plus the parallel TEAM axis (`Integer` coerces to `Team` too, and the
 # range gate ignored it). One operand check (`_check_operand`) routes them all
@@ -299,13 +291,11 @@ def _decl_game(
     participants: str = "all players",
     offer_tgt: str = "t",
     loser: str = "",
-    prelude: str = "",
 ) -> str:
     """A 2-seat card game with a slot at each declaration/binding/untyped Player
     position. Every slot defaults to an in-range, well-formed value, so a probe
     changes exactly one position and nothing else moves."""
     return (
-        f"{prelude}"
         "game Seats {\n"
         "  players: 2\n"
         "  max_length: 20\n"
@@ -421,8 +411,6 @@ _PLAYER_BUILDERS: dict[str, Callable[[int], str]] = {
     "as_block":           lambda k: _decl_game(body=f"    as {k} {{ score[actor] := 1 }}\n"),
     "turns_leader":       lambda k: _decl_game(leader=str(k)),
     "turns_participants": lambda k: _decl_game(participants=f"[{k}]"),
-    "struct_field":       lambda k: _decl_game(prelude="type Rec = { who : Player }\n",
-                                               extra_state=f"  r : Rec = Rec {{ who: {k} }}"),
     "variant_payload":    _variant_game,
     # untyped clauses (no player type-check at all before the choke point)
     "offer_to":           lambda k: _decl_game(offer_tgt=str(k)),

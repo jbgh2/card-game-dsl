@@ -477,11 +477,9 @@ _HOME_SETUP = (
 
 @pytest.mark.parametrize(
     "players_line, count",
-    [("  players: 3\n", "3"), ("  players: 4\n", "4"), ("  players: 2..4\n", "2-4")],
+    [("  players: 3\n", "3"), ("  players: 4\n", "4")],
 )
 def test_frame_verb_in_a_non_two_player_game_is_rejected(players_line: str, count: str) -> None:
-    # 3+, or a RANGE (refused even though it includes two -- the game may be
-    # instantiated with more).
     msg = _reject(_grid_game(players_line, _HOME_SETUP))
     assert "`home` reads a grid's two-player movement frame" in msg
     assert f"declares {count} players" in msg

@@ -745,7 +745,7 @@ _CASES: tuple[_Refusal, ...] = (
 def _bare_state(game: n.Game) -> RuntimeState:
     """A world with the game's zones and nothing played, so a zone the store
     holds and one it does not can be handed to the same helper."""
-    seating = Seating(game.players.low, clockwise=True)
+    seating = Seating(game.players.count, clockwise=True)
     zones = ZoneStore(game.zones, seating.players)
     return RuntimeState(seating, zones, random.Random(0))
 

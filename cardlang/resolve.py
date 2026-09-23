@@ -38,10 +38,7 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               any of the sites in ``RESERVATION_SITES`` takes a spelling one of
               ``POSITION_NAME_SOURCES`` already holds.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
-              zone/rule/move-type/phase reference reaching a later pass; a
-              ``type`` declaration — a game's or an imported library's — whose
-              name a built-in type, a zone type, a domain id, a collection noun
-              or the collection type constructor already holds; an entry's
+              zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
               type layer;
               the runtime hard-fails on an unclassified name
@@ -361,15 +358,13 @@ def _check_reserved(
 # Every definition kind a `library { }` may hold, as (Game/Library field name,
 # the noun a diagnostic calls it). This tuple IS the closed domain the import
 # tier's collision Owner Guards sweep: `_apply_uses` derives its per-kind loops
-# from it, so a seventh definition form added to `Library` without an entry here
+# from it, so a new definition form added to `Library` without an entry here
 # is a static failure in `tests/test_family_libraries.py`, not a silently unguarded
 # collision. Zones and state are absent as far as the corpus has forced, not
 # permanently — what a library needs from the game it names in `requires`.
 _LIBRARY_DEF_KINDS: tuple[tuple[str, str], ...] = (
     ("rules", "rule"),
     ("move_types", "move type"),
-    ("types", "type"),
-    ("defines", "define"),
     ("functions", "function"),
     ("procedures", "procedure"),
 )
@@ -453,10 +448,6 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.MoveTypeDef, "name"): "move_type",
     (n.FunctionDef, "name"): "function",
     (n.ProcedureDef, "name"): "procedure",
-    (n.DefineDef, "name"): "define",
-    (n.TypeDef, "name"): "type",
-    (n.StructField, "name"): "field",
-    (n.DerivedField, "name"): "field",
     (n.Parameter, "name"): "param",
     (n.PrimitiveDecl, "name"): "primitive",
     (n.OutcomeCase, "tag"): "outcome_tag",
@@ -521,8 +512,6 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # registered here so a future phase-renaming transform learns of it from
     # the registry rather than from an author remembering.
     (n.PrimitiveRead, "phase"): "phase",
-    (n.StructField, "type_name"): "type",
-    (n.StructLit, "type_name"): "type",
     (n.OutcomeCase, "payload_types"): "type",
     # Definitions, by kind. The move-type slots split across two namespaces and
     # the split is load-bearing, not a nicety: an OFFERING names move types the
@@ -538,7 +527,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.MoveEvent, "move_type"): "kernel_move_type",
     (n.RuleDef, "constrains"): "kernel_move_type",
     (n.RuleRef, "name"): "rule",
-    (n.Produces, "define"): "define",
+    (n.Produces, "phase"): "phase",
     (n.RunStmt, "name"): "procedure",
     (n.Call, "func"): "function",
     # The Primitive query registries a `round` selects from. A closed kernel table
@@ -572,13 +561,11 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # registry, and a role or type name in parameter position.
     (n.TypeRef, "name"): "zone_type",
     (n.TypeArg, "name"): "zone_type_arg",
-    # Names owned by a declaration reached elsewhere: a struct's fields belong to
-    # the type its literal names, a named argument's to the callee's parameter
-    # list, a produced tag to the define's outcome cases. Each is a reference,
-    # and none is an independent channel — the owning name is a slot above.
+    # Names owned by a declaration reached elsewhere: a member's field belongs
+    # to the fixed field table of its receiver's type, a produced tag to the
+    # outcome phase's cases. Each is a reference, and none is an independent
+    # channel — the owning name is a slot above or a closed table.
     (n.Member, "field"): "field",
-    (n.FieldInit, "name"): "field",
-    (n.NamedArg, "name"): "param",
     (n.Produce, "tag"): "outcome_tag",
     (n.ProduceArm, "tag"): "outcome_tag",
     # The item noun a movement moves (`cards`, `coins`): drawn from the game's
@@ -604,14 +591,12 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.SubsetQuery, "size_mode"),
         (n.Quantifier, "kind"),
         (n.PhaseQualifier, "kind"),
-        (n.Demands, "kind"),
         (n.Comprehension, "agg"),
         (n.Choose, "domain"),
         (n.Transfer, "verb"),
         (n.Transfer, "selection_mode"),
         (n.Transfer, "amount"),
         (n.Transfer, "distribution"),
-        (n.AuctionRound, "order_mode"),
         (n.Winner, "rank_dir"),
         (n.Game, "ranking_convention"),
         # Annotated `TrickOrderRowKey` (a `Literal`), like `content_flavor`
@@ -772,7 +757,6 @@ def slot_strings(node: object, field_name: str) -> tuple[str, ...]:
 # than silently defaulting to "always reachable", which is the shape of the
 # defect this table exists to end.
 _DEFINITION_CONTAINERS: dict[type, tuple[str, str]] = {
-    n.DefineDef: ("defines", "define"),
     n.MoveTypeDef: ("move_types", "move_type"),
     n.ProcedureDef: ("procedures", "procedure"),
 }
@@ -794,15 +778,15 @@ def _reachable_definitions(game: n.Game) -> dict[tuple[str, str], object]:
     """Every definition container reachable from a phase body, keyed by
     (namespace, name).
 
-    A fixpoint, not one pass: a define invoked from a reachable move-type
+    A fixpoint, not one pass: a procedure run from a reachable move-type
     effect is reachable, and so is a move type offered from inside a reachable
-    define body. Which slots NAME a container is read off `slot_namespace`
+    procedure body. Which slots NAME a container is read off `slot_namespace`
     rather than matched by node kind, so a future invoking construct added to
     `_REFERENCE_SLOTS` reaches this sweep without editing it.
 
     NOT a Shadow of `_reaches`: that walks the function-to-function call graph
     for recursion detection (name to name, one namespace). This walks name to
-    CONTAINER across three namespaces, and answers a different question — does
+    CONTAINER across two namespaces, and answers a different question — does
     this body run at all. It also does not close issue #242, which is about
     what STATE a callable body may read; this establishes only which bodies
     run, which #242's conservative rule would need but is not."""
@@ -901,15 +885,6 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     _check_provided_shadowed_by_binder(game, claims.provided, bag)
     skip = claims.contested | frozenset(claims.provided)
     for use, library in libraries:
-        # FIRST of the per-library checks: a reserved type name is the library
-        # author's own defect, and every check below it reports something the
-        # reserved name makes unusable anyway. Reported here rather than at
-        # the game-level reservation guard because that one runs after
-        # `_raise_if_errors`, so any other library error — an unmet contract
-        # above all — would raise the pass before the reservation ran, and the
-        # author would meet the real defect only after taking advice that does
-        # not fix it.
-        _check_library_type_names_are_not_taken(game, library, bag)
         _check_library_encapsulation(library, bag)
         _check_contract_shapes(library, bag)
         _check_require_indexes(library, bag)
@@ -1031,12 +1006,10 @@ def _check_library_collisions(
 _INJECTABLE_TARGETS: tuple[tuple[str, str], ...] = (
     ("zones", "zone"),
     ("positions", "position domain"),
-    # The six definition kinds, with the SAME nouns as `_LIBRARY_DEF_KINDS` so
+    # The definition kinds, with the SAME nouns as `_LIBRARY_DEF_KINDS` so
     # the same-kind skip below matches by noun. Pinned equal to it by
     # `tests/test_family_libraries.py::test_injectable_targets_cover_every_def_kind`.
     ("functions", "function"),
-    ("types", "type"),
-    ("defines", "define"),
     ("move_types", "move type"),
     ("rules", "rule"),
     ("procedures", "procedure"),
@@ -1313,7 +1286,7 @@ def _check_provided_readonly(
 # binding_kind`, so a new binding node kind must be filed under one side or the
 # other rather than defaulting to either.
 _AUTHOR_CHOSEN_BINDERS: frozenset[type] = frozenset(
-    {n.ForEach, n.Turns, n.LetStmt, n.ProduceArm, n.TypeDef}
+    {n.ForEach, n.Turns, n.LetStmt, n.ProduceArm}
 )
 
 
@@ -1440,9 +1413,9 @@ def is_zone_contract(want: n.RequireDecl) -> bool:
     Read off the type registries, which is a DERIVATION rather than an authored
     rule only because no name reaches two of them: `KNOWN_TYPE_NAMES`,
     `LIBRARY_ZONE_TYPES` and the block's collection constructor are pairwise
-    disjoint, and the two author-chosen namespaces that could have collided
-    with any of them — a game's `positions { }` and its own `type`s — are
-    refused those spellings where they are DECLARED (`POSITION_NAME_SOURCES`,
+    disjoint, and the author-chosen namespace that could have collided with
+    any of them — a game's `positions { }` — is refused those spellings where
+    they are DECLARED (`POSITION_NAME_SOURCES`,
     asked at every site in `RESERVATION_SITES`). Without those Owner Guards
     this function would be picking one meaning of an ambiguous name with
     nowhere to record the choice."""
@@ -1460,11 +1433,8 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         # both — the entry's own leg then refuses the crossed shapes (a `?` on a
         # zone type, an `<owner>` on a state type), which is a shape question
         # rather than a spelling one.
-        "type": frozenset(t.name for t in library.types)
-        | KNOWN_TYPE_NAMES
-        | frozenset(LIBRARY_ZONE_TYPES),
+        "type": KNOWN_TYPE_NAMES | frozenset(LIBRARY_ZONE_TYPES),
         "move_type": frozenset(m.name for m in library.move_types),
-        "define": frozenset(d.name for d in library.defines),
         "procedure": frozenset(p.name for p in library.procedures),
         # BUILTIN_CALL_FUNCS, not CALL_FUNCS: a library body may call the
         # generic native functions the language ships, and may not call a
@@ -1501,9 +1471,10 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 # deleting direction — `test_every_reachable_reference_namespace_is_swept_or_
 # excused` would stay green with the row gone, which makes the row read as a
 # guarantee it never was. (The unreachable namespaces are `rule`, `game`,
-# `library`, `component_set`, `board_family`, `zone_type` and `zone_type_arg`,
-# each because its clause — `active_rules:`, `zones { }`, `cards:`, `board:`,
-# `uses` — is a GAME clause the library grammar has no production for. One
+# `library`, `component_set`, `board_family`, `zone_type`, `zone_type_arg` and
+# `param`, each because its clause — `active_rules:`, `zones { }`, `cards:`,
+# `board:`, `uses`, `primitives { }` — is a GAME clause the library grammar has
+# no production for. One
 # SLOT of a swept namespace is unreachable the same way and is recorded here
 # rather than as a row, since its namespace is swept and a row would read as
 # "not swept": `deck_suit` is swept for the card literal's suit, which a
@@ -1551,15 +1522,11 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "refused to the library's author (issue #170)"
     ),
     "outcome_tag": (
-        "guarded elsewhere: a `produce` outside a define or outcome-phase body is "
-        "refused outright, and a tag naming no declared outcome is refused against the "
-        "outcome registry — both to the library's author (probed via the full "
+        "guarded elsewhere: a `produce` outside an outcome-phase body is refused "
+        "outright, and a library holds no phase — so every library `produce` is "
+        "refused to the library's author (probed via the full "
         "pipeline; `resolve` alone accepts them, which is what made the first reading "
         "of this row say the tags were merely `owned` by a swept name)"
-    ),
-    "param": (
-        "guarded elsewhere: `NamedArg` is refused outright — named call arguments are "
-        "not supported, so the parameter name never reaches a namespace"
     ),
     "field": (
         "designed: `x.field` on anything but the `state` pronoun is a field of that "
@@ -1704,14 +1671,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     discarded = DiagnosticBag()
     classified: list[object] = []
     for field, _ in _LIBRARY_DEF_KINDS:
-        value = getattr(library, field)
-        if field == "types":
-            # `_rewrite` returns a `TypeDef` untouched — a derived body reads
-            # sibling fields by bare name and needs them scoped in. Split
-            # exactly as `_classify_names` splits it, for the same reason.
-            classified.extend(_classify_type_derived(t, cats, discarded) for t in value)
-        else:
-            classified.append(_rewrite_value(value, cats, discarded))
+        classified.append(_rewrite_value(getattr(library, field), cats, discarded))
     # A provided variable's DEFAULT is an expression like any other, so it can
     # leak like any other — `limit : Integer = house_rule` would reach past the
     # contract into the game exactly as a move-type effect would.
@@ -1767,7 +1727,6 @@ _NAMESPACE_NOUN: dict[str, str] = {
     "mode": "mode",
     "type": "type",
     "move_type": "move type",
-    "define": "define",
     "procedure": "procedure",
     "position": "position domain",
     "enum_value": "direction value",
@@ -1797,11 +1756,10 @@ _NAMESPACE_ADVICE: dict[str, str] = {
         "game's phases — keep the definition that needs it in the game"
     ),
     "type": (
-        "declare the type in the library, or keep this definition in the game "
-        "(a `requires` entry's type is a state type or a kernel zone type)"
+        "use a built-in type, or keep this definition in the game (a `requires` "
+        "entry's type is a state type or a kernel zone type)"
     ),
     "move_type": "define the move type in the library, or keep this definition in the game",
-    "define": "define it in the library, or keep this definition in the game",
     "procedure": "define the procedure in the library, or keep this definition in the game",
     "position": (
         "a library declares no position domains — keep the definition that needs it "
@@ -1923,7 +1881,7 @@ def _spelled_contract(want: n.RequireDecl) -> str:
     """A `requires` entry as its author wrote it, for a diagnostic to quote."""
     index = f"[{want.index}]" if want.index else ""
     args = f"<{', '.join(a.name for a in want.type_args)}>" if want.type_args else ""
-    return f"{want.name}{index} : {want.type_name}{args}{'?' if want.optional else ''}"
+    return f"{want.name}{index} : {want.type_name}{args}"
 
 
 def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
@@ -1986,13 +1944,6 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     want.span,
                 )
             continue
-        if want.optional:
-            bag.error(
-                f"library '{library.name}' requires `{spelled}`, but "
-                f"'{want.type_name}' is a zone type and a zone has no nullable "
-                f"form — drop the `?`",
-                want.span,
-            )
         takes_owner = LIBRARY_ZONE_TYPES[want.type_name]
         if takes_owner and len(want.type_args) != 1:
             bag.error(
@@ -2251,7 +2202,7 @@ def _check_requires(
             continue
         found = declared.get(want.name, [])
         wanted = f"{want.name}{f'[{want.index}]' if want.index else ''}"
-        spelled = f"{wanted} : {want.type_name}{'?' if want.optional else ''}"
+        spelled = f"{wanted} : {want.type_name}"
         if not found:
             bag.error(
                 f"library '{library.name}' requires state `{spelled}`, which "
@@ -2287,7 +2238,7 @@ def _check_requires(
                 f"{need}, but game '{game.name}' declares it as {got}",
                 use.span,
             )
-        if (have.type_name, have.optional) != (want.type_name, want.optional):
+        if (have.type_name, have.optional) != (want.type_name, False):
             bag.error(
                 f"library '{library.name}' requires state `{spelled}`, but game "
                 f"'{game.name}' declares it as "
@@ -2316,7 +2267,6 @@ def resolve(game: n.Game) -> n.Game:
     _check_trick_order_partition(game, bag)
     _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
-    _check_type_names_are_not_taken(game, bag)
     _check_reserved_params(game, bag)
     _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
@@ -2438,10 +2388,9 @@ def _introduced_binders(node: object, flavor: Flavor = "card") -> tuple[str, ...
 
 
 def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
-    """Exhaustive over `Node` — deliberately. This registry's only two known
-    escapes (`ProduceArm`, then `TypeDef`) both lived in a `case _: return ()`
-    catch-all: a node kind nobody had thought about answered "no binders"
-    without anyone having decided that. Now a new node kind is a mypy error
+    """Exhaustive over `Node` — deliberately. A `case _: return ()` catch-all
+    answers "no binders" for a node kind nobody has thought about, without
+    anyone having decided that; exhaustive, a new node kind is a mypy error
     here until someone files it under binding or non-binding by hand.
 
     `LetStmt` returns both `name` and `index` (when present) — every name it
@@ -2499,16 +2448,6 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             # `_check_procedures` mistook a legitimately-bound arm name for an
             # unbound reference. Both fall out of the registry being complete.
             return node.binders
-        case n.TypeDef():
-            # A struct's declared field names, which `_classify_type_derived` scopes
-            # as locals inside the type's derived-field bodies (`derived { seat =
-            # actor }` reads sibling fields by bare name). The same mechanism as the
-            # arm binders above, and so the same hazard: a field named `actor` is a
-            # user-chosen name that shadows the call-site pronoun inside every
-            # derived body. `_rewrite` returns early for `TypeDef` and scopes the
-            # fields itself, so listing them here changes no scoping — it only makes
-            # them visible to the sweeps that read this registry, which is the point.
-            return tuple(f.name for f in node.fields)
         # A filter-less Transfer/EpistemicOp falls through its guarded arm above:
         # no candidate set, so no `card` binder.
         case n.Transfer() | n.EpistemicOp():
@@ -2529,8 +2468,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             # (`_check_reserved_params` covers them via `_PARAM_BEARING`).
             | n.PrimitivesBlock() | n.PrimitiveDecl() | n.PrimitiveRead()
             | n.AppliesWhen() | n.Demands()
-            | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
-            | n.OutcomeCase() | n.StructField() | n.DerivedField()
+            | n.FunctionDef() | n.ProcedureDef() | n.OutcomeCase()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
             | n.CardPointsTable() | n.CardPointsEntry()
             | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
@@ -2554,8 +2492,8 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
         # Expressions that bind nothing.
         case (
             n.NameRef() | n.IntLit() | n.StrLit() | n.ListLit() | n.CardLiteral()
-            | n.AllPlayers() | n.Member() | n.Subscript() | n.FieldInit()
-            | n.StructLit() | n.Call() | n.NamedArg() | n.BinOp() | n.Not()
+            | n.AllPlayers() | n.Member() | n.Subscript()
+            | n.Call() | n.BinOp() | n.Not()
             | n.IsCheck() | n.IfExpr() | n.Choose()
             # The block itself binds nothing: each ROW binds `card` over its
             # own body (above).
@@ -2985,14 +2923,8 @@ _GAME_LEVEL_OWNED_BY_ANOTHER_GUARD = frozenset(
 # `_reachable_definitions` answers WHICH of these bodies run, which is the
 # half of #242 a conservative rule would need — but not #242 itself, which
 # asks which phase's state a body that runs may read. The gap stands.
-#
-# `types` is deliberately NOT here. A `derived { }` body has the same shape —
-# evaluated lazily at member access, so it too has no single lexical phase —
-# but NO corpus game declares one, so the conservative rule that is unavailable
-# above is free here: a derived body may read game-level state only. It is
-# walked with the rest.
 _GAME_LEVEL_UNCHECKED = frozenset(
-    {"rules", "move_types", "functions", "procedures", "defines"}
+    {"rules", "move_types", "functions", "procedures"}
 )
 
 _GAME_LEVEL_SKIP = _GAME_LEVEL_OWNED_BY_ANOTHER_GUARD | _GAME_LEVEL_UNCHECKED
@@ -3019,7 +2951,7 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     default is reported once, by the guard whose rule actually decides it.
 
     Out of domain, deliberately: callable bodies — move types, rules,
-    functions, procedures, defines. They have no enclosing phase; a move type
+    functions, procedures. They have no enclosing phase; a move type
     is declared once and offered from wherever a game offers it, so its
     legality is a reachability question, not a lexical one, and 112 callable
     bodies across the corpus legitimately read phase-scoped state (issue #242).
@@ -3364,8 +3296,7 @@ def _sweep_aliases(
         for f in fields(node):
             # `_BINDER_SCOPE_FIELDS` is not the whole scoping story: `_rewrite`
             # scopes some binder-introducing kinds itself and so leaves them out
-            # of the table (a `produces:` arm's payload binders, a struct's
-            # derived-field names). Absent an entry, shadow the node's binders in
+            # of the table (a `produces:` arm's payload binders). Absent an entry, shadow the node's binders in
             # EVERY field — the safe direction, since over-shadowing can only
             # miss a degenerate comparison, while under-shadowing REFUSES a
             # sound one (`for each player p: … produces: won(p) { p is actor }`,
@@ -3465,8 +3396,8 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
 # `Boolean` is here on the corpus's authority, not as a lenience -- `cheat`
 # ranks on `won[player]` and `coup` on `alive[player]`, so an Integer-only
 # rule would refuse two corpus games. Every other member of
-# `typecheck.KNOWN_TYPE_NAMES` either cannot be compared at all (`Card` and a
-# struct are unorderable) or -- worse -- compares fine and means nothing: a
+# `typecheck.KNOWN_TYPE_NAMES` either cannot be compared at all (`Card` is
+# unorderable) or -- worse -- compares fine and means nothing: a
 # `Player`-typed target ranks without complaint and delivers SEAT IDS as
 # utilities, silently, at every layer.
 _RANKABLE_TYPES: frozenset[str] = frozenset({"Integer", "Boolean"})
@@ -3620,28 +3551,13 @@ def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
         return
     if not game.players.is_well_formed:
         # Shadow Guard. `typecheck` owns the players-count diagnostic ("a game
-        # needs at least one player", "upper bound precedes lower bound") and
+        # needs at least one player") and
         # is the only place it should be reported. Resolve raises before
         # typecheck ever runs, so building a partition complaint on top of a
         # malformed `players:` would REPLACE the real diagnostic with a
         # derivative one and send the author to fix the wrong clause.
         return
-    if game.players.varies:
-        # A fixed team list cannot partition a seat set that varies, and
-        # WHICH count it would have to cover is genuinely undecided: the
-        # engine plays a range game at `players.low` while the seat-literal
-        # bound uses `high` (issue #296). Refused rather than given a
-        # meaning here -- guessing one would pin a decision nobody made, and
-        # the next author would read its correction as a regression.
-        bag.error(
-            f"game '{game.name}' declares `teams:` beside a variable player "
-            f"count ({game.players.low}..{game.players.high}) — a fixed team "
-            f"list names fixed seats, so it cannot cover a seat set that "
-            f"changes with the count. Declare a single `players:` count",
-            game.span,
-        )
-        return
-    count = game.players.low
+    count = game.players.count
     holding: dict[int, list[int]] = {}
     for team_index, members in enumerate(game.teams):
         for seat in members:
@@ -3701,97 +3617,19 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
 _POSITION_MEMBER_CEILING = 256
 
 
-def _check_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> None:
-    """A declared `type` may not take a name the type namespace already holds.
-
-    A `type` declaration mints a name into the TYPE namespace, and every slot
-    that reads one consults the kernel's registries first — so a struct sharing
-    a reserved spelling is declarable and then unusable in every slot it could
-    be written in, which is accepted-but-ignored one step removed. Refused
-    where the name is DECLARED, so the ambiguity cannot be built, rather than
-    disambiguated at each use by a precedence nobody wrote down.
-
-    A site of `POSITION_NAME_SOURCES`' registry, asked exactly as the sites
-    that mint a position domain ask it. The game's OWN declared type names are
-    subtracted before the question: type-against-type is the self-pair, and
-    `_check_duplicate_names` owns it — a second refusal here would co-report
-    on one defect.
-
-    A LIBRARY's `type` declarations are the sibling site
-    (`_check_library_type_names_are_not_taken`), which runs inside
-    `_apply_uses` so a library-alone defect is named before anything that
-    would raise the pass. By the time this guard runs the splice has already
-    happened, so a library type reaching here has cleared that site.
-
-    Free against the corpus — no game declares a struct type, and every
-    position domain is lowercase — so this reserves a name space nobody is
-    using rather than reclaiming one."""
-    without_own_types = replace(game, types=())
-    for declared in game.types:
-        source = _reserved_domain_source(
-            without_own_types, declared.name, DECLARED_TYPE_SITE
-        )
-        if source is not None:
-            bag.error(
-                f"type '{declared.name}' collides with {source} — pick another "
-                f"name",
-                declared.span,
-            )
-
-
-def _check_library_type_names_are_not_taken(
-    game: n.Game, library: n.Library, bag: DiagnosticBag
-) -> None:
-    """The same reservation, at a library's own `type` declarations.
-
-    A library's types splice into the game, so they mint into the very
-    namespace the sibling guard reserves — and a library that declares
-    `type Hand` is broken whichever game imports it, which is why it is
-    reported to the LIBRARY's author, at the library's span, like every other
-    library-alone property (decisions.md "Family libraries"). Reported from
-    inside `_apply_uses` so it lands before the errors that raise the pass:
-    every reserved spelling makes the type unusable in the very slots the rest
-    of the library's contract is about, so the author must hear about it
-    first, not after taking advice that cannot fix it.
-
-    The game's own declared types are subtracted before the question, which
-    settles two pairs at once, both owned by `_check_library_collisions`
-    earlier in the same pass: library-type against library-type — one library
-    declaring the name twice, or two libraries each declaring it — and
-    library-type against the game's own, whose diagnostic says which file
-    declared each.
-    """
-    without_game_types = replace(game, types=())
-    for declared in library.types:
-        source = _reserved_domain_source(
-            without_game_types, declared.name, LIBRARY_TYPE_SITE
-        )
-        if source is not None:
-            bag.error(
-                f"library '{library.name}' declares type '{declared.name}', "
-                f"which collides with {source} — pick another name",
-                declared.span,
-            )
-
-
 # The sites that reserve a name against the sources below: every place a
 # spelling enters a namespace the sources also name — the author's
-# `positions { }` block, the two domains a `board:` clause mints, and the two
-# `type` declaration sites, a game's and a library's. Named here so the set can
+# `positions { }` block and the two domains a `board:` clause mints. Named here so the set can
 # be enumerated — the sources' accumulation is one axis of this guard, and its
 # consumers are the other; tests/test_positions.py crosses them and scrapes the
 # call sites, so a consumer cannot join in silence any more than a source can.
 DECLARED_POSITION_SITE = "declared"
 MINTED_CELL_SITE = "board-minted cell"
 MINTED_DIRECTION_SITE = "board-minted dir"
-DECLARED_TYPE_SITE = "declared type"
-LIBRARY_TYPE_SITE = "library-declared type"
 RESERVATION_SITES: tuple[str, ...] = (
     DECLARED_POSITION_SITE,
     MINTED_CELL_SITE,
     MINTED_DIRECTION_SITE,
-    DECLARED_TYPE_SITE,
-    LIBRARY_TYPE_SITE,
 )
 
 
@@ -3802,19 +3640,17 @@ class ReservedNameSource:
     The registry below is the AXIS of the reservation. Its domain is "every
     namespace whose names a position domain must not collide with", and that
     domain accumulates: each construct that mints names into a namespace of
-    its own (struct types, zone types, collection nouns, the constructor
-    word) is one more source. An inline union of sources has nothing to
-    enumerate, so a sweep built on one can derive from every source it
-    already knows and stay blind to the next — a `positions { R : 1..4 }`
-    beside `type R` reads the struct as the position's Integer until someone
-    notices. A table can be iterated: by the guard below, by the diagnostic
+    its own (zone types, collection nouns, the constructor word) is one more
+    source. An inline union of sources has nothing to enumerate, so a sweep
+    built on one can derive from every source it already knows and stay blind
+    to the next. A table can be iterated: by the guard below, by the diagnostic
     that names which source matched, and by the grid in tests/test_positions.py
     that crosses the sources against `RESERVATION_SITES` — so a source added
     here reaches every site and every cell without a second edit.
 
     `names` takes the game because the sources are not homogeneous: some are
-    static registries, fixed for every game, and one is the game's own `type`
-    declarations. A source that ignores the argument is answering "the same
+    static registries, fixed for every game, and one depends on whether the
+    game declares a board. A source that ignores the argument is answering "the same
     names for every game", which is a fact about that source, not a reason to
     split the table.
 
@@ -3851,9 +3687,6 @@ POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
         "a collection type constructor",
         lambda game: frozenset({COLLECTION_TYPE_CONSTRUCTOR}),
     ),
-    ReservedNameSource(
-        "a declared type name", lambda game: frozenset(t.name for t in game.types)
-    ),
     # The collection noun, found by crossing the sources against the slots that
     # read them. `DomainQuery.binder` carries ONE name resolved against two
     # namespaces, and the optional `in <collection>` clause is what picks: bare
@@ -3862,8 +3695,7 @@ POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
     # rejected in every other board game, with a diagnostic pointing at the
     # collection form — into an accepted quantifier over the declared integer
     # domain, while `any line in lines(3)` in the SAME game still means board
-    # lines. One spelling, two meanings, no diagnostic: the
-    # `positions { R } / type R` defect at a different pair of slots.
+    # lines. One spelling, two meanings, no diagnostic.
     #
     # Two derived narrowings, each closing what would otherwise be an
     # over-reservation the corpus refutes:
@@ -4036,10 +3868,8 @@ def _resolve_board(
             game.board.span,
         )
     # The `cell` clash above is checked against BOTH declared positions and the
-    # reserved set (built-ins + declared type names); `dir` gets the same second
-    # check, or a `type dir = { … }` would resolve clean while `along : dir`
-    # silently read as the minted domain (direction lookup precedes struct
-    # lookup) -- one spelling, two meanings.
+    # reserved set; `dir` gets the same second check, so every name the board
+    # mints is refused against the same sources.
     direction_clash = _reserved_domain_source(
         game, DIRECTION_DOMAIN, MINTED_DIRECTION_SITE
     )
@@ -4202,16 +4032,13 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
     tool, so a clause that enforces nothing is refused rather than parsed and
     dropped. Every test is the COMPLEMENT of what `rules.legal_cards` actually
     reads, never a list of the dead spellings — `LIBRARY_MOVE_TYPES` grows as
-    games land and `DEMAND_KINDS` could too, and an enumeration of the dead
-    would silently re-open this hole for the new member.
+    games land, and an enumeration of the dead would silently re-open this
+    hole for the new member.
 
     Runs after `_instantiate_rules`, so spliced library rules and instantiated
     templates are checked on the same path as hand-written ones.
 
-    Widening enforcement (draughts' mandatory capture, morris's removal
-    restriction) retires these Owner Guards — the surface returns with an
-    implementation behind it. Until then it is deferred, not deleted:
-    docs/roadmap.md "Grammar surface deferred by the checker",
+    Where rules should bind beyond the trick round's card decision is
     docs/open-questions/rule-scope-beyond-trick-play.md.
     """
     where = "docs/open-questions/rule-scope-beyond-trick-play.md"
@@ -4234,20 +4061,7 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
             f"question ({where}).",
             rule.span,
         )
-        return  # the clause Owner Guards below would pile onto the same broken rule
-    if rule.demands is not None and rule.demands.kind != n.DEMAND_KIND_CARDS:
-        bag.error(
-            f"rule '{rule.name}' has a `demands: actions where …` move-shape "
-            f"predicate, which is never enforced: the legal-move engine "
-            f"consults card-set demands only, and no other site consults "
-            f"rules at all. Enforce the move's shape where the move is made "
-            f"(a movement's `chosen N` binds the count, a move type's "
-            f"`when:` guard binds its parameters), or state the constraint "
-            f"as a card set. Binding move-shape predicates is an open "
-            f"question ({where}).",
-            rule.demands.span or rule.span,
-        )
-        return
+        return  # the clause Owner Guard below would pile onto the same broken rule
     if rule.demands is None and rule.exempts is None:
         bag.error(
             f"rule '{rule.name}' enforces nothing: it declares neither a "
@@ -4267,16 +4081,9 @@ def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
             rule.span,
         )
     _check_rule_reaches_a_reader(rule, bag)
-    # A card-set `demands` can filter the legal set to empty; the rule must say
-    # what happens then (`if_impossible`) rather than relying on a silent default.
-    # `actions where` demands never narrow the card set — they have no runtime
-    # enforcement point at all (rules.py) — so there is no empty set for an
-    # `if_impossible` to answer and they are exempt from this requirement.
-    if (
-        rule.demands is not None
-        and rule.demands.kind == "cards"
-        and rule.if_impossible is None
-    ):
+    # A `demands` can filter the legal set to empty; the rule must say what
+    # happens then (`if_impossible`) rather than relying on a silent default.
+    if rule.demands is not None and rule.if_impossible is None:
         bag.error(
             f"rule '{rule.name}' has a card-set `demands` but no `if_impossible`: "
             f"declare the fallback when no card satisfies it (`if_impossible: hand` "
@@ -4534,11 +4341,11 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     namespaces only): zones, functions, user type names, and state variables
     are all reachable as a bare `NameRef` in general expression position,
     where a reserved word never means "the declaration" (see
-    `RESERVED_VALUE_NAMES`'s docstring). Move-type/rule NAMES, `define`
-    names, type FIELD names, and phase names are exempt — none is ever
-    referenced as a bare NameRef (each lives in its own fixed syntactic slot:
-    `constrains:`, `active_rules:`/`legal_moves:`, `produces:`, `x.field`,
-    `transition_to:`), so no reserved word can hijack one."""
+    `RESERVED_VALUE_NAMES`'s docstring). Move-type/rule NAMES and phase
+    names are exempt — none is ever referenced as a bare NameRef (each lives
+    in its own fixed syntactic slot: `constrains:`, `active_rules:`/
+    `legal_moves:`, `produces:`, `transition_to:`), so no reserved word can
+    hijack one."""
 
     def check(
         kind: str,
@@ -4564,8 +4371,6 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     # need uniqueness but not the reserved-word sweep.
     check("position", game.positions)
     check("move_type", game.move_types)
-    check("type", game.types, reserved=True)
-    check("define", game.defines)
     check("function", game.functions, reserved=True)
     check("procedure", game.procedures)
     check("rule", game.rules)
@@ -4580,8 +4385,6 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
             modes.append(nd)
         elif isinstance(nd, n.StateBlock) and nd is not game.state:
             check("state variable", nd.decls, reserved=True)
-        elif isinstance(nd, n.TypeDef):
-            check(f"field in type '{nd.name}'", nd.fields)
     check("phase", phases)
     # Modes are collected GAME-WIDE, not per phase, for the same reason phases
     # are: the runtime keys reached transitions by bare mode name in one
@@ -5026,7 +4829,6 @@ _CALLABLE_CONTAINERS: dict[str, str] = {"function": "functions", "rule": "rules"
 #                   rows may not consume it, which R7 enforces separately.
 _GAME_FIELD_ROLES: dict[str, str] = {
     "phases": "phase",
-    "defines": "definition",
     "move_types": "definition",
     "procedures": "definition",
     "functions": "definition",
@@ -5043,7 +4845,6 @@ _GAME_FIELD_ROLES: dict[str, str] = {
     "zones": "root",
     "positions": "root",
     "card_points": "root",
-    "types": "root",
     "uses": "root",
     "players": "root",
     "teams": "root",
@@ -5080,7 +4881,7 @@ def _consumption_reachable_nodes(game: n.Game) -> list[object]:
     over the FUNCTION and RULE bodies those reach, transitively.
 
     The distinction this exists for: `_reachable_nodes` answers "does this
-    body run" for defines, move types and procedures, and stops there. A
+    body run" for move types and procedures, and stops there. A
     function is not one of those, so a game whose only consumer of a
     declaration sits in a helper called from a phase looked, to a guard built
     on `_reachable_nodes` alone, exactly like a game with no consumer at
@@ -5168,7 +4969,6 @@ def _check_primitives_block(game: n.Game, bag: DiagnosticBag) -> None:
         {f.name for f in game.functions}
         | {p.name for p in game.procedures}
         | {m.name for m in game.move_types}
-        | {d.name for d in game.defines}
         | {r.name for r in game.rules}
     )
     # The four name-membership sets, computed ONCE for the block: each is a
@@ -5648,7 +5448,7 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     # both together is exact in the safe direction: a field that cannot hold a
     # `Call` contributes no diagnostic, and one that can is refused for the
     # reason the wall states — a `winner:`/`loser:` expression runs with no
-    # phase frame standing at all, and a function, define or rule body has no
+    # phase frame standing at all, and a function or rule body has no
     # lexical phase, so its liveness is reachability rather than position
     # (issue #518, the near neighbour of issue #242's standing question). A
     # procedure is the one callable container that IS judged, because a `run`
@@ -5672,8 +5472,6 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     "winner": "refused",
     "loser": "refused",
     "rules": "refused",
-    "types": "refused",
-    "defines": "refused",
     "functions": "refused",
     "primitives": "refused",
     "uses": "refused",
@@ -5820,16 +5618,14 @@ def _offers_move_type(move_type: str) -> Callable[[object], bool]:
 
 # The DEFINITION bodies whose statements run somewhere this analysis does not
 # derive, and how each is named in the refusal. A move type's body runs at its
-# own offers' positions; a `define`'s runs at every `produces:` naming it. Both
-# are decided by something other than where the text sits, and deriving either
-# means judging that container's own containment first, up a chain that can
-# cycle — so both are walls (issue #521). Pinned against the statement-holding
-# definition productions of the grammar (tests/test_phase_scoped_reads.py), the
-# other two of which are the containers that DO yield positions: a phase, and a
-# procedure through its `run` sites.
+# own offers' positions, which is decided by something other than where the
+# text sits, and deriving it means judging that container's own containment
+# first, up a chain that can cycle — so it is a wall (issue #521). Pinned
+# against the statement-holding definition productions of the grammar
+# (tests/test_phase_scoped_reads.py), the others of which are the containers
+# that DO yield positions: a phase, and a procedure through its `run` sites.
 _UNPOSITIONED_CONTAINERS: dict[str, str] = {
     "move_types": "another move type",
-    "defines": "a `define` body",
 }
 
 
@@ -5844,9 +5640,6 @@ def _definition_bodies(game: n.Game) -> dict[int, tuple[str, str]]:
     for move_type in game.move_types:
         for node in _walk(move_type):
             bodies[id(node)] = ("move_types", f"move type `{move_type.name}`")
-    for define in game.defines:
-        for node in _walk(define):
-            bodies[id(node)] = ("defines", f"the body of `define {define.name}`")
     return bodies
 
 
@@ -6704,10 +6497,9 @@ def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
     a block outright.
 
     Consumption counts the rounds the game RUNS, not the rounds its text
-    holds: a `round` is a `statement`, and the three definition forms hold
-    `statement*`, so a reading round inside a `define` no `produces:` names
-    (or a `move_type` no `offer` names) made a provably inert clause look
-    consumed. `_reachable_nodes` is the Owner of that question. Its sibling
+    holds: a `round` is a `statement`, and the definition forms hold
+    `statement*`, so a reading round inside a `move_type` no `offer` names
+    would make a provably inert clause look consumed. `_reachable_nodes` is the Owner of that question. Its sibling
     guards need no such filter and are not shadowing one: the membership
     check above is over `game.trump`, a game clause sitting in no container
     at all, and the round-clause guards (`_validate_refs`' winner-slot arm,
@@ -6789,9 +6581,8 @@ def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
     if stranded:
         parts.append(
             f"a trick round that would read it sits in a definition nothing "
-            f"reaches ({', '.join(stranded)}) — a `define` body runs only where "
-            f"a `produces:` names it, a `move_type` effect only where an "
-            f"`offer` names it"
+            f"reaches ({', '.join(stranded)}) — a `move_type` effect runs only "
+            f"where an `offer` names it"
         )
     why = "; ".join(parts)
     bag.error(
@@ -6828,23 +6619,7 @@ def _classify_names(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> n.Ga
     error for any name that resolves to nothing."""
     result = _rewrite(game, cats, bag)
     assert isinstance(result, n.Game)
-    types = tuple(_classify_type_derived(t, cats, bag) for t in result.types)
-    return replace(result, types=types)
-
-
-def _classify_type_derived(
-    tdef: n.TypeDef, cats: _Categories, bag: DiagnosticBag
-) -> n.TypeDef:
-    """Rewrite a type's derived-field bodies with the type's own fields in local
-    scope — derived expressions reference sibling fields by bare name, which the
-    generic pass (blind to struct fields) would flag as unresolved."""
-    field_names = frozenset(f.name for f in tdef.fields)
-    scoped = replace(cats, locals=cats.locals | field_names)
-    derived = tuple(
-        replace(d, value=_rewrite(d.value, scoped, bag))  # type: ignore[arg-type]
-        for d in tdef.derived
-    )
-    return replace(tdef, derived=derived)
+    return result
 
 
 def _rewrite_produce_arm(
@@ -6852,7 +6627,7 @@ def _rewrite_produce_arm(
 ) -> n.ProduceArm:
     """Rewrite one produces-arm body with the arm's payload binders in local
     scope — so bare binder references resolve, without leaking into other arms or
-    the enclosing game (mirrors `_classify_type_derived` for struct fields)."""
+    the enclosing game."""
     scoped = replace(cats, locals=cats.locals | frozenset(arm.binders))
     # Route through `_rewrite_value` (not a bare per-item `_rewrite` map) so a
     # `let` inside the arm body scopes to the arm's later statements too — the
@@ -6923,8 +6698,6 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                 hint = " (`player` is bound only inside a player query or quantifier)"
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
         return replace(node, ref_kind=kind)
-    if isinstance(node, n.TypeDef):
-        return node  # derived bodies are rewritten by _classify_type_derived
     if isinstance(node, n.Produces):
         # Each arm's payload binders scope to that arm's body only — they must not
         # leak into the global `locals` set (which would shadow same-named state
@@ -7143,22 +6916,15 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     """A function parameter's and a outcome payload's declared type name names
     a real type.
 
-    Validating a declared type name is resolve's job, and it was being done in
-    only some of the positions that declare one: `StateDecl` and `StructField`
-    were guarded and move parameters had their own domain gate, while function
-    parameters and outcome payloads were not checked at all.
+    Validating a declared type name is resolve's job: `StateDecl` is guarded
+    in `_validate_refs` and move parameters have their own domain gate, and
+    this owns function parameters and outcome payloads.
     `typecheck.type_from_name` maps an unknown name to the permissive `TAny`,
     so a mere TYPO exempted the annotated value from every downstream guard —
     `function f(x : Integar) = x is hearts` was accepted while the
     correctly-spelled `Integer` version was rejected. Making a type name worse
     must never make the checker more permissive (decisions.md "Surface
     totality"; "`Any` means the top, never a failed lookup").
-
-    Both positions here are built with the struct registry threaded
-    (`type_from_name(..., structs)`), so a user-declared `type` is legal
-    alongside the built-ins — the allowed set mirrors exactly what the builder
-    can resolve, since a guard admitting a name its builder still maps to
-    `TAny` would trade one silent hole for another.
 
     The other declaring positions are deliberately absent, each already owned
     by an Owner Guard at least as tight: move parameters by `_check_move_params`
@@ -7168,14 +6934,13 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     second name check over any of them would report one defect twice, in two
     channels.
     """
-    defined_types = {t.name for t in game.types}
     # A declared position domain is a legal annotation here: the parameter or
     # payload carries an integer member of the declared range, and the type
     # builder resolves it to that Integer. Omitting it rejected a name
     # declared in the same file as "unknown" while the same name stayed legal
     # on a move parameter.
     position_names = {p.name for p in game.positions}
-    known = KNOWN_TYPE_NAMES | defined_types | position_names
+    known = KNOWN_TYPE_NAMES | position_names
 
     def base_of(type_name: str) -> str:
         # A trailing `?` marks a nullable domain/payload (`Suit?`), not part of
@@ -7190,15 +6955,6 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                     f"function '{fn.name}'",
                     fn.span,
                 )
-    for define in game.defines:
-        for case in define.cases:
-            for payload in case.payload_types:
-                if base_of(payload) not in known:
-                    bag.error(
-                        f"unknown type '{payload}' in payload of case "
-                        f"'{case.tag}'",
-                        case.span or define.span,
-                    )
     for phase in _walk(game):
         if not isinstance(phase, n.Phase) or not phase.outcome_cases:
             continue
@@ -7263,7 +7019,7 @@ _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
 #                                  next hand` must sit inside a hand loop
 #   `_check_single_outcome_consumer`  a phase outcome has exactly ONE consumer — a
 #                                  count, which a second `run` changes
-#   `_check_misplaced_produce`     `produce` terminates the enclosing `define`
+#   `_check_misplaced_produce`     `produce` terminates the enclosing outcome phase
 #   outcome binding                a `round` binds its own `outcome` for the statements
 #                                  after it, which the body's pronoun guard cannot tell
 #                                  from the caller's call-site `outcome`
@@ -7271,9 +7027,6 @@ _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
 # Every statement those checks govern is rejected in a body. The two remaining
 # position-sensitive passes — `deckcheck.check_capacity` and the OpenSpiel action
 # space — both run AFTER expansion and so see the real, spliced tree.
-#
-# A `produces:` over a DEFINE is not in the class: a define is invoked fresh at each
-# site and has no ordering or uniqueness rule, which is why it stays allowed.
 _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
 # All three forms, not only the two that bind a winner: the Owner Guard enforces
 # more than its name and message say (issue #290), and narrowing it here
@@ -7446,18 +7199,17 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                         f"from the caller's call-site pronoun (procedures.md)",
                         nd.span,
                     )
-                elif isinstance(nd, n.Produces) and nd.define in outcome_phases:
+                elif isinstance(nd, n.Produces) and nd.phase in outcome_phases:
                     bag.error(
                         f"procedure '{proc.name}' consumes the phase outcome of "
-                        f"'{nd.define}'. A phase outcome's consumer must be an "
+                        f"'{nd.phase}'. A phase outcome's consumer must be an "
                         f"EARLIER-executed sibling of the producing phase, and there "
                         f"must be exactly ONE of them — both are facts about where "
                         f"the statement sits, and a procedure body is spliced into "
                         f"sites the checker cannot see when it checks the body. "
-                        f"Running it before '{nd.define}', or running it twice, would "
+                        f"Running it before '{nd.phase}', or running it twice, would "
                         f"pass here and then fail at play time. Consume the outcome "
-                        f"at the site (a `produces:` over a `define` is fine in a "
-                        f"body — a define has no ordering or uniqueness rule)",
+                        f"at the site",
                         nd.span,
                     )
                 elif isinstance(nd, n.RunStmt):
@@ -7832,12 +7584,9 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     # players 0 and 1. Without this Owner Guard a game with three-plus (or one) seats
     # resolves clean and then dies at setup/play with the frame's registry-bug
     # `ValueError` when a verb is called for seat 2 -- a typechecked game
-    # failing at runtime, in the wrong channel. Require exactly two players (a
-    # RANGE is refused even where it includes two, since the game may be
-    # instantiated with more).
-    players = game.players
-    if nd.func in _FRAME_CALL_FUNCS and (players.varies or players.low != 2):
-        count = f"{players.low}-{players.high}" if players.varies else str(players.low)
+    # failing at runtime, in the wrong channel. Require exactly two players.
+    count = game.players.count
+    if nd.func in _FRAME_CALL_FUNCS and count != 2:
         bag.error(
             f"`{nd.func}` reads a grid's two-player movement frame (one seat's "
             f"forward is the other's, the 180-degree opposite), but the game "
@@ -7845,10 +7594,10 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
             f"(design-notes/board-topology.md); name seats directly for more",
             nd.span,
         )
-    pos_args = [a for a in nd.args if not isinstance(a, n.NamedArg)]
-    if nd.func == "lines" and len(pos_args) == 1 and isinstance(pos_args[0], n.IntLit):
+    args = nd.args
+    if nd.func == "lines" and len(args) == 1 and isinstance(args[0], n.IntLit):
         try:
-            board_entry(game.board.family, game.board.args).lines(pos_args[0].value)
+            board_entry(game.board.family, game.board.args).lines(args[0].value)
         except OwnerGuardError as exc:
             bag.error(str(exc), nd.span)
 
@@ -7856,8 +7605,6 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
-    defined_types = {t.name for t in game.types}
-    defined_defines = {d.name for d in game.defines}
     defined_functions = {f.name for f in game.functions}
     native_namespace = call_namespace(game)
     # Which role (if any) each declared zone family is keyed by — the fact the
@@ -7991,27 +7738,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"block; declare it in one to call it",
                     nd.span,
                 )
-            case n.StructLit() if nd.type_name not in defined_types:
-                bag.error(f"unknown type '{nd.type_name}'", nd.span)
-            case n.NamedArg():
-                # Accepted-but-crashing surface refused outright (Surface totality):
-                # the grammar admits `f(x = 1)`, but typecheck skips the value
-                # expression and the runtime raises. Reject until a game needs
-                # named arguments (recorded in roadmap.md, "Grammar surface
-                # deferred by the checker").
-                bag.error(
-                    "named call arguments are not supported; pass arguments "
-                    "positionally",
-                    nd.span,
-                )
             case n.StateDecl():
                 # One arm, both checks: a match runs its first matching arm
                 # only, so two guarded StateDecl arms would report at most one
                 # of two independent errors on the same declaration.
-                if (
-                    nd.type_name not in KNOWN_TYPE_NAMES
-                    and nd.type_name not in defined_types
-                ):
+                if nd.type_name not in KNOWN_TYPE_NAMES:
                     bag.error(
                         f"unknown type '{nd.type_name}' in declaration of "
                         f"'{nd.name}'",
@@ -8069,27 +7800,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"in roadmap.md",
                     nd.span,
                 )
-            case n.StructField() if (
-                nd.type_name not in KNOWN_TYPE_NAMES
-                and nd.type_name not in defined_types
-            ):
-                # The sole struct-field declaration-type Owner Guard (an unknown
-                # name would silently type TAny and skip every operand guard). A
-                # struct field types via scalars/enums/structs only; a position
-                # domain is deliberately NOT admitted here (main's type-name
-                # grid, tests/test_type_name_positions.py P2). Function-param
-                # and outcome-payload type names are the sibling slots, but
-                # those are owned by `_check_declared_type_names`, which admits
-                # position domains — so they are not re-checked here.
+            case n.Produces() if nd.phase not in outcome_phases:
                 bag.error(
-                    f"unknown type '{nd.type_name}' in struct field '{nd.name}'",
-                    nd.span,
-                )
-            case n.Produces() if (
-                nd.define not in defined_defines and nd.define not in outcome_phases
-            ):
-                bag.error(
-                    f"produces names unknown define or outcome phase '{nd.define}'",
+                    f"produces names unknown outcome phase '{nd.phase}'",
                     nd.span,
                 )
             case n.ForEach() if (
@@ -8180,15 +7893,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Transfer():
-                # The `in <zone>` form has no `from` clause (its zone parses
-                # into `source`) — say `in`, not `from`, when rejecting it.
-                source_phrase = (
-                    f"{nd.verb} cards in"
-                    if nd.dest is None and nd.source is not None
-                    else "move cards from"
-                )
                 for endpoint, direction in (
-                    (nd.source, source_phrase),
+                    (nd.source, "move cards from"),
                     (nd.dest, "move cards to"),
                 ):
                     bad = _bad_zone_endpoint(endpoint, direction)
@@ -8363,12 +8069,6 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(
                         f"auction round outcome '{nd.outcome_fn}' is not an auction "
                         f"outcome function",
-                        nd.span,
-                    )
-                if nd.order_mode is not None and nd.order_mode not in n.ROUND_ORDER_MODES:
-                    bag.error(
-                        f"round order '{nd.order_mode}' is unknown (expected one of "
-                        f"{sorted(n.ROUND_ORDER_MODES)})",
                         nd.span,
                     )
             case n.ClimbRound():

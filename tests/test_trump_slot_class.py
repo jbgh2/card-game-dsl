@@ -585,8 +585,6 @@ def _name_reached_containers() -> set[type]:
 # derived container set by the test below.
 _CONTAINER_FIXTURES: dict[str, tuple[str, str]] = {
     # container class name -> (definition template holding {round}, invocation)
-    "DefineDef": ("define d -> {{ ok }} {{ {round}\n  produce ok }}",
-                  "d produces:\n      ok { won[1] += 1 }"),
     "MoveTypeDef": ("move_type m {{ effect {{ {round} }} }}",
                     "offer to 0 one of [m]"),
     "ProcedureDef": ("procedure p() {{ {round} }}", "run p()"),
@@ -672,23 +670,21 @@ def test_unreached_reader_message_names_its_container() -> None:
     """A reading round inside a body nothing invokes must not be told "the
     game runs no trick round" while the author looks straight at one: the
     refusal names the container kind and what would reach it."""
-    for container, name in (("DefineDef", "define"), ("MoveTypeDef", "move_type")):
-        reading = min(F.TRUMP_READING_WINNERS)
-        text = _diagnostics(_container_source(container, False, reading))
-        assert text is not None
-        assert _UNREACHED in text, text
-        assert name in text, text
+    reading = min(F.TRUMP_READING_WINNERS)
+    text = _diagnostics(_container_source("MoveTypeDef", False, reading))
+    assert text is not None
+    assert _UNREACHED in text, text
+    assert "move_type" in text, text
 
 
 def test_a_reachable_definition_keeps_its_trump(monkeypatch: pytest.MonkeyPatch) -> None:
     """The complement, so the filter cannot over-reach: a reading round in an
-    INVOKED define / an OFFERED move type consumes the clause and the game
-    checks clean. Born green -- its reddening mutation is seeding the
-    reachability frontier with the definition lists inverted (making a
-    reachable container read as unreachable)."""
-    for container in ("DefineDef", "MoveTypeDef"):
-        reading = min(F.TRUMP_READING_WINNERS)
-        _expect(_container_source(container, True, reading))
+    OFFERED move type consumes the clause and the game checks clean. Born
+    green -- its reddening mutation is seeding the reachability frontier with
+    the definition lists inverted (making a reachable container read as
+    unreachable)."""
+    reading = min(F.TRUMP_READING_WINNERS)
+    _expect(_container_source("MoveTypeDef", True, reading))
 
 
 # --- (b) the round clause ---------------------------------------------------

@@ -27,8 +27,6 @@ library: _LIBRARY_KW NAME "{" library_item* "}"
              | state_block
              | rule_def
              | move_type_def
-             | type_def
-             | define_def
              | function_def
              | procedure_def
 
@@ -52,13 +50,10 @@ library: _LIBRARY_KW NAME "{" library_item* "}"
 // a shape question as a spelling one.
 requires_block: _REQUIRES_KW "{" require_decl* "}"
 require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
-            | NAME [index] ":" NAME [type_args] "?" -> require_optional
 
 ?top_item: game
          | rule_def
          | move_type_def
-         | type_def
-         | define_def
          | function_def
          | procedure_def
 
@@ -180,8 +175,7 @@ primitive_read: NAME [index] [_IN_KW NAME]
               | NAME _IN_KW NAME index -> primitive_read_transposed_reject
 
 players: _PLAYERS_KW ":" players_spec
-players_spec: INT ".." INT   -> players_range
-            | INT            -> players_fixed
+players_spec: INT            -> players_fixed
 
 direction: _DIRECTION_KW ":" NAME
 
@@ -216,7 +210,7 @@ RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
 // static signed integer literals, one optional trailing `else:` row for the
 // everything-else value (unlisted ranks read 0 with no else row — the
 // `card_points(card)` Builtin's contract). Entry-plus: the empty block is a
-// syntax error, like the struct literal's at-least-one-field rule. Rows are
+// syntax error. Rows are
 // whitespace-separated like every block clause (`zones`, `state`,
 // `positions`) — never comma-separated. The key is its own terminal
 // (CARD_POINTS_KEY below): `else` must be excluded there or `else: 1` derives
@@ -328,15 +322,6 @@ type_name: NAME "?"              -> optional_type
          | NAME "<" NAME ">"     -> collection_type_reject
          | NAME "<" NAME ">" "?" -> collection_type_reject
 
-// User-defined struct type: named fields plus optional computed `derived` fields.
-// The name is `STRUCT_TYPE_NAME`, not `NAME`, so declaration and use agree on
-// which names a struct type may take: a type `struct_lit` cannot spell would be
-// declarable but unusable, which is accepted-but-ignored one step removed.
-type_def: _TYPE_KW STRUCT_TYPE_NAME "=" "{" struct_field* "}" [derived_block]
-struct_field: NAME ":" type_name
-derived_block: _DERIVED_KW "{" derived_field* "}"
-derived_field: NAME "=" expr
-
 winner: _WINNER_KW ":" rank_dir NAME
 rank_dir: RANK_DIR
 RANK_DIR: /(?:lowest|highest)(?![A-Za-z0-9_])/
@@ -441,10 +426,10 @@ run_stmt: _RUN_KW NAME "(" [expr ("," expr)*] ")"
 continue_to: _CONTINUE_KW _TO_KW NAME
 skip_stmt: _SKIP_KW _TO_KW _NEXT_KW _HAND_KW
 
-// Terminal in a `define` body: sets the outcome result and unwinds the body.
+// Terminal in an outcome phase's body: sets the phase's outcome and unwinds it.
 produce_stmt: _PRODUCE_KW NAME ["(" expr ("," expr)* ")"]
 
-// Invoke a param-light `define` by name and dispatch on its outcome result.
+// Run an outcome phase by name and dispatch on the outcome it produced.
 // Arm bodies use braces, matching if_stmt/repeat_until.
 produces_stmt: NAME _PRODUCES_KW ":" produce_arm+
 produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
@@ -455,12 +440,9 @@ produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 // value-returning functions and named user operations, which appear in
 // expression position.
 
-// One [[transfer]], used as a statement or (in some arg positions) a value.
-// The verb is sugar over a single IR node; the amount is an expression and the
-// item noun covers cards and resources. The "in" form lets muck/burn imply
-// their destination.
+// One [[transfer]] statement. The verb is sugar over a single IR node; the
+// amount is an expression and the item noun covers cards and resources.
 transfer: TRANSFER_VERB selection _FROM_KW zone_expr [where_clause] [dist_clause] move_dest [vis_clause] -> move_from
-        | TRANSFER_VERB selection _IN_KW zone_expr [vis_clause]                                          -> move_in
         | TRANSFER_VERB selection move_dest [vis_clause]                                                 -> move_gather
 // A word set spelled as a named terminal rather than as inline literals, so it
 // carries its whole-word anchoring itself (`moveall …` must not read as `move
@@ -555,13 +537,9 @@ round_stmt: _ROUND_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW 
 // (bids/passes/bets) don't move cards. (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the
 // same `round` kernel, configured along the offering, accumulator, and
 // termination axes.)
-// The optional `order` clause names the ring-traversal model (the order axis).
-// The production admits any NAME; `ROUND_ORDER_MODES` bounds it to one value,
-// `ring`, which is also what an absent clause means — the continuous ring, each
-// turn advancing the pointer. A clause with one value equal to the default is
-// kept deliberately, as the docking point a second traversal arrives at
+// The ring is traversed one way, continuously, each turn advancing the pointer
 // (decisions.md, "The auction form of `round`", under Order).
-auction_stmt: _ROUND_KW auction_moves _FROM_KW expr _OVER_KW expr [_ORDER_KW NAME] _UNTIL_KW expr [_OUTCOME_KW NAME]   -> auction_stmt
+auction_stmt: _ROUND_KW auction_moves _FROM_KW expr _OVER_KW expr _UNTIL_KW expr [_OUTCOME_KW NAME]   -> auction_stmt
 auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // The climbing form of `round`: one combination-climbing trick (Big Two, Tichu).
 // The leader leads a combination from the engine, then each participant in turn
@@ -575,10 +553,6 @@ auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // function of the cards. (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the same `round`
 // kernel along the offering / order / termination axes.)
 climb_stmt: _ROUND_KW _CLIMB_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _COMBINATIONS_KW NAME _FOLLOWS_KW NAME _UNTIL_KW expr   -> climb_stmt
-named_arg: NAME "=" arg_value
-?arg_value: transfer
-          | expr
-
 let_stmt: _LET_KW NAME [index] "=" expr
 assign_stmt: lvalue assign_op expr
 assign_op: ASSIGN_OP
@@ -611,10 +585,6 @@ procedure_def: _PROCEDURE_KW NAME "(" [parameter ("," parameter)*] ")" "{" state
 move_when: _WHEN_KW ":" applies_pred
 move_effect: _EFFECT_KW "{" statement* "}"
 
-// A named param-light definition with a typed outcome. Its body runs
-// with the enclosing context bound and `produce`s one outcome. Consumed by a
-// `produces:` block (see produces_stmt).
-define_def: _DEFINE_KW NAME "->" outcome_set "{" statement* "}"
 outcome_set: "{" outcome_case ("|" outcome_case)* "}"
 outcome_case: NAME ["(" payload_type ("," payload_type)* ")"]
 // A payload type, optionally nullable (`Suit?` — Bridge's no-trump strain).
@@ -639,22 +609,17 @@ rule_params: "(" parameter ("," parameter)* ")"
             | exempts
 constrains: _CONSTRAINS_KW ":" NAME
 applies_when: _APPLIES_WHEN_KW ":" applies_pred
-?applies_pred: _ALWAYS_KW  -> always
+// `always` is refused with the fix: a clause that holds unconditionally is
+// written by leaving the clause out.
+?applies_pred: _ALWAYS_KW  -> always_reject
              | expr
-demands: _DEMANDS_KW ":" demand_value
-?demand_value: actions_where
-             | expr
+demands: _DEMANDS_KW ":" expr
 // Cards exempt from this rule: never subject to its obligation, never able to
 // satisfy it, and — when the rule constrains a move — offered as candidates
 // AFTER every other legal card (rules.legal_cards), regardless of hand
 // position. Tarot's Excuse is the corpus's first instance (always playable,
 // never bound by follow-suit/trump obligations).
 exempts: _EXEMPTS_KW ":" expr
-// A predicate over the candidate player move, whose subject is `action`
-// (see decisions.md "Rule demand forms"). `action` is the move instance —
-// `action.card`, `action.card_count`, `action.amount` — never the zone-transfer
-// verb `move`.
-actions_where: _ACTIONS_KW _WHERE_KW expr
 if_impossible: _IF_IMPOSSIBLE_KW ":" expr
 
 // ----------------------------------------------------------------------------
@@ -854,13 +819,11 @@ DIV_OP: "/" | "%"
         | postfix index_expr                   -> subscript
         | primary
 
-arg_list: arg ("," arg)*
-?arg: named_arg | expr
+arg_list: expr ("," expr)*
 
 ?primary: card_literal
         | all_players
         | call
-        | struct_lit
         | list_lit
         | INT               -> int_lit
         | "-" INT           -> neg_int_lit
@@ -871,43 +834,6 @@ arg_list: arg ("," arg)*
 // A literal collection, for membership tests (`card.suit in [hearts, spades]`).
 // At least one element: an empty literal has no use and no element type.
 list_lit: "[" expr ("," expr)* "]"
-
-// `TypeName { field: expr, … }` — constructs a user-defined struct value. At
-// least one field is required, keeping it distinct from a statement block in
-// expression-before-`{` positions (if/repeat/phase).
-//
-// A struct type may not be spelled with a clause keyword. `NAME "{" NAME ":"
-// expr "}"` is token-identical to a single-entry brace clause (`zones { stock :
-// Deck }`, `requires { y : Integer }`), so an expression slot left EMPTY —
-// `loser:` with no expression, `function f() =` with no body — otherwise reads
-// the clause below it as a struct literal, completes, and drops that clause
-// with no error and no `_ambig` node for the ambiguity budget to see. Refusing
-// the keyword closes every expression slot in the grammar at once, which is why
-// this is at the absorbed end rather than at each absorbing one.
-//
-// The exclusion is in two parts, pinned separately in
-// tests/test_game_clause_guards.py:
-//
-//   1. NAME's OWN lookahead, repeated verbatim. A position-specific terminal
-//      may only ever remove spellings: admitting a word NAME refuses would make
-//      a type declarable and constructible here but unusable in every type
-//      ANNOTATION slot, which is plain NAME
-//      (`test_struct_type_name_stays_a_subset_of_name`).
-//   2. Every keyword opening a `kw "{" <entry>* "}"` block whose ENTRY begins
-//      with NAME — the shape that makes a clause absorbable, wherever in the
-//      grammar it is reachable from
-//      (`test_struct_type_name_excludes_every_absorbable_clause`). The
-//      `?game_item`/`?library_item` keywords beyond that shape are kept as
-//      belt-and-braces, not as the completeness argument.
-struct_lit: STRUCT_TYPE_NAME "{" field_init ("," field_init)* "}"
-field_init: NAME ":" expr
-//
-// `card_values` — a retired spelling, not a clause — is excluded too: its
-// reject production only guards the game_item position, and without the
-// exclusion an empty expression slot absorbs `card_values { A: 1 }` as a
-// struct literal (the wrong spelling vanishing at parse, resurfacing as a
-// wrong-currency unknown-type at resolve). Same absorbable shape, same fix.
-STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 card_literal: card_rank _OF_KW NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a
@@ -993,8 +919,8 @@ zone_expr: NAME [index_expr]
 // underscore keeps Lark's auto-filtering of inline literals from the tree, so
 // naming a literal changes nothing else.
 //
-// The dynamic lexer is not the removable half of that: NAME, QNOUN,
-// CARD_RANK_NAME and STRUCT_TYPE_NAME all match the same strings and are
+// The dynamic lexer is not the removable half of that: NAME, QNOUN and
+// CARD_RANK_NAME all match the same strings and are
 // disambiguated by POSITION, so a context-free lexer — which would take the
 // longest match and end the class outright — cannot tokenize this grammar at
 // all. Anchoring is the fix that remains.
@@ -1007,7 +933,6 @@ zone_expr: NAME [index_expr]
 // fused spelling from lexing, exclusion stops a keyword from also reading as a
 // value. A keyword needs the first always and the second only where a bare-NAME
 // reading would be a real second parse.
-_ACTIONS_KW: "actions" /(?![A-Za-z0-9_])/
 _ACTIVE_RULES_KW: "active_rules" /(?![A-Za-z0-9_])/
 _AFTER_EACH_KW: "after_each" /(?![A-Za-z0-9_])/
 _AGAIN_KW: "again" /(?![A-Za-z0-9_])/
@@ -1042,9 +967,7 @@ _CLIMB_KW: "climb" /(?![A-Za-z0-9_])/
 _COMBINATIONS_KW: "combinations" /(?![A-Za-z0-9_])/
 _CONSTRAINS_KW: "constrains" /(?![A-Za-z0-9_])/
 _CONTINUE_KW: "continue" /(?![A-Za-z0-9_])/
-_DEFINE_KW: "define" /(?![A-Za-z0-9_])/
 _DEMANDS_KW: "demands" /(?![A-Za-z0-9_])/
-_DERIVED_KW: "derived" /(?![A-Za-z0-9_])/
 _DIRECTION_KW: "direction" /(?![A-Za-z0-9_])/
 _DIVIDED_KW: "divided" /(?![A-Za-z0-9_])/
 _DOWN_KW: "down" /(?![A-Za-z0-9_])/
@@ -1088,7 +1011,6 @@ _OFFERING_KW: "offering" /(?![A-Za-z0-9_])/
 _OFFSET_BY_KW: "offset_by" /(?![A-Za-z0-9_])/
 _ONE_KW: "one" /(?![A-Za-z0-9_])/
 _OR_KW: "or" /(?![A-Za-z0-9_])/
-_ORDER_KW: "order" /(?![A-Za-z0-9_])/
 _OUTCOME_KW: "outcome" /(?![A-Za-z0-9_])/
 _OVER_KW: "over" /(?![A-Za-z0-9_])/
 _OVERRIDE_KW: "override" /(?![A-Za-z0-9_])/
@@ -1138,7 +1060,6 @@ _TRANSITION_TO_KW: "transition_to" /(?![A-Za-z0-9_])/
 _TRICK_ORDER_KW: "trick_order" /(?![A-Za-z0-9_])/
 _TRUMP_KW: "trump" /(?![A-Za-z0-9_])/
 _TURNS_KW: "turns" /(?![A-Za-z0-9_])/
-_TYPE_KW: "type" /(?![A-Za-z0-9_])/
 _UNTIL_KW: "until" /(?![A-Za-z0-9_])/
 _UP_KW: "up" /(?![A-Za-z0-9_])/
 _USES_KW: "uses" /(?![A-Za-z0-9_])/
@@ -1150,7 +1071,8 @@ _ZONES_KW: "zones" /(?![A-Za-z0-9_])/
 
 // Keywords that sit where a NAME is also grammatical, and never name a value,
 // are ALSO excluded from NAME — the second half, and a smaller set than the
-// keywords above. `always` (the applies_when wildcard), the quantity words
+// keywords above. `always` (refused wherever a clause could be written to
+// hold unconditionally), the quantity words
 // `all` / `one` / `some`, `jointly`, and `not` / `is` / `number` (the equality
 // and card-query keywords): without the exclusion, `number of cards in <zone>`
 // is also derivable as the card literal `number of cards` followed by

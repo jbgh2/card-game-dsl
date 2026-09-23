@@ -19,7 +19,7 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           written below — the cell that matters being a truncated item that
           completes itself from its neighbour and drops it. At RESOLVE, five
           products. (a) The library's ENCAPSULATION: each EXPRESSION-BEARING
-          clause of `n.Library` as the site a leak is written in — the six
+          clause of `n.Library` as the site a leak is written in — the
           definition kinds plus `state`, whose defaults are expressions — times
           the reference kinds a body can leak through (a state name, a function
           call). Beside it, the same property reached by the OTHER door: every
@@ -64,18 +64,17 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           row's accepting cells are decisions rather than gaps: kernel move
           types and a game's `move_type` definitions are disjoint consult
           paths that never share a namespace (`cardlang/stdlib/moves.py`), and
-          types, defines and procedures have no kernel table at all.
+          procedures have no kernel table at all.
           The grid quantifies over WHICH sentences the bag holds, not over
           where each one points: a parameter row is reported at its own
           parameter and a binder row at the construct that introduces it, which
-          for a struct or a `produces:` arm is the declaration rather than the
-          field. The rendered span of one sentence is pinned where it is pinned
+          for a `produces:` arm is the arm rather than its payload name. The
+          rendered span of one sentence is pinned where it is pinned
           at all — `tests/rejections/binder_shadows_provided_state.expected`,
           byte-for-byte, for the case the issue itself names.
 registry: the ITEM axis from the grammar's `?library_item`, scraped by
           `library_item_alternatives` (shared with tests/test_game_clause_guards,
-          which owns the other half of the same absorption class and pins the
-          `STRUCT_TYPE_NAME` terminal against both clause registries); the
+          which owns the other half of the same absorption class); the
           DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, its pin against
           `n.Library`'s own fields: `test_def_kinds_covers_every_library_field`;
           the LEAK-SITE axis from `n.Library`'s fields MINUS `requires`, which is
@@ -83,8 +82,10 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           (`test_leak_sites_cover_every_expression_bearing_clause`) — derived by
           subtraction rather than by listing, so a clause added with an
           expression in it joins the grid without anyone remembering to add it; the SHAPE axis from `n.RequireDecl`'s own fields
-          minus its key and span — the field set `_check_requires` compares —
-          its pin: `test_shape_axis_covers_every_compared_field`;
+          minus its key and span, plus the answering declaration's `optional`,
+          which is compared against a requirement that is never optional — the
+          field set `_check_requires` compares — its pin:
+          `test_shape_axis_covers_every_compared_field`;
           the COLLISION-SOURCE axis from the three namespaces a library name can
           land in — the game (`n.Game`'s same-named fields), another library, and
           the engine's own name registries (`stdlib_rules()`, `CALL_FUNCS`,
@@ -323,8 +324,6 @@ _ITEM_WELL_FORMED: dict[str, str] = {
     "state_block": "state { z : Integer = 1 }",
     "rule_def": "rule r { }",
     "move_type_def": "move_type m { effect { } }",
-    "type_def": "type T = { x : Integer }",
-    "define_def": "define d -> { a | b } { }",
     "function_def": "function f() = 1",
     "procedure_def": "procedure p() { }",
 }
@@ -334,8 +333,6 @@ _ITEM_TRUNCATED: dict[str, str] = {
     "state_block": "state {",
     "rule_def": "rule r {",
     "move_type_def": "move_type m {",
-    "type_def": "type T = {",
-    "define_def": "define d ->",
     "function_def": "function f() =",
     "procedure_def": "procedure p() {",
 }
@@ -349,8 +346,6 @@ _ITEM_FIELD: dict[str, str] = {
     "state_block": "state",
     "rule_def": "rules",
     "move_type_def": "move_types",
-    "type_def": "types",
-    "define_def": "defines",
     "function_def": "functions",
     "procedure_def": "procedures",
 }
@@ -358,7 +353,7 @@ _ITEM_FIELD: dict[str, str] = {
 
 def test_library_item_registry_pin() -> None:
     """All three tables above are keyed by grammar rule name and must cover
-    `?library_item` exactly — an eighth alternative added to the grammar fails
+    `?library_item` exactly — an alternative added to the grammar fails
     here until it is given a well-formed spelling, a truncated spelling, and the
     field it is filed under.
 
@@ -404,18 +399,11 @@ def test_a_truncated_library_item_may_not_absorb_its_neighbour(
 
     Asserted at the PARSE layer deliberately: the absorbed reading IS a
     well-formed parse, so letting a later stage reject it for some other reason
-    (an unknown struct type, an unresolved name) would leave this cell green
-    while the neighbouring item had vanished.
+    (an unresolved name) would leave this cell green while the neighbouring
+    item had vanished.
 
-    One cell was open when this grid was written: a `function_def` truncated to
-    `function f() =`, whose empty `expr` slot read the `requires { y : Integer }`
-    below it as a `struct_lit` — `NAME "{" NAME ":" expr "}"` being exactly a
-    single-entry brace clause — leaving the contract silently empty. The other
-    48 are refused by brace structure rather than by the fix, and are the sweep
-    of the class.
-
-    red under: delete `requires` from STRUCT_TYPE_NAME's exclusion list in
-    cardlang.lark."""
+    red under: make `function_def`'s body optional (`"=" [expr]`) in
+    cardlang.lark — every `function_def-then-*` cell then parses."""
     src = f"library L {{\n  {_ITEM_TRUNCATED[item]}\n  {_ITEM_WELL_FORMED[follower]}\n}}"
     with pytest.raises(DiagnosticError) as exc:
         parse_library(src, "L.cardlang")
@@ -555,8 +543,6 @@ def test_repeated_uses_of_one_library_is_rejected() -> None:
 _DEF_SOURCE: dict[str, str] = {
     "rules": "rule collide { }",
     "move_types": "move_type collide { effect { } }",
-    "types": "type collide = { x : Integer }",
-    "defines": "define collide -> { a | b } { }",
     "functions": "function collide() = 1",
     "procedures": "procedure collide() { }",
 }
@@ -564,8 +550,8 @@ _DEF_SOURCE: dict[str, str] = {
 
 def test_def_kinds_covers_every_library_field() -> None:
     """`_LIBRARY_DEF_KINDS` is the closed domain the collision guards sweep, so it
-    must equal `n.Library`'s definition fields exactly. A seventh form added to
-    the node without an entry there would ship unwalled; this is the static
+    must equal `n.Library`'s definition fields exactly. A form added to the
+    node without an entry there would ship unwalled; this is the static
     failure that prevents it.
 
     red under: add a field to `n.Library` without adding it to
@@ -692,8 +678,6 @@ _INJECT: dict[str, str] = {
     "state": "state {{ {n} : Integer = 0 }} function filler() = 1",
     "rules": "rule {n} {{ }} function filler() = 1",
     "move_types": "move_type {n} {{ effect {{ }} }} function filler() = 1",
-    "types": "type {n} = {{ x : Integer }} function filler() = 1",
-    "defines": "define {n} -> {{ a | b }} {{ }} function filler() = 1",
     "functions": "function {n}() = 1",
     "procedures": "procedure {n}() {{ }} function filler() = 1",
 }
@@ -711,13 +695,11 @@ def _target_game(target: str, name: str) -> str:
         extra_state = f"{name} : Integer = 0"
     elif target == "position":
         extra_pos = f"positions {{ {name} : 1..4 }}"
-    elif target in ("functions", "types", "move_types", "rules", "defines", "procedures"):
+    elif target in ("functions", "move_types", "rules", "procedures"):
         tail = {
             "functions": f"function {name}() = 1",
-            "types": f"type {name} = {{ x : Integer }}",
             "move_types": f"move_type {name} {{ effect {{ }} }}",
             "rules": f"rule {name} {{ }}",
-            "defines": f"define {name} -> {{ a | b }} {{ }}",
             "procedures": f"procedure {name}() {{ }}",
         }[target]
     # target in {suit, rank, direction, native_value}: name IS a value the game
@@ -747,10 +729,8 @@ _TARGET_NAME: dict[str, str] = {
     "zone": "collide",
     "position": "collide",
     "functions": "collide",
-    "types": "collide",
     "move_types": "collide",
     "rules": "collide",
-    "defines": "collide",
     "procedures": "collide",
     "suit": "hearts",
     "rank": "Q",  # standard52 ranks are single glyphs (2..10, J, Q, K, A)
@@ -889,14 +869,12 @@ def _engine_registry_member(field: str) -> str | None:
 # stdlib rule index, the native `CALL_FUNCS`, and the kernel table
 # `LIBRARY_MOVE_TYPES` — so no narrower word covers the axis.
 # `False` is as much a commanded decision as `True` — move_types are a
-# deliberate non-collision (two disjoint consult paths), and the three kinds
-# with no engine registry cannot collide at all.
+# deliberate non-collision (two disjoint consult paths), and a kind with no
+# engine registry cannot collide at all.
 _ENGINE_REGISTRY_REJECTS: dict[str, bool] = {
     "rules": True,
     "functions": True,
     "move_types": False,
-    "types": False,
-    "defines": False,
     "procedures": False,
 }
 
@@ -979,10 +957,11 @@ def test_the_accepting_move_type_cell_has_real_corpus_dependents() -> None:
 #
 # A requirement is answered by exactly ONE declaration of the right shape. Both
 # halves of that are a grid: how MANY declarations of the name the game holds,
-# and what SHAPE the declaration answering it has. The shape axis is derived —
-# it is the field set `_check_requires` compares between a `RequireDecl` and the
-# `StateDecl` that answers it, which is `n.RequireDecl`'s own fields minus the
-# name it is keyed by and its span.
+# and what SHAPE the declaration answering it has. The shape axis is the field
+# set `_check_requires` compares between a `RequireDecl` and the `StateDecl`
+# that answers it: `n.RequireDecl`'s own fields minus the name it is keyed by
+# and its span, plus the answering declaration's `optional`, compared against a
+# requirement that is never optional.
 
 # One `state { }` line declaring `raise_cap` per shape: "matching" is what
 # `poker_betting` asks for, and each other key breaks EXACTLY the field it names
@@ -1012,7 +991,11 @@ def test_shape_axis_covers_every_compared_field() -> None:
     # ["state-args1-*"]. Subtracted here rather than silently absent, so the
     # exclusion is a claim this test makes and not a row someone forgot.
     assert "type_args" in compared
-    assert set(_SHAPE_TEXT) - {"matching"} == compared - {"type_args"}
+    # A requirement is never optional, and `_check_requires` compares the
+    # answering declaration's `optional` against that — a compared field with
+    # no `n.RequireDecl` home, so it is added here rather than derived.
+    assert "optional" not in compared
+    assert set(_SHAPE_TEXT) - {"matching"} == (compared - {"type_args"}) | {"optional"}
 
 
 def _requires_cells() -> list[object]:
@@ -1111,10 +1094,6 @@ _MALFORMED_REQUIREMENT: dict[str, str | None] = {
     # A type the library cannot resolve on its own. Guarded by
     # `resolve._check_library_encapsulation`.
     "type_name": "q : Integar",
-    # Cannot be malformed: `?` is present or absent and the grammar admits no
-    # third state, so there is no ill-formed value for the comparison to
-    # misreport.
-    "optional": None,
     # A zone type carrying the wrong number of owner arguments. Guarded by
     # `resolve._check_contract_shapes`, which reports at the requirement's span
     # like the other two — so the suppression covers it with nothing added,
@@ -1278,7 +1257,7 @@ def parse_default(literal: str) -> n.Expr:
 # exists to prevent.
 #
 # The grid is definition kind x reference kind: WHERE the leak is written (the
-# six kinds of `_LIBRARY_DEF_KINDS`, so no definition form is checked less than
+# kinds of `_LIBRARY_DEF_KINDS`, so no definition form is checked less than
 # another) times WHAT it reaches for. The reference axis is derived from
 # `_Categories` — the namespaces a bare name resolves against — taking the
 # fields an importing GAME can populate but a library cannot: `state_vars`
@@ -1300,17 +1279,12 @@ _LEAK_SITE: dict[str, str] = {
         "move_type m {{ effect "
         "{{ declared_thing := if {read} is not none then 1 else 2 }} }}"
     ),
-    "types": "type T = {{ x : Integer }} derived {{ y = {read} }}",
-    "defines": (
-        "define d -> {{ a | b }} "
-        "{{ if {read} is not none {{ produce a }} else {{ produce b }} }}"
-    ),
     "functions": "function f() = {read}",
     "procedures": (
         "procedure p() {{ declared_thing := if {read} is not none then 1 else 2 }} "
         "move_type runner {{ effect {{ run p() }} }}"
     ),
-    # The seventh site is not a definition: a PROVIDED variable's default is an
+    # The `state` site is not a definition: a PROVIDED variable's default is an
     # expression like any other, and leaks like any other.
     "state": "state {{ provided_thing : Integer = {read} }}",
 }
@@ -1333,13 +1307,13 @@ _LEAK_READS: dict[str, tuple[str, str | None]] = {
 
 def test_leak_sites_cover_every_expression_bearing_clause() -> None:
     """Every library clause that can hold an EXPRESSION can leak through it, so
-    the grid's site table must be exactly those clauses — the six definition
+    the grid's site table must be exactly those clauses — the definition
     kinds plus `state`, whose defaults are expressions.
 
     `requires` is the one clause excluded, and not by omission: a
     `require_decl` is a name, an index and a type name, with no expression slot
     to leak through. That is why the axis is derived by SUBTRACTING it from
-    `n.Library`'s fields rather than by listing the six kinds — a clause added
+    `n.Library`'s fields rather than by listing the kinds — a clause added
     to the library with an expression in it joins this grid automatically.
 
     red under: drop a key from `_LEAK_SITE`."""
@@ -1753,8 +1727,7 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         None,
     ),
     "ContinueTo.phase": (
-        "define d -> {{ a | b }} {{ produce a }} "
-        "move_type m {{ effect {{ d produces: a {{ continue to {read} }} b {{ }} }} }}",
+        "move_type m {{ effect {{ continue to {read} }} }}",
         "play",
         None,
     ),
@@ -1768,14 +1741,16 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "undeclared_thing",
         "declared_thing",
     ),
+    # The type slots leak through a position domain: the one type-name source
+    # a game declares (`positions { }`) and a library cannot.
     "StateDecl.type_name": (
-        "state {{ provided_thing : {read}? = none }}",
-        "GameType",
+        "state {{ provided_thing : {read} = 1 }}",
+        "column",
         "Integer",
     ),
     "RequireDecl.type_name": (
         "",  # written into the contract itself — see `_slot_leaky`
-        "GameType",
+        "column",
         "Integer",
     ),
     "TypeArg.name": (
@@ -1787,18 +1762,7 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "column",
         "player",
     ),
-    "Parameter.type_name": ("function f(x : {read}) = 1", "GameType", "Integer"),
-    "StructField.type_name": ("type T = {{ x : {read} }}", "GameType", "Integer"),
-    "StructLit.type_name": (
-        "type LibType = {{ x : Integer }} function f() = {read} {{ x: 1 }}",
-        "GameType",
-        "LibType",
-    ),
-    "OutcomeCase.payload_types": (
-        "define d -> {{ a({read}) | b }} {{ produce b }}",
-        "GameType",
-        "Integer",
-    ),
+    "Parameter.type_name": ("function f(x : {read}) = 1", "column", "Integer"),
     "Offer.offering": (
         "move_type lib_move {{ effect {{ declared_thing := 1 }} }} "
         "move_type m {{ effect {{ offer to actor one of [{read}] }} }}",
@@ -1812,11 +1776,10 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "game_move",
         "lib_move",
     ),
-    "Produces.define": (
-        "define lib_define -> {{ a | b }} {{ produce a }} "
+    "Produces.phase": (
         "move_type m {{ effect {{ {read} produces: a {{ }} b {{ }} }} }}",
-        "game_define",
-        "lib_define",
+        "play",
+        None,
     ),
     "RunStmt.name": (
         "procedure lib_proc() {{ declared_thing := 1 }} "
@@ -1833,12 +1796,12 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
 
 _SLOT_CONTRACT = (
     "requires {{ declared_thing : Integer  declared_flag : Boolean "
-    "declared_dir : SeatDirection  {wanted} : {wanted_type}? }} "
+    "declared_dir : SeatDirection  {wanted} : {wanted_type} }} "
 )
 
 # A game that meets `leaky`'s contract AND happens to hold every namespace the
 # leaks reach into — a `hand` and a `pile` zone, a `play` phase, a `column`
-# position domain, a type, a define, a procedure and a move type. Without that
+# position domain, a procedure and a move type. Without that
 # second half the cells would fail as ordinary dangling references and would
 # prove nothing about the CONTRACT, which is the distinction this whole section
 # is about.
@@ -1855,15 +1818,12 @@ game SlotHost {
     declared_dir     : SeatDirection   = hold
     undeclared_thing : Integer     = 0
     keyed[player]    : Integer     = 0
-    wanted_game      : GameType?   = none
-    wanted_plain     : Integer?    = none
+    wanted_plain     : Integer     = 0
   }
   positions { column : 1..7 }
   phase play { run game_proc() }
   winner: highest keyed
 }
-type GameType = { x : Integer }
-define game_define -> { a | b } { produce a }
 procedure game_proc() { declared_thing := 1 }
 move_type game_move { effect { declared_thing := 1 } }
 """
@@ -2057,7 +2017,8 @@ def test_the_same_slot_naming_what_the_library_has_is_accepted(
     Several slots have no twin, and their absence is the design rather than a
     gap: a library declares no zones, no phases and no position domains, so
     there is no legal spelling for either round form's `source_zone` or
-    `play_zone`, `ContinueTo.phase` or `DomainQuery.binder` to take. The controls beside them
+    `play_zone`, `ContinueTo.phase`, `Produces.phase` or `DomainQuery.binder`
+    to take. The controls beside them
     establish that the enclosing statements parse and resolve.
 
     red under: make the sweep reject any name it inspects rather than only the
@@ -2391,9 +2352,9 @@ def _binding_node_kinds() -> frozenset[str]:
     green with one fewer row than the language has.
 
     Derived because a hand-list is how this axis would silently stop covering a
-    binder: `TypeDef` and `ProduceArm` both escaped the registry itself (see
-    `_node_binders`'s docstring), and neither is a member of the `Expr` or `Stmt`
-    unions, so no union walk would have found them either."""
+    binder: `ProduceArm` escaped the registry itself (see `_node_binders`'s
+    docstring), and it is a member of neither the `Expr` nor the `Stmt` union,
+    so no union walk would have found it either."""
     tree = pyast.parse(_RESOLVE_PY.read_text())
     fn = next(
         f
@@ -2566,7 +2527,6 @@ class _Site(typing.NamedTuple):
     chosen: bool
     body: str
     extra: str = ""
-    prelude: str = ""
     clauses: str = ""
     board: bool = False
     already: bool = False
@@ -2585,24 +2545,8 @@ _INTRODUCE: tuple[_Site, ...] = (
     _Site("LetStmt", "shared", True, "let m[shared] = shared\n    score[0] := m[0]"),
     _Site(
         "ProduceArm", "shared", True,
-        "pick produces:\n      won(shared) { score[0] := shared }",
-        prelude="define pick -> { won(Integer) } { produce won(0) }",
-    ),
-    _Site(
-        "TypeDef", "shared", True, "score[0] := 0",
-        extra="type T = { shared : Integer } derived { twice = shared + shared }",
-    ),
-    # The same declaration with no `derived { }` block scopes its field names
-    # over no DSL text at all — `_classify_type_derived` only scopes them inside
-    # derived bodies. Refused all the same, conservatively: adding one derived
-    # field makes the shadow live, and the author who would add it is the one
-    # who cannot see the other half. The refusal's sentence is what has to hold
-    # for both, which is why it speaks of wherever the name is in scope rather
-    # than asserting a scope that may be empty. The registry answering with
-    # field names for a struct that scopes them nowhere is issue #503.
-    _Site(
-        "TypeDef", "shared", True, "score[0] := 0",
-        extra="type T = { shared : Integer }",
+        "phase pick -> outcome { won(Integer) } { produce won(0) }\n"
+        "    pick produces:\n      won(shared) { score[0] := shared }",
     ),
     _Site(
         "FunctionDef", "shared", True, "score[0] := f(1)",
@@ -2716,7 +2660,7 @@ _INTRODUCE: tuple[_Site, ...] = (
 
 # The game the card-flavored rows are written in. `{declared}` carries the game's
 # own declaration of the shared spelling, which only the `requires` column needs.
-_SHADOW_HOST = """{prelude}
+_SHADOW_HOST = """
 game Host {{
   uses provider
   players: 4
@@ -2738,7 +2682,7 @@ game Host {{
 # The piece/board host for the rows the card host cannot express: a board mints
 # the `cell` domain and supplies the `line` collection, and a piece game's
 # transfer filter binds `piece`/`pieces`.
-_SHADOW_BOARD_HOST = """{prelude}
+_SHADOW_BOARD_HOST = """
 game Board {{
   uses provider
   players: 2
@@ -2779,7 +2723,6 @@ def _shadow_source(site: _Site, claim: str) -> tuple[str, str]:
     declared = f" {site.binds} : Integer = 0" if claim == "requires" else ""
     return (
         host.format(
-            prelude=site.prelude,
             body=site.body,
             extra=site.extra,
             clauses=site.clauses,
@@ -2993,8 +2936,6 @@ game Declarer {
 function fn() = 1
 function d_use() = 1
 function f() = 1
-type T = { x : Integer }
-define dd -> { w(Integer) } { produce w(0) }
 move_type mt { effect { score[0] := 0 } }
 procedure pr() { score[0] := 0 }
 rule r {
@@ -3024,8 +2965,6 @@ _DECLARATION_LEVEL_NAME: dict[str, str] = {
     "rank value": "A",
     "direction value": "left",
     "function": "fn",
-    "type": "T",
-    "define": "dd",
     "move type": "mt",
     "rule": "r",
     "procedure": "pr",
@@ -3169,8 +3108,8 @@ def test_no_provided_name_can_be_a_pronoun(
     word: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Why the pronoun rebinds need no row in the grid. `as`, `offer`, a round's
-    `winner` and `state.` namespace, a move effect, `transition_to … where` and
-    `demands: actions where` each narrow what a fixed spelling means inside a
+    `winner` and `state.` namespace, a move effect and `transition_to … where`
+    each narrow what a fixed spelling means inside a
     region, exactly as a binder does — but the spellings are the
     `RESERVED_VALUE_NAMES` words, and a library cannot provide one: the reserved
     sweep runs after the splice, so it holds a provided declaration to the same
@@ -3504,9 +3443,10 @@ def test_the_type_registries_a_contract_reads_stay_disjoint() -> None:
     classification authored, silently, with no site to author it at.
 
     The state side is `KNOWN_TYPE_NAMES`, and the two registries were already
-    disjoint. The side that was NOT disjoint is the one this test exists for:
-    a library's own `type` names and a game's `positions` names are chosen by an
-    author, and neither namespace reserved the zone-type spellings.
+    disjoint. The author-chosen side is the one that needs a guard: a game's
+    `positions` names are chosen by an author, and are kept off the zone-type
+    spellings by the reservation `test_an_author_may_not_take_a_zone_type_name`
+    pins.
 
     red under: add any `KNOWN_TYPE_NAMES` member to `LIBRARY_ZONE_TYPES` in
     cardlang/stdlib/zones.py."""
@@ -3517,26 +3457,22 @@ def test_the_type_registries_a_contract_reads_stay_disjoint() -> None:
     )
 
 
-@pytest.mark.parametrize("kind", ["type", "position"])
-def test_an_author_may_not_take_a_zone_type_name(kind: str) -> None:
-    """The guard the derivation rests on. `Hand` means a zone type; a game `type
-    Hand = { … }` or `positions { Hand : 1..5 }` would make `requires { x :
-    Hand }` mean two things at once, and the classification would silently pick
-    one. Refused where the name is DECLARED — the layer that owns "a name that
-    must not mean two things" — rather than at the contract, so the ambiguity
-    cannot be constructed in the first place.
+def test_an_author_may_not_take_a_zone_type_name() -> None:
+    """The guard the derivation rests on. `Hand` means a zone type; a game's
+    `positions { Hand : 1..5 }` would make `requires { x : Hand }` mean two
+    things at once, and the classification would silently pick one. Refused
+    where the name is DECLARED — the layer that owns "a name that must not mean
+    two things" — rather than at the contract, so the ambiguity cannot be
+    constructed in the first place.
 
-    Free against the corpus: no game declares a struct type at all, and every
-    position domain is lowercase (`cell`, `column`, `fslot`).
+    Free against the corpus: every position domain is lowercase (`cell`,
+    `column`, `fslot`).
 
     red under: drop the zone-type row from `resolve.POSITION_NAME_SOURCES`."""
-    inside = "positions { Hand : 1..5 }" if kind == "position" else ""
-    # A `type` is a TOP-LEVEL item, beside the game rather than inside it.
-    outside = "type Hand = { n : Integer }" if kind == "type" else ""
     game = parse_text(
-        f"game D {{ players: 2 cards: kuhn3 max_length: 10 zones {{ deck : Deck }} "
-        f"state {{ s[player] : Integer = 0 }} {inside} "
-        f"phase p {{ s[0] := 1 }} winner: highest s }} {outside}",
+        "game D { players: 2 cards: kuhn3 max_length: 10 zones { deck : Deck } "
+        "state { s[player] : Integer = 0 } positions { Hand : 1..5 } "
+        "phase p { s[0] := 1 } winner: highest s }",
         "probe.cardlang",
     )
     _rejects(game, "Hand", "zone type")
@@ -3545,8 +3481,8 @@ def test_an_author_may_not_take_a_zone_type_name(kind: str) -> None:
 def _contract_type_cells() -> list[object]:
     """TYPE x ANSWERING BLOCK, crossed from the registries.
 
-    The type axis is itself a cross: which registry the name comes from, how
-    many type arguments are written, and whether a `?` is written. One
+    The type axis is itself a cross: which registry the name comes from, and
+    how many type arguments are written. One
     representative name per registry bucket — the bucket, not the name, is what
     the classification reads, and `test_every_zone_type_bucket_has_a_probe`
     pins the buckets to `LIBRARY_ZONE_TYPES` so a new zone type cannot land in
@@ -3554,18 +3490,15 @@ def _contract_type_cells() -> list[object]:
     cells: list[object] = []
     for source in ("state", "zone_owned", "zone_singleton", "unknown"):
         for args in (0, 1, 2):
-            for optional in (False, True):
-                for declared_in in (*sorted(_CONTRACT_TARGETS), "absent"):
-                    cells.append(
-                        pytest.param(
-                            source,
-                            args,
-                            optional,
-                            declared_in,
-                            id=f"{source}-args{args}"
-                            f"{'-opt' if optional else ''}-{declared_in}",
-                        )
+            for declared_in in (*sorted(_CONTRACT_TARGETS), "absent"):
+                cells.append(
+                    pytest.param(
+                        source,
+                        args,
+                        declared_in,
+                        id=f"{source}-args{args}-{declared_in}",
                     )
+                )
     return cells
 
 
@@ -3595,17 +3528,17 @@ def test_every_zone_type_bucket_has_a_probe() -> None:
     assert _bucket_name("zone_singleton") in singleton
 
 
-def _contract_entry(source: str, args: int, optional: bool) -> str:
+def _contract_entry(source: str, args: int) -> str:
     """The `requires` entry text for a cell. An owned zone type is indexed by
     its owner because `_resolve_zone` requires it — the shapes that violate THAT
     class are `_check_contract_shapes`' own probes, not this grid's business."""
     name = _bucket_name(source)
     index = "[player]" if source == "zone_owned" else ""
     spelled = name + ("<" + ", ".join(["player"] * args) + ">" if args else "")
-    return f"x{index} : {spelled}{'?' if optional else ''}"
+    return f"x{index} : {spelled}"
 
 
-def _contract_answer(source: str, optional: bool, block: str) -> str:
+def _contract_answer(source: str, block: str) -> str:
     """The declaration the game writes into `block`, named `x`.
 
     Shaped for the BLOCK, never for the contract: a cell whose block disagrees
@@ -3615,17 +3548,13 @@ def _contract_answer(source: str, optional: bool, block: str) -> str:
     if block == "state":
         matching = source == "state"
         name = _bucket_name("state") if matching else "Integer"
-        return (
-            f"x : {name}? = none" if matching and optional else f"x : {name} = 0"
-        )
+        return f"x : {name} = 0"
     if source == "zone_owned":
         return f"x[player] : {_bucket_name('zone_owned')}<player>"
     return f"x : {_bucket_name('zone_singleton')}"
 
 
-def _expected_contract_outcome(
-    source: str, args: int, optional: bool, declared_in: str
-) -> str:
+def _expected_contract_outcome(source: str, args: int, declared_in: str) -> str:
     """accept | library | game.
 
     `library` means refused against the library ALONE, before any game is
@@ -3641,9 +3570,8 @@ def _expected_contract_outcome(
             return "library"  # a state type takes no type arguments
         return "accept" if declared_in == "state" else "game"
     wanted_args = 1 if source == "zone_owned" else 0
-    if args != wanted_args or optional:
-        # A zone type's arity is `LIBRARY_ZONE_TYPES`', and a zone has no
-        # nullable form — `?` is a state spelling that `type_ref` cannot carry.
+    if args != wanted_args:
+        # A zone type's arity is `LIBRARY_ZONE_TYPES`'.
         return "library"
     return "accept" if declared_in == "zones" else "game"
 
@@ -3663,12 +3591,11 @@ _EXPECTED_NEEDLE: dict[tuple[str, str], str] = {
 }
 
 
-@pytest.mark.parametrize("source,args,optional,declared_in", _contract_type_cells())
+@pytest.mark.parametrize("source,args,declared_in", _contract_type_cells())
 def test_a_contract_entry_is_answered_from_the_block_its_type_names(
     monkeypatch: pytest.MonkeyPatch,
     source: str,
     args: int,
-    optional: bool,
     declared_in: str,
 ) -> None:
     """The whole discriminator surface: an entry's TYPE says which of the game's
@@ -3678,12 +3605,11 @@ def test_a_contract_entry_is_answered_from_the_block_its_type_names(
     Three cells accept — a state type answered from `state { }`, an owned zone
     type answered from `zones { }`, a singleton zone type answered from
     `zones { }` — and every other cell is a commanded refusal, in the channel
-    the failure belongs to. The `?`-on-a-zone and args-on-a-state rows are the
-    reason the grid crosses shape with source rather than testing them apart:
-    the two spellings the widened type slot can carry are exactly the two that
-    are legal on one side of the discriminator and not the other."""
-    entry = _contract_entry(source, args, optional)
-    expected = _expected_contract_outcome(source, args, optional, declared_in)
+    the failure belongs to. The args-on-a-state rows are the reason the grid
+    crosses shape with source rather than testing it apart: type arguments are
+    legal on one side of the discriminator and not the other."""
+    entry = _contract_entry(source, args)
+    expected = _expected_contract_outcome(source, args, declared_in)
     library = parse_library(
         f"library probe {{ requires {{ {entry} }} "
         f"function reach(p : Player) = x }}",
@@ -3691,12 +3617,12 @@ def test_a_contract_entry_is_answered_from_the_block_its_type_names(
     )
     _patch_libraries(monkeypatch, {"probe": library})
     zones = "deck : Deck" + (
-        " " + _contract_answer(source, optional, "zones")
+        " " + _contract_answer(source, "zones")
         if declared_in == "zones"
         else ""
     )
     state = "score[player] : Integer = 0" + (
-        " " + _contract_answer(source, optional, "state")
+        " " + _contract_answer(source, "state")
         if declared_in == "state"
         else ""
     )
@@ -3844,10 +3770,9 @@ _CONTRACT_HOSTS: dict[str, str] = {
 
 # The currencies the refusal may not spend. Each is a real message from a
 # neighbouring guard, and each sends a library author somewhere that does not
-# fix this: "the library does not have it" invites declaring a type named
-# `Collection`, which the reservation sweep then refuses; "takes no type
-# argument" answers a placement question with a shape one; the zone-owner leak
-# reads the ELEMENT as an owner.
+# fix this: "the library does not have it" names a type no author can declare;
+# "takes no type argument" answers a placement question with a shape one; the
+# zone-owner leak reads the ELEMENT as an owner.
 _WRONG_CONTRACT_VOICES: tuple[str, ...] = (
     "names the type 'Collection'",
     "takes no type argument",
@@ -3856,9 +3781,8 @@ _WRONG_CONTRACT_VOICES: tuple[str, ...] = (
 
 
 @pytest.mark.parametrize("host", sorted(_CONTRACT_HOSTS))
-@pytest.mark.parametrize("spelling", ["Collection<Card>", "Collection<Card>?"])
 def test_a_contract_cannot_require_a_collection(
-    spelling: str, host: str, monkeypatch: pytest.MonkeyPatch
+    host: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`require_decl` spells its type inline, so it PARSES the tokens and the
     refusal is the contract checker's — and it must be the right refusal, on
@@ -3886,8 +3810,7 @@ def test_a_contract_cannot_require_a_collection(
     red under: drop the collection arm from `_check_contract_shapes`; the
     count half reddens under a second `bag.error` in that arm."""
     library = parse_library(
-        f"library shapes {{ requires {{ x : {spelling} }} "
-        f"function f() = 1 }}",
+        "library shapes { requires { x : Collection<Card> } function f() = 1 }",
         "docs/libraries/shapes.cardlang",
     )
     _patch_libraries(monkeypatch, {"shapes": library})

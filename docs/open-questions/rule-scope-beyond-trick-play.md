@@ -8,10 +8,9 @@ Everything the rule grammar can express beyond that site is validated,
 type-checked, and emitted to IR — and then never consulted:
 
 - a rule whose `constrains:` names any other move type (Hearts'
-  `PassExactlyThreeCards` constrains `transfer_between_hands`) never matches;
-- the `demands: actions where <predicate>` form (the move-shape predicate) has
-  no enforcement point at all — today the shape is enforced by the construct
-  itself (the pass movement's `chosen 3`, a betting move's `when:` guard);
+  `PassExactlyThreeCards` constrains `transfer_between_hands`) never matches —
+  a move's shape is enforced by the construct itself (the pass movement's
+  `chosen 3`, a betting move's `when:` guard);
 - `legal_moves:` names are resolved but runtime-inert (see
   [phase-legal-moves.md](phase-legal-moves.md)); the climb round's move-type
   name is likewise a validated label (the `climb` keyword selects the form).
@@ -26,9 +25,10 @@ The design question: **where should declarative rules apply outside a trick
 round?** Candidate sites, each with a different enforcement shape:
 
 - **Chosen movements** — a `move chosen N cards …` draw could intersect
-  card-set demands from rules constraining its move type, and check
-  `actions where` predicates over the completed selection (card_count is a
-  natural fit). This would let `PassExactlyThreeCards` actually bind.
+  card-set demands from rules constraining its move type, and check a
+  predicate over the completed selection (card_count is a natural fit) — a
+  move-shape demand the rule grammar does not have, which would arrive with
+  this site. This would let `PassExactlyThreeCards` actually bind.
 - **Auction/betting vocabularies** — move guards (`when:`) already gate
   candidates; rules constraining a vocabulary move would be a second,
   cross-cutting gate. Is that worth two mechanisms, or should vocabulary

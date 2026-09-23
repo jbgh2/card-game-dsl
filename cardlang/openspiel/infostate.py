@@ -27,7 +27,7 @@ from typing import Any
 
 from cardlang.runtime.observe import ZoneView, view_of
 from cardlang.runtime.reads import deep_freeze
-from cardlang.runtime.state import RuntimeState, StructValue
+from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card
 
 
@@ -39,11 +39,6 @@ def render_state_variable(value: Any) -> str:
         return "{" + ",".join(f"{k}:{render_state_variable(v)}" for k, v in items) + "}"
     if isinstance(value, (list, tuple, set, frozenset)):
         return "[" + ",".join(sorted(render_state_variable(v) for v in value)) + "]"
-    if isinstance(value, StructValue):  # canonical: sorted declared fields
-        fields = ",".join(
-            f"{k}:{render_state_variable(v)}" for k, v in sorted(value.fields.items())
-        )
-        return f"{value.type_name}{{{fields}}}"
     if isinstance(value, (int, str, Card)) or value is None:
         return str(value)
     # Closed-domain completeness: a state value outside the declared shapes

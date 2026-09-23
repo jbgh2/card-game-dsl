@@ -9,13 +9,7 @@ property:   Each grammar form of `round` builds its OWN AST node, and that node
             reachable from another form's node.
 domain:     round form x optional-clause setting, at three layers (the AST node
             the parse builder mints, the field set that node carries, the IR the
-            emitter writes). One direction of the order-mode reconciliation
-            sits outside, and it bounds what this module covers rather than
-            leaving a hole in the grid: an `AuctionRound` carrying a mode the
-            form cannot walk is resolve's to refuse and is unreachable from
-            source text, so the check that would close it belongs with the
-            traversal that would make it reachable -- issue #425 carries it
-            for whoever writes that traversal.
+            emitter writes).
 registry:   form    -- `round_axes.round_productions` (grammar productions
                        opening with the `round` keyword) reconciled against
                        `round_axes.round_nodes` (those productions' parse-builder
@@ -26,9 +20,8 @@ registry:   form    -- `round_axes.round_productions` (grammar productions
                        know. The crossing:
                        `test_every_round_production_builds_its_own_node`.
             clause  -- `round_axes.clause_settings`, the full cross of each
-                       production's `[...]` groups, with `order`'s values from
-                       `n.ROUND_ORDER_MODES` rather than binary. The crossing:
-                       `test_clause_axis_is_the_grammar_and_the_order_registry`.
+                       production's `[...]` groups, absent/present. The
+                       crossing: `test_clause_axis_is_the_grammar`.
             movetype -- `round_axes.move_type_forms`, the round nodes carrying
                        a `move_type` field, crossed against
                        `stdlib.moves.LIBRARY_MOVE_TYPES`. Which forms are in
@@ -38,21 +31,11 @@ registry:   form    -- `round_axes.round_productions` (grammar productions
                        `CLIMB_DECISION_MOVE_TYPE`) -- so only the pairing of
                        node to constant is authored, and a form with the field
                        and no pairing raises rather than dropping out.
-            The `ROUND_ORDER_MODES` widening guard on `AuctionForm`:
-            tests/test_registry_guard_witnesses.py::test_widening_round_order_modes_fails_the_auction_form.
             The `state.` fields each form publishes:
             cardlang/stdlib/round_state.py.
-does not prove:  four things.
+does not prove:  three things.
 
-            (1) That the `order` clause SELECTS anything. It admits one value
-            and that value is the default: `order ring` and no clause at all
-            reach the same traversal, and nothing below resolve reads
-            `order_mode`. The grid's `order` rows prove the clause parses,
-            resolves, emits and runs -- not that it chooses a traversal. The
-            clause is kept as the docking point a second traversal arrives at
-            (decisions.md, "The auction form of `round`", under Order).
-
-            (2) That a cell setting an `outcome` clause EXECUTES. Such a cell
+            (1) That a cell setting an `outcome` clause EXECUTES. Such a cell
             raises its tagged result for an enclosing `produces:` arm to
             catch, which this minimal game deliberately does not have, so
             `test_round_cell_executes` excludes them -- written as the
@@ -64,16 +47,12 @@ does not prove:  four things.
             tests/openspiel_ready/test_pinochle.py, and those games' per-seed
             goldens in tests/test_migration_characterization.py.
 
-            (3) That a clause with a closed value set is crossed over that
-            set. The two AUTHORED mappings in `round_axes` are naming
-            correspondences no artifact states -- which registry bounds a
-            clause's values (`_CLAUSE_VALUE_REGISTRIES`), and which node pairs
-            with which move-type constant (`_RUNNABLE_MOVE_TYPE`) -- and they
-            degrade differently: a form missing from the second RAISES, while
-            a clause missing from the first is merely treated as binary and
-            its values go uncrossed.
+            (2) That a clause with a closed value set would be crossed over
+            that set. `round_axes.clause_settings` crosses every optional
+            clause absent/present, so a clause whose value is one of a closed
+            set of words would have its values go uncrossed.
 
-            (4) Anything about what `AuctionForm` publishes to `state.`.
+            (3) Anything about what `AuctionForm` publishes to `state.`.
             stdlib/round_state.py enumerates the forms as data, and its own
             pin is asymmetric: the surface-rejection half spans every form,
             but the auction form publishes nothing, so the half that would
@@ -142,7 +121,7 @@ game G {{
   zones {{ deck : Deck }}
   state {{ acted[player] : Boolean = false  bumps[player] : Integer = 0 }}
   phase run {{
-    round offering [bump, stop] from 0 over players where not acted[player]{order}
+    round offering [bump, stop] from 0 over players where not acted[player]
           until (number of players where not acted[player]) is 0{outcome}
   }}
   winner: highest bumps
@@ -186,8 +165,6 @@ _SPELLINGS = {
     ("trump", "present"): " trump trump_suit",
     ("early", "absent"): "",
     ("early", "present"): " early on_play_off_led_suit",
-    ("order", "absent"): "",
-    ("order", "ring"): " order ring",
     ("outcome", "absent"): "",
     ("outcome", "present"): " outcome bridge_auction_outcome",
 }
@@ -275,33 +252,24 @@ def test_every_round_production_builds_its_own_node() -> None:
     )
 
 
-def test_clause_axis_is_the_grammar_and_the_order_registry() -> None:
-    """The clause axis comes from the productions' optional groups, with a
-    closed-value clause crossed over its registry rather than absent/present.
+def test_clause_axis_is_the_grammar() -> None:
+    """The clause axis comes from the productions' optional groups.
 
-    A new optional clause, or a third order mode, must appear as new rows
-    without anyone editing this file. Guarding that the axis is DERIVED, not
-    that it currently has eleven members -- pinning the count would just be
-    this module asserting its own parametrization back to itself.
+    A new optional clause must appear as new rows without anyone editing this
+    file. Guarding that the axis is DERIVED, not that it currently has some
+    number of members -- pinning the count would just be this module
+    asserting its own parametrization back to itself.
 
-    red under: hand-list `optional_clauses` to return `()` for `auction_stmt`,
-    or drop the `order` entry from `_CLAUSE_VALUE_REGISTRIES`.
+    red under: hand-list `optional_clauses` to return `()` for `auction_stmt`.
     """
     settings = {p: axes.clause_settings(p) for p in axes.round_productions()}
     for production, cells in settings.items():
-        expected = 1
-        for clause in axes.optional_clauses(production):
-            expected *= 1 + (len(axes.order_modes()) if clause == "order" else 1)
+        expected = 2 ** len(axes.optional_clauses(production))
         assert len(cells) == expected, (
             f"`{production}` has {len(axes.optional_clauses(production))} optional "
             f"clause(s) but {len(cells)} cells, not {expected} -- the cross is "
             f"not the full product, so some combination is unreachable by the grid"
         )
-    assert any(
-        ("order", mode) in setting
-        for mode in axes.order_modes()
-        for setting in settings["auction_stmt"]
-    ), "the order clause is being crossed absent/present, not over its registry"
 
 
 # --- the grid -----------------------------------------------------------------

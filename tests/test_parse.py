@@ -36,7 +36,7 @@ def test_parses_game_header() -> None:
     assert isinstance(game, Game)
     assert game.name == "Skeleton"
     assert game.deck == "standard52"
-    assert game.players == PlayersSpec(low=2, high=None, span=game.players.span)
+    assert game.players == PlayersSpec(count=2, span=game.players.span)
 
 
 def test_parses_zones_with_index_and_type_args() -> None:
@@ -55,14 +55,6 @@ def test_parses_zones_with_index_and_type_args() -> None:
     assert hand_zone.type_ref.args == (
         TypeArg(name="player", span=hand_zone.type_ref.args[0].span),
     )
-
-
-def test_players_range() -> None:
-    text = "game R { players: 2..8 max_length: 1000 cards: standard52 zones { } }"
-    game = parse_text(text, "r.dsl")
-    assert game.players.low == 2
-    assert game.players.high == 8
-    assert game.players.is_range
 
 
 def test_spans_point_into_source() -> None:

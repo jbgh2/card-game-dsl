@@ -117,8 +117,7 @@ on the Earley parser to surface ambiguity, then tighten toward LALR so
 the grammar is provably deterministic. Use a `Transformer` to produce a
 typed AST of Python dataclasses — one node kind per primitive in the
 [model.md](model.md) table (Card, Resource, Zone, Phase, Rule, MoveType,
-Move, observation/memory operations, user-defined type, and the
-game-level blocks).
+Move, observation/memory operations, and the game-level blocks).
 
 *Forcing function:* wherever the syntax across the docs is inconsistent
 or underspecified, the grammar can't be written or a game won't parse.
@@ -126,8 +125,7 @@ or underspecified, the grammar can't be written or a game won't parse.
 ### B. Semantic model and symbol resolution
 
 Resolve names across every block: zones, move types, rules,
-user-defined types, state variables, players and teams, and native
-functions. Build scopes following lexical phase
+state variables, players and teams, and native functions. Build scopes following lexical phase
 nesting (see [decisions.md](decisions.md), "State scoping (lexical)"), including
 the round forms' own state frames that rules read by lexical scope
 (e.g. the trick `round`'s `state.led_suit`).

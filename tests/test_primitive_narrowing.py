@@ -69,7 +69,7 @@ red under (born-green cells):
   `deep_freeze` that dropped the `bytearray` or dataclass-recursion branch
   leaves those cells vacuous. Reddening mutation (RUN, not stated): freeze
   `_nested()` with a blind version missing those two branches — the walker
-  flags `[…]['raw']: mutable sequence bytearray` and `[…]['sv'].fields:
+  flags `[…]['raw']: mutable sequence bytearray` and `[…]['wrap'].payload:
   mutable mapping dict` (descending into the wrapper), so the fixture's
   extra shapes are load-bearing, not decoration.
 - the non-frozen-dataclass case can't live in the fixture (deep_freeze
@@ -1066,17 +1066,24 @@ _ATOMIC: tuple[type, ...] = (str, bytes)
 # A deliberately deep, mixed-shape value: dict -> list -> dict -> set/tuple,
 # with atomics (str) that must NOT be shredded into characters; BOTH a plain
 # `set` (must be converted) and a `frozenset` (passes through); a `bytearray`
-# (a mutable builtin the freeze must convert); and a `StructValue` whose
-# `.fields` is a live dict behind a frozen dataclass (a mutable WRAPPER, not a
+# (a mutable builtin the freeze must convert); and a `_Wrapper` whose
+# `.payload` is a live dict behind a frozen dataclass (a mutable WRAPPER, not a
 # leaf). Injected into both bundles so the walker has every shape to descend.
-def _nested() -> dict[int, Any]:
-    from cardlang.runtime.state import StructValue
+@dataclass(frozen=True, slots=True)
+class _Wrapper:
+    """A frozen+slotted value wrapper holding a live dict: immutable at the
+    wrapper, mutable behind it -- the shape `deep_freeze`'s dataclass-field
+    recursion exists for."""
 
+    payload: dict[str, Any]
+
+
+def _nested() -> dict[int, Any]:
     return {
         0: {
             "layer": [1, {"deep": (2, 3), "mset": {4, 5}, "fset": frozenset({6, 7})}],
             "raw": bytearray(b"ab"),
-            "sv": StructValue("Contract", {"level": 3, "nest": [8, {"z": {9}}]}),
+            "wrap": _Wrapper({"level": 3, "nest": [8, {"z": {9}}]}),
             "tag": "keep",
         },
         1: [{"pair": (10, 11)}, [12, [13, {"k": [14]}]]],
@@ -1090,9 +1097,9 @@ def _reachable_mutable(value: Any, path: str = "") -> list[str]:
     """Every path at which a MUTABLE container — or a mutable field behind a
     value WRAPPER — is reachable inside `value`. Empty means the whole
     structure is immutable at every depth and through every dataclass. This
-    walker recurses into dataclass fields on purpose: a `StructValue` is not a
-    Mapping/Sequence/Set, so a walker that stopped at it (as deep_freeze first
-    did) would call its live `.fields` dict a leaf and stay vacuously green."""
+    walker recurses into dataclass fields on purpose: a frozen dataclass is not
+    a Mapping/Sequence/Set, so a walker that stopped at it would call its live
+    field dict a leaf and stay vacuously green."""
     import dataclasses as _dc
     from collections.abc import Mapping as _Map
     from collections.abc import Sequence as _Seq

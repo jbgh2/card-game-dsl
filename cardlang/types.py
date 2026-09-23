@@ -10,10 +10,9 @@ Collections and zone contents are typed loosely (`TCollection`, often of
 `TCard`); `TAny` is the [[permissive-top]] that propagates through every operation
 without error, used for the deferred parts of the typed object model (the full
 `ZoneContents` query API, `Resource` generics, card attributes/facing).
-`TStruct` types a declared `type`, and `TOutcome` a `define`'s or an outcome
-phase's cases; both are constructed (`typecheck.py`), but only `TStruct` is
-reachable as an expression's inferred type -- a outcome is a registry entry
-consulted when checking `produce` / `produces:`, never returned by `infer`.
+`TOutcome` types an outcome phase's cases; it is constructed (`typecheck.py`)
+as a registry entry consulted when checking `produce` / `produces:`, never
+returned by `infer`.
 
 Adding a member here is not local: every consumer that dispatches over `Type`
 must gain an arm. The dispatches are isinstance chains rather than
@@ -184,15 +183,6 @@ class TAny:
 
 
 @dataclass(frozen=True, slots=True)
-class TStruct:
-    """A user-defined struct type (Stage 2: `type Name = { … } derived { … }`)."""
-
-    name: str
-    fields: Mapping[str, Type]
-    derived: frozenset[str]
-
-
-@dataclass(frozen=True, slots=True)
 class TOutcome:
     """A tagged-union / phase-outcome type (Stage 2/3: `{ a(T) | b }`)."""
 
@@ -215,7 +205,6 @@ Type: TypeAlias = (
     | TCollection
     | TNull
     | TAny
-    | TStruct
     | TOutcome
 )
 
@@ -251,13 +240,9 @@ def join(a: Type, b: Type) -> Type | None:
     """
     if isinstance(a, TAny) or isinstance(b, TAny):
         return TAny()
-    if isinstance(a, (TStruct, TOutcome)) and isinstance(b, (TStruct, TOutcome)):
+    if isinstance(a, TOutcome) and isinstance(b, TOutcome):
         # Nominal, for the reason `coercible` gives: same name, same type.
-        # `type(a) is type(b)` because the rule is same NAME AND same
-        # constructor: `type R` and `define R` live in different namespaces,
-        # so one spelling can name both, and merging them would let a produce
-        # of the outcome type satisfy a position expecting the struct.
-        return a if type(a) is type(b) and a.name == b.name else None
+        return a if a.name == b.name else None
     if isinstance(a, TCollection) and isinstance(b, TCollection):
         element = join(a.element, b.element)
         if element is None:
@@ -331,20 +316,12 @@ def coercible(src: Type, dst: Type) -> bool:
         return True
     if isinstance(src, TNull):
         return isinstance(dst, TOptional)  # `none` only fits an optional
-    if isinstance(src, (TStruct, TOutcome)) and isinstance(dst, (TStruct, TOutcome)):
-        # A declared type is NOMINAL: two `R`s are the same type because they
-        # are both named R, not because their payloads happen to match. Both
-        # nominal members of the union, not the struct alone: each carries a
-        # structural payload beside its declared name (a field map, a case
-        # map) and is a frozen dataclass, so equality is structural — and any
-        # two registries that disagreed about one derived field's type then
-        # produced two unequal `R`s, which surfaced as diagnostics reading
-        # `expects R, got R` and made well-typed programs unwritable. Identity
-        # belongs to the name; the payload is what the name resolves TO.
-        # `type(src) is type(dst)` keeps the two members apart: `type R` and
-        # `define R` occupy different namespaces, so one spelling can name
-        # both and they must stay distinct types.
-        return type(src) is type(dst) and src.name == dst.name
+    if isinstance(src, TOutcome) and isinstance(dst, TOutcome):
+        # A declared type is NOMINAL: two outcomes named R are the same type
+        # because they share the name, not because their case maps happen to
+        # match. Identity belongs to the name; the case map is what the name
+        # resolves TO.
+        return src.name == dst.name
     if src == dst:
         return True
     if isinstance(dst, TOptional):
@@ -358,11 +335,8 @@ def coercible(src: Type, dst: Type) -> bool:
         return True
     if isinstance(src, TCollection) and isinstance(dst, TCollection):
         # The key is how a map is ADDRESSED, not part of its value space —
-        # strip it and compare elements. RECURSE rather than compare with `==`:
-        # dataclass equality is structural, so two collections of the same
-        # nominal struct whose snapshots disagree about one derived field would
-        # be judged disjoint, exactly as the bare case was before the nominal
-        # rule. The rule has to reach through every wrapper, or it is a
-        # top-level special case.
+        # strip it and compare elements. RECURSE rather than compare with `==`,
+        # so every rule above — the permissive top, the nominal outcome, the
+        # optional — reaches through the wrapper.
         return coercible(src.element, dst.element)
     return False

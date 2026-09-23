@@ -150,7 +150,7 @@ applicability condition**. Four clauses:
 ```text
 rule <Name> {
   constrains: <move_type>
-  applies_when: <predicate on state>     // default: always
+  applies_when: <predicate on state>     // omitted: the rule always applies
   demands: <function returning a set of legal candidate moves>
   if_impossible: <fallback>              // default: any legal move under this move type
   exempts: <function returning a set of cards>   // optional; see below

@@ -42,7 +42,7 @@ Now illegal:  ill-formed syntax; it cannot reach any later pass. Also naming a
               ``Collection<`` spelling, bare or `?`-suffixed, on any
               :class:`~cardlang.ast.nodes.Parameter` outside a
               :class:`~cardlang.ast.nodes.PrimitiveDecl`, or in any
-              ``StateDecl`` / ``StructField`` / ``OutcomeCase``; and, at an
+              ``StateDecl`` / ``OutcomeCase``; and, at an
               entry's own slots, an optional, multi-argument, nested or
               optional-element collection. Also
               MUTATING A RETURNED AST: ``parse_text`` is memoized, so two
@@ -252,13 +252,8 @@ class _Exempts:
 
 
 @dataclass(frozen=True, slots=True)
-class _Always:
-    pass
-
-
-@dataclass(frozen=True, slots=True)
-class _ActionsWhere:
-    expr: object  # Expr
+class _AlwaysReject:
+    span: Span
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,7 +295,7 @@ class _SelectMode:
 
 @dataclass(frozen=True, slots=True)
 class _MoveWhen:
-    pred: object  # _Always | Expr
+    pred: object  # Expr
 
 
 @dataclass(frozen=True, slots=True)
@@ -341,7 +336,7 @@ def _lexer() -> Lark:
     what keeps a `{` inside a comment or a string from counting as structure.
 
     Context-free, and so wrong about token KINDS: this grammar disambiguates
-    `NAME`/`QNOUN`/`CARD_RANK_NAME`/`STRUCT_TYPE_NAME` by position and a basic
+    `NAME`/`QNOUN`/`CARD_RANK_NAME` by position and a basic
     lexer cannot (tests/test_keyword_anchoring.py). What it settles is what a
     scan needs and no more — each lexeme's offset and text, and the braces and
     string literals, which no other terminal can match.
@@ -388,10 +383,7 @@ class _Builder(Transformer[Token, n.Game]):
     # --- game-level items ---
 
     def players_fixed(self, meta: Meta, c: list[Token]) -> n.PlayersSpec:
-        return n.PlayersSpec(low=int(c[0]), high=None, span=self._span(meta))
-
-    def players_range(self, meta: Meta, c: list[Token]) -> n.PlayersSpec:
-        return n.PlayersSpec(low=int(c[0]), high=int(c[1]), span=self._span(meta))
+        return n.PlayersSpec(count=int(c[0]), span=self._span(meta))
 
     def players(self, meta: Meta, c: list[n.PlayersSpec]) -> n.PlayersSpec:
         # Re-span over the whole clause (`players: …`), not just the spec —
@@ -931,9 +923,7 @@ class _Builder(Transformer[Token, n.Game]):
     def uses_decl(self, meta: Meta, c: list[Token]) -> n.UsesDecl:
         return n.UsesDecl(name=str(c[0]), span=self._span(meta))
 
-    def _require_decl(
-        self, meta: Meta, c: list[object], *, optional: bool
-    ) -> n.RequireDecl:
+    def require_plain(self, meta: Meta, c: list[object]) -> n.RequireDecl:
         index = c[1]
         assert index is None or isinstance(index, str)
         args: tuple[n.TypeArg, ...] = ()
@@ -945,15 +935,8 @@ class _Builder(Transformer[Token, n.Game]):
             index=index,
             type_name=str(c[2]),
             type_args=args,
-            optional=optional,
             span=self._span(meta),
         )
-
-    def require_plain(self, meta: Meta, c: list[object]) -> n.RequireDecl:
-        return self._require_decl(meta, c, optional=False)
-
-    def require_optional(self, meta: Meta, c: list[object]) -> n.RequireDecl:
-        return self._require_decl(meta, c, optional=True)
 
     def requires_block(self, meta: Meta, c: list[n.RequireDecl]) -> _Requires:
         return _Requires(tuple(c), span=self._span(meta))
@@ -969,8 +952,6 @@ class _Builder(Transformer[Token, n.Game]):
         state: n.StateBlock | None = None
         rules: list[n.RuleDef] = []
         move_types: list[n.MoveTypeDef] = []
-        types: list[n.TypeDef] = []
-        defines: list[n.DefineDef] = []
         functions: list[n.FunctionDef] = []
         procedures: list[n.ProcedureDef] = []
         for item in c[1:]:
@@ -1008,10 +989,6 @@ class _Builder(Transformer[Token, n.Game]):
                 rules.append(item)
             elif isinstance(item, n.MoveTypeDef):
                 move_types.append(item)
-            elif isinstance(item, n.TypeDef):
-                types.append(item)
-            elif isinstance(item, n.DefineDef):
-                defines.append(item)
             elif isinstance(item, n.FunctionDef):
                 functions.append(item)
             elif isinstance(item, n.ProcedureDef):
@@ -1030,40 +1007,9 @@ class _Builder(Transformer[Token, n.Game]):
             state=state,
             rules=tuple(rules),
             move_types=tuple(move_types),
-            types=tuple(types),
-            defines=tuple(defines),
             functions=tuple(functions),
             procedures=tuple(procedures),
             span=self._span(meta),
-        )
-
-    # --- user-defined types ---
-
-    def struct_field(self, meta: Meta, c: list[object]) -> n.StructField:
-        assert isinstance(c[1], _TypeName)
-        return n.StructField(
-            name=str(c[0]),
-            type_name=c[1].name,
-            optional=c[1].optional,
-            span=self._span(meta),
-        )
-
-    def derived_field(self, meta: Meta, c: list[object]) -> n.DerivedField:
-        return n.DerivedField(
-            name=str(c[0]), value=_as_expr(c[1]), span=self._span(meta)
-        )
-
-    def derived_block(
-        self, meta: Meta, c: list[n.DerivedField]
-    ) -> tuple[n.DerivedField, ...]:
-        return tuple(c)
-
-    def type_def(self, meta: Meta, c: list[object]) -> n.TypeDef:
-        name = str(c[0])
-        fields = tuple(x for x in c if isinstance(x, n.StructField))
-        derived = next((x for x in c if isinstance(x, tuple)), ())
-        return n.TypeDef(
-            name=name, fields=fields, derived=derived, span=self._span(meta)
         )
 
     # --- phases ---
@@ -1226,21 +1172,6 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def move_in(self, meta: Meta, c: list[object]) -> n.Transfer:
-        assert isinstance(c[1], _Selection)
-        vis = c[3].expr if len(c) > 3 and isinstance(c[3], _Vis) else None
-        return n.Transfer(
-            verb=str(c[0]),
-            selection_mode=c[1].mode,
-            amount=c[1].amount,  # type: ignore[arg-type]
-            item=c[1].item,
-            source=_as_expr(c[2]),
-            dest=None,
-            dest_each=False,
-            visibility=vis,  # type: ignore[arg-type]
-            span=self._span(meta),
-        )
-
     def shuffle_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
         return n.EpistemicOp(op="shuffle", zone=_as_expr(c[0]), span=self._span(meta))
 
@@ -1314,9 +1245,6 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def named_arg(self, meta: Meta, c: list[object]) -> n.NamedArg:
-        return n.NamedArg(name=str(c[0]), value=c[1], span=self._span(meta))  # type: ignore[arg-type]
-
     def offer(self, meta: Meta, c: list[object]) -> n.Offer:
         player = _as_expr(c[0])
         names = tuple(str(x) for x in c[1:])
@@ -1344,19 +1272,17 @@ class _Builder(Transformer[Token, n.Game]):
         return tuple(str(x) for x in c)
 
     def auction_stmt(self, meta: Meta, c: list[object]) -> n.AuctionRound:
-        # c: [tuple(move_types), expr(leader), expr(participants), NAME(order)?,
-        #     expr(termination), NAME(outcome)?]. Both the `order` clause (c[3],
-        #     default ring) and `outcome` (c[5], betting omits it) are None
-        #     placeholders when absent.
+        # c: [tuple(move_types), expr(leader), expr(participants),
+        #     expr(termination), NAME(outcome)?]. `outcome` (c[4], betting
+        #     omits it) is a None placeholder when absent.
         offering = c[0]
         assert isinstance(offering, tuple)
         return n.AuctionRound(
             offering=offering,
             leader=_as_expr(c[1]),
             participants=_as_expr(c[2]),
-            until=_as_expr(c[4]),
-            order_mode=str(c[3]) if c[3] is not None else None,
-            outcome_fn=str(c[5]) if c[5] is not None else None,
+            until=_as_expr(c[3]),
+            outcome_fn=str(c[4]) if c[4] is not None else None,
             span=self._span(meta),
         )
 
@@ -1406,21 +1332,29 @@ class _Builder(Transformer[Token, n.Game]):
     def constrains(self, meta: Meta, c: list[Token]) -> _Constrains:
         return _Constrains(str(c[0]))
 
-    def always(self, meta: Meta, c: list[object]) -> _Always:
-        return _Always()
+    def always_reject(self, meta: Meta, c: list[object]) -> _AlwaysReject:
+        # Refused by the clause that holds it, which is the one the message
+        # tells the designer to leave out.
+        return _AlwaysReject(self._span(meta))
+
+    @staticmethod
+    def _refuse_always(pred: object, clause: str, holder: str) -> None:
+        if isinstance(pred, _AlwaysReject):
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    f"`always` is not a condition — {holder} has no `{clause}` "
+                    f"line; leave it out",
+                    pred.span,
+                )
+            )
 
     def applies_when(self, meta: Meta, c: list[object]) -> n.AppliesWhen:
-        if isinstance(c[0], _Always):
-            return n.AppliesWhen(always=True, pred=None, span=self._span(meta))
-        return n.AppliesWhen(always=False, pred=_as_expr(c[0]), span=self._span(meta))
-
-    def actions_where(self, meta: Meta, c: list[object]) -> _ActionsWhere:
-        return _ActionsWhere(_as_expr(c[0]))
+        self._refuse_always(c[0], "applies_when:", "a rule that applies every time")
+        return n.AppliesWhen(pred=_as_expr(c[0]), span=self._span(meta))
 
     def demands(self, meta: Meta, c: list[object]) -> n.Demands:
-        if isinstance(c[0], _ActionsWhere):
-            return n.Demands(kind="actions", expr=c[0].expr, span=self._span(meta))  # type: ignore[arg-type]
-        return n.Demands(kind="cards", expr=_as_expr(c[0]), span=self._span(meta))
+        return n.Demands(expr=_as_expr(c[0]), span=self._span(meta))
 
     def if_impossible(self, meta: Meta, c: list[object]) -> _IfImpossible:
         return _IfImpossible(_as_expr(c[0]))
@@ -1862,15 +1796,6 @@ class _Builder(Transformer[Token, n.Game]):
             obj=_as_expr(c[0]), index=_as_expr(c[1]), span=self._span(meta)
         )
 
-    def field_init(self, meta: Meta, c: list[object]) -> n.FieldInit:
-        return n.FieldInit(name=str(c[0]), value=_as_expr(c[1]), span=self._span(meta))
-
-    def struct_lit(self, meta: Meta, c: list[object]) -> n.StructLit:
-        return n.StructLit(
-            type_name=str(c[0]),
-            fields=tuple(x for x in c[1:] if isinstance(x, n.FieldInit)),
-            span=self._span(meta),
-        )
 
     def card_literal(self, meta: Meta, c: list[object]) -> n.CardLiteral:
         return n.CardLiteral(rank=str(c[0]), suit=str(c[1]), span=self._span(meta))
@@ -2121,6 +2046,7 @@ class _Builder(Transformer[Token, n.Game]):
         )
 
     def move_when(self, meta: Meta, c: list[object]) -> _MoveWhen:
+        self._refuse_always(c[0], "when:", "a move type that is always legal")
         return _MoveWhen(c[0])
 
     def move_effect(self, meta: Meta, c: list[object]) -> _MoveEffect:
@@ -2145,16 +2071,6 @@ class _Builder(Transformer[Token, n.Game]):
     ) -> tuple[n.OutcomeCase, ...]:
         return tuple(c)
 
-    def define_def(self, meta: Meta, c: list[object]) -> n.DefineDef:
-        name = str(c[0])
-        cases = next(x for x in c if isinstance(x, tuple))
-        body = tuple(
-            _as_stmt(s)
-            for s in c[1:]
-            if s is not None and not isinstance(s, (str, tuple, Token))
-        )
-        return n.DefineDef(name=name, cases=cases, body=body, span=self._span(meta))
-
     def produce_stmt(self, meta: Meta, c: list[object]) -> n.Produce:
         # The optional payload group may leave a None placeholder; drop it.
         payloads = tuple(_as_expr(x) for x in c[1:] if x is not None)
@@ -2172,7 +2088,7 @@ class _Builder(Transformer[Token, n.Game]):
 
     def produces_stmt(self, meta: Meta, c: list[object]) -> n.Produces:
         return n.Produces(
-            define=str(c[0]),
+            phase=str(c[0]),
             arms=tuple(x for x in c[1:] if isinstance(x, n.ProduceArm)),
             span=self._span(meta),
         )
@@ -2189,7 +2105,7 @@ class _Builder(Transformer[Token, n.Game]):
         effect: tuple[object, ...] = ()
         for item in c[1:]:
             if isinstance(item, _MoveWhen):
-                when_pred = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
+                when_pred = _as_expr(item.pred)
             elif isinstance(item, _MoveEffect):
                 effect = item.body
         params = tuple(x for x in c if isinstance(x, n.Parameter))
@@ -2258,16 +2174,12 @@ class _Builder(Transformer[Token, n.Game]):
         game = games[0]
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
         move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
-        types = tuple(x for x in c if isinstance(x, n.TypeDef))
-        defines = tuple(x for x in c if isinstance(x, n.DefineDef))
         functions = tuple(x for x in c if isinstance(x, n.FunctionDef))
         procedures = tuple(x for x in c if isinstance(x, n.ProcedureDef))
         return replace(
             game,
             rules=rules,
             move_types=move_types,
-            types=types,
-            defines=defines,
             functions=functions,
             procedures=procedures,
         )
@@ -2305,7 +2217,6 @@ _WORD_OVERRIDES: dict[str, str] = {
     "QNOUN": "a name",
     "CARD_POINTS_KEY": "a name",
     "TRICK_ORDER_KEY": "a name",
-    "STRUCT_TYPE_NAME": "a type name",
     "CARD_RANK_NAME": "a rank name",
     "INT": "a whole number",
     "STRING": "a quoted string",
@@ -2401,6 +2312,22 @@ def _designer_word(name: str) -> str:
     return _terminal_words().get(name, "")
 
 
+@cache
+def _refusal_only_terminals() -> frozenset[str]:
+    """The terminals every production of which is a refusal (`*_reject`).
+
+    A retired spelling keeps its keyword only so the parser can refuse it
+    with the fix, so it is never a word to suggest as what the grammar
+    expects."""
+    homes: dict[str, set[bool]] = {}
+    for rule in _parser().rules:
+        refused = bool(rule.alias) and str(rule.alias).endswith("_reject")
+        for symbol in rule.expansion:
+            if symbol.is_term:
+                homes.setdefault(symbol.name, set()).add(refused)
+    return frozenset(name for name, kinds in homes.items() if kinds == {True})
+
+
 def _spelling(word: str) -> str:
     """The literal inside a rendered word, for comparing against what was typed.
 
@@ -2435,8 +2362,7 @@ def _block_opener_words() -> frozenset[str]:
     ``_designer_word``. Deriving rather than listing is what lets a block
     construct added to the grammar name itself: a listed set would leave the
     new one nameless and nothing would say so. A first symbol that spells a
-    CLASS of text rather than one word — the struct type of a `Trick { }`
-    literal, the name of a `produces` arm — renders to prose with no literal
+    CLASS of text rather than one word — the name of a `produces` arm — renders to prose with no literal
     in it and so is not a word a header can be recognised by.
     """
     lbrace, _ = _brace_terminals()
@@ -2461,9 +2387,14 @@ def _expected_words(exc: UnexpectedInput, typed: str) -> tuple[str, ...]:
     break on the word itself, so the order is stable and a golden can pin it.
     """
     names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
+    refused = _refusal_only_terminals()
     words = {
         word
-        for word in (_designer_word(str(getattr(t, "name", t))) for t in names)
+        for word in (
+            _designer_word(name)
+            for name in (str(getattr(t, "name", t)) for t in names)
+            if name not in refused
+        )
         if word
     }
 

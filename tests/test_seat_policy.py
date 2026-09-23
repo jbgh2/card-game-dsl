@@ -66,7 +66,7 @@ def _line(short_name: str, seed: int, last: int = _LAST) -> tuple[list[int], lis
         return answer
 
     try:
-        line.play({seat: ask for seat in range(game.players.low)})
+        line.play({seat: ask for seat in range(game.players.count)})
     except (_Enough, GameDescriptionError, IllegalMove):
         pass
     return line.history, asks
@@ -136,7 +136,7 @@ def ask(view, legal):
         raise Enough
     return uniform(view, legal)
 try:
-    line.play({seat: ask for seat in range(load(path)[0].players.low)})
+    line.play({seat: ask for seat in range(load(path)[0].players.count)})
 except Enough:
     pass
 print(line.history)

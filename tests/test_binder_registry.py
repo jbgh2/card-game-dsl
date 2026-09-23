@@ -201,11 +201,11 @@ game Q {
   state { score[player] : Integer = 0 }
   phase p {
     deal 2 cards from deck to each hand
+    phase d -> outcome { Won(Player) } { produce Won(0) }
     d produces: Won(actor) { score[actor] += 1 }
   }
   winner: highest score
 }
-define d -> { Won(Player) } { produce Won(0) }
 """
     with pytest.raises(DiagnosticError) as excinfo:
         check_dsl(src, "probe")

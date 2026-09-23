@@ -36,11 +36,6 @@ def test_seven_card_stud_ir_is_well_formed() -> None:
     assert isinstance(move_types, list)
     names = {m["name"] for m in move_types if isinstance(m, dict)}
     assert {"check", "bet", "call", "raise", "fold"} <= names
-    # The betting rounds are the betting form: the default ring traversal, so the
-    # emitted mode is null, and no outcome function. Pinned affirmatively AND by
-    # the absence of any spelled mode — a pin that only said what the IR is not
-    # would stay green on an IR that had lost the key altogether.
+    # The betting rounds are the betting form: no outcome function.
     blob = json.dumps(ir)
-    assert '"order_mode": null' in blob
-    assert '"order_mode": "' not in blob
     assert '"outcome_fn": null' in blob

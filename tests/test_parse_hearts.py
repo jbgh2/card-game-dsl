@@ -30,7 +30,7 @@ def _phase(parent: n.Phase | n.Game, name: str) -> n.Phase:
 def test_header_blocks() -> None:
     g = _game()
     assert g.name == "Hearts"
-    assert g.players == n.PlayersSpec(low=4, high=None, span=g.players.span)
+    assert g.players == n.PlayersSpec(count=4, span=g.players.span)
     assert g.deck == "standard52"
     assert g.direction == "clockwise"
     # Parse records the convention form; the expanded A..2 tuple is resolve's
@@ -75,12 +75,10 @@ def test_transition_predicate_binds_action() -> None:
 
 
 def test_every_rule_is_a_card_set_demand_on_the_trick_decision() -> None:
-    """Hearts once carried the second demand form (`PassExactlyThreeCards`'s
-    `actions where action.card_count is 3`). That form reaches no decision
-    site and is rejected now; the pass movement's `chosen 3` is what binds the
-    count. So every surviving rule here — the game's own and the library ones
-    resolve splices in — is a card-set demand on the trick decision, which is
-    the only shape rules can take (tests/test_rule_surface_reachability.py)."""
+    """Every rule here — the game's own and the library ones resolve splices
+    in — is a card-set demand on the trick decision, which is the only shape
+    rules can take (tests/test_rule_surface_reachability.py); the pass
+    movement's `chosen 3` is what binds the pass count."""
     from cardlang.resolve import resolve
     from cardlang.stdlib.moves import RULE_ENFORCED_MOVE_TYPE
 
@@ -91,12 +89,10 @@ def test_every_rule_is_a_card_set_demand_on_the_trick_decision() -> None:
     for name, rule in rules.items():
         assert rule.constrains == RULE_ENFORCED_MOVE_TYPE, name
         assert rule.demands is not None or rule.exempts is not None, name
-        if rule.demands is not None:
-            assert rule.demands.kind == n.DEMAND_KIND_CARDS, name
 
     follow = rules["MustFollowSuit"]  # spliced from the standard library
-    assert follow.demands is not None and follow.demands.kind == n.DEMAND_KIND_CARDS
-    assert follow.applies_when is not None and not follow.applies_when.always
+    assert follow.demands is not None
+    assert follow.applies_when is not None
 
 
 def test_the_shooter_is_offered_both_ways_a_moon_scores() -> None:

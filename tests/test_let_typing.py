@@ -16,8 +16,8 @@ property:   a `let`-bound name carries its initializer's inferred type into
             every later statement of its scope, so each guard answers the same
             for the laundered spelling as for the inline one
 domain:     statement context {phase body, nested phase via items fold, hook
-            body, if/repeat body, move effect, define body, produces arm,
-            procedure body} × representative guard (the guards themselves are
+            body, if/repeat body, move effect, outcome-phase body, produces
+            arm, procedure body} × representative guard (the guards themselves are
             matrix-tested in test_operator_guards.py, test_procedures.py and
             test_movement_endpoints.py; this module pins the THREADING) —
             plus the form axis {plain let, chained let-of-let, indexed let}
@@ -127,22 +127,20 @@ def test_a_let_types_within_a_move_effect() -> None:
     )
 
 
-def test_a_let_types_within_a_define_body_and_produces_arm() -> None:
+def test_a_let_types_within_an_outcome_phase_body_and_produces_arm() -> None:
     _rejects(
         _game(
-            "d produces:\n      Won { let z = hearts\n"
-            "        if z is 3 { n[0] := 1 } }",
-            tail="define d -> { Won } { produce Won }",
+            "phase q -> outcome { Won } { produce Won }\n"
+            "    q produces:\n      Won { let z = hearts\n"
+            "        if z is 3 { n[0] := 1 } }"
         ),
         _LAUNDER,
     )
     _rejects(
         _game(
-            "d produces:\n      Won { n[0] := 1 }",
-            tail=(
-                "define d -> { Won } { let z = hearts\n"
-                "  if z is 3 { produce Won }\n  produce Won }"
-            ),
+            "phase q -> outcome { Won } { let z = hearts\n"
+            "      if z is 3 { produce Won }\n      produce Won }\n"
+            "    q produces:\n      Won { n[0] := 1 }"
         ),
         _LAUNDER,
     )
@@ -351,20 +349,10 @@ def test_a_computed_card_collection_is_not_a_zone() -> None:
 
 
 def test_a_produce_payload_is_typed_through_a_let() -> None:
-    # The payload-vs-variant check runs in its own pass (`_check_define_
-    # outcomes` / `_check_phase_produces`). Were those to read the bare env,
-    # `produce Won(z)` with `let z = hearts` would pass a Player payload the
-    # inline spelling had just been rejected for. Both owners fold binders
-    # like the main walk.
-    _rejects(
-        _game(
-            "d produces:\n      Won(w) { n[w] := 1 }",
-            tail=(
-                "define d -> { Won(Player) } { let z = hearts\n  produce Won(z) }"
-            ),
-        ),
-        "outcome case 'Won' expects Player, got Suit",
-    )
+    # The payload-vs-variant check runs in its own pass
+    # (`_check_phase_produces`). Were it to read the bare env, `produce Won(z)`
+    # with `let z = hearts` would pass a Player payload the inline spelling had
+    # just been rejected for. It folds binders like the main walk.
     _rejects(
         _game(
             "phase q -> outcome { Won(Player) } {\n"
@@ -518,19 +506,6 @@ def test_move_type_params_are_typed_in_guard_and_effect() -> None:
     )
 
 
-def test_derived_fields_type_their_siblings() -> None:
-    # A derived body reads sibling fields by bare name; their declared types
-    # are in the struct registry and are bound — without that binding,
-    # `seat is hearts` on a Player field would be accepted as TAny.
-    _rejects(
-        _game("n[0] := 1").replace(
-            "game G {",
-            "type T = {\n  seat : Player\n} derived {\n  bad = seat is hearts\n}\ngame G {",
-        ),
-        "comparing Suit with Player can never be equal",
-    )
-
-
 def test_the_zone_hint_names_the_filter_only_where_one_can_be_written() -> None:
     # Unqualified, the hint would suggest `where` filters on destinations,
     # gathers and shuffle targets — positions whose grammar has no filter
@@ -563,8 +538,8 @@ def test_a_tany_initializer_carries_tany_forward() -> None:
     # (tests/test_fail_loud.py).
     check_dsl(
         _game(
-            "d produces:\n      Won(w) { let z = w\n        n[0] := 1 }",
-            tail="define d -> { Won(Integer) } { produce Won(3) }",
+            "phase q -> outcome { Won(Integer) } { produce Won(3) }\n"
+            "    q produces:\n      Won(w) { let z = w\n        n[0] := 1 }"
         ),
         "probe.cardlang",
     )

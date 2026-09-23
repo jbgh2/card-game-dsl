@@ -180,7 +180,7 @@ game G {
   }
   winner: highest score
 }
-move_type bid(strain : Suit?) { when: always  effect { picked[actor] := strain } }
+move_type bid(strain : Suit?) { effect { picked[actor] := strain } }
 """
 
 

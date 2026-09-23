@@ -27,8 +27,8 @@ property:   (1) every combination the extended `primitive_read` grammar
             body happens at each `run` of that procedure, because expansion is
             by value. Claim (3) is bounded by which offers this analysis can
             position at all — an offer made from inside another move type's
-            body — or from a `define`'s — is REFUSED, not judged, and the
-            wall says so rather than speaking about where state stands.
+            body is REFUSED, not judged, and the wall says so rather than
+            speaking about where state stands.
 domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             {no tail, `in P`} (four accepted combinations, all implemented)
             plus the malformed spellings the grammar must refuse loud;
@@ -61,7 +61,7 @@ domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             subtracting the forms reachable from `?statement` and
             `?phase_item`: a phase, a procedure body (crossed with that
             procedure's `run` sites: inside, both sides, none), another move
-            type's body, a `define`'s body; and the three
+            type's body; and the three
             standing collision arms plus the repeat guard, each re-probed WITH
             a tail present, and again with TWO tails present, so neither the
             tail nor the nest can lift them silently.
@@ -1121,11 +1121,6 @@ _CONTAINMENT_CELLS: dict[str, tuple[str, ...] | None] = {
         "relay",
         "does not follow offers made from inside another move type",
     ),
-    "move-type-offered-from-a-define": (
-        "note",
-        "define pick",
-        "does not follow offers made from inside a `define` body",
-    ),
     "produces-arm-inside": None,
     "produces-arm-sibling": ("outer", "pinochle_meld_value"),
 }
@@ -1145,17 +1140,12 @@ _SHOW = "procedure show() {\n  offer to 0 one of [note]\n}\n"
 # A move type whose effect offers another: coup's `foreign_aid` shape, and the
 # offering container this analysis declines to follow.
 _RELAY = "move_type relay {\n  when: true\n  effect { offer to 0 one of [note] }\n}\n"
-_PICK = "define pick -> { won(Player) } {\n  produce won(0)\n}\n"
-# A define whose body OFFERS: `_run_define` runs it at the `produces:` site, so
-# its position is that site — the fourth statement-holding container, and the
-# second the analysis walls.
-_PICK_OFFERS = (
-    "define pick -> { won(Player) } {\n"
-    "  offer to 0 one of [note]\n"
-    "  produce won(0)\n"
-    "}\n"
+# An outcome phase and its consumer, spliced together into one phase body: a
+# `produces:` consumes an EARLIER sibling's outcome.
+_ARM = (
+    "    phase pick -> outcome { won(Player) } {\n      produce won(0)\n    }\n"
+    "    pick produces:\n      won(q) { meld[q] := pinochle_meld_value(q) }\n"
 )
-_ARM = "    pick produces:\n      won(q) { meld[q] := pinochle_meld_value(q) }\n"
 
 
 def _containment_source(cell: str) -> str:
@@ -1197,6 +1187,7 @@ def _containment_source(cell: str) -> str:
                 "  constrains: play_to_trick\n"
                 "  applies_when: pinochle_meld_value(0) >= 0\n"
                 "  demands: cards in hand where true\n"
+                "  if_impossible: hand\n"
                 "}\n",
                 outer_body=_DEAL,
             )
@@ -1249,17 +1240,10 @@ def _containment_source(cell: str) -> str:
                 top=_NOTE + _RELAY,
                 outer_body=_DEAL + "    offer to 0 one of [relay]\n",
             )
-        case "move-type-offered-from-a-define":
-            return _probe(
-                top=_NOTE + _PICK_OFFERS,
-                outer_body=_DEAL
-                + "    pick produces:\n      won(q) { meld[q] := meld[q] }\n",
-            )
         case "produces-arm-inside":
-            return _probe(top=_PICK, outer_body=_DEAL + _ARM)
+            return _probe(outer_body=_DEAL + _ARM)
         case "produces-arm-sibling":
             return _probe(
-                top=_PICK,
                 outer_body=_DEAL,
                 after_outer="  phase later {\n" + _ARM + "  }\n",
             )
@@ -1629,9 +1613,9 @@ def test_the_statement_holding_containers_are_classified_total() -> None:
     introduces one; the definition forms are derived here by subtracting the
     first set from the second, and each is classified.
 
-    Two of the four yield positions — a phase's statements run where they are
-    written, a procedure's wherever it is run — and two do not, which is what
-    `resolve._UNPOSITIONED_CONTAINERS` records. A statement-holding production
+    A phase and a procedure yield positions — a phase's statements run where
+    they are written, a procedure's wherever it is run — and a move type's
+    effect does not, which is what `resolve._UNPOSITIONED_CONTAINERS` records. A statement-holding production
     added without a row lands in the wall's safe direction at run time and
     reddens here at once.
 
@@ -1639,7 +1623,7 @@ def test_the_statement_holding_containers_are_classified_total() -> None:
     carries a reddening mutation per claim: for the DERIVATION, add an inert
     `statement*` production to the grammar (`spare_block: _EFFECT_KW "{"
     statement* "}"`) — the parser still builds and `spare_block` arrives
-    undecided; for the CLASSIFICATION, drop the `defines` row from
+    undecided; for the CLASSIFICATION, drop the `move_types` row from
     `_UNPOSITIONED_CONTAINERS`."""
     from cardlang.resolve import _UNPOSITIONED_CONTAINERS
 
@@ -1664,13 +1648,13 @@ def test_the_statement_holding_containers_are_classified_total() -> None:
                 nested.add(child)
                 frontier.add(child)
     definitions = holds_statements - nested
-    assert definitions == {"procedure_def", "move_effect", "define_def"}, sorted(
+    assert definitions == {"procedure_def", "move_effect"}, sorted(
         definitions
     )
     # Plus `phase`, which holds statements through `?phase_item` rather than
     # directly, and is the one container whose statements ARE their position.
     assert "statement" in refs["phase_item"]
-    assert set(_UNPOSITIONED_CONTAINERS) == {"move_types", "defines"}
+    assert set(_UNPOSITIONED_CONTAINERS) == {"move_types"}
 
 
 # --- the offering surface, derived -------------------------------------------
@@ -2046,7 +2030,7 @@ def test_the_grid_is_not_empty() -> None:
     DERIVED from `_SHAPE_PHASE_PATHS`, and the class pin beside it is what
     catches a table that stopped realising a class."""
     assert len(_MEMBERSHIP_CELLS) >= 11
-    assert len(_CONTAINMENT_CELLS) >= 22
+    assert len(_CONTAINMENT_CELLS) >= 21
     assert len(_NEST_CONTAINMENT_CELLS) >= 20
     for cells in (_CONTAINMENT_CELLS, _NEST_CONTAINMENT_CELLS):
         assert any(v is None for v in cells.values())

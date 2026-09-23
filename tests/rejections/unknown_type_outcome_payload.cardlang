@@ -1,18 +1,20 @@
-// Guard: resolve's declared-type-name check on a variant case's payload types.
-// A `define`'s payload type names had no validity check at all, so `Integar`
-// fell through `typecheck._payload_type` -> `type_from_name` to the permissive
-// `TAny`, and every `produces:` arm binder carrying that payload inherited it —
-// one typo silently exempting a whole arm body from type checking.
-define d -> { won(Integar) | lost } {
-  produce won(1)
-}
-game UnknownTypeVariantPayload {
+// Guard: resolve's declared-type-name check on an outcome case's payload types.
+// Without it `Integar` falls through `typecheck._payload_type` ->
+// `type_from_name` to the permissive `TAny`, and every `produces:` arm binder
+// carrying that payload inherits it — one typo silently exempting a whole arm
+// body from type checking.
+game UnknownTypeOutcomePayload {
   players: 2
   max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0 }
-  phase play { for each player p: score[p] := 1 }
+  phase play {
+    phase settle -> outcome { won(Integar) | lost } { produce won(1) }
+    settle produces:
+      won(n) { score[0] := 1 }
+      lost   { }
+  }
   winner: highest score
 }

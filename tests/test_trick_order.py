@@ -90,8 +90,7 @@ does not prove:  five things, and the first two are about the VOICE of a
             habit alone. The `habits-*` cells pin these loud, in the lexer's
             voice, and a crossed arm would buy a better voice on a sentence
             nobody has written.
-            (2) That three refusals are refusals BY DESIGN. `empty-block`,
-            `struct-literal-does-not-absorb-the-block` and
+            (2) That two refusals are refusals BY DESIGN. `empty-block` and
             `block-in-phase-body` assert only "syntax error", which a tree
             WITHOUT the construct also produces. What discriminates is the
             ACCEPT cells beside them, which such a tree cannot pass.
@@ -116,8 +115,7 @@ does not prove:  five things, and the first two are about the VOICE of a
             (5) That `TRICK_ORDER_EQ: ":=" | "="` is safe under a different
             parser. Its alternatives overlap `ASSIGN_OP`'s `:=` and every
             anonymous `"="` in the grammar (`state_decl`, `let_stmt`,
-            `derived_field`, `type_def`, `function_def`, `vis_clause`,
-            `named_arg`). Under Earley with the dynamic lexer this resolves
+            `function_def`, `vis_clause`, `primitive_default_decl`). Under Earley with the dynamic lexer this resolves
             by position, and the `eq-row-*` cells plus the ambiguity budget
             exercise it clean THERE; a named terminal overlapping anonymous
             literals is precisely what breaks under the LALR tightening the
@@ -545,17 +543,9 @@ def _grammar_cells() -> list[Cell]:
     # A state variable named `trump` read inside a row: one reading, accepted.
     add(Cell("state-var-named-trump",
              _source(clauses=_block("trump: card.suit is trump"), state="  trump : Suit? = none"), ()))
-    # The absorbers: `card_rank+` and the struct literal.
+    # The absorber: `card_rank+`.
     add(Cell("ranking-does-not-absorb-the-block",
              _source(ranking="ranking: A K Q J 10 9 8 7 6 5 4 3 2", clauses=BLOCK), ()))
-    # Born green (the game-level block fails to parse today, so the body is
-    # never reached); its witness: red under dropping `trick_order` from
-    # STRUCT_TYPE_NAME's exclusion once the block parses -- the body's
-    # one-row block then absorbs as a struct literal and dies as
-    # "unknown type 'trick_order'" / "unresolved name 'card'".
-    add(Cell("struct-literal-does-not-absorb-the-block",
-             _source(clauses=BLOCK, body=f"let x = {BLOCK}\n    {LIVE}"),
-             ("syntax error",), forbidden=("unresolved name 'card'", "unknown type")))
     # Placement: a phase body, a piece game, a library.
     add(Cell("block-in-phase-body", _source(body=f"{BLOCK}\n    {LIVE}"), ("syntax error",)))
     # R12 names the kind, and the partition must stay SILENT: a piece game has
@@ -875,18 +865,18 @@ def _partition_cells() -> list[Cell]:
     # is reported where it sits rather than waiting for someone to invoke it.
     # Both directions of the partition, so the two halves cannot drift into
     # disagreeing about which question they are asking.
-    def _dead_define(winner: str) -> str:
+    def _dead_procedure(winner: str) -> str:
         return (
-            "define d -> { done }\n{\n  round play_to_trick from leader "
+            "procedure d() {\n  round play_to_trick from leader "
             f"over all players source hand into pile winner {winner}\n"
-            "  score[winner] += 1\n  produce done\n}"
+            "  score[winner] += 1\n}"
         )
 
-    add(Cell("with-block-excluded-winner-in-a-dead-define",
-             _source(clauses=BLOCK, body=LIVE, tail=_dead_define("highest_of_led_suit")),
+    add(Cell("with-block-excluded-winner-in-a-dead-procedure",
+             _source(clauses=BLOCK, body=LIVE, tail=_dead_procedure("highest_of_led_suit")),
              (R3.format(name="highest_of_led_suit"),)))
-    add(Cell("without-block-gated-winner-in-a-dead-define",
-             _source(body="score[1] += 1", tail=_dead_define("highest_by_trick_order")),
+    add(Cell("without-block-gated-winner-in-a-dead-procedure",
+             _source(body="score[1] += 1", tail=_dead_procedure("highest_by_trick_order")),
              (R5,)))
 
     # --- consumption x reachability -------------------------------------
@@ -913,7 +903,6 @@ def _partition_cells() -> list[Cell]:
              ()))
     _RULE = ("rule OnlyTrumps {\n"
              "  constrains: play_to_trick\n"
-             "  applies_when: always\n"
              "  demands: cards in hand where is_trump(card)\n"
              "  if_impossible: hand\n}")
     add(Cell("consumer-in-an-active-rule",

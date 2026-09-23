@@ -4,8 +4,7 @@
   "name": "Pinochle",
   "players": {
     "kind": "players",
-    "low": 4,
-    "high": null
+    "count": 4
   },
   "deck": "pinochle48",
   "direction": "clockwise",
@@ -742,14 +741,13 @@
                   "value": 1
                 }
               },
-              "order_mode": null,
               "outcome_fn": "pinochle_auction_outcome"
             }
           ]
         },
         {
           "kind": "produces",
-          "define": "auction",
+          "phase": "auction",
           "arms": [
             {
               "kind": "produce_arm",
@@ -915,7 +913,6 @@
                   "ref": "state_var"
                 }
               },
-              "order_mode": null,
               "outcome_fn": null
             },
             {
@@ -977,7 +974,6 @@
                   "value": 1
                 }
               },
-              "order_mode": null,
               "outcome_fn": null
             },
             {
@@ -1021,7 +1017,6 @@
                   "value": 2
                 }
               },
-              "order_mode": null,
               "outcome_fn": null
             },
             {
@@ -1340,7 +1335,6 @@
                     "name": "decided",
                     "ref": "state_var"
                   },
-                  "order_mode": null,
                   "outcome_fn": null
                 },
                 {
@@ -1880,7 +1874,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "binop",
           "op": "and",
@@ -1953,7 +1946,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -2064,7 +2056,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "is_check",
           "check": "not_none",
@@ -2081,7 +2072,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -2122,7 +2112,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "binop",
           "op": "and",
@@ -2170,7 +2159,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -2273,7 +2261,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "is_check",
           "check": "not_none",
@@ -2290,7 +2277,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -2604,8 +2590,6 @@
       ]
     }
   ],
-  "types": [],
-  "defines": [],
   "functions": [
     {
       "kind": "function",

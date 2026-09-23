@@ -109,8 +109,6 @@ def emit(game: n.Game) -> IRDict:
         "loser": _loser(game.loser) if game.loser else None,
         "rules": [_rule(r) for r in game.rules],
         "move_types": [_move_type(m) for m in game.move_types],
-        "types": [_type_def(t) for t in game.types],
-        "defines": [_define(d) for d in game.defines],
         "functions": [_function(f) for f in game.functions],
     }
 
@@ -124,7 +122,7 @@ def to_json(game: n.Game) -> str:
 
 
 def _players(p: n.PlayersSpec) -> IRDict:
-    return {"kind": "players", "low": p.low, "high": p.high}
+    return {"kind": "players", "count": p.count}
 
 
 def _card_points_table(t: n.CardPointsTable) -> IRDict:
@@ -224,42 +222,6 @@ def _function(f: n.FunctionDef) -> IRDict:
         "name": f.name,
         "params": [{"name": p.name, "type_name": p.type_name} for p in f.params],
         "body": _expr(f.body),
-    }
-
-
-def _type_def(t: n.TypeDef) -> IRDict:
-    return {
-        "kind": "type_def",
-        "name": t.name,
-        "fields": [
-            {
-                "kind": "struct_field",
-                "name": f.name,
-                "type": f.type_name,
-                "optional": f.optional,
-            }
-            for f in t.fields
-        ],
-        "derived": [
-            {"kind": "derived_field", "name": d.name, "value": _expr(d.value)}
-            for d in t.derived
-        ],
-    }
-
-
-def _define(d: n.DefineDef) -> IRDict:
-    return {
-        "kind": "define",
-        "name": d.name,
-        "cases": [
-            {
-                "kind": "outcome_case",
-                "tag": c.tag,
-                "payload_types": list(c.payload_types),
-            }
-            for c in d.cases
-        ],
-        "body": [_stmt(s) for s in d.body],
     }
 
 
@@ -371,7 +333,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "amount": _amount(s.amount),
                 "item": s.item,
                 "source": _expr(s.source) if s.source else None,
-                "dest": _expr(s.dest) if s.dest else None,
+                "dest": _expr(s.dest),
                 "dest_each": s.dest_each,
                 "distribution": s.distribution,
                 "visibility": _expr(s.visibility) if s.visibility else None,
@@ -484,7 +446,6 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "leader": _expr(s.leader),
                 "participants": _expr(s.participants),
                 "until": _expr(s.until),
-                "order_mode": s.order_mode,
                 "outcome_fn": s.outcome_fn,
             }
         case n.ClimbRound():
@@ -508,7 +469,7 @@ def _stmt(s: n.Stmt) -> IRDict:
         case n.Produces():
             return {
                 "kind": "produces",
-                "define": s.define,
+                "phase": s.phase,
                 "arms": [
                     {
                         "kind": "produce_arm",
@@ -543,11 +504,6 @@ def _amount(a: str | n.Expr) -> IRValue:
     return a if isinstance(a, str) else _expr(a)
 
 
-def _named_arg(a: n.NamedArg) -> IRDict:
-    value = a.value
-    inner = _stmt(value) if isinstance(value, n.Transfer) else _expr(value)
-    return {"kind": "named_arg", "name": a.name, "value": inner}
-
 
 # --- rules ---
 
@@ -566,14 +522,12 @@ def _rule(r: n.RuleDef) -> IRDict:
     if r.applies_when is not None:
         applies = {
             "kind": "applies_when",
-            "always": r.applies_when.always,
-            "pred": _expr(r.applies_when.pred) if r.applies_when.pred else None,
+            "pred": _expr(r.applies_when.pred),
         }
     demands: IRValue = None
     if r.demands is not None:
         demands = {
             "kind": "demands",
-            "form": r.demands.kind,
             "expr": _expr(r.demands.expr),
         }
     rule: IRDict = {
@@ -594,10 +548,6 @@ def _rule(r: n.RuleDef) -> IRDict:
 # --- expressions ---
 
 
-def _arg(a: n.Arg) -> IRValue:
-    return _named_arg(a) if isinstance(a, n.NamedArg) else _expr(a)
-
-
 def _expr(e: n.Expr) -> IRDict:
     match e:
         case n.NameRef():
@@ -616,17 +566,8 @@ def _expr(e: n.Expr) -> IRDict:
             return {"kind": "member", "obj": _expr(e.obj), "field": e.field}
         case n.Subscript():
             return {"kind": "subscript", "obj": _expr(e.obj), "index_expr": _expr(e.index)}
-        case n.StructLit():
-            return {
-                "kind": "struct_lit",
-                "type": e.type_name,
-                "fields": [
-                    {"kind": "field_init", "name": fi.name, "value": _expr(fi.value)}
-                    for fi in e.fields
-                ],
-            }
         case n.Call():
-            return {"kind": "call", "func": e.func, "args": [_arg(a) for a in e.args]}
+            return {"kind": "call", "func": e.func, "args": [_expr(a) for a in e.args]}
         case n.BinOp():
             return {
                 "kind": "binop",

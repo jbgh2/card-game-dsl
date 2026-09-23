@@ -90,7 +90,7 @@ from typing import Iterator
 
 import pytest
 from lark import Lark
-from lark.exceptions import UnexpectedInput
+from lark.exceptions import UnexpectedInput, UnexpectedToken
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
@@ -258,7 +258,8 @@ def test_basic_lexer_cannot_tokenize_the_grammar() -> None:
     The parser is BUILT outside the raises: a build failure would satisfy a
     bare `raises(LarkError)` for an unrelated reason and leave the premise
     unproven. The claim is specifically that TOKENIZING fails, and on the
-    terminal the position-dependence is about."""
+    terminal the position-dependence is about: the `game` keyword lexed as
+    the identifier-shaped `CARD_RANK_NAME`."""
     grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
     parser = Lark(
         grammar,
@@ -270,7 +271,8 @@ def test_basic_lexer_cannot_tokenize_the_grammar() -> None:
     )
     with pytest.raises(UnexpectedInput) as exc:
         parser.parse(_game("  phase p { let y = 1 }"), start="start")
-    assert "STRUCT_TYPE_NAME" in str(exc.value)
+    assert isinstance(exc.value, UnexpectedToken)
+    assert exc.value.token.type == "CARD_RANK_NAME" and exc.value.token == "game"
 
 
 # --- executed witnesses, one per fusion shape -------------------------------
