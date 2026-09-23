@@ -10,8 +10,8 @@ READER and the engine, which for a language whose acceptance test is "a
 non-player can read the file cold" is the consequential kind.
 
 The mechanism is the Earley DYNAMIC lexer, which is load-bearing here and
-cannot simply be swapped out: `NAME`, `QNOUN`, `CARD_RANK_NAME` and
-`STRUCT_TYPE_NAME` all match the same strings and are disambiguated by
+cannot simply be swapped out: `NAME`, `QNOUN` and `CARD_RANK_NAME` all match
+the same strings and are disambiguated by
 POSITION, so a context-free (`basic`) lexer cannot tokenize this grammar at all
 (pinned by `test_basic_lexer_cannot_tokenize_the_grammar`). The dynamic lexer
 instead matches whichever terminal the parser expects at each position — so an
@@ -54,8 +54,8 @@ does not prove:  three things.
             A terminal fusable only on a word no sample reaches. `_samples`
             derives its words from each terminal's own pattern, so the
             derivation reaches exactly as far as the pattern is readable.
-            The identifier-shaped terminals (`NAME`, `QNOUN`, `CARD_RANK_NAME`,
-            `STRUCT_TYPE_NAME`) end in a greedy word-character class and so
+            The identifier-shaped terminals (`NAME`, `QNOUN`, `CARD_RANK_NAME`)
+            end in a greedy word-character class and so
             extend over ANY appended word character rather than stopping
             mid-word on any input, and the word-alternation ones
             (`MOVE_VERB`, `RANK_DIR`, `RANK_CONV`) match a fixed finite word

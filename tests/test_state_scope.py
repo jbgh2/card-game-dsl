@@ -247,9 +247,7 @@ def test_every_game_field_is_decided() -> None:
     """The game-level walk is derived, and its skip set is total over `Game`.
 
     Two sets, not one, because the reasons are not interchangeable: a field
-    another guard checks is covered, a field nobody checks is a residual. They
-    were one set once, `types` sat in it under the residual comment while the
-    name claimed ownership, and nothing checked derived bodies at all.
+    another guard checks is covered, a field nobody checks is a residual.
 
     red under: add a name to either set that `Game` does not declare, or remove
     `phases` from the owned set. Verified.
@@ -285,7 +283,7 @@ def test_every_game_field_is_decided() -> None:
         # `card_points`.
         "primitives",
         "ranking", "ranking_convention", "span",
-        "teams", "trick_order", "trump", "types", "uses", "winner", "zones",
+        "teams", "trick_order", "trump", "uses", "winner", "zones",
     ], (
         f"`Game` gained or lost a field: {walked}. Decide whether a state "
         f"reference in it runs inside a phase (skip it, and say which set) or "
@@ -298,27 +296,16 @@ def test_the_game_level_walk_is_not_vacuous() -> None:
 
     `resolve._walk` returns immediately on anything that is not a dataclass,
     and most walked `Game` fields hold a TUPLE of nodes — so walking them with
-    `_walk` visits nothing while the loop reads as total. That shipped once and
-    was caught only because a reviewer asked about one specific field.
+    `_walk` visits nothing while the loop reads as total. No walked tuple field
+    holds an expression a game can write, so the pin is on the walker the loop
+    uses: a reference inside a tuple, nested a level deep, is reached.
 
-    This pins the property directly: a state reference inside a tuple-valued
-    field (`types`) must be found. A grid cell would not have caught it —
-    every out-of-scope cell it covers lives in a single-node field.
-
-    red under: change `_child_nodes` back to `_walk` in the game-level loop of
-    `_check_state_scope`. Verified.
+    red under: change `_child_nodes`'s tuple arm in `cardlang/resolve.py` to
+    `return`.
     """
-    src = """
-game G {
-  players: 2
-  max_length: 200
-  cards: standard52
-  zones { deck : Deck  hand[player] : Hand<player> }
-  state { box : T = T { x: 1 } }
-  phase p { state { phase_var : Player = 0 } }
-  loser: box.y
-}
-type T = { x : Integer } derived { y = phase_var }
-"""
-    with pytest.raises(DiagnosticError, match="phase_var"):
-        check_dsl(src, "t.cardlang")
+    from cardlang.ast import nodes as n
+    from cardlang.resolve import _child_nodes
+
+    ref = n.NameRef("phase_var")
+    found = list(_child_nodes(((n.Not(operand=ref),),)))
+    assert ref in found

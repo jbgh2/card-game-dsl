@@ -389,11 +389,18 @@ def test_dir_function_parameter_is_rejected() -> None:
     )
 
 
-def test_dir_variant_payload_is_rejected() -> None:
-    # Same restriction at a variant payload slot: `dir` is rejected at resolve
+def test_dir_outcome_payload_is_rejected() -> None:
+    # Same restriction at an outcome payload slot: `dir` is rejected at resolve
     # ("unknown type 'dir'"), the loud twin of the function-parameter reject.
     assert "unknown type 'dir'" in _reject(
-        direction_game(extra="define D -> { Won(dir) | Lost } { produce Lost }\n")
+        direction_game(
+            setup=(
+                "    phase d -> outcome { Won(dir) | Lost } { produce Lost }\n"
+                "    d produces:\n"
+                "      Won(x) { }\n"
+                "      Lost   { }\n"
+            )
+        )
     )
 
 
@@ -464,16 +471,6 @@ def test_dir_collides_with_a_declared_position_name() -> None:
     # the `cell` collision in test_board_clause.py).
     msg = _reject(direction_game(positions="  positions { dir : 1..3 }\n"))
     assert "dir" in msg
-
-
-def test_dir_collides_with_a_declared_type_name() -> None:
-    # `type dir = { … }` in a board game: the board mints `dir`, and direction
-    # lookup precedes struct lookup, so without this guard `along : dir` reads
-    # the minted domain while `dir` elsewhere denotes the struct -- one spelling,
-    # two meanings. The `cell` mint already rejected this via the reserved set
-    # (which includes declared type names); `dir` gets the same second check.
-    msg = _reject(direction_game(extra="type dir = { x : Integer }\n"))
-    assert "dir" in msg and ("collides with a declared type name" in msg)
 
 
 def test_boardless_dir_parameter_is_unsupported() -> None:
