@@ -68,7 +68,10 @@ registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS`, pinned
                  proof's own witnesses, and the ones refused before it runs:
                  tests/openspiel_ready/test_blind_decisions.py. The verdicts'
                  invariance under hoisting into a `let`:
-                 tests/test_hidden_reads_let_invariance.py.
+                 tests/test_hidden_reads_let_invariance.py; under wrapping in
+                 `as`: tests/test_hidden_reads_as_invariance.py. A chosen
+                 movement's deciding and evaluating seats:
+                 `cardlang.resolve.CHOSEN_MOVEMENT_SEATS`, pinned against a run.
 does not prove:  that a seat's knowledge beyond its projections is credited:
                  the check judges the declared projection, never the observed
                  history, so a seat that passed a card or saw one revealed is
@@ -1382,22 +1385,9 @@ _EVALUATORS: dict[str, tuple[str, str | None]] = {
     ),
 }
 
-_EVALUATOR_RED: dict[str, str] = {
-    "to-each-amount-choose-reads-the-evaluators-hand": (
-        "a `choose` in a `to each` amount is judged against the receivers"
-    ),
-    "to-each-where-choose-reads-the-evaluators-hand": (
-        "a `choose` in a `to each` `where` is judged against the receivers"
-    ),
-}
-
-
 def _evaluator_cells() -> list[object]:
     return [
-        _cell(
-            cell_id, body, "", "", False, refuse=refuse,
-            xfail=_EVALUATOR_RED.get(cell_id), raises=DiagnosticError,
-        )
+        _cell(cell_id, body, "", "", False, refuse=refuse)
         for cell_id, (body, refuse) in _EVALUATORS.items()
     ]
 

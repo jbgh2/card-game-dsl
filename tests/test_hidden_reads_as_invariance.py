@@ -52,7 +52,9 @@ from tests.test_hidden_reads_let_invariance import _cell_sources, _verdict
 _WRAPPED = (n.Transfer, n.AssignStmt, n.IfStmt, n.AsBlock, n.ForEach, n.Offer)
 
 
-def _statements(node: object, seats: tuple[str, ...]) -> Iterator[tuple[n.Stmt, tuple[str, ...]]]:
+def _statements(
+    node: object, seats: tuple[str, ...], in_procedure: bool = False
+) -> Iterator[tuple[n.Stmt, tuple[str, ...]]]:
     """Every statement that sits in a statement sequence, with the
     expressions proven to name the acting seat at it."""
     if not dataclasses.is_dataclass(node) or isinstance(node, type):
@@ -74,6 +76,11 @@ def _statements(node: object, seats: tuple[str, ...]) -> Iterator[tuple[n.Stmt, 
             inner = ("actor", spelled)
         case n.AsBlock():
             inner = ("actor",)
+    if isinstance(node, n.ProcedureDef):
+        # A procedure body is hermetic: it may not name the `actor` pronoun.
+        inner, in_procedure = (), True
+    if in_procedure:
+        inner = tuple(seat for seat in inner if seat != "actor")
     for f in dataclasses.fields(node):
         value = getattr(node, f.name)
         items = value if isinstance(value, tuple) else (value,)
@@ -81,7 +88,7 @@ def _statements(node: object, seats: tuple[str, ...]) -> Iterator[tuple[n.Stmt, 
         for item in items:
             if in_sequence and isinstance(item, _WRAPPED) and inner:
                 yield item, inner
-            yield from _statements(item, inner)
+            yield from _statements(item, inner, in_procedure)
 
 
 def _may_rename(block: n.AsBlock) -> bool:
@@ -123,35 +130,6 @@ def _inside(span: object, stmt: n.Stmt) -> bool:
     )
 
 
-_RED_REASON = "an `as` naming the acting seat takes a fresh seat and drops the proofs"
-_RED: frozenset[str] = frozenset({
-    'as-binder@as actor@move chosen 1 card from hand[p] to pile',
-    'as-literal-seat@as actor@move chosen 1 card from hand[0] to pile',
-    'as-state-variable-written-after@as actor@move chosen 1 card from hand[leader] to',
-    'as-state-variable-written-in-sibling-branch@as actor@if flag { leader := 1 } else { move chos',
-    'as-state-variable-written-in-sibling-branch@as actor@move chosen 1 card from hand[leader] to',
-    'as-state-variable@as actor@move chosen 1 card from hand[leader] to',
-    'function-argument-read-at-the-call@as actor@move chosen (cnt(p)) cards from hand[p]',
-    'indexed-let-consumed-in-a-nested-seat@as actor@move chosen (k[p]) cards from hand[0] to',
-    'let-alias@as actor@move chosen 1 card from hand[me] to pile',
-    'let-consumed-by-the-same-seat-moving-a-public-pile@as actor@move chosen (k) cards from pile to won[p',
-    'let-consumed-by-the-same-seat-moving-a-public-pile@as p@move chosen (k) cards from pile to won[p',
-    'let-consumed-by-the-same-seat@as actor@move chosen (k) cards from hand[p] to pi',
-    'let-consumed-by-the-same-seat@as p@move chosen (k) cards from hand[p] to pi',
-    'let-consumed-in-a-nested-seat@as actor@move chosen (k) cards from hand[0] to pi',
-    'let-names-the-binder-seat@as actor@move chosen 1 card from hand[who] to pil',
-    'let-names-the-binder-seat@as p@move chosen 1 card from hand[who] to pil',
-    'let-names-the-deciders-team@as actor@move chosen 1 card from secret[t] to pil',
-    'let-names-the-literal-seat@as 0@move chosen 1 card from hand[s] to pile',
-    'let-names-the-literal-seat@as actor@move chosen 1 card from hand[s] to pile',
-    'let-names-the-state-variable-seat@as actor@move chosen 1 card from hand[who] to pil',
-    'let-names-the-state-variable-seat@as leader@move chosen 1 card from hand[who] to pil',
-    'procedure-argument-consumed-in-a-nested-seat@as actor@move chosen (k) cards from hand[0] to pi',
-    'turns-binder@as actor@move chosen 1 card from hand[t] to pile',
-    'when-let-own@as actor@move chosen 1 card from hand where held',
-})
-
-
 def _variants() -> tuple[list[object], list[object]]:
     same: list[object] = []
     other: list[object] = []
@@ -161,14 +139,11 @@ def _variants() -> tuple[list[object], list[object]]:
         for stmt, seats in statements:
             text = source[stmt.span.start:stmt.span.end]  # type: ignore[union-attr]
             for seat in dict.fromkeys(seats):
-                variant_id = f"{cell_id}@as {seat}@{text[:40].rstrip()}"
-                marks = (
-                    [pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RED_REASON)]
-                    if variant_id in _RED
-                    else []
-                )
                 same.append(
-                    pytest.param(source, _wrap(source, stmt, seat), id=variant_id, marks=marks)
+                    pytest.param(
+                        source, _wrap(source, stmt, seat),
+                        id=f"{cell_id}@as {seat}@{text[:40].rstrip()}",
+                    )
                 )
         accepted, _, _ = _verdict(source)
         if not accepted:
