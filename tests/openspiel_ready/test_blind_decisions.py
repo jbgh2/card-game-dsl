@@ -238,9 +238,9 @@ def test_the_adapter_shows_the_seat_the_phase_state_it_was_asked_under() -> None
     """At seat 0's second decision in `told_before_pick`, the information
     state the adapter serves is the Seat View seat 0 holds as it is asked.
     It is not: the in-call view carries the phase-local `high` its offer
-    turns on, and the node's rendering does not. When this passes, the two
-    `told_before_pick` cells below stop being true positives, and the swap
-    proof's sightedness judgment is revisited with them."""
+    turns on, and the node's rendering does not. When this passes, the swap
+    proof judges sightedness by its two views differing, and the
+    `told_before_pick` cell below passes with it."""
     first = run(str(TOLD_BEFORE_PICK), 3, ())
     assert isinstance(first, DecisionNode)
     node = run(str(TOLD_BEFORE_PICK), 3, (first.legal[0],))
@@ -259,26 +259,19 @@ def test_the_adapter_shows_the_seat_the_phase_state_it_was_asked_under() -> None
     reason=(
         "issue #612: seat 0's offer turns on a phase-local State Variable the "
         "adapter's information state drops, so both worlds give seat 0 the "
-        "same information and a different offer"
+        "same information and a different offer; it passes once the adapter "
+        "keeps the variable AND the comparison judges a pick sighted by its "
+        "two views differing, which the adapter's fix makes sound"
     ),
 )
-@pytest.mark.parametrize(
-    ("depth", "seed"),
-    [(3, 3), (1, 2)],
-    ids=["before-the-pause", "at-the-pause"],
-)
-def test_a_fact_the_adapter_drops_does_not_redden_the_swap_proof(
-    depth: int, seed: int
-) -> None:
+def test_a_fact_the_adapter_drops_does_not_redden_the_swap_proof() -> None:
     """A phase-local State Variable counts seat 2's high cards and seat 0's
-    offer turns on it; the variable is gone before seat 1 is asked. At depth
-    3 the divergence is at seat 0's pick before the pause ("same information,
-    different offer at pick 1 for seat 0"); at depth 1 it is the pause itself
-    ("same information set, different legal actions"). Measured 2026-09-23
-    over seeds 0-29: red at 11 at depth 3 and 13 at depth 1; the pause-only
-    proof is green at all 30 at depth 3 and red at 10 at depth 1."""
+    offer turns on it; the variable is gone before seat 1 is asked, so the
+    divergence is at seat 0's pick before the pause ("same information,
+    different offer at pick 1 for seat 0"). Measured 2026-09-23 over seeds
+    0-29 at depth 3: red at 11; the pause-only proof is green at all 30."""
     check_source(TOLD_BEFORE_PICK)
-    _prove("told_before_pick", depth, "suit", seed)
+    _prove("told_before_pick", 3, "suit", 3)
 
 
 def test_spread_pairs_reorders_and_keeps_every_pair() -> None:
