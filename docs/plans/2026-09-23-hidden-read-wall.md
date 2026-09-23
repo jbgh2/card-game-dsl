@@ -38,7 +38,8 @@ built once in resolve, judged by two verdicts.
   pile publishes nothing today.
 
 Foster counselled the seat-deciding verdict as a successor unit; the operator
-ruled it into this one.
+ruled it into this one. The reader's shape, the placement, the tables and
+the harness order below are Foster's counsel unchanged.
 
 ## What the wall judges by
 
@@ -64,8 +65,7 @@ ruled it into this one.
   decides at each receiving seat.
 - **Positions are classified by where a value flows, not by AST field
   alone.** A `choose` nested in any expression is seat-deciding; a function
-  body takes its caller's class; a `let` takes its consumer's. The reader's shape, the placement, the tables and
-the harness order below are Foster's counsel unchanged.
+  body takes its caller's class; a `let` takes its consumer's.
 
 ## Acceptance criteria
 
