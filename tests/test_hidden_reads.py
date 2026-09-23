@@ -1403,6 +1403,58 @@ def test_a_choose_is_judged_at_the_seat_that_makes_it(
 
 
 # ---------------------------------------------------------------------------
+# A cycle the reader follows: every name graph it walks may be cyclic before
+# the guard that refuses the cycle has raised, since resolve raises its bag
+# once, at the end. Each is refused by its own Owner Guard, never by a crash.
+# ---------------------------------------------------------------------------
+
+# cell -> (body, defs, the refusal's fragment).
+_CYCLES: dict[str, tuple[str, str, str]] = {
+    "procedure-runs-itself": (
+        "phase play { for each player p: run again(p) }",
+        "procedure again(x : Player) { run again(x) }",
+        "again",
+    ),
+    "procedures-run-each-other": (
+        "phase play { for each player p: run ping(p) }",
+        "procedure ping(x : Player) { run pong(x) }\n"
+        "procedure pong(x : Player) { run ping(x) }",
+        "ping",
+    ),
+    "function-calls-itself": (
+        _OFFER_TAKE.replace("take", "loop_move"),
+        "function deep(x : Integer) = deep(x)\n"
+        "move_type loop_move { when: deep(1) > 0 effect { } }",
+        "recursive",
+    ),
+}
+
+_CYCLE_RED: dict[str, str] = {
+    "procedure-runs-itself": "the reader follows a recursive procedure without end",
+    "procedures-run-each-other": "the reader follows a recursive procedure without end",
+}
+
+
+def _cycle_cells() -> list[object]:
+    return [
+        _cell(
+            cell_id, body, defs, "", False, refuse=fragment,
+            xfail=_CYCLE_RED.get(cell_id), raises=RecursionError,
+        )
+        for cell_id, (body, defs, fragment) in _CYCLES.items()
+    ]
+
+
+@pytest.mark.parametrize("body,defs,zone,teams,refuse", _cycle_cells())
+def test_a_cycle_is_refused_by_its_owner_not_followed(
+    body: str, defs: str, zone: str, teams: bool, refuse: str | None
+) -> None:
+    """A recursive procedure or function reaches the checker's diagnostic
+    channel, located, however the reader meets it."""
+    _check(_game(body, defs, zone=zone, teams=teams), refuse)
+
+
+# ---------------------------------------------------------------------------
 # The corpus: the State Variable rule is what admits these games' chosen
 # movements.
 # ---------------------------------------------------------------------------
