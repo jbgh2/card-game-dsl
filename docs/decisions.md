@@ -2342,7 +2342,14 @@ rule that gates, counts or routes on another seat's concealed cards is
 not an information leak to be walled — it is a **mis-modelled rule**,
 and what the designer wants is the announcement the real rules have.
 Where such a rule is refused, the refusal names the missing
-announcement.
+announcement. The checker refuses it wherever a read reaches a decision:
+where no seat decides (a phase's `when` gate and `repeat until`
+condition, a mode's `transition_to` trigger) every seat must be able to
+see what the read needs, and where a seat decides (a move type's
+`when:`, a rule's clauses, a `choose`'s range, a chosen movement's
+amount, source, `where` and destination) that seat must; the positions
+are `resolve.HIDDEN_READ_POSITIONS`, and the positions that decide who
+is asked rather than what they may do stay outside it (issue #755).
 
 This is an assumption, and naming it is what makes the derived
 information state mean anything: a player who peeks, signals to a

@@ -219,7 +219,7 @@ def _run_each_simultaneous(value: str, _mp: pytest.MonkeyPatch) -> None:
     item, src, dst = (
         ("pieces", "reserve[0]", "square[a1]")
         if value in _BOARD_VALUES
-        else ("cards", "hand[0]", "pile[0]")
+        else ("cards", "hand", "pile[0]")
     )
     check_dsl(
         base(stmt=f"each {value} simultaneously: transfer chosen 1 {item} from {src} to {dst}"),

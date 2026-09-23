@@ -71,7 +71,7 @@ from __future__ import annotations
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.openspiel.replay import DecisionNode, RecordedPick, load, run
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
@@ -81,6 +81,7 @@ from .harness import (
     GameSpec,
     ReadinessProofs,
     action_strings,
+    compare_blind_picks,
     manifest,
 )
 from .partition import first_divergence, record
@@ -315,7 +316,9 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
     card across the other players' deal-time hands, replay the same 60+ step
     challenge-rich line, and require a byte-identical information state, the
     same paused player, and — when the observer is the one to move — the same
-    legal actions and the same rendered action text. Two rotations per
+    legal actions and the same rendered action text; at every recorded pick
+    whose decider has seen none of the permuted cards, the same seat asked and
+    the same legal actions offered (`harness.compare_blind_picks`). Two rotations per
     observer: two maximally-distant worlds, not one lucky pair. The line is
     asserted channel-active first (flips and pile pickups occurred), so the
     certificate covers a line where the public Boolean of hidden content
@@ -326,7 +329,8 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
     deals a different hand and drives a different challenge-rich line, so five
     of them exercise five distinct flip/pickup patterns rather than one."""
     hist = _challenge_rich_line(seed)
-    probe = run(PATH, seed, hist)
+    picks_a: list[RecordedPick] = []
+    probe = run(PATH, seed, hist, picks=picks_a)
     assert isinstance(probe, DecisionNode)
     flips = [e for e in probe.obs_logs[0] if e[0] == "move" and e[3] == "flipped"]
     pickups = [
@@ -339,6 +343,7 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
 
     _, space = load(PATH)
     total_free = 0
+    blind_compared = 0
     for observer in range(4):
         pause_a, plan = plan_worlds(PATH, seed, hist, observer, "hand")
         info_a = information_state(observer, pause_a.rs, pause_a.obs_logs[observer])
@@ -349,7 +354,19 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
         )
         total_free += len(free)
         for rotation in (1, 2):
-            pause_b = permuted_replay(PATH, seed, hist, plan, "hand", rotation=rotation)
+            picks_b: list[RecordedPick] = []
+            pause_b = permuted_replay(
+                PATH, seed, hist, plan, "hand", rotation=rotation, picks=picks_b
+            )
+            blind_compared += compare_blind_picks(
+                "cardlang_cheat",
+                list(hist),
+                picks_a,
+                picks_b,
+                frozenset(free),
+                False,
+                f"Rotation {rotation} of the permutation at seed {seed}",
+            )
             info_b = information_state(observer, pause_b.rs, pause_b.obs_logs[observer])
             assert pause_b.player == pause_a.player, (
                 f"observer {observer} rotation {rotation}: the permutation "
@@ -385,6 +402,7 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
         flips_on_line=len(flips),
         pile_pickups_on_line=len(pickups),
         free_cards_total=total_free,
+        blind_picks_compared=blind_compared,
         legal_agreement=True,
         string_agreement=True,
     )

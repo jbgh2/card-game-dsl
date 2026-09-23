@@ -1,0 +1,39 @@
+// Guard: resolve.py's `_check_hidden_reads`, where a seat is deciding. A
+// rule's clauses decide what the acting seat may play, so the acting seat
+// must be able to check them; this one reads the next seat's concealed hand.
+game HiddenReadRule {
+  players: 2
+  max_length: 40
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck             : Deck
+    hand[player]     : Hand<player>
+    trick_pile       : TrickPile
+    captured[player] : PlayerPile<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase play {
+    active_rules: [NoLeadIntoHearts]
+    repeat until (all players where hand[player] is empty) {
+      round play_to_trick from 0 over all players source hand into trick_pile
+            winner highest_trump_or_led_suit
+      move all cards from trick_pile to captured[winner]
+    }
+  }
+  winner: highest score
+}
+
+rule NoLeadIntoHearts {
+  constrains: play_to_trick
+  applies_when: state.led_suit is none
+    and (any card in hand[actor offset_by left] where card.suit is hearts)
+  demands: cards in hand where card.suit is not hearts
+  if_impossible: hand
+}

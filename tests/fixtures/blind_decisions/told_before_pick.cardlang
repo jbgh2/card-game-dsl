@@ -1,0 +1,37 @@
+// A probe, not a corpus game: before seat 0's second pick, a phase-local
+// State Variable announces how many of seat 2's cards are 8 or higher, and
+// seat 0's offer turns on it. Seat 0 learns that count from the announcement,
+// not from any card, and the variable is gone by the time seat 1 is asked.
+game ToldBeforePick {
+  players: 3
+  max_length: 20
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    table        : Discard
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase opening {
+    as 0 { move chosen 1 card from hand[0] to table }
+  }
+  phase told {
+    state {
+      high : Integer = 0
+    }
+    high := number of cards in hand[2] where rank_value(card) >= 8
+    as 0 { move chosen 1 card from hand[0] where rank_value(card) >= high to table }
+  }
+  phase last {
+    as 1 { move chosen 1 card from hand[1] to table }
+    as 1 { move chosen 1 card from hand[1] to table }
+  }
+  winner: highest score
+}

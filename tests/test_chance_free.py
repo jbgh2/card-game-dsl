@@ -170,7 +170,7 @@ game G {
   max_length: 200
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck  hand[player] : Hand<player>  pile : Discard }
+  zones { deck : Deck  hand[player] : Hand<player>  pile : Discard  table : Discard }
   state { score[player] : Integer = 0 }
   phase p { BODY }
   winner: highest score
@@ -198,9 +198,21 @@ EPISTEMIC_CELLS: dict[str, tuple[str, bool]] = {
 # chooser to address, and giving the other modes a different frame would put a
 # second difference into a one-axis grid.
 SELECTION_CELLS: dict[str | None, tuple[str, bool]] = {
-    "random": ("for each player p: move random one card from deck to pile", True),
-    "chosen": ("for each player p: move chosen one card from deck to pile", False),
-    None: ("for each player p: move one card from deck to pile", False),
+    "random": (
+        "move all cards from deck to table  "
+        "for each player p: move random one card from table to pile",
+        True,
+    ),
+    "chosen": (
+        "move all cards from deck to table  "
+        "for each player p: move chosen one card from table to pile",
+        False,
+    ),
+    None: (
+        "move all cards from deck to table  "
+        "for each player p: move one card from table to pile",
+        False,
+    ),
 }
 
 

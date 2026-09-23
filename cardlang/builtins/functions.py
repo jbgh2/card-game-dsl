@@ -347,6 +347,50 @@ ARRIVAL_RECORD_CALLS: dict[str, int] = {
     "highest_trump_or_led_suit": 0,
 }
 
+# How each Builtin reads zones, for the Hidden Read Owner Guard (resolve,
+# `_check_hidden_reads`). Three sets partition `BUILTIN_CALL_FUNCS`, pinned by
+# tests/test_hidden_reads.py::test_the_builtin_zone_read_partition_is_total,
+# each member listed explicitly so a newly registered Builtin lands in none and
+# the pin names it.
+#
+# Reads its arguments: name -> the need its ZONE argument carries (a
+# `stdlib.zones.READ_NEEDS` member). A position read is an order read.
+# The three `ARRIVAL_RECORD_CALLS` read their pile's Arrival Record, and
+# `_check_arrival_record_pile_args` owns that argument in every position.
+BUILTIN_ARGUMENT_READS: dict[str, str] = {
+    "top_of": "order",
+    "bottom_of": "order",
+    "suit_of": "order",  # over a zone: the suit of its first card
+    "highest_by_trick_order": "order",
+    "follows_lead": "order",
+    "highest_trump_or_led_suit": "order",
+}
+# Reads nothing beyond its argument values: the seating, the declared tables,
+# the board, and the Trick Order's rows (hermetic, `_check_trick_order_rows`).
+BUILTIN_READS_NOTHING: frozenset[str] = frozenset(
+    {
+        "lines",
+        "neighbor",
+        "has_step",
+        "is_diagonal",
+        "home",
+        "far_row",
+        "team_of",
+        "strain_index",
+        "error",
+        "rank_value",
+        "card_points",
+        "is_trump",
+        "follow_class",
+        "card_strength",
+    }
+)
+# Reads zones no argument names: name -> (the zone family, the need). Every
+# instance of the family is read.
+BUILTIN_IMPLICIT_READS: dict[str, tuple[str, str]] = {
+    "player_holding": ("hand", "identity"),  # finds the card in every hand
+}
+
 # The `early` predicates admitted beside a Trick Order winner: none. An early
 # predicate reads the LITERAL led suit, and a Trick Order's follow class may
 # differ from it (a class-remapped trump, a class-less Excuse), so the two

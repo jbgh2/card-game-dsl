@@ -1,0 +1,28 @@
+// Guard: resolve.py's `_check_implicit_pools`. A `Card` parameter ranges over
+// the acting seat's own `hand`, so `hand` must show its owner the cards in it;
+// a face-down `HiddenStack` would offer a seat cards it cannot see.
+game ImplicitPoolHiddenFromOwner {
+  players: 2
+  max_length: 20
+  cards: standard52
+  zones {
+    deck         : Deck
+    hand[player] : HiddenStack<player>
+    table        : Discard
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase play {
+    offer to 0 one of [discard_one]
+  }
+  winner: highest score
+}
+
+move_type discard_one(c : Card) {
+  effect { }
+}

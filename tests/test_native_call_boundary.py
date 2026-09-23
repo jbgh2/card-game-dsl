@@ -260,7 +260,8 @@ def test_polymorphic_trick_winner_still_sees_the_zone() -> None:
         _game(
             "  phase p {\n"
             "    move all cards to deck\n"
-            "    as dealer { move chosen one card from deck where card.suit is hearts to discard }\n"
+            "    move 5 cards from deck where card.suit is hearts to shown_deadwood[dealer]\n"
+            "    as dealer { move chosen one card from shown_deadwood[dealer] where card.suit is hearts to discard }\n"
             "    if highest_trump_or_led_suit(discard, clubs) is dealer { score[dealer] += 1 }\n"
             "  }"
         ),
@@ -285,7 +286,8 @@ def test_polymorphic_trick_order_winner_still_sees_the_zone() -> None:
         _game(
             "  phase p {\n"
             "    move all cards to deck\n"
-            "    as dealer { move chosen one card from deck where card.suit is hearts to discard }\n"
+            "    move 5 cards from deck where card.suit is hearts to shown_deadwood[dealer]\n"
+            "    as dealer { move chosen one card from shown_deadwood[dealer] where card.suit is hearts to discard }\n"
             "    if highest_by_trick_order(discard) is dealer { score[dealer] += 1 }\n"
             "  }",
             clauses=_TRICK_ORDER_PROBE,
@@ -307,7 +309,8 @@ def test_polymorphic_follows_lead_still_sees_the_zone() -> None:
         _game(
             "  phase p {\n"
             "    move all cards to deck\n"
-            "    as dealer { move chosen one card from deck where card.suit is hearts to discard }\n"
+            "    move 5 cards from deck where card.suit is hearts to shown_deadwood[dealer]\n"
+            "    as dealer { move chosen one card from shown_deadwood[dealer] where card.suit is hearts to discard }\n"
             "    if any card in deck where card.suit is hearts and follows_lead(card, discard) { score[dealer] += 1 }\n"
             "    if any card in deck where card.suit is clubs and follows_lead(card, discard) { score[1] += 1 }\n"
             "  }",

@@ -50,7 +50,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.openspiel.replay import DecisionNode, RecordedPick, load, run
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
@@ -165,6 +165,7 @@ def permuted_replay(
     plan: WorldPlan,
     hidden_zone: str,
     rotation: int = 1,
+    picks: list[RecordedPick] | None = None,
 ) -> DecisionNode:
     """Replay `history` in world B: the plan's free cards rotated across their
     deal-time containers (per-container counts preserved — every projection
@@ -200,6 +201,6 @@ def permuted_replay(
             for c in assignment[label]:
                 zone.add(c)
 
-    pause_b = run(path, seed, history, on_first_decision=mutate)
+    pause_b = run(path, seed, history, on_first_decision=mutate, picks=picks)
     assert isinstance(pause_b, DecisionNode), "world B ended where world A paused"
     return pause_b

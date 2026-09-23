@@ -1,0 +1,30 @@
+// A probe, not a corpus game: seat 0 draws from hand[1], which it cannot
+// see, so its menu would name the cards hidden there. The checker refuses the
+// draw: a blind pick needs a pick by position, which the language does not
+// have yet (issue #756).
+game BlindDraw {
+  players: 2
+  max_length: 4
+  cards: standard52
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 24 cards from deck to each hand
+  }
+  phase first_draw {
+    as 0 { move chosen 1 card from hand[1] to hand[0] }
+  }
+  phase second_draw {
+    as 0 { move chosen 1 card from hand[1] to hand[0] }
+  }
+  phase third_draw {
+    as 0 { move chosen 1 card from hand[1] to hand[0] }
+  }
+  winner: highest score
+}

@@ -155,7 +155,8 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
 # `deck_rank`/`deck_suit` precisely so the value half stays out of this band.
 # resolve's `player` is the unresolved-NAME hint (`player` is bound only inside
 # a player query) -- the word the author typed, not a role the pass dispatches
-# on. `runtime/evaluate.py`'s pair are the player-query family's fixed BINDER
+# on; its other two are `HIDDEN_READ_POSITIONS` keys, the AST field names
+# `AsBlock.player` and `Offer.player`. `runtime/evaluate.py`'s pair are the player-query family's fixed BINDER
 # name used as a locals-environment key (`with_local("player", ...)`) at the
 # eager kinds' scan and at the ring search's lap -- an environment key, never
 # a role dispatch. `runtime/values.py` holds the card flavor's AXIS spellings,
@@ -169,7 +170,7 @@ _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
     "ir.py": ["player", "player", "rank", "rank", "suit"],
     "openspiel/replay.py": ["player", "team"],
     "parse.py": ["player", "player", "rank", "rank", "suit", "suit", "team", "team"],
-    "resolve.py": ["player", "player", "rank", "rank", "suit"],
+    "resolve.py": ["player", "player", "player", "player", "rank", "rank", "suit"],
     "runtime/evaluate.py": ["player", "player"],
     # `_contract`'s return tag: a Skat contract KIND ("suit"/"grand"/"null"),
     # unrelated to the domain table's roles.

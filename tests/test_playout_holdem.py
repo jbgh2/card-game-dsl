@@ -189,20 +189,26 @@ def test_big_blind_gets_its_option_after_a_limped_pot() -> None:
     this arm. Nothing else in this file would notice its loss: a big blind denied
     its option plays a legal-looking, chip-conserving, terminating game.
 
+    Being asked is half the option; the other half is what the seat is
+    offered. Every such decision must carry `raise` beside `check`, or the big
+    blind is asked only to check behind a pot it may reopen.
+
     red under: rewriting the library's `pending` to `can_act(p) and owes(p)`
     (dropping the `not acted[p]` arm) — verified by hand, which failed this
-    module's `assert options > 0` as `assert 0 > 0` and nothing else here, then
-    reverted.
+    module's `assert options` as an empty list and nothing else here, then
+    reverted. And, for the offer: admitting `raise`'s un-acted arm only where
+    the seat still owes the bet (`not acted[actor] and bet_to_match >
+    bet_by[actor]`) fails the offer assertion, the seat offered `['check']`
+    alone.
     """
     game = check_source(HOLDEM)
     box: list[Any] = []
-    options = 0
+    options: list[list[str]] = []
 
     def on_first_decision(rs: Any) -> None:
         box.append(rs)
 
     def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
-        nonlocal options
         if box:
             rs = box[0]
             big_blind = rs.get("big_blind")
@@ -212,12 +218,18 @@ def test_big_blind_gets_its_option_after_a_limped_pot() -> None:
                 and bet_by[big_blind] == rs.get("bet_to_match") == _BIG_BLIND
                 and not rs.get("acted")[big_blind]
             ):
-                options += 1
+                options.append(sorted(c[0] for c in candidates))
         return list(candidates[:k])
 
     play_game(game, random.Random(1), None, chooser, None, on_first_decision)
-    assert options > 0, (
+    assert options, (
         "the big blind was never offered its option on a limped-around street"
+    )
+    denied = [offer for offer in options if "raise" not in offer]
+    assert not denied, (
+        f"the big blind facing a limped pot was offered {denied[0]} at "
+        f"{len(denied)} of its {len(options)} options, not its option to raise "
+        f"its own post"
     )
 
 

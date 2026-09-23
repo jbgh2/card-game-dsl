@@ -10,7 +10,10 @@ by `test_coverage.py`):
 2. INDISTINGUISHABILITY: two worlds differing only in cards hidden from P
    yield byte-identical information states for P — and offer P identical
    legal actions, rendering to identical text (legal-action agreement).
-   Run over the `SWAP_SEEDS` manifest, several replaying pairs per seed.
+   Every recorded pick before the pause whose decider has seen neither
+   swapped card is held to the same agreement: the same seat asked, the
+   same legal actions offered (`replay_pair`). Run over the `SWAP_SEEDS`
+   manifest, several replaying pairs per seed.
 3. Soundness converse: perturbing what P CAN see changes P's state — the
    replay-level own-hand probe plus the per-visible-fact matrix enumerated
    from the zone declarations (partition.check_visible_facts).
@@ -38,7 +41,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from functools import cache
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -51,6 +54,8 @@ import cardlang.openspiel.game as ogame  # registers on import
 from cardlang.openspiel.infostate import derive, information_state
 from cardlang.openspiel.replay import (
     DecisionNode,
+    HistoryMismatch,
+    RecordedPick,
     TerminalNode,
     chance_free,
     load,
@@ -58,6 +63,7 @@ from cardlang.openspiel.replay import (
     run,
 )
 from cardlang.play.view import render_view
+from cardlang.runtime.values import Card
 from cardlang.runtime.driver import play_game
 
 from .partition import (
@@ -127,12 +133,13 @@ REGISTERED_GAMES = sorted(ogame.GAMES.items())
 # read "five".
 SWAP_SEEDS: tuple[int, ...] = (3, 5, 14, 15, 18)
 
-# How many legally-replaying swap pairs to check per (game, seed). The first
-# pair alone was the previous coverage, and "the first pair that happens to
-# replay" is a sample of one from sets that run past 250 candidates. Bounded
-# rather than exhaustive because the cost is one full replay per pair; the
-# number checked and the number available both go into the coverage record, so
-# the cap is visible rather than implied.
+# How many legally-replaying swap pairs to check per (game, seed), taken in
+# `spread_pairs` order. Bounded rather than exhaustive because the cost is one
+# full replay per pair; the number checked and the number available both go
+# into the coverage record, so the cap is visible rather than implied. The cap
+# is load-bearing for a hidden read that only some pairs flip (a rule or a
+# branch testing one opponent card's rank): such a read is caught only when a
+# flipping pair is among the pairs tried.
 SWAP_PAIRS_PER_SEED = 3
 
 # What a DECLARED one-seed proof runs (`test_coverage.ONE_SEED_SWAP_PROOFS`):
@@ -777,6 +784,168 @@ def _side_zone(rs: Any, side: tuple[str, int | None]) -> Any:
     return rs.zones.single(name) if key is None else rs.zones.instance(name, key)
 
 
+def spread_pairs(pairs: list[tuple[Any, Any]]) -> list[tuple[Any, Any]]:
+    """`pairs` reordered so the pairs tried first move distinct cards on both
+    sides. `GameSpec.swap_pairs` lists every partner of the first side's first
+    card before any other card, so a capped prefix of it would probe one
+    opponent card only. Grouped by the first side's card, each group's
+    partners rotated by the group's position, and the groups interleaved; the
+    set of pairs is unchanged."""
+    groups: dict[Any, list[Any]] = {}
+    for x, y in pairs:
+        groups.setdefault(x, []).append(y)
+    rotated = [
+        [(x, y) for y in ys[i % len(ys):] + ys[: i % len(ys)]]
+        for i, (x, ys) in enumerate(groups.items())
+    ]
+    width = max((len(g) for g in rotated), default=0)
+    return [g[j] for j in range(width) for g in rotated if j < len(g)]
+
+
+def mentions(value: Any, card: Card) -> int:
+    """How many times `value` -- a Seat View, or any part of one -- names
+    `card`, as a card or as its rendering. Every field of the view is walked,
+    so every route a seat learns a card by is read: a zone it sees at
+    identity, a State Variable, and every observation event, whatever fields
+    its kind carries (`observe.EVENT_PAYLOADS`)."""
+    if isinstance(value, Card):
+        return int(value == card)
+    if isinstance(value, str):
+        return int(value == str(card))
+    if isinstance(value, dict):
+        return sum(mentions(item, card) for pair in value.items() for item in pair)
+    if isinstance(value, (tuple, list, set, frozenset)):
+        return sum(mentions(item, card) for item in value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return sum(mentions(getattr(value, f.name), card) for f in fields(value))
+    return 0
+
+
+def _blind_decider(a: RecordedPick, b: RecordedPick, hidden: frozenset[Card]) -> int | None:
+    """The seat a pick is compared for, or None when it is sighted. One seat
+    deciding in both worlds is sighted when its two views name a hidden card
+    a different number of times: it has seen which world it is in, and a
+    seat holding another copy of a two-deck card in both worlds has not.
+    Seats differing between the worlds are judged each on its own view, and
+    one naming no hidden card is compared."""
+    if a.decider == b.decider:
+        seen = any(mentions(a.view, card) != mentions(b.view, card) for card in hidden)
+        return None if seen else a.decider
+    for pick in (a, b):
+        if not any(mentions(pick.view, card) for card in hidden):
+            return pick.decider
+    return None
+
+
+def compare_blind_picks(
+    game_name: str,
+    history: list[int],
+    picks_a: list[RecordedPick],
+    picks_b: list[RecordedPick],
+    hidden: frozenset[Card],
+    refused_last: bool,
+    what: str,
+) -> int:
+    """Hold every recorded pick whose decider is blind in either world to
+    world A's offer: the same seat asked, the same legal action ids. Returns
+    how many picks were compared.
+
+    A decider is blind at a pick unless its Seat View there, as the pick
+    recorded it, tells the two worlds apart by the `hidden` cards it names
+    (`_blind_decider`): what a seat has seen of them by that pick, through
+    any route, makes it sighted. Picks of the
+    first Chooser call are skipped: its candidates are computed before
+    `on_first_decision` fires (`driver.play_game`), so they agree by
+    construction. `refused_last` says world B's last pick is one its position
+    does not offer, which fails the comparison at a blind decider. `what`
+    names the difference between the worlds, for the failure."""
+    last = len(picks_b) - 1
+    compared = 0
+    for k, (a, b) in enumerate(zip(picks_a, picks_b)):
+        seat = _blind_decider(a, b, hidden)
+        if a.call == 0 or seat is None:
+            continue
+        refused = refused_last and k == last
+        if refused or (a.decider, a.legal) != (b.decider, b.legal):
+            if a.decider != b.decider:
+                detail = f"world A asks seat {a.decider} and world B asks seat {b.decider}"
+            elif refused:
+                detail = f"the recorded pick {history[k]} is offered in world A and not in world B"
+            else:
+                detail = (
+                    f"only-in-A={sorted(set(a.legal) - set(b.legal))} "
+                    f"only-in-B={sorted(set(b.legal) - set(a.legal))}"
+                )
+            raise AssertionError(
+                f"{game_name}: same information, different offer at pick {k} for "
+                f"seat {seat}: {detail}. {what}: the proof judges seat {seat}'s "
+                f"information the same in both worlds, and its offer differs. "
+                f"Either a rule or branch read something seat {seat} cannot see, "
+                f"or the adapter's information state drops a fact seat {seat} was "
+                f"shown (issue #612)."
+            )
+        compared += 1
+    return compared
+
+
+@dataclass(frozen=True)
+class PairReplay:
+    """World B's replay of one swap pair. `pause` is None when the pair
+    dropped, with `dropped` saying why; `blind_compared` counts the recorded
+    picks compared at a blind decider, drops included."""
+
+    pause: DecisionNode | None
+    blind_compared: int
+    dropped: str | None = None
+
+
+def replay_pair(
+    game_name: str,
+    path: str,
+    seed: int,
+    history: list[int],
+    picks_a: list[RecordedPick],
+    sides: tuple[tuple[str, int | None], tuple[str, int | None]],
+    pair: tuple[Any, Any],
+) -> PairReplay:
+    """Replay `history` once in world B, the world with `pair` swapped between
+    `sides` at the first decision, and hold its blind picks to world A's
+    offers (`compare_blind_picks`).
+
+    A recorded pick that world B does not offer drops the pair when both
+    worlds' deciders have seen a swapped card, since that seat's options may
+    legitimately differ, and fails the proof otherwise. A swap that cannot
+    apply drops the pair."""
+    x, y = pair
+    picks_b: list[RecordedPick] = []
+    mismatch: HistoryMismatch | None = None
+    pause: DecisionNode | TerminalNode | None = None
+    try:
+        pause = run(path, seed, tuple(history), _swap_fn(*sides, x, y), picks_b)
+    except HistoryMismatch as exc:
+        mismatch = exc
+    except ValueError as exc:
+        return PairReplay(None, 0, f"the swap does not apply: {exc}")
+    compared = compare_blind_picks(
+        game_name,
+        history,
+        picks_a,
+        picks_b,
+        frozenset(pair),
+        mismatch is not None,
+        f"Swap ({x},{y}) between {sides} at seed {seed}, depth {len(history)}",
+    )
+    if mismatch is not None:
+        return PairReplay(None, compared, f"a sighted decider diverged: {mismatch}")
+    assert isinstance(pause, DecisionNode), (
+        f"{game_name}: swap ({x},{y}) between {sides} ended the game in world B "
+        f"before the pause world A reaches, with every recorded pick replaying "
+        f"-- whether the game goes on read hidden content\nworlds: seed={seed} "
+        f"depth={len(history)}"
+    )
+    return PairReplay(pause, compared)
+
+
 def _swap_fn(side1: tuple[str, int | None], side2: tuple[str, int | None], x: Any, y: Any) -> Any:
     def swap(rs: Any) -> None:
         h1, h2 = _side_zone(rs, side1), _side_zone(rs, side2)
@@ -870,24 +1039,28 @@ class ReadinessProofs:
             who = f"player {opp}'s hand <-> the undealt {spec.stock_zone}"
 
         assert candidates, "no swap pair available; lower the spec's depth for this game"
+        picks_a: list[RecordedPick] = []
+        run(path, seed, tuple(history), picks=picks_a)
 
         info_a = information_state(p, pause_a.rs, pause_a.obs_logs[p])
         text_a = render_view(game, derive(p, pause_a.rs, pause_a.obs_logs[p]), your_turn=True)
         strings_a = action_strings(space, pause_a.legal)
-        last_err: ValueError | None = None
+        last_drop: str | None = None
+        dropped = 0
+        blind_compared = 0
         proved: list[str] = []
-        for x, y in candidates:
+        for x, y in spread_pairs(candidates):
             if len(proved) >= SWAP_PAIRS_PER_SEED:
                 break
-            try:
-                pause_b = run(path, seed, tuple(history), on_first_decision=_swap_fn(side1, side2, x, y))
-            except ValueError as e:
-                # this pair made a recorded action illegal (ActionSpace.match's
-                # "not among the live candidates", or a zone .remove failure);
-                # try the next pair, but remember why in case none work.
-                last_err = e
+            replayed = replay_pair(
+                spec.short_name, path, seed, history, picks_a, (side1, side2), (x, y)
+            )
+            blind_compared += replayed.blind_compared
+            if replayed.pause is None:
+                last_drop = replayed.dropped
+                dropped += 1
                 continue
-            assert isinstance(pause_b, DecisionNode)
+            pause_b = replayed.pause
             info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
             assert info_a == info_b, (
                 f"{spec.short_name}: swapping hidden {x}<->{y} ({who}) "
@@ -929,7 +1102,7 @@ class ReadinessProofs:
             proved.append(f"{x}<->{y}")
         assert proved, (
             f"{spec.short_name}: no swap pair produced a legal replay at seed "
-            f"{seed}; last replay error: {last_err!r}"
+            f"{seed}; last drop: {last_drop}"
         )
         record(
             spec.short_name,
@@ -940,7 +1113,9 @@ class ReadinessProofs:
             pairs=";".join(proved),
             pairs_proved=len(proved),
             pairs_cap=SWAP_PAIRS_PER_SEED,
+            pairs_dropped=dropped,
             candidates=len(candidates),
+            blind_picks_compared=blind_compared,
             legal_agreement=True,
             string_agreement=True,
             text_agreement=True,

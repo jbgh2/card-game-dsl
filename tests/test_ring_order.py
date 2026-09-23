@@ -258,9 +258,8 @@ def test_a_folded_seat_leaves_the_ring_and_the_chain_walks_past_it() -> None:
     red under: in `AuctionForm.next_actor`, replace the pointer read
     `player = order[pointer % len(order)]` with a scan from the leader,
     `player = next(p for p in order if p in participants)`. RUN, not predicted:
-    the first lap comes back `[2, 3, 0, 2]` against the ring's `[2, 3, 0, 1]` —
-    the re-raise sends the turn back to the opener instead of on to the seat
-    that has not yet spoken.
+    the first lap ends on the opener where the ring ends it on the seat that
+    has not yet spoken — the re-raise sends the turn back to the opener.
     """
     seats = _stud_seats_along_the_chain()
     assert len(seats) == len(RE_RAISE_CHAIN_WITH_A_FOLD), (

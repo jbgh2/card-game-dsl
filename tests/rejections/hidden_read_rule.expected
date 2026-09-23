@@ -1,0 +1,1 @@
+hidden_read_rule.cardlang:35:17: error: rule `NoLeadIntoHearts`'s `applies_when:` is decided by the acting seat, so the acting seat must be able to check it, but it reads the cards in `hand[actor offset_by left]`, which the acting seat cannot see. Read the deciding seat's own cards, or have the holder announce or reveal the fact first

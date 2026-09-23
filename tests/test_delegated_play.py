@@ -397,8 +397,8 @@ def test_an_owner_blind_declared_source_is_refused_statically() -> None:
     FaceDownPile offers the actor cards they cannot see, known from the
     declaration alone — refused at resolve, where the designer wrote it.
 
-    red under: delete the declared-source projection wall in
-    `resolve._check_delegation` (verified)."""
+    red under: delete the round-source arm of
+    `resolve._check_implicit_pools` (verified)."""
     src = _BASE.format(
         name="DeclaredBlind", functions="", after_deal="", source="stock"
     ).replace(
@@ -408,7 +408,7 @@ def test_an_owner_blind_declared_source_is_refused_statically() -> None:
         "deal 3 cards from deck to each hand",
         "deal 3 cards from deck to each stock",
     )
-    with pytest.raises(DiagnosticError, match="identity to its own seat"):
+    with pytest.raises(DiagnosticError, match="does not show its owner the cards in it"):
         check_dsl(src, "declaredblind.cardlang")
 
 

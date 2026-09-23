@@ -122,6 +122,33 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               frame stands, and holds its name, at every call this pass
               admits, and defends a scoped read with nothing but an
               Owner-naming [[shadow-guard]].
+              And a zone read that its deciders cannot make, at a position
+              ``HIDDEN_READ_POSITIONS`` classes as deciding, however the read
+              is reached -- a ``let``, a function, a procedure, a phase
+              outcome, a Primitive's ``reads``, a Builtin
+              (``BUILTIN_ARGUMENT_READS``, ``BUILTIN_READS_NOTHING``,
+              ``BUILTIN_IMPLICIT_READS``) -- judged by the declared zone
+              projections (``stdlib.zones.reveals``, ``PROJECTION_LEVELS``)
+              in ``_check_hidden_reads``: where no seat is deciding, a read
+              not every seat can make; where a seat is deciding, a read that
+              seat cannot make, being neither of a zone every seat sees nor
+              of the deciding seat's own instance of a zone its owner sees.
+              The refusal names the announcement the rules are missing. The
+              runtime's decision sites may therefore assume every zone read
+              at those positions is visible to the acting seat. Under
+              Delegated Play the decider is not the acting seat: the routed
+              pool's visibility to the decider is the runtime Owner Guard
+              ``runtime/delegation.check_decider_sees``'s, and a clause read
+              indexed by the acting seat is judged against the acting seat,
+              not the decider (issue #758).
+              And an implicit decision pool -- one the kernel builds from a
+              declared zone with no expression to read, the round-source and
+              ``Card``-parameter rows of ``DECISION_POOLS`` -- whose family's
+              type does not show its owner the cards in it
+              (``_check_implicit_pools``). ``runtime/mechanics``' trick and
+              climb forms and its parameter domains may therefore assume the
+              deciding seat sees every card they offer from its own
+              instance.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -140,6 +167,8 @@ from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
 from cardlang.builtins.functions import (
     ARRIVAL_RECORD_CALLS,
+    BUILTIN_ARGUMENT_READS,
+    BUILTIN_IMPLICIT_READS,
     BOARD_ONLY_CALL_FUNCS,
     CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
@@ -224,6 +253,7 @@ from cardlang.stdlib.zones import (
     LIBRARY_ZONE_TYPES,
     ZONE_PROJECTIONS,
     identity_to_all,
+    reveals,
 )
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.types import Flavor, TPlayer
@@ -2347,6 +2377,8 @@ def resolve(game: n.Game) -> n.Game:
     _check_chooses(game, bag)
     _check_actor_alias_comparisons(game, bag)
     _check_delegation(game, bag)
+    _check_implicit_pools(game, bag)
+    _check_hidden_reads(game, bag)
     _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
@@ -3180,6 +3212,73 @@ def _rebound(name: str | None, origin: str) -> _ActorAliases:
     return _ActorAliases(frozenset({"actor", name}), origin)
 
 
+def _seat_rebinding(node: object) -> _ActorAliases | None:
+    """The alias set inside the body of a construct that rebinds the acting
+    player, or None when `node` rebinds nothing. The one statement of which
+    constructs bind a seat, read by the alias sweep below and by the
+    Hidden Read Owner Guard.
+
+    Both role tests are membership-guarded before the registry lookup:
+    `_resolve_phase_level` checks these roles against the same two sets, but
+    it reports into the SAME bag rather than halting, so a caller still walks
+    a tree holding a role no row defines (`for each column c`, a declared
+    position domain). The registry answers such a role with a
+    compiler-channel raise -- correct for a registry divergence, wrong here,
+    where it would replace the located diagnostic the author needs with an
+    assert and suppress every other diagnostic in the file. Not the Owner
+    Guard: the role's legality is decided above.
+
+    `as <expression>` keeps a name only when the expression IS one that
+    already denotes a seat immutably -- a state variable can be reassigned in
+    the body, so it is not provably the acting player there."""
+    match node:
+        case n.ForEach() if (
+            (role := role_of(node.role)) is not None
+            and role in _ITERATION_ROLES
+            and binds_actor(role)
+        ):
+            return _rebound(node.binder, f"`for each {node.role} {node.binder}`")
+        case n.EachSimultaneous() if role_of(node.role) in SIMULTANEOUS_ROLES:
+            # Binds the role noun itself as the local (`runtime/execute`).
+            return _rebound(node.role, f"`each {node.role} simultaneously`")
+        case n.Turns():
+            return _rebound(node.binder, f"`turns {node.binder}`")
+        case n.AsBlock():
+            named = isinstance(node.player, n.NameRef) and node.player.ref_kind in (
+                "local",
+                "pronoun",
+            )
+            bound = node.player.name if named and isinstance(node.player, n.NameRef) else None
+            return _rebound(bound, f"`as {bound}`")
+        case _:
+            return None
+
+
+def _aliases_after_let(stmt: n.LetStmt, aliases: _ActorAliases) -> _ActorAliases:
+    """The alias set for the statements after `stmt`: `let me = actor` (or
+    `let me = p`, where `p` already denotes the actor) makes `me` a further
+    name for the same player.
+
+    A `let` REBINDS its name, so the name is dropped and re-added only when
+    the value denotes the acting player. Both halves matter, and their ORDER
+    is the whole rule: the value is read against the set as it stands BEFORE
+    the binding (so `let p = p` keeps the alias -- the right-hand `p` is the
+    old one), and the name is dropped after (so `let p = <someone else>`
+    inside `for each player p` frees `p`, and the honest `p is actor` after it
+    is not refused)."""
+    source = (
+        stmt.value.name
+        if stmt.index is None and isinstance(stmt.value, n.NameRef)
+        else None
+    )
+    binds_the_actor = source is not None and source in aliases.names
+    origin = aliases.origin or f"`let {stmt.name} = {source}`"
+    aliases = aliases.shadowed((stmt.name,))
+    if binds_the_actor:
+        aliases = _ActorAliases(aliases.names | {stmt.name}, origin)
+    return aliases
+
+
 def _check_actor_alias_comparisons(game: n.Game, bag: DiagnosticBag) -> None:
     """A comparison between two names that provably denote the same acting
     player is dead code, and is refused here.
@@ -3228,49 +3327,24 @@ def _sweep_aliases(
     construct that binds a SEAT needs an arm here."""
     if isinstance(node, n.BinOp):
         _check_alias_operands(node, aliases, bag)
+    rebound = _seat_rebinding(node)
     match node:
-        # Both role tests are membership-guarded before the registry lookup:
-        # `_resolve_phase_level` checks these roles against the same two sets,
-        # but it reports into the SAME bag rather than halting, so this sweep
-        # still walks a tree holding a role no row defines (`for each column
-        # c`, a declared position domain). The registry answers such a role
-        # with a compiler-channel raise — correct for a registry divergence,
-        # wrong here, where it would replace the located diagnostic the author
-        # needs with an assert and suppress every other diagnostic in the file.
-        # Not the Owner Guard: the role's legality is decided above.
-        case n.ForEach() if (
-            (role := role_of(node.role)) is not None
-            and role in _ITERATION_ROLES
-            and binds_actor(role)
-        ):
+        case n.ForEach() | n.EachSimultaneous() if rebound is not None:
             # A SEAT role: the body's acting player IS the binder.
-            _sweep_aliases(node.body, _rebound(node.binder, f"`for each {node.role} {node.binder}`"), flavor, bag)
+            _sweep_aliases(node.body, rebound, flavor, bag)
             return
-        case n.EachSimultaneous() if role_of(node.role) in SIMULTANEOUS_ROLES:
-            # Binds the role noun itself as the local (`runtime/execute`).
-            _sweep_aliases(node.body, _rebound(node.role, f"`each {node.role} simultaneously`"), flavor, bag)
-            return
-        case n.Turns():
+        case n.Turns() if rebound is not None:
             # leader/participants/termination evaluate OUTSIDE the turn, in the
             # enclosing scope — the binder does not exist there yet.
             for outer in (node.leader, node.participants, node.until):
                 _sweep_aliases(outer, aliases, flavor, bag)
-            turn = _rebound(node.binder, f"`turns {node.binder}`")
-            _sweep_stmt_seq(node.body, turn, flavor, bag)
+            _sweep_stmt_seq(node.body, rebound, flavor, bag)
             return
-        case n.AsBlock():
+        case n.AsBlock() if rebound is not None:
             # The player expression is evaluated in the OUTER context, so it
-            # sees the enclosing aliases; the body sees a new acting player. It
-            # keeps a name only when the expression IS one that already denotes
-            # a seat immutably — a state variable can be reassigned in the
-            # body, so it is not provably the acting player there.
+            # sees the enclosing aliases; the body sees a new acting player.
             _sweep_aliases(node.player, aliases, flavor, bag)
-            named = isinstance(node.player, n.NameRef) and node.player.ref_kind in (
-                "local",
-                "pronoun",
-            )
-            bound = node.player.name if named and isinstance(node.player, n.NameRef) else None
-            _sweep_stmt_seq(node.body, _rebound(bound, f"`as {bound}`"), flavor, bag)
+            _sweep_stmt_seq(node.body, rebound, flavor, bag)
             return
         case n.LetStmt():
             # The value is evaluated in the ENCLOSING scope, before the name is
@@ -3312,33 +3386,16 @@ def _sweep_stmt_seq(
     """A statement tuple, with `let` threading forward exactly as the runtime
     threads `ctx.locals` through a body: `let me = actor` (or `let me = p`,
     where `p` already denotes the actor) makes `me` a further name for the
-    same player, for the statements that follow it.
-
-    A `let` REBINDS its name, so the name is dropped and re-added only when the
-    value denotes the acting player. Both halves matter, and their ORDER is the
-    whole rule: the value is read against the set as it stands BEFORE the
-    binding (so `let p = p` keeps the alias — the right-hand `p` is the old
-    one), and the name is dropped after (so `let p = <someone else>` inside
-    `for each player p` frees `p`, and the honest `p is actor` after it is not
-    refused). This is the same "initializer runs in the enclosing scope" rule
+    same player, for the statements that follow it (`_aliases_after_let`).
+    This is the same "initializer runs in the enclosing scope" rule
     `as`'s player expression and `turns`' leader already follow; `let` needs it
     spelled out here because its name scopes forward to later siblings rather
     than to a field of its own node, which is why `_introduced_binders` and the
     generic walk do not reach it."""
     for stmt in stmts:
         _sweep_aliases(stmt, aliases, flavor, bag)
-        if not isinstance(stmt, n.LetStmt):
-            continue
-        source = (
-            stmt.value.name
-            if stmt.index is None and isinstance(stmt.value, n.NameRef)
-            else None
-        )
-        binds_the_actor = source is not None and source in aliases.names
-        origin = aliases.origin or f"`let {stmt.name} = {source}`"
-        aliases = aliases.shadowed((stmt.name,))
-        if binds_the_actor:
-            aliases = _ActorAliases(aliases.names | {stmt.name}, origin)
+        if isinstance(stmt, n.LetStmt):
+            aliases = _aliases_after_let(stmt, aliases)
 
 
 def _is_stmt(node: object) -> bool:
@@ -3404,20 +3461,18 @@ _RANKABLE_TYPES: frozenset[str] = frozenset({"Integer", "Boolean"})
 
 
 def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
-    """The Delegated Play helpers' three Owner Guards (decisions.md "Delegated
+    """The Delegated Play helpers' two Owner Guards (decisions.md "Delegated
     play"; the grid is tests/test_delegated_play.py):
 
     - a helper of the exact name must take exactly one Player — the routing
       contract is per-seat, and any other shape is a mis-remembered API;
     - a game defining a helper must hold a trick round somewhere for it to
       route — helpers no site consults are accepted-but-ignored, the defect
-      class this repo ranks worst;
-    - every trick round's DECLARED source projects identity to its own seat
-      (helpers or not): the unrouted actor draws from their own instance, and
-      an owner-blind declared source is a game nobody can play, statically
-      known from the declaration.
+      class this repo ranks worst.
 
-    The routed pool's guard — the DECIDER must see it — is deliberately NOT
+    The unrouted pool, a trick round's DECLARED source, is one of the implicit
+    decision pools, whose Owner Guard is `_check_implicit_pools`. The routed
+    pool's guard — the DECIDER must see it — is deliberately NOT
     here: whether a seat's pool is routed, and to whom the decision goes,
     are the helpers' values at that seat, and correlating two opaque
     expression bodies is not statically decidable (Bridge's own helper
@@ -3428,19 +3483,6 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
     from cardlang.runtime.delegation import HELPER_NAMES
 
     helpers = [f for f in game.functions if f.name in HELPER_NAMES]
-    zone_types = {z.name: z.type_ref.name for z in game.zones}
-    for node in _walk(game):
-        if not isinstance(node, n.TrickRound):
-            continue
-        ztype = zone_types.get(node.source_zone)
-        if ztype is not None and ZONE_PROJECTIONS[ztype].owner != "identity":
-            bag.error(
-                f"a trick round's source '{node.source_zone}' ({ztype}) does "
-                f"not project identity to its own seat — the acting player "
-                f"could not see the cards offered from it. Play tricks from "
-                f"an owner-visible zone",
-                node.span,
-            )
     if not helpers:
         return
     for fn in helpers:
@@ -3460,6 +3502,73 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
             f"(routing at other decision points is issue #458)",
             helpers[0].span,
         )
+
+def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
+    """Every implicit decision pool shows its decider the cards in it.
+
+    The Owner Guard for the pools the kernel builds from a declared zone with
+    no designer expression to read (`DECISION_POOLS`' round-source and
+    `Card`-parameter rows): a round's source family, whose instance the acting
+    seat plays from, and the acting seat's `hand`, whose cards a `Card`
+    parameter of an offered move type ranges over. The decider is the owning
+    seat in both, so the family's type must show its owner the cards
+    (`stdlib.zones.reveals` at `identity`); a type that does not offers a seat
+    cards it cannot see, a game nobody can play, known from the declaration.
+    A pool a designer expression names is `_check_hidden_reads`'. Under
+    Delegated Play a trick's routed pool is judged per decision by the runtime
+    Owner Guard `delegation.check_decider_sees`."""
+    zone_types = {z.name: z.type_ref.name for z in game.zones}
+    move_types = {m.name: m for m in game.move_types}
+
+    def hidden_from_owner(family: str) -> str | None:
+        ztype = zone_types.get(family)
+        if ztype is None or ztype not in ZONE_PROJECTIONS or reveals(ztype, "identity", True):
+            return None
+        return ztype
+
+    def fix(family: str) -> str:
+        return (
+            f"Declare `{family}` a type that shows its owner the cards in it "
+            f"(`Hand`, or `PublicHand`)"
+        )
+
+    offered: set[str] = set()
+    for node in _walk(game):
+        match node:
+            case n.TrickRound() | n.ClimbRound():
+                ztype = hidden_from_owner(node.source_zone)
+                if ztype is not None:
+                    form = "trick" if isinstance(node, n.TrickRound) else "climb"
+                    bag.error(
+                        f"a {form} round offers each seat the cards of its own "
+                        f"`{node.source_zone}`, but `{node.source_zone}` is a "
+                        f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(node.source_zone)}",
+                        node.span,
+                    )
+            case n.Offer() | n.AuctionRound():
+                offered.update(node.offering)
+    for name in sorted(offered):
+        mt = move_types.get(name)
+        if mt is None:
+            continue
+        for param in mt.params:
+            if param.type_name != "Card":
+                continue
+            ztype = hidden_from_owner("hand")
+            if ztype is not None:
+                bag.error(
+                    f"move type `{mt.name}`'s `{param.name} : Card` offers the "
+                    f"acting seat the cards of its own `hand`, but `hand` is a "
+                    f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix('hand')}",
+                    param.span or mt.span,
+                )
+
+
+_OWN_POOL_BLIND = (
+    "does not show its owner the cards in it, so a seat would pick cards it "
+    "cannot see"
+)
+
 
 def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
     """A `winner:` target must be a state variable a game can be ranked by.
@@ -8185,6 +8294,1010 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"'{nd.early_termination}' is unknown",
                         nd.span,
                     )
+
+
+# --- The Hidden Read Owner Guard -----------------------------------------------
+#
+# decisions.md "Honest Play is assumed, so a rule reading concealed cards is
+# mis-modelled".
+#
+# Where each expression-bearing AST field's value goes, which decides whose
+# sight a zone read there is judged against. The rows are every field of every
+# `nodes.py` dataclass whose declared type admits an `Expr`, except the fields
+# of the expression nodes themselves, which belong to the position their
+# expression sits in -- `Choose` excepted, since a `choose` is a decision
+# wherever it is nested. Pinned against that derivation by
+# tests/test_hidden_reads.py::test_every_expression_position_is_bucketed.
+READ_POSITION_NO_SEAT = "no seat deciding"
+READ_POSITION_SEAT = "a seat deciding"
+READ_POSITION_CHOSEN = "a seat deciding when the movement is chosen"
+READ_POSITION_FOLLOWED = "judged where its value flows"
+READ_POSITION_OUTSIDE = "not judged"
+READ_POSITION_KINDS: frozenset[str] = frozenset(
+    {
+        READ_POSITION_NO_SEAT,
+        READ_POSITION_SEAT,
+        READ_POSITION_CHOSEN,
+        READ_POSITION_FOLLOWED,
+        READ_POSITION_OUTSIDE,
+    }
+)
+
+_CONTROL = "a control position: it decides who is asked, not what they may do (issue #755)"
+
+HIDDEN_READ_POSITIONS: dict[tuple[type, str], tuple[str, str]] = {
+    (n.PhaseQualifier, "expr"): (READ_POSITION_NO_SEAT, "evaluated between seats"),
+    (n.MoveEvent, "where"): (READ_POSITION_NO_SEAT, "changes the rules for every later seat"),
+    (n.MoveTypeDef, "when"): (READ_POSITION_SEAT, "decides what the offered seat may do"),
+    (n.AppliesWhen, "pred"): (READ_POSITION_SEAT, "decides what the acting seat may play"),
+    (n.Demands, "expr"): (READ_POSITION_SEAT, "decides what the acting seat may play"),
+    (n.RuleDef, "if_impossible"): (READ_POSITION_SEAT, "decides what the acting seat may play"),
+    (n.RuleDef, "exempts"): (READ_POSITION_SEAT, "decides what the acting seat may play"),
+    (n.Choose, "lo"): (READ_POSITION_SEAT, "the range the choosing seat is offered"),
+    (n.Choose, "hi"): (READ_POSITION_SEAT, "the range the choosing seat is offered"),
+    (n.Choose, "excluding"): (READ_POSITION_SEAT, "the range the choosing seat is offered"),
+    (n.Transfer, "amount"): (READ_POSITION_CHOSEN, "how many the choosing seat is asked for"),
+    (n.Transfer, "source"): (READ_POSITION_CHOSEN, "the pool the choosing seat picks from"),
+    (n.Transfer, "where"): (READ_POSITION_CHOSEN, "narrows the pool the choosing seat picks from"),
+    (n.Transfer, "dest"): (READ_POSITION_CHOSEN, "the destination the choosing seat is told"),
+    (n.Transfer, "visibility"): (
+        READ_POSITION_OUTSIDE,
+        "refused by typecheck: visibility derives from the declared zone types",
+    ),
+    (n.LetStmt, "value"): (READ_POSITION_FOLLOWED, "a name for a computation, read where it is used"),
+    (n.FunctionDef, "body"): (READ_POSITION_FOLLOWED, "read at each call, in its caller's position"),
+    (n.RuleRef, "args"): (READ_POSITION_FOLLOWED, "substituted into the instantiated rule's clauses"),
+    (n.RunStmt, "args"): (READ_POSITION_FOLLOWED, "bound to the procedure's parameters at the run site"),
+    (n.Produce, "payloads"): (
+        READ_POSITION_FOLLOWED,
+        "bound to the consuming `produces:` arm's binders",
+    ),
+    (n.AssignStmt, "value"): (
+        READ_POSITION_OUTSIDE,
+        "state is public, so an assignment is an announcement (issue #471 holds "
+        "a Primitive's result stored this way)",
+    ),
+    (n.AssignStmt, "index"): (READ_POSITION_OUTSIDE, "state is public: an assignment's key is announced"),
+    (n.AssignStmt, "target"): (READ_POSITION_OUTSIDE, "names the state variable written"),
+    (n.RotateStmt, "target"): (READ_POSITION_OUTSIDE, "names the state variable written"),
+    (n.StateDecl, "default"): (READ_POSITION_OUTSIDE, "evaluated before any zone holds a card"),
+    (n.EpistemicOp, "zone"): (READ_POSITION_OUTSIDE, "a reveal shows every seat; a shuffle decides nothing"),
+    (n.EpistemicOp, "where"): (READ_POSITION_OUTSIDE, "a reveal shows every seat the card it picks"),
+    (n.Loser, "selection"): (READ_POSITION_OUTSIDE, "the game's result, read once play is over"),
+    (n.TrickOrderRow, "body"): (
+        READ_POSITION_OUTSIDE,
+        "hermetic by its own Owner Guard (`_check_trick_order_rows`)",
+    ),
+    (n.IfStmt, "cond"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.RepeatUntil, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.AsBlock, "player"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.Offer, "player"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.Turns, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.Turns, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.Turns, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.TrickRound, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.TrickRound, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.TrickRound, "trump"): (
+        READ_POSITION_OUTSIDE,
+        "configures the round for every seat before any decides (issue #755)",
+    ),
+    (n.AuctionRound, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.AuctionRound, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.AuctionRound, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.ClimbRound, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.ClimbRound, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.ClimbRound, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
+}
+
+
+# Where the cards each decision point offers come from: every chooser call
+# site in `runtime/delegation.DECISION_POINTS`, the round site fanned out over
+# its forms (`FORM_CONSTRUCTS`). A pool a designer expression names is judged
+# by `_check_hidden_reads`; a pool the kernel builds from a declared zone, with
+# no expression to read, by `_check_implicit_pools`. Pinned against those two
+# registries by tests/test_hidden_reads.py::test_every_decision_point_names_its_pool.
+POOL_FROM_EXPRESSION = "a designer expression"
+POOL_FROM_ROUND_SOURCE = "the round's declared source family"
+POOL_FROM_CARD_PARAMETERS = "the acting seat's `hand`, for a `Card` parameter"
+POOL_NONE = "no cards"
+POOL_KINDS: frozenset[str] = frozenset(
+    {POOL_FROM_EXPRESSION, POOL_FROM_ROUND_SOURCE, POOL_FROM_CARD_PARAMETERS, POOL_NONE}
+)
+DECISION_POOLS: dict[str, str] = {
+    "TrickRound": POOL_FROM_ROUND_SOURCE,
+    "ClimbRound": POOL_FROM_ROUND_SOURCE,
+    "AuctionRound": POOL_FROM_CARD_PARAMETERS,
+    "execute._select_from": POOL_FROM_EXPRESSION,
+    "execute._select_filtered": POOL_FROM_EXPRESSION,
+    "execute._select_joint": POOL_FROM_EXPRESSION,
+    "execute._pass_selection": POOL_FROM_EXPRESSION,
+    "execute._offer": POOL_FROM_CARD_PARAMETERS,
+    "evaluate._choose": POOL_NONE,
+}
+
+
+# A chosen movement's sub-positions: (field, whether it moves `to each`) ->
+# (the seat whose decision its value reaches, the seat that evaluates it and
+# so makes any `choose` nested in it). Each is the runtime's own reading of
+# `execute._movement` and `_select_from`, pinned against a run that records
+# the acting seat at every evaluation and the decider at every pick by
+# tests/test_hidden_reads.py::test_a_chosen_movements_seats_are_the_runtimes.
+SEAT_ACTING = "the acting seat"
+SEAT_EACH_RECEIVER = "each receiving seat"
+CHOSEN_MOVEMENT_SEATS: dict[tuple[str, bool], tuple[str, str]] = {
+    ("amount", False): (SEAT_ACTING, SEAT_ACTING),
+    ("source", False): (SEAT_ACTING, SEAT_ACTING),
+    ("where", False): (SEAT_ACTING, SEAT_ACTING),
+    ("dest", False): (SEAT_ACTING, SEAT_ACTING),
+    ("amount", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("source", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("where", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("dest", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+}
+
+
+@dataclass(frozen=True)
+class _Binding:
+    """What a local name stands for, as the reader follows it: the expression
+    and the scope it is read in. A parameter's value substitutes into an
+    index; a `let` with an index binder takes the subscript as that binder."""
+
+    value: n.Expr
+    scope: _ReadScope
+    via: str
+    index_binder: str | None = None
+
+
+@dataclass(frozen=True)
+class _ReadScope:
+    """What the reader knows at a point in the tree: the locals it can follow,
+    the names that denote the acting seat (`_ActorAliases`), whether a seat
+    acts at all, and the State Variable an enclosing `as` names -- live while
+    no path from that `as` has written it, or the seat number a literal `as`
+    names. `seat` identifies the acting seat those proofs are about: a value
+    bound under one seat and read under another carries none of them."""
+
+    names: tuple[tuple[str, tuple[_Binding, ...]], ...] = ()
+    aliases: _ActorAliases = _ActorAliases(frozenset())
+    acting: bool = False
+    seat_var: str | None = None
+    seat_var_live: bool = False
+    seat_literal: int | None = None
+    seat: int = 0
+
+    def follow(self, binding: _Binding) -> _ReadScope:
+        """The scope `binding`'s value is read in, from here: its own, or,
+        when it was bound under another acting seat, its own with every proof
+        of who acts removed -- what that seat could see proves nothing for
+        this one."""
+        if binding.scope.seat == self.seat:
+            return binding.scope
+        return replace(
+            binding.scope,
+            aliases=_ActorAliases(frozenset()),
+            acting=False,
+            seat_var=None,
+            seat_var_live=False,
+            seat_literal=None,
+            seat=_NO_ACTING_SEAT,
+        )
+
+    def lookup(self, name: str) -> tuple[_Binding, ...]:
+        for bound, bindings in reversed(self.names):
+            if bound == name:
+                return bindings
+        return ()
+
+    def bind(self, name: str, bindings: tuple[_Binding, ...]) -> _ReadScope:
+        return replace(self, names=self.names + ((name, bindings),))
+
+    def shadow(self, names: tuple[str, ...]) -> _ReadScope:
+        if not names:
+            return self
+        return replace(
+            self,
+            names=self.names + tuple((name, ()) for name in names),
+            aliases=self.aliases.shadowed(names),
+        )
+
+
+@dataclass(frozen=True)
+class ZoneRead:
+    """One read of a zone an expression makes: the zone, its index as written
+    (None for a bare family or an unindexed zone), whether every instance of
+    a family is read, what the read needs, and the route it was reached by.
+    `choose` names the `choose` field the read sits in, when it does."""
+
+    zone: str
+    index: n.Expr | None
+    index_scope: _ReadScope
+    every: bool
+    need: str
+    route: tuple[str, ...]
+    span: Span | None
+    choose: str | None = None
+
+
+@dataclass(frozen=True)
+class HiddenReadVerdict:
+    """`_check_hidden_reads`' judgement of one read at one position: accepted or not, and
+    why -- `public`, or the reason the deciding seat owns what it reads. `site`
+    locates the position's expression."""
+
+    position: str
+    read: ZoneRead
+    accepted: bool
+    reason: str
+    site: Span | None = None
+
+
+_NEED_PHRASE: dict[str, str] = {
+    "existence": "whether {z} is empty",
+    "count": "how many cards {z} holds",
+    "identity": "the cards in {z}",
+    "order": "the order of the cards in {z}",
+}
+
+
+def _spell(expr: object) -> str:
+    """An expression as a diagnostic quotes it: the shapes an index takes."""
+    match expr:
+        case n.NameRef() as ref:
+            return ref.name
+        case n.IntLit() as lit:
+            return str(lit.value)
+        case n.Member() as m:
+            return f"{_spell(m.obj)}.{m.field}"
+        case n.Subscript() as s:
+            return f"{_spell(s.obj)}[{_spell(s.index)}]"
+        case n.Call() as c:
+            return f"{c.func}({', '.join(_spell(a) for a in c.args)})"
+        case n.BinOp() as b:
+            return f"{_spell(b.left)} {b.op} {_spell(b.right)}"
+        case _:
+            return "..."
+
+
+class _Seat:
+    """Who decides at a judged position: the acting seat (named by `label`),
+    every receiving seat of a chosen movement `to each`, or nobody."""
+
+    def __init__(self, label: str, every: bool = False) -> None:
+        self.label = label
+        self.every = every
+
+
+_NO_SEAT = _Seat("every seat", every=True)
+# The context a position gives a zone it names without reading what the zone
+# holds: a chosen movement's destination. Not a read need -- a zone reference
+# in this context reads nothing, and only its index is read. It travels
+# through a `let`, a parameter and a phase outcome like every need, so the use
+# site decides it, never the initialiser.
+_LOCATE = "locate"
+# The seat of a scope whose value was bound under another acting seat: equal
+# to no scope's own, so nothing it binds carries a proof either.
+_NO_ACTING_SEAT = -2
+_ACTOR_SCOPE = _ReadScope(aliases=_ActorAliases(), acting=True, seat=-1)
+
+
+class _HiddenReads:
+    """The reader of expression reads and the two verdicts over it.
+
+    `reads_of` follows a `let` into its initialiser, a designer or library
+    function into its body with its parameters bound to the arguments, a
+    procedure run into its body, a phase outcome's payload into the
+    `produces:` arm binder that receives it, a declared Primitive into its
+    `reads` clause (a keyed read keyed by the call's argument), and a Builtin
+    through `BUILTIN_ARGUMENT_READS` / `BUILTIN_READS_NOTHING` /
+    `BUILTIN_IMPLICIT_READS`. The Delegated Play helpers are called by the
+    engine, not by designer text, so no call reaches `play_source_for`: its
+    pool is judged per delegated decision by the runtime Owner Guard
+    `delegation.check_decider_sees`, which this check shadows statically."""
+
+    def __init__(self, game: n.Game, bag: DiagnosticBag) -> None:
+        self.game = game
+        self.bag = bag
+        self.zones = {z.name: z for z in game.zones}
+        self.functions = {f.name: f for f in game.functions}
+        self.procedures = {p.name: p for p in game.procedures}
+        self.move_types = {m.name: m for m in game.move_types}
+        self.primitives = (
+            {d.name: d for d in game.primitives.decls} if game.primitives else {}
+        )
+        self.positions = frozenset(p.name for p in game.positions)
+        self.flavor = game.content_flavor
+        # Every phase outcome's `produce` sites, by the producing phase: the
+        # ones this walk has met, and the ones the previous walk collected.
+        self.produced: dict[str, list[tuple[str, tuple[n.Expr, ...], _ReadScope]]] = {}
+        self.collected: dict[str, list[tuple[str, tuple[n.Expr, ...], _ReadScope]]] = {}
+        self.outcome_phase: list[str] = []
+        # The procedures whose bodies the walk is inside, so a cycle is met
+        # once and left to the check that refuses it.
+        self.running: list[str] = []
+        self.seats = 0
+        self.verdicts: list[HiddenReadVerdict] = []
+        self._reported: set[tuple[str, Span | None]] = set()
+
+    # --- the reader ---------------------------------------------------------
+
+    def reads_of(
+        self,
+        expr: object,
+        scope: _ReadScope,
+        need: str = "identity",
+        route: tuple[str, ...] = (),
+        choose: str | None = None,
+        calls: tuple[str, ...] = (),
+    ) -> Iterator[ZoneRead]:
+        """Every zone read `expr` makes, with the need its context gives a
+        zone reference standing where a value is read."""
+        match expr:
+            case n.NameRef() as ref:
+                if ref.ref_kind == "zone" and ref.name in self.zones:
+                    if need != _LOCATE:
+                        yield ZoneRead(ref.name, None, scope, False, need, route, ref.span, choose)
+                elif ref.ref_kind == "local":
+                    for b in scope.lookup(ref.name):
+                        if b.index_binder is None:
+                            yield from self.reads_of(
+                                b.value, scope.follow(b), need, route + (b.via,), choose, calls
+                            )
+            case n.Subscript() as sub:
+                obj = sub.obj
+                if isinstance(obj, n.NameRef) and obj.ref_kind == "zone" and obj.name in self.zones:
+                    if need != _LOCATE:
+                        yield ZoneRead(obj.name, sub.index, scope, False, need, route, sub.span, choose)
+                elif isinstance(obj, n.NameRef) and obj.ref_kind == "local":
+                    for b in scope.lookup(obj.name):
+                        if b.index_binder is not None:
+                            inner = scope.follow(b).bind(
+                                b.index_binder, (_Binding(sub.index, scope, b.via),)
+                            )
+                            yield from self.reads_of(
+                                b.value, inner, need, route + (b.via,), choose, calls
+                            )
+                        else:
+                            yield from self.reads_of(
+                                b.value, scope.follow(b), need, route + (b.via,), choose, calls
+                            )
+                else:
+                    yield from self.reads_of(obj, scope, "identity", route, choose, calls)
+                yield from self.reads_of(sub.index, scope, "identity", route, choose, calls)
+            case n.CardQuery() as q:
+                if q.kind == "count" and q.where is None:
+                    src_need = "count"
+                elif q.kind == "set" and need == "order":
+                    src_need = "order"
+                else:
+                    src_need = "identity"
+                yield from self.reads_of(q.source, scope, src_need, route, choose, calls)
+                inner = scope.shadow(_introduced_binders(q, self.flavor))
+                yield from self.reads_of(q.where, inner, "identity", route, choose, calls)
+            case n.IsCheck() as chk:
+                operand_need = "existence" if chk.kind in ("empty", "not_empty") else "identity"
+                yield from self.reads_of(chk.operand, scope, operand_need, route, choose, calls)
+            case n.IfExpr() as ife:
+                yield from self.reads_of(ife.cond, scope, "identity", route, choose, calls)
+                yield from self.reads_of(ife.then, scope, need, route, choose, calls)
+                for cond, then in ife.elifs:
+                    yield from self.reads_of(cond, scope, "identity", route, choose, calls)
+                    yield from self.reads_of(then, scope, need, route, choose, calls)
+                yield from self.reads_of(ife.otherwise, scope, need, route, choose, calls)
+            case n.Choose() as ch:
+                for field_name in ("lo", "hi", "excluding"):
+                    yield from self.reads_of(
+                        getattr(ch, field_name), scope, "identity", route, field_name, calls
+                    )
+            case n.Call() as call:
+                yield from self._call_reads(call, scope, need, route, choose, calls)
+            case tuple() as items:
+                for item in items:
+                    yield from self.reads_of(item, scope, "identity", route, choose, calls)
+            case _ if is_dataclass(expr) and not isinstance(expr, (type, Span)):
+                introduced = _introduced_binders(expr, self.flavor)
+                scope_fields = _BINDER_SCOPE_FIELDS.get(type(expr))
+                for f in fields(expr):
+                    shadowed = scope_fields is None or f.name in scope_fields
+                    inner = scope.shadow(introduced) if shadowed else scope
+                    yield from self.reads_of(
+                        getattr(expr, f.name), inner, "identity", route, choose, calls
+                    )
+            case _:
+                return
+
+    def _call_reads(
+        self,
+        call: n.Call,
+        scope: _ReadScope,
+        need: str,
+        route: tuple[str, ...],
+        choose: str | None,
+        calls: tuple[str, ...],
+    ) -> Iterator[ZoneRead]:
+        fn = self.functions.get(call.func)
+        if fn is not None:
+            if call.func in calls:
+                return  # recursion: `_check_functions` reports it
+            via = f"function `{fn.name}`"
+            # A function body is hermetic: it names no binder of the caller's,
+            # and inherits the acting seat.
+            body_scope = replace(scope, names=(), aliases=_ActorAliases(frozenset()))
+            for param, arg in zip(fn.params, call.args):
+                body_scope = body_scope.bind(param.name, (_Binding(arg, scope, via),))
+            yield from self.reads_of(
+                fn.body, body_scope, need, route + (via,), choose, calls + (call.func,)
+            )
+            return
+        decl = self.primitives.get(call.func)
+        if decl is not None:
+            via = f"Primitive `{decl.name}`'s `reads`"
+            params = [p.name for p in decl.params]
+            for read in decl.reads:
+                kind = classify_read(self.game, read.name, read.phase)
+                if kind is ReadKind.SINGLE_ZONE:
+                    yield ZoneRead(read.name, None, scope, False, "identity", route + (via,), call.span, choose)
+                elif kind is ReadKind.ZONE_FAMILY:
+                    if read.binder is not None and read.binder in params:
+                        at = params.index(read.binder)
+                        if at < len(call.args):
+                            yield ZoneRead(
+                                read.name, call.args[at], scope, False, "identity",
+                                route + (via,), call.span, choose,
+                            )
+                    else:
+                        yield ZoneRead(read.name, None, scope, True, "identity", route + (via,), call.span, choose)
+            for arg in call.args:
+                yield from self.reads_of(arg, scope, "identity", route, choose, calls)
+            return
+        if call.func in BUILTIN_ARGUMENT_READS:
+            pile = ARRIVAL_RECORD_CALLS.get(call.func)
+            for at, arg in enumerate(call.args):
+                if at == pile:
+                    # A pile's Arrival Record: `_check_arrival_record_pile_args`
+                    # judges it in every position, this one included.
+                    continue
+                yield from self.reads_of(
+                    arg, scope, BUILTIN_ARGUMENT_READS[call.func], route, choose, calls
+                )
+            return
+        if call.func in BUILTIN_IMPLICIT_READS:
+            family, implicit_need = BUILTIN_IMPLICIT_READS[call.func]
+            if family in self.zones:
+                via = f"`{call.func}`"
+                yield ZoneRead(family, None, scope, True, implicit_need, route + (via,), call.span, choose)
+        for arg in call.args:
+            yield from self.reads_of(arg, scope, "identity", route, choose, calls)
+
+    # --- the verdicts -------------------------------------------------------
+
+    def _owned_by(self, zone: str) -> Role | None:
+        """The role a zone family is owned by, or None for an unowned zone."""
+        decl = self.zones[zone]
+        if decl.index is None or decl.index in self.positions:
+            return None
+        role = role_of(decl.index)
+        return role if role in ZONE_INDEX_ROLES else None
+
+    def _names_acting_seat(self, index: n.Expr, scope: _ReadScope) -> str | None:
+        """Why `index` statically denotes the acting seat, or None: as
+        written, or as any name it is bound to by value."""
+        for spelled, at in self._spellings(index, scope):
+            if isinstance(spelled, n.IntLit) and spelled.value == at.seat_literal:
+                return f"seat {spelled.value} is the seat `as {spelled.value}` binds"
+            if not isinstance(spelled, n.NameRef):
+                continue
+            if spelled.ref_kind in ("local", "pronoun") and spelled.name in at.aliases.names:
+                return f"`{spelled.name}` names the acting seat"
+            if (
+                spelled.ref_kind == "state_var"
+                and spelled.name == at.seat_var
+                and at.seat_var_live
+            ):
+                return f"the State Variable `{spelled.name}` names the seat `as` binds"
+        return None
+
+    def _why_not_owned(self, index: n.Expr | None, scope: _ReadScope) -> str:
+        if (
+            isinstance(index, n.NameRef)
+            and index.ref_kind == "state_var"
+            and index.name == scope.seat_var
+            and not scope.seat_var_live
+        ):
+            return (
+                f" (`{index.name}` is written after `as {index.name}` names the "
+                f"deciding seat, so it may name another seat by then)"
+            )
+        return ""
+
+    def _own_reason(self, read: ZoneRead) -> str | None:
+        """Why the acting seat owns the instance `read` reads, or None."""
+        if read.every:
+            return None
+        role = self._owned_by(read.zone)
+        if role is None:
+            return None
+        if read.index is None:
+            return "bare-family sugar reads the acting seat's own" if read.index_scope.acting else None
+        for index, scope in self._spellings(read.index, read.index_scope):
+            if role is Role.TEAM:
+                if isinstance(index, n.Call) and index.func == "team_of" and len(index.args) == 1:
+                    for inner, inner_scope in self._spellings(index.args[0], scope):
+                        why = self._names_acting_seat(inner, inner_scope)
+                        if why is not None:
+                            return f"`team_of` of the acting seat ({why})"
+            else:
+                why = self._names_acting_seat(index, scope)
+                if why is not None:
+                    return why
+        return None
+
+    def _spellings(self, index: n.Expr, scope: _ReadScope) -> list[tuple[n.Expr, _ReadScope]]:
+        """`index` as written, then with each name the reader follows by
+        value -- a parameter, a `let`, a phase outcome's payload -- replaced
+        by what it is bound to, in turn: a name may denote the acting seat
+        where it is written (a procedure's `as victim`) or where its value is
+        (`let t = team_of(actor)`)."""
+        out = [(index, scope)]
+        # A binding's value is read in the scope it was bound in, which holds
+        # only earlier bindings, so the chain ends; the seen set is the
+        # Shadow of that, never a length.
+        seen: set[int] = set()
+        while isinstance(index, n.NameRef) and index.ref_kind == "local":
+            bindings = scope.lookup(index.name)
+            if len(bindings) != 1 or bindings[0].index_binder is not None:
+                break
+            if id(bindings[0]) in seen:
+                break
+            seen.add(id(bindings[0]))
+            index, scope = bindings[0].value, scope.follow(bindings[0])
+            out.append((index, scope))
+        return out
+
+    def _zone_text(self, read: ZoneRead) -> str:
+        if read.every:
+            return f"every `{read.zone}`"
+        if read.index is None:
+            return f"`{read.zone}`"
+        index, _ = self._spellings(read.index, read.index_scope)[-1]
+        return f"`{read.zone}[{_spell(index)}]`"
+
+    def _judge(
+        self, what: str, reads: Iterator[ZoneRead], decider: _Seat, span: Span | None,
+        only_choose: bool = False, source: bool = False, evaluator: _Seat | None = None,
+    ) -> None:
+        """Judge each read: at `decider`, the seat whose decision the
+        position's value reaches, or -- for a read inside a nested `choose`
+        where the position is evaluated by another seat -- at `evaluator`,
+        the seat that makes that `choose`."""
+        for read in reads:
+            if only_choose and read.choose is None:
+                continue
+            decl = self.zones.get(read.zone)
+            if decl is None or decl.type_ref.name not in ZONE_PROJECTIONS:
+                continue
+            ztype = decl.type_ref.name
+            in_choose = read.choose is not None and (only_choose or evaluator is not None)
+            seat = evaluator if read.choose is not None and evaluator is not None else decider
+            position = (
+                ("a `choose`'s `excluding`" if read.choose == "excluding" else "a `choose`'s range")
+                if in_choose
+                else what
+            )
+            owned = self._owned_by(read.zone) is not None
+            to_others = reveals(ztype, read.need, False)
+            to_owner = reveals(ztype, read.need, True)
+            if seat.every:
+                accepted = to_others and (to_owner or not owned)
+                reason = "public" if accepted else ""
+            else:
+                own = self._own_reason(read) if owned else None
+                if to_others:
+                    accepted, reason = True, "public"
+                elif own is not None and to_owner:
+                    accepted, reason = True, own
+                else:
+                    accepted, reason = False, ""
+            self.verdicts.append(HiddenReadVerdict(position, read, accepted, reason, span))
+            if accepted:
+                continue
+            self._report(position, read, seat, to_owner, span or read.span, source and not in_choose)
+
+    def _report(
+        self, what: str, read: ZoneRead, seat: _Seat, to_owner: bool,
+        span: Span | None, source: bool,
+    ) -> None:
+        zone = self._zone_text(read)
+        needs = _NEED_PHRASE[read.need].format(z=zone)
+        route = f" (through {', then '.join(read.route)})" if read.route else ""
+        if seat is _NO_SEAT:
+            who = "only its owner can see" if to_owner else "no seat can see"
+            extra = (
+                "; or read the card as it is played (`action.card`), as Hearts breaks "
+                "hearts on the card played"
+                if what.endswith("`transition_to` trigger") else ""
+            )
+            message = (
+                f"{what} is a fact every seat can check, but it reads {needs}{route}, "
+                f"which {who}. Make the holder announce it, as Gin Rummy's knock sets "
+                f"`knocked`, and read the announcement{extra}"
+            )
+        else:
+            decider = seat.label
+            blind = (
+                "which not every receiving seat can see" if seat.every
+                else f"which {decider} cannot see{self._why_not_owned(read.index, read.index_scope)}"
+            )
+            if source:
+                message = (
+                    f"a chosen movement's source is the pool {decider} picks from, but "
+                    f"it reads {needs}{route}, {blind}, so the pick would name cards "
+                    f"the chooser cannot see. Pick from cards the chooser can see; a "
+                    f"blind pick from cards the chooser cannot see (Old Maid's draw) "
+                    f"needs a pick by position, which the language does not have yet "
+                    f"(issue #756)"
+                )
+            else:
+                message = (
+                    f"{what} is decided by {decider}, so {decider} must be able to "
+                    f"check it, but it reads {needs}{route}, {blind}. Read the "
+                    f"deciding seat's own cards, or have the holder announce or "
+                    f"reveal the fact first"
+                )
+        key = (message, span)
+        if key not in self._reported:
+            self._reported.add(key)
+            self.bag.error(message, span)
+
+    # --- the positions ------------------------------------------------------
+
+    def run(self) -> None:
+        """Walk the game until every producer is collected, then judge. A
+        consumer may precede its producer in the text (an `after_each`
+        consuming a child outcome declared after it), so the verdicts are
+        taken on a walk that already holds every `produce` site; a payload
+        read through another outcome's binder settles on the next walk."""
+        bag = self.bag
+        self.bag = DiagnosticBag()
+        # A fixed point over the outcome graph: each walk binds every
+        # `produces:` arm to what the previous walk collected, until a walk
+        # collects exactly what it was given. A payload reaches a consumer
+        # through at most one outcome per `produce` site, so the walks are
+        # bounded by the sites plus the one that finds nothing new.
+        sites = sum(1 for node in _walk(self.game) if isinstance(node, n.Produce))
+        for _ in range(sites + 1):
+            self._walk_game()
+            stable = self.produced == self.collected
+            self.collected, self.produced = self.produced, {}
+            if stable:
+                break
+        self.bag = bag
+        self.verdicts = []
+        self._reported = set()
+        self._walk_game()
+
+    def _walk_game(self) -> None:
+        self.seats = 0
+        self.outcome_phase = []
+        for phase in self.game.phases:
+            self._phase(phase, _ReadScope())
+        for mt in self.game.move_types:
+            scope = _ACTOR_SCOPE.shadow(tuple(p.name for p in mt.params))
+            if mt.when is not None:
+                self._judge(
+                    f"move type `{mt.name}`'s `when:`",
+                    self.reads_of(mt.when, scope), _Seat("the acting seat"), mt.when.span,
+                )
+            self._stmts(mt.effect, scope, _Seat("the acting seat"))
+        for rule in self.game.rules:
+            # Under Delegated Play a trick's rule clauses read the routed pool
+            # through bare-family sugar; `delegation.check_decider_sees` owns
+            # its visibility to the decider.
+            clauses: list[tuple[str, n.Expr | None]] = [
+                ("applies_when", rule.applies_when.pred if rule.applies_when else None),
+                ("demands", rule.demands.expr if rule.demands else None),
+                ("if_impossible", rule.if_impossible),
+                ("exempts", rule.exempts),
+            ]
+            for clause, expr in clauses:
+                if expr is not None:
+                    self._judge(
+                        f"rule `{rule.name}`'s `{clause}:`",
+                        self.reads_of(expr, _ACTOR_SCOPE), _Seat("the acting seat"), expr.span,
+                    )
+        if self.game.loser is not None:
+            self._outside(self.game.loser.selection, _ReadScope(), _NO_SEAT)
+
+    def _outside(self, expr: object, scope: _ReadScope, seat: _Seat) -> None:
+        """A position no verdict judges: only a `choose` nested in it decides."""
+        if expr is None:
+            return
+        self._judge("", self.reads_of(expr, scope), seat, getattr(expr, "span", None), only_choose=True)
+
+    def _phase(self, phase: n.Phase, scope: _ReadScope) -> None:
+        if phase.qualifier is not None:
+            kind = "`when` gate" if phase.qualifier.kind == "when" else "`repeat until` condition"
+            self._judge(
+                f"phase `{phase.name}`'s {kind}",
+                self.reads_of(phase.qualifier.expr, scope), _NO_SEAT, phase.qualifier.expr.span,
+            )
+        if phase.outcome_cases:
+            self.outcome_phase.append(phase.name)
+        for item in phase.items:
+            match item:
+                case n.StateBlock():
+                    for decl in item.decls:
+                        self._outside(decl.default, _ReadScope(), _NO_SEAT)
+                case n.Mode():
+                    for transition in item.transitions:
+                        where = transition.event.where
+                        if where is not None:
+                            self._judge(
+                                f"mode `{item.name}`'s `transition_to` trigger",
+                                self.reads_of(where, _ACTOR_SCOPE), _NO_SEAT, where.span,
+                            )
+                case n.BeforeEach() | n.AfterEach():
+                    self._stmts(item.body, scope, _Seat("the acting seat"))
+                case n.Phase():
+                    self._phase(item, scope)
+                case n.ActiveRules() | n.LegalMoves():
+                    pass
+                case _:
+                    scope = self._stmt(item, scope, _Seat("the acting seat"))
+        if phase.outcome_cases:
+            self.outcome_phase.pop()
+
+    def _stmts(self, stmts: tuple[n.Stmt, ...], scope: _ReadScope, seat: _Seat) -> _ReadScope:
+        for stmt in stmts:
+            scope = self._stmt(stmt, scope, seat)
+        return scope
+
+    def _after(self, stmt: object, scope: _ReadScope) -> _ReadScope:
+        """The scope after `stmt`: the `as` State Variable dies once a path
+        through `stmt` may write it."""
+        if scope.seat_var is not None and scope.seat_var_live and self._writes(stmt, scope.seat_var):
+            return replace(scope, seat_var_live=False)
+        return scope
+
+    def _writes(self, node: object, name: str, visiting: frozenset[str] = frozenset()) -> bool:
+        """Whether some path through `node` writes the state variable `name`,
+        a move type it offers and a procedure it runs included."""
+        for nd in _child_nodes(node):
+            if _written_state_name(nd) == name:
+                return True
+            offered: tuple[str, ...] = ()
+            match nd:
+                case n.Offer():
+                    offered = nd.offering
+                case n.AuctionRound():
+                    offered = nd.offering
+                case n.TrickRound() | n.ClimbRound():
+                    offered = (nd.move_type,)
+                case n.RunStmt() if nd.name in self.procedures and nd.name not in visiting:
+                    if self._writes(self.procedures[nd.name].body, name, visiting | {nd.name}):
+                        return True
+            for mt_name in offered:
+                mt = self.move_types.get(mt_name)
+                if mt is not None and mt_name not in visiting:
+                    if self._writes(mt.effect, name, visiting | {mt_name}):
+                        return True
+        return False
+
+    def _seat_for(self, node: n.ForEach | n.EachSimultaneous | n.Turns | n.AsBlock,
+                  rebound: _ActorAliases, scope: _ReadScope) -> tuple[_ReadScope, _Seat]:
+        if isinstance(node, n.AsBlock) and self._names_acting_seat(node.player, scope):
+            # The seat is canonical: an `as` naming the seat already acting
+            # changes no seat, so every proof of who acts stands, and the name
+            # it binds is one more.
+            label = (
+                f"seat `{node.player.name}`" if isinstance(node.player, n.NameRef)
+                else f"the seat `as {_spell(node.player)}` names"
+            )
+            names = scope.aliases.names | rebound.names
+            return replace(scope, aliases=_ActorAliases(names, scope.aliases.origin)), _Seat(label)
+        self.seats += 1
+        inner = replace(
+            scope,
+            aliases=rebound,
+            acting=True,
+            seat_var=None,
+            seat_var_live=False,
+            seat_literal=None,
+            seat=self.seats,
+        )
+        match node:
+            case n.ForEach():
+                return inner, _Seat(f"seat `{node.binder}`")
+            case n.EachSimultaneous():
+                return inner, _Seat(f"seat `{node.role}`")
+            case n.Turns():
+                return inner, _Seat(f"seat `{node.binder}`")
+            case n.AsBlock():
+                player = node.player
+                if isinstance(player, n.NameRef) and player.ref_kind == "state_var":
+                    # This check's own rule beside `_ActorAliases`, which leaves
+                    # State Variables out because a later write would falsify
+                    # the comparisons it proves dead: here the variable names
+                    # the seat only while no path from the `as` has written it.
+                    inner = replace(inner, seat_var=player.name, seat_var_live=True)
+                    return inner, _Seat(f"seat `{player.name}`")
+                if isinstance(player, n.NameRef):
+                    return inner, _Seat(f"seat `{player.name}`")
+                if isinstance(player, n.IntLit):
+                    return replace(inner, seat_literal=player.value), _Seat(f"seat {player.value}")
+                return inner, _Seat(f"the seat `as {_spell(player)}` names")
+
+    def _stmt(self, stmt: n.Stmt, scope: _ReadScope, seat: _Seat) -> _ReadScope:
+        match stmt:
+            case n.LetStmt():
+                index = (stmt.index,) if stmt.index is not None else ()
+                value_scope = scope.shadow(index)
+                self._outside(stmt.value, value_scope, seat)
+                binding = _Binding(stmt.value, value_scope, f"`let {stmt.name}`", stmt.index)
+                aliases = _aliases_after_let(stmt, scope.aliases)
+                return replace(scope.bind(stmt.name, (binding,)), aliases=aliases)
+            case n.AssignStmt():
+                self._outside(stmt.index, scope, seat)
+                self._outside(stmt.value, scope, seat)
+            case n.RotateStmt() | n.ContinueTo() | n.SkipToNextHand():
+                pass
+            case n.EpistemicOp():
+                inner = scope.shadow(_introduced_binders(stmt, self.flavor))
+                self._outside(stmt.zone, scope, seat)
+                self._outside(stmt.where, inner, seat)
+            case n.IfStmt():
+                self._outside(stmt.cond, scope, seat)
+                self._stmts(stmt.then_body, scope, seat)
+                if stmt.else_body is not None:
+                    self._stmts(stmt.else_body, scope, seat)
+            case n.RepeatUntil():
+                loop = self._after(stmt.body, scope)
+                self._outside(stmt.until, loop, seat)
+                self._stmts(stmt.body, loop, seat)
+            case n.ForEach() | n.EachSimultaneous() | n.Turns() | n.AsBlock():
+                rebound = _seat_rebinding(stmt)
+                if isinstance(stmt, n.Turns):
+                    for outer in (stmt.leader, stmt.participants, stmt.until):
+                        self._outside(outer, scope, seat)
+                if isinstance(stmt, n.AsBlock):
+                    self._outside(stmt.player, scope, seat)
+                if rebound is None:
+                    # A value domain (or a role no row defines, reported
+                    # elsewhere): the acting seat stands, and the body loops.
+                    assert isinstance(stmt, (n.ForEach, n.EachSimultaneous))
+                    binder = stmt.binder if isinstance(stmt, n.ForEach) else stmt.role
+                    loop = self._after(stmt.body, scope).shadow((binder,))
+                    self._stmt(stmt.body, loop, seat)
+                else:
+                    inner, inner_seat = self._seat_for(stmt, rebound, scope)
+                    if isinstance(stmt, (n.ForEach, n.EachSimultaneous)):
+                        self._stmt(stmt.body, inner, inner_seat)
+                    else:
+                        self._stmts(stmt.body, self._after_loop(stmt, inner), inner_seat)
+            case n.Offer():
+                self._outside(stmt.player, scope, seat)
+            case n.TrickRound():
+                self._outside(stmt.leader, scope, seat)
+                self._outside(stmt.participants, scope, seat)
+                self._outside(stmt.trump, scope, seat)
+            case n.AuctionRound() | n.ClimbRound():
+                for outer in (stmt.leader, stmt.participants, stmt.until):
+                    self._outside(outer, scope, seat)
+            case n.Transfer():
+                self._transfer(stmt, scope, seat)
+            case n.Produce():
+                for payload in stmt.payloads:
+                    self._outside(payload, scope, seat)
+                if self.outcome_phase:
+                    self.produced.setdefault(self.outcome_phase[-1], []).append(
+                        (stmt.tag, stmt.payloads, scope)
+                    )
+            case n.Produces():
+                sites = self.collected.get(stmt.phase, [])
+                for arm in stmt.arms:
+                    arm_scope = scope
+                    for at, binder in enumerate(arm.binders):
+                        via = f"phase `{stmt.phase}`'s outcome `{arm.tag}`"
+                        bindings = tuple(
+                            _Binding(payloads[at], produced_scope, via)
+                            for tag, payloads, produced_scope in sites
+                            if tag == arm.tag and at < len(payloads)
+                        )
+                        arm_scope = arm_scope.bind(binder, bindings)
+                    self._stmts(arm.body, arm_scope, seat)
+            case n.RunStmt():
+                self._run(stmt, scope, seat)
+            case n.Block():
+                self._stmts(stmt.body, scope, seat)
+            case _:
+                assert_never(stmt)
+        return self._after(stmt, scope)
+
+    def _after_loop(self, stmt: n.Turns | n.AsBlock, scope: _ReadScope) -> _ReadScope:
+        """A turn loop's body runs again after a write in it; an `as` body
+        runs once."""
+        return self._after(stmt.body, scope) if isinstance(stmt, n.Turns) else scope
+
+    def _run(self, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat) -> None:
+        for arg in stmt.args:
+            self._outside(arg, scope, seat)
+        proc = self.procedures.get(stmt.name)
+        if proc is None or stmt.name in self.running:
+            return  # unknown, or a cycle another check refuses
+        self.running.append(stmt.name)
+        try:
+            self._run_body(proc, stmt, scope, seat)
+        finally:
+            self.running.pop()
+
+    def _run_body(
+        self, proc: n.ProcedureDef, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat
+    ) -> None:
+        via = f"procedure `{proc.name}`"
+        # The body is spliced in at the run site: the acting seat and the
+        # `as` State Variable carry in; the caller's binders do not.
+        body_scope = replace(scope, names=(), aliases=_ActorAliases(frozenset()))
+        for param, arg in zip(proc.params, stmt.args):
+            body_scope = body_scope.bind(param.name, (_Binding(arg, scope, via),))
+        self._stmts(proc.body, body_scope, seat)
+
+    def _transfer(self, stmt: n.Transfer, scope: _ReadScope, seat: _Seat) -> None:
+        filtered = scope.shadow(_introduced_binders(stmt, self.flavor))
+        if stmt.selection_mode != "chosen":
+            if not isinstance(stmt.amount, str):
+                self._outside(stmt.amount, scope, seat)
+            self._outside(stmt.source, scope, seat)
+            self._outside(stmt.where, filtered, seat)
+            self._outside(stmt.dest, scope, seat)
+            return
+        seats = {
+            SEAT_ACTING: seat,
+            SEAT_EACH_RECEIVER: _Seat("each receiving seat", every=True),
+        }
+
+        def judge(field: str, what: str, reads: Iterator[ZoneRead], span: Span | None) -> None:
+            decider, evaluator = CHOSEN_MOVEMENT_SEATS[(field, stmt.dest_each)]
+            self._judge(
+                what, reads, seats[decider], span,
+                source=field == "source", evaluator=seats[evaluator],
+            )
+
+        if not isinstance(stmt.amount, str):
+            judge("amount", "a chosen movement's amount", self.reads_of(stmt.amount, scope), stmt.amount.span)
+        if stmt.source is not None:
+            judge("source", "a chosen movement's source", self.reads_of(stmt.source, scope), stmt.source.span)
+        if stmt.where is not None:
+            judge("where", "a chosen movement's `where`", self.reads_of(stmt.where, filtered), stmt.where.span)
+        judge(
+            "dest",
+            "a chosen movement's destination",
+            self.reads_of(stmt.dest, scope, _LOCATE),
+            stmt.dest.span,
+        )
+
+
+def hidden_read_verdicts(game: n.Game) -> list[HiddenReadVerdict]:
+    """Every read `_check_hidden_reads` judges in a resolved game, with its
+    verdict."""
+    reads = _HiddenReads(game, DiagnosticBag())
+    reads.run()
+    return reads.verdicts
+
+
+def _check_hidden_reads(game: n.Game, bag: DiagnosticBag) -> None:
+    """A read of a zone at a position whose value reaches a decision must be
+    one the deciders can make (decisions.md "Honest Play is assumed, so a rule
+    reading concealed cards is mis-modelled"). Where no seat is deciding
+    (`HIDDEN_READ_POSITIONS`' `READ_POSITION_NO_SEAT` rows) every seat must be
+    able to see what the read needs; where a seat is deciding, that seat must
+    -- a zone every seat sees, or the deciding seat's own instance of a zone
+    its owner sees. The refusal names the announcement the rules are missing.
+
+    After `_classify_names` (every name's `ref_kind` is stamped),
+    `_validate_refs` and `_check_primitive_reads` (every call resolves, every
+    `reads` name is single-membership), and `_check_functions` and
+    `_check_procedures` (the call graph the reader follows is acyclic, and a
+    cycle it meets is reported there)."""
+    _HiddenReads(game, bag).run()
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:

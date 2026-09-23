@@ -33,10 +33,14 @@ def _cached_run(path_str: str, seed: int, history: tuple[int, ...]) -> Any:
 
 
 def _run_dispatch(
-    path_str: str, seed: int, history: tuple[int, ...], on_first_decision: Any = None
+    path_str: str,
+    seed: int,
+    history: tuple[int, ...],
+    on_first_decision: Any = None,
+    picks: Any = None,
 ) -> Any:
-    if on_first_decision is not None:
-        return _orig_run(path_str, seed, history, on_first_decision)
+    if on_first_decision is not None or picks is not None:
+        return _orig_run(path_str, seed, history, on_first_decision, picks)
     return _cached_run(path_str, seed, history)
 
 

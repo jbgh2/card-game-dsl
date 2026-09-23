@@ -1,0 +1,34 @@
+// A probe, not a corpus game: an `if` reads hand[1], which seat 0 cannot
+// see, and decides who is asked next: one branch asks seat 0 and the other
+// asks seat 1. Seat 0 is asked again after it, the pause at depth 2. The
+// checker does not judge a control position for a Hidden Read, so it accepts
+// this game (issue #755).
+game ControlReroutes {
+  players: 2
+  max_length: 20
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    table        : Discard
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to hand[0]
+    deal 2 cards from deck to hand[1]
+  }
+  phase play {
+    as 0 { move chosen 1 card from hand[0] to table }
+    if any card in hand[1] where rank_value(card) >= 9 {
+      as 0 { move chosen 1 card from hand[0] to table }
+    } else {
+      as 1 { move chosen 1 card from hand[1] to table }
+    }
+    as 0 { move chosen 1 card from hand[0] to table }
+  }
+  winner: highest score
+}

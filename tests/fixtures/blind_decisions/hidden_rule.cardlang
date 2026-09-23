@@ -1,0 +1,44 @@
+// A probe, not a corpus game: a rule constraining seat 0's lead reads
+// hand[1], which seat 0 cannot see. While seat 1 holds a jack or higher, seat
+// 0 must lead a card below 6. The checker refuses the rule, which seat 0
+// must be able to check.
+game HiddenRule {
+  players: 2
+  max_length: 40
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck             : Deck
+    hand[player]     : Hand<player>
+    trick_pile       : TrickPile
+    captured[player] : PlayerPile<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase play {
+    state {
+      leader : Player? = none
+    }
+    active_rules: [HiddenHigh]
+    legal_moves:  [play_to_trick]
+    leader := 0
+    repeat until (all players where hand[player] is empty) {
+      round play_to_trick from leader over all players source hand into trick_pile
+            winner highest_of_led_suit
+      move all cards from trick_pile to captured[winner]
+    }
+  }
+  winner: highest score
+}
+
+rule HiddenHigh {
+  constrains: play_to_trick
+  applies_when: state.led_suit is none and (any card in hand[1] where rank_value(card) >= 11)
+  demands: cards in hand where rank_value(card) < 6
+  if_impossible: hand
+}

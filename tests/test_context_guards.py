@@ -140,7 +140,7 @@ def test_reveal_filter_must_be_boolean() -> None:
 
 
 def test_movement_filter_real_corpus_shape_is_accepted() -> None:
-    _accepts(_game("move chosen 2 cards from hand[0] where card.suit is hearts to pile"))
+    _accepts(_game("as 0 { move chosen 2 cards from hand[0] where card.suit is hearts to pile }"))
 
 
 def test_reveal_filter_real_corpus_shape_is_accepted() -> None:

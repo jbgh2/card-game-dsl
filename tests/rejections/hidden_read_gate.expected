@@ -1,0 +1,1 @@
+hidden_read_gate.cardlang:21:23: error: phase `showdown`'s `when` gate is a fact every seat can check, but it reads the cards in `hand[0]`, which only its owner can see. Make the holder announce it, as Gin Rummy's knock sets `knocked`, and read the announcement

@@ -146,7 +146,7 @@ def test_out_of_range_player_is_a_loud_runtime_error() -> None:
     # here is COMPUTED (`0 + 5`, a BinOp the checker leaves Integer, like the
     # phantom-key `n[0 + 9]`), so it reaches this runtime bind-time guard.
     game = _decision_game(
-        "as (0 + 5) { move chosen 1 cards from hand[dealer] to discard }"
+        "as (0 + 5) { move chosen 1 cards from hand to discard }"
     )
     with pytest.raises(OwnerGuardError, match="not a seat"):
         _run_capturing(game)
@@ -157,7 +157,7 @@ def test_tany_non_player_bound_as_actor_is_a_loud_runtime_error() -> None:
     # guard, but binding its non-seat value (an empty tuple) as the actor is
     # guarded at `acting_as`, not silently handed to the chooser.
     game = _decision_game(
-        "as active_rules { move chosen 1 cards from hand[dealer] to discard }"
+        "as active_rules { move chosen 1 cards from hand to discard }"
     )
     with pytest.raises(OwnerGuardError, match="not a seat"):
         _run_capturing(game)
