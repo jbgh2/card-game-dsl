@@ -140,7 +140,15 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               pool's visibility to the decider is the runtime Owner Guard
               ``runtime/delegation.check_decider_sees``'s, and a clause read
               indexed by the acting seat is judged against the acting seat,
-              not the decider.
+              not the decider (issue #758).
+              And an implicit decision pool -- one the kernel builds from a
+              declared zone with no expression to read, the round-source and
+              ``Card``-parameter rows of ``DECISION_POOLS`` -- whose family's
+              type does not show its owner the cards in it
+              (``_check_implicit_pools``). ``runtime/mechanics``' trick and
+              climb forms and its parameter domains may therefore assume the
+              deciding seat sees every card they offer from its own
+              instance.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -2369,6 +2377,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_chooses(game, bag)
     _check_actor_alias_comparisons(game, bag)
     _check_delegation(game, bag)
+    _check_implicit_pools(game, bag)
     _check_hidden_reads(game, bag)
     _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
@@ -3452,20 +3461,18 @@ _RANKABLE_TYPES: frozenset[str] = frozenset({"Integer", "Boolean"})
 
 
 def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
-    """The Delegated Play helpers' three Owner Guards (decisions.md "Delegated
+    """The Delegated Play helpers' two Owner Guards (decisions.md "Delegated
     play"; the grid is tests/test_delegated_play.py):
 
     - a helper of the exact name must take exactly one Player — the routing
       contract is per-seat, and any other shape is a mis-remembered API;
     - a game defining a helper must hold a trick round somewhere for it to
       route — helpers no site consults are accepted-but-ignored, the defect
-      class this repo ranks worst;
-    - every trick round's DECLARED source projects identity to its own seat
-      (helpers or not): the unrouted actor draws from their own instance, and
-      an owner-blind declared source is a game nobody can play, statically
-      known from the declaration.
+      class this repo ranks worst.
 
-    The routed pool's guard — the DECIDER must see it — is deliberately NOT
+    The unrouted pool, a trick round's DECLARED source, is one of the implicit
+    decision pools, whose Owner Guard is `_check_implicit_pools`. The routed
+    pool's guard — the DECIDER must see it — is deliberately NOT
     here: whether a seat's pool is routed, and to whom the decision goes,
     are the helpers' values at that seat, and correlating two opaque
     expression bodies is not statically decidable (Bridge's own helper
@@ -3476,19 +3483,6 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
     from cardlang.runtime.delegation import HELPER_NAMES
 
     helpers = [f for f in game.functions if f.name in HELPER_NAMES]
-    zone_types = {z.name: z.type_ref.name for z in game.zones}
-    for node in _walk(game):
-        if not isinstance(node, n.TrickRound):
-            continue
-        ztype = zone_types.get(node.source_zone)
-        if ztype is not None and ZONE_PROJECTIONS[ztype].owner != "identity":
-            bag.error(
-                f"a trick round's source '{node.source_zone}' ({ztype}) does "
-                f"not project identity to its own seat — the acting player "
-                f"could not see the cards offered from it. Play tricks from "
-                f"an owner-visible zone",
-                node.span,
-            )
     if not helpers:
         return
     for fn in helpers:
@@ -3508,6 +3502,73 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
             f"(routing at other decision points is issue #458)",
             helpers[0].span,
         )
+
+def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
+    """Every implicit decision pool shows its decider the cards in it.
+
+    The Owner Guard for the pools the kernel builds from a declared zone with
+    no designer expression to read (`DECISION_POOLS`' round-source and
+    `Card`-parameter rows): a round's source family, whose instance the acting
+    seat plays from, and the acting seat's `hand`, whose cards a `Card`
+    parameter of an offered move type ranges over. The decider is the owning
+    seat in both, so the family's type must show its owner the cards
+    (`stdlib.zones.reveals` at `identity`); a type that does not offers a seat
+    cards it cannot see, a game nobody can play, known from the declaration.
+    A pool a designer expression names is `_check_hidden_reads`'. Under
+    Delegated Play a trick's routed pool is judged per decision by the runtime
+    Owner Guard `delegation.check_decider_sees`."""
+    zone_types = {z.name: z.type_ref.name for z in game.zones}
+    move_types = {m.name: m for m in game.move_types}
+
+    def hidden_from_owner(family: str) -> str | None:
+        ztype = zone_types.get(family)
+        if ztype is None or ztype not in ZONE_PROJECTIONS or reveals(ztype, "identity", True):
+            return None
+        return ztype
+
+    def fix(family: str) -> str:
+        return (
+            f"Declare `{family}` a type that shows its owner the cards in it "
+            f"(`Hand`, or `PublicHand`)"
+        )
+
+    offered: set[str] = set()
+    for node in _walk(game):
+        match node:
+            case n.TrickRound() | n.ClimbRound():
+                ztype = hidden_from_owner(node.source_zone)
+                if ztype is not None:
+                    form = "trick" if isinstance(node, n.TrickRound) else "climb"
+                    bag.error(
+                        f"a {form} round offers each seat the cards of its own "
+                        f"`{node.source_zone}`, but `{node.source_zone}` is a "
+                        f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(node.source_zone)}",
+                        node.span,
+                    )
+            case n.Offer() | n.AuctionRound():
+                offered.update(node.offering)
+    for name in sorted(offered):
+        mt = move_types.get(name)
+        if mt is None:
+            continue
+        for param in mt.params:
+            if param.type_name != "Card":
+                continue
+            ztype = hidden_from_owner("hand")
+            if ztype is not None:
+                bag.error(
+                    f"move type `{mt.name}`'s `{param.name} : Card` offers the "
+                    f"acting seat the cards of its own `hand`, but `hand` is a "
+                    f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix('hand')}",
+                    param.span or mt.span,
+                )
+
+
+_OWN_POOL_BLIND = (
+    "does not show its owner the cards in it, so a seat would pick cards it "
+    "cannot see"
+)
+
 
 def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
     """A `winner:` target must be a state variable a game can be ranked by.

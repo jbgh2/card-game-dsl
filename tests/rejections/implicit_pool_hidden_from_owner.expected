@@ -1,0 +1,1 @@
+implicit_pool_hidden_from_owner.cardlang:26:23: error: move type `discard_one`'s `c : Card` offers the acting seat the cards of its own `hand`, but `hand` is a `HiddenStack`, which does not show its owner the cards in it, so a seat would pick cards it cannot see. Declare `hand` a type that shows its owner the cards in it (`Hand`, or `PublicHand`)

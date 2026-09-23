@@ -26,7 +26,10 @@ domain:          the verdict grid crosses every judged position (the table's
                  decisions.md, never from `ZONE_PROJECTIONS`. The relation
                  grid crosses every way the deciding seat is proven with a
                  concealed hand read; the route grid crosses every route a
-                 read can take with both verdicts; the corpus cells hold the
+                 read can take with both verdicts; the implicit-pool grid
+                 crosses every `DECISION_POOLS` row whose cards come from a
+                 declared zone with every zone type a seat's `hand` can be
+                 declared as; the corpus cells hold the
                  State Variable rule to the corpus games whose chosen
                  movements it admits. A position outside the
                  two judged kinds is not judged: the control positions (an
@@ -45,14 +48,18 @@ registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS`, pinned
                  `docs/library.md`; the Builtin partition:
                  `cardlang.builtins.functions.BUILTIN_ARGUMENT_READS`,
                  `BUILTIN_READS_NOTHING`, `BUILTIN_IMPLICIT_READS`; the
-                 phase qualifier's two kinds: `cardlang.ast.nodes.PhaseQualifier`.
+                 phase qualifier's two kinds: `cardlang.ast.nodes.PhaseQualifier`;
+                 the decision points: `cardlang.resolve.DECISION_POOLS`, pinned
+                 against `cardlang.runtime.delegation.DECISION_POINTS` and
+                 `FORM_CONSTRUCTS`.
                  An Arrival Record pile argument:
                  tests/test_arrival_record.py (its Owner Guard,
                  `_check_arrival_record_pile_args`, judges it in every position).
                  The rendered messages: tests/rejections/hidden_read_gate.cardlang,
                  tests/rejections/hidden_read_transition.cardlang,
                  tests/rejections/hidden_read_rule.cardlang,
-                 tests/rejections/hidden_read_blind_draw.cardlang. The swap
+                 tests/rejections/hidden_read_blind_draw.cardlang,
+                 tests/rejections/implicit_pool_hidden_from_owner.cardlang. The swap
                  proof's own witnesses, and the ones refused before it runs:
                  tests/openspiel_ready/test_blind_decisions.py.
 does not prove:  that a seat's knowledge beyond its projections is credited:
@@ -1090,15 +1097,10 @@ def _implicit_pool_cells() -> list[object]:
             if not Z.LIBRARY_ZONE_TYPES[zone_type]:
                 continue  # a per-seat pool is a zone family
             accept = _TYPES[zone_type][0] == "identity"
-            # The trick source is refused today by `_check_delegation`, in a
-            # message the class's one check replaces.
-            red = AssertionError if member == "trick-source" else _Accepted
             cells.append(
                 _cell(
                     f"{member}-{zone_type}", member, zone_type,
                     refuse=None if accept else _OWN_POOL,
-                    xfail=None if accept else "the implicit pools are not checked yet",
-                    raises=red,
                 )
             )
     return cells
