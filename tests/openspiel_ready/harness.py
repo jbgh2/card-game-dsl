@@ -10,8 +10,8 @@ by `test_coverage.py`):
 2. INDISTINGUISHABILITY: two worlds differing only in cards hidden from P
    yield byte-identical information states for P — and offer P identical
    legal actions, rendering to identical text (legal-action agreement).
-   Every recorded pick before the pause whose decider is blind to both
-   swapped cards is held to the same agreement: the same seat asked, the
+   Every recorded pick before the pause whose decider has seen neither
+   swapped card is held to the same agreement: the same seat asked, the
    same legal actions offered (`replay_pair`). Run over the `SWAP_SEEDS`
    manifest, several replaying pairs per seed.
 3. Soundness converse: perturbing what P CAN see changes P's state — the
@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from functools import cache
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -63,6 +63,7 @@ from cardlang.openspiel.replay import (
     run,
 )
 from cardlang.play.view import render_view
+from cardlang.runtime.values import Card
 from cardlang.runtime.driver import play_game
 
 from .partition import (
@@ -70,7 +71,6 @@ from .partition import (
     check_visible_facts,
     first_divergence,
     format_failures,
-    projection_for,
     record,
     zone_instances,
 )
@@ -802,16 +802,39 @@ def spread_pairs(pairs: list[tuple[Any, Any]]) -> list[tuple[Any, Any]]:
     return [g[j] for j in range(width) for g in rotated if j < len(g)]
 
 
-def blind_seats(
-    rs: Any, seats: range, sides: tuple[tuple[str, int | None], ...]
-) -> frozenset[int]:
-    """The seats to whom no swap side projects card identity, read off the
-    declared zone projections (`partition.projection_for`) at `rs`."""
-    return frozenset(
-        seat
-        for seat in seats
-        if all(projection_for(rs, name, key, seat) != "identity" for name, key in sides)
-    )
+def mentions(value: Any, card: Card) -> int:
+    """How many times `value` -- a Seat View, or any part of one -- names
+    `card`, as a card or as its rendering. Every field of the view is walked,
+    so every route a seat learns a card by is read: a zone it sees at
+    identity, a State Variable, and every observation event, whatever fields
+    its kind carries (`observe.EVENT_PAYLOADS`)."""
+    if isinstance(value, Card):
+        return int(value == card)
+    if isinstance(value, str):
+        return int(value == str(card))
+    if isinstance(value, dict):
+        return sum(mentions(item, card) for pair in value.items() for item in pair)
+    if isinstance(value, (tuple, list, set, frozenset)):
+        return sum(mentions(item, card) for item in value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return sum(mentions(getattr(value, f.name), card) for f in fields(value))
+    return 0
+
+
+def _blind_decider(a: RecordedPick, b: RecordedPick, hidden: frozenset[Card]) -> int | None:
+    """The seat a pick is compared for, or None when it is sighted. One seat
+    deciding in both worlds is sighted when its two views name a hidden card
+    a different number of times: it has seen which world it is in, and a
+    seat holding another copy of a two-deck card in both worlds has not.
+    Seats differing between the worlds are judged each on its own view, and
+    one naming no hidden card is compared."""
+    if a.decider == b.decider:
+        seen = any(mentions(a.view, card) != mentions(b.view, card) for card in hidden)
+        return None if seen else a.decider
+    for pick in (a, b):
+        if not any(mentions(pick.view, card) for card in hidden):
+            return pick.decider
+    return None
 
 
 def compare_blind_picks(
@@ -819,23 +842,27 @@ def compare_blind_picks(
     history: list[int],
     picks_a: list[RecordedPick],
     picks_b: list[RecordedPick],
-    blind: frozenset[int],
+    hidden: frozenset[Card],
     refused_last: bool,
-    hidden: str,
+    what: str,
 ) -> int:
     """Hold every recorded pick whose decider is blind in either world to
     world A's offer: the same seat asked, the same legal action ids. Returns
     how many picks were compared.
 
-    Picks of the first Chooser call are skipped: its candidates are computed
-    before `on_first_decision` fires (`driver.play_game`), so they agree by
+    A decider is blind at a pick unless its Seat View there, as the pick
+    recorded it, tells the two worlds apart by the `hidden` cards it names
+    (`_blind_decider`): what a seat has seen of them by that pick, through
+    any route, makes it sighted. Picks of the
+    first Chooser call are skipped: its candidates are computed before
+    `on_first_decision` fires (`driver.play_game`), so they agree by
     construction. `refused_last` says world B's last pick is one its position
-    does not offer, which fails the comparison at a blind decider. `hidden`
-    names what is hidden from the blind seats, for the failure."""
+    does not offer, which fails the comparison at a blind decider. `what`
+    names the difference between the worlds, for the failure."""
     last = len(picks_b) - 1
     compared = 0
     for k, (a, b) in enumerate(zip(picks_a, picks_b)):
-        seat = next((d for d in (a.decider, b.decider) if d in blind), None)
+        seat = _blind_decider(a, b, hidden)
         if a.call == 0 or seat is None:
             continue
         refused = refused_last and k == last
@@ -851,7 +878,7 @@ def compare_blind_picks(
                 )
             raise AssertionError(
                 f"{game_name}: same information, different offer at pick {k} for "
-                f"seat {seat}: {detail}. {hidden} is hidden from seat {seat}, so a "
+                f"seat {seat}: {detail}. {what} is hidden from seat {seat}, so a "
                 f"predicate or branch read a card seat {seat} cannot see."
             )
         compared += 1
@@ -875,7 +902,6 @@ def replay_pair(
     seed: int,
     history: list[int],
     picks_a: list[RecordedPick],
-    blind: frozenset[int],
     sides: tuple[tuple[str, int | None], tuple[str, int | None]],
     pair: tuple[Any, Any],
 ) -> PairReplay:
@@ -884,7 +910,7 @@ def replay_pair(
     offers (`compare_blind_picks`).
 
     A recorded pick that world B does not offer drops the pair when both
-    worlds' deciders see a swapped card, since that seat's options may
+    worlds' deciders have seen a swapped card, since that seat's options may
     legitimately differ, and fails the proof otherwise. A swap that cannot
     apply drops the pair."""
     x, y = pair
@@ -902,7 +928,7 @@ def replay_pair(
         history,
         picks_a,
         picks_b,
-        blind,
+        frozenset(pair),
         mismatch is not None,
         f"Swap ({x},{y}) between {sides} at seed {seed}, depth {len(history)},",
     )
@@ -1010,7 +1036,6 @@ class ReadinessProofs:
             who = f"player {opp}'s hand <-> the undealt {spec.stock_zone}"
 
         assert candidates, "no swap pair available; lower the spec's depth for this game"
-        blind = blind_seats(pause_a.rs, range(len(pause_a.obs_logs)), (side1, side2))
         picks_a: list[RecordedPick] = []
         run(path, seed, tuple(history), picks=picks_a)
 
@@ -1025,7 +1050,7 @@ class ReadinessProofs:
             if len(proved) >= SWAP_PAIRS_PER_SEED:
                 break
             replayed = replay_pair(
-                spec.short_name, path, seed, history, picks_a, blind, (side1, side2), (x, y)
+                spec.short_name, path, seed, history, picks_a, (side1, side2), (x, y)
             )
             blind_compared += replayed.blind_compared
             if replayed.pause is None:
@@ -1087,7 +1112,6 @@ class ReadinessProofs:
             pairs_cap=SWAP_PAIRS_PER_SEED,
             pairs_dropped=dropped,
             candidates=len(candidates),
-            blind_seats=";".join(map(str, sorted(blind))),
             blind_picks_compared=blind_compared,
             legal_agreement=True,
             string_agreement=True,

@@ -223,13 +223,16 @@ checklist for resolving this question.
   moves are themselves a leak channel, one OpenSpiel does not police.
   *Covered:* the swap proof asserts the paired worlds pause on the same
   player and offer identical legal actions, and holds every recorded pick
-  before the pause whose decider is blind to both swapped cards to the same
+  before the pause whose decider has seen neither swapped card to the same
   seat asked and the same legal actions offered
   (`harness.compare_blind_picks`; Klondike's analogue and Cheat's
-  constructive certificate read the same comparison). Blindness is read off
-  the swap sides' declared projections. A recorded pick that becomes illegal
-  at a seat that sees a swapped card drops the pair, and nothing after it is
-  compared; a hidden read turning on one opponent card is caught only when a
+  constructive certificate read the same comparison). What a decider has
+  seen is read off its Seat View at that pick, recorded inside the Chooser
+  call, so a card it holds, a card a public event named, or one carried
+  through its hand makes it sighted alike. A recorded pick that becomes
+  illegal at a seat that has seen a swapped card drops the pair, and nothing
+  after it is compared; a swapped card the pause seat has seen fails the
+  comparison at the pause; a hidden read turning on one opponent card is caught only when a
   pair flipping it is among the first `SWAP_PAIRS_PER_SEED`, taken in
   `harness.spread_pairs` order. The seeded witnesses are control branches,
   which the checker does not judge for a [Hidden Read](../glossary/hidden-read.md)

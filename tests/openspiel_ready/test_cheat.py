@@ -317,8 +317,8 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
     challenge-rich line, and require a byte-identical information state, the
     same paused player, and — when the observer is the one to move — the same
     legal actions and the same rendered action text; at every recorded pick
-    the observer decides in either world, the same seat asked and the same
-    legal actions offered (`harness.compare_blind_picks`). Two rotations per
+    whose decider has seen none of the permuted cards, the same seat asked and
+    the same legal actions offered (`harness.compare_blind_picks`). Two rotations per
     observer: two maximally-distant worlds, not one lucky pair. The line is
     asserted channel-active first (flips and pile pickups occurred), so the
     certificate covers a line where the public Boolean of hidden content
@@ -363,7 +363,7 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
                 list(hist),
                 picks_a,
                 picks_b,
-                frozenset({observer}),
+                frozenset(free),
                 False,
                 f"Rotation {rotation} of the permutation at seed {seed}",
             )

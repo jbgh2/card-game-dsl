@@ -27,7 +27,8 @@ under (`generator_for`); a Seat Policy asked at a position is handed the
 [[seat-view]] derived there while every phase frame stands, and its answer is
 one of the legal action ids or the line refuses it; a caller passing
 ``picks`` receives one `RecordedPick` per recorded pick, taken before the pick is
-matched, so a pick its position does not offer still leaves its offer behind.
+matched, so a pick its position does not offer still leaves its offer behind,
+with the decider's Seat View derived inside the Chooser call.
 Illegal after: a second site choosing a game's generator; a continuation that
 draws from the game's generator; a policy asked again once it has raised in
 the same run."""
@@ -104,12 +105,14 @@ class TerminalNode:
 @dataclass(frozen=True)
 class RecordedPick:
     """What one recorded pick was offered: the index of the Chooser call it
-    belongs to, the seat deciding it, and the legal action ids its position
-    offers, sorted ascending as `DecisionNode.legal` is."""
+    belongs to, the seat deciding it, the legal action ids its position
+    offers, sorted ascending as `DecisionNode.legal` is, and what the deciding
+    seat knew as it was asked."""
 
     call: int
     decider: int
     legal: tuple[int, ...]
+    view: SeatView
 
 
 class ReplayChooser:
@@ -146,6 +149,7 @@ class ReplayChooser:
         beyond: Callable[[int, list[int]], int] | None = None,
         taken: list[int] | None = None,
         picks: list[RecordedPick] | None = None,
+        view: Callable[[int], SeatView] | None = None,
     ) -> None:
         self.space = space
         self.history = history
@@ -155,6 +159,7 @@ class ReplayChooser:
         self.taken: list[int] = [] if taken is None else taken
         self.deciders: list[int] = []
         self.picks = picks
+        self.view = view
         self.calls = 0
         self._raised: BaseException | None = None
 
@@ -169,7 +174,10 @@ class ReplayChooser:
                 self.cursor += 1
                 self.deciders.append(actor)
                 if self.picks is not None:
-                    self.picks.append(RecordedPick(call, actor, tuple(self._legal(pool))))
+                    assert self.view is not None, "recording picks needs a Seat View to record"
+                    self.picks.append(
+                        RecordedPick(call, actor, tuple(self._legal(pool)), self.view(actor))
+                    )
                 # `type`, not `isinstance`: a flag passes `decode`'s range test
                 # as id 0 or 1.
                 if type(aid) is not int:
@@ -422,14 +430,27 @@ def run(
     def observe(player: int, event: tuple[Any, ...]) -> None:
         logs[player].append(event)
 
-    chooser = ReplayChooser(space, history, observe, picks=picks)
+    world: list[RuntimeState] = []
+
+    def first_decision(rs: RuntimeState) -> None:
+        world.append(rs)
+        if on_first_decision is not None:
+            on_first_decision(rs)
+
+    chooser = ReplayChooser(
+        space,
+        history,
+        observe,
+        picks=picks,
+        view=lambda seat: derive(seat, world[0], logs[seat]),
+    )
     try:
         result = play_game(
             game,
             generator_for(path_str, seed),
             chooser=chooser,
             observer=observe,
-            on_first_decision=on_first_decision,
+            on_first_decision=first_decision if picks is not None else on_first_decision,
         )
     except ChooserAbort as abort:
         assert abort.rs is not None
