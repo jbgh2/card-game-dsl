@@ -8434,7 +8434,8 @@ class _ReadScope:
     the names that denote the acting seat (`_ActorAliases`), whether a seat
     acts at all, and the State Variable an enclosing `as` names -- live while
     no path from that `as` has written it, or the seat number a literal `as`
-    names."""
+    names. `seat` identifies the acting seat those proofs are about: a value
+    bound under one seat and read under another carries none of them."""
 
     names: tuple[tuple[str, tuple[_Binding, ...]], ...] = ()
     aliases: _ActorAliases = _ActorAliases(frozenset())
@@ -8442,6 +8443,24 @@ class _ReadScope:
     seat_var: str | None = None
     seat_var_live: bool = False
     seat_literal: int | None = None
+    seat: int = 0
+
+    def follow(self, binding: _Binding) -> _ReadScope:
+        """The scope `binding`'s value is read in, from here: its own, or,
+        when it was bound under another acting seat, its own with every proof
+        of who acts removed -- what that seat could see proves nothing for
+        this one."""
+        if binding.scope.seat == self.seat:
+            return binding.scope
+        return replace(
+            binding.scope,
+            aliases=_ActorAliases(frozenset()),
+            acting=False,
+            seat_var=None,
+            seat_var_live=False,
+            seat_literal=None,
+            seat=_NO_ACTING_SEAT,
+        )
 
     def lookup(self, name: str) -> tuple[_Binding, ...]:
         for bound, bindings in reversed(self.names):
@@ -8527,7 +8546,10 @@ class _Seat:
 
 
 _NO_SEAT = _Seat("every seat", every=True)
-_ACTOR_SCOPE = _ReadScope(aliases=_ActorAliases(), acting=True)
+# The seat of a scope whose value was bound under another acting seat: equal
+# to no scope's own, so nothing it binds carries a proof either.
+_NO_ACTING_SEAT = -2
+_ACTOR_SCOPE = _ReadScope(aliases=_ActorAliases(), acting=True, seat=-1)
 
 
 class _HiddenReads:
@@ -8556,8 +8578,12 @@ class _HiddenReads:
         )
         self.positions = frozenset(p.name for p in game.positions)
         self.flavor = game.content_flavor
+        # Every phase outcome's `produce` sites, by the producing phase: the
+        # ones this walk has met, and the ones the previous walk collected.
         self.produced: dict[str, list[tuple[str, tuple[n.Expr, ...], _ReadScope]]] = {}
+        self.collected: dict[str, list[tuple[str, tuple[n.Expr, ...], _ReadScope]]] = {}
         self.outcome_phase: list[str] = []
+        self.seats = 0
         self.verdicts: list[HiddenReadVerdict] = []
         self._reported: set[tuple[str, Span | None]] = set()
 
@@ -8582,7 +8608,7 @@ class _HiddenReads:
                     for b in scope.lookup(ref.name):
                         if b.index_binder is None:
                             yield from self.reads_of(
-                                b.value, b.scope, need, route + (b.via,), choose, calls
+                                b.value, scope.follow(b), need, route + (b.via,), choose, calls
                             )
             case n.Subscript() as sub:
                 obj = sub.obj
@@ -8591,7 +8617,7 @@ class _HiddenReads:
                 elif isinstance(obj, n.NameRef) and obj.ref_kind == "local":
                     for b in scope.lookup(obj.name):
                         if b.index_binder is not None:
-                            inner = b.scope.bind(
+                            inner = scope.follow(b).bind(
                                 b.index_binder, (_Binding(sub.index, scope, b.via),)
                             )
                             yield from self.reads_of(
@@ -8599,7 +8625,7 @@ class _HiddenReads:
                             )
                         else:
                             yield from self.reads_of(
-                                b.value, b.scope, need, route + (b.via,), choose, calls
+                                b.value, scope.follow(b), need, route + (b.via,), choose, calls
                             )
                 else:
                     yield from self.reads_of(obj, scope, "identity", route, choose, calls)
@@ -8737,7 +8763,9 @@ class _HiddenReads:
             if index.ref_kind == "local":
                 bindings = scope.lookup(index.name)
                 if len(bindings) == 1 and bindings[0].index_binder is None:
-                    return self._names_acting_seat(bindings[0].value, bindings[0].scope, depth + 1)
+                    return self._names_acting_seat(
+                        bindings[0].value, scope.follow(bindings[0]), depth + 1
+                    )
         return None
 
     def _why_not_owned(self, index: n.Expr | None, scope: _ReadScope) -> str:
@@ -8776,17 +8804,19 @@ class _HiddenReads:
         return None
 
     def _spellings(self, index: n.Expr, scope: _ReadScope) -> list[tuple[n.Expr, _ReadScope]]:
-        """`index` as written, then with each parameter replaced by its
-        argument in turn: a name may denote the acting seat where it is
-        written (a procedure's `as victim`) or where its argument is."""
+        """`index` as written, then with each name the reader follows by
+        value -- a parameter, a `let`, a phase outcome's payload -- replaced
+        by what it is bound to, in turn: a name may denote the acting seat
+        where it is written (a procedure's `as victim`) or where its value is
+        (`let t = team_of(actor)`)."""
         out = [(index, scope)]
         for _ in range(16):
             if not (isinstance(index, n.NameRef) and index.ref_kind == "local"):
                 break
             bindings = scope.lookup(index.name)
-            if len(bindings) != 1 or not bindings[0].via.startswith(("function", "procedure")):
+            if len(bindings) != 1 or bindings[0].index_binder is not None:
                 break
-            index, scope = bindings[0].value, bindings[0].scope
+            index, scope = bindings[0].value, scope.follow(bindings[0])
             out.append((index, scope))
         return out
 
@@ -8881,6 +8911,24 @@ class _HiddenReads:
     # --- the positions ------------------------------------------------------
 
     def run(self) -> None:
+        """Walk the game until every producer is collected, then judge. A
+        consumer may precede its producer in the text (an `after_each`
+        consuming a child outcome declared after it), so the verdicts are
+        taken on a walk that already holds every `produce` site; a payload
+        read through another outcome's binder settles on the next walk."""
+        bag = self.bag
+        self.bag = DiagnosticBag()
+        for _ in range(2):
+            self._walk_game()
+            self.collected, self.produced = self.produced, {}
+        self.bag = bag
+        self.verdicts = []
+        self._reported = set()
+        self._walk_game()
+
+    def _walk_game(self) -> None:
+        self.seats = 0
+        self.outcome_phase = []
         for phase in self.game.phases:
             self._phase(phase, _ReadScope())
         for mt in self.game.move_types:
@@ -8987,8 +9035,15 @@ class _HiddenReads:
 
     def _seat_for(self, node: n.ForEach | n.EachSimultaneous | n.Turns | n.AsBlock,
                   rebound: _ActorAliases, scope: _ReadScope) -> tuple[_ReadScope, _Seat]:
+        self.seats += 1
         inner = replace(
-            scope, aliases=rebound, acting=True, seat_var=None, seat_var_live=False, seat_literal=None
+            scope,
+            aliases=rebound,
+            acting=True,
+            seat_var=None,
+            seat_var_live=False,
+            seat_literal=None,
+            seat=self.seats,
         )
         match node:
             case n.ForEach():
@@ -9078,7 +9133,7 @@ class _HiddenReads:
                         (stmt.tag, stmt.payloads, scope)
                     )
             case n.Produces():
-                sites = self.produced.get(stmt.phase, [])
+                sites = self.collected.get(stmt.phase, [])
                 for arm in stmt.arms:
                     arm_scope = scope
                     for at, binder in enumerate(arm.binders):

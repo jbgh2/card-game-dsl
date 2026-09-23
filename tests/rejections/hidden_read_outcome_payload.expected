@@ -1,0 +1,1 @@
+hidden_read_outcome_payload.cardlang:27:51: error: a chosen movement's amount is decided by seat `p`, so seat `p` must be able to check it, but it reads the cards in `hand[1]` (through phase `count`'s outcome `hearts`), which seat `p` cannot see. Read the deciding seat's own cards, or have the holder announce or reveal the fact first

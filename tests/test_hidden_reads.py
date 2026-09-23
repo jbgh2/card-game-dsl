@@ -29,7 +29,9 @@ domain:          the verdict grid crosses every judged position (the table's
                  read can take with both verdicts; the implicit-pool grid
                  crosses every `DECISION_POOLS` row whose cards come from a
                  declared zone with every zone type a seat's `hand` can be
-                 declared as; the corpus cells hold the
+                 declared as; the indirection grid crosses every name the
+                 reader follows by value with the seat that consumes it; the
+                 corpus cells hold the
                  State Variable rule to the corpus games whose chosen
                  movements it admits. A position outside the
                  two judged kinds is not judged: the control positions (an
@@ -59,7 +61,8 @@ registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS`, pinned
                  tests/rejections/hidden_read_transition.cardlang,
                  tests/rejections/hidden_read_rule.cardlang,
                  tests/rejections/hidden_read_blind_draw.cardlang,
-                 tests/rejections/implicit_pool_hidden_from_owner.cardlang. The swap
+                 tests/rejections/implicit_pool_hidden_from_owner.cardlang,
+                 tests/rejections/hidden_read_outcome_payload.cardlang. The swap
                  proof's own witnesses, and the ones refused before it runs:
                  tests/openspiel_ready/test_blind_decisions.py.
 does not prove:  that a seat's knowledge beyond its projections is credited:
@@ -1211,33 +1214,11 @@ _INDIRECTIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
     ),
 }
 
-# cell -> (the failure the missing fix produces, why).
-_INDIRECTION_RED: dict[str, tuple[type[Exception], str]] = {
-    "outcome-payload-consumed-by-another-seat": (
-        _Accepted, "a payload's reads are judged at the producing seat"),
-    "let-consumed-in-a-nested-seat": (
-        _Accepted, "a `let`'s reads are judged at the seat that bound it"),
-    "procedure-argument-consumed-in-a-nested-seat": (
-        _Accepted, "an argument's reads are judged at the calling seat"),
-    "after-each-consumes-a-later-outcome": (
-        _Accepted, "a producer declared after its consumer is not yet collected"),
-    "let-names-the-deciders-team": (
-        DiagnosticError, "an index proof does not follow a `let`"),
-}
-
-
 def _indirection_cells() -> list[object]:
-    cells = []
-    for cell_id, (body, defs, zone, teams, refuse) in _INDIRECTIONS.items():
-        red = _INDIRECTION_RED.get(cell_id)
-        cells.append(
-            _cell(
-                cell_id, body, defs, zone, teams, refuse=refuse,
-                xfail=red[1] if red else None,
-                raises=red[0] if red else _Accepted,
-            )
-        )
-    return cells
+    return [
+        _cell(cell_id, body, defs, zone, teams, refuse=refuse)
+        for cell_id, (body, defs, zone, teams, refuse) in _INDIRECTIONS.items()
+    ]
 
 
 @pytest.mark.parametrize("body,defs,zone,teams,refuse", _indirection_cells())
