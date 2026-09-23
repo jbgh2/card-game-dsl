@@ -8611,6 +8611,9 @@ class _HiddenReads:
         self.produced: dict[str, list[tuple[str, tuple[n.Expr, ...], _ReadScope]]] = {}
         self.collected: dict[str, list[tuple[str, tuple[n.Expr, ...], _ReadScope]]] = {}
         self.outcome_phase: list[str] = []
+        # The procedures whose bodies the walk is inside, so a cycle is met
+        # once and left to the check that refuses it.
+        self.running: list[str] = []
         self.seats = 0
         self.verdicts: list[HiddenReadVerdict] = []
         self._reported: set[tuple[str, Span | None]] = set()
@@ -9202,7 +9205,7 @@ class _HiddenReads:
                         arm_scope = arm_scope.bind(binder, bindings)
                     self._stmts(arm.body, arm_scope, seat)
             case n.RunStmt():
-                self._run(stmt, scope, seat, ())
+                self._run(stmt, scope, seat)
             case n.Block():
                 self._stmts(stmt.body, scope, seat)
             case _:
@@ -9214,12 +9217,21 @@ class _HiddenReads:
         runs once."""
         return self._after(stmt.body, scope) if isinstance(stmt, n.Turns) else scope
 
-    def _run(self, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat, running: tuple[str, ...]) -> None:
+    def _run(self, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat) -> None:
         for arg in stmt.args:
             self._outside(arg, scope, seat)
         proc = self.procedures.get(stmt.name)
-        if proc is None or stmt.name in running:
-            return  # unknown or recursive: `_check_procedures` reports it
+        if proc is None or stmt.name in self.running:
+            return  # unknown, or a cycle another check refuses
+        self.running.append(stmt.name)
+        try:
+            self._run_body(proc, stmt, scope, seat)
+        finally:
+            self.running.pop()
+
+    def _run_body(
+        self, proc: n.ProcedureDef, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat
+    ) -> None:
         via = f"procedure `{proc.name}`"
         # The body is spliced in at the run site: the acting seat and the
         # `as` State Variable carry in; the caller's binders do not.

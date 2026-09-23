@@ -1429,18 +1429,9 @@ _CYCLES: dict[str, tuple[str, str, str]] = {
     ),
 }
 
-_CYCLE_RED: dict[str, str] = {
-    "procedure-runs-itself": "the reader follows a recursive procedure without end",
-    "procedures-run-each-other": "the reader follows a recursive procedure without end",
-}
-
-
 def _cycle_cells() -> list[object]:
     return [
-        _cell(
-            cell_id, body, defs, "", False, refuse=fragment,
-            xfail=_CYCLE_RED.get(cell_id), raises=RecursionError,
-        )
+        _cell(cell_id, body, defs, "", False, refuse=fragment)
         for cell_id, (body, defs, fragment) in _CYCLES.items()
     ]
 
