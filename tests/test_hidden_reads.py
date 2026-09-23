@@ -356,7 +356,7 @@ def _cell(
     *values: object,
     refuse: str | None,
     xfail: str | None = None,
-    raises: type[AssertionError] = _Accepted,
+    raises: type[Exception] = _Accepted,
 ) -> object:
     """One grid cell. `xfail` names the reason a refusal cell is a strict
     expected failure, constrained to `raises`: by default the one failure a
@@ -1117,6 +1117,137 @@ def test_an_implicit_pool_shows_its_decider_the_cards(
         "hand[player] : Hand<player>", f"hand[player] : {zone_type}<player>"
     )
     _check(source, refuse)
+
+
+# ---------------------------------------------------------------------------
+# The indirections: every name the reader follows by value -- a `let`, an
+# indexed `let`, a function's or a procedure's parameter, a phase outcome's
+# payload -- judged at the seat that consumes it and whatever the order its
+# producer is declared in, and an index proof reached through a `let`.
+# ---------------------------------------------------------------------------
+
+_HEARTS_OF = "number of cards in {z} where card.suit is hearts"
+_HINT = "phase deal -> outcome { hint(Integer) } "
+
+# cell -> (body, defs, zone, teams, the refusal's fragment or None).
+_INDIRECTIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
+    # A value computed under one acting seat and consumed at another's
+    # decision proves nothing the producing seat could see.
+    "outcome-payload-consumed-by-another-seat": (
+        _HINT + "{ as 1 { produce hint(" + _HEARTS_OF.format(z="hand[1]") + ") } } "
+        "phase play { deal produces: hint(k) "
+        "{ for each player p: move chosen (k) cards from hand[p] to pile } }",
+        "", "", False, _DECIDER,
+    ),
+    "outcome-payload-public": (
+        _HINT + "{ produce hint(" + _HEARTS_OF.format(z="pile") + ") } "
+        "phase play { deal produces: hint(k) "
+        "{ for each player p: move chosen (k) cards from hand[p] to pile } }",
+        "", "", False, None,
+    ),
+    "let-consumed-in-a-nested-seat": (
+        "phase play { for each player p: as p { let k = " + _HEARTS_OF.format(z="hand[p]")
+        + "  as 0 { move chosen (k) cards from hand[0] to pile } } }",
+        "", "", False, _DECIDER,
+    ),
+    "let-consumed-by-the-same-seat": (
+        "phase play { for each player p: as p { let k = " + _HEARTS_OF.format(z="hand[p]")
+        + "  move chosen (k) cards from hand[p] to pile } }",
+        "", "", False, None,
+    ),
+    "indexed-let-consumed-in-a-nested-seat": (
+        "phase play { for each player p: as p { let k[q] = " + _HEARTS_OF.format(z="hand[q]")
+        + "  as 0 { move chosen (k[p]) cards from hand[0] to pile } } }",
+        "", "", False, _DECIDER,
+    ),
+    "procedure-argument-consumed-in-a-nested-seat": (
+        "phase play { for each player p: as p { run give(" + _HEARTS_OF.format(z="hand[p]") + ") } }",
+        "procedure give(k : Integer) { as 0 { move chosen (k) cards from hand[0] to pile } }",
+        "", False, _DECIDER,
+    ),
+    "function-argument-read-at-the-call": (
+        "phase play { for each player p: as p { move chosen (cnt(p)) cards from hand[p] to pile } }",
+        "function cnt(q : Player) = " + _HEARTS_OF.format(z="hand[q]"),
+        "", False, None,
+    ),
+    # A consumer whose producer is declared after it: an `after_each` runs
+    # after the body, so it may consume a child outcome declared later.
+    "after-each-consumes-a-later-outcome": (
+        "phase loop repeat until flag { after_each { prod produces: hint(k) "
+        "{ for each player p: move chosen (k) cards from hand[p] to pile } } "
+        "phase prod -> outcome { hint(Integer) } { produce hint("
+        + _HEARTS_OF.format(z="hand[1]") + ") } flag := true }",
+        "", "", False, _DECIDER,
+    ),
+    "after-each-consumes-a-later-public-outcome": (
+        "phase loop repeat until flag { after_each { prod produces: hint(k) "
+        "{ for each player p: move chosen (k) cards from hand[p] to pile } } "
+        "phase prod -> outcome { hint(Integer) } { produce hint("
+        + _HEARTS_OF.format(z="pile") + ") } flag := true }",
+        "", "", False, None,
+    ),
+    # An index proof reached through a `let`.
+    "let-names-the-deciders-team": (
+        *_take(effect="let t = team_of(actor)  move chosen 1 card from secret[t] to pile"),
+        "secret[team] : Hand<team>", True, None,
+    ),
+    "let-names-another-team": (
+        *_take(effect="let t = team_of(actor offset_by left)  "
+               "move chosen 1 card from secret[t] to pile"),
+        "secret[team] : Hand<team>", True, _BLIND,
+    ),
+    "let-names-the-literal-seat": (
+        "phase play { as 0 { let s = 0  move chosen 1 card from hand[s] to pile } }",
+        "", "", False, None,
+    ),
+    "let-names-the-state-variable-seat": (
+        "phase play { as leader { let who = leader  move chosen 1 card from hand[who] to pile } }",
+        "", "", False, None,
+    ),
+    "let-names-the-binder-seat": (
+        "phase play { for each player p: as p { let who = p  "
+        "move chosen 1 card from hand[who] to pile } }",
+        "", "", False, None,
+    ),
+}
+
+# cell -> (the failure the missing fix produces, why).
+_INDIRECTION_RED: dict[str, tuple[type[Exception], str]] = {
+    "outcome-payload-consumed-by-another-seat": (
+        _Accepted, "a payload's reads are judged at the producing seat"),
+    "let-consumed-in-a-nested-seat": (
+        _Accepted, "a `let`'s reads are judged at the seat that bound it"),
+    "procedure-argument-consumed-in-a-nested-seat": (
+        _Accepted, "an argument's reads are judged at the calling seat"),
+    "after-each-consumes-a-later-outcome": (
+        _Accepted, "a producer declared after its consumer is not yet collected"),
+    "let-names-the-deciders-team": (
+        DiagnosticError, "an index proof does not follow a `let`"),
+}
+
+
+def _indirection_cells() -> list[object]:
+    cells = []
+    for cell_id, (body, defs, zone, teams, refuse) in _INDIRECTIONS.items():
+        red = _INDIRECTION_RED.get(cell_id)
+        cells.append(
+            _cell(
+                cell_id, body, defs, zone, teams, refuse=refuse,
+                xfail=red[1] if red else None,
+                raises=red[0] if red else _Accepted,
+            )
+        )
+    return cells
+
+
+@pytest.mark.parametrize("body,defs,zone,teams,refuse", _indirection_cells())
+def test_a_value_is_judged_where_it_is_consumed(
+    body: str, defs: str, zone: str, teams: bool, refuse: str | None
+) -> None:
+    """Each name the reader follows by value, crossed with whether its value
+    reaches a decision of the seat that computed it, and each index proof
+    reached through a `let`."""
+    _check(_game(body, defs, zone=zone, teams=teams), refuse)
 
 
 # ---------------------------------------------------------------------------
