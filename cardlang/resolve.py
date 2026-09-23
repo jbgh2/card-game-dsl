@@ -9023,16 +9023,20 @@ class _HiddenReads:
         if any(f.name == CHOOSER_HELPER for f in self.game.functions):
             # Every rule is asked at the trick round's card decision, the one
             # decision `chooser_for` routes: its clauses are decided by
-            # `chooser_for(actor)`, so no proof about `actor` stands, and bare
-            # `hand` or a trick round's source family reads the routed pool.
-            sources = {
+            # `chooser_for(actor)`, so no proof about `actor` stands. The
+            # runtime reads bare `hand` there as the routed pool, and the
+            # CURRENT round's bare source family too; a rule may be active in
+            # any trick round, so a family other than `hand` is the routed
+            # pool only where every trick round of the game sources it.
+            sources = [
                 node.source_zone for node in _walk(self.game) if isinstance(node, n.TrickRound)
-            }
+            ]
+            every_round = frozenset(sources) if len(set(sources)) == 1 else frozenset()
             rule_scope = _ReadScope(
                 aliases=_ActorAliases(frozenset()),
                 acting=True,
                 seat=-3,
-                routed=frozenset({"hand"} | sources),
+                routed=frozenset({"hand"}) | every_round,
             )
             rule_seat = _Seat(f"`{CHOOSER_HELPER}(actor)`")
         for rule in self.game.rules:

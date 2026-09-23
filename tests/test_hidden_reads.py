@@ -1497,13 +1497,10 @@ def _routing_cells() -> list[object]:
             "rule Probed { constrains: play_to_trick applies_when: " + read
             + " demands: cards in hand where card.suit is hearts if_impossible: hand }"
         )
-        red = cell_id == "vault-in-rounds-sourcing-hand-and-vault"
         cells.append(
             _cell(
                 cell_id, body, defs, _SHOWN, False,
                 refuse=None if accepted else _DECIDER,
-                xfail="a family some other round sources counts as routed in every round"
-                if red else None,
             )
         )
     return cells
