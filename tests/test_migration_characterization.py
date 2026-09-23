@@ -119,7 +119,7 @@ commit the same chips — chip conservation and the side-pot known-value tests d
 not move — but the ORDER of the asking does, which reorders the whole hand and
 so every later deal. `seven-card-stud.ir.json` moves with it through its own
 `UPDATE_GOLDEN=1` path, and there the diff is five `order_mode` values going
-null, the clause gone from the game.
+null: the clause is gone from the game, and null is what an absent clause emits.
 The family's 2-seat members are the change's negative control, and this module
 holds no golden for any of them, so the control is measured where their decision
 order is pinned — the readiness proofs and playouts under `tests/openspiel_ready/`
