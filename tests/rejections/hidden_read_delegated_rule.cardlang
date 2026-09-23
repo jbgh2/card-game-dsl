@@ -1,0 +1,41 @@
+// Guard: resolve.py's `_check_hidden_reads`, under Delegated Play. Seat 0
+// plays seat 2's cards, so seat 0 decides seat 2's trick: a rule clause
+// reading `hand[actor]` reads a hand the chooser cannot see. The bare `hand`
+// reads the pool the chooser plays from.
+game HiddenReadDelegatedRule {
+  players: 3
+  max_length: 40
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck             : Deck
+    hand[player]     : Hand<player>
+    trick_pile       : TrickPile
+    captured[player] : PlayerPile<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase play {
+    active_rules: [NoHeartsFromAStrongHand]
+    repeat until (all players where hand[player] is empty) {
+      round play_to_trick from 0 over all players source hand into trick_pile
+            winner highest_trump_or_led_suit
+      move all cards from trick_pile to captured[winner]
+    }
+  }
+  winner: highest score
+}
+
+function chooser_for(p : Player) = if p is 2 then 0 else p
+
+rule NoHeartsFromAStrongHand {
+  constrains: play_to_trick
+  applies_when: (number of cards in hand[actor] where card.rank is A) > 1
+  demands: cards in hand where card.suit is not hearts
+  if_impossible: hand
+}

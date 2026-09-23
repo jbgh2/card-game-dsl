@@ -29,7 +29,9 @@ domain:          the verdict grid crosses every judged position (the table's
                  read can take with both verdicts; the implicit-pool grid
                  crosses every `DECISION_POOLS` row whose cards come from a
                  declared zone with every zone type a seat's `hand` can be
-                 declared as; the destination cells name a zone of every
+                 declared as; the delegated cells cross every rule clause and
+                 read with a game that routes the decider, the pool, both and
+                 neither; the destination cells name a zone of every
                  library type as a chosen movement's destination; the
                  indirection grid crosses every name the
                  reader follows by value with the seat that consumes it; the
@@ -64,7 +66,8 @@ registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS`, pinned
                  tests/rejections/hidden_read_rule.cardlang,
                  tests/rejections/hidden_read_blind_draw.cardlang,
                  tests/rejections/implicit_pool_hidden_from_owner.cardlang,
-                 tests/rejections/hidden_read_outcome_payload.cardlang. The swap
+                 tests/rejections/hidden_read_outcome_payload.cardlang,
+                 tests/rejections/hidden_read_delegated_rule.cardlang. The swap
                  proof's own witnesses, and the ones refused before it runs:
                  tests/openspiel_ready/test_blind_decisions.py. The verdicts'
                  invariance under hoisting into a `let`:
@@ -78,7 +81,8 @@ does not prove:  that a seat's knowledge beyond its projections is credited:
                  still refused a read of it. That a Primitive reads its
                  declared zones at no more than identity: a `reads` clause
                  names a zone and no need, and the check judges it at identity.
-                 That a delegated decision's pool is visible to its decider:
+                 That a delegated decision's routed pool is visible to its
+                 decider, a rule clause's bare `hand` included:
                  `play_source_for` is accepted statically, and the runtime
                  Owner Guard `delegation.check_decider_sees` refuses it per
                  delegated decision.
@@ -768,7 +772,7 @@ _RELATIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
         "shown[player] : PublicHand<player>", False, None,
     ),
     # A delegated decision's rule clause read at the attributed seat: the
-    # decider is `chooser_for(actor)`, not `actor`.
+    # decider is `chooser_for(actor)`, not `actor` (issue #758).
     "delegated-rule-reads-the-attributed-hand": (
         "phase play { active_rules: [Probed] " + _TRICK + " }",
         "function chooser_for(p : Player) = if p is 1 then 0 else p\n"
@@ -779,20 +783,9 @@ _RELATIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
     ),
 }
 
-# cell -> why it is a strict expected failure.
-_RELATION_XFAILS: dict[str, str] = {
-    "delegated-rule-reads-the-attributed-hand": (
-        "a rule clause under Delegated Play is judged against the attributed "
-        "seat, not its decider (issue #758)"
-    ),
-}
-
-
 def _relation_cells() -> list[object]:
     return [
-        _cell(
-            cell_id, body, defs, zone, teams, refuse=refuse, xfail=_RELATION_XFAILS.get(cell_id)
-        )
+        _cell(cell_id, body, defs, zone, teams, refuse=refuse)
         for cell_id, (body, defs, zone, teams, refuse) in _RELATIONS.items()
     ]
 
@@ -1455,15 +1448,10 @@ def _delegated_cells() -> list[object]:
                 defs = helpers + "rule Probed { constrains: play_to_trick " + template.format(
                     read=read
                 ) + " }"
-                red = routes_decider and read_id in (
-                    "the-attributed-hand", "another-bare-family", "the-deciders-hand"
-                )
                 cells.append(
                     _cell(
                         f"{game}-{clause}-{read_id}", body, defs, _SHOWN, False,
                         refuse=None if accepted else _DECIDER,
-                        xfail="a rule clause is judged against the attributed seat" if red else None,
-                        raises=DiagnosticError if accepted else _Accepted,
                     )
                 )
     return cells

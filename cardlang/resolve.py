@@ -135,12 +135,13 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               of the deciding seat's own instance of a zone its owner sees.
               The refusal names the announcement the rules are missing. The
               runtime's decision sites may therefore assume every zone read
-              at those positions is visible to the acting seat. Under
-              Delegated Play the decider is not the acting seat: the routed
-              pool's visibility to the decider is the runtime Owner Guard
-              ``runtime/delegation.check_decider_sees``'s, and a clause read
-              indexed by the acting seat is judged against the acting seat,
-              not the decider (issue #758).
+              at those positions is visible to the seat deciding there:
+              under Delegated Play a rule's clauses are judged against
+              ``chooser_for(actor)``, since every rule is asked at the trick
+              round's card decision, the one decision it routes, and bare
+              ``hand`` or a trick round's source family reads the routed
+              pool, whose visibility to that seat is the runtime Owner Guard
+              ``runtime/delegation.check_decider_sees``'s.
               And an implicit decision pool -- one the kernel builds from a
               declared zone with no expression to read, the round-source and
               ``Card``-parameter rows of ``DECISION_POOLS`` -- whose family's
@@ -234,6 +235,7 @@ from cardlang.domains import (
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.libraries import library_names, load_library
+from cardlang.runtime.delegation import CHOOSER_HELPER
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import content_kind_clause, content_noun
 from cardlang.stdlib.boards import board_entry
@@ -8464,6 +8466,9 @@ class _ReadScope:
     seat_var_live: bool = False
     seat_literal: int | None = None
     seat: int = 0
+    # Under Delegated Play, the families bare-family sugar routes to the pool
+    # the decider plays from; None where the acting seat decides.
+    routed: frozenset[str] | None = None
 
     def follow(self, binding: _Binding) -> _ReadScope:
         """The scope `binding`'s value is read in, from here: its own, or,
@@ -8782,6 +8787,16 @@ class _HiddenReads:
         """Why `index` statically denotes the acting seat, or None: as
         written, or as any name it is bound to by value."""
         for spelled, at in self._spellings(index, scope):
+            if (
+                at.routed is not None
+                and isinstance(spelled, n.Call)
+                and spelled.func == CHOOSER_HELPER
+                and len(spelled.args) == 1
+                and isinstance(spelled.args[0], n.NameRef)
+                and spelled.args[0].ref_kind == "pronoun"
+                and spelled.args[0].name == "actor"
+            ):
+                return f"`{CHOOSER_HELPER}(actor)` names the deciding seat"
             if isinstance(spelled, n.IntLit) and spelled.value == at.seat_literal:
                 return f"seat {spelled.value} is the seat `as {spelled.value}` binds"
             if not isinstance(spelled, n.NameRef):
@@ -8797,6 +8812,12 @@ class _HiddenReads:
         return None
 
     def _why_not_owned(self, index: n.Expr | None, scope: _ReadScope) -> str:
+        if scope.routed is not None:
+            return (
+                f" (under Delegated Play `actor` is the seat whose card is played, "
+                f"and `{CHOOSER_HELPER}(actor)` chooses it; the bare `hand` reads the "
+                f"pool the chooser plays from)"
+            )
         if (
             isinstance(index, n.NameRef)
             and index.ref_kind == "state_var"
@@ -8817,6 +8838,16 @@ class _HiddenReads:
         if role is None:
             return None
         if read.index is None:
+            routed = read.index_scope.routed
+            if routed is not None:
+                # The routed pool: its visibility to the decider is the runtime
+                # Owner Guard `delegation.check_decider_sees`'s, which this
+                # shadows statically.
+                return (
+                    "bare-family sugar reads the routed pool its decider plays from"
+                    if read.zone in routed
+                    else None
+                )
             return "bare-family sugar reads the acting seat's own" if read.index_scope.acting else None
         for index, scope in self._spellings(read.index, read.index_scope):
             if role is Role.TEAM:
@@ -8988,10 +9019,23 @@ class _HiddenReads:
                     self.reads_of(mt.when, scope), _Seat("the acting seat"), mt.when.span,
                 )
             self._stmts(mt.effect, scope, _Seat("the acting seat"))
+        rule_scope, rule_seat = _ACTOR_SCOPE, _Seat("the acting seat")
+        if any(f.name == CHOOSER_HELPER for f in self.game.functions):
+            # Every rule is asked at the trick round's card decision, the one
+            # decision `chooser_for` routes: its clauses are decided by
+            # `chooser_for(actor)`, so no proof about `actor` stands, and bare
+            # `hand` or a trick round's source family reads the routed pool.
+            sources = {
+                node.source_zone for node in _walk(self.game) if isinstance(node, n.TrickRound)
+            }
+            rule_scope = _ReadScope(
+                aliases=_ActorAliases(frozenset()),
+                acting=True,
+                seat=-3,
+                routed=frozenset({"hand"} | sources),
+            )
+            rule_seat = _Seat(f"`{CHOOSER_HELPER}(actor)`")
         for rule in self.game.rules:
-            # Under Delegated Play a trick's rule clauses read the routed pool
-            # through bare-family sugar; `delegation.check_decider_sees` owns
-            # its visibility to the decider.
             clauses: list[tuple[str, n.Expr | None]] = [
                 ("applies_when", rule.applies_when.pred if rule.applies_when else None),
                 ("demands", rule.demands.expr if rule.demands else None),
@@ -9002,7 +9046,7 @@ class _HiddenReads:
                 if expr is not None:
                     self._judge(
                         f"rule `{rule.name}`'s `{clause}:`",
-                        self.reads_of(expr, _ACTOR_SCOPE), _Seat("the acting seat"), expr.span,
+                        self.reads_of(expr, rule_scope), rule_seat, expr.span,
                     )
         if self.game.loser is not None:
             self._outside(self.game.loser.selection, _ReadScope(), _NO_SEAT)
