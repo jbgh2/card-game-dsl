@@ -31,8 +31,40 @@ built once in resolve, judged by two verdicts.
   refused until a pick-by-position spelling exists; that spelling is a Merge
   Lane A unit on its own issue, the operator's.
 
+- **2026-09-23, order reads.** A read of a pile's order (`top_of`,
+  `bottom_of`, `suit_of` over a zone) is visible exactly where the pile is
+  face up to every seat — its type projects identity to every observer —
+  shuffled or not. Issue #757 holds the engine side: a shuffle of a face-up
+  pile publishes nothing today.
+
 Foster counselled the seat-deciding verdict as a successor unit; the operator
-ruled it into this one. The reader's shape, the placement, the tables and
+ruled it into this one.
+
+## What the wall judges by
+
+- **The declared projection, never the observed history.** A seat that
+  passed a card, or saw one revealed, knows more than its projection; the
+  wall does not credit that knowledge, so a sentence relying on it is refused
+  and the designer states the fact publicly. No corpus seat-deciding site
+  relies on it (measured 2026-09-22).
+- **The need a read has:** existence (`is empty`), count (`number of cards
+  in`), membership and identity (every other content read), order
+  (`top_of`, `bottom_of`, `suit_of` over a zone). Each maps to the least
+  projection level that reveals it; membership is judged at identity, since
+  no zone type projects `identity_set`.
+- **The deciding seat, proven statically:** the `actor` pronoun and the
+  binders `_ActorAliases` already derives; bare-family sugar and a round's
+  pool (the decider's own by construction); `team_of` of the decider for a
+  team zone; and a State Variable naming the decider in `as X`, provided no
+  path from the `as` entry to the read writes `X` — the actor-alias
+  derivation excludes State Variables because it proves comparisons dead,
+  which a later write would falsify, so the wall's flow-sensitive rule is
+  its own. A delegated decision (Bridge's dummy) is a Shadow cell naming the
+  runtime Owner Guard `check_decider_sees`. A chosen movement `to each`
+  decides at each receiving seat.
+- **Positions are classified by where a value flows, not by AST field
+  alone.** A `choose` nested in any expression is seat-deciding; a function
+  body takes its caller's class; a `let` takes its consumer's. The reader's shape, the placement, the tables and
 the harness order below are Foster's counsel unchanged.
 
 ## Acceptance criteria
@@ -101,13 +133,16 @@ predicate a designer writes, and nothing warns today.
    positions the refusal reaches and the registry that lists them; the
    glossary gains any term the unit mints; `docs/open-questions/structural-infoset-proofs.md`
    and `docs/kernel-migration.md` are updated where the proof's caveats
-   change; the pick-by-position spelling is filed as its own issue.
+   change. The pick-by-position spelling is issue #756, the control-position
+   residual issue #755, the shuffled face-up pile issue #757.
 
 ## What the proof's reach does not include
 
 The control positions — an `if`, a round's participants, a State Variable
 assignment — are outside the ruled class: they decide who is asked or what
 everyone is told, and the corpus's hidden reads there are followed by the
-reveal that makes them honest (Coup's challenge, Go Fish's ask). A State
-Variable written from a hidden zone is an announcement to every seat, so a
-gate reading it is sound.
+reveal that makes them honest (Coup's challenge, Go Fish's ask). Issue #755
+holds the residual, and the proof harness's permanent witness is a branch of
+exactly that kind. A State Variable written from a hidden zone is an
+announcement to every seat, so a gate reading it is sound; issue #471 holds
+the Primitive-result half of that channel.
