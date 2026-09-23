@@ -8187,6 +8187,100 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     )
 
 
+# --- The hidden-read wall ------------------------------------------------------
+#
+# decisions.md "Honest Play is assumed, so a rule reading concealed cards is
+# mis-modelled".
+#
+# Where each expression-bearing AST field's value goes, which decides whose
+# sight a zone read there is judged against. The rows are every field of every
+# `nodes.py` dataclass whose declared type admits an `Expr`, except the fields
+# of the expression nodes themselves, which belong to the position their
+# expression sits in -- `Choose` excepted, since a `choose` is a decision
+# wherever it is nested. Pinned against that derivation by
+# tests/test_hidden_read_wall.py::test_every_expression_position_is_bucketed.
+READ_POSITION_NO_SEAT = "no seat deciding"
+READ_POSITION_SEAT = "a seat deciding"
+READ_POSITION_CHOSEN = "a seat deciding when the movement is chosen"
+READ_POSITION_FOLLOWED = "judged where its value flows"
+READ_POSITION_OUTSIDE = "outside the wall"
+READ_POSITION_KINDS: frozenset[str] = frozenset(
+    {
+        READ_POSITION_NO_SEAT,
+        READ_POSITION_SEAT,
+        READ_POSITION_CHOSEN,
+        READ_POSITION_FOLLOWED,
+        READ_POSITION_OUTSIDE,
+    }
+)
+
+_CONTROL = "a control position: it decides who is asked, not what they may do (issue #755)"
+
+HIDDEN_READ_POSITIONS: dict[tuple[type, str], tuple[str, str]] = {
+    (n.PhaseQualifier, "expr"): (READ_POSITION_NO_SEAT, "evaluated between seats"),
+    (n.MoveEvent, "where"): (READ_POSITION_NO_SEAT, "changes the rules for every later seat"),
+    (n.MoveTypeDef, "when"): (READ_POSITION_SEAT, "decides what the offered seat may do"),
+    (n.AppliesWhen, "pred"): (READ_POSITION_SEAT, "decides what the acting seat may play"),
+    (n.Demands, "expr"): (READ_POSITION_SEAT, "decides what the acting seat may play"),
+    (n.RuleDef, "if_impossible"): (READ_POSITION_SEAT, "decides what the acting seat may play"),
+    (n.RuleDef, "exempts"): (READ_POSITION_SEAT, "decides what the acting seat may play"),
+    (n.Choose, "lo"): (READ_POSITION_SEAT, "the range the choosing seat is offered"),
+    (n.Choose, "hi"): (READ_POSITION_SEAT, "the range the choosing seat is offered"),
+    (n.Choose, "excluding"): (READ_POSITION_SEAT, "the range the choosing seat is offered"),
+    (n.Transfer, "amount"): (READ_POSITION_CHOSEN, "how many the choosing seat is asked for"),
+    (n.Transfer, "source"): (READ_POSITION_CHOSEN, "the pool the choosing seat picks from"),
+    (n.Transfer, "where"): (READ_POSITION_CHOSEN, "narrows the pool the choosing seat picks from"),
+    (n.Transfer, "dest"): (READ_POSITION_CHOSEN, "the destination the choosing seat is told"),
+    (n.Transfer, "visibility"): (
+        READ_POSITION_OUTSIDE,
+        "refused by typecheck: visibility derives from the declared zone types",
+    ),
+    (n.LetStmt, "value"): (READ_POSITION_FOLLOWED, "a name for a computation, read where it is used"),
+    (n.FunctionDef, "body"): (READ_POSITION_FOLLOWED, "read at each call, in its caller's position"),
+    (n.RuleRef, "args"): (READ_POSITION_FOLLOWED, "substituted into the instantiated rule's clauses"),
+    (n.RunStmt, "args"): (READ_POSITION_FOLLOWED, "bound to the procedure's parameters at the run site"),
+    (n.Produce, "payloads"): (
+        READ_POSITION_FOLLOWED,
+        "bound to the consuming `produces:` arm's binders",
+    ),
+    (n.AssignStmt, "value"): (
+        READ_POSITION_OUTSIDE,
+        "state is public, so an assignment is an announcement (issue #471 holds "
+        "a Primitive's result stored this way)",
+    ),
+    (n.AssignStmt, "index"): (READ_POSITION_OUTSIDE, "state is public: an assignment's key is announced"),
+    (n.AssignStmt, "target"): (READ_POSITION_OUTSIDE, "names the state variable written"),
+    (n.RotateStmt, "target"): (READ_POSITION_OUTSIDE, "names the state variable written"),
+    (n.StateDecl, "default"): (READ_POSITION_OUTSIDE, "evaluated before any zone holds a card"),
+    (n.EpistemicOp, "zone"): (READ_POSITION_OUTSIDE, "a reveal shows every seat; a shuffle decides nothing"),
+    (n.EpistemicOp, "where"): (READ_POSITION_OUTSIDE, "a reveal shows every seat the card it picks"),
+    (n.Loser, "selection"): (READ_POSITION_OUTSIDE, "the game's result, read once play is over"),
+    (n.TrickOrderRow, "body"): (
+        READ_POSITION_OUTSIDE,
+        "hermetic by its own Owner Guard (`_check_trick_order_rows`)",
+    ),
+    (n.IfStmt, "cond"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.RepeatUntil, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.AsBlock, "player"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.Offer, "player"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.Turns, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.Turns, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.Turns, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.TrickRound, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.TrickRound, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.TrickRound, "trump"): (
+        READ_POSITION_OUTSIDE,
+        "configures the round for every seat before any decides (issue #755)",
+    ),
+    (n.AuctionRound, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.AuctionRound, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.AuctionRound, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.ClimbRound, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.ClimbRound, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
+    (n.ClimbRound, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
+}
+
+
 def _raise_if_errors(bag: DiagnosticBag) -> None:
     if not bag.has_errors:
         return

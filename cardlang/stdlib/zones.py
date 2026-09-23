@@ -89,6 +89,50 @@ def identity_to_all(zone_type: str) -> bool:
     return vis.owner == "identity" and vis.others == "identity"
 
 
+# decisions.md's projection lattice ("Projections: what visibility controls"),
+# least informative first: a level reveals everything every level before it
+# reveals. The domain `ZONE_PROJECTIONS` draws its values from.
+PROJECTION_LEVELS: tuple[str, ...] = (
+    "trivial",
+    "existence_only",
+    "count_only",
+    "count_by_type",
+    "identity_set",
+    "identity",
+)
+
+# What an expression needs to learn from a zone it reads: whether it is empty
+# (`is empty`), how many cards it holds (`number of cards in`), which cards it
+# holds (every other content read, membership included), and the order they
+# sit in (`top_of`, `bottom_of`, `suit_of` over a zone).
+READ_NEEDS: tuple[str, ...] = ("existence", "count", "identity", "order")
+
+# The least level that reveals each need but order. Membership is judged at
+# `identity` rather than `identity_set`: no zone type projects `identity_set`,
+# so the one level that could show membership without multiplicity is never
+# the one a zone declares.
+_NEED_LEVEL: dict[str, str] = {
+    "existence": "existence_only",
+    "count": "count_only",
+    "identity": "identity",
+}
+
+
+def reveals(zone_type: str, need: str, is_owner: bool) -> bool:
+    """Whether an observer of a zone of this library type learns what a read
+    of it needs: the owner's column when `is_owner`, else the others'.
+
+    Order is no lattice level (an identity projection is a multiset). A
+    pile's order is revealed exactly where the pile is face up to every seat,
+    its type projecting identity to every observer (`identity_to_all`), so
+    `is_owner` does not bear on it. Raises KeyError for an unknown type or
+    need, like `zone_projection`."""
+    if need == "order":
+        return identity_to_all(zone_type)
+    level = zone_projection(zone_type, is_owner)
+    return PROJECTION_LEVELS.index(level) >= PROJECTION_LEVELS.index(_NEED_LEVEL[need])
+
+
 # library type name -> the maximum cards a zone of this type may ever hold, or
 # None for unbounded. Enforced as a runtime Owner Guard in the movement
 # executor (cardlang/runtime/execute.py) — a class of overfill the registry
