@@ -610,6 +610,33 @@ def test_the_verdict_grid_commands_both_outcomes() -> None:
     assert outcomes == {True, False}
 
 
+# A chosen movement's destination zone is named, not read: the seat is told
+# where the card lands, and learns nothing of the cards already there. Every
+# library zone type, as another seat's instance where the type is owned.
+def _destination_cells() -> list[object]:
+    cells = []
+    for zone_type in sorted(Z.LIBRARY_ZONE_TYPES):
+        decl, teams = _zone_decl(zone_type)
+        ref = _zone_ref(zone_type, "other")
+        cells.append(
+            _cell(
+                f"destination-{zone_type}",
+                *_take(effect=f"move chosen 1 card from hand to {ref}"),
+                decl, teams, refuse=None,
+            )
+        )
+    return cells
+
+
+@pytest.mark.parametrize("body,defs,zone,teams,refuse", _destination_cells())
+def test_a_destination_zone_is_named_not_read(
+    body: str, defs: str, zone: str, teams: bool, refuse: str | None
+) -> None:
+    """The destination zone of a chosen movement, of every library type,
+    whoever owns it, is accepted: only its index is read."""
+    _check(_game(body, defs, zone=zone, teams=teams), refuse)
+
+
 # ---------------------------------------------------------------------------
 # The relation grid: every way the deciding seat is proven, over a concealed
 # hand (`Hand`: identity to its owner, a count to the others).
@@ -1189,6 +1216,21 @@ _INDIRECTIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
         + _HEARTS_OF.format(z="pile") + ") } flag := true }",
         "", "", False, None,
     ),
+    # A destination's index is read even where its zone is only named, and
+    # through a `let` as written in place.
+    "destination-index-reads-concealed-cards": (
+        *_take(effect="move chosen 1 card from hand to won[player_holding(2 of clubs)]"),
+        "", False, _DECIDER,
+    ),
+    "destination-through-a-let-index-reads-concealed-cards": (
+        *_take(effect="let dst = won[player_holding(2 of clubs)]  "
+               "move chosen 1 card from hand to dst"),
+        "", False, _DECIDER,
+    ),
+    "destination-through-a-let-names-another-hand": (
+        *_take(effect="let dst = hand[actor offset_by left]  move chosen 1 card from hand to dst"),
+        "", False, None,
+    ),
     # An index proof reached through a `let`.
     "let-names-the-deciders-team": (
         *_take(effect="let t = team_of(actor)  move chosen 1 card from secret[t] to pile"),
@@ -1214,9 +1256,20 @@ _INDIRECTIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
     ),
 }
 
+# cell -> why it is a strict expected failure, the game refused.
+_INDIRECTION_RED: dict[str, str] = {
+    "destination-through-a-let-names-another-hand": (
+        "a destination bound by a `let` counts its contents as read"
+    ),
+}
+
+
 def _indirection_cells() -> list[object]:
     return [
-        _cell(cell_id, body, defs, zone, teams, refuse=refuse)
+        _cell(
+            cell_id, body, defs, zone, teams, refuse=refuse,
+            xfail=_INDIRECTION_RED.get(cell_id), raises=DiagnosticError,
+        )
         for cell_id, (body, defs, zone, teams, refuse) in _INDIRECTIONS.items()
     ]
 
