@@ -8329,6 +8329,32 @@ HIDDEN_READ_POSITIONS: dict[tuple[type, str], tuple[str, str]] = {
 }
 
 
+# Where the cards each decision point offers come from: every chooser call
+# site in `runtime/delegation.DECISION_POINTS`, the round site fanned out over
+# its forms (`FORM_CONSTRUCTS`). A pool a designer expression names is judged
+# by `_check_hidden_reads`; a pool the kernel builds from a declared zone, with
+# no expression to read, by `_check_implicit_pools`. Pinned against those two
+# registries by tests/test_hidden_reads.py::test_every_decision_point_names_its_pool.
+POOL_FROM_EXPRESSION = "a designer expression"
+POOL_FROM_ROUND_SOURCE = "the round's declared source family"
+POOL_FROM_CARD_PARAMETERS = "the acting seat's `hand`, for a `Card` parameter"
+POOL_NONE = "no cards"
+POOL_KINDS: frozenset[str] = frozenset(
+    {POOL_FROM_EXPRESSION, POOL_FROM_ROUND_SOURCE, POOL_FROM_CARD_PARAMETERS, POOL_NONE}
+)
+DECISION_POOLS: dict[str, str] = {
+    "TrickRound": POOL_FROM_ROUND_SOURCE,
+    "ClimbRound": POOL_FROM_ROUND_SOURCE,
+    "AuctionRound": POOL_FROM_CARD_PARAMETERS,
+    "execute._select_from": POOL_FROM_EXPRESSION,
+    "execute._select_filtered": POOL_FROM_EXPRESSION,
+    "execute._select_joint": POOL_FROM_EXPRESSION,
+    "execute._pass_selection": POOL_FROM_EXPRESSION,
+    "execute._offer": POOL_FROM_CARD_PARAMETERS,
+    "evaluate._choose": POOL_NONE,
+}
+
+
 @dataclass(frozen=True)
 class _Binding:
     """What a local name stands for, as the reader follows it: the expression

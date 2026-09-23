@@ -344,8 +344,22 @@ def _check(source: str, refuse: str | None) -> None:
     raise _Accepted(f"accepted; expected a refusal naming {refuse!r}")
 
 
-def _cell(cell_id: str, *values: object, refuse: str | None) -> object:
-    return pytest.param(*values, refuse, id=cell_id)
+def _cell(
+    cell_id: str,
+    *values: object,
+    refuse: str | None,
+    xfail: str | None = None,
+    raises: type[AssertionError] = _Accepted,
+) -> object:
+    """One grid cell. `xfail` names the reason a refusal cell is a strict
+    expected failure, constrained to `raises`: by default the one failure a
+    missing check produces, the game checking clean."""
+    marks = (
+        [pytest.mark.xfail(strict=True, raises=raises, reason=xfail)]
+        if xfail is not None
+        else []
+    )
+    return pytest.param(*values, refuse, id=cell_id, marks=marks)
 
 
 # The fragments each verdict's message carries.
@@ -692,6 +706,15 @@ _RELATIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
         "phase play { for each player p: move chosen 1 card from hand to each won }",
         "", "", False, _BLIND,
     ),
+    # A literal seat `as` binds, read at the same literal.
+    "as-literal-seat": (
+        "phase play { as 0 { move chosen 1 card from hand[0] to pile } }",
+        "", "", False, None,
+    ),
+    "as-literal-seat-another": (
+        "phase play { as 0 { move chosen 1 card from hand[1] to pile } }",
+        "", "", False, _BLIND,
+    ),
     # A delegated decision: a Shadow cell whose Owner is the runtime's
     # `delegation.check_decider_sees`.
     "delegated-pool": (
@@ -700,12 +723,32 @@ _RELATIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
         "function play_source_for(p : Player) = if p is 1 then shown[p] else hand[p]",
         "shown[player] : PublicHand<player>", False, None,
     ),
+    # A delegated decision's rule clause read at the attributed seat: the
+    # decider is `chooser_for(actor)`, not `actor`.
+    "delegated-rule-reads-the-attributed-hand": (
+        "phase play { active_rules: [Probed] " + _TRICK + " }",
+        "function chooser_for(p : Player) = if p is 1 then 0 else p\n"
+        "function play_source_for(p : Player) = if p is 1 then shown[p] else hand[p]\n"
+        "rule Probed { constrains: play_to_trick applies_when: (2 of clubs) in hand[actor] "
+        "demands: cards in hand where card.suit is hearts if_impossible: hand }",
+        "shown[player] : PublicHand<player>", False, _DECIDER,
+    ),
+}
+
+# cell -> why it is a strict expected failure.
+_RELATION_XFAILS: dict[str, str] = {
+    "delegated-rule-reads-the-attributed-hand": (
+        "a rule clause under Delegated Play is judged against the attributed "
+        "seat, not its decider (issue #758)"
+    ),
 }
 
 
 def _relation_cells() -> list[object]:
     return [
-        _cell(cell_id, body, defs, zone, teams, refuse=refuse)
+        _cell(
+            cell_id, body, defs, zone, teams, refuse=refuse, xfail=_RELATION_XFAILS.get(cell_id)
+        )
         for cell_id, (body, defs, zone, teams, refuse) in _RELATIONS.items()
     ]
 
@@ -975,6 +1018,103 @@ def test_a_plausible_wrong_sentence_is_refused(
     """Each misuse probe is refused in the checker's channel -- a located
     diagnostic -- naming what the designer should write instead."""
     _check(_game(body, defs, zone=zone), refuse)
+
+
+# ---------------------------------------------------------------------------
+# The implicit pools: a decision whose cards the kernel takes from a declared
+# zone, with no designer expression to read. The zone's type must show its
+# owner, the deciding seat, the cards in its own instance.
+# ---------------------------------------------------------------------------
+
+# The one chooser call site that fans out over the round forms.
+_ROUND_SITE = "mechanics.run_decision_round"
+
+
+def test_every_decision_point_names_its_pool() -> None:
+    """Every chooser call site, the round site taken form by form, says where
+    the cards it offers come from, so a new decision point is classified
+    before a pool nothing checks can land.
+
+    red under: delete the `ClimbRound` row of `DECISION_POOLS`."""
+    from cardlang.runtime.delegation import DECISION_POINTS, FORM_CONSTRUCTS
+
+    assert _ROUND_SITE in DECISION_POINTS
+    derived = (set(DECISION_POINTS) - {_ROUND_SITE}) | set(FORM_CONSTRUCTS)
+    assert set(R.DECISION_POOLS) == derived, (
+        f"unclassified: {sorted(derived - set(R.DECISION_POOLS))}; "
+        f"stale: {sorted(set(R.DECISION_POOLS) - derived)}"
+    )
+    assert set(R.DECISION_POOLS.values()) <= R.POOL_KINDS
+
+
+_CLIMB = (
+    "legal_moves: [play_combination] "
+    "round climb play_combination from 0 over all players source hand into pile "
+    "combinations bigtwo_lead_options follows bigtwo_follows until flag"
+)
+_PICK = "move_type pick(c : Card) { effect { } }"
+
+# The pools the kernel builds from a declared zone, by `DECISION_POOLS` row,
+# each probed through the game's `hand`. member -> (its row, body, defs).
+_IMPLICIT_POOLS: dict[str, tuple[str, str, str]] = {
+    "trick-source": ("TrickRound", "phase play { " + _TRICK + " }", ""),
+    "climb-source": ("ClimbRound", "phase play { " + _CLIMB + " }", ""),
+    "card-parameter-offered": ("execute._offer", _OFFER_TAKE.replace("take", "pick"), _PICK),
+    "card-parameter-in-an-auction": (
+        "AuctionRound",
+        "phase play { round offering [pick] from 0 over all players until flag }",
+        _PICK,
+    ),
+}
+
+_OWN_POOL = "does not show its owner the cards in it"
+
+
+def test_the_implicit_pools_are_the_declared_zone_rows() -> None:
+    """The implicit-pool members are exactly the decision points whose pool is
+    a declared zone.
+
+    red under: move the `AuctionRound` row of `DECISION_POOLS` to `POOL_NONE`."""
+    implicit = {
+        row
+        for row, kind in R.DECISION_POOLS.items()
+        if kind in (R.POOL_FROM_ROUND_SOURCE, R.POOL_FROM_CARD_PARAMETERS)
+    }
+    assert {row for row, _, _ in _IMPLICIT_POOLS.values()} == implicit
+
+
+def _implicit_pool_cells() -> list[object]:
+    cells = []
+    for member, (_, body, defs) in _IMPLICIT_POOLS.items():
+        for zone_type in sorted(Z.LIBRARY_ZONE_TYPES):
+            if not Z.LIBRARY_ZONE_TYPES[zone_type]:
+                continue  # a per-seat pool is a zone family
+            accept = _TYPES[zone_type][0] == "identity"
+            # The trick source is refused today by `_check_delegation`, in a
+            # message the class's one check replaces.
+            red = AssertionError if member == "trick-source" else _Accepted
+            cells.append(
+                _cell(
+                    f"{member}-{zone_type}", member, zone_type,
+                    refuse=None if accept else _OWN_POOL,
+                    xfail=None if accept else "the implicit pools are not checked yet",
+                    raises=red,
+                )
+            )
+    return cells
+
+
+@pytest.mark.parametrize("member,zone_type,refuse", _implicit_pool_cells())
+def test_an_implicit_pool_shows_its_decider_the_cards(
+    member: str, zone_type: str, refuse: str | None
+) -> None:
+    """Each implicit pool, over every zone type a seat's `hand` can be
+    declared as: accepted exactly where the type shows its owner the cards."""
+    _, body, defs = _IMPLICIT_POOLS[member]
+    source = _game(body, defs).replace(
+        "hand[player] : Hand<player>", f"hand[player] : {zone_type}<player>"
+    )
+    _check(source, refuse)
 
 
 # ---------------------------------------------------------------------------
