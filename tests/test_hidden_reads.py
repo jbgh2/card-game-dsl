@@ -1189,6 +1189,11 @@ _INDIRECTIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
         + "  move chosen (k) cards from hand[p] to pile } }",
         "", "", False, None,
     ),
+    "let-consumed-by-the-same-seat-moving-a-public-pile": (
+        "phase play { for each player p: as p { let k = " + _HEARTS_OF.format(z="hand[p]")
+        + "  move chosen (k) cards from pile to won[p] } }",
+        "", "", False, None,
+    ),
     "indexed-let-consumed-in-a-nested-seat": (
         "phase play { for each player p: as p { let k[q] = " + _HEARTS_OF.format(z="hand[q]")
         + "  as 0 { move chosen (k[p]) cards from hand[0] to pile } } }",
@@ -1274,6 +1279,136 @@ def test_a_value_is_judged_where_it_is_consumed(
     """Each name the reader follows by value, crossed with whether its value
     reaches a decision of the seat that computed it, and each index proof
     reached through a `let`."""
+    _check(_game(body, defs, zone=zone, teams=teams), refuse)
+
+
+# ---------------------------------------------------------------------------
+# Who evaluates each sub-position of a chosen movement, and whose decision its
+# value reaches. A chosen movement `to each` is decided at every receiving
+# seat, but the acting seat evaluates its amount, source and `where`, and so
+# makes any `choose` nested in them.
+# ---------------------------------------------------------------------------
+
+
+def test_a_chosen_movements_seats_are_the_runtimes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`CHOSEN_MOVEMENT_SEATS` is what the runtime does: a run records the
+    acting seat at every evaluation of each sub-position and the decider at
+    every pick, single and `to each`. A `to each` destination is a family name
+    the runtime never evaluates, so its row has no evaluation to record.
+
+    red under: map `("amount", True)` to `(SEAT_EACH_RECEIVER, SEAT_EACH_RECEIVER)`."""
+    import random
+
+    from cardlang.runtime import execute
+    from cardlang.runtime.driver import play_game
+
+    for each in (False, True):
+        dest = "each won" if each else "won[0]"
+        source = _game(
+            "phase play { as 0 { move chosen (1 + 0) cards from pile "
+            f"where rank_value(card) >= 0 to {dest} }} }}"
+        ).replace(
+            "deal 5 cards from deck to each hand", "deal 5 cards from deck to each hand  "
+            "deal 10 cards from deck to pile"
+        )
+        game = check_dsl(source, "seats.cardlang")
+        block = game.phases[1].items[0]
+        assert isinstance(block, n.AsBlock)
+        transfer = block.body[0]
+        assert isinstance(transfer, n.Transfer)
+        fields = {"amount": transfer.amount, "source": transfer.source, "where": transfer.where}
+        evaluated: dict[str, set[object]] = {name: set() for name in fields}
+        deciders: set[object] = set()
+        real_evaluate = getattr(execute, "evaluate")
+        real_decide = getattr(execute, "decide")
+
+        def recording_evaluate(expr: object, ctx: object) -> object:
+            for name, node in fields.items():
+                if expr is node:
+                    evaluated[name].add(ctx.current_player)  # type: ignore[attr-defined]
+            return real_evaluate(expr, ctx)
+
+        def recording_decide(ctx: object, player: object, *rest: object) -> object:
+            deciders.add(player)
+            return real_decide(ctx, player, *rest)
+
+        with monkeypatch.context() as patched:
+            patched.setattr(execute, "evaluate", recording_evaluate)
+            patched.setattr(execute, "decide", recording_decide)
+            play_game(game, random.Random(0))
+        seat_of = {R.SEAT_ACTING: {0}, R.SEAT_EACH_RECEIVER: {0, 1, 2}}
+        for name, seats in evaluated.items():
+            decider, evaluator = R.CHOSEN_MOVEMENT_SEATS[(name, each)]
+            assert seats == seat_of[evaluator], (name, each, seats)
+            assert deciders == seat_of[decider], (name, each, deciders)
+        assert set(R.CHOSEN_MOVEMENT_SEATS) == {
+            (name, e) for name in ("amount", "source", "where", "dest") for e in (False, True)
+        }
+
+
+_EVAL_CHOOSE = "(choose integer in 0 .. (" + "number of cards in {z} where card.suit is hearts) up to 13)"
+
+# cell -> (body, the refusal's fragment or None).
+_EVALUATORS: dict[str, tuple[str, str | None]] = {
+    "to-each-amount-choose-reads-the-evaluators-hand": (
+        "phase play { as 0 { move chosen " + _EVAL_CHOOSE.format(z="hand[0]")
+        + " cards from pile to each won } }",
+        None,
+    ),
+    "to-each-amount-choose-reads-another-hand": (
+        "phase play { as 0 { move chosen " + _EVAL_CHOOSE.format(z="hand[1]")
+        + " cards from pile to each won } }",
+        _DECIDER,
+    ),
+    "to-each-amount-reads-the-evaluators-hand": (
+        "phase play { as 0 { move chosen (number of cards in hand[0] where card.suit is hearts) "
+        "cards from pile to each won } }",
+        _DECIDER,
+    ),
+    "to-each-where-choose-reads-the-evaluators-hand": (
+        "phase play { as 0 { move chosen 1 card from pile where rank_value(card) < "
+        + _EVAL_CHOOSE.format(z="hand[0]") + " to each won } }",
+        None,
+    ),
+    "to-each-where-reads-the-evaluators-hand": (
+        "phase play { as 0 { move chosen 1 card from pile where (2 of clubs) in hand[0] "
+        "to each won } }",
+        _DECIDER,
+    ),
+    "single-amount-choose-reads-the-evaluators-hand": (
+        "phase play { as 0 { move chosen " + _EVAL_CHOOSE.format(z="hand[0]")
+        + " cards from pile to won[0] } }",
+        None,
+    ),
+}
+
+_EVALUATOR_RED: dict[str, str] = {
+    "to-each-amount-choose-reads-the-evaluators-hand": (
+        "a `choose` in a `to each` amount is judged against the receivers"
+    ),
+    "to-each-where-choose-reads-the-evaluators-hand": (
+        "a `choose` in a `to each` `where` is judged against the receivers"
+    ),
+}
+
+
+def _evaluator_cells() -> list[object]:
+    return [
+        _cell(
+            cell_id, body, "", "", False, refuse=refuse,
+            xfail=_EVALUATOR_RED.get(cell_id), raises=DiagnosticError,
+        )
+        for cell_id, (body, refuse) in _EVALUATORS.items()
+    ]
+
+
+@pytest.mark.parametrize("body,defs,zone,teams,refuse", _evaluator_cells())
+def test_a_choose_is_judged_at_the_seat_that_makes_it(
+    body: str, defs: str, zone: str, teams: bool, refuse: str | None
+) -> None:
+    """A `choose` nested in a sub-position of a chosen movement is the
+    evaluating seat's decision; the sub-position's value is every receiving
+    seat's where the movement is `to each`."""
     _check(_game(body, defs, zone=zone, teams=teams), refuse)
 
 

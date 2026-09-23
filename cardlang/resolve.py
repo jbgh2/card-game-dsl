@@ -8416,6 +8416,26 @@ DECISION_POOLS: dict[str, str] = {
 }
 
 
+# A chosen movement's sub-positions: (field, whether it moves `to each`) ->
+# (the seat whose decision its value reaches, the seat that evaluates it and
+# so makes any `choose` nested in it). Each is the runtime's own reading of
+# `execute._movement` and `_select_from`, pinned against a run that records
+# the acting seat at every evaluation and the decider at every pick by
+# tests/test_hidden_reads.py::test_a_chosen_movements_seats_are_the_runtimes.
+SEAT_ACTING = "the acting seat"
+SEAT_EACH_RECEIVER = "each receiving seat"
+CHOSEN_MOVEMENT_SEATS: dict[tuple[str, bool], tuple[str, str]] = {
+    ("amount", False): (SEAT_ACTING, SEAT_ACTING),
+    ("source", False): (SEAT_ACTING, SEAT_ACTING),
+    ("where", False): (SEAT_ACTING, SEAT_ACTING),
+    ("dest", False): (SEAT_ACTING, SEAT_ACTING),
+    ("amount", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("source", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("where", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("dest", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+}
+
+
 @dataclass(frozen=True)
 class _Binding:
     """What a local name stands for, as the reader follows it: the expression
@@ -8501,12 +8521,14 @@ class ZoneRead:
 @dataclass(frozen=True)
 class HiddenReadVerdict:
     """`_check_hidden_reads`' judgement of one read at one position: accepted or not, and
-    why -- `public`, or the reason the deciding seat owns what it reads."""
+    why -- `public`, or the reason the deciding seat owns what it reads. `site`
+    locates the position's expression."""
 
     position: str
     read: ZoneRead
     accepted: bool
     reason: str
+    site: Span | None = None
 
 
 _NEED_PHRASE: dict[str, str] = {
@@ -8865,7 +8887,7 @@ class _HiddenReads:
                     accepted, reason = True, own
                 else:
                     accepted, reason = False, ""
-            self.verdicts.append(HiddenReadVerdict(position, read, accepted, reason))
+            self.verdicts.append(HiddenReadVerdict(position, read, accepted, reason, span))
             if accepted:
                 continue
             self._report(position, read, seat, to_owner, span or read.span, source)
