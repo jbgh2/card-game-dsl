@@ -1,0 +1,34 @@
+// A probe, not a corpus game: the phase gate of gate_at_pause.cardlang,
+// proved at depth 2, so the gated decision lies before the pause.
+game GateInPrefix {
+  players: 2
+  max_length: 20
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    table        : Discard
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to hand[0]
+    deal 1 card from deck to hand[1]
+  }
+  phase first {
+    as 0 { move chosen 1 card from hand[0] to table }
+  }
+  phase high when any card in hand[1] where rank_value(card) >= 6 {
+    as 0 { move chosen 1 card from hand[0] to table }
+  }
+  phase low when not (any card in hand[1] where rank_value(card) >= 6) {
+    as 0 { move chosen 1 card from hand[0] to table }
+  }
+  phase last {
+    as 0 { move chosen 1 card from hand[0] to table }
+  }
+  winner: highest score
+}

@@ -16,7 +16,8 @@ Two shared proofs assume opponent hands and are overridden with their
   sorts first in the names block) exposes only the stock's first 12 cards,
   so the swap pool is read off the PAUSED deck (exactly the undrawn,
   still-hidden remainder). Byte-identical information states +
-  legal-action agreement prove the chance-hidden partition.
+  legal-action agreement, at the pause and at every recorded pick
+  (`harness.replay_pair`), prove the chance-hidden partition.
 - ``test_soundness_own_view_changes_the_state``: the base probe swaps
   between the player's hand and an opponent's; here the sole player's "own
   view" is the face-up layout, so the probe perturbs a visible cascade top
@@ -42,7 +43,7 @@ from __future__ import annotations
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.openspiel.replay import DecisionNode, RecordedPick, load, run
 
 from .harness import (
     SWAP_PAIRS_PER_SEED,
@@ -52,7 +53,10 @@ from .harness import (
     ReadinessProofs,
     _swap_fn,
     action_strings,
+    blind_seats,
     manifest,
+    replay_pair,
+    spread_pairs,
 )
 from .partition import first_divergence, record
 
@@ -76,7 +80,7 @@ class TestReadiness(ReadinessProofs):
         hand): swap a face-down tableau card with an undrawn stock card —
         both chance-hidden from the sole player throughout the replayed
         prefix — and require byte-identical information states and identical
-        legal actions.
+        legal actions, at the pause and at every recorded pick.
 
         Overriding the shared proof replaces its decorator too, so the
         manifest is re-applied here explicitly: the seeds and the pair cap are
@@ -97,17 +101,25 @@ class TestReadiness(ReadinessProofs):
         candidates = [(x, y) for x in down for y in stock if x != y]
         assert candidates, "no hidden swap pair available; adjust the depth"
 
+        sides: tuple[tuple[str, int | None], tuple[str, int | None]] = (
+            ("tableau_down", 7),
+            ("deck", None),
+        )
+        blind = blind_seats(pause_a.rs, range(len(pause_a.obs_logs)), sides)
+        picks_a: list[RecordedPick] = []
+        run(PATH, seed, tuple(history), picks=picks_a)
+
         _, space = load(PATH)
         info_a = information_state(p, pause_a.rs, pause_a.obs_logs[p])
         proved: list[str] = []
-        for x, y in candidates[:SWAP_PAIRS_PER_SEED]:
-            pause_b = run(
-                PATH,
-                seed,
-                tuple(history),
-                on_first_decision=_swap_fn(("tableau_down", 7), ("deck", None), x, y),
+        blind_compared = 0
+        for x, y in spread_pairs(candidates)[:SWAP_PAIRS_PER_SEED]:
+            replayed = replay_pair(
+                spec.short_name, PATH, seed, history, picks_a, blind, sides, (x, y)
             )
-            assert isinstance(pause_b, DecisionNode)
+            blind_compared += replayed.blind_compared
+            assert replayed.pause is not None, replayed.dropped
+            pause_b = replayed.pause
             info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
             assert info_a == info_b, (
                 f"cardlang_klondike: swapping chance-hidden {x}<->{y} CHANGED the "
@@ -138,6 +150,8 @@ class TestReadiness(ReadinessProofs):
             pairs_proved=len(proved),
             pairs_cap=SWAP_PAIRS_PER_SEED,
             candidates=len(candidates),
+            blind_seats=";".join(map(str, sorted(blind))),
+            blind_picks_compared=blind_compared,
             legal_agreement=True,
             string_agreement=True,
         )

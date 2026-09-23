@@ -25,7 +25,9 @@ Establishes: one decoder of recorded action ids, whether the run then pauses
 or asks a Seat Policy; one rule choosing the generator a ``(path, seed)`` runs
 under (`generator_for`); a Seat Policy asked at a position is handed the
 [[seat-view]] derived there while every phase frame stands, and its answer is
-one of the legal action ids or the line refuses it.
+one of the legal action ids or the line refuses it; a caller passing
+``picks`` receives one `RecordedPick` per recorded pick, taken before the pick is
+matched, so a pick its position does not offer still leaves its offer behind.
 Illegal after: a second site choosing a game's generator; a continuation that
 draws from the game's generator; a policy asked again once it has raised in
 the same run."""
@@ -99,6 +101,17 @@ class TerminalNode:
     returns: list[float]
 
 
+@dataclass(frozen=True)
+class RecordedPick:
+    """What one recorded pick was offered: the index of the Chooser call it
+    belongs to, the seat deciding it, and the legal action ids its position
+    offers, sorted ascending as `DecisionNode.legal` is."""
+
+    call: int
+    decider: int
+    legal: tuple[int, ...]
+
+
 class ReplayChooser:
     """Returns recorded actions in order; aborts at the first un-recorded one.
     A chooser call requesting ``k`` cards decomposes into ``k`` sequential
@@ -122,7 +135,8 @@ class ReplayChooser:
     asked again in the same run: `driver.run_phase` runs `after_each` on the way
     out of an iteration, exceptions included, and an `after_each` that decides
     would reach it a second time while the run unwinds. ``deciders`` holds the
-    seat each pick was made for, recorded and live alike."""
+    seat each pick was made for, recorded and live alike; ``picks``, when
+    given, receives a `RecordedPick` for each recorded pick."""
 
     def __init__(
         self,
@@ -131,6 +145,7 @@ class ReplayChooser:
         emit: Callable[[int, tuple[Any, ...]], None],
         beyond: Callable[[int, list[int]], int] | None = None,
         taken: list[int] | None = None,
+        picks: list[RecordedPick] | None = None,
     ) -> None:
         self.space = space
         self.history = history
@@ -139,15 +154,22 @@ class ReplayChooser:
         self.cursor = 0
         self.taken: list[int] = [] if taken is None else taken
         self.deciders: list[int] = []
+        self.picks = picks
+        self.calls = 0
         self._raised: BaseException | None = None
 
     def __call__(self, player: int, candidates: list[Any], k: int) -> list[Any]:
+        call = self.calls
+        self.calls += 1
+
         def decide(actor: int, pool: list[Any]) -> Any:
             if self.cursor < len(self.history):
                 index = self.cursor
                 aid = self.history[index]
                 self.cursor += 1
                 self.deciders.append(actor)
+                if self.picks is not None:
+                    self.picks.append(RecordedPick(call, actor, tuple(self._legal(pool))))
                 # `type`, not `isinstance`: a flag passes `decode`'s range test
                 # as id 0 or 1.
                 if type(aid) is not int:
@@ -156,7 +178,7 @@ class ReplayChooser:
                     return self.space.match(aid, pool)
                 except ValueError as exc:
                     raise HistoryMismatch(f"recorded pick {index}: {exc}") from exc
-            legal = sorted({self.space.encode(c) for c in pool})
+            legal = self._legal(pool)
             if self.beyond is None:
                 raise ChooserAbort(actor, legal)
             if self._raised is not None:
@@ -176,6 +198,9 @@ class ReplayChooser:
             return self.space.match(aid, pool)
 
         return sequential_decisions(player, candidates, k, decide, self.emit)
+
+    def _legal(self, pool: list[Any]) -> list[int]:
+        return sorted({self.space.encode(c) for c in pool})
 
 
 # The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
@@ -385,8 +410,10 @@ def run(
     seed: int,
     history: tuple[int, ...],
     on_first_decision: Callable[[RuntimeState], None] | None = None,
+    picks: list[RecordedPick] | None = None,
 ) -> DecisionNode | TerminalNode:
-    """Replay ``history`` under ``seed``; return the next decision or the result."""
+    """Replay ``history`` under ``seed``; return the next decision or the result.
+    ``picks`` receives what each recorded pick was offered (`ReplayChooser`)."""
     game, space = load(path_str)
     logs: dict[int, list[tuple[Any, ...]]] = {
         p: [] for p in range(game.players.count)
@@ -395,7 +422,7 @@ def run(
     def observe(player: int, event: tuple[Any, ...]) -> None:
         logs[player].append(event)
 
-    chooser = ReplayChooser(space, history, observe)
+    chooser = ReplayChooser(space, history, observe, picks=picks)
     try:
         result = play_game(
             game,
