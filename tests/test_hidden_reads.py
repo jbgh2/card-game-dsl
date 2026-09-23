@@ -1403,6 +1403,82 @@ def test_a_choose_is_judged_at_the_seat_that_makes_it(
 
 
 # ---------------------------------------------------------------------------
+# Delegated Play: a rule's clauses are asked at the trick round's card
+# decision, the one decision a game's `chooser_for` routes, so in a game
+# defining it they are decided by `chooser_for(actor)`, not by `actor`, the
+# seat whose card is played. Bare `hand` and a trick round's bare source
+# family read the routed pool.
+# ---------------------------------------------------------------------------
+
+_CHOOSER = "function chooser_for(p : Player) = if p is 1 then 0 else p\n"
+_ROUTE = "function play_source_for(p : Player) = if p is 1 then shown[p] else hand[p]\n"
+_SHOWN = "shown[player] : PublicHand<player>  vault[player] : Hand<player>"
+_CLAUSES: dict[str, str] = {
+    "applies_when": "applies_when: {read} demands: cards in hand where card.suit is hearts "
+    "if_impossible: hand",
+    "demands": "demands: cards in hand where {read} if_impossible: hand",
+    "if_impossible": "demands: cards in hand where card.suit is hearts "
+    "if_impossible: cards in hand where {read}",
+    "exempts": "demands: cards in hand where card.suit is hearts if_impossible: hand "
+    "exempts: cards in hand where {read}",
+}
+# read -> (the Boolean read, accepted where `chooser_for(actor)` decides)
+_DELEGATED_READS: dict[str, tuple[str, bool]] = {
+    "the-routed-pool": ("hand is not empty and (2 of clubs) in hand", True),
+    "the-attributed-hand": ("(2 of clubs) in hand[actor]", False),
+    "the-deciders-hand": ("(2 of clubs) in hand[chooser_for(actor)]", True),
+    "a-public-zone": ("(2 of clubs) in won[actor]", True),
+    "another-bare-family": ("(2 of clubs) in vault", False),
+}
+# game -> (the Delegated Play helpers it defines, whether they route the decider)
+_DELEGATIONS: dict[str, tuple[str, bool]] = {
+    "delegated": (_CHOOSER + _ROUTE, True),
+    "decider-routed-only": (_CHOOSER, True),
+    "pool-routed-only": (_ROUTE, False),
+    "undelegated": ("", False),
+}
+
+
+def _delegated_cells() -> list[object]:
+    cells = []
+    for game, (helpers, routes_decider) in _DELEGATIONS.items():
+        for clause, template in _CLAUSES.items():
+            for read_id, (read, accepted_delegated) in _DELEGATED_READS.items():
+                if routes_decider:
+                    accepted = accepted_delegated
+                else:
+                    # `actor` decides: its own hand and vault are its own.
+                    accepted = read_id != "the-deciders-hand" or game == "pool-routed-only"
+                if read_id == "the-deciders-hand" and not helpers.startswith(_CHOOSER):
+                    continue  # names a helper the game does not define
+                body = "phase play { active_rules: [Probed] " + _TRICK + " }"
+                defs = helpers + "rule Probed { constrains: play_to_trick " + template.format(
+                    read=read
+                ) + " }"
+                red = routes_decider and read_id in (
+                    "the-attributed-hand", "another-bare-family", "the-deciders-hand"
+                )
+                cells.append(
+                    _cell(
+                        f"{game}-{clause}-{read_id}", body, defs, _SHOWN, False,
+                        refuse=None if accepted else _DECIDER,
+                        xfail="a rule clause is judged against the attributed seat" if red else None,
+                        raises=DiagnosticError if accepted else _Accepted,
+                    )
+                )
+    return cells
+
+
+@pytest.mark.parametrize("body,defs,zone,teams,refuse", _delegated_cells())
+def test_a_delegated_rule_is_judged_at_its_decider(
+    body: str, defs: str, zone: str, teams: bool, refuse: str | None
+) -> None:
+    """Each rule clause, each read, in a game whose `chooser_for` routes the
+    decision, whose `play_source_for` alone routes the pool, and in neither."""
+    _check(_game(body, defs, zone=zone, teams=teams), refuse)
+
+
+# ---------------------------------------------------------------------------
 # A cycle the reader follows: every name graph it walks may be cyclic before
 # the guard that refuses the cycle has raised, since resolve raises its bag
 # once, at the end. Each is refused by its own Owner Guard, never by a crash.
