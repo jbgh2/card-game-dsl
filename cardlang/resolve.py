@@ -8775,27 +8775,22 @@ class _HiddenReads:
         role = role_of(decl.index)
         return role if role in ZONE_INDEX_ROLES else None
 
-    def _names_acting_seat(self, index: n.Expr, scope: _ReadScope, depth: int = 0) -> str | None:
-        """Why `index` statically denotes the acting seat, or None."""
-        if depth > 8:
-            return None
-        if isinstance(index, n.IntLit) and index.value == scope.seat_literal:
-            return f"seat {index.value} is the seat `as {index.value}` binds"
-        if isinstance(index, n.NameRef):
-            if index.ref_kind in ("local", "pronoun") and index.name in scope.aliases.names:
-                return f"`{index.name}` names the acting seat"
+    def _names_acting_seat(self, index: n.Expr, scope: _ReadScope) -> str | None:
+        """Why `index` statically denotes the acting seat, or None: as
+        written, or as any name it is bound to by value."""
+        for spelled, at in self._spellings(index, scope):
+            if isinstance(spelled, n.IntLit) and spelled.value == at.seat_literal:
+                return f"seat {spelled.value} is the seat `as {spelled.value}` binds"
+            if not isinstance(spelled, n.NameRef):
+                continue
+            if spelled.ref_kind in ("local", "pronoun") and spelled.name in at.aliases.names:
+                return f"`{spelled.name}` names the acting seat"
             if (
-                index.ref_kind == "state_var"
-                and index.name == scope.seat_var
-                and scope.seat_var_live
+                spelled.ref_kind == "state_var"
+                and spelled.name == at.seat_var
+                and at.seat_var_live
             ):
-                return f"the State Variable `{index.name}` names the seat `as` binds"
-            if index.ref_kind == "local":
-                bindings = scope.lookup(index.name)
-                if len(bindings) == 1 and bindings[0].index_binder is None:
-                    return self._names_acting_seat(
-                        bindings[0].value, scope.follow(bindings[0]), depth + 1
-                    )
+                return f"the State Variable `{spelled.name}` names the seat `as` binds"
         return None
 
     def _why_not_owned(self, index: n.Expr | None, scope: _ReadScope) -> str:
@@ -8840,12 +8835,17 @@ class _HiddenReads:
         where it is written (a procedure's `as victim`) or where its value is
         (`let t = team_of(actor)`)."""
         out = [(index, scope)]
-        for _ in range(16):
-            if not (isinstance(index, n.NameRef) and index.ref_kind == "local"):
-                break
+        # A binding's value is read in the scope it was bound in, which holds
+        # only earlier bindings, so the chain ends; the seen set is the
+        # Shadow of that, never a length.
+        seen: set[int] = set()
+        while isinstance(index, n.NameRef) and index.ref_kind == "local":
             bindings = scope.lookup(index.name)
             if len(bindings) != 1 or bindings[0].index_binder is not None:
                 break
+            if id(bindings[0]) in seen:
+                break
+            seen.add(id(bindings[0]))
             index, scope = bindings[0].value, scope.follow(bindings[0])
             out.append((index, scope))
         return out
@@ -8955,9 +8955,18 @@ class _HiddenReads:
         read through another outcome's binder settles on the next walk."""
         bag = self.bag
         self.bag = DiagnosticBag()
-        for _ in range(2):
+        # A fixed point over the outcome graph: each walk binds every
+        # `produces:` arm to what the previous walk collected, until a walk
+        # collects exactly what it was given. A payload reaches a consumer
+        # through at most one outcome per `produce` site, so the walks are
+        # bounded by the sites plus the one that finds nothing new.
+        sites = sum(1 for node in _walk(self.game) if isinstance(node, n.Produce))
+        for _ in range(sites + 1):
             self._walk_game()
+            stable = self.produced == self.collected
             self.collected, self.produced = self.produced, {}
+            if stable:
+                break
         self.bag = bag
         self.verdicts = []
         self._reported = set()

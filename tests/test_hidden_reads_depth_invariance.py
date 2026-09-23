@@ -51,40 +51,6 @@ from tests.test_hidden_reads_let_invariance import _NAME, _VARIANTS, _verdict
 _DEPTHS = (2, 12, 40)
 
 
-_FIXED_WALKS = "outcomes are collected in a fixed count of walks"
-_FIXED_DEPTH = "a binding chain is followed to a fixed depth"
-# variant -> why it moves the verdict.
-_RED: dict[str, str] = {
-    'after-each-consumes-a-later-outcome@forward2': _FIXED_WALKS,
-    'after-each-consumes-a-later-outcome@forward3': _FIXED_WALKS,
-    'after-each-consumes-a-later-outcome@forward4': _FIXED_WALKS,
-    'as-literal-seat@0@depth40': _FIXED_DEPTH,
-    'as-state-variable-written-after@leader@depth40': _FIXED_DEPTH,
-    'as-state-variable-written-in-sibling-branch@leader@depth40': _FIXED_DEPTH,
-    'as-state-variable@leader@depth40': _FIXED_DEPTH,
-    'indexed-let-consumed-in-a-nested-seat@0@depth40': _FIXED_DEPTH,
-    'let-consumed-in-a-nested-seat@0@depth40': _FIXED_DEPTH,
-    'let-names-the-deciders-team@t@depth40': _FIXED_DEPTH,
-    'let-names-the-literal-seat@s@depth40': _FIXED_DEPTH,
-    'let-names-the-state-variable-seat@who@depth40': _FIXED_DEPTH,
-    'outcome-payload-consumed-by-another-seat@forward2': _FIXED_WALKS,
-    'outcome-payload-consumed-by-another-seat@forward3': _FIXED_WALKS,
-    'outcome-payload-consumed-by-another-seat@forward4': _FIXED_WALKS,
-    'procedure-argument-consumed-in-a-nested-seat@0@depth40': _FIXED_DEPTH,
-    'procedure-argument@x@depth40': _FIXED_DEPTH,
-    'team-of-decider@team_of(actor)@depth40': _FIXED_DEPTH,
-}
-
-
-def _mark(variant_id: str) -> list[pytest.MarkDecorator]:
-    reason = _RED.get(variant_id)
-    return (
-        [pytest.mark.xfail(strict=True, raises=AssertionError, reason=reason)]
-        if reason is not None
-        else []
-    )
-
-
 def _chained(variant: str, depth: int) -> str:
     """`variant`'s one `let` followed by `depth - 1` more, each bound to the
     one before, and the use reading the last."""
@@ -106,7 +72,7 @@ def _let_chain_cells() -> list[object]:
             variant_id = f"{param.id}@depth{depth}"  # type: ignore[attr-defined]
             out.append(
                 pytest.param(
-                    source, _chained(variant, depth), id=variant_id, marks=_mark(variant_id)
+                    source, _chained(variant, depth), id=variant_id
                 )
             )
     return out
@@ -159,7 +125,7 @@ def _outcome_cells() -> list[object]:
             variant_id = f"{cell_id}@forward{depth}"
             out.append(
                 pytest.param(
-                    source, _forwarded(source, depth), id=variant_id, marks=_mark(variant_id)
+                    source, _forwarded(source, depth), id=variant_id
                 )
             )
     return out
