@@ -33,8 +33,8 @@ domain:    clause presence x block shape (rows, else-row states, duplicates,
            and ranking-adjacent, where the reject alternatives teach the
            block spelling; and the absorber positions — an empty expression
            slot, an ordinary expression slot — where `card_values` is
-           refused at parse via its STRUCT_TYPE_NAME exclusion instead of
-           being read as a struct literal).
+           refused at parse, since no expression form reads a braced
+           block).
            Two things sit outside, and neither is a gap. A state variable,
            zone, or local spelled `card_points` beside the clause and the
            Builtin is a naming-hygiene question rather than a correctness
@@ -329,20 +329,17 @@ def test_duplicate_clause_hits_the_one_clause_wall() -> None:
 
 # The wrong spellings across every position the block shape reaches — the
 # misuse class is positional, not one probe (the game_item cells above are
-# the canonical position; these are the absorbers). `card_values` is excluded
-# from STRUCT_TYPE_NAME exactly as the real clause keyword is, so no position
-# can read the wrong spelling as a struct literal: parity with the clause
-# itself, whose absorption cells the derived sweeps in
+# the canonical position; these are the absorbers). No expression form begins
+# `NAME "{"`, so no position can read the wrong spelling as an expression:
+# parity with the clause itself, whose absorption cells the derived sweeps in
 # tests/test_game_clause_guards.py own.
 
 
 def test_card_values_after_an_empty_expression_slot_is_refused_at_parse() -> None:
-    """`loser:` left empty, `card_values { A: 1 }` beneath it: without the
-    STRUCT_TYPE_NAME exclusion the block is absorbed as a struct literal —
-    the wrong spelling VANISHES at parse and resurfaces as a wrong-currency
-    `unknown type 'card_values'` at resolve. The exclusion makes it a
-    parse-layer refusal, the same standard the real clause's absorption cell
-    holds (test_no_clause_is_absorbed_by_an_empty_expression_slot)."""
+    """`loser:` left empty, `card_values { A: 1 }` beneath it: a parse-layer
+    refusal, the same standard the real clause's absorption cell holds
+    (test_no_clause_is_absorbed_by_an_empty_expression_slot), never a block
+    absorbed as the missing expression."""
     src = (
         "game G {\n  players: 2\n  cards: standard52\n  max_length: 10\n"
         "  zones { deck : Deck }\n  state { s[player] : Integer = 0 }\n"
@@ -356,8 +353,7 @@ def test_card_values_after_an_empty_expression_slot_is_refused_at_parse() -> Non
 
 def test_card_values_in_an_expression_slot_is_refused_at_parse() -> None:
     """`let x = card_values { A: 1 }`: an ordinary expression slot must not
-    read the wrong spelling as an unknown-type struct literal either — the
-    same exclusion closes every expression position at once."""
+    read the wrong spelling as an expression either."""
     _rejects(_game("", body="let x = card_values { A: 1 }"), "syntax error")
 
 
@@ -378,15 +374,9 @@ def test_card_values_after_a_ranking_enumeration_still_teaches() -> None:
 
 
 def test_colon_form_after_an_empty_expression_slot_is_refused_at_parse() -> None:
-    """`loser:` left empty, `card_points: { A: 1 }` beneath it: the keyword
-    is already STRUCT_TYPE_NAME-excluded, so no struct reading exists; the
-    bare-NAME reading (`loser: card_points`) dies at the `:` — a parse-layer
-    refusal, never an absorbed clause.
-
-    red under: delete `card_points` from STRUCT_TYPE_NAME's exclusion list —
-    the struct reading then completes and this cell fails at resolve's
-    unknown-type currency instead (the same edit reddens the derived
-    exclusion pins in tests/test_game_clause_guards.py)."""
+    """`loser:` left empty, `card_points: { A: 1 }` beneath it: the bare-NAME
+    reading (`loser: card_points`) dies at the `:` — a parse-layer refusal,
+    never an absorbed clause."""
     src = (
         "game G {\n  players: 2\n  cards: standard52\n  max_length: 10\n"
         "  zones { deck : Deck }\n  state { s[player] : Integer = 0 }\n"

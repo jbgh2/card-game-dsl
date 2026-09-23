@@ -636,17 +636,6 @@ zones {
 }
 ```
 
-### User-defined types
-
-Games can declare their own record types with a `type Name = { fields }`
-block, optionally with a `derived { ... }` clause for computed fields
-(see [decisions.md](decisions.md), "User-definable types"). A field's
-type is a single type name; the block declares a record, not a zone,
-and is not parameterized. No corpus game declares one yet — the
-structured values games need (Bridge's contract, a poker pot) are
-modelled with flat state variables and functions today — but the
-surface is there for a game that needs a genuine record type.
-
 ## Operations
 
 The closed operation vocabulary, in the three families set out in

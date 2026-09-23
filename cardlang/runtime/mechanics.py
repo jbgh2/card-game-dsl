@@ -430,24 +430,6 @@ class AuctionForm:
         # A bid moves no card of its own: what an auction pick sets in
         # motion happens inside the chosen move type's effect.
         self.play_label: str | None = None
-        # The OWNER GUARD for "the order axis holds no row this form cannot walk".
-        # It shadows nothing: resolve owns whether a DECLARED mode is in the
-        # registry, and no guard anywhere owns whether the registry has outgrown
-        # its consumer — which is the condition here, and the reason the remedy is
-        # a reconciliation rather than a check on the statement (decisions.md,
-        # "Allow-list, never deny-list"). An assert is the channel because no game
-        # description can reach it: the trigger is an edit to `ROUND_ORDER_MODES`,
-        # so the reader it addresses is the engine maintainer making that edit.
-        # It sits on the form rather than at module import, unlike its siblings,
-        # because the row it pins is this form's — `next_actor`'s traversal — and
-        # a tree with no auction round has no such row to be wrong about.
-        # The other modes' traversals are issue #425.
-        assert n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}, (
-            f"the auction form implements the ring row only, and the order axis "
-            f"now holds {sorted(n.ROUND_ORDER_MODES)} — a mode added to "
-            f"`ROUND_ORDER_MODES` reaches this form as ring unless `next_actor` "
-            f"gains its traversal"
-        )
         self.stmt = stmt
         self.until: n.Expr = stmt.until
         self.order: list[Player] = ctx.rs.seating.turn_order_from(

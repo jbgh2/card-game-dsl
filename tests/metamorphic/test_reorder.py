@@ -86,6 +86,9 @@ _PARSE_LEVEL_CASES = frozenset(
         # production itself, so the wrong spelling is refused by the parse
         # builder and no tree ever exists.
         "primitives_scoped_read_transposed_binder",
+        # `always` where a clause's condition goes: refused by the builder of
+        # the clause that holds it, so no tree ever exists.
+        "applies_when_always",
         # The collection type's two parse-level refusals. The TEACHING twin
         # rides the two shared type productions, so a collection spelled
         # anywhere but a `primitives { }` entry's slots is refused by the

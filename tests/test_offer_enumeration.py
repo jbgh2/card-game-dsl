@@ -64,7 +64,7 @@ def _build_ctx(game: n.Game, actor: int) -> Ctx:
     """A minimal runtime context for calling the move-parameter helpers
     directly, mirroring the fields `driver.play_game` sets up (seating,
     rank_index, suits) without its dealing/phase-loop machinery."""
-    seating = Seating(game.players.low)
+    seating = Seating(game.players.count)
     zones = ZoneStore(game.zones, seating.players)
     rng = random.Random(0)
     rs = RuntimeState(seating, zones, rng)

@@ -3,8 +3,7 @@ from __future__ import annotations
 import cardlang.ast.nodes as n
 from cardlang.parse import parse_text
 
-# A phase declares a variant outcome type in its header, mirroring `define`'s
-# `-> { ... }` but with the `outcome` keyword.
+# A phase declares a variant outcome type in its header: `-> outcome { ... }`.
 SRC = """
 game G {
   players: 2

@@ -47,7 +47,7 @@ def test_go_fish_plays_to_completion(seed: int) -> None:
     # A "most books wins" game: a winner, never an elimination loser.
     assert result.loser is None
     assert result.winner is not None
-    assert set(result.scores) == set(range(game.players.low))
+    assert set(result.scores) == set(range(game.players.count))
     assert result.winner == max(result.scores, key=lambda p: result.scores[p])
 
     # Card conservation: every one of the 52 cards is still somewhere (stock,

@@ -211,7 +211,7 @@ def test_deal_inside_repeat_until_is_skipped() -> None:
 
 def _produces_game(arm_a: str, arm_b: str) -> str:
     """A game whose only deals sit inside `produces:` arm bodies — the statement
-    position the gate's old silent default never saw."""
+    position a silent default in the gate would never see."""
     return f"""game G {{
   players: 4
   max_length: 1000
@@ -221,13 +221,13 @@ def _produces_game(arm_a: str, arm_b: str) -> str:
   zones {{ deck : Deck  hand[player] : Hand<player> }}
   state {{ n[player] : Integer = 0 }}
   phase deal {{
+    phase d -> outcome {{ A | B }} {{ produce A }}
     d produces:
       A {{ {arm_a} }}
       B {{ {arm_b} }}
   }}
   winner: highest n
-}}
-define d -> {{ A | B }} {{ produce A }}"""
+}}"""
 
 
 def test_deal_inside_a_produces_arm_is_counted() -> None:

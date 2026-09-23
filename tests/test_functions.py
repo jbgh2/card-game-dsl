@@ -188,7 +188,6 @@ game G {
 }
 rule R {
   constrains: play_to_trick
-  applies_when: always
   demands: cards in hand where owes()
   if_impossible: hand
 }
@@ -197,7 +196,7 @@ function owes(p : Player) = score[p] >= 0
 
 
 def test_function_call_in_a_rule_expression_is_arity_checked() -> None:
-    with pytest.raises(DiagnosticError):
+    with pytest.raises(DiagnosticError, match=r"owes\(\) expects 1 argument"):
         check_dsl(RULE_SRC, "rule-arity.cardlang")
 
 
@@ -285,29 +284,3 @@ def test_function_call_in_a_transition_predicate_is_arity_checked() -> None:
     with pytest.raises(DiagnosticError):
         check_dsl(TRANSITION_SRC, "transition-arity.cardlang")
 
-
-# A derived type-field body is an expression position too.
-DERIVED_SRC = """
-type R = {
-  a : Integer
-} derived {
-  bad = tag()
-}
-game G {
-  players: 2
-  max_length: 1000
-  direction: clockwise
-  cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck }
-  state { r : R? = none  score[player] : Integer = 0 }
-  phase p { }
-  winner: highest score
-}
-function tag(p : Player) = p is p
-"""
-
-
-def test_function_call_in_a_derived_field_is_arity_checked() -> None:
-    with pytest.raises(DiagnosticError):
-        check_dsl(DERIVED_SRC, "derived-arity.cardlang")

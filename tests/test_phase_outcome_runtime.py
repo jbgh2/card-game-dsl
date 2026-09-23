@@ -280,3 +280,31 @@ game G {
     game = check_dsl(src, "g.cardlang")
     result = play_game(game, random.Random(0))
     assert result.scores[0] == 3 and result.scores[1] == 3
+
+
+def test_arm_binder_does_not_leak_into_outer_scope() -> None:
+    # The arm binder `carry` shares a name with the state var `carry`. The binder
+    # is scoped to its arm only: outside the arm, `carry` reads the state var
+    # (9), not the binder.
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { points[player] : Integer = 0  carry : Integer = 9 }
+  phase round {
+    phase pick -> outcome { chose(Integer) | nope } { produce chose(5) }
+    pick produces:
+      chose(carry) { for each player p: points[p] += carry }
+      nope         { }
+    for each player q: points[q] += carry
+  }
+  winner: highest points
+}
+"""
+    game = check_dsl(src, "g.cardlang")
+    result = play_game(game, random.Random(0))
+    # The arm adds the binder's 5, then the outer read adds the state var's 9.
+    assert result.scores[0] == 14 and result.scores[1] == 14

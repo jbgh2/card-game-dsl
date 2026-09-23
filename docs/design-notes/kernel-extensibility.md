@@ -287,9 +287,9 @@ continuation order. That is the distinction at its limit: a game whose
 order looked new needed not even a value.
 
 **Where the mapping stops is not the order axis but simultaneity, and
-the boundary is instructive.** Simultaneous resolution is not a
-`Round.order_mode` value — `ROUND_ORDER_MODES` holds the ring alone —
-but a *separate construct*, the `EachSimultaneous` AST node
+the boundary is instructive.** Simultaneous resolution is not a ring
+traversal — the auction form walks the ring alone — but a *separate
+construct*, the `EachSimultaneous` AST node
 (`each <role> simultaneously: <stmt>`), whose contract is that
 "observers cannot infer any ordering among the moves." Simultaneous
 resolution cannot be a `next_actor` closure over the single-actor loop:

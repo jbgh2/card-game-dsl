@@ -30,11 +30,8 @@ property:   a `teams:` declaration is accepted iff it partitions the game's
             unaffected.
 domain:     {candidate `teams:` value} x {`players:` shape}. The candidate
             axis is every way the partition property can be satisfied or
-            broken; the shape axis is the reachable combinations of the
-            three questions `PlayersSpec` answers about itself — written as
-            a range, count actually varies, bounds well formed — NOT the two
-            surface spellings, which cannot express a degenerate
-            `players: 4..4` (written as a range, denotes four fixed seats).
+            broken; the shape axis is the question `PlayersSpec` answers
+            about itself — is the count well formed.
             Two things sit outside these axes. `teams:` beside `pieces:` or
             `board:` is unexercised rather than a gap: a team-partnered board
             game is a coherent thing to write, nothing about it is known to be
@@ -52,8 +49,8 @@ registry:   `tests/teams_axes.py` derives both axes in code. The candidate
             be derived by running the classifier until it reported exactly
             one. Hand-naming them would have shipped four cells claiming to
             isolate a clause while each tested two. The shape axis reads
-            `n.PlayersSpec`'s own `is_range` discriminator, asserted against
-            the node's fields so a third form reddens it.
+            `n.PlayersSpec`'s own `is_well_formed` predicate, asserted
+            against the node's fields so a new form reddens it.
 does not prove:  two things, each a place the grid samples rather than
             crosses.
             That the property survives team ARITY and COUNT. The candidates
@@ -127,14 +124,6 @@ def test_teams_cell(
     # declare none.
     if label == "absent":
         check_dsl(source, "teams.cardlang")
-        return
-    # A count that VARIES has no fixed seat set for a fixed team list to
-    # cover, and which count it WOULD have to cover is undecided (issue
-    # #296). Refused rather than given a meaning. A degenerate range
-    # (`players: 4..4`) does NOT vary and is an ordinary fixed game.
-    if shape == "varying_range":
-        message = _reject(source)
-        assert "variable player count" in message, message
         return
     if label == "partition":
         check_dsl(source, "teams.cardlang")

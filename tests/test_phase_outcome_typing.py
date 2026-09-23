@@ -683,31 +683,10 @@ game G {
     check_dsl(src, "g.cardlang")  # no raise — prod reruns each pass before the hook
 
 
-def test_rejects_outcome_phase_define_name_collision() -> None:
-    # An outcome phase named like a define would shadow it in the shared registry
-    # and the runtime phase_outcomes dict.
+def test_rejects_continue_to_in_a_move_type_body() -> None:
+    # Control flow outside a phase body (here a move type) would escape play_game.
     src = """
-define dup -> { x } { produce x }
-game G {
-  players: 2
-  max_length: 1000
-  cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck  hand[player] : Hand<player> }
-  state { score[player] : Integer = 0 }
-  phase dup -> outcome { x } { produce x }
-  winner: highest score
-}
-"""
-    with pytest.raises(DiagnosticError) as ei:
-        check_dsl(src, "g.cardlang")
-    assert "collides" in str(ei.value) or "dup" in str(ei.value)
-
-
-def test_rejects_continue_to_in_a_define_body() -> None:
-    # Control flow outside a phase body (here a define) would escape play_game.
-    src = """
-define D -> { go } { produce go  continue to p }
+move_type m { effect { continue to p } }
 game G {
   players: 2
   max_length: 1000
@@ -768,3 +747,29 @@ game G {
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     assert "produces: arm" in str(ei.value) or "may not appear" in str(ei.value)
+
+
+def test_arm_binder_is_typed_inside_its_arm() -> None:
+    # `amount` binds an Integer; passing it to `player_holding` (which expects a
+    # Card) errors via the native-arg check — proving the binder is typed (not
+    # TAny) inside the arm body.
+    src = """
+game G {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { points[player] : Integer = 0  dealer : Player = 0 }
+  phase round {
+    phase settle -> outcome { won(Integer) | lost } { produce won(7) }
+    settle produces:
+      won(amount) { dealer := player_holding(amount) }
+      lost        { }
+  }
+  winner: highest points
+}
+"""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "g.cardlang")
+    assert "player_holding" in str(ei.value)

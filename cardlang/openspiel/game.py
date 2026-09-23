@@ -325,7 +325,7 @@ def _plan(
     # chance mode, the declared outcome count and the state's opening node all
     # come off this single answer, so they cannot describe different games.
     chance_free = replay.chance_free(path)
-    num_players = game_ast.players.low
+    num_players = game_ast.players.count
     assert game_ast.max_length is not None, "resolve() must reject a missing max_length"
     game_type = pyspiel.GameType(
         short_name=short_name,

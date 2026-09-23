@@ -4,8 +4,7 @@
   "name": "SevenCardStud",
   "players": {
     "kind": "players",
-    "low": 4,
-    "high": null
+    "count": 4
   },
   "deck": "standard52",
   "direction": "clockwise",
@@ -1143,7 +1142,6 @@
                       }
                     }
                   },
-                  "order_mode": null,
                   "outcome_fn": null
                 }
               ],
@@ -1641,7 +1639,6 @@
                           }
                         }
                       },
-                      "order_mode": null,
                       "outcome_fn": null
                     }
                   ],
@@ -2109,7 +2106,6 @@
                           }
                         }
                       },
-                      "order_mode": null,
                       "outcome_fn": null
                     }
                   ],
@@ -2577,7 +2573,6 @@
                           }
                         }
                       },
-                      "order_mode": null,
                       "outcome_fn": null
                     }
                   ],
@@ -3045,7 +3040,6 @@
                           }
                         }
                       },
-                      "order_mode": null,
                       "outcome_fn": null
                     }
                   ],
@@ -5677,8 +5671,6 @@
       ]
     }
   ],
-  "types": [],
-  "defines": [],
   "functions": [
     {
       "kind": "function",

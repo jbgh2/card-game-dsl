@@ -548,7 +548,7 @@ So: **a designed distinction that reads fine**, with one genuine redundancy (the
 
 What IS defective is prose, found this sitting and fixable in Lane D regardless of the ruling:
 
-- decisions.md "Typed object model" says "User-defined types may be parameterized with the same angle-bracket convention as built-in generics"; library.md "User-defined types" says "the block … is not parameterized"; the grammar agrees with library.md. One sentence of spec describes surface that does not exist and contradicts its neighbour.
+- decisions.md "Typed object model" says "User-defined types may be parameterized with the same angle-bracket convention as built-in generics"; library.md's user-defined-types section says "the block … is not parameterized"; the grammar agrees with library.md. One sentence of spec describes surface that does not exist and contradicts its neighbour.
 - The spec spells the zone argument **five** ways: `Hand<player>` (the surface), `Hand<Owner: Player>` (library.md's model), `Hand<Player>` (model.md), `Hand<Owner>` (principles.md, decisions.md), and `PrivateHand<Owner>` (principles.md — a type name absent from `LIBRARY_ZONE_TYPES`). "One spelling per concept" is being asked of the designer by a spec that has not managed it itself.
 
 ## Q1. Does admitting generics now improve the language going forward?

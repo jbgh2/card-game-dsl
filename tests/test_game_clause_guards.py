@@ -32,36 +32,10 @@ domain:     the `?game_item` alternatives of the `game` production, times
             clause rather than probed on the one that was found broken.
             The axis has TWO absorbers, because the class is "an unbounded
             or empty slot completes itself from the clause below it": the
-            `card_rank+` run, and an empty EXPRESSION slot, which reads a
-            single-entry brace clause as a `struct_lit`. The second was
-            found as `function f() =` swallowing a library's `requires`
-            block, and holds identically for a game's `loser:` swallowing
-            `zones { }`. Its fix is at the absorbed end — the keyword is
-            refused as a struct-literal type name — so its domain is a
-            SHAPE, not a registry membership: every keyword opening a
-            whitespace-run brace block (`<entry>*` or `<entry>+` with an
-            optional tail) whose entry has the field-init shape — an
-            identifier-shaped head, then `":"` — wherever in the grammar it
-            is reachable from (`card_points_table`'s entry head is a RULE
-            over an identifier-shaped terminal, the case that widened the
-            recognizer from its original literal-NAME-and-star-only form).
-            Reading the domain
-            off `?game_item`/`?library_item` instead was wrong twice — those
-            are a coincidental superset (few of their keywords are
-            load-bearing)
-            and a coincidental non-superset (a brace clause reachable as a
-            `?phase_item` or `?top_item` is outside them, and `derived` was
-            in fact missing). The axis is crossed with {absorbed-as-a-
-            literal, declarable-as-a-type}, the second being the cost the
-            exclusion imposes on `type_def`, which must stay symmetric with
-            `struct_lit` or a type is declarable and unusable. That
-            symmetry has a THIRD position — the type ANNOTATION slots
-            (`type_name`, `type_ref`, `payload_type`, `type_arg`), all
-            plain NAME — so the terminal must also stay a strict SUBSET of
-            NAME, whose own lookahead it repeats. Within the `game`
-            production `loser:` is the only clause whose last slot is a bare
-            `expr` (`winner:` takes `rank_dir NAME`), which is where the
-            empty-EXPRESSION absorber is reachable at all.
+            `card_rank+` run, and an empty EXPRESSION slot. Within the
+            `game` production `loser:` is the only clause whose last slot is
+            a bare `expr` (`winner:` takes `rank_dir NAME`), which is where
+            the empty-EXPRESSION absorber is reachable at all.
             One thing sits outside, and it is not a gap: this module owns the
             clause STRUCTURE, so the content VOCABULARY a flavor admits —
             `ranking:`/`trump:` declared in a piece game, and every other
@@ -74,10 +48,9 @@ registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             which the import tier's own module reuses; `GAME_DIRECTIONS` in
             `cardlang/runtime/values.py` for the direction value set;
             `COMPONENT_SETS` (same module, the `flavor` column) for the
-            content-clause name axis; `CARD_RANK_NAME`'s and
-            `STRUCT_TYPE_NAME`'s negative lookaheads for the two absorption
-            legs, scraped by `_card_rank_excluded` and `_struct_type_excluded`
-            so both sides of each pin stay derived.
+            content-clause name axis; `CARD_RANK_NAME`'s negative lookahead
+            for the `card_rank+` absorption leg, scraped by
+            `_card_rank_excluded` so both sides of the pin stay derived.
             The LIBRARY half of the empty-EXPRESSION absorber, as the
             truncation grid over `?library_item`:
             tests/test_family_libraries.py. `ranking:` omission with
@@ -264,187 +237,12 @@ _CLAUSE_TEXT: dict[str, str] = {
 }
 
 
-# --- the second absorber: an expression slot, via `struct_lit` ----------------
+# --- the second absorber: an empty expression slot ---------------------------
 #
-# `struct_lit: NAME "{" field_init ("," field_init)* "}"` with
-# `field_init: NAME ":" expr` is token-identical to a single-entry brace clause
-# (`zones { deck : Deck }`, `requires { y : Integer }`). So an expression slot
-# left EMPTY — a `loser:` with no expression, a `function f() =` with no body —
-# reads the clause written below it as a struct literal and completes, dropping
-# the clause with no error and no `_ambig` node for the ambiguity budget to
-# catch. The fix is at the ABSORBED end, not the absorbing one: a clause
-# keyword is refused as a struct-literal type name, which closes every
-# expression slot in the grammar at once, so the domain below is the clause
-# KEYWORD registry rather than the set of slots that can do the absorbing.
-
-
-def _clause_keywords() -> set[str]:
-    """Every clause keyword a struct-literal type name must refuse, from BOTH
-    sibling-sequence registries: `?game_item` (a game file) and `?library_item`
-    (a family-library file)."""
-    return {
-        _clause_keyword(rule)
-        for rule in _game_item_alternatives() | library_item_alternatives()
-    }
-
-
-def _struct_type_excluded() -> set[str]:
-    return _terminal_excluded("STRUCT_TYPE_NAME")
-
-
-def _head_is_name_shaped(symbol: str, depth: int = 0) -> bool:
-    """Whether an entry's HEAD symbol can lex as identifier text — half of
-    what makes the entry match `field_init` (`NAME ":" expr`). True for
-    `NAME` itself, for an identifier-shaped terminal (its definition carries
-    the identifier class — CARD_POINTS_KEY's shape), for a KEYWORD terminal
-    whose word `NAME` does not exclude, and for a rule whose alternatives
-    reach one of those (card_points_key -> CARD_POINTS_KEY). The chase is
-    bounded and only ever runs on a head that already sits before a `":"`
-    (the shape check in `_absorbable_clause_keywords`), so an alternation over
-    whole statement forms is never chased.
-
-    The keyword-terminal arm is what makes the recognizer total over head
-    SHAPES rather than over the two the corpus happened to use. A row headed
-    by `_X_KW` is absorbable exactly when `X` still lexes as a NAME: if
-    `NAME`'s exclusion list does not carry the word, the same text derives as
-    a struct literal's field and the clause is silently eaten. Deciding it
-    from the exclusion list rather than from the head's spelling means a
-    keyword REMOVED from that list later re-enters this domain by itself."""
-    assert depth < 4, f"head-symbol chase too deep at {symbol!r} — widen the scrape"
-    if symbol == "NAME":
-        return True
-    if re.fullmatch(r"[A-Z0-9_]+", symbol):  # a terminal reference
-        match = re.search(rf"^{symbol}:\s*(.+)$", GRAMMAR, re.MULTILINE)
-        if match is None:
-            return False
-        if "[a-zA-Z_][a-zA-Z0-9_]*" in match.group(1):
-            return True
-        word = re.match(r'\s*"(\w+)"', match.group(1))
-        return word is not None and word.group(1) not in _terminal_excluded("NAME")
-    match = re.search(
-        rf"^\??{symbol}:\s*(\w+)((?:\s*\|\s*\w+)*)", GRAMMAR, re.MULTILINE
-    )
-    if match is None:
-        return False
-    heads = [match.group(1), *re.findall(r"\|\s*(\w+)", match.group(2))]
-    return any(_head_is_name_shaped(h, depth + 1) for h in heads)
-
-
-def _absorbable_clause_keywords() -> set[str]:
-    """The TRUE domain of the struct-literal exclusion: every keyword opening a
-    `kw "{" <entry>* "}"` or `kw "{" <entry>+ [<tail>] "}"` block whose ENTRY
-    production has the field-init shape — an identifier-shaped head followed
-    by `":"` — since those are exactly the clauses whose text can match a
-    struct literal's `NAME "{" NAME ":" expr … "}"`. A statement-bodied block
-    (`before_each`, a move `effect`) has no head-colon entry and can never
-    spell a field, so it is outside the domain by shape, not by listing.
-
-    Derived from the block productions themselves rather than from the clause
-    registries. `?game_item`/`?library_item` are a coincidental superset — of
-    their keywords only a few are load-bearing — and, worse, a coincidental
-    NON-superset: a brace clause reachable as a `?phase_item` or a `?top_item`
-    would sit outside them entirely, so a pin over the registries can go green
-    while a new clause is silently absorbed.
-
-    One stated assumption: the scrape reads whitespace-separated entry runs
-    (`*` or `+`, with one optional trailing element), not
-    `<entry> ("," <entry>)*`. Every brace clause in the grammar uses those
-    forms today (checked by `test_every_brace_clause_is_a_form_the_scrape_reads`
-    below), and a comma-form clause would be MORE absorbable, not less, since
-    `struct_lit`'s own field list is comma-separated."""
-    required = set()
-    for keyword, entry in re.findall(
-        rf'^\w+:\s*{KEYWORD_REF}\s*"\{{"\s*(\w+)[*+]\s*(?:\[\w+\]\s*)?"\}}"',
-        GRAMMAR,
-        re.MULTILINE,
-    ):
-        # The field-init shape: `<head> [optional] ":" ...` — the head may be
-        # the literal NAME or a rule/terminal that lexes identifier text.
-        shape = re.search(
-            rf'^\??{entry}:\s*(\w+)\s*(?:\[\w+\]\s*)?":"', GRAMMAR, re.MULTILINE
-        )
-        if shape is not None and _head_is_name_shaped(shape.group(1)):
-            required.add(_keyword_word(keyword))
-    assert required, "scrape found no brace-clause productions at all"
-    return required
-
-
-def test_the_absorbable_scrape_sees_the_entry_plus_form() -> None:
-    """The widened recognizer's own pin: `card_points_table` is an entry-plus
-    block (`card_points_entry+ [card_points_else]`) whose entry head is a
-    RULE over an identifier-shaped terminal, not the literal `NAME` — the
-    shape the original star-and-NAME-only scrape was blind to. It must be in
-    the derived domain, or the TRUE-domain pin below is green while the
-    belt-and-braces pin does the real work.
-
-    red under: revert `_absorbable_clause_keywords`'s quantifier to `\\*`-only
-    (or `_entry_head_is_name_shaped` to a literal-NAME check) — this cell
-    reddens while every registry-derived pin stays green. Verified by
-    execution on the quantifier revert."""
-    assert "card_points" in _absorbable_clause_keywords()
-
-
-def test_every_brace_clause_is_a_form_the_scrape_reads() -> None:
-    """The assumption `_absorbable_clause_keywords`'s scrape rests on. A brace
-    clause written `kw "{" <entry> ("," <entry>)* "}"` would be invisible to
-    that scrape and MORE absorbable than the whitespace forms, since
-    `struct_lit`'s own field list is comma-separated — so the tripwire has to
-    be here rather than in a comment nobody re-checks.
-
-    red under: rewrite any `kw "{" X* "}"` production in the comma form."""
-    comma_form = re.findall(
-        r'^(\w+):\s*_[A-Z0-9_]+_KW\s*"\{"\s*\w+\s*\("," ?\s*\w+\)\*',
-        GRAMMAR,
-        re.MULTILINE,
-    )
-    assert not comma_form, (
-        f"brace clause(s) {comma_form} use the comma form, which "
-        f"`_absorbable_clause_keywords` does not scrape — widen it"
-    )
-
-
-def test_struct_type_name_excludes_every_absorbable_clause() -> None:
-    """The completeness pin, both sides derived: the keyword set from the shape
-    that makes a clause absorbable, the exclusion set from the terminal. A brace
-    clause added ANYWHERE in the grammar — game item, phase item, top item — with
-    field-init-shaped entries fails here rather than at a designer's desk.
-
-    red under: delete `zones` (or `derived`) from STRUCT_TYPE_NAME's exclusion
-    list in cardlang.lark."""
-    missing = _absorbable_clause_keywords() - _struct_type_excluded()
-    assert not missing, (
-        f"brace clause(s) {sorted(missing)} have field-init-shaped entries and are "
-        f"still legal struct-literal type names, so an empty expression slot can "
-        f"absorb one and drop it silently — add them to STRUCT_TYPE_NAME's "
-        f"exclusion list in cardlang.lark"
-    )
-
-
-def test_struct_type_name_stays_a_subset_of_name() -> None:
-    """A position-specific terminal may only ever REMOVE spellings. NAME carries
-    its own negative lookahead (`always|all|one|some|…`), so a STRUCT_TYPE_NAME
-    that does not repeat those words ADMITS eight spellings NAME refuses — and
-    every type-ANNOTATION position (`type_name`, `type_ref`, `payload_type`,
-    `type_arg`) is plain NAME and still refuses them. That is a type declarable
-    and constructible but never usable: the same declarable-but-unusable defect
-    the exclusion exists to prevent, reopened on the other axis.
-
-    red under: delete any word of NAME's lookahead from STRUCT_TYPE_NAME's."""
-    admitted = _terminal_excluded("NAME") - _struct_type_excluded()
-    assert not admitted, (
-        f"STRUCT_TYPE_NAME admits {sorted(admitted)}, which NAME refuses — a type "
-        f"named for one of those could be declared and written as a literal but "
-        f"never annotated, since every type-annotation slot is plain NAME"
-    )
-
-
-def test_the_clause_keyword_exclusions_are_belt_and_braces() -> None:
-    """The clause registries are NOT this exclusion's completeness argument —
-    `test_struct_type_name_excludes_every_absorbable_clause` is. They are kept
-    excluded anyway, so that a clause which later grows field-init-shaped
-    entries is already covered, and this test says so rather than letting a
-    reader mistake the wider set for the derivation."""
-    assert _clause_keywords() <= _struct_type_excluded()
+# A brace clause read as the expression an empty slot is missing would be
+# dropped with no error. No expression form begins `NAME "{"`, so the grammar
+# holds no such reading; the sweep below runs every game clause through the
+# slot to keep it that way.
 
 
 @pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
@@ -453,52 +251,19 @@ def test_no_clause_is_absorbed_by_an_empty_expression_slot(rule_name: str) -> No
     is the game-file end of the absorption class. Left empty it must fail to
     parse — never quietly take the next clause as its expression.
 
-    Asserted at the PARSE layer deliberately: the absorbed reading is a
+    Asserted at the PARSE layer deliberately: an absorbed reading would be a
     well-formed parse, and letting a later stage reject it for some other
-    reason (an unknown struct type) would make this cell green while the clause
-    still vanished.
+    reason would make this cell green while the clause still vanished.
 
-    One cell was open when this sweep was written: `zones { stock : Deck }`, the
-    single-entry, unindexed, type-argument-free clause whose text is exactly
-    `NAME "{" NAME ":" expr "}"`. The rest are refused by structure rather than
-    by the fix — `state`'s decls carry `= <default>`, `positions`' carry a `..`
-    range, and the others are not brace clauses at all — and are the sweep of
-    the class.
-
-    red under: delete `zones` from STRUCT_TYPE_NAME's exclusion list."""
+    red under: add `| NAME "{" NAME ":" expr "}"` as a `?primary` alternative
+    in cardlang.lark — `zones { stock : Deck }` is then read as the missing
+    expression."""
     src = (
         "game G {\n  players: 2\n  cards: standard52\n  loser:\n"
         f"  {_CLAUSE_TEXT[rule_name]}\n}}"
     )
     with pytest.raises(DiagnosticError) as exc:
         parse_text(src, "absorb.cardlang")
-    assert exc.value.diagnostic.span is not None, (
-        "a parse-layer refusal must be located, not a bare error"
-    )
-
-
-@pytest.mark.parametrize("keyword", sorted(_struct_type_excluded()))
-def test_a_type_may_not_be_declared_under_an_excluded_word(keyword: str) -> None:
-    """The cost of the exclusion above, made explicit and swept over the
-    exclusion set ITSELF rather than over a registry that merely overlaps it —
-    so every word the terminal refuses is proven refused in declaration position
-    too. A type whose name a struct literal cannot spell would be declarable but
-    unusable — accepted-but-ignored one step removed — so the DECLARATION is
-    refused too, keeping `type_def` and `struct_lit` symmetric about which names
-    a struct type may take.
-
-    The symmetry is on the NAME axis only. On the ARITY axis `type_def` takes
-    `struct_field*` while `struct_lit` requires at least one field, so
-    `type Bid = { }` declares clean and can never be constructed —
-    declarable-but-unusable, the same property one axis over (issue #125).
-
-    red under: point `type_def`'s name back at plain `NAME` in cardlang.lark."""
-    src = (
-        f"type {keyword} = {{ x : Integer }}\n"
-        "game G { players: 2 cards: standard52 zones { deck : Deck } }"
-    )
-    with pytest.raises(DiagnosticError) as exc:
-        parse_text(src, "typename.cardlang")
     assert exc.value.diagnostic.span is not None, (
         "a parse-layer refusal must be located, not a bare error"
     )
@@ -671,7 +436,7 @@ def test_missing_players_and_cards_reports_both() -> None:
 def test_no_game_block_rejected() -> None:
     """`start: top_item+` accepts a game-less source; without this guard it
     would escape as a StopIteration inside lark's VisitError."""
-    text = "rule nothing {\n  demands: actions where true\n}\n"
+    text = "rule nothing {\n  demands: cards in hand\n}\n"
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(text, "probe.cardlang")
     assert "declares no `game { }` block" in exc.value.diagnostic.message

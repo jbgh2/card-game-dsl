@@ -9,11 +9,10 @@ the registries — so a new position or a new name source arrives as uncovered
 cells that force someone to classify them, rather than as silence.
 
 The defect class this exists to close (docs/decisions.md, "Closed-domain
-completeness"): a domain whose axes are hand-listed. The guard this module
-grids was first written against a five-position axis that a fresh-context
-framing check found to be nine; the four it missed (procedure parameters,
-rule parameters, phase-outcome payloads, struct literals) were invisible
-precisely because nothing crossed the product.
+completeness"): a domain whose axes are hand-listed. A position no row names
+is invisible to the guard it grids, and procedure parameters, rule parameters
+and phase-outcome payloads are the positions a hand list drops, because
+nothing crosses the product.
 
 Completeness ledger
 --------------------
@@ -26,9 +25,8 @@ Completeness ledger
     domain:     Two axes, each derived rather than hand-listed:
                   A. positions — the grammar productions referencing any of
                      the three type-carrying nonterminals (`_TYPE_CARRIERS`:
-                     `type_name`, `payload_type`, `primitive_type`), plus
-                     `struct_lit` whose head NAME is a type name in EXPRESSION
-                     position. `POSITIONS` is the row set and
+                     `type_name`, `payload_type`, `primitive_type`).
+                     `POSITIONS` is the row set and
                      `_grammar_carriers()` the scrape; a row that reaches its
                      type name through another production is translated to
                      that HOST by `_carrier_host`, a breadth-first walk over
@@ -59,7 +57,7 @@ Completeness ledger
                   B. name sources — `KNOWN_TYPE_NAMES`, `PARAM_DOMAINS`,
                      `_PROCEDURE_PARAM_DOMAINS`, the two bare inline literals
                      (`Card` at a move param, `Suit` at a rule param), per-game
-                     `type` declarations, per-game `positions {}` declarations,
+                     `positions {}` declarations,
                      the block's one parameterized value spelling
                      (`COLLECTION_NAME`), and an unknown name as the negative
                      control.
@@ -81,12 +79,12 @@ Completeness ledger
     registry:   A. cardlang/grammar/cardlang.lark (scraped by the pin below)
                 B. typecheck.KNOWN_TYPE_NAMES; domains.PARAM_DOMAINS;
                    resolve._PROCEDURE_PARAM_DOMAINS; resolve's inline `Card`
-                   and `Suit` literals; the game's own TypeDef / PositionDecl
+                   and `Suit` literals; the game's own PositionDecl
 
     does not prove:  two things about a cell beyond its admit-vs-reject verdict.
                 WHICH MESSAGE a rejection gives. A loud refusal in the wrong
                 words passes every cell: a position domain written as a state
-                variable's or a struct field's type is refused as `unknown type
+                variable's type is refused as `unknown type
                 '<name>'` rather than as a domain that is not a declared type in
                 that slot. The one column that pins its own wording is the
                 collection column
@@ -96,7 +94,7 @@ Completeness ledger
                 That the `?` spelling behaves alike on every base name. It is
                 written at `Rank?` and `Suit?`, which reach each of the three
                 disciplines handling it — exact-string at P3/P5, base-stripped
-                at P6/P7/P8, a separate `optional` flag at P1/P2 — so the
+                at P6/P8, a separate `optional` flag at P1 — so the
                 disciplines are each witnessed and base x optional is not a
                 full sub-product.
 """
@@ -117,7 +115,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import DECLARABLE_BUILTIN_TYPE_NAMES
 from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
 from cardlang.typecheck import KNOWN_TYPE_NAMES, TypeEnv
-from cardlang.types import TInteger, TOptional, TStruct, Type
+from cardlang.types import TInteger, TOptional, Type
 
 
 class CellMismatch(AssertionError):
@@ -144,7 +142,6 @@ GAME = """game G {
   phase play%(outcome)s {%(rules)s for each player p: score[p] := 1 }
   winner: highest score
 }
-type T = { x : Integer }
 %(extra)s"""
 
 
@@ -161,7 +158,6 @@ def _prog(*, extra: str = "", extra_state: str = "", outcome: str = "",
 # a parameterized rule is instantiated, because neither is about this axis.
 POSITIONS: dict[str, tuple[str, object]] = {
     "P1 state_decl": ("state_decl", lambda d: _prog(extra_state=f"  s : {d} = 1")),
-    "P2 struct_field": ("struct_field", lambda d: _prog(extra=f"type S2 = {{ x : {d} }}")),
     "P3 move_param": ("move_type_def", lambda d: _prog(
         extra=f"move_type mv(x : {d}) {{ effect {{ score[actor] := 1 }} }}")),
     "P4 proc_param": ("procedure_def", lambda d: _prog(
@@ -170,11 +166,8 @@ POSITIONS: dict[str, tuple[str, object]] = {
         rules=" active_rules: [Rl(hearts)]",
         extra=f"rule Rl(x : {d}) {{ demands: true }}")),
     "P6 func_param": ("function_def", lambda d: _prog(extra=f"function f(x : {d}) = 1")),
-    "P7 define_payload": ("outcome_case", lambda d: _prog(
-        extra=f"define dd -> {{ won({d}) | lost }} {{ produce lost }}")),
     "P8 outcome_payload": ("phase_outcome", lambda d: _prog(
         outcome=f" -> outcome {{ won({d}) | lost }}")),
-    "P9 struct_lit": ("struct_lit", lambda d: _prog(extra=f"function f() = {d} {{ x: 1 }}")),
     # The `primitives { }` entry's two type slots. Both name an IMPLEMENTED
     # Primitive, so the only thing under test is the type-name gate: an
     # unimplemented name would trip its own guard first and the cell would be
@@ -188,7 +181,6 @@ POSITIONS: dict[str, tuple[str, object]] = {
 # --- Axis B: the name sources ----------------------------------------------
 
 POSITION_DOMAIN = "column"   # declared by the probe game's `positions {}`
-USER_STRUCT = "T"            # declared by the probe game's `type T`
 UNKNOWN_NAME = "Bogus"       # the negative control
 
 COLLECTION_NAME = "Collection<Card>"  # the one parameterized value spelling
@@ -199,11 +191,11 @@ COLLECTION_OPTIONAL = "Collection<Card>?"
 
 NAMES = [
     "Integer", "Boolean", "Player", "Card", "Team", "Suit", "Rank",
-    "Rank?", "Suit?", "SeatDirection", POSITION_DOMAIN, USER_STRUCT, UNKNOWN_NAME,
+    "Rank?", "Suit?", "SeatDirection", POSITION_DOMAIN, UNKNOWN_NAME,
     COLLECTION_NAME, COLLECTION_OPTIONAL,
 ]
 
-DECLARED = frozenset(KNOWN_TYPE_NAMES) | {USER_STRUCT}
+DECLARED = frozenset(KNOWN_TYPE_NAMES)
 _BASE_STRIPPED = DECLARED | {f"{n}?" for n in DECLARED}
 # What a `primitives { }` entry may spell, from the block's own registry
 # crossed with the probe game's position domain — never a hand-listed copy.
@@ -219,7 +211,6 @@ EXPECTED_ADMITS: dict[str, frozenset[str]] = {
     # A position domain is not among them, and whether such a value (an Integer
     # with a declared range) should be declarable here is issue #133.
     "P1 state_decl": frozenset(_BASE_STRIPPED),
-    "P2 struct_field": frozenset(_BASE_STRIPPED),
     # Enumerable move-parameter domains, plus the inline `Card` literal, plus
     # the game's position domains (the action space enumerates them).
     "P3 move_param": frozenset(PARAM_DOMAINS | {"Card", POSITION_DOMAIN}),
@@ -228,15 +219,9 @@ EXPECTED_ADMITS: dict[str, frozenset[str]] = {
     # Declared names, `?` base-stripped, AND position domains: a function or a
     # payload may carry a position value, which types as its Integer range.
     "P6 func_param": frozenset(_BASE_STRIPPED | {POSITION_DOMAIN}),
-    "P7 define_payload": frozenset(_BASE_STRIPPED | {POSITION_DOMAIN}),
     "P8 outcome_payload": frozenset(_BASE_STRIPPED | {POSITION_DOMAIN}),
-    # A struct literal's head names a declared struct and nothing else.
-    "P9 struct_lit": frozenset({USER_STRUCT}),
     # A `primitives` entry spells the built-in declared-type names, the game's
-    # position domains, and the one parameterized value spelling — and NOT a
-    # declared struct: a Primitive receives values across the narrowing
-    # boundary, and no witness carries a `StructValue` over it (issue #547).
-    # Both slots take the same set: the return slot admits `Collection<Card>`
+    # position domains, and the one parameterized value spelling. Both slots take the same set: the return slot admits `Collection<Card>`
     # at this gate and the both-ways shape check refuses every concrete entry,
     # which is the `cell` precedent and is not this gate's answer.
     "P10 primitive_param": _PRIMITIVE_SPELLABLE | {COLLECTION_NAME},
@@ -246,10 +231,9 @@ EXPECTED_ADMITS: dict[str, frozenset[str]] = {
 # The red set: cells a change designs to flip, carried as strict xfails so the
 # pre-push checks stay green while the grid is red, and so a flip cannot be
 # forgotten (a leftover mark on a now-passing cell fails loudly). Empty between
-# changes; this grid shipped with the three position-domain cells at
-# P6/P7/P8 in it, which the same change turned green at resolve AND in the
-# function signature builder — resolve alone would have admitted the name and
-# left the type layer mapping it to the permissive top.
+# changes. A flip admitting a name lands at resolve AND in the type builder
+# together: resolve alone admits the name and leaves the type layer mapping it
+# to the permissive top.
 DESIGNED_TO_FLIP: set[tuple[str, str]] = set()
 
 
@@ -359,10 +343,9 @@ def test_the_type_name_grid(cell: tuple[str, str]) -> None:
 # asserts admit-vs-not, which a refusal in the wrong voice satisfies; this
 # says WHICH refusal. Derived from the type nonterminal the position's host
 # writes its type name through, because that is what decides: the teaching
-# twin rides `type_name` and `payload_type`, the entry family answers in its
-# own voice, and a position with no type nonterminal at all has no twin to
-# reach.
-_TWIN_BY_CARRIER: dict[str | None, dict[str, str]] = {
+# twin rides `type_name` and `payload_type`, and the entry family answers in
+# its own voice.
+_TWIN_BY_CARRIER: dict[str, dict[str, str]] = {
     "type_name": {
         COLLECTION_NAME: "collection-elsewhere",
         COLLECTION_OPTIONAL: "collection-elsewhere",
@@ -375,20 +358,14 @@ _TWIN_BY_CARRIER: dict[str | None, dict[str, str]] = {
         COLLECTION_NAME: "admit",
         COLLECTION_OPTIONAL: "collection-optional",
     },
-    # A struct literal's head is `STRUCT_TYPE_NAME` in EXPRESSION position, so
-    # no type production is in play and no twin can be reached — the lexer's
-    # own voice is the whole answer available there, and saying so is what
-    # keeps this column from asserting a message the grammar cannot produce.
-    None: {COLLECTION_NAME: "syntax", COLLECTION_OPTIONAL: "syntax"},
 }
 
 
-def _position_carrier(position: str) -> str | None:
+def _position_carrier(position: str) -> str:
     """Which type nonterminal `position` writes its type name through."""
     production, _ = POSITIONS[position]
     host = _carrier_host(production)
-    if host is None:
-        return None
+    assert host is not None, f"{position}'s production reaches no type nonterminal"
     body = _grammar_bodies()[host]
     written = [c for c in _TYPE_CARRIERS if re.search(rf"\b{c}\b", body)]
     assert len(written) == 1, (
@@ -447,7 +424,7 @@ def test_a_retired_type_name_is_loud_in_every_position(position: str) -> None:
     silently-`TAny` `pass_direction` would keep typechecking and exempt itself
     from the `offset_by` operand guard. The grid above covers the CLASS (an
     unrecognized name, via `UNKNOWN_NAME`); this covers the retired member of
-    it by name, in all nine positions.
+    it by name, in every position.
 
     The diagnostic names the offending spelling but does not suggest the
     replacement: a retired-spelling hint table is its own closed domain
@@ -477,13 +454,12 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
     """
     positions = {POSITION_DOMAIN: TInteger()}
     env = TypeEnv(positions=positions)
-    structs: dict[str, TStruct] = {}
     resolvers: dict[str, Callable[[], Type]] = {
         "type_from_name": lambda: typecheck.type_from_name(
-            POSITION_DOMAIN, False, structs, positions
+            POSITION_DOMAIN, False, positions
         ),
         "_payload_type": lambda: typecheck._payload_type(
-            POSITION_DOMAIN, structs, positions
+            POSITION_DOMAIN, positions
         ),
         "_param_type": lambda: typecheck._param_type(
             n.Parameter(name="x", type_name=POSITION_DOMAIN, span=None), env
@@ -510,12 +486,6 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
 # family added beside the two shared ones would otherwise take P10 and P11 out
 # of the carrier set with nothing going red.
 _TYPE_CARRIERS: tuple[str, ...] = ("type_name", "payload_type", "primitive_type")
-
-
-# Grid rows whose type name is written in EXPRESSION position, with its own
-# terminal rather than through a type nonterminal — so the grammar scrape
-# cannot see them, and the reverse direction says so rather than by omission.
-_EXPRESSION_POSITIONS: frozenset[str] = frozenset({"struct_lit"})
 
 
 def _grammar_text() -> str:
@@ -607,8 +577,7 @@ def _carrier_host(production: str) -> str | None:
 
     A grid row whose production reaches its type name THROUGH another one is
     counted at that HOST, not at the row: the four `parameter` hosts gate one
-    production differently, and a phase's outcome set is `define`'s read at
-    another site. Both scrape directions translate a row through this walk, so
+    production differently. Both scrape directions translate a row through this walk, so
     neither keeps a list of its own and neither can hold a value the grammar
     does not back — the defect a hand-written host table had, where a wrong
     value left both directions green.
@@ -651,8 +620,8 @@ def _carrier_host(production: str) -> str | None:
 
 def _gridded_hosts() -> set[str]:
     """Every grid row's production, translated to the host that writes its
-    type name. A row in `_EXPRESSION_POSITIONS` reaches none and is dropped
-    here rather than compared against a carrier set it was never in."""
+    type name. A row that reaches none is dropped here; the per-row walk
+    cell below is what refuses it."""
     hosts = set()
     for production, _ in POSITIONS.values():
         host = _carrier_host(production)
@@ -711,7 +680,7 @@ def test_every_gridded_production_is_still_a_grammar_carrier() -> None:
     `_TYPE_CARRIERS`.
     """
     carriers = _grammar_carriers()
-    orphans = _gridded_hosts() - carriers - _EXPRESSION_POSITIONS
+    orphans = _gridded_hosts() - carriers
     assert not orphans, (
         f"grid rows whose production no longer carries a type name: "
         f"{sorted(orphans)} — the position lost its grammar backing and the "
@@ -729,8 +698,8 @@ def test_every_grid_row_reaches_its_type_name_through_the_grammar(
     `_carrier_host`, so a row whose walk answers nothing would drop out of
     BOTH and neither would notice — which is the vacuity a hand-written host
     table had in a different shape. This asserts the walk lands: every row
-    either writes its type name itself, reaches exactly one production that
-    does, or is an expression position with no type nonterminal at all.
+    either writes its type name itself or reaches exactly one production that
+    does.
 
     red under: delete `parameter` from `function_def`'s right-hand side in
     cardlang.lark — `function_def`'s walk then reaches no carrier and this
@@ -738,12 +707,6 @@ def test_every_grid_row_reaches_its_type_name_through_the_grammar(
     """
     production, _ = POSITIONS[position]
     host = _carrier_host(production)
-    if production in _EXPRESSION_POSITIONS:
-        assert host is None, (
-            f"{position} is recorded as an expression position, but the "
-            f"grammar reaches a type nonterminal from it through '{host}'"
-        )
-        return
     assert host is not None, (
         f"{position}'s production '{production}' reaches no type-carrying "
         f"nonterminal, so both scrape directions drop it silently"

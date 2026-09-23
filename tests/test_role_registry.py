@@ -230,8 +230,8 @@ def test_a_rows_type_name_is_a_declarable_type_with_the_same_type() -> None:
             f"domain row '{row.id.value}' declares type_name '{row.type_name}', which is "
             f"not a declarable type — a move parameter of it would type as Any"
         )
-        assert type_from_name(row.type_name, False, {}) == row.binder_type, (
+        assert type_from_name(row.type_name, False) == row.binder_type, (
             f"domain row '{row.id.value}': the binder types as {row.binder_type} but a "
             f"parameter of '{row.type_name}' types as "
-            f"{type_from_name(row.type_name, False, {})}"
+            f"{type_from_name(row.type_name, False)}"
         )

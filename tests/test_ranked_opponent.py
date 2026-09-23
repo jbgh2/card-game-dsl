@@ -160,7 +160,7 @@ MINIATURE = str(FIXTURES / "one_trick_known_best.cardlang")
 def _seated(path: str, name: str, seats: Sequence[int], seed: int) -> dict[int, object]:
     """`name` at each of `seats`, `random` at the rest."""
     game, space = load(path)
-    rows = {seat: OPPONENTS[name if seat in seats else "random"] for seat in range(game.players.low)}
+    rows = {seat: OPPONENTS[name if seat in seats else "random"] for seat in range(game.players.count)}
     return {
         seat: row.make(SeatBinding(game, space, seat, seed)) for seat, row in rows.items()
     }

@@ -1,0 +1,1 @@
+applies_when_always.cardlang:22:17: error: `always` is not a condition — a rule that applies every time has no `applies_when:` line; leave it out

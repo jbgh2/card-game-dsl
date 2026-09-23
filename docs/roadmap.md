@@ -53,22 +53,18 @@ nothing checks is already expressible.
 
 Grammatically valid forms are statically rejected until a game needs them
 (decisions.md "Surface totality": rejected loudly rather than silently
-ignored). Movements: the
-`in <zone>` form (the verb implying its destination — `muck one cards in
-discard`), the per-transfer `visibility =` override (visibility derives from
+ignored). Movements: the per-transfer `visibility =` override (visibility derives from
 the declared zone types; the override's semantics is
 [open-questions/move-level-visibility.md](open-questions/move-level-visibility.md)),
 and resource transfers (`move 2 chips …` — the corpus keeps chips/coins as
 Integer state; moving resources through zones is undesigned). Elsewhere:
 `override` rule deltas in `active_rules:`, `before_each`/`after_each` on a
 phase with no iteration, transition events other than `play_to_trick`, a
-trick or climb round naming a move type its form cannot run, duplicate
-`state { }` blocks, and named call arguments (`f(x = 1)` — rejected until
-a game needs the surface; positional arguments are the implemented form).
+trick or climb round naming a move type its form cannot run, and duplicate
+`state { }` blocks.
 Rules bind at one decision site — the trick round's card decision — so the
 rule surface that cannot fire there is rejected with it: a `constrains:`
-naming another move type or omitted entirely, the `demands: actions where
-<pred>` move-shape predicate, and a rule carrying neither `demands:` nor
+naming another move type or omitted entirely, and a rule carrying neither `demands:` nor
 `exempts:` (it cannot change what is legal). Counts and move shapes are
 stated where the move is made instead — a transfer's `chosen N`, a move
 type's `when:` guard. These lift together when rule application widens

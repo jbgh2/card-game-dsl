@@ -53,7 +53,7 @@ does not prove:  three things, each a place where the grid argues rather
            is the argument, and a host that bypassed the walk would pass here.
            Every REJECTED operand type. `_check_arithmetic_operands` is one
            isinstance check against {TAny, TInteger}, and the concrete types
-           no cell names (TTeam, TStruct, TNull, TOptional-of-rejected) reach
+           no cell names (TTeam, TNull, TOptional-of-rejected) reach
            the same branch as the executed collection/string/card cells —
            reached by inspection of the branch, not by running them. The same
            holds for a divided form in `rule_args`: any non-suit NameRef

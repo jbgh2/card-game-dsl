@@ -259,9 +259,8 @@ has to mention a point value is the wrong shape; recognition over card sets
 is general and grows on witnesses, pricing never does. (See
 [decisions.md](decisions.md), "Scoring has no constructs of its own".)
 
-**Typed object model.** Cards, players, teams, zones,
-contracts, hand results, and other game objects are typed.
-User-defined types support optional `derived` fields. Stdlib types
+**Typed object model.** Cards, players, teams, zones, and other game
+objects are typed. Stdlib types
 (Card, Resource, Player, Partnership, Seating, Zone, ZoneContents)
 are built in. (See [library.md](library.md), "Types" and
 [decisions.md](decisions.md), "Typed object model".)

@@ -190,7 +190,7 @@ def run_variant(
     "challenge", so the ascending policy can never reach a challenged
     branch, no matter the seed) — see `test_inline.py` for where this
     matters and why."""
-    logs: dict[int, list[Event]] = {p: [] for p in range(game.players.low)}
+    logs: dict[int, list[Event]] = {p: [] for p in range(game.players.count)}
 
     def observe(player: Player, event: Event) -> None:
         logs[player].append(event)

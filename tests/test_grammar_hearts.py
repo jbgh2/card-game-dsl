@@ -27,9 +27,7 @@ def test_hearts_parses_into_one_game_a_rule_and_two_move_types() -> None:
     # move types are the two ways a shooter can have a moon scored.
     tree = parse_to_tree(HEARTS.read_text(), str(HEARTS))
     top = tree.children
-    # game + 1 rule + 2 move types. `PassExactlyThreeCards` was a second rule
-    # until its `demands: actions where` form was guarded as unenforceable
-    # (tests/test_rule_surface_reachability.py).
+    # game + 1 rule + 2 move types.
     assert len(top) == 4
     kinds = [t.data for t in top if isinstance(t, Tree)]
     assert kinds.count("game") == 1

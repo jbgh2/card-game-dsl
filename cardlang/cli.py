@@ -427,7 +427,7 @@ def _play(
             f"{path} cannot be played at a table yet: one of its decisions has no "
             f"numbering for its picks ({exc})"
         )
-    seats = game.players.low
+    seats = game.players.count
     if seat is not None and not 0 <= seat < seats:
         return _cannot(f"{path} seats 0..{seats - 1}; --seat {seat} names no seat at this table")
     history: list[Any] = []
@@ -529,7 +529,7 @@ def _demo(
     listing: bool,
 ) -> int:
     game = check_source(path)
-    seats = game.players.low
+    seats = game.players.count
     for flag, named in (("--info-state", seat), ("--view", view_seat)):
         if named is not None and not 0 <= named < seats:
             # A Shadow Guard of the derivation's own (`infostate._facts`), which
@@ -762,7 +762,7 @@ def _summary(game: n.Game, result: GameResult, decisions: int, seed: int) -> str
     if result.hands_played:
         length += f" across {result.hands_played} hands"
     return (
-        f"{game.name} — {game.players.low} seats, uniform-random self-play\n"
+        f"{game.name} — {game.players.count} seats, uniform-random self-play\n"
         f"  returns      {seats}\n"
         f"  best return  {top}\n"
         f"  decisions    {length}\n"

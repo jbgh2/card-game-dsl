@@ -136,18 +136,15 @@ def deep_freeze(value: Any) -> Any:
     just the outer container, but every mapping, sequence, set — and the
     mutable internals of any value WRAPPER — nested inside it, to the bottom.
     A shallow freeze is a false guarantee: an indexed state variable is a live
-    `{player: value}` dict, a round-state frame nests a `played` list, and a
-    `StructValue`'s `.fields` is a live dict behind a frozen dataclass, so
-    `gr.state["coins"][p] = 0`, `facts.round_state["played"].append(...)` and
-    `gr.state["contract"].fields[k] = ...` would each reach straight through
-    and corrupt engine state.
+    `{player: value}` dict and a round-state frame nests a `played` list, so
+    `gr.state["coins"][p] = 0` and `facts.round_state["played"].append(...)`
+    would each reach straight through and corrupt engine state.
 
     Every mutable level is REBUILT, so the result is a snapshot rather than a
     chain of read-only views over live objects. Mappings become
     `MappingProxyType`, sequences tuples, sets frozensets, `bytearray` bytes;
     a frozen+SLOTTED dataclass is rebuilt (never returned by identity) with
-    each field frozen — `StructValue.fields` is where the field recursion
-    bites, and the rebuild itself matters because `object.__setattr__` bypasses
+    each field frozen, and the rebuild itself matters because `object.__setattr__` bypasses
     `frozen`, so returning the live `Card`/`Play` would let a primitive mutate
     the engine's value through that back door; a `replace` copy takes the hit
     on the copy instead. A dataclass that is NOT frozen, or is frozen but NOT

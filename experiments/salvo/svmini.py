@@ -68,7 +68,7 @@ def register(short_name: str, seeds: Sequence[int]) -> str:
     seeds_t = tuple(seeds)
     path = str(HERE / FILENAME)
     game_ast, space = replay.load(path)
-    num_players = game_ast.players.low
+    num_players = game_ast.players.count
     game_type = pyspiel.GameType(
         short_name=short_name,
         long_name="Cardlang experiment Salvo-mini",

@@ -14,14 +14,13 @@ domain:    the operator registry — `infer`'s BinOp arm, `cardlang/
            (`OP_CLASSES`) — crossed with the operand-type registry
            (`cardlang/types.py`'s closed `Type` union: TInteger, TBoolean,
            TString, TPlayer, TTeam, TCard, TEnum{Suit,Rank,SeatDirection},
-           TOptional, TCollection, TNull, TAny, TStruct, TOutcome).
+           TOptional, TCollection, TNull, TAny, TOutcome).
            Two things sit outside that operand-type domain, and neither is a
            gap. `TOutcome` is excluded: this checker never infers a concrete
            `TOutcome` for an expression reachable from a BinOp/aggregation/
            IsCheck position — the `outcome` pronoun, the only place a variant
-           value flows, stays `TAny`, and `_check_produce_stmt`/
-           `_check_define_outcomes` type variants through a disjoint path that
-           never calls `_check_binop`. And the `TOptional` unwrap itself
+           value flows, stays `TAny`, and `_check_produce_stmt` types
+           variants through a disjoint path that never calls `_check_binop`. And the `TOptional` unwrap itself
            (`_bare`) is `types.py`'s domain rather than the dispatcher's; what
            the dispatcher owes is that each class reaches it, which a
            `Player?`/`Suit?`-shaped operand per class exercises.
@@ -39,7 +38,7 @@ does not prove:  that an un-probed member of a class's reject set is rejected
            branch is one `isinstance` check against a fixed accept-set
            (`{TAny, TInteger}` for ordering and arithmetic, `{TBoolean}` for
            logical, whose `TAny` carries its own refusal), so TTeam, TString,
-           TStruct, TCollection, TOptional-of-a-rejected-payload and TNull
+           TCollection, TOptional-of-a-rejected-payload and TNull
            share the exact code path as the probed
            TCard/TBoolean/TInteger representatives. Probing one exercises the
            branch, not the type, and a class that began discriminating

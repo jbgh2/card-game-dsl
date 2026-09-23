@@ -250,7 +250,7 @@ def _replayed(path: str, seed: int, history: list[int]) -> LiveLine:
 
     line = LiveLine(path, seed, history)
     try:
-        line.play({seat: stop for seat in range(game.players.low)})
+        line.play({seat: stop for seat in range(game.players.count)})
     except _Stopped:
         pass
     return line
@@ -442,7 +442,7 @@ _PICKS = 20
 def test_each_decision_shows_the_seat_its_view_and_the_menu(short_name: str, sit: _Sit) -> None:
     path = _path(short_name)
     game, space = load(path)
-    sitting = sit([path, "--seed", str(_SEED), *(_VS if game.players.low > 1 else [])], "1\n" * _PICKS)
+    sitting = sit([path, "--seed", str(_SEED), *(_VS if game.players.count > 1 else [])], "1\n" * _PICKS)
     assert "Traceback" not in sitting.err
     assert sitting.code == 0, sitting.err
     assert sitting.asks, f"{short_name}: seat 0 was never asked"
@@ -635,14 +635,14 @@ _SEAT_EXPECTED: dict[tuple[str, int], str] = {
 def test_a_seat_is_taken_or_refused_naming_the_seats(short_name: str, seat: int, sit: _Sit) -> None:
     path = _path(short_name)
     game, _ = load(path)
-    sitting = sit([path, "--seat", str(seat), "--seed", "3", *(_VS if game.players.low > 1 else [])], "")
+    sitting = sit([path, "--seat", str(seat), "--seed", "3", *(_VS if game.players.count > 1 else [])], "")
     if _SEAT_EXPECTED[(short_name, seat)] == "seated":
         assert sitting.code == 0, sitting.err
         assert sitting.asks and sitting.asks[0].view.player == seat
         return
     assert sitting.code == 2
     assert not sitting.asks
-    assert f"seats 0..{game.players.low - 1}" in sitting.err
+    assert f"seats 0..{game.players.count - 1}" in sitting.err
     assert f"--seat {seat}" in sitting.err
 
 
@@ -716,7 +716,7 @@ def _a_save(
     """A saved session of the game at `path`, every other seat `random` unless
     `opponents` names them."""
     game = check_source(Path(path))
-    others = {str(other): "random" for other in range(game.players.low) if other != seat}
+    others = {str(other): "random" for other in range(game.players.count) if other != seat}
     return {
         "cardlang_session": 2,
         "game": game.name,

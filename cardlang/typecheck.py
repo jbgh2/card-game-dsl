@@ -10,7 +10,7 @@ rejects real type errors.
 Pragmatic by design: unrefined positions ([[pronoun]] member access, lambda values,
 the `Resource`/`ChipStack` query API) infer the [[permissive-top]] `TAny`, which
 propagates without error. Deferred to later stages: outcome types and
-exhaustiveness (`TOutcome`), user-defined `type` declarations (`TStruct`), full
+exhaustiveness (`TOutcome`), full
 `ZoneContents`/`Resource` typing, and payload-type narrowing.
 
 A pure validator: the (unchanged) :class:`Game` flows on, and the IR stays at
@@ -95,7 +95,6 @@ from cardlang.types import (
     TOutcome,
     TPlayer,
     TString,
-    TStruct,
     TTeam,
     Type,
     coercible,
@@ -105,7 +104,7 @@ from cardlang.types import (
 
 
 # Declared scalar type names → their Type. Enum names (`Suit`/`Rank`/`Direction`)
-# and unknown names (user-defined types, deferred) are handled separately.
+# are handled separately.
 def _role_type(name: str) -> Type:
     """`role_type` reached through a parsed NAME.
 
@@ -131,8 +130,7 @@ _SCALAR_TYPES: dict[str, type] = {
 _ENUM_TYPES = frozenset({"Suit", "Rank", "SeatDirection"})
 
 # The closed set of built-in declared-type names (scalars + enums). resolve
-# validates every declaration's type_name against this set plus the game's
-# own struct names, so a typo ('Integar') is a diagnostic, never a silent
+# validates every declaration's type_name against this set, so a typo ('Integar') is a diagnostic, never a silent
 # TAny (closed-domain completeness, decisions.md).
 KNOWN_TYPE_NAMES: frozenset[str] = frozenset(_SCALAR_TYPES) | _ENUM_TYPES
 
@@ -234,14 +232,12 @@ RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
 def type_from_name(
     name: str,
     optional: bool,
-    structs: Mapping[str, TStruct] | None = None,
     positions: Mapping[str, Type] | None = None,
     directions: Mapping[str, Type] | None = None,
 ) -> Type:
     """Map a declared type name (a `StateDecl` `type_name`) to a `Type`.
 
-    User-defined struct names resolve to their `TStruct` (via the ``structs``
-    registry); a declared POSITION domain resolves to its member type (via
+    A declared POSITION domain resolves to its member type (via
     ``positions``, which maps each domain name to `TInteger` or, for the
     board-minted `cell` domain, `TCell`); a board-minted DIRECTION domain
     resolves to `TDir` (via ``directions``, the separate `dir` source);
@@ -269,8 +265,6 @@ def type_from_name(
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
         base = TEnum(name)
-    elif structs is not None and name in structs:
-        base = structs[name]
     else:
         base = TAny()
     return TOptional(base) if optional else base
@@ -300,208 +294,14 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
     return m
 
 
-def struct_registry(
-    game: Game,
-    functions: Mapping[str, Sig] | None = None,
-    base: TypeEnv | None = None,
-) -> dict[str, TStruct]:
-    """Build the user-defined struct types. Declared fields resolve eagerly;
-    derived fields are typed in the AMBIENT environment (``base``) extended
-    with the declared fields and the user ``functions``, so each `TStruct`
-    carries both declared and derived field types under one mapping.
-
-    ``base`` matters because resolve scopes a derived body as the game's names
-    PLUS the struct's own fields (`_classify_type_derived`), so a body may name
-    a state variable, a zone, an enum value or a pronoun — none of which a bare
-    `TypeEnv` carries. Omitting it does not merely lose precision now that a
-    lookup miss is a hard `_env_miss`: `derived { s = hearts }` would abort the
-    check outright. Callers that have the ambient environment must pass it.
-
-    Structs are built in source order: a field whose type is another user type
-    only resolves if that type was declared earlier (forward references resolve
-    to `TAny` — acceptable for Stage 2, pinned by tests/test_permissive_top.py).
-
-    ``functions`` closes a cycle, and must be supplied by any caller that wants
-    precise derived types — see `_provisional_structs`."""
-    structs: dict[str, TStruct] = {}
-    # A derived BODY may name any declared type, including its own and one
-    # declared later (`type R = { x : Integer } derived { copy = R { x: x } }`).
-    # resolve validates a struct literal against every declared type, so those
-    # are valid programs; inferring the body against the source-order-partial
-    # map alone would hand `infer` a name resolve accepted and this pass could
-    # not find, which is now a hard `_env_miss` rather than a silent top. Seed
-    # the body environment with every declared type and let the ones already
-    # completed win — a self- or forward-reference then types as the seed
-    # entry, whose derived fields are still the top. That imprecision is
-    # harmless: struct types compare NOMINALLY (`types.coercible`/`join`), so
-    # the seed `R` and the final `R` are the same type to every consumer.
-    #
-    ambient = base if base is not None else TypeEnv()
-    seed = _provisional_structs(game)
-    for tdef in game.types:
-        # Precedence, weakest first: every declared type by name (so a self- or
-        # forward-reference resolves at all), the previous fixpoint round's
-        # registry (more precise), then the types already completed in THIS
-        # round (most precise). Declared field types read the SAME map as
-        # derived bodies: resolving them against the partial map would let
-        # declaration ORDER decide a field's type, so a container declared
-        # above its member typed to the permissive top and every Owner Guard on
-        # that field went dark.
-        known = {**seed, **ambient.structs, **structs}
-        fields: dict[str, Type] = {}
-        for f in tdef.fields:
-            fields[f.name] = type_from_name(f.type_name, f.optional, known)
-        field_env = replace(
-            ambient,
-            locals={**ambient.locals, **fields},
-            structs=known,
-            functions=functions or {},
-        )
-        for d in tdef.derived:
-            fields[d.name] = infer(d.value, field_env)
-        structs[tdef.name] = TStruct(
-            name=tdef.name,
-            fields=fields,
-            derived=frozenset(d.name for d in tdef.derived),
-        )
-    return structs
-
-
-def _provisional_structs(game: Game) -> dict[str, TStruct]:
-    """The fixpoint's starting point: declared fields resolved, DERIVED fields
-    typed as the permissive top.
-
-    Every field NAME exists here, which is what stops a function body reading a
-    derived field from being falsely rejected as "has no field" before the
-    field's type is known. The types themselves are refined by
-    `struct_and_function_registries`.
-
-    The top here is deliberate and local — written at the site that introduces
-    it rather than reached as a lookup fallback (decisions.md, "`Any` means the
-    top, never a failed lookup") — and it does not survive the fixpoint for
-    any field whose type is derivable.
-    """
-    structs: dict[str, TStruct] = {}
-    for tdef in game.types:
-        fields: dict[str, Type] = {}
-        for f in tdef.fields:
-            fields[f.name] = type_from_name(f.type_name, f.optional, structs)
-        for d in tdef.derived:
-            fields[d.name] = TAny()
-        structs[tdef.name] = TStruct(
-            name=tdef.name,
-            fields=fields,
-            derived=frozenset(d.name for d in tdef.derived),
-        )
-    return structs
-
-
-def _type_key(t: Type) -> object:
-    """A type's identity for the fixpoint's convergence test, with any nested
-    struct reduced to its NAME.
-
-    Reducing to the name is sound only because a nested snapshot is never
-    OBSERVED: every read of a struct-typed field resolves through the registry
-    (`_canonical`), so what a round must compare is each type's OWN fields.
-    Those the key does compare, and a nested type's refinement shows up under
-    that type's own entry in the registry-wide fingerprint.
-
-    An earlier version compared nested fields structurally to a bounded depth.
-    That was two defects in one: unsound, because a RECURSIVE path stays
-    observable past any fixed cutoff (`r.copy.copy.copy.flag` decayed to the
-    permissive top); and exponential, because a declaration DAG whose types
-    each hold two fields of the previous one revisits shared children once per
-    path. Resolving reads through the registry removes the need for depth
-    entirely, so the fingerprint is linear in the declared fields again.
-    """
-    if isinstance(t, TStruct):
-        return ("struct", t.name)
-    if isinstance(t, TOutcome):
-        return ("outcome", t.name)
-    if isinstance(t, TOptional):
-        return ("optional", _type_key(t.inner))
-    if isinstance(t, TCollection):
-        return (
-            "collection",
-            _type_key(t.element),
-            None if t.key is None else _type_key(t.key),
-            t.zone,
-        )
-    return t
-
-
-def _registry_key(structs: Mapping[str, TStruct]) -> object:
-    """The whole registry's fingerprint: every type's own fields, nominal one
-    level down. Linear in the declared fields — see `_type_key`."""
-    return {
-        name: (s.derived, {f: _type_key(ft) for f, ft in s.fields.items()})
-        for name, s in structs.items()
-    }
-
-
-def struct_and_function_registries(
-    game: Game, bag: DiagnosticBag
-) -> tuple[dict[str, TStruct], dict[str, Sig]]:
-    """The struct and user-function registries, solved together.
-
-    The two are mutually dependent, in both directions and at arbitrary depth:
-    a derived field's body may call a function (`derived { made = tag(a) }`),
-    and a function's parameters and body may mention a struct
-    (`function f(x : R) = x.made`). A function's RETURN type can therefore
-    depend on a derived field's type, which can depend on another function's
-    return type, and so on. No fixed number of passes is enough — a chain of
-    N types and functions needs N rounds — so this iterates to a FIXPOINT.
-
-    Getting this wrong is not a precision nicety, it is the accepted-but-ignored
-    class: a derived field left at the permissive top silently exempts every
-    expression that reads it from every Owner Guard. The version of this function
-    that ran a fixed three passes accepted `score[p] := s.flag` — a Boolean into an
-    Integer-declared state variable — because `s.flag`'s type was frozen at the
-    top from the draft round.
-
-    Each round is monotone in precision (a field only moves from the top toward
-    a concrete type as the signatures feeding it sharpen), so the iteration
-    settles; the bound below is an Owner Guard, and exceeding it is a checker bug
-    rather than a program error. Intermediate rounds report into a SCRATCH bag:
-    their diagnostics are recomputed by the final round, and reporting them per
-    round would multiply every function-body diagnostic by the round count.
-    """
-    structs = _provisional_structs(game)
-    # Each round promotes at least one derived field or one signature away from
-    # the top; +2 covers the settling round that changes nothing.
-    bound = sum(len(t.derived) for t in game.types) + len(game.functions) + 2
-    for _ in range(bound):
-        # The ambient environment for this round, which BOTH consumers need:
-        # function bodies, and derived bodies (which may name a state variable,
-        # a zone or an enum value just as any other expression can).
-        ambient = env_from_game(game, structs)
-        sigs = _function_sigs(game, ambient, DiagnosticBag())
-        settled = struct_registry(game, sigs, base=ambient)
-        done = _registry_key(settled) == _registry_key(structs)
-        # Take the newer registry ALWAYS, including on the round that settles.
-        # Testing first and keeping the older one threw away a strictly better
-        # result: the round that reports "nothing changed" is the one built
-        # against the fullest environment.
-        structs = settled
-        if done:
-            break
-    else:
-        raise AssertionError(
-            f"the struct/function type fixpoint did not settle in {bound} "
-            f"rounds — each round should only sharpen a derived field or a "
-            f"signature, so this is a checker bug (a non-monotone round), not "
-            f"a program error"
-        )
-    # The final signatures are built against the settled registry and into the
-    # REAL bag, so every function body is checked exactly once, against the
-    # types everything else sees.
-    env = env_from_game(game, structs)
-    return structs, _function_sigs(game, env, bag)
+def function_registry(game: Game, bag: DiagnosticBag) -> dict[str, Sig]:
+    """The user-function registry, every body checked once against the
+    game's ambient environment."""
+    return _function_sigs(game, _ambient_env(game), bag)
 
 
 def _payload_type(
     name: str,
-    structs: Mapping[str, TStruct],
     positions: Mapping[str, Type] | None = None,
 ) -> Type:
     """Resolve a outcome payload type name; a trailing `?` marks it nullable.
@@ -514,38 +314,32 @@ def _payload_type(
     type 'dir'`) before this pass -- the reason `directions` is not threaded.
     """
     if name.endswith("?"):
-        return type_from_name(name[:-1], True, structs, positions)
-    return type_from_name(name, False, structs, positions)
+        return type_from_name(name[:-1], True, positions)
+    return type_from_name(name, False, positions)
 
 
 def _outcome_cases(
     cases: tuple[n.OutcomeCase, ...],
-    structs: Mapping[str, TStruct],
     positions: Mapping[str, Type] | None = None,
 ) -> dict[str, tuple[Type, ...]]:
     return {
-        c.tag: tuple(_payload_type(t, structs, positions) for t in c.payload_types)
+        c.tag: tuple(_payload_type(t, positions) for t in c.payload_types)
         for c in cases
     }
 
 
 def outcome_registry(
     game: Game,
-    structs: Mapping[str, TStruct],
     positions: Mapping[str, Type] | None = None,
 ) -> dict[str, TOutcome]:
-    """Build the outcome-outcome type of each `define` and each outcome-declaring
-    `phase`: its case tags mapped to their declared payload types."""
+    """Build the outcome type of each outcome-declaring `phase`: its case tags
+    mapped to their declared payload types."""
     outcomes: dict[str, TOutcome] = {}
-    for d in game.defines:
-        outcomes[d.name] = TOutcome(
-            name=d.name, cases=_outcome_cases(d.cases, structs, positions)
-        )
     for phase in _all_phases(game):
         if phase.outcome_cases:
             outcomes[phase.name] = TOutcome(
                 name=phase.name,
-                cases=_outcome_cases(phase.outcome_cases, structs, positions),
+                cases=_outcome_cases(phase.outcome_cases, positions),
             )
     return outcomes
 
@@ -566,7 +360,6 @@ class TypeEnv:
     zone_families: Mapping[str, Type] = field(default_factory=dict)
     value_enums: Mapping[str, TEnum] = field(default_factory=dict)
     locals: Mapping[str, Type] = field(default_factory=dict)
-    structs: Mapping[str, TStruct] = field(default_factory=dict)
     functions: Mapping[str, Sig] = field(default_factory=dict)  # user functions
     # User procedures, name -> declared parameter types (`Sig.ret` is unused: a
     # procedure is a statement, not an expression). This is what makes a
@@ -586,7 +379,7 @@ class TypeEnv:
     # spelling.
     call_sigs: Mapping[str, Sig] = field(default_factory=lambda: CALL_SIGS)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
-    max_players: int = 0  # the game's maximum seat count — bounds player literals
+    max_players: int = 0  # the game's seat count — bounds player literals
     max_teams: int = 0  # len(game.teams) — bounds team literals (0: no teams)
     # Per-game position domains (decisions.md "Position domains and positional
     # zones", "Boards and cells") — name -> the member type a parameter, let
@@ -611,36 +404,12 @@ class TypeEnv:
     deck: str = ""
     # The content item's field table (`item_field_table`) -- `card.suit` types
     # off this, not the module CARD_FIELDS, so a piece's `side`/`kind` are its
-    # only fields. Default is the card pair for envs built ad hoc (struct
-    # inference), which `env_from_game` overrides per flavor.
+    # only fields. Default is the card pair for envs built ad hoc, which
+    # `env_from_game` overrides per flavor.
     item_fields: Mapping[str, Type] = field(default_factory=lambda: dict(CARD_FIELDS))
 
     def with_local(self, name: str, t: Type) -> TypeEnv:
         return replace(self, locals={**self.locals, name: t})
-
-
-def _canonical(t: Type, env: TypeEnv) -> Type:
-    """A struct type read out of another struct's field map, resolved to the
-    registry's entry for that name.
-
-    A struct's field map holds a SNAPSHOT of each struct-typed field, taken
-    while the registry was still being built, so a snapshot can be staler than
-    the registry — unavoidably so for a recursive type, whose unrolled value
-    has no finite form. Struct types are nominal (`types.coercible`/`join`
-    compare by name), so the registry entry is the same type and strictly more
-    refined: resolving by name at each read keeps a traversal exact at any
-    depth, and keeps the registry's own representation finite.
-    """
-    if isinstance(t, TStruct):
-        return _canonical_struct(t, env)
-    return t
-
-
-def _canonical_struct(t: TStruct, env: TypeEnv) -> TStruct:
-    """`_canonical` for a receiver already known to be a struct, so the caller
-    keeps its narrowing (and its field map)."""
-    entry = env.structs.get(t.name)
-    return entry if entry is not None else t
 
 
 def _untyped_operator(op: str) -> AssertionError:
@@ -794,17 +563,6 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     raise AssertionError(f"unknown subset-query kind '{e.kind}'")
         case n.IfExpr():
             return _ifexpr_type(e, env)
-        case n.StructLit():
-            struct = env.structs.get(e.type_name)
-            if struct is None:
-                # resolve rejects a literal of an undeclared type
-                # (`_validate_refs`, "unknown type"), and `struct_registry`
-                # builds one entry per `game.types` — so a miss is a divergence
-                # between the two, not a program error.
-                raise _env_miss(
-                    "struct type", e.type_name, "structs", "`struct_registry`"
-                )
-            return struct
         case n.Member():
             # `action.card` / `action.actor`: the sound subset of the `action`
             # pronoun's shape — typed directly off the pronoun,
@@ -831,26 +589,6 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 # reaches this branch — `_check_expr` rejects it.
                 return ROUND_STATE_FIELDS[e.field]
             obj = infer(e.obj, env)
-            if isinstance(obj, TStruct):
-                # Read struct fields through the REGISTRY, not off the snapshot
-                # embedded in whatever value produced the receiver. A recursive
-                # type (`derived { copy = R { x: x } }`) has no finite unrolled
-                # form — each embedded copy is one round staler than the last —
-                # so reading snapshots made `r.copy.flag` correct,
-                # `r.copy.copy.flag` correct, and `r.copy.copy.copy.flag` the
-                # permissive top: an Owner Guard that decayed with traversal depth.
-                # Struct types are nominal, so the registry entry IS the type
-                # and is never staler.
-                #
-                # BOTH ends are canonicalized, and each covers a different
-                # producer. The receiver, because a struct-typed value can
-                # arrive from a snapshot-bearing map (a derived body's sibling
-                # binding, a field of a field) and its own map would then be
-                # stale for SCALAR fields, which canonicalizing the result
-                # cannot repair. The result, because that is what the next hop
-                # of a chain becomes.
-                receiver = _canonical_struct(obj, env)
-                return _canonical(receiver.fields.get(e.field, TAny()), env)
             if isinstance(obj, TCard):
                 # The content item's fields are a closed pair (flavor-keyed);
                 # `_check_expr` rejects anything else on a known-item receiver.
@@ -978,11 +716,9 @@ def _type_name(t: Type) -> str:
         return f"Collection<{_type_name(t.element)}>"
     if isinstance(t, TEnum):
         return t.name
-    if isinstance(t, (TStruct, TOutcome)):
-        # These carry their declared name. Before the general disjointness rule
-        # below, no Owner Guard ever printed one, so both rendered as the bare
-        # kind — which made "comparing Struct with Struct can never be equal"
-        # read as nonsense.
+    if isinstance(t, TOutcome):
+        # An outcome carries its declared name, which is what a designer
+        # recognizes in a diagnostic.
         return t.name
     return type(t).__name__[1:]  # TInteger -> "Integer", TPlayer -> "Player", …
 
@@ -1027,7 +763,7 @@ def declared_primitive_sigs(game: Game) -> dict[str, Sig]:
     Empty for a game with no block, and for one whose block is empty."""
     if game.primitives is None:
         return {}
-    env = TypeEnv(structs={}, positions=_position_types(game))
+    env = TypeEnv(positions=_position_types(game))
     return {
         decl.name: Sig(
             tuple(_param_type(p, env) for p in decl.params),
@@ -1144,46 +880,32 @@ def native_call_sigs(game: Game) -> Mapping[str, Sig]:
     return {**CALL_SIGS, **declared_primitive_sigs(game)}
 
 
-def env_from_game(
-    game: Game, structs: Mapping[str, TStruct] | None = None
-) -> TypeEnv:
+def env_from_game(game: Game) -> TypeEnv:
     """Build the top-level type environment: declared state vars (value types),
-    zone contents, the deck/kernel enum value map, and the user struct types.
+    zone contents, the deck/kernel enum value map, and the user function and
+    procedure signatures.
 
-    ``structs`` lets the caller supply a registry it has already built — which
-    `struct_and_function_registries` does on every round of its fixpoint, and
-    which is the ONLY way to avoid re-solving it here.
+    Both signature maps are filled here, because an env missing either
+    silently disables an Owner Guard rather than losing precision: an empty
+    `functions` made `infer` raise on any call to a user function, and an
+    empty `procedures` made the `run`-site arity and argument-type check skip
+    — the only place a procedure's parameter annotations bite at all.
+    `function_registry` builds its signatures against the env this returns
+    with `functions` still empty, which is why it calls `_function_sigs` on
+    the pieces rather than this helper whole."""
+    functions = _function_sigs(game, _ambient_env(game), DiagnosticBag())
+    return replace(
+        _ambient_env(game), functions=functions, procedures=_procedure_sigs(game)
+    )
 
-    Omitted, the registry is solved from scratch through that same builder
-    rather than a bare `struct_registry(game)` call. The bare call typed
-    derived bodies against an empty `TypeEnv`, so a derived field naming any
-    ambient thing — `derived { d = score }`, a zone, an enum value, a pronoun —
-    aborted this helper with `_env_miss` for a perfectly valid game. That is
-    the same defect the ambient-environment fix closed for the main pipeline,
-    surviving in the branch the main pipeline no longer takes: a public helper
-    is a caller too. Recursion is not a risk — the builder always calls back
-    with a registry in hand, taking the branch above.
 
-    That branch also keeps the SIGNATURES the builder solved on the way, and
-    fills in the procedure signatures. Both are free here, and an env missing
-    either silently disables an Owner Guard rather than losing precision: an empty
-    `functions` made `infer` raise on any call to a user function, and an empty
-    `procedures` made the `run`-site arity and argument-type check skip — the
-    only place a procedure's parameter annotations bite at all.
-
-    The supplied-registry branch deliberately fills in NEITHER: the fixpoint
-    uses this env as the INPUT to `_function_sigs`, so handing it a half-built
-    signature map would seed a round from itself, and `typecheck` sets both
-    once, after the registries settle."""
-    functions: Mapping[str, Sig] = {}
-    procedures: Mapping[str, Sig] = {}
-    if structs is None:
-        structs, functions = struct_and_function_registries(game, DiagnosticBag())
-        procedures = _procedure_sigs(game)
+def _ambient_env(game: Game) -> TypeEnv:
+    """The environment a user function's body is typed in: everything
+    `env_from_game` holds except the user function and procedure signatures."""
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
-            t = type_from_name(decl.type_name, decl.optional, structs)
+            t = type_from_name(decl.type_name, decl.optional)
             # An indexed state var (`score[player]`) is a per-key map — a
             # collection whose subscript yields the declared value type, KEYED
             # by the index domain's binder type so a wrong-domain key
@@ -1233,13 +955,8 @@ def env_from_game(
         call_sigs=native_call_sigs(game),
         zone_families=zone_families,
         value_enums=value_enum_map(game),
-        structs=structs,
-        functions=functions,
-        procedures=procedures,
         has_ranking=bool(game.ranking),
-        max_players=(
-            game.players.high if game.players.high is not None else game.players.low
-        ),
+        max_players=game.players.count,
         max_teams=len(game.teams),
         positions=positions,
         directions=_direction_types(game),
@@ -1393,15 +1110,6 @@ def _phase_statements_scoped(
                     current = current + ((item.name, item),)
 
 
-def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
-    """Every statement outside a `define` body — where `produce` is illegal."""
-    for move_type in game.move_types:
-        for s in move_type.effect:
-            yield from _stmt_tree(s)
-    for phase in game.phases:
-        yield from (st for st, _ in _phase_statements_scoped(phase))
-
-
 def _parameter_binders(
     move_type: n.MoveTypeDef,
     positions: Mapping[str, Type],
@@ -1436,8 +1144,6 @@ def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
         )
     for phase in game.phases:
         yield from _phase_statements_scoped(phase)
-    for define in game.defines:
-        yield from _seq_tree_scoped(define.body, ())
     # A procedure body is checked ONCE, here, at its declaration — with its
     # parameters bound to their declared types, which is what gives those
     # annotations force. It is not re-checked after expansion, because expansion
@@ -1453,12 +1159,6 @@ def _all_statements(game: Game) -> Iterator[n.Stmt]:
     yield from (st for st, _ in _all_statements_scoped(game))
 
 
-def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
-    """The positional expression arguments of a call (named args are not used by
-    the native functions/methods being checked)."""
-    return [a for a in args if not isinstance(a, n.NamedArg)]
-
-
 def _child_exprs(e: n.Expr) -> list[n.Expr]:
     """Every expression's direct sub-expressions — exhaustive over `Expr`, so a
     new expression kind must declare its children (or its leafhood) here before
@@ -1469,12 +1169,10 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
             return [e.obj]
         case n.ListLit():
             return list(e.elements)
-        case n.StructLit():
-            return [fi.value for fi in e.fields]
         case n.Subscript():
             return [e.obj, e.index]
         case n.Call():
-            return _arg_exprs(e.args)
+            return list(e.args)
         case n.BinOp():
             return [e.left, e.right]
         case n.Not() | n.IsCheck():
@@ -1580,7 +1278,7 @@ def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
         )
         return TCollection(
             type_from_name(
-                spelled.element, False, env.structs, env.positions, env.directions
+                spelled.element, False, env.positions, env.directions
             )
         )
     # Position domains resolve inside `type_from_name`, which maps `column` to
@@ -1588,7 +1286,7 @@ def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
     # maps to `TDir` via `env.directions`; and it keeps `slot?`/`dir?` optional
     # instead of flattening it.
     return type_from_name(
-        spelled.base, spelled.optional, env.structs, env.positions, env.directions
+        spelled.base, spelled.optional, env.positions, env.directions
     )
 
 
@@ -2294,7 +1992,7 @@ _COLLECTION_BINDER_TYPES: Mapping[str, Type] = {"line": TLine(), "cell": TCell()
 # newly declared type fails that pin instead of silently reaching no arm and
 # inferring `TAny` (the permissive-top gap this class of Owner Guard exists to close).
 # Adding a type means classifying it here -- or, if it genuinely carries fields,
-# giving it its own arm beside `TStruct`/`TCard` and recording it there.
+# giving it its own arm beside `TCard` and recording it there.
 _INDEXABLE_RECEIVERS = (TPlayer, TTeam, TInteger, TBoolean)
 _FIELDLESS_RECEIVERS = (TCell, TDir, TLine, TEnum, TString, TNull, TOutcome)
 
@@ -2740,7 +2438,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     if isinstance(e, n.Call):
         sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
         if sig is not None:
-            args = _arg_exprs(e.args)
+            args = list(e.args)
             if len(args) != len(sig.params):
                 bag.error(
                     f"{e.func}() expects {len(sig.params)} argument(s), got {len(args)}",
@@ -2811,8 +2509,6 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"{_type_name(idx_t)}",
                     e.span,
                 )
-    elif isinstance(e, n.StructLit):
-        _check_struct_lit(e, env, bag)
     elif isinstance(e, n.Member):
         obj_ref = e.obj
         if (
@@ -2840,9 +2536,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         # non-object receiver as `d : Player` (the closed rejection domain
         # includes the optional wrappers of its members).
         bare = obj.inner if isinstance(obj, TOptional) else obj
-        if isinstance(obj, TStruct) and e.field not in obj.fields:
-            bag.error(f"{obj.name} has no field '{e.field}'", e.span)
-        elif isinstance(bare, TCard) and e.field not in env.item_fields:
+        if isinstance(bare, TCard) and e.field not in env.item_fields:
             # The content item's fields are a closed pair — an unknown one (a
             # card axis on a piece, or vice versa) would read as `TAny` and only
             # fail (or worse, not fail) at play time. Noun and fields are
@@ -2902,35 +2596,6 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_choose_operands(e, env, bag)
     elif isinstance(e, n.IsCheck):
         _check_is_check(e, env, bag)
-
-
-def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """Validate a struct literal against its declared type: every declared
-    (non-derived) field is provided exactly once, no unknown fields, and each
-    field value is assignable to the field's declared type."""
-    struct = env.structs.get(e.type_name)
-    if struct is None:
-        return  # unknown type: flagged by resolve (`_validate_refs`)
-    declared = {k for k in struct.fields if k not in struct.derived}
-    provided = {fi.name for fi in e.fields}
-    for missing in sorted(declared - provided):
-        bag.error(f"{e.type_name} {{}} is missing field '{missing}'", e.span)
-    for extra in sorted(provided - declared):
-        if extra in struct.derived:
-            bag.error(f"{e.type_name} {{}} cannot supply derived field '{extra}'", e.span)
-        else:
-            bag.error(f"{e.type_name} {{}} has unknown field '{extra}'", e.span)
-    for fi in e.fields:
-        expected = struct.fields.get(fi.name)
-        if expected is None or fi.name in struct.derived:
-            continue
-        got = infer(fi.value, env)
-        _check_operand(
-            fi.value, got, expected, env, bag,
-            f"field '{fi.name}' expects {_type_name(expected)}, "
-            f"got {_type_name(got)}",
-            e.span,
-        )
 
 
 def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:
@@ -3199,7 +2864,7 @@ def _check_state_default_type(
     (an unrefined `infer` arm) passes, which is the type system's permissive top
     at work, not a hole here (see the ledger in
     `tests/test_state_default_type.py`)."""
-    declared = type_from_name(decl.type_name, decl.optional, env.structs)
+    declared = type_from_name(decl.type_name, decl.optional)
     got = infer(decl.default, env)
     _check_operand(
         decl.default, got, declared, env, bag,
@@ -3357,9 +3022,8 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
     # message claiming the checker couldn't know — when it knows
     # Collection<Player> exactly.
     for endpoint, what, filterable in (
-        # Only the from-position takes a `where` filter; the in-form's zone
-        # parses into `source` but has no dest, hence no filter slot either.
-        (stmt.source, "source", stmt.dest is not None),
+        # Only the from-position takes a `where` filter.
+        (stmt.source, "source", True),
         (stmt.dest, "destination", False),
     ):
         if endpoint is None:
@@ -3389,12 +3053,6 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
             "(resource movements are deferred — roadmap.md)",
             stmt.span,
         )
-    if stmt.source is not None and stmt.dest is None:
-        bag.error(
-            f"the `{stmt.verb} ... in <zone>` form is not yet supported by the "
-            "runtime (roadmap.md); name the destination with `to <zone>`",
-            stmt.span,
-        )
     if stmt.visibility is not None:
         bag.error(
             "per-movement visibility overrides are not yet honored by the "
@@ -3402,7 +3060,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
             "(roadmap.md)",
             stmt.span,
         )
-    if stmt.source is None and stmt.dest is not None:  # a gather
+    if stmt.source is None:  # a gather
         if stmt.amount != "all" or stmt.selection_mode is not None:
             bag.error(
                 "a gather (`move ... to <zone>` with no `from`) collects every "
@@ -3468,32 +3126,17 @@ def _check_produce_stmt(
         )
 
 
-def _check_define_outcomes(
-    define: n.DefineDef, outcome: TOutcome, env: TypeEnv, bag: DiagnosticBag
-) -> None:
-    """Every `produce` in a define's body names a declared outcome and supplies
-    payloads of the declared arity and types — checked in the SCOPED
-    environment, so a payload routed through a `let` types like its inline
-    twin (without it, `let z = hearts / produce Won(z)` would pass a `Player`
-    payload the inline spelling had just been rejected for)."""
-    for sub, binders in _seq_tree_scoped(define.body, ()):
-        if isinstance(sub, n.Produce):
-            _check_produce_stmt(
-                sub, outcome, f"define '{define.name}'", _scoped_env(env, binders), bag
-            )
-
-
 def _check_misplaced_produce(
     game: Game, outcomes: Mapping[str, TOutcome], env: TypeEnv, bag: DiagnosticBag
 ) -> None:
-    """`produce` is legal only inside a `define` body (checked elsewhere) or the
-    body of an outcome-declaring phase. Flag it anywhere else, and type-check the
-    legal phase produces against the enclosing phase's outcome."""
+    """`produce` is legal only inside the body of an outcome-declaring phase.
+    Flag it anywhere else, and type-check the legal phase produces against the
+    enclosing phase's outcome."""
     for move_type in game.move_types:
         for s in move_type.effect:
             for sub in _stmt_tree(s):
                 if isinstance(sub, n.Produce):
-                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
+                    bag.error("'produce' may only appear in an outcome-phase body", sub.span)
     for phase in game.phases:
         _check_phase_produces(phase, None, outcomes, env, bag)
 
@@ -3640,32 +3283,25 @@ def _check_single_outcome_consumer(game: Game, bag: DiagnosticBag) -> None:
         if not isinstance(stmt, n.Produces):
             continue
         for sub in _produces_in(stmt):
-            if sub.define not in outcome_phases:
+            if sub.phase not in outcome_phases:
                 continue
-            if sub.define in seen:
+            if sub.phase in seen:
                 bag.error(
-                    f"phase outcome '{sub.define}' is consumed by more than one "
+                    f"phase outcome '{sub.phase}' is consumed by more than one "
                     "produces: block",
                     sub.span,
                 )
-            seen.add(sub.define)
+            seen.add(sub.phase)
 
 
 def _check_outcome_name_collisions(game: Game, bag: DiagnosticBag) -> None:
     """Outcome phases dispatch by name through one shared registry / runtime dict,
-    so an outcome-phase name must be unique and must not collide with a `define`
-    (either would silently shadow the other in a `produces:` consumer)."""
-    define_names = {d.name for d in game.defines}
+    so an outcome-phase name must be unique (a duplicate would silently shadow
+    the other in a `produces:` consumer)."""
     seen: set[str] = set()
     for phase in _all_phases(game):
         if not phase.outcome_cases:
             continue
-        if phase.name in define_names:
-            bag.error(
-                f"outcome phase '{phase.name}' collides with a define of the same "
-                "name",
-                phase.span,
-            )
         if phase.name in seen:
             bag.error(
                 f"duplicate outcome phase name '{phase.name}'", phase.span
@@ -3689,7 +3325,6 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
     `before`/`after` carry the sibling phase names that execute before/after the
     current point, accumulated down the ancestor chain."""
     mode_names = _mode_names(game)
-    define_names = {d.name for d in game.defines}
     outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
 
     def check_produces_scope(stmt: n.Stmt, avail: set[str]) -> None:
@@ -3697,13 +3332,9 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
         the available producers. A statement-level `repeat until` reruns, but phase
         producers run once, so none are available inside its body."""
         if isinstance(stmt, n.Produces):
-            if (
-                stmt.define not in define_names
-                and stmt.define in outcome_phases
-                and stmt.define not in avail
-            ):
+            if stmt.phase in outcome_phases and stmt.phase not in avail:
                 bag.error(
-                    f"produces names phase '{stmt.define}', which is not an earlier "
+                    f"produces names phase '{stmt.phase}', which is not an earlier "
                     "sibling that has run",
                     stmt.span,
                 )
@@ -3877,13 +3508,9 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
         walk(phase, before, set(), False)
 
     # `continue to` / `skip to next hand` are phase control flow. Outside a phase
-    # body — in a define or move-type body — they would unwind out of
-    # `play_game` uncaught, so reject them there.
-    non_phase_bodies = (
-        [d.body for d in game.defines]
-        + [m.effect for m in game.move_types]
-    )
-    for body in non_phase_bodies:
+    # body — in a move-type body — they would unwind out of `play_game`
+    # uncaught, so reject them there.
+    for body in (m.effect for m in game.move_types):
         for s in body:
             for node in _control_flow_nodes(s):
                 bag.error(
@@ -3921,7 +3548,7 @@ def _check_phase_produces(
                 if not isinstance(sub, n.Produce):
                     continue
                 if owner is None:
-                    bag.error("'produce' may only appear in a define or outcome-phase body", sub.span)
+                    bag.error("'produce' may only appear in an outcome-phase body", sub.span)
                 else:
                     _check_produce_stmt(
                         sub,
@@ -3945,14 +3572,14 @@ def _check_produces(
     with the payload binders typed (a scoped sub-walk, since the flat walk treats
     `Produces` as a leaf). A consumer nested in an arm is checked recursively with
     the enclosing arm binders in scope."""
-    outcome = outcomes.get(stmt.define)
+    outcome = outcomes.get(stmt.phase)
     if outcome is None:
         return
     seen: set[str] = set()
     for arm in stmt.arms:
         if arm.tag not in outcome.cases:
             bag.error(
-                f"produces names unknown outcome case '{arm.tag}' of '{stmt.define}'",
+                f"produces names unknown outcome case '{arm.tag}' of '{stmt.phase}'",
                 arm.span,
             )
             continue
@@ -3986,7 +3613,7 @@ def _check_produces(
     missing = sorted(set(outcome.cases) - seen)
     if missing:
         bag.error(
-            f"produces on '{stmt.define}' is not exhaustive: missing "
+            f"produces on '{stmt.phase}' is not exhaustive: missing "
             f"{', '.join(missing)}",
             stmt.span,
         )
@@ -3996,20 +3623,11 @@ def typecheck(game: Game) -> Game:
     bag = DiagnosticBag()
 
     players = game.players
-    if players.low < 1:
-        bag.error(f"a game needs at least one player, got {players.low}", players.span)
-    if players.high is not None and players.high < players.low:
-        bag.error(
-            f"player range upper bound {players.high} precedes lower bound {players.low}",
-            players.span,
-        )
+    if players.count < 1:
+        bag.error(f"a game needs at least one player, got {players.count}", players.span)
 
-    # Structs and user functions are solved together, to a fixpoint — they
-    # depend on each other in both directions and at arbitrary depth.
-    structs, functions = struct_and_function_registries(game, bag)
-    env = replace(env_from_game(game, structs), functions=functions)
-    env = replace(env, procedures=_procedure_sigs(game))
-    outcomes = outcome_registry(game, env.structs, env.positions)
+    env = replace(env_from_game(game), functions=function_registry(game, bag))
+    outcomes = outcome_registry(game, env.positions)
     for stmt, binders in _all_statements_scoped(game):
         senv = _scoped_env(env, binders)
         _check_stmt_exprs(stmt, senv, bag)
@@ -4019,10 +3637,6 @@ def typecheck(game: Game) -> Game:
             _check_produces(stmt, outcomes, senv, bag)
         else:
             _check_stmt_semantics(stmt, senv, bag)
-    for define in game.defines:
-        outcome = outcomes.get(define.name)
-        if outcome is not None:
-            _check_define_outcomes(define, outcome, env, bag)
     _check_primitive_signatures(game, env, bag)
     _check_misplaced_produce(game, outcomes, env, bag)
     _check_outcome_scope(game, bag)
@@ -4133,18 +3747,6 @@ def typecheck(game: Game) -> Game:
         for decl in game.state.decls:
             _check_expr(decl.default, env, bag)
             _check_state_default_type(decl, env, bag)
-    for tdef in game.types:
-        # A derived body reads sibling fields by bare name (resolve scopes
-        # them); their declared types are in the struct registry, so bind
-        # them — without this, `derived { bad = seat is hearts }` on a Player
-        # field would type `seat` as TAny and accept the always-false comparison.
-        struct = env.structs.get(tdef.name)
-        denv = env
-        if struct is not None:
-            for fname, ftype in struct.fields.items():
-                denv = denv.with_local(fname, ftype)
-        for derived in tdef.derived:
-            _check_expr(derived.value, denv, bag)
 
     if bag.has_errors:
         error = DiagnosticError(bag.items[0])

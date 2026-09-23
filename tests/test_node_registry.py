@@ -72,7 +72,7 @@ _PLANTED: dict[type, typing.Any] = {
 def _planted_game(cls: type, planted: typing.Any) -> n.Game:
     """A skeleton game holding `planted` wherever its kind belongs."""
     base = n.Game(
-        name="Planted", players=n.PlayersSpec(low=2, high=2), deck="standard52", zones=()
+        name="Planted", players=n.PlayersSpec(count=2), deck="standard52", zones=()
     )
     holders: dict[type, dict[str, typing.Any]] = {
         n.FunctionDef: {"functions": (planted,)},

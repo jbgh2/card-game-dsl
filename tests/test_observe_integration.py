@@ -15,7 +15,7 @@ GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
 
 def _play_with_logs(path: str, seed: int) -> dict[int, list[tuple[Any, ...]]]:
     game = check_source(GAMES / path)
-    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.low)}
+    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.count)}
     play_game(
         game,
         random.Random(seed),

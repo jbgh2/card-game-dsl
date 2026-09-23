@@ -279,10 +279,14 @@ def test_zone_parameters_are_the_recorded_deferral() -> None:
 _BODY_ACCEPTED = {
     "Transfer", "EpistemicOp", "RotateStmt", "EachSimultaneous", "ForEach",
     "RepeatUntil", "IfStmt", "AsBlock", "Turns", "LetStmt", "AssignStmt",
-    "Offer", "Produces",
+    "Offer",
 }
 _BODY_REJECTED = {
     "Produce",
+    # A `produces:` over an outcome phase has positional consumer rules — see
+    # `test_a_produces_over_a_phase_outcome_is_rejected_in_a_body` — and one
+    # naming any other phase is refused wherever it sits.
+    "Produces",
     "ContinueTo",
     "SkipToNextHand",
     "RunStmt",
@@ -442,9 +446,9 @@ procedure one_trick(lead : Player) {
 def test_every_accepted_body_statement_kind_is_exercised() -> None:
     """The accepted side of Axis B, ALL of it. `test_stmt_union_is_fully_classified`
     proves the two sets partition the union; this proves the accepted set is really
-    accepted. Without it the 11 "accepted" rows were a whitelist read off the
-    implementation, with only 7 of them ever executed — the pattern the audit skill
-    names explicitly (a domain measured against the guard that implements it)."""
+    accepted. Without it the "accepted" rows are a whitelist read off the
+    implementation — the pattern the audit skill names explicitly (a domain
+    measured against the guard that implements it)."""
     game = check(
         body="    run window(0)",
         procs="""
@@ -467,25 +471,7 @@ procedure window(who : Player) {
 """,
     )
     exercised = {type(nd).__name__ for nd in _walk(game) if isinstance(nd, typing.get_args(n.Stmt))}
-    # Produces needs a `define`, so it gets its own body below; everything else here.
-    assert _BODY_ACCEPTED - {"Produces"} <= exercised, _BODY_ACCEPTED - {"Produces"} - exercised
-
-
-def test_a_produces_over_a_define_is_accepted_in_a_body() -> None:
-    """The 11th accepted kind — but only over a DEFINE. A define is invoked fresh at
-    each site and carries no ordering or uniqueness rule, so a splice cannot break it.
-    A `produces:` over a PHASE OUTCOME is a different animal; see the test below."""
-    check(
-        body="    run pick(0)",
-        procs="""
-define d -> { Won(Player) | Lost } { produce Won(0) }
-procedure pick(who : Player) {
-  d produces:
-    Won(w) { score[w] += 1 }
-    Lost { score[who] += 0 }
-}
-""",
-    )
+    assert _BODY_ACCEPTED <= exercised, _BODY_ACCEPTED - exercised
 
 
 # ---------------------------------------------------------------------------

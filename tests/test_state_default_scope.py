@@ -256,7 +256,6 @@ _EXPR_CELLS: dict[str, tuple[str, str, str]] = {
     "ListLit": ("Integer", "[1, 2]", ""),
     "Member": ("Integer", "state.first", ""),
     "Subscript": ("Integer", "score[0]", ""),
-    "StructLit": ("T", "T { x: 1 }", "type T = { x : Integer }\n"),
     "Call": ("Integer", "helper()", "function helper() = 1\n"),
     "BinOp": ("Integer", "3 + 4", ""),
     "Not": ("Boolean", "not false", ""),
@@ -340,26 +339,3 @@ game Probe {{
         assert _EXPR_REFUSED[kind] in exc.value.diagnostic.message
         return
     play_game(check_dsl(source, "expr.cardlang"), random.Random(0))
-
-
-def test_a_struct_default_is_not_an_indirect_channel() -> None:
-    """A `derived { }` body reads its state lazily, on access, so a struct
-    default whose derived field names a LATER variable is sound — the third
-    channel this grid would otherwise need. Pinned because it is a property of
-    the evaluator, not of the grammar: if `derived` ever became eager this goes
-    red, which is the signal to widen the indirect arm.
-
-    red under: make `evaluate` force derived fields at construction."""
-    source = """
-game Probe {
-  players: 2
-  cards: standard52
-  max_length: 100
-  zones { deck : Deck  hand[player] : Hand<player> }
-  state { score[player] : Integer = 0  b : T = T { x: 1 }  a : Integer = 7 }
-  phase play { }
-  winner: highest score
-}
-type T = { x : Integer } derived { y = a }
-"""
-    play_game(check_dsl(source, "struct.cardlang"), random.Random(0))

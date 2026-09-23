@@ -316,6 +316,12 @@ _EXTERNALLY_OWNED = frozenset(
         "zone_type_arg",
         "content_kind",
         "library",
+        # The built-in type names (`typecheck.KNOWN_TYPE_NAMES`), which a
+        # declared position domain joins where resolve admits one.
+        "type",
+        # A member's field belongs to the fixed field table of its receiver's
+        # type (a card's, a move's, a round's published state).
+        "field",
     }
 )
 
@@ -431,7 +437,7 @@ def test_slot_strings_reads_every_shape_whole() -> None:
         amount="all",
         item="cards",
         source=None,
-        dest=None,
+        dest=n.NameRef("pile"),
         dest_each=False,
     )
     assert slot_strings(union, "amount") == ("all",)

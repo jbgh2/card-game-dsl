@@ -225,7 +225,7 @@ def test_showdown_reveals_contenders_holes_and_leaks_no_folded_one() -> None:
 
     contenders = set(reveal)
     assert len(contenders) > 1, "need a CONTESTED showdown (more than one contender)"
-    assert contenders == set(range(game.players.low)) - {folded_player}
+    assert contenders == set(range(game.players.count)) - {folded_player}
 
     # Every contender's reveal is visible to the folded entrant, who is not one:
     # source count-only over the single hole card, destination identity.

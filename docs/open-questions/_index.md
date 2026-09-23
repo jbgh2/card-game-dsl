@@ -74,9 +74,8 @@ of the language.
   the "show one, show all" showdown rule (deliberately unmodelled), and the
   question file names the two corpus movements the chosen semantics would bind.
 - [rule-scope-beyond-trick-play](rule-scope-beyond-trick-play.md) — rules apply
-  only at the trick form's card-decision site; `actions where` demands and
-  rules constraining non-trick move types are validated but unenforced. Where
-  (if anywhere) should declarative rules bind outside a trick round? The
+  only at the trick form's card-decision site; rules constraining non-trick
+  move types are refused. Where (if anywhere) should declarative rules bind outside a trick round? The
   awaited data point now exists by name: draughts' mandatory capture and
   morris's in-mill removal restriction (the board-topology ladder, which
   proposes uniform binding at every decision site and stages the

@@ -44,7 +44,7 @@ domain:     {the card-content surface positions -- enumerated below} x
               (a) Card-content vocabulary reachable ONLY through the
                 trick-taking and rule-obligation machinery -- a per-round
                 `round ... trump`, the `climb`/`combinations`/`follows`
-                forms, `demands:`/`exempts:`/`actions where` card predicates,
+                forms, `demands:`/`exempts:` card predicates,
                 an outcome-function name, a suit argument to a rule template
                 -- is not flavor-guarded: that machinery is card-oriented and
                 out of rung-1 scope (the topology ladder defers the rule
@@ -60,17 +60,12 @@ domain:     {the card-content surface positions -- enumerated below} x
                 `_check_state_default_type`) rejects a piece value under a
                 card-typed var -- `foo : Suit = x` in a piece game fails
                 "declared Suit ... default has type side". The
-                initializer-less slots (struct field, function parameter,
-                variant case) accept the annotation and fail at every USE in
-                a piece game, since no card value resolves in a piece
-                namespace. Position-domain names at the function-parameter
-                and variant-payload slots ADMIT and resolve to their member
-                type, the merge's payload-admit policy. A struct DERIVED
-                field reading an item field (`some_card.side`) is a sub-case:
-                `struct_registry` types it against the default `CARD_FIELDS`,
-                its inference env carrying no game flavor, and a piece game
-                reaches it only through a card-content struct field, itself
-                loud. The declaration-site and rule-system guard naming the
+                initializer-less slots (function parameter, variant case)
+                accept the annotation and fail at every USE in a piece game,
+                since no card value resolves in a piece namespace.
+                Position-domain names at the function-parameter and
+                variant-payload slots ADMIT and resolve to their member
+                type, the merge's payload-admit policy. The declaration-site and rule-system guard naming the
                 kind is issue #114.
               (c) Piece TWINS of the card-query and aggregation forms are
                 grammatically inexpressible -- there is no `pieces in ...`

@@ -1,19 +1,18 @@
 """A declared type's identity is its NAME, at every position it can occupy.
 
-`TStruct` and `TOutcome` carry a structural payload beside their declared name
-(a field map, a case map), and both are frozen dataclasses, so equality is
-structural: two SNAPSHOTS of one declared type taken at different points in
-the registry fixpoint compare unequal. Left to equality that produced
-`expects R, got R` — a diagnostic naming one type on both sides — and, worse,
-a `join` returning `None` from an `IfExpr`, which falls to the permissive top
-and exempts the whole subtree from every type Owner Guard
+`TOutcome` carries a structural payload beside its declared name (a case map)
+and is a frozen dataclass, so equality is structural: two values of one
+declared type whose payloads differ compare unequal. Left to equality that
+produces `expects R, got R` — a diagnostic naming one type on both sides —
+and, worse, a `join` returning `None` from an `IfExpr`, which falls to the
+permissive top and exempts the whole subtree from every type Owner Guard
 (tests/test_permissive_top.py). The nominal rule answers that: identity
 belongs to the name, and the payload is what the name resolves TO.
 
 A rule applied at the outer layer only is a top-level special case, so the
 grid crosses the rule against every position at which a `Type` nests inside
 another — derived from the union, not listed — against both relations, both
-operand orders, and both nominal members.
+operand orders, and every nominal member.
 
 Completeness ledger (decisions.md "Surface totality" / "Closed-domain
 completeness")
@@ -29,9 +28,8 @@ domain:     (position at which a `Type` nests inside another, plus the
             (operand order) x (union member whose identity is a declared
             name), with each position carrying a behaviour class that says
             whether the nested identity is OBSERVABLE through the relation;
-            plus the cross-member cell (a struct and an outcome type sharing
-            one name), and the classified exclusion (a union member carrying a
-            name and no payload).
+            plus the classified exclusion (a union member carrying a name and
+            no payload).
             Two neighbouring populations sit deliberately outside, and
             neither is a gap in this rule. Every property of the relations
             that is NOT the nominal rule is a different rule over the same
@@ -68,12 +66,10 @@ does not prove:  two things, and the second is about how the outcome
             rows are reached at all.
             That the rule holds for a payload of another shape. One nested
             payload per nominal member is exercised (`TAny` vs `TInteger`
-            for the stale/settled pair, one field or case tag). At the
-            transparent and opaque positions the rule under test reads only
-            the NAME, so the payload's shape is not a dimension of it, and
-            the stale/settled pair is the shape the registry fixpoint
-            produces (`_provisional_structs` seeds every derived field at
-            the permissive top and refines it) — but that argument does NOT
+            for the stale/settled pair, one case tag). At the transparent
+            and opaque positions the rule under test reads only the NAME, so
+            the payload's shape is not a dimension of it — but that argument
+            does NOT
             reach the keying position, where `join` compares keys with raw
             `==` and the payload is exactly what the cells turn on. What
             makes one payload enough there is the closed inhabitant set: no
@@ -82,8 +78,8 @@ does not prove:  two things, and the second is about how the outcome
             It cannot: no `infer` arm returns one — it is a registry entry
             consulted when checking `produce` / `produces:`
             (cardlang/types.py's module docstring) — and no declared field,
-            parameter or payload type can name one (`type_from_name`
-            resolves against the STRUCT registry). The outcome rows are
+            parameter or payload type can name one (`type_from_name` has no
+            outcome registry). The outcome rows are
             exercised by calling the relations directly, so what they
             establish is that the arms answer for an outcome type, not that
             a program can put one there.
@@ -105,7 +101,6 @@ from cardlang.types import (
     TOptional,
     TOutcome,
     TPlayer,
-    TStruct,
     Type,
     coercible,
     join,
@@ -154,20 +149,13 @@ _WRAPPERS: dict[str, Callable[[Type], Type]] = {
     "TOptional.inner": lambda t: TOptional(t),
     "TCollection.element": lambda t: TCollection(t),
     "TCollection.key": lambda t: TCollection(TCard(), key=t),
-    "TStruct.fields": lambda t: TStruct(
-        name="W", fields={"g": t}, derived=frozenset()
-    ),
     "TOutcome.cases": lambda t: TOutcome(name="W", cases={"d": (t,)}),
 }
 
 #: How to build a value of each nominal member under a given declared name,
 #: carrying a given payload. `payload` is what makes the two operands of a
-#: same-name cell structurally unequal — the stale/settled pair the registry
-#: fixpoint produces.
+#: same-name cell structurally unequal.
 _NOMINALS: dict[type, Callable[[str, Type], Type]] = {
-    TStruct: lambda name, payload: TStruct(
-        name=name, fields={"f": payload}, derived=frozenset()
-    ),
     TOutcome: lambda name, payload: TOutcome(name=name, cases={"c": (payload,)}),
 }
 
@@ -281,35 +269,6 @@ def test_a_declared_types_identity_is_its_name_at_every_position(
 
 @pytest.mark.parametrize("order", ORDERINGS, ids=lambda o: f"operands{o[0]}{o[1]}")
 @pytest.mark.parametrize("relation", RELATIONS)
-@pytest.mark.parametrize("outer", NOMINAL_MEMBERS, ids=lambda m: m.__name__)
-@pytest.mark.parametrize("inner", NOMINAL_MEMBERS, ids=lambda m: m.__name__)
-def test_a_struct_and_an_outcome_type_may_share_a_name_and_stay_distinct(
-    inner: type, outer: type, relation: str, order: tuple[int, ...]
-) -> None:
-    """The nominal rule is same NAME AND same constructor, never the name alone.
-
-    `type R` and `define R` occupy different namespaces, so one spelling can
-    name both. A nominal arm that compared only `.name` would make them one
-    type — the accepted-but-ignored shape, since a `produce` of the outcome
-    type would then satisfy a position expecting the struct.
-
-    The diagonal (`inner is outer`) is the same-type case and is compatible;
-    the off-diagonal must not be. Both are rows, so the arm cannot be narrowed
-    to the diagonal without a red cell.
-
-    red under: in `cardlang.types`, drop `type(a) is type(b)` from `join`'s
-    nominal arm (or `type(src) is type(dst)` from `coercible`'s).
-    """
-    left, right = _NOMINALS[inner]("R", TInteger()), _NOMINALS[outer]("R", TInteger())
-    answer = _COMPATIBLE[relation](*_ordered((left, right), order))
-    assert answer is (inner is outer), (
-        f"{relation} answered {answer} for {inner.__name__}('R') against "
-        f"{outer.__name__}('R')"
-    )
-
-
-@pytest.mark.parametrize("order", ORDERINGS, ids=lambda o: f"operands{o[0]}{o[1]}")
-@pytest.mark.parametrize("relation", RELATIONS)
 @pytest.mark.parametrize("member", NAME_ONLY_MEMBERS, ids=lambda m: m.__name__)
 def test_a_name_only_member_is_already_nominal_under_equality(
     member: type, relation: str, order: tuple[int, ...]
@@ -361,11 +320,12 @@ def test_the_keying_domain_admits_no_nominal_type() -> None:
     `ZONE_INDEX_ROLES` — the one edit that could put a named type in a key —
     reddens this instead of silently reopening the question.
 
-    red under: add `TStruct` to the reachable set below (a stand-in for
-    widening `ZONE_INDEX_ROLES` to a role whose binder type is nominal).
+    red under: in `cardlang/domains.py`, give the player row's `binder_type`
+    `TOutcome(name="R", cases={})` (a stand-in for widening
+    `ZONE_INDEX_ROLES` to a role whose binder type is nominal).
     """
-    reachable: set[Type] = {d.binder_type for d in DOMAINS if d.id in ZONE_INDEX_ROLES}
-    reachable |= {TPlayer(), TAny()}
+    reachable: list[Type] = [d.binder_type for d in DOMAINS if d.id in ZONE_INDEX_ROLES]
+    reachable += [TPlayer(), TAny()]
     assert reachable, "the zone-index rows derived to nothing"
     nominal_named = {m.__name__ for m in NOMINAL_MEMBERS}
     offenders = sorted(
@@ -420,7 +380,7 @@ def test_every_nominal_member_carries_a_payload_that_can_go_stale() -> None:
     the grid's same-name rows would be comparing equal values and could not
     fail.
 
-    red under: freeze `_NOMINALS`' two builders to ignore their `payload`
+    red under: freeze `_NOMINALS`' builder to ignore its `payload`
     argument (both probes become equal, and every same-name row goes
     vacuously green).
     """

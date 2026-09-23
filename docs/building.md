@@ -190,7 +190,7 @@ construct.
 | `sum over captured[p]: if … then …` | needs-formalizing | implicit binder: `sum of … over cards in captured[p]` |
 | `queen_of_spades`, `2 of clubs` | needs-formalizing | card literal `RANK of SUIT`: `Q of spades`, `2 of clubs` |
 | shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: the shooter is `base[p] is 26`, and which way the hand scores is that player's own decision — an `offer` of the two move types to that one seat |
-| `the move must consist of exactly 3 cards` | decision: demand-clause-shape | not a rule at all: the pass movement's `chosen 3` binds the count, and a `demands: actions where <move-predicate>` form reaches no decision site (tests/test_rule_surface_reachability.py) |
+| `the move must consist of exactly 3 cards` | decision: demand-clause-shape | not a rule at all: the pass movement's `chosen 3` binds the count |
 | `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (Builtin query) |
 | `highest_of_led_suit` (round winner) | runtime-primitive | `(played, state) -> Player` named winner function (Builtin winner) |
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |

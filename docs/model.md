@@ -20,7 +20,6 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **Card queries** | The English query surface over zones: `cards in … where`, `number of cards in …`, `any/all card(s) in … where`, `sum of … over cards in …`, `highest/lowest … over cards in … or <default>` (decisions.md "The expression register"). |
 | **TurnOrder** | A cyclic ordering of players with a current pointer and optionally a direction. Operations: advance, reverse, set. |
 | **State variable** | A typed, named, scoped piece of game state. Scope is lexical: a variable lives as long as the phase instance that lexically encloses its declaration. See [decisions.md](decisions.md) "State scoping (lexical)" and "Mutation semantics"; [appendix.md](appendix.md) catalogues every state variable across the five-game corpus as a reference for both. |
-| **User-defined type** | A struct-like declaration with named, typed fields and optional `derived` fields. May be parameterized (see [library.md](library.md), "Types"). See [decisions.md](decisions.md) "Typed object model". |
 | **Move type** | A named, parameterized player action: declared source/destination/participating zones and associated events. Reusable across games. A move type's effect is written as **Transfers** (below). |
 | **Move** | One played instance of a Move type, bound to its Parameters. A Move performs zero, one, or many **Transfers** — see "Moves and Transfers" below. |
 | **Transfer** | The zone-relocation statement. Its verbs (`deal`/`draw`/`move`/`burn`/`muck`/`transfer`) are sugar over one primitive. Independent of Move: setup is Transfers with no Move. |
@@ -150,7 +149,7 @@ applicability condition**. Four clauses:
 ```text
 rule <Name> {
   constrains: <move_type>
-  applies_when: <predicate on state>     // default: always
+  applies_when: <predicate on state>     // omitted: the rule always applies
   demands: <function returning a set of legal candidate moves>
   if_impossible: <fallback>              // default: any legal move under this move type
   exempts: <function returning a set of cards>   // optional; see below

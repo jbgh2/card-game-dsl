@@ -123,7 +123,7 @@ def register(
 ) -> None:
     path = str((base_dir or HERE) / filename)
     game_ast, space = replay.load(path)
-    num_players = game_ast.players.low
+    num_players = game_ast.players.count
     assert game_ast.max_length is not None
     game_type = pyspiel.GameType(
         short_name=short_name,

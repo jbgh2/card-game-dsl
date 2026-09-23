@@ -55,9 +55,9 @@ def test_stdlib_rules_parse_and_constrain_known_move_types() -> None:
     assert {"MustFollowSuit", "NoLeadingSuitUntilBroken"} <= set(lib)
     for rule in lib.values():
         assert rule.constrains in LIBRARY_MOVE_TYPES
-        # Every card-set demand carries its impossibility fallback, the same
+        # Every demand carries its impossibility fallback, the same
         # obligation game-local rules are held to.
-        if rule.demands is not None and rule.demands.kind == "cards":
+        if rule.demands is not None:
             assert rule.if_impossible is not None
         for p in rule.params:
             assert p.type_name == "Suit"  # the one supported template domain
@@ -90,7 +90,7 @@ rule BadRule {
 def test_a_game_activates_a_library_rule_without_defining_it() -> None:
     g = check_dsl(_game("MustFollowSuit"), "mini.cardlang")
     follow = next(r for r in g.rules if r.name == "MustFollowSuit")
-    assert follow.demands is not None and follow.demands.kind == "cards"
+    assert follow.demands is not None
     assert follow.params == ()
 
 

@@ -508,11 +508,9 @@ def declarable_type_names(game: n.Game) -> frozenset[str]:
 
     The built-ins plus the game's own position domains — a positional zone's
     index binder is a position-domain member (`tableau_down[column]`), so a
-    Primitive taking one needs the domain's name in this set. Struct type
-    names and the board-minted direction domain are deliberately absent: a
-    struct crosses the value boundary as a live `StructValue` and a direction
-    is a board-frame token, neither of which a Primitive's declared signature
-    has a witness for."""
+    Primitive taking one needs the domain's name in this set. The board-minted
+    direction domain is deliberately absent: a direction is a board-frame
+    token, which a Primitive's declared signature has no witness for."""
     return DECLARABLE_BUILTIN_TYPE_NAMES | frozenset(p.name for p in game.positions)
 
 
@@ -526,10 +524,7 @@ UNDECLARABLE_TYPE_CONSTRUCTORS: dict[str, str] = {
     "value; designed constraint, deliberately unreachable",
     "TNull": "the type of the `none` literal alone — a value, never a "
     "declaration; designed constraint",
-    "TStruct": "a game's `type` declaration — a declared Primitive receives "
-    "values, and a `StructValue` crossing the boundary has no witness "
-    "(issue #547)",
-    "TOutcome": "a `define`'s or outcome phase's cases — consumed by "
+    "TOutcome": "an outcome phase's cases — consumed by "
     "`produce` / `produces:`, never returned by `infer`; designed constraint",
     "TLine": "a board line, produced by `lines(k)` alone (issue #547)",
     "TDir": "the board-minted direction domain — a board-frame token "

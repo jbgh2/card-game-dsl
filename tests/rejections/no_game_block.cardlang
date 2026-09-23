@@ -3,5 +3,5 @@
 // grammatically reachable — it used to escape as a raw StopIteration inside
 // lark's VisitError.
 rule nothing {
-  demands: actions where true
+  demands: cards in hand
 }

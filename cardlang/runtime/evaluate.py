@@ -16,7 +16,7 @@ from cardlang.domains import require_role, role_members
 from cardlang.runtime import builtins, observe, primitives, reads, subsets
 from cardlang.runtime.chooser import decide
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
-from cardlang.runtime.state import Ctx, Move, StructValue, Zone, elements
+from cardlang.runtime.state import Ctx, Move, Zone, elements
 from cardlang.runtime.values import Card
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
@@ -81,17 +81,13 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return [evaluate(item, ctx) for item in e.elements]
         case n.Member():
             return _member_eval(e, ctx)
-        case n.StructLit():
-            return StructValue(
-                e.type_name, {fi.name: evaluate(fi.value, ctx) for fi in e.fields}
-            )
         case n.Subscript():
             return _subscript(e, ctx)
         case n.Call():
             fn = ctx.rs.function_index.get(e.func)
             if fn is not None:
                 return _user_function(fn, e.args, ctx)
-            return native_call(e.func, [evaluate(_pos(a), ctx) for a in e.args], ctx)
+            return native_call(e.func, [evaluate(a, ctx) for a in e.args], ctx)
         case n.BinOp():
             return _binop(e, ctx)
         case n.Not():
@@ -175,12 +171,6 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
     return value
 
 
-def _pos(arg: n.Arg) -> n.Expr:
-    if isinstance(arg, n.NamedArg):
-        raise NotImplementedError("named call arguments not used by Hearts")
-    return arg
-
-
 def _hermetic_ctx(ctx: Ctx, scope: dict[str, Any], *, keep_actor: bool) -> Ctx:
     """A fresh scope holding only `scope`, over the shared game/phase state —
     the one context construction both hermetic bodies use.
@@ -222,7 +212,7 @@ def call_user_function(fn: n.FunctionDef, values: list[Any], ctx: Ctx) -> Any:
     return evaluate(fn.body, body_ctx)
 
 
-def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
+def _user_function(fn: n.FunctionDef, args: tuple[n.Expr, ...], ctx: Ctx) -> Any:
     """Evaluate a user function hermetically: the arguments evaluate in the caller's
     context, then the body runs in a fresh scope holding only the parameters, over
     the shared game/phase state. Hermeticity for `actor`/`action`/`winner` is
@@ -231,7 +221,7 @@ def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     *inherited*, not cleared: a body may read a bare per-player zone (e.g.
     `cards in hand where card.suit is spades`), whose family instance resolves
     through the acting player the caller set."""
-    return call_user_function(fn, [evaluate(_pos(a), ctx) for a in args], ctx)
+    return call_user_function(fn, [evaluate(a, ctx) for a in args], ctx)
 
 
 def _name(e: n.NameRef, ctx: Ctx) -> Any:
@@ -327,16 +317,6 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
 
 def _member_eval(e: n.Member, ctx: Ctx) -> Any:
     obj = evaluate(e.obj, ctx)
-    if isinstance(obj, StructValue) and e.field not in obj.fields:
-        # A derived field: compute its expression with the struct's declared
-        # fields bound as locals (the scoped resolve pass classified those bare
-        # field references as `"local"`).
-        tdef = ctx.rs.type_index[obj.type_name]
-        derived = next(d for d in tdef.derived if d.name == e.field)
-        dctx = ctx
-        for k, v in obj.fields.items():
-            dctx = dctx.with_local(k, v)
-        return evaluate(derived.value, dctx)
     if isinstance(obj, Card):
         # A content item's axis field -> its `Card` attribute: identity for a
         # card deck ("suit"->"suit"), the piece set's map for a piece
@@ -348,11 +328,9 @@ def _member_eval(e: n.Member, ctx: Ctx) -> Any:
 
 def _member(obj: Any, field: str) -> Any:
     # `Card` is handled in `_member_eval` (it needs the flavor axis map); this
-    # sees Move / StructValue / dict / the deliberately-loose fallbacks.
+    # sees Move / dict / the deliberately-loose fallbacks.
     if isinstance(obj, Move):
         return getattr(obj, field)
-    if isinstance(obj, StructValue):
-        return obj.fields[field]
     if isinstance(obj, dict):
         if field not in obj:
             # REACHABLE from checked DSL, and deliberately so: the checker validates

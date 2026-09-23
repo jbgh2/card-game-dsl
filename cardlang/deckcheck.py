@@ -61,7 +61,7 @@ def check_capacity(game: n.Game) -> n.Game:
     deck_zones = {z.name for z in game.zones if z.type_ref.name == "Deck"}
     if not deck_zones:
         return game
-    players = game.players.high if game.players.high is not None else game.players.low
+    players = game.players.count
     # How many times each `for each <role>` body runs, read from the quantifiable-
     # domain registry rather than assumed. A hand-written rule like "players, or
     # once" would count a loop over a VALUE domain (`for each suit s: deal 15 cards
@@ -277,7 +277,7 @@ def _stmt_usage(
 def _movement_usage(m: n.Transfer, carry: int, players: int, deck_zones: set[str]) -> _Usage:
     """Deck usage after a single movement. A move *into* the deck refills it (usage
     resets to 0); a deal *from* the deck adds to usage; anything else is inert."""
-    if m.dest is not None and _base_name(m.dest) in deck_zones:
+    if _base_name(m.dest) in deck_zones:
         # Cards go back to the deck. A full gather (`all`) or an unbounded
         # amount refills it — usage resets. A LITERAL return puts back exactly
         # k, and modeling that as a full refill made the gate blind to the

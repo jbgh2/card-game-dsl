@@ -447,11 +447,18 @@ def test_cell_function_parameter_admits_and_types_as_tcell() -> None:
     assert "got Cell" in _reject(board_game() + "function f(x : cell) = x + 1\n")
 
 
-def test_cell_variant_payload_admits() -> None:
-    # The outcome/variant payload slot admits a position domain too -- the
-    # sibling of the function-parameter slot, same policy (P7 in the grid).
+def test_cell_outcome_payload_admits() -> None:
+    # The outcome payload slot admits a position domain too -- the sibling of
+    # the function-parameter slot, same policy (P8 in the grid).
     check_dsl(
-        board_game() + "define D -> { Won(cell) | Lost } { produce Lost }\n",
+        board_game(
+            setup=(
+                "    phase d -> outcome { Won(cell) | Lost } { produce Lost }\n"
+                "    d produces:\n"
+                "      Won(c) { }\n"
+                "      Lost   { }\n"
+            )
+        ),
         "b.cardlang",
     )
 

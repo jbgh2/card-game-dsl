@@ -59,13 +59,12 @@ def test_deterministic_across_dict_insertion_orders() -> None:
 def test_render_covers_the_declared_value_shapes_and_refuses_the_rest() -> None:
     """Closed-domain completeness (decisions.md): the information state's
     value renderer covers exactly the shapes the language can put in state —
-    scalars, None, Card, containers, StructValue (canonically, insertion-order
-    independent) — and refuses anything else loudly rather than embedding an
+    scalars, None, Card, containers (a player-keyed mapping canonically,
+    insertion-order independent) — and refuses anything else loudly rather than embedding an
     unstable repr in a certified-deterministic string."""
     import pytest
 
     from cardlang.openspiel.infostate import render_state_variable
-    from cardlang.runtime.state import StructValue
     from cardlang.runtime.values import Card
 
     assert render_state_variable(3) == "3"
@@ -73,9 +72,9 @@ def test_render_covers_the_declared_value_shapes_and_refuses_the_rest() -> None:
     assert render_state_variable("hearts") == "hearts"
     assert render_state_variable(None) == "None"
     assert render_state_variable(Card("Q", "spades")) == "Q♠"
-    a = StructValue("Contract", {"level": 1, "suit": "spades"})
-    b = StructValue("Contract", {"suit": "spades", "level": 1})
-    assert render_state_variable(a) == render_state_variable(b) == "Contract{level:1,suit:spades}"
+    a = {0: Card("Q", "spades"), 1: None}
+    b = {1: None, 0: Card("Q", "spades")}
+    assert render_state_variable(a) == render_state_variable(b) == "{0:Q♠,1:None}"
 
     class Alien:
         pass

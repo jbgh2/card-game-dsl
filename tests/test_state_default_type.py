@@ -16,7 +16,7 @@ property:   a `state { }` default that `check_dsl` accepts has a type
             refused with a located diagnostic naming the variable.
 domain:     declared value type x inferred default type. The declared axis is
             `KNOWN_TYPE_NAMES` (scalars + enums) crossed with {plain, optional,
-            indexed} plus struct types; the default axis is the `n.Expr` union's
+            indexed}; the default axis is the `n.Expr` union's
             inferred types. The verdict for a cell is `coercible(default,
             declared)` — the same relation the guard uses, computed
             independently in the breadth sweep so the test drives the real
@@ -143,7 +143,7 @@ def test_breadth_sweep_matches_assignable(
     source = _game(f"{decl_prefix} = {default}")
     # Independently compute the expectation from the type machinery.
     probe_env = env_from_game(check_bare(source))
-    declared = type_from_name(type_name, optional, probe_env.structs)
+    declared = type_from_name(type_name, optional)
     got = infer(_default_expr(source), probe_env)
     expected_accept = coercible(got, declared)
 

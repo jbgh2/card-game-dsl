@@ -64,7 +64,7 @@ domain:     DERIVED, not the two sites the issue named. The vocabulary is
             it — at any depth, so a comparison parenthesised into a nested
             group still qualifies its guard. Both operand positions, any
             operator, and the constant may be reached as a bare name or through
-            its module (`n.ROUND_ORDER_MODES`). "Literal collection" spans the
+            its module (`domains.ZONE_INDEX_ROLES`). "Literal collection" spans the
             display literals and every builtin constructor over literal
             contents — INCLUDING the empty forms (`set()`, `frozenset()`),
             which are what a consumer implementing NO rows reconciles against
@@ -197,7 +197,7 @@ def _is_literal_collection(node: ast.AST) -> bool:
 def _referenced_constants(node: ast.AST, vocab: frozenset[str]) -> set[str]:
     """Registry constants named in `node`, as a bare name or through a module.
 
-    `n.ROUND_ORDER_MODES` is the same constant as `ROUND_ORDER_MODES`; matching
+    `domains.ZONE_INDEX_ROLES` is the same constant as `ZONE_INDEX_ROLES`; matching
     only the bare name would drop every guard in a module that imports its
     registry wholesale."""
     out: set[str] = set()
@@ -342,11 +342,6 @@ _WITNESSES: dict[tuple[str, str, str], str] = {
         "_each_simultaneous",
         "role_of(stmt.role) is Role.PLAYER",
     ): "test_a_non_player_simultaneous_block_fails_the_executor",
-    (
-        "runtime/mechanics.py",
-        "__init__",
-        "n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}",
-    ): "test_widening_round_order_modes_fails_the_auction_form",
 }
 
 
@@ -487,55 +482,6 @@ def test_a_non_player_simultaneous_block_fails_the_executor() -> None:
     message = str(excinfo.value)
     assert "implements the player row only" in message, message
     assert "names 'team'" in message, message
-
-
-_ONE_STEP_EACH = """
-game Auction {
-  players: 3
-  max_length: 1000
-  direction: clockwise
-  cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck }
-  state { steps[player] : Integer = 0 }
-  phase run {
-    round offering [step] from 0 over players where steps[player] < 1
-          until (number of players where steps[player] < 1) is 0
-  }
-  winner: highest steps
-}
-move_type step { effect { steps[actor] := steps[actor] + 1 } }
-"""
-
-
-def test_widening_round_order_modes_fails_the_auction_form(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The auction form implements the ring row, and says so when the order axis
-    grows a second traversal.
-
-    The guard replaces a DENY-LIST: the form used to name one mode and let every
-    other fall through to the ring body, so a widened registry would have given
-    the new mode ring's traversal in silence. `ROUND_ORDER_MODES` holds one
-    member, so the conjunct is tautologically true against today's registry and
-    only widening it can be seen.
-
-    The registry is widened AFTER the front end has run, because resolve reads
-    the same constant to bound a declared `order` clause; the fixture declares
-    none, so what reaches the form is the default.
-
-    red under: delete the `assert n.ROUND_ORDER_MODES == ...` from
-    `runtime/mechanics.py::AuctionForm.__init__` — the widened registry then
-    plays the round out on the ring body with nothing said."""
-    game = check_dsl(_ONE_STEP_EACH, "auction.cardlang")
-    monkeypatch.setattr(
-        n, "ROUND_ORDER_MODES", frozenset({n.ROUND_ORDER_RING, "priority"})
-    )
-    with pytest.raises(AssertionError) as excinfo:
-        play_game(game, random.Random(0), chooser=_unused_chooser)
-    message = str(excinfo.value)
-    assert "implements the ring row only" in message, message
-    assert "['priority', 'ring']" in message, message
 
 
 def test_widening_zone_index_roles_fails_resolve_at_import() -> None:

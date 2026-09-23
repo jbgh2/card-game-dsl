@@ -315,7 +315,7 @@ class ActionSpace:
         sources = DomainSources(
             suits=list(deck_suits(game.deck)),
             ranks=list(game.ranking),
-            players=list(range(game.players.low)),
+            players=list(range(game.players.count)),
             # Position move-parameter domains, from the same union function the
             # driver hands the runtime (`position_domains_of`) — declared
             # integer domains plus the board-minted `cell`, identical by

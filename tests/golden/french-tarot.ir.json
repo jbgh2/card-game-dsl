@@ -4,8 +4,7 @@
   "name": "FrenchTarot",
   "players": {
     "kind": "players",
-    "low": 4,
-    "high": null
+    "count": 4
   },
   "deck": "tarot78",
   "direction": "counterclockwise",
@@ -751,14 +750,13 @@
                   "value": 0
                 }
               },
-              "order_mode": null,
               "outcome_fn": "tarot_auction_outcome"
             }
           ]
         },
         {
           "kind": "produces",
-          "define": "auction",
+          "phase": "auction",
           "arms": [
             {
               "kind": "produce_arm",
@@ -1783,7 +1781,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "is_check",
           "check": "not_none",
@@ -1834,7 +1831,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "is_check",
           "check": "not_none",
@@ -1851,7 +1847,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -1890,7 +1885,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "card_query",
           "query": "any",
@@ -1933,7 +1927,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -1967,7 +1960,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "binop",
           "op": "and",
@@ -2008,7 +2000,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -2315,8 +2306,6 @@
       ]
     }
   ],
-  "types": [],
-  "defines": [],
   "functions": [
     {
       "kind": "function",

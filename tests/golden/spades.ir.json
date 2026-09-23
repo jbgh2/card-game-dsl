@@ -4,8 +4,7 @@
   "name": "Spades",
   "players": {
     "kind": "players",
-    "low": 4,
-    "high": null
+    "count": 4
   },
   "deck": "standard52",
   "direction": "clockwise",
@@ -1053,7 +1052,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "is_check",
           "check": "not_none",
@@ -1070,7 +1068,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -1115,7 +1112,6 @@
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
-        "always": false,
         "pred": {
           "kind": "is_check",
           "check": "none",
@@ -1132,7 +1128,6 @@
       },
       "demands": {
         "kind": "demands",
-        "form": "cards",
         "expr": {
           "kind": "card_query",
           "query": "set",
@@ -1169,8 +1164,6 @@
     }
   ],
   "move_types": [],
-  "types": [],
-  "defines": [],
   "functions": [
     {
       "kind": "function",

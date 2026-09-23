@@ -149,7 +149,7 @@ def test_each_opponent_answers_a_legal_id_as_a_function_of_its_seed_and_view(nam
         LiveLine(path, _SEED).play(
             {
                 seat: seated(row.make(SeatBinding(game, space, seat, _SEED)))
-                for seat in range(game.players.low)
+                for seat in range(game.players.count)
             }
         )
     assert asked, f"{short_name}: nobody was asked"
@@ -293,7 +293,7 @@ _TABLES: dict[int, str] = {
 
 
 def test_a_table_of_each_size_the_registry_seats_is_named() -> None:
-    seats = {short_name: load(_path(short_name))[0].players.low for short_name in GAMES}
+    seats = {short_name: load(_path(short_name))[0].players.count for short_name in GAMES}
     assert set(seats.values()) == set(_TABLES), "a registered game seats a number no table here does"
     assert all(seats[short_name] == size for size, short_name in _TABLES.items())
 
@@ -765,9 +765,9 @@ def test_first_answers_as_a_person_picking_the_first_item(short_name: str, tmp_p
     red under: a `first` that answers `legal[-1]`."""
     path = _path(short_name)
     game, _ = load(path)
-    if game.players.low == 1:
+    if game.players.count == 1:
         pytest.skip("a game of one seat has no seat for an opponent")
-    rest = ["rest=random"] if game.players.low > 2 else []
+    rest = ["rest=random"] if game.players.count > 2 else []
     lines = []
     for person, other in ((0, 1), (1, 0)):
         saved = tmp_path / f"seat-{person}.json"

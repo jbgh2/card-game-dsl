@@ -38,7 +38,7 @@ def test_type_from_name_optional_wraps() -> None:
 
 
 def test_type_from_name_unknown_is_any() -> None:
-    assert type_from_name("Contract", optional=False) == TAny()  # user types deferred
+    assert type_from_name("Contract", optional=False) == TAny()
 
 
 def test_value_enum_map_classifies_suits_ranks_directions() -> None:
