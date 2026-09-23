@@ -35,8 +35,7 @@ Domain: `RESERVED_VALUE_NAMES` (`none`, `empty`, `true`, `false`, the five
 every declaration kind whose name is reachable as a bare `NameRef` in
 general expression position: state variables (game-level and phase-local),
 zones, functions, function/move-type/rule parameters, `let` names and
-indexes, `for each` binders, `each … simultaneously` binders, and user type
-names.
+indexes, `for each` binders, and `each … simultaneously` binders.
 
 Registry: `RESERVED_VALUE_NAMES` itself (cardlang/resolve.py, next to
 `_PRONOUNS`) and `_introduced_binders` (the one registry of which node kinds
@@ -45,7 +44,7 @@ re-enumerated).
 
 Covered: one rejection test per declaration kind in the domain above,
 sourced either from `_check_duplicate_names`'s extended sweep (state var,
-zone, function, type) or the two dedicated new sweeps
+zone, function) or the two dedicated new sweeps
 (`_check_reserved_params`, `_check_reserved_binders`).
 
 Sampled: not every (word x declaration-kind) cell gets its own test — one
@@ -199,24 +198,6 @@ game Mini {
 function state(p: Player) = 1
 """,
         "function 'state' is a reserved word",
-    )
-
-
-def test_type_named_action_rejected() -> None:
-    _rejects(
-        """
-game Mini {
-  players: 2
-  max_length: 1000
-  cards: standard52
-  zones { hand[player] : Hand<player> }
-  state { score[player] : Integer = 0 }
-  phase play { }
-  winner: highest score
-}
-type action = { x : Integer }
-""",
-        "type 'action' is a reserved word",
     )
 
 

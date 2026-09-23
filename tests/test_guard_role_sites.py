@@ -222,7 +222,6 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         "'nobody implemented this yet' is not a guard refusing anything."),
     ),
     ("cardlang/domains.py", "NotImplementedError"): (1, "Deferred domain surface — see the encoding row."),
-    ("cardlang/runtime/evaluate.py", "NotImplementedError"): (1, "Deferred evaluator surface — see the encoding row."),
     ("cardlang/runtime/values.py", "NotImplementedError"): (
         1,
         ("component_set's registry miss. Its docstring names "

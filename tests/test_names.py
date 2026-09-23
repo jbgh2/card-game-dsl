@@ -87,32 +87,6 @@ def test_misspelled_declared_type_errors() -> None:
     assert "unknown type 'Integar' in declaration of 'x'" in e.value.diagnostic.message
 
 
-def test_declared_struct_type_is_accepted() -> None:
-    src = (
-        "game G {\n"
-        "  players: 2\n"
-        "  max_length: 1000\n"
-        "  cards: standard52\n"
-        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
-        "  zones { hand[player] : Hand<player> }\n"
-        "  state { deal : Contract? = none }\n"
-        "  loser: 0\n"
-        "}\n"
-        "type Contract = { level : Integer }\n"
-    )
-    resolve(parse_text(src, "t.cardlang"))  # no diagnostics
-
-
-def test_named_call_arguments_are_rejected() -> None:
-    # The grammar admits f(x = 1); typecheck skipped the value expression and
-    # the runtime crashed with NotImplementedError. Statically rejected until
-    # a game needs the surface (Surface totality; recorded in
-    # roadmap.md, "Grammar surface deferred by the checker").
-    with pytest.raises(DiagnosticError) as e:
-        resolve(parse_text(_game("team_of(x = 1)"), "t.cardlang"))
-    assert "named call arguments are not supported" in e.value.diagnostic.message
-
-
 def test_unknown_deck_is_a_diagnostic_not_a_crash() -> None:
     # The suit registry derives from the runtime deck table, which raises
     # loudly for unknown names — right at playout time, wrong mid-resolve. A
@@ -129,7 +103,6 @@ def test_unknown_deck_is_a_diagnostic_not_a_crash() -> None:
     [
         ("zone", None),  # zones handled via the fixture below
         ("move_type", "move_type m { effect { } }\nmove_type m { effect { } }"),
-        ("type", "type T = { a : Integer }\ntype T = { b : Integer }"),
         ("function", "function f(a : Integer) = a\nfunction f(a : Integer) = a"),
     ],
 )

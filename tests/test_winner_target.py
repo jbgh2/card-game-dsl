@@ -12,8 +12,8 @@ properties decide whether the whole result path works:
     EARLIER, at the per-hand trace (`driver.py`'s `hand_end`), so which
     Python error a designer meets depends on whether their game loops.
   * **its declared type.** Nothing anywhere checked this. `Integer` and
-    `Boolean` rank correctly. Everything else either crashes (`Card` and
-    struct values are unorderable; an optional may hold `none`) or —
+    `Boolean` rank correctly. Everything else either crashes (`Card`
+    values are unorderable; an optional may hold `none`) or —
     worse — succeeds silently: a `Player`-typed target ranks fine, and
     `openspiel/replay.returns_for` then hands OpenSpiel **seat ids as
     utilities**, with no exception at any layer.
@@ -31,8 +31,8 @@ property:   a `winner:` target names a game-level state variable that is
             error at playout and never a silent ranking.
 domain:     {index} x {declared type}. {index} = every `domains.Role`
             member plus the unindexed case. {declared type} = every
-            `typecheck.KNOWN_TYPE_NAMES` member plus a game-declared struct
-            name, each in its plain and optional form. The rank DIRECTION
+            `typecheck.KNOWN_TYPE_NAMES` member, each in its plain and
+            optional form. The rank DIRECTION
             sits outside, and is not a gap: both members are already pinned
             exhaustively against the grammar terminal, and neither interacts
             with the declaration this property is about.
@@ -52,18 +52,14 @@ registry:   `tests/winner_axes.py` derives both axes in code — the index
             An index naming a declared position domain, refused at the
             state declaration —
             tests/rejections/positions_state_indexed_by_position.cardlang
-does not prove:  three things.
+does not prove:  two things.
             (1) That the `[ ]` slot refuses a name outside `Role`.
             `state_decl`'s grammar admits ANY name there, a declared
             position domain (`probe[column]`) included, and the index axis
             here is derived from `Role`, so no row of this grid holds that
             cell. It belongs to the state DECLARATION guard's class and is
             executed there, in the rejection corpus.
-            (2) That a struct is unrankable whatever it holds. The
-            struct-type cell runs one struct shape (`Pair`), not a sub-axis
-            of field shapes. The argument that the field list cannot vary
-            the property is an argument; nothing here varies it.
-            (3) That a game whose target is never written ranks
+            (2) That a game whose target is never written ranks
             meaningfully. Every seat then holds the declared default and the
             winner is whichever seat sorts first — which is what a game
             legitimately ending all-square looks like too, so there is no
@@ -90,7 +86,7 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.typecheck import KNOWN_TYPE_NAMES
-from tests.winner_axes import DEFAULTS, STRUCT_TYPE, cells
+from tests.winner_axes import DEFAULTS, cells
 
 # The roles a state variable may be indexed by. Deliberately NOT imported
 # from `ZONE_INDEX_ROLES`: this is the grid's own statement of which cells
@@ -142,7 +138,6 @@ def game_source(index: str | None, written: str, default: str) -> str:
         "  }\n"
         "  winner: highest probe\n"
         "}\n"
-        f"type {STRUCT_TYPE} = {{ a : Integer }}\n"
         "move_type stop { effect { done := true } }\n"
     )
 

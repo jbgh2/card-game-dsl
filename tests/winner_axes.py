@@ -35,11 +35,8 @@ INDEXES: tuple[str | None, ...] = (None,) + tuple(r.value for r in Role)
 
 
 # --- axis: the target declaration's declared type ----------------------------
-# DERIVED from `KNOWN_TYPE_NAMES`, the closed set of built-in declared-type
-# names resolve validates every declaration against. A state declaration also
-# admits a game's own struct names; those are carried as a separate cell
-# rather than a whole sub-axis, because a struct's FIELDS do not vary the
-# property under guard (a struct is unrankable whatever it holds).
+# DERIVED from `KNOWN_TYPE_NAMES`, the closed set of declared-type names
+# resolve validates every state declaration against.
 #
 # A default literal is needed to write the declaration at all, and there is
 # no registry of them — so the table below is pinned against
@@ -64,18 +61,14 @@ DEFAULTS: dict[str, str] = {
 # unreachable-cell row rather than left as a gap in the parametrization.
 NO_PLAIN_LITERAL: frozenset[str] = frozenset({"Card"})
 
-STRUCT_TYPE = "Pair"  # a game-declared struct, the non-builtin type cell
-
-
 def type_cells() -> Iterator[tuple[str, str, bool]]:
     """(type name as written, default literal, is_optional) per declarable type.
 
     Crosses every `KNOWN_TYPE_NAMES` member with the plain and optional
-    forms, skipping the plain forms that have no writable literal, and adds
-    the game-declared struct type in both forms.
+    forms, skipping the plain forms that have no writable literal.
     """
-    for name in sorted(KNOWN_TYPE_NAMES) + [STRUCT_TYPE]:
-        default = DEFAULTS.get(name, f"{STRUCT_TYPE} {{ a: 0 }}")
+    for name in sorted(KNOWN_TYPE_NAMES):
+        default = DEFAULTS[name]
         if name not in NO_PLAIN_LITERAL:
             yield name, default, False
         yield f"{name}?", "none", True

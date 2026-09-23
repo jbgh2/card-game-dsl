@@ -316,6 +316,12 @@ _EXTERNALLY_OWNED = frozenset(
         "zone_type_arg",
         "content_kind",
         "library",
+        # The built-in type names (`typecheck.KNOWN_TYPE_NAMES`), which a
+        # declared position domain joins where resolve admits one.
+        "type",
+        # A member's field belongs to the fixed field table of its receiver's
+        # type (a card's, a move's, a round's published state).
+        "field",
     }
 )
 

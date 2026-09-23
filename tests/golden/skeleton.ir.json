@@ -4,8 +4,7 @@
   "name": "Skeleton",
   "players": {
     "kind": "players",
-    "low": 2,
-    "high": null
+    "count": 2
   },
   "deck": "standard52",
   "direction": null,
@@ -64,7 +63,5 @@
   "loser": null,
   "rules": [],
   "move_types": [],
-  "types": [],
-  "defines": [],
   "functions": []
 }
