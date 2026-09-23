@@ -8416,6 +8416,26 @@ DECISION_POOLS: dict[str, str] = {
 }
 
 
+# A chosen movement's sub-positions: (field, whether it moves `to each`) ->
+# (the seat whose decision its value reaches, the seat that evaluates it and
+# so makes any `choose` nested in it). Each is the runtime's own reading of
+# `execute._movement` and `_select_from`, pinned against a run that records
+# the acting seat at every evaluation and the decider at every pick by
+# tests/test_hidden_reads.py::test_a_chosen_movements_seats_are_the_runtimes.
+SEAT_ACTING = "the acting seat"
+SEAT_EACH_RECEIVER = "each receiving seat"
+CHOSEN_MOVEMENT_SEATS: dict[tuple[str, bool], tuple[str, str]] = {
+    ("amount", False): (SEAT_ACTING, SEAT_ACTING),
+    ("source", False): (SEAT_ACTING, SEAT_ACTING),
+    ("where", False): (SEAT_ACTING, SEAT_ACTING),
+    ("dest", False): (SEAT_ACTING, SEAT_ACTING),
+    ("amount", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("source", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("where", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+    ("dest", True): (SEAT_EACH_RECEIVER, SEAT_ACTING),
+}
+
+
 @dataclass(frozen=True)
 class _Binding:
     """What a local name stands for, as the reader follows it: the expression
@@ -8501,12 +8521,14 @@ class ZoneRead:
 @dataclass(frozen=True)
 class HiddenReadVerdict:
     """`_check_hidden_reads`' judgement of one read at one position: accepted or not, and
-    why -- `public`, or the reason the deciding seat owns what it reads."""
+    why -- `public`, or the reason the deciding seat owns what it reads. `site`
+    locates the position's expression."""
 
     position: str
     read: ZoneRead
     accepted: bool
     reason: str
+    site: Span | None = None
 
 
 _NEED_PHRASE: dict[str, str] = {
@@ -8837,9 +8859,13 @@ class _HiddenReads:
         return f"`{read.zone}[{_spell(index)}]`"
 
     def _judge(
-        self, what: str, reads: Iterator[ZoneRead], seat: _Seat, span: Span | None,
-        only_choose: bool = False, source: bool = False,
+        self, what: str, reads: Iterator[ZoneRead], decider: _Seat, span: Span | None,
+        only_choose: bool = False, source: bool = False, evaluator: _Seat | None = None,
     ) -> None:
+        """Judge each read: at `decider`, the seat whose decision the
+        position's value reaches, or -- for a read inside a nested `choose`
+        where the position is evaluated by another seat -- at `evaluator`,
+        the seat that makes that `choose`."""
         for read in reads:
             if only_choose and read.choose is None:
                 continue
@@ -8847,9 +8873,12 @@ class _HiddenReads:
             if decl is None or decl.type_ref.name not in ZONE_PROJECTIONS:
                 continue
             ztype = decl.type_ref.name
+            in_choose = read.choose is not None and (only_choose or evaluator is not None)
+            seat = evaluator if read.choose is not None and evaluator is not None else decider
             position = (
-                what if read.choose is None or not only_choose
-                else ("a `choose`'s `excluding`" if read.choose == "excluding" else "a `choose`'s range")
+                ("a `choose`'s `excluding`" if read.choose == "excluding" else "a `choose`'s range")
+                if in_choose
+                else what
             )
             owned = self._owned_by(read.zone) is not None
             to_others = reveals(ztype, read.need, False)
@@ -8865,10 +8894,10 @@ class _HiddenReads:
                     accepted, reason = True, own
                 else:
                     accepted, reason = False, ""
-            self.verdicts.append(HiddenReadVerdict(position, read, accepted, reason))
+            self.verdicts.append(HiddenReadVerdict(position, read, accepted, reason, span))
             if accepted:
                 continue
-            self._report(position, read, seat, to_owner, span or read.span, source)
+            self._report(position, read, seat, to_owner, span or read.span, source and not in_choose)
 
     def _report(
         self, what: str, read: ZoneRead, seat: _Seat, to_owner: bool,
@@ -9043,6 +9072,16 @@ class _HiddenReads:
 
     def _seat_for(self, node: n.ForEach | n.EachSimultaneous | n.Turns | n.AsBlock,
                   rebound: _ActorAliases, scope: _ReadScope) -> tuple[_ReadScope, _Seat]:
+        if isinstance(node, n.AsBlock) and self._names_acting_seat(node.player, scope):
+            # The seat is canonical: an `as` naming the seat already acting
+            # changes no seat, so every proof of who acts stands, and the name
+            # it binds is one more.
+            label = (
+                f"seat `{node.player.name}`" if isinstance(node.player, n.NameRef)
+                else f"the seat `as {_spell(node.player)}` names"
+            )
+            names = scope.aliases.names | rebound.names
+            return replace(scope, aliases=_ActorAliases(names, scope.aliases.origin)), _Seat(label)
         self.seats += 1
         inner = replace(
             scope,
@@ -9189,20 +9228,28 @@ class _HiddenReads:
             self._outside(stmt.where, filtered, seat)
             self._outside(stmt.dest, scope, seat)
             return
-        decider = _Seat("each receiving seat", every=True) if stmt.dest_each else seat
-        if not isinstance(stmt.amount, str):
-            self._judge("a chosen movement's amount", self.reads_of(stmt.amount, scope), decider, stmt.amount.span)
-        if stmt.source is not None:
+        seats = {
+            SEAT_ACTING: seat,
+            SEAT_EACH_RECEIVER: _Seat("each receiving seat", every=True),
+        }
+
+        def judge(field: str, what: str, reads: Iterator[ZoneRead], span: Span | None) -> None:
+            decider, evaluator = CHOSEN_MOVEMENT_SEATS[(field, stmt.dest_each)]
             self._judge(
-                "a chosen movement's source", self.reads_of(stmt.source, scope), decider,
-                stmt.source.span, source=True,
+                what, reads, seats[decider], span,
+                source=field == "source", evaluator=seats[evaluator],
             )
+
+        if not isinstance(stmt.amount, str):
+            judge("amount", "a chosen movement's amount", self.reads_of(stmt.amount, scope), stmt.amount.span)
+        if stmt.source is not None:
+            judge("source", "a chosen movement's source", self.reads_of(stmt.source, scope), stmt.source.span)
         if stmt.where is not None:
-            self._judge("a chosen movement's `where`", self.reads_of(stmt.where, filtered), decider, stmt.where.span)
-        self._judge(
+            judge("where", "a chosen movement's `where`", self.reads_of(stmt.where, filtered), stmt.where.span)
+        judge(
+            "dest",
             "a chosen movement's destination",
             self.reads_of(stmt.dest, scope, _LOCATE),
-            decider,
             stmt.dest.span,
         )
 
