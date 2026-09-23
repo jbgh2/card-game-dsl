@@ -97,8 +97,9 @@ predicate a designer writes, and nothing warns today.
    grid buckets seat-deciding. *Artifacts:* those grid cells green; the rule
    and blind-draw witnesses become rejection tests; misuse probes
    (surface-totality audit, Step 2) as rejection tests.
-6. **Spec and records.** decisions.md, "Honest Play is assumed", names the
-   positions the refusal reaches and the registry that lists them; the
+6. **Spec and records.** decisions.md,
+   "Honest Play is assumed, so a rule reading concealed cards is mis-modelled",
+   names the positions the refusal reaches and the registry that lists them; the
    glossary gains any term the unit mints; `docs/open-questions/structural-infoset-proofs.md`
    and `docs/kernel-migration.md` are updated where the proof's caveats
    change; the pick-by-position spelling is filed as its own issue.

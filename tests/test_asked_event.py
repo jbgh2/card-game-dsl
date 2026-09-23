@@ -41,12 +41,9 @@ does not prove:  That a game gates its phases on facts its own rules
                  must (issue #717); a game whose gate reads ANOTHER seat's
                  concealed cards is mis-modelled, and an ask states that gate's
                  value to the decider rather than refusing it. Issue #281 owns
-                 the class. The swap proof that would catch it replays one
-                 recorded history in both worlds of a pair and drops the pairs
-                 where a recorded action becomes illegal, so a divergence
-                 inside the replayed prefix is invisible to it and one first
-                 appearing at the pause is caught; the seeded witness is epic
-                 #312's. Nor that a construct is a MEANING: a number decision's
+                 the class, and the swap proof's seeded witnesses for it are
+                 tests/openspiel_ready/test_blind_decisions.py. Nor that a
+                 construct is a MEANING: a number decision's
                  label says which sentence asked, never whether the number is a
                  bid on a hand or a claim a seat may be lying about, which is
                  issue #703's class. The sweep plays each witness game along a bounded

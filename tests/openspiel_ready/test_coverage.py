@@ -117,9 +117,10 @@ def test_no_proof_module_without_a_registered_game() -> None:
     # The package-wide modules, which target the registry itself rather than
     # any one game: this completeness guard, the bound-coverage grid, the
     # provenance-opening grid, the greedy-preference grid, the
-    # action-rendering purity pin, and the Arrival Record's copy-purity pin
+    # action-rendering purity pin, the Arrival Record's copy-purity pin
     # (whose game axis derives from the component registry, not one game —
-    # issue #256).
+    # issue #256), and the swap proof's blind-decision witnesses, which run it
+    # on probe games outside the registry.
     modules = {p.stem for p in here.glob("test_*.py")} - {
         "test_coverage",
         "test_conformance_bounds",
@@ -127,6 +128,7 @@ def test_no_proof_module_without_a_registered_game() -> None:
         "test_greedy_preference",
         "test_action_strings",
         "test_arrival_purity",
+        "test_blind_decisions",
     }
     expected = {_module_for(short) for short, _ in REGISTERED_GAMES}
     assert modules == expected, (

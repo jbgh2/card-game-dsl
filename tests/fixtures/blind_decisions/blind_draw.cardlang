@@ -1,0 +1,31 @@
+// A probe, not a corpus game: seat 0 draws from hand[1], which it cannot
+// see, so its menu names the cards hidden there (issue #281). It draws three
+// times, in three phases, because the first Chooser call's candidates are
+// computed before the swap proof's swap fires: the second and third draws are
+// the ones a swap can reach.
+game BlindDraw {
+  players: 2
+  max_length: 4
+  cards: standard52
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 24 cards from deck to each hand
+  }
+  phase first_draw {
+    as 0 { move chosen 1 card from hand[1] to hand[0] }
+  }
+  phase second_draw {
+    as 0 { move chosen 1 card from hand[1] to hand[0] }
+  }
+  phase third_draw {
+    as 0 { move chosen 1 card from hand[1] to hand[0] }
+  }
+  winner: highest score
+}
