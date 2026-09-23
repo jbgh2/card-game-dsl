@@ -1466,6 +1466,59 @@ def test_a_delegated_rule_is_judged_at_its_decider(
     _check(_game(body, defs, zone=zone, teams=teams), refuse)
 
 
+# The routing is per round: the runtime reads a rule's bare `hand`, and the
+# CURRENT trick round's bare source family, as the routed pool. A family is
+# the routed pool in a rule only where it is the source of every delegated
+# round -- every trick round of the game, since a rule may be active in any.
+_VAULT_TRICK = _TRICK.replace("source hand", "source vault")
+
+# cell -> (the rounds, the rule's Boolean read, accepted)
+_ROUTINGS: dict[str, tuple[str, str, bool]] = {
+    "hand-in-rounds-sourcing-hand-and-vault": (
+        _TRICK + " " + _VAULT_TRICK, "(2 of clubs) in hand", True,
+    ),
+    "vault-in-rounds-sourcing-hand-and-vault": (
+        _TRICK + " " + _VAULT_TRICK, "(2 of clubs) in vault", False,
+    ),
+    "vault-in-every-round-sourcing-vault": (
+        _VAULT_TRICK + " " + _VAULT_TRICK, "(2 of clubs) in vault", True,
+    ),
+    "vault-in-the-one-round-sourcing-vault": (
+        _VAULT_TRICK, "(2 of clubs) in vault", True,
+    ),
+}
+
+
+def _routing_cells() -> list[object]:
+    cells = []
+    for cell_id, (rounds, read, accepted) in _ROUTINGS.items():
+        body = "phase play { active_rules: [Probed] " + rounds + " }"
+        defs = _CHOOSER + _ROUTE + (
+            "rule Probed { constrains: play_to_trick applies_when: " + read
+            + " demands: cards in hand where card.suit is hearts if_impossible: hand }"
+        )
+        red = cell_id == "vault-in-rounds-sourcing-hand-and-vault"
+        cells.append(
+            _cell(
+                cell_id, body, defs, _SHOWN, False,
+                refuse=None if accepted else _DECIDER,
+                xfail="a family some other round sources counts as routed in every round"
+                if red else None,
+            )
+        )
+    return cells
+
+
+@pytest.mark.parametrize("body,defs,zone,teams,refuse", _routing_cells())
+def test_a_family_is_routed_only_where_every_round_routes_it(
+    body: str, defs: str, zone: str, teams: bool, refuse: str | None
+) -> None:
+    """A delegated rule's bare family reads the routed pool only where every
+    trick round routes it: `hand` always, another family only as the source
+    of every round."""
+    _check(_game(body, defs, zone=zone, teams=teams), refuse)
+
+
 # ---------------------------------------------------------------------------
 # A cycle the reader follows: every name graph it walks may be cyclic before
 # the guard that refuses the cycle has raised, since resolve raises its bag
