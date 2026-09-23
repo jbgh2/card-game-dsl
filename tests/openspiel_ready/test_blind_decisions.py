@@ -46,8 +46,16 @@ does not prove:  That a hidden read is caught once a seat that sees a swapped
                  it. Nor that learning a property of a swapped card without
                  its identity (a transfer count, a challenge verdict) makes a
                  seat sighted: the game's swap axis keeps such pairs apart.
-                 Nor that a leak naming a swapped card in a seat's view is
-                 caught at that seat's earlier picks: such a view reads as
+                 Nor that the comparison judges a pick by what the adapter
+                 shows: it reads the Seat View recorded inside the Chooser
+                 call, which holds facts the adapter's information state drops
+                 (a phase's own State Variables, issue #612), so a fact present
+                 only in-call can mark a pick sighted that the adapter would
+                 treat as blind; and a pick the proof judges blind can fail
+                 because the adapter drops the fact its offer turns on
+                 (`told_before_pick`). Nor that a leak naming a swapped card in
+                 a seat's view is caught at that seat's earlier picks: such a
+                 view reads as
                  sighted there, and the leak is the pause comparison's to
                  catch at the pause seat.
 """
@@ -60,6 +68,8 @@ from typing import Literal
 import pytest
 
 from cardlang.diagnostics import DiagnosticError
+from cardlang.openspiel.infostate import information_state, render_information_state
+from cardlang.openspiel.replay import DecisionNode, RecordedPick, run
 from cardlang.pipeline import check_source
 
 from .harness import SWAP_SEEDS, GameSpec, ReadinessProofs, spread_pairs
@@ -210,6 +220,65 @@ def test_a_seat_that_has_seen_the_swapped_card_is_not_held_to_the_other_world() 
         (row,) = RECORDS[before:]
         assert row.detail["blind_picks_compared"] > 0, row
         del RECORDS[before:]
+
+
+TOLD_BEFORE_PICK = FIXTURES / "told_before_pick.cardlang"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "issue #612: the adapter reads each decision off a world unwound past "
+        "its phase frames, so a phase's own State Variables are missing from "
+        "the information state it serves"
+    ),
+)
+def test_the_adapter_shows_the_seat_the_phase_state_it_was_asked_under() -> None:
+    """At seat 0's second decision in `told_before_pick`, the information
+    state the adapter serves is the Seat View seat 0 holds as it is asked.
+    It is not: the in-call view carries the phase-local `high` its offer
+    turns on, and the node's rendering does not. When this passes, the two
+    `told_before_pick` cells below stop being true positives, and the swap
+    proof's sightedness judgment is revisited with them."""
+    first = run(str(TOLD_BEFORE_PICK), 3, ())
+    assert isinstance(first, DecisionNode)
+    node = run(str(TOLD_BEFORE_PICK), 3, (first.legal[0],))
+    assert isinstance(node, DecisionNode)
+    picks: list[RecordedPick] = []
+    run(str(TOLD_BEFORE_PICK), 3, (first.legal[0], node.legal[0]), picks=picks)
+    assert "high" in render_information_state(picks[1].view)
+    assert information_state(node.player, node.rs, node.obs_logs[node.player]) == (
+        render_information_state(picks[1].view)
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "issue #612: seat 0's offer turns on a phase-local State Variable the "
+        "adapter's information state drops, so both worlds give seat 0 the "
+        "same information and a different offer"
+    ),
+)
+@pytest.mark.parametrize(
+    ("depth", "seed"),
+    [(3, 3), (1, 2)],
+    ids=["before-the-pause", "at-the-pause"],
+)
+def test_a_fact_the_adapter_drops_does_not_redden_the_swap_proof(
+    depth: int, seed: int
+) -> None:
+    """A phase-local State Variable counts seat 2's high cards and seat 0's
+    offer turns on it; the variable is gone before seat 1 is asked. At depth
+    3 the divergence is at seat 0's pick before the pause ("same information,
+    different offer at pick 1 for seat 0"); at depth 1 it is the pause itself
+    ("same information set, different legal actions"). Measured 2026-09-23
+    over seeds 0-29: red at 11 at depth 3 and 13 at depth 1; the pause-only
+    proof is green at all 30 at depth 3 and red at 10 at depth 1."""
+    check_source(TOLD_BEFORE_PICK)
+    _prove("told_before_pick", depth, "suit", seed)
 
 
 def test_spread_pairs_reorders_and_keeps_every_pair() -> None:

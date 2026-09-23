@@ -878,8 +878,11 @@ def compare_blind_picks(
                 )
             raise AssertionError(
                 f"{game_name}: same information, different offer at pick {k} for "
-                f"seat {seat}: {detail}. {what} is hidden from seat {seat}, so a "
-                f"predicate or branch read a card seat {seat} cannot see."
+                f"seat {seat}: {detail}. {what}: the proof judges seat {seat}'s "
+                f"information the same in both worlds, and its offer differs. "
+                f"Either a rule or branch read something seat {seat} cannot see, "
+                f"or the adapter's information state drops a fact seat {seat} was "
+                f"shown (issue #612)."
             )
         compared += 1
     return compared
@@ -930,7 +933,7 @@ def replay_pair(
         picks_b,
         frozenset(pair),
         mismatch is not None,
-        f"Swap ({x},{y}) between {sides} at seed {seed}, depth {len(history)},",
+        f"Swap ({x},{y}) between {sides} at seed {seed}, depth {len(history)}",
     )
     if mismatch is not None:
         return PairReplay(None, compared, f"a sighted decider diverged: {mismatch}")
