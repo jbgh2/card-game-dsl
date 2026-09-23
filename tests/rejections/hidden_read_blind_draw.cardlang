@@ -1,0 +1,24 @@
+// Guard: resolve.py's `_check_hidden_reads`, where a seat is deciding. A
+// chosen movement's source is the pool its chooser picks from, so the chooser
+// must see it; Old Maid's blind draw from another player's hand is refused
+// until a pick by position exists (issue #756).
+game BlindDraw {
+  players: 2
+  max_length: 4
+  cards: standard52
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 24 cards from deck to each hand
+  }
+  phase draw {
+    as 0 { move chosen 1 card from hand[1] to hand[0] }
+  }
+  winner: highest score
+}

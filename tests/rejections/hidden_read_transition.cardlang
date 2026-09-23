@@ -1,0 +1,35 @@
+// Guard: resolve.py's `_check_hidden_reads`, where no seat is deciding. A
+// mode's `transition_to` trigger changes the rules for every later seat, so
+// every seat must be able to check it; this one reads seat 0's concealed
+// hand, where Hearts reads the card as it is played.
+game HiddenReadTransition {
+  players: 2
+  max_length: 40
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck             : Deck
+    hand[player]     : Hand<player>
+    trick_pile       : TrickPile
+    captured[player] : PlayerPile<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase play {
+    mode closed {
+      transition_to: opened when play_to_trick where any card in hand[0] where card.suit is spades
+    }
+    mode opened { }
+    repeat until (all players where hand[player] is empty) {
+      round play_to_trick from 0 over all players source hand into trick_pile
+            winner highest_trump_or_led_suit
+      move all cards from trick_pile to captured[winner]
+    }
+  }
+  winner: highest score
+}

@@ -55,7 +55,7 @@ def test_rejects_distribution_with_a_counted_amount() -> None:
 
 def test_rejects_distribution_with_chosen_selection() -> None:
     _rejects(
-        "deal chosen all cards from deck as-equally-as-possible to each hand",
+        "deal chosen all cards from pile as-equally-as-possible to each hand",
         "cannot combine with it",
     )
 
@@ -115,7 +115,7 @@ def test_rejects_a_non_card_item_noun() -> None:
         "deal 13 cards from deck to each hand",  # the standard deal
         "move all cards to deck",  # the standard gather
         "move one card from deck to pile",  # singular noun (Cribbage's starter cut)
-        "move chosen 2 cards from hand[0] to pile",
+        "move chosen 2 cards from pile to hand[0]",
     ],
 )
 def test_accepts_the_implemented_combinations(stmt: str) -> None:

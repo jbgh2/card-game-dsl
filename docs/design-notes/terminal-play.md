@@ -202,8 +202,8 @@ whose decisions the action space cannot number is refused before it is dealt.
 The session shows no more of a decision than the adapter's strings carry
 (issue #682). A pick asked while another decision is being made shows as a
 decision of its own, with nothing saying it belongs to the other (issue #605).
-A choice from a zone the seat cannot see lists the cards the zone holds, as the
-adapter's legal actions do (issue #281).
+A choice from a zone the seat cannot see never reaches a session: the checker
+refuses it, and a blind pick waits for a pick by position (issue #756).
 
 The pin is `tests/test_play_session.py`: every input a person gives, a control
 or otherwise, at each place a prompt stands; the flags and the seat range; the

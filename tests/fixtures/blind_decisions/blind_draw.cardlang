@@ -1,8 +1,7 @@
 // A probe, not a corpus game: seat 0 draws from hand[1], which it cannot
-// see, so its menu names the cards hidden there (issue #281). It draws three
-// times, in three phases, because the first Chooser call's candidates are
-// computed before the swap proof's swap fires: the second and third draws are
-// the ones a swap can reach.
+// see, so its menu would name the cards hidden there. The checker refuses the
+// draw: a blind pick needs a pick by position, which the language does not
+// have yet (issue #756).
 game BlindDraw {
   players: 2
   max_length: 4

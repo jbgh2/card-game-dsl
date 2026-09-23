@@ -2,8 +2,8 @@
 // see, and picks which of two decisions seat 0 is asked. The two decisions
 // share their phase, construct, count and destination and differ only in
 // their `where`, so seat 0 is told the same thing in both worlds and offered
-// a different menu. A control position is outside the wall on hidden reads,
-// so the checker accepts this game (issue #755).
+// a different menu. The checker does not judge a control position for a
+// Hidden Read, so it accepts this game (issue #755).
 game ControlBranch {
   players: 2
   max_length: 20

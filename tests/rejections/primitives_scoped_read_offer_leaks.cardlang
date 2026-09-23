@@ -4,7 +4,7 @@
 // it from somewhere else. The span is the offending OFFER, because that is
 // what the addressee has to move.
 move_type note {
-  when: pinochle_meld_value(0) >= 0
+  when: pinochle_meld_value(actor) >= 0
   effect { meld[0] := meld[0] }
 }
 game ScopedReadOfferLeaks {

@@ -273,12 +273,12 @@ def _first_decision_state(game: n.Game) -> Any:
 
 
 def test_each_simultaneously_accepts_exactly_the_seat_rows() -> None:
-    # The body is role-NEUTRAL (`hand[0]`, not `hand[player]`), so the only thing
+    # The body is role-NEUTRAL (bare `hand`, not `hand[player]`), so the only thing
     # varying across the cells is the role: a body reading `player` would make the
     # value rows fail on an unresolved-name guard instead of the domain guard, and
     # the cell would be green for the wrong reason.
     for row in DOMAINS:
-        src = _src(f"each {row.id.value} simultaneously:\n      move chosen 3 cards from hand[0] to pile")
+        src = _src(f"each {row.id.value} simultaneously:\n      move chosen 3 cards from hand to pile")
         if row.simultaneous:
             _accepts(src)
         else:

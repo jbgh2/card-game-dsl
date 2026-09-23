@@ -1,6 +1,7 @@
 // A probe, not a corpus game: a rule constraining seat 0's lead reads
 // hand[1], which seat 0 cannot see. While seat 1 holds a jack or higher, seat
-// 0 must lead a card below 6.
+// 0 must lead a card below 6. The checker refuses the rule, which seat 0
+// must be able to check.
 game HiddenRule {
   players: 2
   max_length: 40

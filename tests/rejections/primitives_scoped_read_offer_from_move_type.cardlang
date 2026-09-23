@@ -5,7 +5,7 @@
 // decided by ITS offers. Walled rather than followed (issue #521), and the
 // message says that rather than a false thing about where state stands.
 move_type note {
-  when: pinochle_meld_value(0) >= 0
+  when: pinochle_meld_value(actor) >= 0
   effect { meld[0] := meld[0] }
 }
 move_type relay {

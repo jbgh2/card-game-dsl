@@ -679,7 +679,7 @@ def _nested(
         "  cards: pinochle48\n"
         "  ranking: A 10 K Q J 9\n"
         + ("  primitives { " + block + " }\n" if block is not None else "")
-        + "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        + "  zones { deck : Deck  hand[player] : PublicHand<player> }\n"
         "  state { meld[player] : Integer = 0" + game_state + " }\n"
         + f"  phase outer {outer_qualifier}{{\n"
         + outer_sb
@@ -1010,8 +1010,8 @@ def test_the_standing_collision_arms_still_speak_under_two_tails(
         source = _nested(game_state=extra)
     else:
         source = _nested().replace(
-            "  zones { deck : Deck  hand[player] : Hand<player> }",
-            "  zones { deck : Deck  hand[player] : Hand<player>  "
+            "  zones { deck : Deck  hand[player] : PublicHand<player> }",
+            "  zones { deck : Deck  hand[player] : PublicHand<player>  "
             "trump_suit : Discard }",
         )
     message = _refused(source)
@@ -1129,7 +1129,7 @@ _CONTAINMENT_CELLS: dict[str, tuple[str, ...] | None] = {
 # slot, exactly as the corpus writes them.
 _NOTE = (
     "move_type note {\n"
-    "  when: pinochle_meld_value(0) >= 0\n"
+    "  when: pinochle_meld_value(actor) >= 0\n"
     "  effect { meld[0] := meld[0] }\n"
     "}\n"
 )
@@ -1371,7 +1371,7 @@ _NESTED_INNER_HOOKS_FIXTURE = (
     "    pinochle_meld_value(p : Player) : Integer\n"
     "        reads hand[p], stage, trump_suit in outer, deep in inner\n"
     "  }\n"
-    "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+    "  zones { deck : Deck  hand[player] : PublicHand<player> }\n"
     "  state { meld[player] : Integer = 0  stage : Integer = 0 }\n"
     "  phase outer {\n"
     "    state { trump_suit : Suit? = spades }\n"
@@ -1968,7 +1968,7 @@ _NESTED_HOOKS_FIXTURE = (
     "    pinochle_meld_value(p : Player) : Integer\n"
     "        reads hand[p], stage, trump_suit in outer\n"
     "  }\n"
-    "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+    "  zones { deck : Deck  hand[player] : PublicHand<player> }\n"
     "  state { meld[player] : Integer = 0  stage : Integer = 0 }\n"
     "  phase outer repeat until (pinochle_meld_value(0) >= 0 and done) {\n"
     "    state { trump_suit : Suit? = spades  done : Boolean = false }\n"

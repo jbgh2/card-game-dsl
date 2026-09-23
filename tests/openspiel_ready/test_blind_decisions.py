@@ -3,8 +3,8 @@
 property:        The swap proof fails when a seat blind to both swapped cards
                  is offered different legal actions, or is asked in one world
                  and not the other, at any recorded pick before the pause or at
-                 the pause itself, whether a phase gate, a rule, a chosen
-                 movement's pool or a control branch read the hidden card.
+                 the pause itself; and a game reading a hidden card where the
+                 checker refuses as a Hidden Read never reaches the proof.
 domain:          Every recorded pick of the greedy line to the spec's depth
                  after the first Chooser call, whose candidates are computed
                  before the swap fires, for up to `SWAP_PAIRS_PER_SEED` pairs
@@ -12,9 +12,13 @@ domain:          Every recorded pick of the greedy line to the spec's depth
                  swap side projects card identity to it under the declared
                  projections at the pause (`harness.blind_seats`), so a swapped
                  card carried into a blind seat's sight by a movement nobody
-                 chose fails the proof rather than dropping the pair. Every
-                 witness game but `control_branch` reads a hidden card at a
-                 position the wall on hidden reads covers (issue #281).
+                 chose fails the proof rather than dropping the pair. The
+                 witnesses that reach the proof read the hidden card at a
+                 control position, which the checker's Hidden Read Owner
+                 Guard does not judge (issue #755): a phase gate, a rule or a
+                 chosen movement's pool that reads it is refused by the
+                 checker before any proof runs, and each such witness is
+                 held to that refusal here instead.
 registry:        projections, `cardlang.stdlib.zones.ZONE_PROJECTIONS` through
                  `tests.openspiel_ready.partition.projection_for`; recorded
                  picks, `cardlang.openspiel.replay.RecordedPick`; the witness games,
@@ -24,8 +28,8 @@ does not prove:  That a hidden read is caught once a seat that sees a swapped
                  such a seat drops the pair, and no later pick of it is
                  compared. Nor that a hidden read turning on one opponent card
                  is caught when no pair among the first `SWAP_PAIRS_PER_SEED`
-                 flips it: the cap is load-bearing for that class, which every
-                 rule witness below belongs to, and the seeds pinned here are
+                 flips it: the cap is load-bearing for that class, which
+                 `control_high_card` belongs to, and the seeds pinned here are
                  ones measured to redden. Nor that a blind seat other than the
                  paused one is TOLD the same thing before the pause: an earlier
                  pick is compared by its decider and its offer, and the
@@ -39,6 +43,7 @@ from typing import Literal
 
 import pytest
 
+from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_source
 
 from .harness import GameSpec, ReadinessProofs, spread_pairs
@@ -63,10 +68,8 @@ def _prove(fixture: str, depth: int, axis: Axis, seed: int) -> None:
 # (fixture, depth, swap axis, seed, the failure the proof names). Each seed is
 # one measured to redden at `SWAP_PAIRS_PER_SEED`.
 WITNESSES: list[tuple[str, int, Axis, int, str]] = [
-    ("gate_at_pause", 1, "suit", 3, "CHANGED P0's information state"),
-    ("gate_in_prefix", 2, "suit", 3, "CHANGED P0's information state"),
     (
-        "gate_reroutes",
+        "control_reroutes",
         2,
         "suit",
         3,
@@ -74,27 +77,27 @@ WITNESSES: list[tuple[str, int, Axis, int, str]] = [
         "and world B asks seat 1",
     ),
     (
-        "gate_reroutes",
+        "control_reroutes",
         2,
         "suit",
         18,
         "same information, different offer at pick 1 for seat 0: world A asks seat 1 "
         "and world B asks seat 0",
     ),
-    ("hidden_rule", 2, "suit", 3, "same information set, different legal actions"),
     (
-        "hidden_rule_prefix",
-        4,
+        "control_high_card",
+        2,
         "suit",
-        3,
-        "same information, different offer at pick 2 for seat 0: only-in-A",
+        5,
+        "same information, different offer at pick 1 for seat 0: the recorded pick "
+        "\\d+ is offered in world A and not in world B",
     ),
     (
-        "blind_draw",
+        "control_high_card",
         2,
-        "any",
-        3,
-        "same information, different offer at pick 1 for seat 0: only-in-A",
+        "suit",
+        9,
+        "same information, different offer at pick 1 for seat 0: only-in-A=",
     ),
 ]
 
@@ -107,14 +110,37 @@ WITNESSES: list[tuple[str, int, Axis, int, str]] = [
 def test_a_hidden_read_reddens_the_swap_proof(
     fixture: str, depth: int, axis: Axis, seed: int, failure: str
 ) -> None:
-    """red under: `harness.compare_blind_picks` skipping every pick -- the
-    `gate_reroutes` rows and `hidden_rule_prefix` pass, and `blind_draw` fails
-    at the pause instead. red under: `harness.spread_pairs` returning its
-    input -- `gate_reroutes`, `hidden_rule` and `hidden_rule_prefix` at seed 3
-    pass. red under: `compare_blind_picks` judging a pick blind by world A's
-    decider alone -- `gate_reroutes` at seed 18 passes."""
+    """red under: `harness.spread_pairs` returning its input --
+    `control_high_card` at seeds 5 and 9 passes. red under:
+    `compare_blind_picks` judging a pick blind by world A's decider alone --
+    `control_reroutes` at seed 18 passes."""
+    check_source(FIXTURES / f"{fixture}.cardlang")
     with pytest.raises(AssertionError, match=failure):
         _prove(fixture, depth, axis, seed)
+
+
+# fixture -> what the checker's refusal names: a Hidden Read never reaches the
+# proof.
+REFUSED: dict[str, str] = {
+    "gate_at_pause": "phase `high`'s `when` gate is a fact every seat can check",
+    "gate_in_prefix": "phase `high`'s `when` gate is a fact every seat can check",
+    "gate_reroutes": "phase `high`'s `when` gate is a fact every seat can check",
+    "hidden_rule": "rule `HiddenHigh`'s `applies_when:` is decided by the acting seat",
+    "hidden_rule_prefix": "rule `HiddenHigh`'s `applies_when:` is decided by the acting seat",
+    "blind_draw": "needs a pick by position, which the language does not have yet (issue #756)",
+}
+
+
+@pytest.mark.parametrize("fixture", sorted(REFUSED))
+def test_a_hidden_read_is_refused_before_the_proof(fixture: str) -> None:
+    """Each game reads seat 1's concealed hand where a decision turns on it,
+    and the checker refuses it, naming the announcement or the pick the
+    designer is missing."""
+    with pytest.raises(DiagnosticError) as exc:
+        check_source(FIXTURES / f"{fixture}.cardlang")
+    assert exc.value.diagnostic.span is not None
+    assert REFUSED[fixture] in exc.value.diagnostic.message
+    assert "`hand[1]`" in exc.value.diagnostic.message
 
 
 @pytest.mark.parametrize(
@@ -134,7 +160,8 @@ def test_a_control_branch_on_a_hidden_card_reddens_the_swap_proof(
     the narrower branch, so the recorded pick is legal in both worlds and only
     the offer at pick 1 differs; at seed 3 world A takes the wider branch and
     its recorded pick is not offered in world B. The checker accepts the game:
-    a control position is outside the wall on hidden reads (issue #755), so
+    a control position is one the Hidden Read Owner Guard does not judge
+    (issue #755), so
     this is the proof's standing witness that its blind-pick comparison can
     fail, in both forms.
 

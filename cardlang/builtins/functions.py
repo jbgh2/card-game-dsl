@@ -347,9 +347,9 @@ ARRIVAL_RECORD_CALLS: dict[str, int] = {
     "highest_trump_or_led_suit": 0,
 }
 
-# How each Builtin reads zones, for the hidden-read wall (resolve,
+# How each Builtin reads zones, for the Hidden Read Owner Guard (resolve,
 # `_check_hidden_reads`). Three sets partition `BUILTIN_CALL_FUNCS`, pinned by
-# tests/test_hidden_read_wall.py::test_the_builtin_zone_read_partition_is_total,
+# tests/test_hidden_reads.py::test_the_builtin_zone_read_partition_is_total,
 # each member listed explicitly so a newly registered Builtin lands in none and
 # the pin names it.
 #

@@ -38,11 +38,9 @@ registry:        decision sites, `cardlang.runtime.delegation.DECISION_POINTS`
 does not prove:  That a game gates its phases on facts its own rules
                  disclose. The phase is one every seat is entitled to know, and
                  the engine models players who disclose what the rules say they
-                 must (issue #717); a game whose gate reads ANOTHER seat's
-                 concealed cards is mis-modelled, and an ask states that gate's
-                 value to the decider rather than refusing it. Issue #281 owns
-                 the class, and the swap proof's seeded witnesses for it are
-                 tests/openspiel_ready/test_blind_decisions.py. Nor that a
+                 must (issue #717); the checker refuses a gate reading concealed
+                 cards, and that refusal is tests/test_hidden_reads.py's to
+                 prove, not this module's. Nor that a
                  construct is a MEANING: a number decision's
                  label says which sentence asked, never whether the number is a
                  bid on a hand or a claim a seat may be lying about, which is

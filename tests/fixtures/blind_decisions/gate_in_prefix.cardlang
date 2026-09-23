@@ -1,5 +1,5 @@
 // A probe, not a corpus game: the phase gate of gate_at_pause.cardlang,
-// proved at depth 2, so the gated decision lies before the pause.
+// with the gated decision followed by another. The checker refuses the gate.
 game GateInPrefix {
   players: 2
   max_length: 20

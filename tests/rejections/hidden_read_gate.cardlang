@@ -1,0 +1,25 @@
+// Guard: resolve.py's `_check_hidden_reads`, where no seat is deciding. A
+// phase's gate is evaluated between seats, so every seat must be able to
+// check it; a gate on seat 0's concealed hand is the mis-modelled rule, and
+// the refusal names the announcement a rulebook has instead.
+game HiddenReadGate {
+  players: 2
+  max_length: 20
+  cards: standard52
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    table        : Discard
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase showdown when any card in hand[0] where card.suit is spades {
+    for each player p: move chosen 1 card from hand[p] to table
+  }
+  winner: highest score
+}

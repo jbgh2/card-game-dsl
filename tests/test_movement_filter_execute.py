@@ -35,7 +35,7 @@ game Mini {{
   players: 1
   max_length: 1000
   cards: standard52
-  zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile }}
+  zones {{ deck : Deck  hand[player] : PublicHand<player>  pile : TrickPile }}
   state {{ score[player] : Integer = 0 }}
   phase p {{
     {stmt_src}
@@ -150,7 +150,7 @@ game Mini {{
   players: {n_players}
   max_length: 1000
   cards: standard52
-  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  zones {{ deck : Discard  hand[player] : Hand<player> }}
   state {{ score[player] : Integer = 0 }}
   phase p {{
     {stmt_src}

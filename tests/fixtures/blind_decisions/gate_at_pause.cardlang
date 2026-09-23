@@ -1,8 +1,8 @@
 // A probe, not a corpus game: a phase gate reads hand[1], which seat 0
 // cannot see. Seat 0's first decision precedes the gate; its second is asked
 // in `high` or `low` by hand[1]'s single card. Both phases offer the same
-// move, so only the phase the ask names differs. Proved at depth 1, the
-// gate's decision is the pause.
+// move, so only the phase the ask names differs. The checker refuses the
+// gate, which every seat must be able to check.
 game GateAtPause {
   players: 2
   max_length: 20

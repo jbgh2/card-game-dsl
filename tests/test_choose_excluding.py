@@ -57,10 +57,9 @@ registry:  clause order and operand positions derive from the grammar's
            tests/openspiel_ready/test_oh_hell.py; the IR key:
            tests/test_ir_schema_version.py.
 does not prove: that an exclusion reads only state its chooser can see. The
-           grid's exclusions read public state; the instrument for that
-           property is the per-game proof harness, which runs over the
-           corpus witness alone. No pass refuses a hidden read in any
-           choose operand — issue #529.
+           grid's exclusions read public state; the checker's Hidden Read
+           Owner Guard refuses an operand that reads a zone its chooser cannot
+           see, and its grid is tests/test_hidden_reads.py.
 
 `excluding` mints no glossary entry: the clause is one English word with one
 meaning on one construct, the sibling clause `up to` carries none, the word

@@ -22,7 +22,7 @@ game Mini {
   players: 2
   max_length: 1000
   cards: standard52
-  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
+  zones { deck : Deck  hand[player] : PublicHand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase p {
     move chosen 2 cards from hand[0] where card.suit is hearts to pile
@@ -36,7 +36,7 @@ game Mini {
   players: 2
   max_length: 1000
   cards: standard52
-  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
+  zones { deck : Deck  hand[player] : PublicHand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase p {
     move chosen 2 cards from hand[0] to pile

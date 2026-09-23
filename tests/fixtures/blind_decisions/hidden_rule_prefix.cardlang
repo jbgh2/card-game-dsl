@@ -2,7 +2,7 @@
 // hand[1], which seat 0 cannot see, and binds only on seat 0's second lead
 // (seat 0 holding 4 cards), so at a depth-4 pause it lies before the pause.
 // While it binds and seat 1 holds a jack or higher, seat 0 must lead a 6 or
-// higher.
+// higher. The checker refuses the rule, which seat 0 must be able to check.
 game HiddenRulePrefix {
   players: 2
   max_length: 40

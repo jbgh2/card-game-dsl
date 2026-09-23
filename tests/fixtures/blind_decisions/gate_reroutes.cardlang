@@ -1,6 +1,7 @@
 // A probe, not a corpus game: a phase gate reads hand[1], which seat 0
 // cannot see, and decides who is asked next: `high` asks seat 0 and `low`
-// asks seat 1. Seat 0 is asked again in `last`, the pause at depth 2.
+// asks seat 1. Seat 0 is asked again in `last`. The checker refuses the
+// gate, which every seat must be able to check.
 game GateReroutes {
   players: 2
   max_length: 20

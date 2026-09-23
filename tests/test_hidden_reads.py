@@ -26,7 +26,9 @@ domain:          the verdict grid crosses every judged position (the table's
                  decisions.md, never from `ZONE_PROJECTIONS`. The relation
                  grid crosses every way the deciding seat is proven with a
                  concealed hand read; the route grid crosses every route a
-                 read can take with both verdicts. A position outside the
+                 read can take with both verdicts; the corpus cells hold the
+                 State Variable rule to the corpus games whose chosen
+                 movements it admits. A position outside the
                  two judged kinds is not judged: the control positions (an
                  `if`, a round's `leader`/`participants`/`until`, the seat of
                  an `as` or an `offer`) are issue #755, and a Primitive's
@@ -47,12 +49,18 @@ registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS`, pinned
                  An Arrival Record pile argument:
                  tests/test_arrival_record.py (its Owner Guard,
                  `_check_arrival_record_pile_args`, judges it in every position).
+                 The rendered messages: tests/rejections/hidden_read_gate.cardlang,
+                 tests/rejections/hidden_read_transition.cardlang,
+                 tests/rejections/hidden_read_rule.cardlang,
+                 tests/rejections/hidden_read_blind_draw.cardlang. The swap
+                 proof's own witnesses, and the ones refused before it runs:
+                 tests/openspiel_ready/test_blind_decisions.py.
 does not prove:  that a seat's knowledge beyond its projections is credited:
-                 the wall judges the declared projection, never the observed
+                 the check judges the declared projection, never the observed
                  history, so a seat that passed a card or saw one revealed is
                  still refused a read of it. That a Primitive reads its
                  declared zones at no more than identity: a `reads` clause
-                 names a zone and no need, and the wall judges it at identity.
+                 names a zone and no need, and the check judges it at identity.
                  That a delegated decision's pool is visible to its decider:
                  `play_source_for` is accepted statically, and the runtime
                  Owner Guard `delegation.check_decider_sees` refuses it per
@@ -75,15 +83,10 @@ from cardlang.ast import nodes as n
 from cardlang.builtins import functions as F
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_library
-from cardlang.pipeline import check_dsl
+from cardlang.pipeline import check_dsl, check_source
 from cardlang.stdlib import zones as Z
 
 _REPO = Path(__file__).resolve().parent.parent
-
-# The wall is implemented: every refusal cell asserts its refusal. While it is
-# False, a refusal cell is a strict expected failure constrained to `_Accepted`,
-# the one failure a missing wall produces.
-_WALL_LANDED = False
 
 
 class _Accepted(AssertionError):
@@ -106,9 +109,9 @@ def _lattice() -> tuple[str, ...]:
 
 _LATTICE = _lattice()
 
-# The operator's ruling (docs/plans/2026-09-23-hidden-read-wall.md, "What the
-# wall judges by"): each need maps to the least level that reveals it, and
-# membership is judged at identity. Order is not a level.
+# The operator's ruling (docs/plans/2026-09-23-hidden-read-wall.md,
+# "What the wall judges by"): each need maps to the least level that reveals
+# it, and membership is judged at identity. Order is not a level.
 _NEED_LEVEL = {"existence": "existence_only", "count": "count_only", "identity": "identity"}
 
 _ROW = re.compile(
@@ -189,7 +192,7 @@ def test_library_md_and_the_projection_table_agree() -> None:
     """The two definition sites of a type's projection -- the kernel table
     and library.md's `composition:` rows -- state the same projection for
     every library zone type, so the grid's expected column (read from
-    library.md) and the wall (read from the table) judge the same types.
+    library.md) and the check (read from the table) judge the same types.
 
     red under: declare `Hand`'s others column `identity` in `ZONE_PROJECTIONS`."""
     for name in Z.LIBRARY_ZONE_TYPES:
@@ -329,10 +332,10 @@ def _check(source: str, refuse: str | None) -> None:
     """Accept the game, or refuse it with a located diagnostic carrying
     `refuse`. A refusal cell whose game checks clean raises `_Accepted`."""
     if refuse is None:
-        check_dsl(source, "wall.cardlang")
+        check_dsl(source, "reads.cardlang")
         return
     try:
-        check_dsl(source, "wall.cardlang")
+        check_dsl(source, "reads.cardlang")
     except DiagnosticError as err:
         text = _full_text(err)
         assert err.diagnostic.span is not None, "a refusal must be located"
@@ -342,20 +345,13 @@ def _check(source: str, refuse: str | None) -> None:
 
 
 def _cell(cell_id: str, *values: object, refuse: str | None) -> object:
-    marks = (
-        [pytest.mark.xfail(strict=True, raises=_Accepted, reason="the wall refuses this cell")]
-        if refuse is not None and refuse not in _OTHER_OWNERS and not _WALL_LANDED
-        else []
-    )
-    return pytest.param(*values, refuse, id=cell_id, marks=marks)
+    return pytest.param(*values, refuse, id=cell_id)
 
 
 # The fragments each verdict's message carries.
 _EVERY_SEAT = "every seat can check"
 _DECIDER = "must be able to check it"
 _BLIND = "pick by position"
-# Refusals another Owner Guard makes, before and without the wall.
-_OTHER_OWNERS = frozenset({"must be a suit literal"})
 
 
 # ---------------------------------------------------------------------------
@@ -598,8 +594,8 @@ def test_the_verdict_grid_commands_both_outcomes() -> None:
 _BUMP = "move_type bump { effect { leader := 1 } }"
 
 # cell -> (body, defs, zone, teams, the refusal's fragment or None). Each
-# outcome is the ruling's
-# (docs/plans/2026-09-23-hidden-read-wall.md, "What the wall judges by").
+# outcome is the ruling's (docs/plans/2026-09-23-hidden-read-wall.md,
+# "What the wall judges by").
 _RELATIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
     # Bare-family sugar is the acting seat's own instance by construction.
     "bare-family": (*_take(effect="move chosen 1 card from hand to pile"), "", False, None),
@@ -799,7 +795,7 @@ _ROUTES: dict[str, tuple[str, str, str, str, bool, str]] = {
         "", "", "", True, "",
     ),
     # A rule template argument is a suit literal, so it reads nothing: the
-    # template guard refuses any other argument before the wall runs.
+    # template guard refuses any other argument before this check runs.
     "rule-argument": (
         "phase play { active_rules: [Probed(suit_of(top_of(deck)))] " + _TRICK + " }",
         "rule Probed(s : Suit) { constrains: play_to_trick applies_when: s is hearts "
@@ -979,3 +975,35 @@ def test_a_plausible_wrong_sentence_is_refused(
     """Each misuse probe is refused in the checker's channel -- a located
     diagnostic -- naming what the designer should write instead."""
     _check(_game(body, defs, zone=zone), refuse)
+
+
+# ---------------------------------------------------------------------------
+# The corpus: the State Variable rule is what admits these games' chosen
+# movements.
+# ---------------------------------------------------------------------------
+
+_STATE_VARIABLE_SEATS: dict[str, frozenset[str]] = {
+    "cribbage": frozenset({"active"}),
+    "doppelkopf": frozenset({"leader"}),
+    "five-hundred": frozenset({"declarer", "leader"}),
+    "french-tarot": frozenset({"taker"}),
+    "president": frozenset({"president"}),
+    "scopa": frozenset({"active"}),
+    "skat": frozenset({"leader"}),
+}
+
+
+@pytest.mark.parametrize("game", sorted(_STATE_VARIABLE_SEATS))
+def test_a_corpus_seat_named_by_a_state_variable_is_proven_by_it(game: str) -> None:
+    """Each game's `as <State Variable>` block picks from that seat's own hand,
+    and the check accepts the read because no path from the `as` writes the
+    variable -- Cribbage's through a write in a sibling branch.
+
+    red under: delete the `state_var` arm of `_HiddenReads._names_acting_seat`."""
+    checked = check_source(_REPO / "docs" / "games" / f"{game}.cardlang")
+    proven = {
+        v.reason.split("`")[1]
+        for v in R.hidden_read_verdicts(checked)
+        if v.accepted and v.reason.startswith("the State Variable")
+    }
+    assert proven == _STATE_VARIABLE_SEATS[game]

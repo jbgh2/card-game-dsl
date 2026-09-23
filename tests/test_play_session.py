@@ -61,8 +61,9 @@ does not prove:  Which pick a person should make. Who plays the other seats is
                  while another decision is being made (a `choose` inside a
                  move's effect) is shown as a decision of its own, with nothing
                  saying it belongs to the other (issue #605). A
-                 choice from a zone the seat cannot see lists the cards it holds,
-                 as the adapter's legal actions do (issue #281). A person seated
+                 choice from a zone the seat cannot see never reaches a session:
+                 the checker refuses it, and a blind pick waits for a pick by
+                 position (issue #756). A person seated
                  as a declarer is asked for the dummy's cards because a line asks
                  the Decider, which tests/test_live_line.py pins over the
                  registry; no cell here seats one.

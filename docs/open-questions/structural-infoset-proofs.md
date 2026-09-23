@@ -231,9 +231,11 @@ checklist for resolving this question.
   at a seat that sees a swapped card drops the pair, and nothing after it is
   compared; a hidden read turning on one opponent card is caught only when a
   pair flipping it is among the first `SWAP_PAIRS_PER_SEED`, taken in
-  `harness.spread_pairs` order. The seeded witnesses, a control branch that
-  stays checker-accepted (issue #755) among them, are
-  `tests/openspiel_ready/test_blind_decisions.py`.
+  `harness.spread_pairs` order. The seeded witnesses are control branches,
+  which the checker does not judge for a [Hidden Read](../glossary/hidden-read.md)
+  (issue #755): `tests/openspiel_ready/test_blind_decisions.py`. A Hidden
+  Read is refused before any proof runs
+  (`tests/test_hidden_reads.py`).
 - **Action renderings are not a channel.** What a consumer shows an agent is
   `action_to_string`, not the action id, so an id-level guarantee plus a
   world-sensitive renderer would be a leak with every proof above still

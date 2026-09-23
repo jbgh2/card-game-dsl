@@ -2608,8 +2608,8 @@ _INTRODUCE: tuple[_Site, ...] = (
     # `where jointly` binds the candidate SET, so its noun is the plural.
     _Site(
         "Transfer", "cards", False,
-        "move chosen 2 cards from hand[0] where jointly "
-        "(number of cards in cards) is 2 to discard",
+        "as 0 { move chosen 2 cards from hand[0] where jointly "
+        "(number of cards in cards) is 2 to discard }",
     ),
     _Site(
         "EpistemicOp", "card", False,
@@ -2652,7 +2652,7 @@ _INTRODUCE: tuple[_Site, ...] = (
     ),
     _Site(
         "Transfer", "pieces", False,
-        "move chosen 2 pieces from box where jointly true to reserve[0]",
+        "move chosen 2 pieces from reserve[1] where jointly true to reserve[0]",
         board=True,
     ),
 )
