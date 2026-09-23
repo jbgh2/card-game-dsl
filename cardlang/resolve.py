@@ -8546,6 +8546,12 @@ class _Seat:
 
 
 _NO_SEAT = _Seat("every seat", every=True)
+# The context a position gives a zone it names without reading what the zone
+# holds: a chosen movement's destination. Not a read need -- a zone reference
+# in this context reads nothing, and only its index is read. It travels
+# through a `let`, a parameter and a phase outcome like every need, so the use
+# site decides it, never the initialiser.
+_LOCATE = "locate"
 # The seat of a scope whose value was bound under another acting seat: equal
 # to no scope's own, so nothing it binds carries a proof either.
 _NO_ACTING_SEAT = -2
@@ -8603,7 +8609,8 @@ class _HiddenReads:
         match expr:
             case n.NameRef() as ref:
                 if ref.ref_kind == "zone" and ref.name in self.zones:
-                    yield ZoneRead(ref.name, None, scope, False, need, route, ref.span, choose)
+                    if need != _LOCATE:
+                        yield ZoneRead(ref.name, None, scope, False, need, route, ref.span, choose)
                 elif ref.ref_kind == "local":
                     for b in scope.lookup(ref.name):
                         if b.index_binder is None:
@@ -8613,7 +8620,8 @@ class _HiddenReads:
             case n.Subscript() as sub:
                 obj = sub.obj
                 if isinstance(obj, n.NameRef) and obj.ref_kind == "zone" and obj.name in self.zones:
-                    yield ZoneRead(obj.name, sub.index, scope, False, need, route, sub.span, choose)
+                    if need != _LOCATE:
+                        yield ZoneRead(obj.name, sub.index, scope, False, need, route, sub.span, choose)
                 elif isinstance(obj, n.NameRef) and obj.ref_kind == "local":
                     for b in scope.lookup(obj.name):
                         if b.index_binder is not None:
@@ -9191,14 +9199,12 @@ class _HiddenReads:
             )
         if stmt.where is not None:
             self._judge("a chosen movement's `where`", self.reads_of(stmt.where, filtered), decider, stmt.where.span)
-        dest = stmt.dest
-        if isinstance(dest, n.Subscript) and isinstance(dest.obj, n.NameRef) and dest.obj.ref_kind == "zone":
-            dest_reads = self.reads_of(dest.index, scope)
-        elif isinstance(dest, n.NameRef) and dest.ref_kind == "zone":
-            dest_reads = iter(())
-        else:
-            dest_reads = self.reads_of(dest, scope)
-        self._judge("a chosen movement's destination", dest_reads, decider, dest.span)
+        self._judge(
+            "a chosen movement's destination",
+            self.reads_of(stmt.dest, scope, _LOCATE),
+            decider,
+            stmt.dest.span,
+        )
 
 
 def hidden_read_verdicts(game: n.Game) -> list[HiddenReadVerdict]:

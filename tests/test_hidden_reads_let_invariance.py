@@ -184,33 +184,8 @@ def _variants() -> list[object]:
                     source[:at] + f"let {_NAME} = {text}  " + source[at:start]
                     + _NAME + source[end:]
                 )
-                variant_id = f"{cell_id}@{text}"
-                marks = (
-                    [pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RED[variant_id])]
-                    if variant_id in _RED
-                    else []
-                )
-                out.append(pytest.param(source, variant, id=variant_id, marks=marks))
+                out.append(pytest.param(source, variant, id=f"{cell_id}@{text}"))
     return out
-
-
-# variant -> why it moves the verdict: a destination bound by a `let` is read
-# at the `let`'s need, not named as the destination position names it.
-_DESTINATION = "a destination hoisted into a `let` counts its contents as read"
-_RED: dict[str, str] = {
-    f"destination-{zone_type}@{ref}": _DESTINATION
-    for zone_type, ref in (
-        ("ChipStack", "probe[actor offset_by left]"),
-        ("FaceDownPile", "probe"),
-        ("Deck", "probe"),
-        ("HiddenPile", "probe[actor offset_by left]"),
-        ("Burn", "probe"),
-        ("Muck", "probe"),
-        ("Hand", "probe[actor offset_by left]"),
-        ("HiddenStack", "probe[1]"),
-    )
-}
-
 
 
 _ZONE = re.compile(

@@ -29,7 +29,9 @@ domain:          the verdict grid crosses every judged position (the table's
                  read can take with both verdicts; the implicit-pool grid
                  crosses every `DECISION_POOLS` row whose cards come from a
                  declared zone with every zone type a seat's `hand` can be
-                 declared as; the indirection grid crosses every name the
+                 declared as; the destination cells name a zone of every
+                 library type as a chosen movement's destination; the
+                 indirection grid crosses every name the
                  reader follows by value with the seat that consumes it; the
                  corpus cells hold the
                  State Variable rule to the corpus games whose chosen
@@ -64,7 +66,9 @@ registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS`, pinned
                  tests/rejections/implicit_pool_hidden_from_owner.cardlang,
                  tests/rejections/hidden_read_outcome_payload.cardlang. The swap
                  proof's own witnesses, and the ones refused before it runs:
-                 tests/openspiel_ready/test_blind_decisions.py.
+                 tests/openspiel_ready/test_blind_decisions.py. The verdicts'
+                 invariance under hoisting into a `let`:
+                 tests/test_hidden_reads_let_invariance.py.
 does not prove:  that a seat's knowledge beyond its projections is credited:
                  the check judges the declared projection, never the observed
                  history, so a seat that passed a card or saw one revealed is
@@ -1256,20 +1260,9 @@ _INDIRECTIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
     ),
 }
 
-# cell -> why it is a strict expected failure, the game refused.
-_INDIRECTION_RED: dict[str, str] = {
-    "destination-through-a-let-names-another-hand": (
-        "a destination bound by a `let` counts its contents as read"
-    ),
-}
-
-
 def _indirection_cells() -> list[object]:
     return [
-        _cell(
-            cell_id, body, defs, zone, teams, refuse=refuse,
-            xfail=_INDIRECTION_RED.get(cell_id), raises=DiagnosticError,
-        )
+        _cell(cell_id, body, defs, zone, teams, refuse=refuse)
         for cell_id, (body, defs, zone, teams, refuse) in _INDIRECTIONS.items()
     ]
 
