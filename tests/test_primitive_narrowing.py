@@ -421,6 +421,7 @@ MIGRATED: frozenset[str] = frozenset(
         "tichu_dragon_won",
         "tichu_follows",
         "tichu_lead_options",
+        "tichu_wish_after_trick",
     }
 )
 
