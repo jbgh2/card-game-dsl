@@ -173,10 +173,11 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         "different class from PrimitiveReadError's name/declaration coupling — "
         "same audience, different artifact, so not that type either."),
     ),
-    ("cardlang/runtime/tichu.py", "ValueError"): (
-        1,
-        ("The combo codec's play-universe refusal. Firing means the codec and "
-        "the combination engine drifted — both Python in cardlang/runtime/, "
+    ("cardlang/runtime/tichu.py", "_refuse"): (
+        3,
+        ("The combo codec's play-universe refusal (a ValueError built by "
+        "`_refuse`, raised at three sites of `encode`). Firing means the codec "
+        "and the combination engine drifted — both Python in cardlang/runtime/, "
         "neither reachable from a .cardlang file."),
     ),
     # --- deliberate signals, caught by type ----------------------------------

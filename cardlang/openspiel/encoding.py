@@ -53,7 +53,7 @@ from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.mechanics import _pack
-from cardlang.runtime.observe import render_candidate
+from cardlang.runtime.observe import render_candidate, render_play
 from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
 NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the standard card block
@@ -125,11 +125,21 @@ def _derived_card_block(deck_name: str) -> list[Card] | None:
 
 @dataclass(frozen=True)
 class ComboAction:
-    """A decoded combination action: the card-set it moves. Matched against
-    engine plays by card-set (each set denotes exactly one play — a pinned
-    invariant of the universe)."""
+    """A decoded combination action: the card-set it moves, and the rank
+    value a wildcard among those cards stands for (`None` for a play with no
+    wildcard, or one whose wildcard value is contextual). Matched against
+    engine plays by both: a card-set holding a wildcard can denote two plays
+    (Tichu's {Phoenix,3,4,5,6} is 2-6 or 3-7), and the pair is the play's
+    identity — a pinned invariant of every combo universe."""
 
     cards: frozenset[Card]
+    wild: int | None = None
+
+
+def _play_identity(play: Any) -> tuple[frozenset[Card], int | None]:
+    """An engine play's identity for the combo block: its card-set and its
+    wildcard value (absent on every play of an engine without wildcards)."""
+    return frozenset(play.cards), getattr(play, "wild", None)
 
 
 def _walk(node: Any) -> Iterator[Any]:
@@ -278,8 +288,8 @@ class ActionSpace:
         self.num_distinct_actions = self._combo_base + combo_count
         self._name_ids = {v: i for i, v in enumerate(names)}
         self._offering_ids = {v: i for i, v in enumerate(offering)}
-        self._combo_ids = {frozenset(p.cards): i for i, p in enumerate(combos)}
-        assert len(self._combo_ids) == len(combos), "combo card-sets must be unique"
+        self._combo_ids = {_play_identity(p): i for i, p in enumerate(combos)}
+        assert len(self._combo_ids) == len(combos), "combo play identities must be unique"
 
     @staticmethod
     def for_game(game: n.Game) -> ActionSpace:
@@ -486,11 +496,11 @@ class ActionSpace:
                 # action either way.
                 return self._name_base + self._name_ids[name]
             return self._offering_base + self._offering_ids[value]
-        cards = getattr(value, "cards", None)
-        if cards is not None:
+        if getattr(value, "cards", None) is not None:
+            cards, wild = _play_identity(value)
             if self._combo_codec is not None:
-                return self._combo_base + int(self._combo_codec.encode_cards(frozenset(cards)))
-            return self._combo_base + self._combo_ids[frozenset(cards)]
+                return self._combo_base + int(self._combo_codec.encode(cards, wild))
+            return self._combo_base + self._combo_ids[(cards, wild)]
         raise ValueError(f"cannot encode action value {value!r}")
 
     def decode(self, aid: int) -> Any:
@@ -504,8 +514,9 @@ class ActionSpace:
             return self._offering[aid - self._offering_base]
         if self._combo_base <= aid < self.num_distinct_actions:
             if self._combo_codec is not None:
-                return ComboAction(frozenset(self._combo_codec.decode(aid - self._combo_base)))
-            return ComboAction(frozenset(self._combos[aid - self._combo_base].cards))
+                cards, wild = self._combo_codec.decode(aid - self._combo_base)
+                return ComboAction(frozenset(cards), wild)
+            return ComboAction(*_play_identity(self._combos[aid - self._combo_base]))
         raise ValueError(f"action {aid} out of range 0..{self.num_distinct_actions - 1}")
 
     def match(self, aid: int, pool: list[Any]) -> Any:
@@ -519,7 +530,7 @@ class ActionSpace:
                     c
                     for c in pool
                     if getattr(c, "cards", None) is not None
-                    and frozenset(c.cards) == value.cards
+                    and _play_identity(c) == (value.cards, value.wild)
                 ),
                 _missing,
             )
@@ -614,9 +625,9 @@ class ActionSpace:
         if isinstance(value, ComboAction):
             if self._combo_codec is not None:
                 kind = str(self._combo_codec.kind_of(aid - self._combo_base))
-                return f"{kind}[" + ",".join(sorted(str(c) for c in value.cards)) + "]"
-            play = self._combos[aid - self._combo_base]
-            return f"{play.kind}[" + ",".join(sorted(str(c) for c in play.cards)) + "]"
+            else:
+                kind = str(self._combos[aid - self._combo_base].kind)
+            return render_play(kind, value.cards, value.wild)
         if isinstance(value, tuple):
             name, param = value
             return render_candidate(name, param)

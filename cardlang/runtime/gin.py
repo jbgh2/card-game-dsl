@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from itertools import combinations
 
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
@@ -164,11 +165,18 @@ class _GinMeldCodec:
         self._ids = {cards: i for i, (_, cards) in enumerate(universe)}
         self.size = len(universe)
 
-    def encode_cards(self, cards: frozenset[Card]) -> int:
+    def encode(self, cards: frozenset[Card], wild: int | None) -> int:
+        if wild is not None:
+            # Shadow Guard: `ActionSpace.encode` refuses a wild outside the
+            # codec's declared `wilds` before reaching here.
+            raise ShadowGuardError(
+                "openspiel.encoding.ActionSpace.encode",
+                f"a gin meld holds no wildcard (wild={wild})",
+            )
         return self._ids[cards]  # KeyError on a non-meld: loud, not a wrong id
 
-    def decode(self, idx: int) -> frozenset[Card]:
-        return self._universe[idx][1]
+    def decode(self, idx: int) -> tuple[frozenset[Card], int | None]:
+        return self._universe[idx][1], None
 
     def kind_of(self, idx: int) -> str:
         return self._universe[idx][0]

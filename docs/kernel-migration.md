@@ -390,16 +390,17 @@ The design the construct settled:
   Workstream 5's Tichu half has since upgraded both to real announced
   decisions (see the WS5 section).
 - **The OpenSpiel combo block is computed for Tichu, enumerated for Big
-  Two.** Big Two's play universe (19,898) is enumerated and golden-pinned;
-  Tichu's is 211,204,694 (straights of length 5–14 under free suit
-  assignment are 208.8M of it, and the engine's Mahjong-as-rank-1 quirk adds
-  a Phoenix+Mahjong pair and Mahjong-filled phoenix fullhouses), so
-  enumeration is infeasible: its ids come from an arithmetic codec
-  (`runtime/tichu.py::TichuComboCodec` via `primitives.climb_codec_function`) —
-  pure card-set ↔ index functions over a fixed per-kind block layout, so ids
-  stay stable across determinized worlds with no table. Pinned by exact-size,
-  spot-id, engine-emission and per-block roundtrip tests
-  (`tests/test_openspiel_encoding.py`).
+  Two.** Big Two's play universe is enumerated and golden-pinned; Tichu's
+  (the codec's `size`; Phoenix straights under free suit assignment
+  dominate) is too large to enumerate, so its ids come from an arithmetic
+  codec (`runtime/tichu.py::TichuComboCodec` via
+  `primitives.climb_codec_function`) — pure play-identity ↔ index functions
+  over a fixed per-kind block layout, the identity being the card-set plus
+  the wildcard's value, so ids stay stable across determinized worlds with
+  no table. Pinned by exact-size, spot-id, engine-emission and per-block
+  roundtrip tests (`tests/test_openspiel_encoding.py`); the enumerator
+  itself is held to the rules by an independent validator
+  (`tests/test_tichu_combinations.py`).
 - The bomb **interrupt** axis (any player, any time) is moot at the migrated
   scope: the current Tichu omits out-of-turn bombs (bombs play only on-turn, as a
   follow), and Big Two has no bombs, so the kernel needs no interrupt axis to

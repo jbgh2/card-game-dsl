@@ -39,6 +39,7 @@ game's dedicated observational tests.
 
 from __future__ import annotations
 
+import dataclasses
 import random
 from collections.abc import Callable
 from dataclasses import dataclass, fields, is_dataclass
@@ -946,13 +947,35 @@ def replay_pair(
     return PairReplay(pause, compared)
 
 
+def _holding(rs: Any, card: Card) -> Any:
+    """The one zone holding `card` at this moment of the world."""
+    zones = [
+        *rs.zones.singles.values(),
+        *(z for family in rs.zones.families.values() for z in family.values()),
+    ]
+    holders = [z for z in zones if card in z.cards]
+    assert len(holders) == 1, f"{card} is held by {len(holders)} zones"
+    return holders[0]
+
+
 def _swap_fn(side1: tuple[str, int | None], side2: tuple[str, int | None], x: Any, y: Any) -> Any:
+    """Exchange `x` and `y` wherever they lie at the first decision, each
+    taking the other's position and arrival record. The sides name where the
+    PAUSE finds them; a game that deals between the first decision and the
+    pause (Tichu takes its first eight cards one at a time, polling for grand
+    tichu after each) still holds one or both in the stock at the first
+    decision, and exchanging them there yields the same paused world as
+    exchanging them in the hands after the deal, because a deal is
+    positional. A card held nowhere raises, which `replay_pair` reads as a
+    swap that does not apply."""
+
     def swap(rs: Any) -> None:
-        h1, h2 = _side_zone(rs, side1), _side_zone(rs, side2)
-        h1.remove(x)
-        h2.remove(y)
-        h1.add(y)
-        h2.add(x)
+        zx, zy = _holding(rs, x), _holding(rs, y)
+        ix, iy = zx.cards.index(x), zy.cards.index(y)
+        zx.cards[ix], zy.cards[iy] = y, x
+        for zone, before, after in ((zx, x, y), (zy, y, x)):
+            i = next(k for k, a in enumerate(zone.arrivals) if a.card == before)
+            zone.arrivals[i] = dataclasses.replace(zone.arrivals[i], card=after)
 
     return swap
 

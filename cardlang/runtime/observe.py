@@ -189,6 +189,15 @@ def render_candidate(name: str, param: Any) -> str:
     return f"{name}({param})"
 
 
+def render_play(kind: str, cards: Any, wild: int | None) -> str:
+    """Render a combination play: its kind, its cards, and — when a wildcard
+    among them stands for a rank — that rank's value after `@`. Shared by
+    `render` (a live play) and `ActionSpace.to_string` (a decoded id), which
+    must spell the same play identically."""
+    text = f"{kind}[" + ",".join(sorted(str(c) for c in cards)) + "]"
+    return text if wild is None else f"{text}@{wild}"
+
+
 def render(value: Any) -> Any:
     """A deterministic, readable rendering of a decision value."""
     if isinstance(value, Card):
@@ -200,8 +209,7 @@ def render(value: Any) -> Any:
         return render_candidate(name, param)
     cards = getattr(value, "cards", None)
     if cards is not None:  # a combination play (climb engines)
-        kind = getattr(value, "kind", "combo")
-        return f"{kind}[" + ",".join(sorted(str(c) for c in cards)) + "]"
+        return render_play(getattr(value, "kind", "combo"), cards, getattr(value, "wild", None))
     if isinstance(value, (int, str)) or value is None:
         return value  # int/bool (a choose, a flag), str (a move name / "pass")
     # Closed-domain completeness: a decision value outside the declared

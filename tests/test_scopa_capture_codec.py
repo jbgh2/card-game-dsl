@@ -172,13 +172,13 @@ def test_the_codec_universe_is_every_capture_set_the_deck_can_form() -> None:
     capture set and nothing else.
 
     red under: raise MIN_CAPTURE_SET to 3 in cardlang/runtime/scopa.py."""
-    codec_universe = {SCOPA_CAPTURE_CODEC.decode(i) for i in range(SCOPA_CAPTURE_CODEC.size)}
+    codec_universe = {SCOPA_CAPTURE_CODEC.decode(i)[0] for i in range(SCOPA_CAPTURE_CODEC.size)}
     assert codec_universe == _independent_universe()
 
 
 def test_the_universe_holds_each_set_once() -> None:
     """`size` counts distinct sets: an id space larger than the set it encodes
-    would leave `encode_cards` unable to recover the duplicate's other id.
+    would leave `encode` unable to recover the duplicate's other id.
 
     red under: append `universe.append(frozenset(chosen))` a second time in
     `_ScopaCaptureCodec.__init__`."""
@@ -202,7 +202,7 @@ def test_every_universe_member_is_a_card_of_this_games_deck() -> None:
     deck = set(_deck())
     assert len(deck) == len(_deck()), "the deck must be duplicate-free to key subsets by frozenset"
     for i in range(SCOPA_CAPTURE_CODEC.size):
-        assert SCOPA_CAPTURE_CODEC.decode(i) <= deck
+        assert SCOPA_CAPTURE_CODEC.decode(i)[0] <= deck
 
 
 # =============================================================================
@@ -211,21 +211,21 @@ def test_every_universe_member_is_a_card_of_this_games_deck() -> None:
 
 
 def test_every_id_round_trips_through_the_card_set() -> None:
-    """`encode_cards(decode(i)) == i` over the whole id range.
+    """`encode(*decode(i)) == i` over the whole id range.
 
     red under: return `self._universe[idx - 1]` from `decode`."""
     for i in range(SCOPA_CAPTURE_CODEC.size):
-        assert SCOPA_CAPTURE_CODEC.encode_cards(SCOPA_CAPTURE_CODEC.decode(i)) == i
+        assert SCOPA_CAPTURE_CODEC.encode(*SCOPA_CAPTURE_CODEC.decode(i)) == i
 
 
 def test_every_card_set_round_trips_through_its_id() -> None:
-    """`decode(encode_cards(S)) == S` over the whole universe — the other
+    """`decode(encode(S, None)) == (S, None)` over the whole universe — the other
     direction, which the id walk above does not imply for a codec whose
     `_ids` and `_universe` could disagree.
 
     red under: build `self._ids` with `(i + 1) % len(universe)` for the id."""
     for cards in _independent_universe():
-        assert SCOPA_CAPTURE_CODEC.decode(SCOPA_CAPTURE_CODEC.encode_cards(cards)) == cards
+        assert SCOPA_CAPTURE_CODEC.decode(SCOPA_CAPTURE_CODEC.encode(cards, None)) == (cards, None)
 
 
 def test_kind_of_is_total_and_speaks_one_word() -> None:
@@ -244,12 +244,12 @@ def test_a_set_outside_the_universe_is_loud() -> None:
     card (which the forced single-card match takes as a plain movement, so it
     is never a joint selection's result).
 
-    red under: give `encode_cards` a `self._ids.get(cards, 0)` fallback."""
+    red under: give `encode` a `self._ids.get(cards, 0)` fallback."""
     too_big = frozenset({Card("K", "clubs"), Card("K", "hearts")})
     lone = frozenset({Card("A", "clubs")})
     for bad in (too_big, lone):
         with pytest.raises(KeyError):
-            SCOPA_CAPTURE_CODEC.encode_cards(bad)
+            SCOPA_CAPTURE_CODEC.encode(bad, None)
 
 
 def test_ids_are_stable_across_processes() -> None:
@@ -266,12 +266,12 @@ def test_ids_are_stable_across_processes() -> None:
     in `_ScopaCaptureCodec.__init__`."""
     probe = (
         "from cardlang.runtime.scopa import SCOPA_CAPTURE_CODEC as c;"
-        "print(c.size, [sorted(map(str, c.decode(i))) for i in (0, 1, c.size // 2, c.size - 1)])"
+        "print(c.size, [sorted(map(str, c.decode(i)[0])) for i in (0, 1, c.size // 2, c.size - 1)])"
     )
     here = (
         SCOPA_CAPTURE_CODEC.size,
         [
-            sorted(map(str, SCOPA_CAPTURE_CODEC.decode(i)))
+            sorted(map(str, SCOPA_CAPTURE_CODEC.decode(i)[0]))
             for i in (0, 1, SCOPA_CAPTURE_CODEC.size // 2, SCOPA_CAPTURE_CODEC.size - 1)
         ],
     )
@@ -403,7 +403,7 @@ def test_every_satisfying_subset_of_a_layout_has_an_id(target: int) -> None:
             for k in range(MIN_CAPTURE_SET, len(layout) + 1):
                 for idx in combinations(range(len(layout)), k):
                     if sums_to([values[i] for i in idx], target):
-                        SCOPA_CAPTURE_CODEC.encode_cards(frozenset(layout[i] for i in idx))
+                        SCOPA_CAPTURE_CODEC.encode(frozenset(layout[i] for i in idx), None)
                         seen += 1
     assert bool(seen) is (target >= floor), (
         f"target {target}: {seen} satisfying subsets, against a sum-capture "
@@ -417,7 +417,7 @@ def test_the_enumeration_bound_admits_every_capture_set() -> None:
     capture the deck can form is four aces and three twos.
 
     red under: lower `ENUMERATION_BOUND` in cardlang/runtime/execute.py."""
-    widest = max(len(SCOPA_CAPTURE_CODEC.decode(i)) for i in range(SCOPA_CAPTURE_CODEC.size))
+    widest = max(len(SCOPA_CAPTURE_CODEC.decode(i)[0]) for i in range(SCOPA_CAPTURE_CODEC.size))
     assert widest == 7
     assert widest <= ENUMERATION_BOUND
 

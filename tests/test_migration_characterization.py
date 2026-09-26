@@ -815,11 +815,9 @@ def test_the_betting_games_per_hand_stacks_are_pinned(name: str) -> None:
 # one — a structural change, not a draw divergence). Team scores accumulate every
 # hand's card points, so any draw divergence cascades into the finals. Pinned
 # pre-migration.
-# Re-pinned at the WS5 upgrade (real call windows + Dragon choice): captures run
-# under the reference policy from tests/test_playout_tichu.py (grand 4%, small
-# 2% per offer, uniform otherwise) — the uniform chooser diverges (the
-# unbounded-lines witness), and the policy keeps the pinned profile close to
-# the pre-WS5 rng gates.
+# The captures run under the reference policy from tests/test_playout_tichu.py
+# (imported, so the rates have one home) — the uniform chooser diverges (the
+# unbounded-lines witness).
 _TICHU_CAPTURE = """
 import json, random, sys
 from pathlib import Path
@@ -828,17 +826,7 @@ from cardlang.runtime.driver import play_game
 
 game = check_dsl(Path("docs/games/tichu.cardlang").read_text(), "tichu.cardlang")
 
-def policy(rng):
-    from cardlang.runtime.chooser import random_chooser
-    base = random_chooser(rng)
-    def chooser(player, candidates, n):
-        names = {c[0]: c for c in candidates if isinstance(c, tuple) and c}
-        if "call_grand_tichu" in names:
-            return [names["call_grand_tichu"] if rng.random() < 0.04 else names["decline_grand"]]
-        if "call_tichu" in names:
-            return [names["call_tichu"] if rng.random() < 0.02 else names["no_call"]]
-        return base(player, candidates, n)
-    return chooser
+from tests.test_playout_tichu import tichu_reference_policy as policy
 
 out = {}
 for seed in range(int(sys.argv[1])):
@@ -891,17 +879,7 @@ from tests.playout_trace import TichuHands
 game = check_dsl(Path("docs/games/tichu.cardlang").read_text(), "tichu.cardlang")
 team_of = {p: ti for ti, members in enumerate(game.teams) for p in members}
 
-def policy(rng):
-    from cardlang.runtime.chooser import random_chooser
-    base = random_chooser(rng)
-    def chooser(player, candidates, n):
-        names = {c[0]: c for c in candidates if isinstance(c, tuple) and c}
-        if "call_grand_tichu" in names:
-            return [names["call_grand_tichu"] if rng.random() < 0.04 else names["decline_grand"]]
-        if "call_tichu" in names:
-            return [names["call_tichu"] if rng.random() < 0.02 else names["no_call"]]
-        return base(player, candidates, n)
-    return chooser
+from tests.test_playout_tichu import tichu_reference_policy as policy
 
 out = {}
 for seed in range(int(sys.argv[1])):

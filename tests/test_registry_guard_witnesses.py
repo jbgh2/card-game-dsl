@@ -666,7 +666,19 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "runtime/state.py": [
         "role_of(decl.index) not in ZONE_INDEX_ROLES and decl.index not in positions"
     ],
-    "runtime/tichu.py": ["index < _BASE_PAIRSEQ"],
+    # The combo codec's own block arithmetic: three sub-block boundaries the
+    # decoder partitions an in-range index by, and the wildcard's declared
+    # range on the way in. The collections are the codec's block tables,
+    # derived from `KINDS` and the deck; their witness is the two-way
+    # bijection over every block (tests/test_openspiel_encoding.py) and the
+    # enumerator oracle whose emissions all encode
+    # (tests/test_tichu_combinations.py).
+    "runtime/tichu.py": [
+        "i < _N_PAIRSEQ_NAT",
+        "i < _N_STRAIGHT_NAT",
+        "index < _BASE_PAIRSEQ",
+        "wild is not None and (not phoenix or wild not in _RANK_OF_VAL)",
+    ],
     "stdlib/boards.py": ["set(_GRID_DIRECTION_OFFSETS) != set(dirs)"],
     # A `primitives { }` entry's collection element, checked against the
     # block's own allow-list on the way into `TCollection`. It validates a

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import COMPONENT_SETS, Card, build_deck, rank_strength
@@ -97,7 +98,7 @@ class _ScopaCaptureCodec:
     legal in some position has an id, and which ids are legal in THIS position
     is the movement's own candidate set, matched per state by
     `ActionSpace.match`. A set summing past the largest capture value satisfies
-    the predicate for no target and is absent, so `encode_cards` raising on one
+    the predicate for no target and is absent, so `encode` raising on one
     is the loud refusal rather than a wrong id.
 
     The enumeration walks the deck in build order and grows each prefix, so the
@@ -125,11 +126,18 @@ class _ScopaCaptureCodec:
         self._ids = {cards: i for i, cards in enumerate(universe)}
         self.size = len(universe)
 
-    def encode_cards(self, cards: frozenset[Card]) -> int:
+    def encode(self, cards: frozenset[Card], wild: int | None) -> int:
+        if wild is not None:
+            # Shadow Guard: `ActionSpace.encode` refuses a wild outside the
+            # codec's declared `wilds` before reaching here.
+            raise ShadowGuardError(
+                "openspiel.encoding.ActionSpace.encode",
+                f"a scopa capture holds no wildcard (wild={wild})",
+            )
         return self._ids[cards]  # KeyError off the universe: loud, not a wrong id
 
-    def decode(self, idx: int) -> frozenset[Card]:
-        return self._universe[idx]
+    def decode(self, idx: int) -> tuple[frozenset[Card], int | None]:
+        return self._universe[idx], None
 
     def kind_of(self, idx: int) -> str:
         return "capture"

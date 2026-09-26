@@ -250,7 +250,7 @@ def joint_codec_function(name: str) -> Any | None:
     """The subset codec for a joint selection (`where jointly`) whose
     predicate is rooted in the named call — the climb-engine codec pattern
     (`climb_codec_function` below) one construct over: pure card-set <->
-    action-index functions (`size` / `encode_cards` / `decode` / `kind_of`)
+    action-index functions (`size` / `encode` / `decode` / `kind_of`)
     over the predicate's satisfying-subset universe. Keyed corpus-first; a
     joint predicate with no registered codec meets a loud [[owner-guard]] at
     `ActionSpace.for_game`, never silently absent from the action space."""
@@ -276,9 +276,9 @@ def joint_codec_function(name: str) -> Any | None:
 
 def climb_codec_function(name: str) -> Any | None:
     """The engine's arithmetic combo codec — pure card-set <-> action-index
-    functions (`size` / `encode_cards` / `decode` / `kind_of`) — keyed by the
+    functions (`size` / `encode` / `decode` / `kind_of`) — keyed by the
     lead-query name, for engines whose play universe is too large to enumerate
-    (Tichu's is 211,204,694; straights dominate). `None` means the engine
+    (Tichu's; the codec's `size` says how large). `None` means the engine
     enumerates via `climb_universe_function` (Big Two: 19,898, golden-pinned),
     keeping that path and its pinned ids byte-identical."""
     match name:

@@ -686,6 +686,11 @@ class ClimbForm:
             self.hands[actor].remove(c)
         self.pile.add_all(play.cards, actor, (self.source_name, actor))
         observe.movement(ctx, (self.source_name, actor), (self.pile_name, None), play.cards)
+        if getattr(play, "wild", None) is not None:
+            # The cards are seen through the movement; the rank a wildcard
+            # among them stands for is not, and every follower's legal set
+            # depends on it — so it is announced, as at the table.
+            observe.announce(ctx, actor, play)
         state["current"], state["last"] = play, actor
         state["idx"] += 1
         if not self.hands[actor].cards:  # played their last cards: record the shed

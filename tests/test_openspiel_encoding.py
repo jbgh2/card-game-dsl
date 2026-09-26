@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from typing import Any
 
 import pytest
 
@@ -316,27 +317,53 @@ def test_encode_rejects_out_of_space_values() -> None:
         space.encode(("submit_bid", "hearts"))  # hearts has no vocabulary
 
 
+def _tichu_universe_size() -> int:
+    """The Tichu play universe, derived a second time from the rules' shapes
+    (never from the codec's block tables): one id per (card-set, wildcard
+    value) the engine can emit."""
+    dog = 1
+    single = 55  # every card but the Dog
+    pair = 13 * 6 + 13 * 4  # six suit pairs; the Phoenix with one of four cards
+    triple = 13 * 4 + 13 * 6
+    bomb = 13 + 4 * sum(14 - length for length in range(5, 14))  # quads; suited runs
+    fullhouse = 13 * 12 * 4 * 6 + 13 * 4 * 12 * 4 + 13 * 12 * 6 * 6
+    straight = 0
+    for length in range(5, 15):
+        straight += 4 ** (length - 1)  # lo = 1: the Mahjong, suitless
+        straight += (length - 1) * 4 ** (length - 2)  # ... with the Phoenix
+        for _lo in range(2, 16 - length):
+            straight += 4**length - 4  # every suit assignment but a suited run
+            straight += length * 4 ** (length - 1)  # the Phoenix for any rank
+    pairseq = 0
+    for length in range(2, 8):
+        windows = 14 - length
+        pairseq += windows * 6**length
+        pairseq += windows * length * 4 * 6 ** (length - 1)
+    return dog + single + pair + triple + bomb + fullhouse + straight + pairseq
+
+
 def test_tichu_space_derives_its_own_56_block_and_the_combo_codec() -> None:
     space = _space("tichu.cardlang")
     # tichu56 is not standard-52-expressible (Mahjong/Dog/Phoenix/Dragon fall
     # outside SUITS x RANKS), so the space derives its own 56-card block (deck
     # order), plus the climb "pass" name, plus the ARITHMETIC combo codec:
-    # 211,204,694 plays, computed rather than enumerated (straights of length
-    # 5-14 under free suit assignment are 208.8M of it — an enumerated,
-    # golden-pinned universe like Big Two's 19,898 is physically infeasible).
-    # Every combo id is a pure function of the card-set, so ids stay stable
-    # across determinized worlds without a table.
-    # ... plus the six named call/Dragon moves of the WS5 windows
-    # (call_grand_tichu, decline_grand, call_tichu, no_call, dragon_to_left,
-    # dragon_to_right).
-    assert space.num_distinct_actions == 56 + 1 + 6 + 211_204_694
-    # The named-move block follows the cards (declaration order interleaves
-    # the WS5 vocabulary around the climb pass).
-    assert space.to_string(60) == "pass"
-    assert space.to_string(56) == "call_grand_tichu"
+    # computed rather than enumerated (Phoenix straights under free suit
+    # assignment dominate — an enumerated, golden-pinned universe like Big
+    # Two's is physically infeasible). Every combo id is a pure function of
+    # the play's identity, so ids stay stable across determinized worlds
+    # without a table. ... plus the six named call/Dragon moves.
+    from cardlang.runtime.tichu import TICHU_COMBO_CODEC as codec
+
+    assert codec.size == _tichu_universe_size() == 873_322_273
+    assert space.num_distinct_actions == 56 + 1 + 6 + codec.size
+    # The named-move block follows the cards: the six call/Dragon moves and
+    # the climb pass, in the order the game's decision sites are walked.
+    assert {space.to_string(i) for i in range(56, 63)} == {
+        "call_grand_tichu", "decline_grand", "call_tichu", "no_call",
+        "dragon_to_left", "dragon_to_right", "pass",
+    }
     # Spot ids: the combo block opens at 63 with the Dog (its own trick-ending
-    # kind), and the engine's Phoenix+Mahjong pair (the by_rank quirk) sits at
-    # a pinned slot inside the pair sub-block.
+    # kind); the pair block holds the 78 naturals, then the Phoenix pairs.
     from cardlang.runtime.tichu_combinations import Play
     from cardlang.runtime.values import build_deck
 
@@ -344,12 +371,17 @@ def test_tichu_space_derives_its_own_56_block_and_the_combo_codec() -> None:
     dog = next(c for c in deck if c.rank == "Dog")
     mahjong = next(c for c in deck if c.rank == "Mahjong")
     phoenix = next(c for c in deck if c.rank == "Phoenix")
+    two = Card("2", "clubs")
     dog_aid = space.encode(Play("dog", 1, 0, (dog,)))
     assert dog_aid == 63
     assert space.to_string(dog_aid) == f"dog[{dog}]"
-    pair_aid = space.encode(Play("pair", 2, 1, (mahjong, phoenix)))
+    pair_aid = space.encode(Play("pair", 2, 2, (two, phoenix), wild=2))
     assert pair_aid == 63 + 56 + 78  # combo base + pair block + the 78 naturals
-    assert space.to_string(pair_aid).startswith("pair[")
+    assert space.to_string(pair_aid) == f"pair[{two},{phoenix}]@2"
+    # The Mahjong pairs with nothing (issue #725): a play that is no play has
+    # no id — refused, never numbered.
+    with pytest.raises(ValueError):
+        space.encode(Play("pair", 2, 1, (mahjong, phoenix), wild=1))
 
 
 def test_tichu_card_block_round_trips_all_56() -> None:
@@ -368,9 +400,9 @@ def test_tichu_card_block_round_trips_all_56() -> None:
 
 def test_tichu_combo_codec_round_trips_engine_emissions() -> None:
     # Every play the engine can emit from a hand must encode into the combo
-    # block and decode back to the same card-set — including the engine's
-    # Mahjong quirks (the Phoenix+Mahjong pair and the Mahjong-filled phoenix
-    # fullhouse, which a naive closed-form universe misses).
+    # block and decode back to the same identity — card-set AND wildcard
+    # value — and `match` must return that play and no other from a pool
+    # holding both plays of a shared card-set.
     import random
 
     from cardlang.runtime.tichu import tichu_lead_options
@@ -380,37 +412,64 @@ def test_tichu_combo_codec_round_trips_engine_emissions() -> None:
     deck = build_deck("tichu56")
     rng = random.Random(11)
     checked = 0
+    twins = 0
     for _ in range(50):
         hand = rng.sample(deck, 14)
-        for play in tichu_lead_options(*_tichu_bundles(), list(hand)):
+        plays = tichu_lead_options(*_tichu_bundles(), list(hand))
+        ids = set()
+        for play in plays:
             aid = space.encode(play)
             assert 57 <= aid < space.num_distinct_actions
+            assert aid not in ids, f"two plays share id {aid}"
+            ids.add(aid)
             decoded = space.decode(aid)
             assert isinstance(decoded, ComboAction)
             assert decoded.cards == frozenset(play.cards), play
-            assert space.match(aid, [play, "pass"]) is play
+            assert decoded.wild == play.wild, play
+            assert space.match(aid, [*plays, "pass"]) is play
             checked += 1
+        sets: dict[frozenset[Card], list[Any]] = {}
+        for play in plays:
+            sets.setdefault(frozenset(play.cards), []).append(play)
+        twins += len([ps for ps in sets.values() if len(ps) > 1])
     assert checked > 1000  # a real sweep, not a vacuous loop
+    assert twins > 0  # the shared-card-set case was exercised
 
 
 def test_tichu_combo_codec_index_round_trips_every_block() -> None:
-    # encode(decode(i)) == i at both edges of every block plus random interior
-    # samples — the bijection holds across the full 211M-index range without
-    # enumerating it.
+    # encode(decode(i)) == i at both edges of every kind's block plus random
+    # interior samples — the bijection holds across the full index range
+    # without enumerating it. The kind boundaries come from `kind_of`'s own
+    # transitions over a coarse scan, so every block's first and last id is
+    # visited.
     import random
 
     from cardlang.runtime.tichu import TICHU_COMBO_CODEC as codec
 
     rng = random.Random(23)
-    edges = [0, codec.size - 1]
-    samples = edges + [rng.randrange(codec.size) for _ in range(2000)]
-    for i in samples:
-        cards = codec.decode(i)
-        assert codec.encode_cards(cards) == i
-        assert codec.kind_of(i) in {
-            "dog", "single", "pair", "triple", "bomb",
-            "fullhouse", "straight", "pairseq",
-        }
+    samples = {0, codec.size - 1}
+    samples.update(range(0, 12_500))  # dog..fullhouse exhaustively
+    samples.update(rng.randrange(codec.size) for _ in range(5000))
+    kinds_seen = set()
+    for i in sorted(samples):
+        cards, wild = codec.decode(i)
+        assert codec.encode(cards, wild) == i
+        kind = codec.kind_of(i)
+        kinds_seen.add(kind)
+        assert (wild is not None) == (any(c.rank == "Phoenix" for c in cards) and kind != "single")
+    assert kinds_seen == {"dog", "single", "pair", "triple", "bomb", "fullhouse", "straight", "pairseq"}
+    # A suited run of five has exactly one id, the bomb's: the straight block
+    # never yields a monochrome assignment.
+    flush = frozenset(Card(r, "hearts") for r in ("2", "3", "4", "5", "6"))
+    aid = codec.encode(flush, None)
+    assert codec.kind_of(aid) == "bomb"
+    for i in range(codec.size):
+        if codec.kind_of(i) == "straight":
+            break
+    straight_base = i
+    for i in range(straight_base, straight_base + 4096):  # the 2-6 window
+        cards, wild = codec.decode(i)
+        assert len({c.suit for c in cards}) > 1
 
 
 def test_coup_space_derives_its_own_5_card_block_and_the_action_names() -> None:

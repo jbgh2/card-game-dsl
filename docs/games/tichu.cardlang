@@ -3,9 +3,9 @@
 // Companion to tichu.md. Four-player team climbing game on the 56-card
 // Tichu deck (standard 52 plus Mahjong, Dog, Phoenix, Dragon). Players push one
 // card to each other player, then climb: each play must match the led
-// combination's type and length and beat it, or be a bomb, or pass; a trick
-// ends when action returns to the last player who played. First team
-// to 1000 wins.
+// combination's type and length and beat it, or be a bomb that outranks
+// what stands, or pass; a trick ends when action returns to the last player
+// who played. First team to 1000 wins.
 //
 // The hand runs fully on the kernel. Each climbing trick is one `round climb`
 // over the game-local combination engine (`tichu_lead_options` /
@@ -15,13 +15,20 @@
 // `ends_trick`, the climb form closes the trick with no follower draws, and
 // the body reads `state.lead_ended_trick` to route it (discard, lead to the
 // partner). Finishing order comes from the round's terminal state
-// (`state.shed_first` / `state.shed_second`).
+// (`state.shed_first` / `state.shed_second`), folded in whichever way the
+// trick closed: a player who sheds by leading the Dog is out like any other.
+// The trick itself ends the instant the third player goes out, or the
+// instant a double victory is complete — the round's `until` says so — and
+// the pile is still taken (or given away by the Dragon) by the last player
+// to play.
 //
-// The calls and the Dragon are real decisions (Workstream 5). Grand tichu is
-// a discrete window in the deal: eight cards, then each player in seat order
-// accepts or declines the 200-point call, then the last six. Small tichu is
-// off-the-clock — any time before the caller's first play — encoded as the
-// quiescence-lap poll (decisions.md "Off-the-clock windows"): before the
+// The calls and the Dragon are real decisions. Grand tichu is called any
+// time before the caller takes their ninth card: the first eight cards are
+// taken one at a time, and after each a quiescence poll walks the ring
+// (decisions.md "Off-the-clock windows"), so a call on one card or seven is
+// a decision the game offers, and a seat that sees another decline may
+// still call before the next card. Small tichu is off-the-clock — any time
+// before the caller's first play — encoded as the same poll: before the
 // push, after it, and before each climbing trick, while the public gate
 // holds, an offering round walks the ring; `no_call` laps close it.
 // Eligibility is public with no dedicated tracking: before the push nobody
@@ -30,15 +37,14 @@
 // sit between the plays *inside* a trick — the climb round owns those
 // decisions — so within-trick call timing coarsens to trick boundaries; no
 // call is made unreachable (see tichu.md). A Dragon-won trick is given away
-// by a real choice (`dragon_to_left` / `dragon_to_right`): both opponents
-// bank into the same team pile, so the choice moves no points, but the
-// announced decision itself is part of the public history, as at the table.
+// by a real choice (`dragon_to_left` / `dragon_to_right`), and the choice
+// moves points: each player banks their own tricks, and the last player's
+// tricks go to the first player out, so whose pile a Dragon trick lands in
+// is part of the hand's score.
 //
 // The push is one chosen 3-card movement per player into a per-player gift
 // pile (simultaneous: gifts land only after every pick), distributed
-// giver-major, pick order to seat order. Scope reductions (Mahjong wish,
-// Phoenix-in-straights, straight-flush bombs, out-of-turn bombs) are noted
-// in tichu.md.
+// giver-major, pick order to seat order.
 
 game Tichu {
 
@@ -66,12 +72,12 @@ game Tichu {
   }
 
   zones {
-    deck           : Deck
-    hand[player]   : Hand<player>
-    gift[player]   : Hand<player>     // the push: three picks, in pick order
-    trick_pile     : TrickPile
-    captured[team] : TeamPile<team>
-    discard        : Discard          // the Dog goes here (no capture)
+    deck             : Deck
+    hand[player]     : Hand<player>
+    gift[player]     : Hand<player>       // the push: three picks, in pick order
+    trick_pile       : TrickPile
+    captured[player] : PlayerPile<player> // each player's own tricks
+    discard          : Discard            // the Dog goes here (no capture)
   }
 
   state {
@@ -83,7 +89,6 @@ game Tichu {
     before_each {
       move all cards to deck
       shuffle deck
-      deal 8 cards from deck to each hand
     }
 
     phase play {
@@ -93,15 +98,26 @@ game Tichu {
         out_second : Player? = none    //   all the scoring ever reads
         leader     : Player? = none
         poll_anchor : Player = 0       // fixed, public ring anchor for pre-lead polls
-        quiet      : Integer = 0       // consecutive no_call count (poll bookkeeping)
+        quiet      : Integer = 0       // consecutive decline count (poll bookkeeping)
         push_done  : Boolean = false   // public flip: post-push, hand size 14 = unplayed
+        dealt      : Integer = 0       // cards each player has taken of the first eight
       }
 
       legal_moves: [play_combination]
 
-      // Grand tichu: on the first eight cards, each player in seat order
-      // accepts or declines the 200-point call, then the deal completes.
-      for each player p: offer to p one of [call_grand_tichu, decline_grand]
+      // Grand tichu: any time before the ninth card. Each of the first eight
+      // cards is taken by every player at once; after each, while somebody
+      // may still call, a poll walks the ring — a call re-opens the lap, a
+      // silent lap closes it — and then the next card is taken.
+      repeat until dealt >= 8 {
+        deal one card from deck to each hand
+        dealt += 1
+        if any player where called[player] is 0 {
+          round offering [call_grand_tichu, decline_grand] from poll_anchor over all players
+                until quiet >= 4
+          quiet := 0
+        }
+      }
       deal 6 cards from deck to each hand
 
       // Small tichu before the push ("a call before the cards are pushed can
@@ -130,9 +146,7 @@ game Tichu {
       leader := player_holding(Mahjong of special)
 
       // Climbing tricks until at most one player holds cards, or the first two
-      // finishers are teammates (double victory ends the hand early). A Tichu
-      // trick never ends early on a shed (`until false`) — the others must
-      // still beat or pass; the DOG ends it via the engine's `ends_trick`.
+      // finishers are teammates (double victory ends the hand early).
       repeat until (number of players where hand[player] is not empty) <= 1 or tichu_double_victory() {
         // Small tichu before each trick (the poll cannot interleave with the
         // plays inside the climb round; see the header note).
@@ -141,61 +155,62 @@ game Tichu {
                 until quiet >= 4
           quiet := 0
         }
+        // The trick ends the instant only one player still holds cards, or
+        // the instant the second finisher completes a double victory — with
+        // a finisher recorded earlier in the hand (`out_first`), or both in
+        // this trick (`state.shed_first` / `state.shed_second`). The Dog ends
+        // it through the engine's `ends_trick`.
         round climb play_combination from leader
               over players where hand[player] is not empty
               source hand into trick_pile
               combinations tichu_lead_options follows tichu_follows
-              until false
+              until (number of players where hand[player] is not empty) <= 1
+                    or (out_first is not none and state.shed_first is not none and team_of(out_first) is team_of(state.shed_first))
+                    or (out_first is none and state.shed_first is not none and state.shed_second is not none and team_of(state.shed_first) is team_of(state.shed_second))
+        // Fold this trick's sheds (play order) into the finishing order,
+        // however the trick closed.
+        if state.shed_first is not none {
+          if out_first is none { out_first := state.shed_first }
+          else { if out_second is none { out_second := state.shed_first } }
+        }
+        if state.shed_second is not none {
+          if out_first is none { out_first := state.shed_second }
+          else { if out_second is none { out_second := state.shed_second } }
+        }
         if state.lead_ended_trick {
-          // The Dog: no capture, the lead passes to the partner. The reference
-          // records no shed on this path (its finishing order skips a player
-          // who sheds by playing the Dog), so shed processing is skipped too.
+          // The Dog: no capture, the lead passes to the partner.
           move all cards from trick_pile to discard
           leader := the player where player is not winner and team_of(player) is team_of(winner)
         } else {
-          // Fold this trick's sheds (play order) into the finishing order.
-          if state.shed_first is not none {
-            if out_first is none { out_first := state.shed_first }
-            else { if out_second is none { out_second := state.shed_first } }
-          }
-          if state.shed_second is not none {
-            if out_first is none { out_first := state.shed_second }
-            else { if out_second is none { out_second := state.shed_second } }
-          }
           // A Dragon-won trick is given to an opponent of the winner's
-          // choice. Both opponents bank into the same team pile, so the
-          // choice moves no points — but the announced decision is public
-          // history, exactly as at the table. Otherwise the winner's team
-          // captures the pile.
+          // choice; the chosen move banks the pile. Otherwise the winner
+          // banks it.
           if tichu_dragon_won() {
             offer to winner one of [dragon_to_left, dragon_to_right]
-            move all cards from trick_pile to captured[tichu_opponent_team(winner)]
           } else {
-            move all cards from trick_pile to captured[team_of(winner)]
+            move all cards from trick_pile to captured[winner]
           }
           leader := winner
         }
         // The lead passes to the winner if they still hold cards, else
-        // onward round the ring; when the last trick emptied every hand
-        // the loop is about to exit and there is no leader to find.
+        // onward round the ring; when the trick ended the hand there may be
+        // nobody to find, and the loop is about to exit.
         if any player where hand[player] is not empty {
           leader := the first player from leader where hand[player] is not empty
         }
       }
 
       // --- Scoring: double victory is a flat +200 (no card points); otherwise
-      // the lone remaining player's hand goes to the opponents and their
-      // captured tricks to the first player out, then each team scores its
-      // captured card points (100 in play every hand).
+      // the lone remaining player's hand goes to the opponents and their own
+      // captured tricks to the first player out, then each team scores the
+      // card points its players captured (100 in play every hand).
       if tichu_double_victory() {
         score[team_of(out_first)] += 200
       } else {
-        if (any player where hand[player] is not empty) {
-          let last = the player where hand[player] is not empty
-          move all cards from hand[last] to captured[tichu_opponent_team(last)]
-          move all cards from captured[team_of(last)] to captured[team_of(out_first)]
-        }
-        for each team t: score[t] += (sum of card_points(card) over cards in captured[t])
+        let last = the player where hand[player] is not empty
+        move all cards from hand[last] to captured[last offset_by left]
+        move all cards from captured[last] to captured[out_first]
+        for each player p: score[team_of(p)] += (sum of card_points(card) over cards in captured[p])
       }
       // Tichu / Grand Tichu settle against going out first.
       for each player p:
@@ -213,17 +228,20 @@ game Tichu {
 //
 // Game-defined move_types (the Skat/Doppelkopf shape). Guards read only the
 // actor's public standing (their call flag and hand count); effects write
-// only public state. `no_call` is unguarded, so a poll never offers an empty
-// candidate set, and a forced decline emits the same public event as a
+// only public state. The declines are unguarded, so a poll never offers an
+// empty candidate set, and a forced decline emits the same public event as a
 // chosen one.
 
 move_type call_grand_tichu {
   when: called[actor] is 0
-  effect { called[actor] := 200 }
+  effect {
+    called[actor] := 200
+    quiet := 0
+  }
 }
 
 move_type decline_grand {
-  effect { }
+  effect { quiet += 1 }
 }
 
 move_type call_tichu {
@@ -238,15 +256,15 @@ move_type no_call {
   effect { quiet += 1 }
 }
 
-// The Dragon's gift: which opponent physically takes the trick. Both bank
-// into the same team pile, so neither move needs an effect — the announced
-// choice is the whole content.
+// The Dragon's gift: the trick goes to the opponent the winner names, and
+// lands in that opponent's own pile. Left and right are seat neighbours,
+// and in a partnership game both are opponents.
 move_type dragon_to_left {
-  effect { }
+  effect { move all cards from trick_pile to captured[actor offset_by left] }
 }
 
 move_type dragon_to_right {
-  effect { }
+  effect { move all cards from trick_pile to captured[actor offset_by right] }
 }
 
 // The public small-tichu gate: someone may still call iff they have not
@@ -259,6 +277,3 @@ function tichu_window_open() =
 // early; a flat +200 with no card points).
 function tichu_double_victory() =
   out_first is not none and out_second is not none and team_of(out_first) is team_of(out_second)
-
-// The team a player does not belong to (two-team game).
-function tichu_opponent_team(p : Player) = if team_of(p) is 0 then 1 else 0

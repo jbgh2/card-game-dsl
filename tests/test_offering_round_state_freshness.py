@@ -413,16 +413,24 @@ ROUNDS: dict[str, Rounds] = {
         ),
     ),
     "tichu.cardlang": Rounds(
-        # The small-tichu poll before the push, after it, and before each
-        # climbing trick. A call is a result (`called`); the lap count is the
-        # poll's own, and `poll_anchor` is a never-assigned constant, not a
-        # seat the ring steers. Green as written; red under: drop the
-        # `quiet := 0` that follows any one poll site.
-        windows=(Window(vocabularies=(("call_tichu", "no_call"),), idle=(("quiet", 0),)),),
+        # ONE poll idiom at two vocabularies: the grand-tichu poll after each
+        # of the first eight cards, and the small-tichu poll before the push,
+        # after it, and before each climbing trick. A call is a result
+        # (`called`); the lap count is the poll's own and shared by every
+        # site, and `poll_anchor` is a never-assigned constant, not a seat the
+        # ring steers. `dealt` counts the cards taken and is the deal's, not
+        # the poll's. Green as written; red under: drop the `quiet := 0` that
+        # follows any one poll site.
+        windows=(
+            Window(
+                vocabularies=(("call_grand_tichu", "decline_grand"), ("call_tichu", "no_call")),
+                idle=(("quiet", 0),),
+            ),
+        ),
         persistent=frozenset(
             {
-                "called", "leader", "out_first", "out_second", "poll_anchor",
-                "push_done", "score",
+                "called", "dealt", "leader", "out_first", "out_second",
+                "poll_anchor", "push_done", "score",
             }
         ),
     ),
