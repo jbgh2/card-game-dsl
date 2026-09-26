@@ -3512,7 +3512,7 @@ two resource transfers that observers should see as a single
 swap. The `simultaneously:` construct expresses this pattern
 uniformly for cards and resources.
 
-The construct is purely about atomic effect and coalesced
+The construct is purely about atomic effect and block-exit
 observation. It introduces no new mutation mode beyond
 [mutation semantics](#mutation-semantics)'s batched-write semantics
 and no new projection beyond the existing per-observer lattice
@@ -3572,18 +3572,21 @@ per [mutation semantics](#mutation-semantics); the block is one
 indivisible step in that sequence. A statement following the
 block reads the block's post-state.
 
-**Observation semantics: one coalesced event per observer.** At
-block-exit, the block emits exactly one observation event per
-observer, recording the *set* of moves that occurred — each
+**Observation semantics: one batch per block, at block-exit.** At
+block-exit, each observer receives the block's moves as one
+batch: an ordinary movement event per constituent transfer, each
 projected through the observer's existing zone visibilities
-(see [knowledge, visibility, and the projection model](#knowledge-visibility-and-the-projection-model)).
-Observers cannot infer any ordering among the moves; no ordering
-exists to infer.
+(see [knowledge, visibility, and the projection model](#knowledge-visibility-and-the-projection-model)),
+landing together with nothing between them. A transfer both of
+whose sides are trivial to an observer carries nothing to it and
+emits nothing, as for any movement. The batch runs in seat order,
+which is fixed before anyone chooses, so observers cannot infer
+any ordering among the moves; no ordering exists to infer.
 
-The block does not introduce a new event category. It composes
-the existing per-zone projections into a single coalesced event
-per observer. Under perfect recall (the default), each observer's
-candidate set updates exactly once per block, at block-exit.
+The block does not introduce a new event category: each event of
+the batch is the movement event a lone transfer emits. Under
+perfect recall (the default), each observer's candidate set
+updates exactly once per block, at block-exit.
 
 That is the effect. The *elicitation* is sequential, because the
 OpenSpiel tree carries no simultaneous node: the block asks one
@@ -3601,9 +3604,8 @@ what other observers see. In Hearts, the source `hand[player]`
 is `Hand<player>` — identity to owner, count_only to others —
 so when a player chooses three cards to pass, the choice itself
 is a private observation for that player; other observers see
-nothing about which cards were chosen until the coalesced
-block-exit event reveals (at their projection level) the net
-transfer. No new "commit then reveal" event split is needed;
+nothing about which cards were chosen until the block-exit
+batch reveals (at their projection level) each transfer. No new "commit then reveal" event split is needed;
 the existing projection model already covers it.
 
 **Failure semantics: atomic-or-nothing.** If any move inside
@@ -3667,9 +3669,10 @@ trade_negotiation produces:
 
 The negotiation lives in a phase with typed outcomes; the
 commit lives in the block. Observers of the resource hands see
-one coalesced event at the block's projection level — for
-public-count resources, both transfers as one swap; for private
-hands, identity to the participants and count_only to others.
+both transfers in one block-exit batch at their projection level
+— for public-count resources, the two counts together; for
+private hands, identity to the participants and count_only to
+others.
 
 **Coup's challenge and block windows.** Coup tests this boundary with a
 real published game. "Any player may challenge" and "the target may
@@ -3747,11 +3750,10 @@ indivisible step in that sequence.
 
 **OpenSpiel compilation.** The block compiles to a single
 information-state transition per observer. Each observer
-receives one projection-shaped event recording the net effect
-of the block's moves at that observer's visibility level —
-exactly the same shape as single-move events, just with multiple
-moves coalesced. Perfect-recall guarantees and CFR / IS-MCTS
-applicability are preserved.
+receives the block's batch at block-exit — one projection-shaped
+movement event per transfer, at that observer's visibility level,
+exactly the shape of single-move events. Perfect-recall
+guarantees and CFR / IS-MCTS applicability are preserved.
 
 ## Off-the-clock windows
 
