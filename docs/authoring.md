@@ -175,7 +175,7 @@ HighCard — 2 seats, uniform-random self-play
   seed         3
 
 information state, seat 1, at the terminal position:
-P1|deck=#48;hand[0]=#1;hand[1]=[5♣];shown[0]=[4♥];shown[1]=[8♦]|state:score={0:0,1:1}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'));('chose', '8♦');('chose', ('8♦',));('move', 'hand[0]', 1, 'shown[0]', ('4♥',));('move', 'hand[1]', ('8♦',), 'shown[1]', ('8♦',))
+P1|deck=#48;hand[0]=#1;hand[1]=[5♣];shown[0]=[4♥];shown[1]=[8♦]|state:score={0:0,1:1}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'));('asked', 'showdown', 'simultaneous', 1, None);('chose', '8♦');('move', 'hand[0]', 1, 'shown[0]', ('4♥',));('move', 'hand[1]', ('8♦',), 'shown[1]', ('8♦',))
 ```
 
 Omitting `--seed` draws one and reports it, so any run repeats. `cardlang

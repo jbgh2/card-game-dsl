@@ -2497,6 +2497,16 @@ A, one wood arrived at B." If A is `identity` but B is
 `count_only`, P observes a structurally weaker fact at the
 destination — "a piece arrived" without learning its type.
 
+**A seat's own decisions.** A seat asked to decide is told what it
+is asked, and each pick it makes enters its own log as one record,
+delivered to it alone at the moment the pick is made. A decision
+asking for several cards is that many picks, each its own record,
+so a seat part-way through a multi-card choice remembers exactly
+the cards it has committed. The rule is the same on every route a
+game is played by — the table, a native playout, OpenSpiel — so
+one decision reads identically in a seat's information state
+whichever route produced it.
+
 ### Formal distinctions
 
 From the dynamic epistemic logic and partial-observation game theory

@@ -103,11 +103,7 @@ does not prove:  Only the exact long spelling of each option. The parser is
                  the adapter's Chooser draws nothing, so a game that deals
                  again deals it differently on each route (issue #621) and
                  nothing here says the two agree at a decision in a later
-                 hand. A
-                 green here equally says nothing about which `chose` events
-                 either route OUGHT to emit — that the two emit the same ones
-                 across that deal is pinned, what they should hold is issue
-                 #592. And the combination cross against a refusing game pins
+                 hand. And the combination cross against a refusing game pins
                  what a dying playout prints, not what it ought to: the
                  decisions made before the refusal are built and then
                  discarded, and whether they print is issue #623.
@@ -992,11 +988,15 @@ def _tree_walk(
             shared.append(len(line))
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
+        # The picks this call has made so far, as the seat remembers them; the
+        # engine enters them in the log itself once the call returns.
+        committed: list[tuple[Any, ...]] = []
         taken = play_uniformly(player, candidates, count)
         for choice in taken:
-            views.append(information_state(seat, world[0], logs[seat]))
+            recalled = logs[seat] + (committed if seat == player else [])
+            views.append(information_state(seat, world[0], recalled))
             line.append(space.encode(choice))
-            observe(player, ("chose", render(choice)))
+            committed.append(("chose", render(choice)))
         return taken
 
     play_game(
@@ -1176,12 +1176,14 @@ def _views_walk(path: Path, seed: int, seat: int, last: int) -> list[tuple[int, 
         logs[player].append(event)
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
+        committed: list[tuple[Any, ...]] = []
         taken = play_uniformly(player, candidates, count)
         for choice in taken:
-            views.append((player, derive(seat, world[0], logs[seat])))
+            recalled = logs[seat] + (committed if seat == player else [])
+            views.append((player, derive(seat, world[0], recalled)))
             if len(views) > last:
                 raise _WalkedFarEnough
-            observe(player, ("chose", render(choice)))
+            committed.append(("chose", render(choice)))
         return taken
 
     with pytest.raises(_WalkedFarEnough):

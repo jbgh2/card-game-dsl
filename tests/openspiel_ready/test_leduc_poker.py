@@ -279,6 +279,6 @@ def _events_for_line(seed: int, names: list[str]) -> dict[int, list[tuple[Any, .
     def observe(player: int, event: tuple[Any, ...]) -> None:
         logs[player].append(event)
 
-    chooser = ReplayChooser(space, _ids(names), observe)
+    chooser = ReplayChooser(space, _ids(names))
     play_game(game_ast, random.Random(seed), chooser=chooser, observer=observe)
     return logs

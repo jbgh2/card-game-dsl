@@ -123,7 +123,7 @@ def test_the_renderer_needs_no_world() -> None:
         player=1,
         zones=(("hand[1]", (Card("5", "clubs"),)), ("hand[0]", 3), ("muck", None)),
         state=(("score", {0: 10, 1: 20}),),
-        obs_log=(("chose", ("5♣",)),),
+        obs_log=(("chose", "5♣"),),
     )
     rendered = render_information_state(view)
     assert rendered.startswith("P1|")

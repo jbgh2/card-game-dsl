@@ -146,15 +146,14 @@ def test_a_line_spells_every_field(kind: str, position: int, member: int) -> Non
 
 
 # Members a line could spell alike where the shapes' own members do not meet:
-# a card chosen alone beside a group holding only that card (GOPS logs the two
-# back to back), a flag beside the number it equals, nothing beside an empty
-# group.
+# a card moved alone beside a count of one, a flag beside the number it
+# equals, nothing beside an empty group.
 _NEAR_ALIKE: dict[str, tuple[Any, ...]] = {
     "seat": (),
     "label": (),
     "card": (),
     "view": ((), 0, ("9♣",), 1),
-    "value": ("9♣", ("9♣",), 0, False, 1, True, (), None),
+    "value": ("9♣", 0, False, 1, True, None),
     # An ask's fields each sit in their own clause of the line — the phase in
     # backticks, the count before its unit, the destination after `to` — so no
     # two members of one shape can reach the same place in a sentence, and a
@@ -381,7 +380,7 @@ def _walk(
             at(index, world[0], logs)
             return next(taken)
 
-        return sequential_decisions(player, candidates, count, decide, observe)
+        return sequential_decisions(player, candidates, count, decide)
 
     try:
         play_game(
