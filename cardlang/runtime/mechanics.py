@@ -576,27 +576,42 @@ class ClimbForm:
                    engine's return type against the protocol); a play whose
                    `announce` is non-empty names tokens the engine's
                    `climb_announcements` row declares.
-      establishes  one ring regime and one announcement regime, never both
-                   at one step. A play whose `announce` is non-empty is
-                   followed by exactly one further decision of the SAME seat
-                   over those tokens before the ring advances; the token is
-                   announced publicly and recorded in `state["events"]`
-                   beside every play, in order. A candidate list in which
-                   any play is `compelled` offers the compelled plays alone
-                   and no pass. A play whose identity exceeds its cards
-                   (`wild` set) is announced publicly at apply beside its
-                   movement. A play marked `ends_trick` closes the trick with
-                   no follower draw. A pending announcement is VOID once the
-                   round has terminated — `run_decision_round` consults
-                   `terminated` before `next_actor`, so the wish a
-                   hand-ending play would open is never asked, as the hand is
-                   over (pinned by tests/test_tichu_wish.py).
+      establishes  three regimes of `next_actor` — the ring, the
+                   announcement, the interrupt window — never two at one
+                   step, asked in that priority. A play whose `announce` is
+                   non-empty is followed by exactly one further decision of
+                   the SAME seat over those tokens before anything else; the
+                   token is announced publicly and recorded in
+                   `state["events"]` beside every play, in order. A
+                   candidate list in which any play is `compelled` offers
+                   the compelled plays alone and no pass — on turn only,
+                   never in the window. A play whose identity exceeds its
+                   cards (`wild` set) is announced publicly at apply beside
+                   its movement. A play marked `ends_trick` closes the trick
+                   with no follower draw and no window. For an engine whose
+                   registry row declares an interrupt decline: after every
+                   other play, and once more when the ring has returned to
+                   the last player, every other participant still holding
+                   cards is asked in turn order from that player, offered its
+                   `interrupt` plays that beat the standing play beside the
+                   decline (so a seat with nothing to play submits the same
+                   public decline a seat declining by choice does); a taken
+                   interrupt becomes the standing play and the last player,
+                   the ring resumes after the interrupter, and the window
+                   reopens. A pending announcement, and a window, are VOID
+                   once the round has terminated — `run_decision_round`
+                   consults `terminated` before `next_actor`, so neither is
+                   asked once a hand-ending play has closed the trick (pinned
+                   by tests/test_tichu_wish.py and tests/test_tichu_bombs.py).
       illegal after it
                    reading any play attribute by a soft `getattr` in this
                    form; a query narrowing its returned list by a rule that
                    spans plays (the query marks `compelled`, the form
-                   narrows); this form writing a game state variable; a
-                   query reading the live trick's events from anywhere but
+                   narrows); a query deciding whether a seat is asked; a
+                   window whose participants depend on any private zone; the
+                   decline token and "pass" sharing a spelling; this form
+                   writing a game state variable; a query reading the live
+                   trick's events from anywhere but
                    `EngineFacts.round_state["events"]`.
     """
 
@@ -615,6 +630,9 @@ class ClimbForm:
         self.follow_query = primitives.climb_follow_function(stmt.follows_fn)
         self.climb_row = primitives.climb_row(stmt.combos_fn)
         self.announcements = primitives.climb_announcements(stmt.combos_fn)
+        self.decline = primitives.climb_interrupt_decline(stmt.combos_fn)
+        assert self.decline != "pass", "the interrupt decline and the pass are two words"
+        self.seating = ctx.rs.seating
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
         self.source_name: str = stmt.source_zone
@@ -656,8 +674,19 @@ class ClimbForm:
         state["shed_second"] = None
         state["events"] = []  # ("play", seat, play) / ("announce", seat, token), in order
         state["pending"] = None  # (seat, tokens) owed an announcement, else None
+        state["window"] = None  # the interrupt window's queue of seats, else None
+        state["spent"] = False  # the ring has returned to `last`
         ctx.rs.mech_state.append(state)
         return state
+
+    def _window_after(self, seat: Player) -> list[Player]:
+        """The interrupt window a play by `seat` opens: every other
+        participant still holding cards, in turn order from `seat`."""
+        return [
+            p
+            for p in self.seating.turn_order_from(seat)
+            if p != seat and p in self.ring and self.hands[p].cards
+        ]
 
     def terminated(self, state: RoundState, ctx: Ctx) -> bool:
         # Gated on `current is not None`: the shed-out predicate is checked only
@@ -673,6 +702,17 @@ class ClimbForm:
         if state["pending"] is not None:
             seat: Player = state["pending"][0]
             return seat  # the announcement regime: the same seat, once more
+        window: list[Player] | None = state["window"]
+        if window is not None:
+            # The interrupt regime: the queue, skipping a seat that shed
+            # out since the window opened; an emptied queue closes it.
+            while window:
+                seat = window.pop(0)
+                if self.hands[seat].cards:
+                    return seat
+            state["window"] = None
+            if state["spent"]:
+                return None  # the closing window found no interrupt: the trick is spent
         ring = self.ring
         while True:
             state["guard"] += 1
@@ -687,7 +727,13 @@ class ClimbForm:
             pointer: int = state["idx"]
             turn = ring[pointer % len(ring)]
             if state["current"] is not None and turn == state["last"]:
-                return None  # action returned to the last player: the trick is spent
+                # Action returned to the last player: the trick is spent —
+                # after one closing window, for an engine that has one.
+                if self.decline is not None and not state["spent"]:
+                    state["spent"] = True
+                    state["window"] = self._window_after(state["last"])
+                    return self.next_actor(state, ctx)
+                return None
             if not self.hands[turn].cards:  # already shed out (Tichu): skip, no draw
                 state["idx"] = pointer + 1
                 continue
@@ -704,6 +750,14 @@ class ClimbForm:
         # zone list a query could otherwise mutate.
         facts, gr = narrowing.bind(ctx.rs, ctx.current_player, self.climb_row)
         hand = reads.deep_freeze(self.hands[actor].cards)
+        if state["window"] is not None:
+            # The interrupt regime: what beats the standing play out of
+            # turn, and the decline every asked seat is offered. A
+            # compulsion binds on turn only.
+            assert self.decline is not None
+            standing = reads.deep_freeze(state["current"])
+            interrupts = [p for p in self.follow_query(facts, gr, hand, standing) if p.interrupt]
+            return [*interrupts, self.decline]
         if state["current"] is None:  # the leader must lead
             leads = list(self.lead_query(facts, gr, hand))
             compelled = [p for p in leads if p.compelled]
@@ -725,6 +779,9 @@ class ClimbForm:
             state["events"].append(("announce", actor, token))
             state["pending"] = None
             return state
+        if state["window"] is not None and choice == self.decline:
+            observe.announce(ctx, actor, str(choice))
+            return state
         if choice == "pass":
             observe.announce(ctx, actor, "pass")
             state["idx"] += 1
@@ -740,8 +797,12 @@ class ClimbForm:
             # depends on it — so it is announced, as at the table.
             observe.announce(ctx, actor, play)
         state["current"], state["last"] = play, actor
-        state["idx"] += 1
         state["events"].append(("play", actor, play))
+        if state["window"] is not None:
+            # A taken interrupt: the ring resumes after the interrupter.
+            state["idx"] = self.ring.index(actor) + 1
+        else:
+            state["idx"] += 1
         if not self.hands[actor].cards:  # played their last cards: record the shed
             if state["shed_first"] is None:
                 state["shed_first"] = actor
@@ -749,6 +810,12 @@ class ClimbForm:
                 state["shed_second"] = actor
         if play.ends_trick:
             state["lead_ended_trick"] = True
+            state["window"] = None
+        elif self.decline is not None:
+            # Every play but a trick-ending one opens the window anew, and
+            # the trick is live again however spent the ring was.
+            state["window"] = self._window_after(actor)
+            state["spent"] = False
         if play.announce:
             state["pending"] = (actor, play.announce)
         return state

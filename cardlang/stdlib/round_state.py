@@ -43,9 +43,12 @@ CLIMB_PUBLISHED: dict[str, Type] = {
 # `events` is the trick so far — `("play", seat, play)` and
 # `("announce", seat, token)` entries in order — which a game-local query
 # reads through `EngineFacts.round_state` to enforce a rule that spans plays
-# (Tichu's wish); `pending` is the seat owed an announcement and its tokens.
+# (Tichu's wish); `pending` is the seat owed an announcement and its tokens;
+# `window` is the interrupt window's queue of seats still to ask (None while
+# no window is open) and `spent` whether the ring has returned to the last
+# player, so the window then open is the closing one.
 CLIMB_INTERNAL: frozenset[str] = frozenset(
-    {"current", "last", "idx", "guard", "events", "pending"}
+    {"current", "last", "idx", "guard", "events", "pending", "window", "spent"}
 )
 
 # `round offering […] … until …` — the auction and betting forms. They publish

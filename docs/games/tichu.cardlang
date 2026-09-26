@@ -32,6 +32,15 @@
 // pass; the wish persists across tricks in `wish`, written after each round
 // from the round's own record.
 //
+// Bombs play out of turn. After every play but the Dog, and once more when
+// the trick would otherwise be gathered, every other player still holding
+// cards is asked in turn whether they bomb — offered the bombs that beat
+// what stands, beside `no_bomb`, so a player with none says the same thing
+// as one who declines — and a bomb taken there stands, the play resumes
+// after the bomber, and the asking begins again. A bomb played out of turn
+// need not fulfil the wish. This is the climb form's interrupt window; the
+// engine names which plays interrupt (bombs) and what a decline is called.
+//
 // The calls and the Dragon are real decisions. Grand tichu is called any
 // time before the caller takes their ninth card: the first eight cards are
 // taken one at a time, and after each a quiescence poll walks the ring
