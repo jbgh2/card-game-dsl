@@ -21,10 +21,13 @@ from cardlang.runtime import reads
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.tichu_combinations import (
+    NORMAL_VALUES,
     PHOENIX_LEAD_VALUE,
+    WISH_VALUES,
     Play,
     _combos,
     _legal_follows,
+    compel,
     phoenix_single,
 )
 from cardlang.runtime.values import SUITS, Card, build_deck
@@ -37,6 +40,31 @@ from cardlang.runtime.values import SUITS, Card, build_deck
 ROW = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
 
 
+# --- the wish: one accessor for both of its lifetimes ---
+
+
+def standing_wish(facts: EngineFacts, gr: reads.GameReads) -> int | None:
+    """The Mahjong's wish in force at this moment: the rank value the game
+    carries from earlier tricks (`wish`, 0 for none), then this trick's own
+    events in order — a wish announced after the Mahjong replaces it, and a
+    play holding a natural card of the wished rank fulfils it. Read by the
+    two climb queries on the LIVE trick (`round_state` is the running frame)
+    and by `tichu_wish_after_trick` on the completed one (the same field is
+    then the terminal frame), so the fact has one owner."""
+    carried: int = gr.state["wish"]
+    wish: int | None = carried or None
+    frame = facts.round_state
+    for kind, _seat, value in (frame.get("events", ()) if frame is not None else ()):
+        if kind == "announce":
+            if value in WISH_VALUES:
+                wish = WISH_VALUES[value]
+            elif value == "no_wish":
+                wish = None
+        elif kind == "play" and wish is not None and wish in value.rank_values:
+            wish = None
+    return wish
+
+
 # --- the climb queries ---
 
 
@@ -45,9 +73,8 @@ def tichu_lead_options(
 ) -> list[Play]:
     """Every combination the leader may lead: the engine's combinations, then
     the two lead-only plays — the Phoenix as a single at 1.5, and the Dog as
-    its own trick-ending kind. The bundles are unused (Tichu leads depend only
-    on the hand); the climb round passes them uniformly with the follows
-    query."""
+    its own trick-ending kind — with the plays a standing wish compels marked
+    (the form then offers those alone)."""
     leads = _combos(hand)
     phoenix = phoenix_single(hand, PHOENIX_LEAD_VALUE)
     if phoenix is not None:
@@ -55,7 +82,7 @@ def tichu_lead_options(
     for c in hand:
         if c.rank == "Dog":
             leads.append(Play("dog", 1, 0, (c,)))
-    return leads
+    return compel(leads, standing_wish(facts, gr))
 
 
 def tichu_follows(
@@ -63,11 +90,17 @@ def tichu_follows(
 ) -> list[Play]:
     """The combinations that legally beat the standing play (same kind and
     length, higher key; a bomb over anything it outranks; the Phoenix's single
-    answer). The bundles are unused, passed uniformly with the lead query."""
-    return _legal_follows(hand, current)
+    answer), with the plays a standing wish compels marked."""
+    return compel(_legal_follows(hand, current), standing_wish(facts, gr))
 
 
 # --- round-state reads (pure) ---
+
+
+def tichu_wish_after_trick(facts: EngineFacts, gr: reads.GameReads) -> int:
+    """The wish still in force once the trick just completed is folded in:
+    the rank value, or 0 for none — what the game carries to the next trick."""
+    return standing_wish(facts, gr) or 0
 
 
 def tichu_dragon_won(facts: EngineFacts, gr: reads.GameReads) -> bool:
@@ -272,13 +305,15 @@ def _refuse(cards: frozenset[Card], wild: int | None) -> ValueError:
 
 class TichuComboCodec:
     """The climbing form's play universe as arithmetic (see the block comment
-    above). `encode` raises ValueError on an identity outside the universe — a
-    corrupted history, never a live candidate."""
+    above), conforming to `primitives.ComboCodec`. `encode` raises ValueError
+    on an identity outside the universe — a corrupted history, never a live
+    candidate."""
 
     size = (
         _N_DOG + _N_SINGLE + _N_PAIR + _N_TRIPLE + _N_BOMB + _N_FH
         + _N_STRAIGHT + _N_PAIRSEQ
     )
+    wilds = frozenset(NORMAL_VALUES)  # the Phoenix stands for any card 2..A
 
     def encode(self, cards: frozenset[Card], wild: int | None) -> int:
         n = len(cards)

@@ -164,6 +164,7 @@ class _GinMeldCodec:
         self._universe = universe
         self._ids = {cards: i for i, (_, cards) in enumerate(universe)}
         self.size = len(universe)
+        self.wilds: frozenset[int] = frozenset()  # a meld holds no wildcard
 
     def encode(self, cards: frozenset[Card], wild: int | None) -> int:
         if wild is not None:

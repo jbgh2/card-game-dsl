@@ -399,6 +399,10 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.tichu", "tichu_dragon_won", InvocationContract.BUNDLED,
         Sig((), TBoolean()),
     ),
+    "tichu_wish_after_trick": Implementation(
+        "cardlang.runtime.tichu", "tichu_wish_after_trick", InvocationContract.BUNDLED,
+        Sig((), TInteger()),
+    ),
 }
 
 

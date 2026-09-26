@@ -22,6 +22,16 @@
 // the pile is still taken (or given away by the Dragon) by the last player
 // to play.
 //
+// The Mahjong's wish is a decision inside the trick: the play that holds
+// the Mahjong (a lead single, or a straight from the one) is followed by one
+// announcement from the same seat — a rank, or no wish — and from then on
+// every seat asked in turn must play a combination holding a natural card
+// of that rank whenever it lawfully can (a bomb holding one counts; the
+// Phoenix never does), until a play holding it clears the wish. The engine
+// marks the compelled plays and the climb form offers those alone, with no
+// pass; the wish persists across tricks in `wish`, written after each round
+// from the round's own record.
+//
 // The calls and the Dragon are real decisions. Grand tichu is called any
 // time before the caller takes their ninth card: the first eight cards are
 // taken one at a time, and after each a quiescence poll walks the ring
@@ -69,6 +79,7 @@ game Tichu {
   // keep the `PRIMITIVE_READS` row their binder holds at load.
   primitives {
     tichu_dragon_won() : Boolean
+    tichu_wish_after_trick() : Integer reads wish in play
   }
 
   zones {
@@ -101,6 +112,7 @@ game Tichu {
         quiet      : Integer = 0       // consecutive decline count (poll bookkeeping)
         push_done  : Boolean = false   // public flip: post-push, hand size 14 = unplayed
         dealt      : Integer = 0       // cards each player has taken of the first eight
+        wish       : Integer = 0       // the Mahjong's wish in force: a rank value 2..14, or 0
       }
 
       legal_moves: [play_combination]
@@ -167,6 +179,10 @@ game Tichu {
               until (number of players where hand[player] is not empty) <= 1
                     or (out_first is not none and state.shed_first is not none and team_of(out_first) is team_of(state.shed_first))
                     or (out_first is none and state.shed_first is not none and state.shed_second is not none and team_of(state.shed_first) is team_of(state.shed_second))
+        // The wish outlives the trick until someone fulfils it: carry what
+        // still stands (the announced rank, unless a play holding it has
+        // since been made) into the next trick's legal sets.
+        wish := tichu_wish_after_trick()
         // Fold this trick's sheds (play order) into the finishing order,
         // however the trick closed.
         if state.shed_first is not none {

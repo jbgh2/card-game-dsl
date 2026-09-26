@@ -29,7 +29,7 @@ live, which card of a rank a player parts with is a real choice.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import combinations, product
 from typing import Final
 
@@ -45,6 +45,18 @@ MAHJONG_VALUE: Final = 1
 DRAGON_VALUE: Final = 15
 PHOENIX_LEAD_VALUE: Final = 1.5
 NORMAL_VALUES: Final[tuple[int, ...]] = tuple(range(2, 15))  # the wildcard's range
+_RANK_NAMES: Final[dict[int, str]] = {v: r for r, v in _RANKVAL.items() if 2 <= v <= 14}
+
+# The Mahjong's wish: whoever plays the Mahjong may wish for a rank, and the
+# tokens are the announcement the climb form offers right after the play
+# (`Play.announce`). `WISH_VALUES` reads a token back to the rank value it
+# names; `no_wish` names none.
+WISH_TOKENS: Final[tuple[str, ...]] = tuple(
+    [f"wish_{_RANK_NAMES[v]}" for v in NORMAL_VALUES] + ["no_wish"]
+)
+WISH_VALUES: Final[dict[str, int]] = {f"wish_{_RANK_NAMES[v]}": v for v in NORMAL_VALUES}
+# What a seat asked in the interrupt window says when it plays no bomb.
+INTERRUPT_DECLINE: Final = "no_bomb"
 
 
 def _rv(c: Card) -> int | None:
@@ -80,14 +92,24 @@ KINDS: Final[dict[str, Kind]] = {
 
 @dataclass(frozen=True, slots=True)
 class Play:
+    """One play, conforming to `primitives.ClimbPlay`."""
+
     kind: str       # a key of KINDS
     length: int     # see Kind.lengths
     key: float      # comparison key within (kind, length); bombs compare across
     cards: tuple[Card, ...]
     wild: int | None = None  # the rank value the Phoenix stands in for, else None
+    compelled: bool = False  # the standing wish makes this play mandatory
+    announce: tuple[str, ...] = ()  # the Mahjong's wish, opened by the play
 
     @property
     def is_bomb(self) -> bool:
+        return self.kind == "bomb"
+
+    @property
+    def interrupt(self) -> bool:
+        """A bomb may be played out of turn (the climb form's interrupt
+        window offers it between plays)."""
         return self.kind == "bomb"
 
     @property
@@ -137,7 +159,7 @@ def _combos(hand: list[Card]) -> list[Play]:
     # Singles: every ranked card (the Dog is a lead-only kind; the Phoenix is
     # contextual and added at the call sites).
     if mahjong is not None:
-        out.append(Play("single", 1, MAHJONG_VALUE, (mahjong,)))
+        out.append(Play("single", 1, MAHJONG_VALUE, (mahjong,), announce=WISH_TOKENS))
     for v in values:
         for c in by_rank[v]:
             out.append(Play("single", 1, v, (c,)))
@@ -207,12 +229,13 @@ def _combos(hand: list[Card]) -> list[Play]:
     for lo in range(1, 11):
         for hi in range(lo + 4, 15):
             window = range(lo, hi + 1)
+            wish = WISH_TOKENS if lo == 1 else ()  # the Mahjong's straight opens the wish
             if all(v in ranked for v in window):
                 for cards in product(*(ranked[v] for v in window)):
                     suited = [c for c in cards if c.rank != "Mahjong"]
                     if lo >= 2 and len({c.suit for c in suited}) == 1:
                         continue  # a straight flush: emitted as a bomb
-                    out.append(Play("straight", hi - lo + 1, hi, cards))
+                    out.append(Play("straight", hi - lo + 1, hi, cards, announce=wish))
             if phoenix is not None:
                 for p in window:
                     if p < 2:
@@ -220,7 +243,9 @@ def _combos(hand: list[Card]) -> list[Play]:
                     others = [v for v in window if v != p]
                     if all(v in ranked for v in others):
                         for cards in product(*(ranked[v] for v in others)):
-                            out.append(Play("straight", hi - lo + 1, hi, (*cards, phoenix), wild=p))
+                            out.append(
+                                Play("straight", hi - lo + 1, hi, (*cards, phoenix), wild=p, announce=wish)
+                            )
 
     # Consecutive pairs: two cards of each of at least two consecutive ranks;
     # the Phoenix stands for one card of one rank.
@@ -240,6 +265,15 @@ def _combos(hand: list[Card]) -> list[Play]:
                                 cards = tuple(c for pair in pairs for c in pair) + (single, phoenix)
                                 out.append(Play("pairseq", hi - lo + 1, hi, cards, wild=p))
     return out
+
+
+def compel(plays: list[Play], wish: int | None) -> list[Play]:
+    """Mark the plays a standing wish compels: those holding a natural card
+    of the wished rank (a bomb holding one counts; the Phoenix never does).
+    With no wish, or no such play, every play comes back as it was."""
+    if wish is None:
+        return plays
+    return [replace(p, compelled=True) if wish in p.rank_values else p for p in plays]
 
 
 def phoenix_single(hand: list[Card], value: float) -> Play | None:

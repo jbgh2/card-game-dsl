@@ -34,10 +34,16 @@ PRESENT block numbers every content item the game can offer. Presence follows
 from a construct EXISTING in the tree — not from its site being reachable, and
 not from the construct deciding when reached — so a game may still reserve a
 block nothing exercises; the over-approximation `_decides_a_content_item` is
-built to make, on both axes, and states there. Illegal after
+built to make, on both axes, and states there. A combination id is a pure
+function of the play's identity — its card-set and, where the engine's codec
+declares wilds, the rank a wildcard among those cards stands for — and the
+name block numbers every announcement token and the interrupt decline the
+climb engine's registry rows declare. Illegal after
 this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
-game's space from below, or that `verbs()` contains `CARD_VERB`. Encoding a
-content item against a game with no card block is refused, never numbered.
+game's space from below, or that `verbs()` contains `CARD_VERB`; keying a play
+by its card-set alone; a codec answering an id for a wild outside its declared
+`wilds`. Encoding a content item against a game with no card block is
+refused, never numbered.
 """
 
 from __future__ import annotations
@@ -54,6 +60,7 @@ from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate, render_play
+from cardlang.runtime.primitives import ComboCodec
 from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
 NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the standard card block
@@ -247,7 +254,7 @@ class ActionSpace:
         offering: list[tuple[str, Any]],
         int_ceiling: int | None,
         combos: list[Any],
-        combo_codec: Any | None = None,
+        combo_codec: ComboCodec | None = None,
     ) -> None:
         # Three states, and the empty one is not the `None` one. `None` means
         # "number cards by the standard 52-slot formula"; an EMPTY list means
@@ -387,11 +394,16 @@ class ActionSpace:
                         continue
                     entries = _offering_entries(mt, sources)
                     offering.extend(e for e in entries if e not in offering)
-        combo_codec: Any | None = None
+        combo_codec: ComboCodec | None = None
         if climb_engines:
             assert len(climb_engines) == 1, "one climb engine per game for now"
-            if "pass" not in names:
-                names.append("pass")
+            # The climb form's own vocabulary beside the plays: the pass, the
+            # engine's announcement tokens, and its interrupt decline.
+            decline = primitives.climb_interrupt_decline(climb_engines[0])
+            for token in ("pass", *primitives.climb_announcements(climb_engines[0]),
+                          *([decline] if decline is not None else [])):
+                if token not in names:
+                    names.append(token)
             combo_codec = primitives.climb_codec_function(climb_engines[0])
             if combo_codec is None:
                 universe = primitives.climb_universe_function(climb_engines[0])()
@@ -499,6 +511,18 @@ class ActionSpace:
         if getattr(value, "cards", None) is not None:
             cards, wild = _play_identity(value)
             if self._combo_codec is not None:
+                if wild is not None and wild not in self._combo_codec.wilds:
+                    # Shadow Guard. The Owner is the climb engine's enumerator,
+                    # whose every emitted wild lies in its codec's declared
+                    # `wilds` (tests/test_openspiel_encoding.py round-trips
+                    # every emission); the codecs' own checks shadow this
+                    # one in turn. Both are Python in cardlang/, unreachable
+                    # from a .cardlang file.
+                    raise ShadowGuardError(
+                        "the climb engine's enumerator (primitives.ClimbPlay.wild)",
+                        f"wildcard value {wild} is outside the codec's declared "
+                        f"wilds {sorted(self._combo_codec.wilds)}",
+                    )
                 return self._combo_base + int(self._combo_codec.encode(cards, wild))
             return self._combo_base + self._combo_ids[(cards, wild)]
         raise ValueError(f"cannot encode action value {value!r}")

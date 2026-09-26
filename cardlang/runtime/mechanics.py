@@ -20,7 +20,7 @@ from typing import Any, Protocol
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime import active_rules, delegation, narrowing, observe, reads, rules
+from cardlang.runtime import active_rules, delegation, narrowing, observe, primitives, reads, rules
 from cardlang.runtime.chooser import decide
 from cardlang.runtime.delegation import FORM_CONSTRUCTS
 from cardlang.runtime.errors import OwnerGuardError
@@ -554,10 +554,8 @@ class ClimbForm:
     predicate holds (a player has shed out, ending the hand mid-trick). The last
     player to play is the [[winner]], bound as `winner` for the surrounding body,
     which routes the pile and sets the next lead. The combination engine is
-    game-local, so this depends only on the queries' interface: each returns a list
-    of plays, and a play exposes the cards it moves as a `.cards` tuple — plus,
-    optionally, an `ends_trick` marker (Tichu's Dog): a lead so marked ends the
-    trick at once, its followers drawing nothing. Players
+    game-local, so this depends only on the queries' interface — a sequence
+    of plays conforming to `primitives.ClimbPlay`. Players
     already shed out (Tichu) are skipped with no chooser draw — INCLUDING the
     named leader, who in a continue-after-going-out game may have shed their
     last card on the play that won them the lead; the lead then falls to the
@@ -571,6 +569,35 @@ class ClimbForm:
     (the first two players who played their last cards this trick, in play
     order — finishing order is score-bearing in Tichu). Big Two reads none of
     these; its goldens gate the no-change.
+
+    Contract:
+      assumes      the lead and follows queries return plays conforming to
+                   `primitives.ClimbPlay` (mypy checks each registered
+                   engine's return type against the protocol); a play whose
+                   `announce` is non-empty names tokens the engine's
+                   `climb_announcements` row declares.
+      establishes  one ring regime and one announcement regime, never both
+                   at one step. A play whose `announce` is non-empty is
+                   followed by exactly one further decision of the SAME seat
+                   over those tokens before the ring advances; the token is
+                   announced publicly and recorded in `state["events"]`
+                   beside every play, in order. A candidate list in which
+                   any play is `compelled` offers the compelled plays alone
+                   and no pass. A play whose identity exceeds its cards
+                   (`wild` set) is announced publicly at apply beside its
+                   movement. A play marked `ends_trick` closes the trick with
+                   no follower draw. A pending announcement is VOID once the
+                   round has terminated — `run_decision_round` consults
+                   `terminated` before `next_actor`, so the wish a
+                   hand-ending play would open is never asked, as the hand is
+                   over (pinned by tests/test_tichu_wish.py).
+      illegal after it
+                   reading any play attribute by a soft `getattr` in this
+                   form; a query narrowing its returned list by a rule that
+                   spans plays (the query marks `compelled`, the form
+                   narrows); this form writing a game state variable; a
+                   query reading the live trick's events from anywhere but
+                   `EngineFacts.round_state["events"]`.
     """
 
     def __init__(self, stmt: n.ClimbRound, ctx: Ctx) -> None:
@@ -587,6 +614,7 @@ class ClimbForm:
         self.lead_query = primitives.climb_lead_function(stmt.combos_fn)
         self.follow_query = primitives.climb_follow_function(stmt.follows_fn)
         self.climb_row = primitives.climb_row(stmt.combos_fn)
+        self.announcements = primitives.climb_announcements(stmt.combos_fn)
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
         self.source_name: str = stmt.source_zone
@@ -626,6 +654,8 @@ class ClimbForm:
         state["lead_ended_trick"] = False  # a Dog-style lead closed the trick
         state["shed_first"] = None  # first two sheds this trick, in play order
         state["shed_second"] = None
+        state["events"] = []  # ("play", seat, play) / ("announce", seat, token), in order
+        state["pending"] = None  # (seat, tokens) owed an announcement, else None
         ctx.rs.mech_state.append(state)
         return state
 
@@ -640,6 +670,9 @@ class ClimbForm:
         return state["current"] is not None and bool(evaluate(self.until, ctx))
 
     def next_actor(self, state: RoundState, ctx: Ctx) -> Player | None:
+        if state["pending"] is not None:
+            seat: Player = state["pending"][0]
+            return seat  # the announcement regime: the same seat, once more
         ring = self.ring
         while True:
             state["guard"] += 1
@@ -661,6 +694,9 @@ class ClimbForm:
             return turn
 
     def candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
+        if state["pending"] is not None:
+            tokens: tuple[str, ...] = state["pending"][1]
+            return list(tokens)
         # The climb engines are game-local, so they get the same value
         # bundles every other primitive does rather than the live ctx — and
         # their hand argument is deep_frozen for the same reason `call()`
@@ -669,37 +705,52 @@ class ClimbForm:
         facts, gr = narrowing.bind(ctx.rs, ctx.current_player, self.climb_row)
         hand = reads.deep_freeze(self.hands[actor].cards)
         if state["current"] is None:  # the leader must lead
-            return self.lead_query(facts, gr, hand)
+            leads = list(self.lead_query(facts, gr, hand))
+            compelled = [p for p in leads if p.compelled]
+            return compelled or leads
         # `state["current"]` is the live standing `Play` in the round
         # accumulator; freeze it too, or a follow query could object.__setattr__
         # its key/kind/cards and corrupt the engine's standing play.
         standing = reads.deep_freeze(state["current"])
-        return [*self.follow_query(facts, gr, hand, standing), "pass"]
+        follows = list(self.follow_query(facts, gr, hand, standing))
+        compelled = [p for p in follows if p.compelled]
+        return compelled or [*follows, "pass"]
 
     def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
+        if state["pending"] is not None:
+            # The announcement regime: the token is public, and the trick's
+            # own record of it is what a rule spanning plays reads.
+            token = str(choice)
+            observe.announce(ctx, actor, token)
+            state["events"].append(("announce", actor, token))
+            state["pending"] = None
+            return state
         if choice == "pass":
             observe.announce(ctx, actor, "pass")
             state["idx"] += 1
             return state
-        play = choice
+        play: primitives.ClimbPlay = choice
         for c in play.cards:
             self.hands[actor].remove(c)
         self.pile.add_all(play.cards, actor, (self.source_name, actor))
         observe.movement(ctx, (self.source_name, actor), (self.pile_name, None), play.cards)
-        if getattr(play, "wild", None) is not None:
+        if play.wild is not None:
             # The cards are seen through the movement; the rank a wildcard
             # among them stands for is not, and every follower's legal set
             # depends on it — so it is announced, as at the table.
             observe.announce(ctx, actor, play)
         state["current"], state["last"] = play, actor
         state["idx"] += 1
+        state["events"].append(("play", actor, play))
         if not self.hands[actor].cards:  # played their last cards: record the shed
             if state["shed_first"] is None:
                 state["shed_first"] = actor
             elif state["shed_second"] is None:
                 state["shed_second"] = actor
-        if getattr(play, "ends_trick", False):
+        if play.ends_trick:
             state["lead_ended_trick"] = True
+        if play.announce:
+            state["pending"] = (actor, play.announce)
         return state
 
     def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:

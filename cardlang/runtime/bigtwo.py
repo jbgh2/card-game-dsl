@@ -75,6 +75,14 @@ class Play:
     size: int            # 1 | 2 | 3 | 5
     key: tuple[Any, ...]
     cards: tuple[Card, ...]
+    # The `primitives.ClimbPlay` behaviours, none of which Big Two has: no
+    # play ends the trick, stands a wildcard, compels, announces, or
+    # interrupts.
+    ends_trick: bool = False
+    wild: int | None = None
+    compelled: bool = False
+    announce: tuple[str, ...] = ()
+    interrupt: bool = False
 
 
 def _by_rank(hand: list[Card]) -> dict[str, list[Card]]:

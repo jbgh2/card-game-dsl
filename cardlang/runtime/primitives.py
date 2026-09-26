@@ -39,9 +39,9 @@ the dependency absent is what keeps the two halves independently readable.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from cardlang.runtime import narrowing, reads, winners
 from cardlang.runtime.errors import OwnerGuardError
@@ -153,15 +153,103 @@ def value_function(name: str) -> Callable[..., Any]:
 # --- climbing-form combination-engine queries (named on a `round climb`) ---
 #
 # A *lead* query returns every combination a hand may lead; a *follows* query
-# returns those that beat the standing play. Both take the runtime ctx (a lead
-# query may read game state, e.g. Big Two's opening 3♦ filter). The engines are
-# game-local, so these dispatch to per-game modules.
+# returns those that beat the standing play. Both take the primitive bundles (a
+# lead query may read game state, e.g. Big Two's opening 3♦ filter). The
+# engines are game-local, so these dispatch to per-game modules.
 
 
-ClimbLeadFn = Callable[[narrowing.EngineFacts, reads.GameReads, list[Card]], list[Any]]
-ClimbFollowFn = Callable[
-    [narrowing.EngineFacts, reads.GameReads, list[Card], Any], list[Any]
+class ClimbPlay(Protocol):
+    """The shape of one play a climb engine's queries return — the whole of
+    what the climb form reads off a play, declared so an engine conforms
+    under `mypy --strict` rather than by the accident of an attribute's
+    spelling. Every member but `kind` and `cards` is a behaviour the form
+    acts on: a play may end the trick at once (Tichu's Dog), stand a wildcard
+    for a rank the movement does not show (announced publicly at apply),
+    compel the seat (a candidate list holding one offers no pass), open an
+    announcement by the same seat over the tokens it names (Tichu's wish),
+    or be playable out of turn (offered in the interrupt window). An engine
+    with none of these answers the defaults on every play."""
+
+    @property
+    def kind(self) -> str: ...
+
+    @property
+    def cards(self) -> tuple[Card, ...]: ...
+
+    @property
+    def ends_trick(self) -> bool: ...
+
+    @property
+    def wild(self) -> int | None: ...
+
+    @property
+    def compelled(self) -> bool: ...
+
+    @property
+    def announce(self) -> tuple[str, ...]: ...
+
+    @property
+    def interrupt(self) -> bool: ...
+
+
+ClimbLeadFn = Callable[
+    [narrowing.EngineFacts, reads.GameReads, list[Card]], Sequence[ClimbPlay]
 ]
+ClimbFollowFn = Callable[
+    [narrowing.EngineFacts, reads.GameReads, list[Card], Any], Sequence[ClimbPlay]
+]
+
+
+class ComboCodec(Protocol):
+    """The arithmetic combo codec an engine serves to the action space:
+    pure play-identity <-> index functions over a fixed block layout, the
+    identity being the card-set and the rank value a wildcard among those
+    cards stands for. `wilds` declares the wildcard values the codec admits
+    (empty for a wildless universe); `encode` refuses any other."""
+
+    @property
+    def size(self) -> int: ...
+
+    @property
+    def wilds(self) -> frozenset[int]: ...
+
+    def encode(self, cards: frozenset[Card], wild: int | None) -> int: ...
+
+    def decode(self, index: int) -> tuple[frozenset[Card], int | None]: ...
+
+    def kind_of(self, index: int) -> str: ...
+
+
+def climb_announcements(name: str) -> tuple[str, ...]:
+    """The announcement vocabulary of the engine keyed by its lead query:
+    every token a play's `announce` may name, so the action space numbers
+    them. Empty for an engine whose plays open no announcement — stated per
+    engine, so absence is a fact and not an unmatched arm."""
+    match name:
+        case "tichu_lead_options":
+            from cardlang.runtime.tichu_combinations import WISH_TOKENS
+
+            return WISH_TOKENS
+        case "bigtwo_lead_options" | "president_lead_options":
+            return ()
+        case _:
+            raise AssertionError(f"unknown climb lead query '{name}'")
+
+
+def climb_interrupt_decline(name: str) -> str | None:
+    """The decline token of the engine's interrupt window — what a seat
+    asked between plays says when it does not play out of turn — or None for
+    an engine whose plays are never `interrupt`, which opens no window.
+    Stated per engine, so absence is a fact and not an empty filter."""
+    match name:
+        case "tichu_lead_options":
+            from cardlang.runtime.tichu_combinations import INTERRUPT_DECLINE
+
+            return INTERRUPT_DECLINE
+        case "bigtwo_lead_options" | "president_lead_options":
+            return None
+        case _:
+            raise AssertionError(f"unknown climb lead query '{name}'")
 
 
 def climb_row(name: str) -> reads.PrimitiveReads:
@@ -246,7 +334,7 @@ def climb_universe_function(name: str) -> Callable[[], list[Any]]:
             )
 
 
-def joint_codec_function(name: str) -> Any | None:
+def joint_codec_function(name: str) -> ComboCodec | None:
     """The subset codec for a joint selection (`where jointly`) whose
     predicate is rooted in the named call — the climb-engine codec pattern
     (`climb_codec_function` below) one construct over: pure card-set <->
@@ -274,7 +362,7 @@ def joint_codec_function(name: str) -> Any | None:
             return None
 
 
-def climb_codec_function(name: str) -> Any | None:
+def climb_codec_function(name: str) -> ComboCodec | None:
     """The engine's arithmetic combo codec — pure card-set <-> action-index
     functions (`size` / `encode` / `decode` / `kind_of`) — keyed by the
     lead-query name, for engines whose play universe is too large to enumerate

@@ -419,8 +419,9 @@ ROUNDS: dict[str, Rounds] = {
         # (`called`); the lap count is the poll's own and shared by every
         # site, and `poll_anchor` is a never-assigned constant, not a seat the
         # ring steers. `dealt` counts the cards taken and is the deal's, not
-        # the poll's. Green as written; red under: drop the `quiet := 0` that
-        # follows any one poll site.
+        # the poll's; `wish` is the Mahjong's wish carried between tricks,
+        # written after each climb round. Green as written; red under: drop
+        # the `quiet := 0` that follows any one poll site.
         windows=(
             Window(
                 vocabularies=(("call_grand_tichu", "decline_grand"), ("call_tichu", "no_call")),
@@ -430,7 +431,7 @@ ROUNDS: dict[str, Rounds] = {
         persistent=frozenset(
             {
                 "called", "dealt", "leader", "out_first", "out_second",
-                "poll_anchor", "push_done", "score",
+                "poll_anchor", "push_done", "score", "wish",
             }
         ),
     ),

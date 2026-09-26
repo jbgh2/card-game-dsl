@@ -30,6 +30,7 @@ def _tichu_bundles() -> tuple[narrowing.EngineFacts, reads.GameReads]:
     rs.push_frame()
     rs.declare("out_first", False, None)
     rs.declare("out_second", False, None)
+    rs.declare("wish", 0, None)  # the row's one state read: no wish in force
     return narrowing.bind(rs, None, TICHU_ROW)
 
 
@@ -352,15 +353,22 @@ def test_tichu_space_derives_its_own_56_block_and_the_combo_codec() -> None:
     # Two's is physically infeasible). Every combo id is a pure function of
     # the play's identity, so ids stay stable across determinized worlds
     # without a table. ... plus the six named call/Dragon moves.
+    from cardlang.runtime import primitives
     from cardlang.runtime.tichu import TICHU_COMBO_CODEC as codec
 
     assert codec.size == _tichu_universe_size() == 873_322_273
-    assert space.num_distinct_actions == 56 + 1 + 6 + codec.size
-    # The named-move block follows the cards: the six call/Dragon moves and
-    # the climb pass, in the order the game's decision sites are walked.
-    assert {space.to_string(i) for i in range(56, 63)} == {
+    # The named-move block follows the cards: the six call/Dragon moves, then
+    # the climb form's own vocabulary — the pass, the engine's announcement
+    # tokens (the wish), and its interrupt decline — in the order the game's
+    # decision sites are walked.
+    tokens = primitives.climb_announcements("tichu_lead_options")
+    decline = primitives.climb_interrupt_decline("tichu_lead_options")
+    assert decline is not None
+    names = 6 + 1 + len(tokens) + 1
+    assert space.num_distinct_actions == 56 + names + codec.size
+    assert {space.to_string(i) for i in range(56, 56 + names)} == {
         "call_grand_tichu", "decline_grand", "call_tichu", "no_call",
-        "dragon_to_left", "dragon_to_right", "pass",
+        "dragon_to_left", "dragon_to_right", "pass", decline, *tokens,
     }
     # Spot ids: the combo block opens at 63 with the Dog (its own trick-ending
     # kind); the pair block holds the 78 naturals, then the Phoenix pairs.
@@ -372,16 +380,17 @@ def test_tichu_space_derives_its_own_56_block_and_the_combo_codec() -> None:
     mahjong = next(c for c in deck if c.rank == "Mahjong")
     phoenix = next(c for c in deck if c.rank == "Phoenix")
     two = Card("2", "clubs")
+    combo_base = 56 + names
     dog_aid = space.encode(Play("dog", 1, 0, (dog,)))
-    assert dog_aid == 63
+    assert dog_aid == combo_base
     assert space.to_string(dog_aid) == f"dog[{dog}]"
     pair_aid = space.encode(Play("pair", 2, 2, (two, phoenix), wild=2))
-    assert pair_aid == 63 + 56 + 78  # combo base + pair block + the 78 naturals
+    assert pair_aid == combo_base + 56 + 78  # combo base + pair block + the 78 naturals
     assert space.to_string(pair_aid) == f"pair[{two},{phoenix}]@2"
     # The Mahjong pairs with nothing (issue #725): a play that is no play has
     # no id — refused, never numbered.
     with pytest.raises(ValueError):
-        space.encode(Play("pair", 2, 1, (mahjong, phoenix), wild=1))
+        space.encode(Play("pair", 2, 1, (mahjong, phoenix), wild=2))
 
 
 def test_tichu_card_block_round_trips_all_56() -> None:

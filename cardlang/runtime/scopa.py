@@ -125,6 +125,7 @@ class _ScopaCaptureCodec:
         self._universe = universe
         self._ids = {cards: i for i, cards in enumerate(universe)}
         self.size = len(universe)
+        self.wilds: frozenset[int] = frozenset()  # a capture holds no wildcard
 
     def encode(self, cards: frozenset[Card], wild: int | None) -> int:
         if wild is not None:

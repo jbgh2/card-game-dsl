@@ -103,6 +103,8 @@ DISPATCHER_HOMES: dict[str, str] = {
     "climb_universe_function": "primitives",
     "joint_codec_function": "primitives",
     "climb_codec_function": "primitives",
+    "climb_announcements": "primitives",
+    "climb_interrupt_decline": "primitives",
     "auction_outcome_function": "primitives",
 }
 

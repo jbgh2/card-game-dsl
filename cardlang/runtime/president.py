@@ -66,6 +66,14 @@ class Play:
     size: int            # 1..4
     key: int             # effective rank strength (higher = stronger)
     cards: tuple[Card, ...]
+    # The `primitives.ClimbPlay` behaviours, none of which President has: no
+    # play ends the trick, stands a wildcard, compels, announces, or
+    # interrupts.
+    ends_trick: bool = False
+    wild: int | None = None
+    compelled: bool = False
+    announce: tuple[str, ...] = ()
+    interrupt: bool = False
 
 
 def _by_rank(hand: list[Card]) -> dict[str, list[Card]]:
