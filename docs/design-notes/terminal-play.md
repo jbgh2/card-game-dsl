@@ -89,10 +89,9 @@ and a text alike. Three plants show the pin catches what it exists to catch: a
 text that drops a zone the seat sees, an event line that drops a field, and a
 text showing only the latest events.
 
-The pin runs inside the Chooser, which is where `demo` renders, because every
-phase frame still stands there. The adapter's decision nodes see a World
-unwound past those frames, and they drop the phase-local state variables
-(issue #612).
+The pin runs inside the Chooser, which is where `demo` renders. The adapter's
+decision node at the same position holds the same World, every phase frame
+standing (`tests/test_live_line.py`).
 
 **The secondary check** is the readiness battery's swap proof, which holds the
 text equal across a hidden swap beside the information state. It covers only
@@ -114,8 +113,7 @@ A line of play is the adapter's own `(seed, history)`, played on
 (`replay.LiveLine`). The recorded picks replay through `ReplayChooser`. Past
 them the chooser asks the deciding seat's policy instead of pausing, and hands
 it the Seat View derived inside the Chooser call, as `demo --view` derives the
-text. A decision node would hand it less: the world there has unwound past
-every phase frame and already run each `after_each` (issue #612). The line
+text, which is the view the decision node at that position derives. The line
 refuses an answer that is not one of the legal ids before it is played.
 
 One seed and one history name one line, however it was reached. The game's

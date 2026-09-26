@@ -365,8 +365,7 @@ class LiveLine:
     line resumes, and how a truncated one takes a pick back.
 
     A policy is handed the Decider's Seat View derived inside the Chooser call,
-    where every phase frame stands — not a `DecisionNode`'s, whose world has
-    unwound past them (issue #612)."""
+    which is the view a `DecisionNode` at the same position derives."""
 
     def __init__(self, path_str: str, seed: int, prefix: Sequence[int] = ()) -> None:
         self.path = path_str

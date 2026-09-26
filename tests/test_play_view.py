@@ -49,9 +49,7 @@ does not prove:  That the text reads well. A text that shows every fact in an
                  proof module renders this text except that swap proof, which
                  holds it equal across a hidden swap (the leak direction only):
                  the load-bearing pin is this module, at positions inside a
-                 Chooser, which is where `demo` renders — the adapter's
-                 decision nodes drop the phase-local state variables (issue
-                 #612). The positions are one seeded line per game, bounded by
+                 Chooser, which is where `demo` renders. The positions are one seeded line per game, bounded by
                  `_POSITIONS`, so a fact only a later position or another line
                  reaches is unprobed. The log's labels and card renderings show
                  as the log spells them and in the log's order (issue #666).

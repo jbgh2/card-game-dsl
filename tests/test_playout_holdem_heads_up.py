@@ -33,8 +33,7 @@ conserves chips, still terminates, and still looks legal:
   list can see the missing node.
 
 The hook for the state-reading tests is the chooser, as in
-tests/test_playout_holdem.py: phase state is unwound by the time a decision
-surfaces to a caller, but the chooser runs INSIDE the phase body, and
+tests/test_playout_holdem.py: the chooser runs INSIDE the phase body, and
 `RuntimeState` is one object for the whole game — so capturing it at the first
 decision makes it readable at every later one.
 """
