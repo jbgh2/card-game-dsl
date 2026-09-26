@@ -95,7 +95,9 @@ every combination id, so in Tichu they certify the declining line of every
 Interrupt Window and the first wish token and never a taken window bomb —
 the driver-exploration gap named below, covered for those two mechanics by
 the dedicated driven witnesses (`tests/test_tichu_bombs.py`,
-`tests/test_tichu_wish.py`) rather than by the shared proofs; and the
+`tests/test_tichu_wish.py`) and the seam replay of a taken window bomb
+(`tests/openspiel_ready/test_tichu.py`) rather than by the shared proofs —
+the swap perturbation at such a node is issue #765; and the
 guarantee covers the *structured* partition only — if the
 language ever grows free-form communication channels (an LLM seat and
 table-talk), meaning carried in that text lives outside the game state and

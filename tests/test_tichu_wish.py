@@ -29,6 +29,7 @@ from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.tichu_combinations import (
+    INTERRUPT_DECLINE,
     WISH_TOKENS,
     WISH_VALUES,
     Play,
@@ -93,6 +94,10 @@ class _Driven:
             self.failures.append(f"P{self.awaiting_wish} played the Mahjong and was not asked to wish")
             self.awaiting_wish = None
         plays = [c for c in candidates if isinstance(c, Play)]
+        if INTERRUPT_DECLINE in candidates:
+            # A window ask: a compulsion binds on turn only, and no pass is
+            # offered here; nothing of the wish is audited at this node.
+            return self.base(player, candidates, n)
         if not plays and "pass" not in candidates:
             return self.base(player, candidates, n)
         # A climb decision. What the rules compel, from the test's own reading.

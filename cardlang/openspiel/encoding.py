@@ -13,8 +13,9 @@ the [[offering]] block (moves
 flattened over their parameter domains, declared order); and the combination
 block — the climb engine's enumerated `universe()` query (canonically ordered
 and golden-pinned; Big Two) or, when the universe is too large to enumerate,
-the engine's arithmetic codec (`climb_codec_function`; Tichu's 211,204,694
-plays), whose ids are pure functions of the card-set.
+the engine's arithmetic codec (`climb_codec_function`; Tichu, whose codec's
+`size` states the universe), whose ids are pure functions of the play's
+identity.
 
 A Card-parameterized offering move (Schnapsen's `play_card`) contributes NO
 offering ids: its domain is state-dependent (the actor's live hand), and a card

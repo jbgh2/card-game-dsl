@@ -112,8 +112,8 @@ ring *configuration* with no new axis ([decisions.md](../decisions.md), "The
 auction form of `round`", the call-and-response bullet); **Dog `ends_trick` lead** — "a
 genuine new axis to surface and sign off" ([kernel-migration.md](../kernel-migration.md), WS3);
 **out-of-turn bombs** — a *mechanism* that *inverts* the model's "rules
-constrain" framing, permitting rather than restricting, since resolved as
-the climb form's Interrupt Window ([decisions.md](../decisions.md), "The
+constrain" framing, permitting rather than restricting, which is the climb
+form's Interrupt Window ([decisions.md](../decisions.md), "The
 climbing form of `round`"); **off-the-clock calls** —
 the quiescence-lap poll ([decisions.md](../decisions.md),
 "Off-the-clock windows"); **Phoenix contextual

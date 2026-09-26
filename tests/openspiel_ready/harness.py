@@ -954,7 +954,8 @@ def _holding(rs: Any, card: Card) -> Any:
         *(z for family in rs.zones.families.values() for z in family.values()),
     ]
     holders = [z for z in zones if card in z.cards]
-    assert len(holders) == 1, f"{card} is held by {len(holders)} zones"
+    if len(holders) != 1:
+        raise ValueError(f"{card} is held by {len(holders)} zones")
     return holders[0]
 
 
@@ -974,7 +975,9 @@ def _swap_fn(side1: tuple[str, int | None], side2: tuple[str, int | None], x: An
         ix, iy = zx.cards.index(x), zy.cards.index(y)
         zx.cards[ix], zy.cards[iy] = y, x
         for zone, before, after in ((zx, x, y), (zy, y, x)):
-            i = next(k for k, a in enumerate(zone.arrivals) if a.card == before)
+            i = next((k for k, a in enumerate(zone.arrivals) if a.card == before), None)
+            if i is None:
+                raise ValueError(f"{before} has no arrival record in its zone")
             zone.arrivals[i] = dataclasses.replace(zone.arrivals[i], card=after)
 
     return swap

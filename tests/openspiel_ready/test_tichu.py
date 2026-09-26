@@ -8,8 +8,12 @@ re-simulates the whole (seed, history) state after every action).
 
 from typing import Any
 
+import random
+
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.driver import play_game
+from cardlang.runtime.tichu_combinations import INTERRUPT_DECLINE, Play
 from cardlang.runtime.tichu_combinations import WISH_TOKENS
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
@@ -60,7 +64,11 @@ class TestReadiness(ReadinessProofs):
                      "applies at most one token per hand (the first at step 396 "
                      "on this line, the next at 795), and fourteen need fourteen "
                      "hands; tests/test_tichu_wish.py drives every token and "
-                     "audits every compelled play"),
+                     "audits every compelled play")
+                    if token != "no_wish"
+                    else ("the wish declined: one of the fourteen tokens a Mahjong "
+                          "play offers, unreached for the same reason as the "
+                          "ranks and driven by the same test"),
                 )
                 for token in WISH_TOKENS
             ),
@@ -223,3 +231,55 @@ def test_call_windows_are_public_announced_decisions() -> None:
                 assert f"hand[{caller}]=[" not in info, (
                     f"P{q} sees inside hand[{caller}] after a call"
                 )
+
+
+def test_a_taken_window_bomb_replays_at_the_seam() -> None:
+    """A bomb taken out of turn is a node the shared proofs never reach (the
+    greedy line declines every window; issue #765), so the seam is held to
+    it here: a live line that bombs whenever a window offers one is recorded
+    as action ids, and the recorded history replays through the adapter
+    without mismatch — the window node offers the bomb's id to the bomber,
+    and the node after it is a window ask of the next seat in turn (the
+    window reopens after every play), never the seat the ring had queued."""
+    path = str(GAMES_DIR / "tichu.cardlang")
+    game, space = load(path)
+    seed = 4
+    history: list[int] = []
+    taken: dict[str, Any] = {}
+
+    class _Stop(Exception):
+        pass
+
+    def chooser(player: int, candidates: list[Any], n: int) -> list[Any]:
+        rng = taken.setdefault("rng", random.Random(seed ^ 0xB0B))
+        plays = [c for c in candidates if isinstance(c, Play)]
+        if INTERRUPT_DECLINE in candidates and plays:
+            taken["before"] = tuple(history)
+            taken["bomber"] = player
+            taken["bomb"] = space.encode(plays[0])
+            history.append(taken["bomb"])
+            raise _Stop
+        picked = [candidates[rng.randrange(len(candidates))] for _ in range(n)] if n > 1 else [candidates[rng.randrange(len(candidates))]]
+        if n > 1:  # a multi-card selection draws without replacement
+            pool = list(candidates)
+            picked = [pool.pop(rng.randrange(len(pool))) for _ in range(n)]
+        history.extend(space.encode(c) for c in picked)
+        return picked
+
+    try:
+        play_game(game, random.Random(seed), None, chooser)
+    except _Stop:
+        pass
+    assert "bomb" in taken, "no window offered a bomb on this line"
+
+    at_window = run(path, seed, taken["before"])
+    assert isinstance(at_window, DecisionNode)
+    assert at_window.player == taken["bomber"]
+    assert taken["bomb"] in at_window.legal
+    assert space.encode(INTERRUPT_DECLINE) in at_window.legal
+
+    after = run(path, seed, tuple(history))
+    assert isinstance(after, DecisionNode)
+    assert after.player != taken["bomber"]
+    assert space.encode(INTERRUPT_DECLINE) in after.legal, "the window did not reopen after the bomb"
+    assert space.encode("pass") not in after.legal

@@ -78,15 +78,16 @@ class Kind:
     lengths: tuple[int, ...]
 
 
+# The rows' order is the codec's block order (`tichu.py`, the combo codec).
 KINDS: Final[dict[str, Kind]] = {
     "dog": Kind(phoenix=False, mahjong=False, lengths=(1,)),
     "single": Kind(phoenix=True, mahjong=True, lengths=(1,)),
     "pair": Kind(phoenix=True, mahjong=False, lengths=(2,)),
     "triple": Kind(phoenix=True, mahjong=False, lengths=(3,)),
+    "bomb": Kind(phoenix=False, mahjong=False, lengths=(4, *range(5, 14))),
     "fullhouse": Kind(phoenix=True, mahjong=False, lengths=(5,)),
     "straight": Kind(phoenix=True, mahjong=True, lengths=tuple(range(5, 15))),
     "pairseq": Kind(phoenix=True, mahjong=False, lengths=tuple(range(2, 8))),
-    "bomb": Kind(phoenix=False, mahjong=False, lengths=(4, *range(5, 14))),
 }
 
 

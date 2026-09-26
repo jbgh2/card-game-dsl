@@ -677,6 +677,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
         "i < _N_PAIRSEQ_NAT",
         "i < _N_STRAIGHT_NAT",
         "index < _BASE_PAIRSEQ",
+        "len(_BLOCK_ENDS) == len(KINDS)",
         "wild is not None and (not phoenix or wild not in _RANK_OF_VAL)",
     ],
     "stdlib/boards.py": ["set(_GRID_DIRECTION_OFFSETS) != set(dirs)"],

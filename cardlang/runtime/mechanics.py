@@ -23,7 +23,7 @@ from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime import active_rules, delegation, narrowing, observe, primitives, reads, rules
 from cardlang.runtime.chooser import decide
 from cardlang.runtime.delegation import FORM_CONSTRUCTS
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
 from cardlang.runtime.values import Player
@@ -821,6 +821,16 @@ class ClimbForm:
             state["window"] = self._window_after(actor)
             state["spent"] = False
         if play.announce:
+            if not set(play.announce) <= set(self.announcements):
+                # Shadow Guard. The Owner is the engine's registry row
+                # (`primitives.climb_announcements`), which every token a
+                # play announces must be drawn from — both Python in
+                # cardlang/runtime/, unreachable from a .cardlang file.
+                raise ShadowGuardError(
+                    "primitives.climb_announcements (the engine's declared vocabulary)",
+                    f"a play announces {sorted(set(play.announce) - set(self.announcements))}, "
+                    f"which its engine's row does not declare",
+                )
             state["pending"] = (actor, play.announce)
         return state
 

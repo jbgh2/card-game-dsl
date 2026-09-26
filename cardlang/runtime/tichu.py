@@ -21,6 +21,7 @@ from cardlang.runtime import reads
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.tichu_combinations import (
+    KINDS,
     NORMAL_VALUES,
     PHOENIX_LEAD_VALUE,
     WISH_VALUES,
@@ -123,10 +124,11 @@ def tichu_dragon_won(facts: EngineFacts, gr: reads.GameReads) -> bool:
 # the engine can ever emit. Big Two enumerates its universe; Tichu's is too
 # large (straights under free suit assignment dominate — the size is
 # `TICHU_COMBO_CODEC.size`, derived below from the block sizes), so its ids
-# are *computed*: a fixed block layout — dog, single, pair, triple, bomb
-# (four of a rank, then straight flushes), full house, straight, pair
-# sequence, each kind's natural plays before its Phoenix plays — with a
-# mixed-radix ranking inside each block. Every id is a pure function of the
+# are *computed*: a fixed block layout, one block per row of `KINDS` in that
+# registry's order — dog, single, pair, triple, bomb (four of a rank, then
+# straight flushes), full house, straight, pair sequence, each kind's
+# natural plays before its Phoenix plays — with a mixed-radix ranking inside
+# each block, the length windows read off the registry's `lengths`. Every id is a pure function of the
 # play's identity, (card-set, wild), so ids are stable across determinized
 # worlds. Each identity has exactly one block decomposition: the kinds'
 # size and rank structures are disjoint, and a suited run of five or more
@@ -158,9 +160,15 @@ _N_PAIR = _N_PAIR_NAT + 13 * 4  # then the Phoenix with one card of a rank
 _N_TRIPLE_NAT = 13 * 4
 _N_TRIPLE = _N_TRIPLE_NAT + 13 * 6  # then the Phoenix with two cards of a rank
 _N_BOMB4 = 13
+# The length windows, off the registry: a bomb of more than four cards is a
+# straight flush; a straight's and a pair sequence's lengths are the rows'.
+_SF_LENGTHS = tuple(n for n in KINDS["bomb"].lengths if n > 4)
+_STRAIGHT_LENGTHS = KINDS["straight"].lengths
+_PAIRSEQ_LENGTHS = KINDS["pairseq"].lengths
+
 # Straight-flush bombs: (length, lo) windows over the ranks 2..A, four suits.
 _SF_WINDOWS: tuple[tuple[int, int], ...] = tuple(
-    (length, lo) for length in range(5, 14) for lo in range(2, 16 - length)
+    (length, lo) for length in _SF_LENGTHS for lo in range(2, 16 - length)
 )
 _SF_IDX: dict[tuple[int, int], int] = {w: i for i, w in enumerate(_SF_WINDOWS)}
 _N_BOMBSF = len(_SF_WINDOWS) * 4
@@ -185,7 +193,7 @@ def _suited_count(length: int, lo: int) -> int:
 # of its suited ranks, less the four monochrome assignments where those would
 # be a straight flush (lo >= 2: no Mahjong in the run).
 _STRAIGHT_WINDOWS: list[tuple[int, int, int]] = []
-for _length in range(5, 15):
+for _length in _STRAIGHT_LENGTHS:
     for _lo in range(1, 16 - _length):
         _sz = 4 ** _suited_count(_length, _lo) - (4 if _lo >= 2 else 0)
         _STRAIGHT_WINDOWS.append((_length, _lo, _sz))
@@ -199,7 +207,7 @@ for _length, _lo, _sz in _STRAIGHT_WINDOWS:
 # rank `wild` of the window (never the Mahjong's one), and the other suited
 # ranks take any suit.
 _PSTRAIGHT_WINDOWS: list[tuple[int, int, int, int]] = []
-for _length in range(5, 15):
+for _length in _STRAIGHT_LENGTHS:
     for _lo in range(1, 16 - _length):
         for _wild in range(max(_lo, 2), _lo + _length):
             _sz = 4 ** (_suited_count(_length, _lo) - 1)
@@ -215,7 +223,7 @@ _N_STRAIGHT = _N_STRAIGHT_NAT + _N_STRAIGHT_PH
 # each rank one of the six suit pairs; then the Phoenix standing for one card
 # of one rank `wild`, whose natural partner takes any of the four suits.
 _PAIRSEQ_WINDOWS: list[tuple[int, int, int]] = []
-for _length in range(2, 8):
+for _length in _PAIRSEQ_LENGTHS:
     for _lo in range(2, 16 - _length):
         _PAIRSEQ_WINDOWS.append((_length, _lo, 6 ** _length))
 _PAIRSEQ_OFFSETS: dict[tuple[int, int], int] = {}
@@ -224,7 +232,7 @@ for _length, _lo, _sz in _PAIRSEQ_WINDOWS:
     _PAIRSEQ_OFFSETS[(_length, _lo)] = _N_PAIRSEQ_NAT
     _N_PAIRSEQ_NAT += _sz
 _PPAIRSEQ_WINDOWS: list[tuple[int, int, int, int]] = []
-for _length in range(2, 8):
+for _length in _PAIRSEQ_LENGTHS:
     for _lo in range(2, 16 - _length):
         for _wild in range(_lo, _lo + _length):
             _PPAIRSEQ_WINDOWS.append((_length, _lo, _wild, 4 * 6 ** (_length - 1)))
@@ -301,6 +309,17 @@ def _refuse(cards: frozenset[Card], wild: int | None) -> ValueError:
     return ValueError(
         f"not an encodable Tichu play: {sorted(map(str, cards))} wild={wild}"
     )
+
+
+# The block layout follows `KINDS`' order, one block per row; `kind_of` walks
+# the two together, so a row added to the registry without a block here
+# misaligns loudly at the end of the tuple rather than silently naming the
+# wrong kind (pinned by tests/test_openspiel_encoding.py).
+_BLOCK_ENDS = (
+    _BASE_SINGLE, _BASE_PAIR, _BASE_TRIPLE, _BASE_BOMB, _BASE_FH,
+    _BASE_STRAIGHT, _BASE_PAIRSEQ, _BASE_PAIRSEQ + _N_PAIRSEQ,
+)
+assert len(_BLOCK_ENDS) == len(KINDS), "one block per KINDS row, in its order"  # registry: KINDS is the row set
 
 
 class TichuComboCodec:
@@ -639,12 +658,8 @@ class TichuComboCodec:
         return cards
 
     def kind_of(self, index: int) -> str:
-        for base, kind in (
-            (_BASE_SINGLE, "dog"), (_BASE_PAIR, "single"), (_BASE_TRIPLE, "pair"),
-            (_BASE_BOMB, "triple"), (_BASE_FH, "bomb"), (_BASE_STRAIGHT, "fullhouse"),
-            (_BASE_PAIRSEQ, "straight"), (self.size, "pairseq"),
-        ):
-            if index < base:
+        for bound, kind in zip(_BLOCK_ENDS, KINDS):
+            if index < bound:
                 return kind
         raise ShadowGuardError(
             "openspiel.encoding.ActionSpace.decode",

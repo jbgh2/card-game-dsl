@@ -220,11 +220,27 @@ def test_grid_kind_x_phoenix_x_mahjong(kind: str, phoenix: bool, mahjong: bool) 
 
 
 def test_every_kind_the_registry_names_is_built_somewhere() -> None:
-    """The grid's rows are KINDS; each row is witnessed by at least one
-    built cell, so a kind added to the registry without an enumerator arm
-    fails here rather than sitting unbuilt."""
-    built = {kind for (kind, _ph, _mj), ok in _EXPECTED.items() if ok}
-    assert built == set(KINDS)
+    """The grid's rows are KINDS; each row has a witness hand, and the lead
+    site builds a play of that kind from it — so a kind added to the
+    registry without a witness, or without an enumerator arm, fails here
+    rather than sitting unbuilt. Executes the enumerator; reads no table
+    back."""
+    assert set(_WITNESS) == set(KINDS)
+    for kind, hand in _WITNESS.items():
+        built = {p.kind for p in tichu_lead_options(*_tichu_bundles(), list(hand))}
+        assert kind in built, (kind, built)
+
+
+def test_the_authored_outcomes_agree_with_the_registry() -> None:
+    """`_EXPECTED` is authored from the rules; `KINDS` states the same two
+    admissibilities per kind. Pinned equal, so neither can drift from the
+    other: a flag flipped in the registry reddens here, and a cell authored
+    against the rules reddens against the registry."""
+    for (kind, phoenix, mahjong), expected in _EXPECTED.items():
+        admitted = (not phoenix or KINDS[kind].phoenix) and (not mahjong or KINDS[kind].mahjong)
+        if phoenix and mahjong and kind == "single":
+            admitted = False  # one card
+        assert expected == admitted, (kind, phoenix, mahjong)
 
 
 # ---------------------------------------------------------------------------
