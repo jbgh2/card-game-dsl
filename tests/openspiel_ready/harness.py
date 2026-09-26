@@ -947,31 +947,40 @@ def replay_pair(
     return PairReplay(pause, compared)
 
 
-def _holding(rs: Any, card: Card) -> Any:
-    """The one zone holding `card` at this moment of the world."""
+def _holding(rs: Any, card: Card, side: tuple[str, int | None]) -> Any:
+    """The zone `card` is exchanged from: the named side when it holds the
+    card (a deck declared with `copies` can hold a twin elsewhere, and the
+    side's own copy is the one the pause sees), else the one other zone
+    holding it — a card not yet dealt to the side lies in the stock. Held
+    nowhere, or by several zones none of which is the side, the exchange
+    does not apply."""
+    named = _side_zone(rs, side)
+    if card in named.cards:
+        return named
     zones = [
         *rs.zones.singles.values(),
         *(z for family in rs.zones.families.values() for z in family.values()),
     ]
     holders = [z for z in zones if card in z.cards]
     if len(holders) != 1:
-        raise ValueError(f"{card} is held by {len(holders)} zones")
+        raise ValueError(f"{card} is held by {len(holders)} zones, none of them {side}")
     return holders[0]
 
 
 def _swap_fn(side1: tuple[str, int | None], side2: tuple[str, int | None], x: Any, y: Any) -> Any:
-    """Exchange `x` and `y` wherever they lie at the first decision, each
-    taking the other's position and arrival record. The sides name where the
-    PAUSE finds them; a game that deals between the first decision and the
-    pause (Tichu takes its first eight cards one at a time, polling for grand
-    tichu after each) still holds one or both in the stock at the first
-    decision, and exchanging them there yields the same paused world as
-    exchanging them in the hands after the deal, because a deal is
-    positional. A card held nowhere raises, which `replay_pair` reads as a
-    swap that does not apply."""
+    """Exchange `x` and `y` between the two sides, each taking the other's
+    position and arrival record — in the side's own zone when it holds the
+    card, else wherever the card lies at the first decision. The sides name
+    where the PAUSE finds them; a game that deals between the first decision
+    and the pause (Tichu takes its first eight cards one at a time, polling
+    for grand tichu after each) still holds one or both in the stock at the
+    first decision, and exchanging them there yields the same paused world
+    as exchanging them in the hands after the deal, because a deal is
+    positional. A card that cannot be located raises, which `replay_pair`
+    reads as a swap that does not apply."""
 
     def swap(rs: Any) -> None:
-        zx, zy = _holding(rs, x), _holding(rs, y)
+        zx, zy = _holding(rs, x, side1), _holding(rs, y, side2)
         ix, iy = zx.cards.index(x), zy.cards.index(y)
         zx.cards[ix], zy.cards[iy] = y, x
         for zone, before, after in ((zx, x, y), (zy, y, x)):

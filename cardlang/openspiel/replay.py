@@ -210,19 +210,22 @@ class ReplayChooser:
 
     def _legal(self, pool: list[Any]) -> list[int]:
         ids = [self.space.encode(c) for c in pool]
-        if len(set(ids)) != len(ids):
+        combos = [i for i in ids if self.space.block_of(i) == "combination"]
+        if len(set(combos)) != len(combos):
             # Shadow Guard of the combo codecs' injectivity (the Owner is the
             # engine's codec, `primitives.ComboCodec`, whose identity is the
-            # card-set plus the wildcard value): two live candidates sharing
-            # an id would collapse into one legal action, and the second
-            # would be a play the chooser offers that no pyspiel history can
-            # ever pick.
-            shared = sorted({i for i in ids if ids.count(i) > 1})
+            # card-set plus the wildcard value): two live combination
+            # candidates sharing an id would collapse into one legal action,
+            # and the second would be a play the chooser offers that no
+            # pyspiel history can ever pick. The card block is exempt by
+            # design: a deck declared with `copies` offers identical cards
+            # that ARE one action, and the set below folds them.
+            shared = sorted({i for i in combos if combos.count(i) > 1})
             raise ShadowGuardError(
                 "primitives.ComboCodec (the engine's combo codec)",
-                f"two candidates of one decision share action id(s) {shared}",
+                f"two combination candidates of one decision share action id(s) {shared}",
             )
-        return sorted(ids)
+        return sorted(set(ids))
 
 
 # The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
