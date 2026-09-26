@@ -175,7 +175,7 @@ HighCard — 2 seats, uniform-random self-play
   seed         3
 
 information state, seat 1, at the terminal position:
-P1|deck=#48;hand[0]=#1;hand[1]=[5♣];shown[0]=[4♥];shown[1]=[8♦]|state:score={0:0,1:1}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'));('chose', '8♦');('chose', ('8♦',));('move', 'hand[0]', 1, 'shown[0]', ('4♥',));('move', 'hand[1]', ('8♦',), 'shown[1]', ('8♦',))
+P1|deck=#48;hand[0]=#1;hand[1]=[5♣];shown[0]=[4♥];shown[1]=[8♦]|state:score={0:0,1:1}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'));('asked', 'showdown', 'simultaneous', 1, None);('chose', '8♦');('move', 'hand[0]', 1, 'shown[0]', ('4♥',));('move', 'hand[1]', ('8♦',), 'shown[1]', ('8♦',))
 ```
 
 Omitting `--seed` draws one and reports it, so any run repeats. `cardlang
@@ -272,17 +272,9 @@ pyspiel derives a seat's view the same way, on a game loaded through the
 adapter (below): `state.information_state_string(seat)` answers at any
 decision node and for any seat, and is empty at the chance root and at the
 terminal node. Decision N there is decision N here, and the two render the
-same zones and the same log of it; the adapter's state-variable segment names
-only the game-level ones, which is issue #612. A betting game feels that as the
-pot picture, and where the file declares the variables is the whole of it.
-Seven-Card Stud and three-handed Hold'em declare the chips committed, the
-standing bet and who has folded inside the phase that plays a hand, so no
-seat's information state carries them and an agent has only the observation
-log to reconstruct them from. Kuhn Poker, Leduc Poker and heads-up Hold'em
-declare the same variables in the game's own `state { }`, and their seats see
-the pot in full. So declare them at game level when an agent should read them
-— a game that plays more than one hand then resets them itself, in the
-[Hand Loop](glossary/hand-loop.md)'s `before_each`.
+same information state of it: the same zones, the same state variables — a
+phase's own among them, every one in scope where the seat is asked — and the
+same log.
 
 The last line is the point of the language. It is the seat's **information
 state** — the per-seat artifact OpenSpiel consumes; the information set is the

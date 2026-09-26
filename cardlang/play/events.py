@@ -38,17 +38,14 @@ def _seen(view: tuple[str, ...] | int | None, noun: Flavor) -> str:
     return counted(view, noun)
 
 
-def _decided(choice: str | int | tuple[str, ...] | None) -> str:
+def _decided(choice: str | int | None) -> str:
     # No two alternatives may read alike, or two logs would show as one: a
-    # group of cards is bracketed, which no rendered name or card begins with,
-    # and a flag or nothing is spelled as the language writes it, which no
+    # flag or nothing is spelled as the language writes it, which no
     # declaration may be named (`resolve.RESERVED_VALUE_NAMES`).
     if choice is None:
         return "none"
     if isinstance(choice, bool):
         return "true" if choice else "false"
-    if isinstance(choice, tuple):
-        return "[" + " ".join(choice) + "]"
     return str(choice)
 
 

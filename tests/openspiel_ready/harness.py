@@ -51,7 +51,7 @@ import pytest
 pyspiel = pytest.importorskip("pyspiel")
 
 import cardlang.openspiel.game as ogame  # registers on import
-from cardlang.openspiel.infostate import derive, information_state
+from cardlang.openspiel.infostate import derive, information_state, render_information_state
 from cardlang.openspiel.replay import (
     DecisionNode,
     HistoryMismatch,
@@ -823,13 +823,15 @@ def mentions(value: Any, card: Card) -> int:
 
 def _blind_decider(a: RecordedPick, b: RecordedPick, hidden: frozenset[Card]) -> int | None:
     """The seat a pick is compared for, or None when it is sighted. One seat
-    deciding in both worlds is sighted when its two views name a hidden card
-    a different number of times: it has seen which world it is in, and a
-    seat holding another copy of a two-deck card in both worlds has not.
-    Seats differing between the worlds are judged each on its own view, and
-    one naming no hidden card is compared."""
+    deciding in both worlds is sighted when its two views render different
+    information states: it can tell which world it is in, by a card it has
+    seen or by any fact the swap moved, such as a count a State Variable
+    announces. A seat holding another copy of a two-deck card in both worlds
+    renders the same state and is compared. Seats differing between the
+    worlds are judged each on its own view, and one naming no hidden card is
+    compared."""
     if a.decider == b.decider:
-        seen = any(mentions(a.view, card) != mentions(b.view, card) for card in hidden)
+        seen = render_information_state(a.view) != render_information_state(b.view)
         return None if seen else a.decider
     for pick in (a, b):
         if not any(mentions(pick.view, card) for card in hidden):
@@ -851,9 +853,9 @@ def compare_blind_picks(
     how many picks were compared.
 
     A decider is blind at a pick unless its Seat View there, as the pick
-    recorded it, tells the two worlds apart by the `hidden` cards it names
-    (`_blind_decider`): what a seat has seen of them by that pick, through
-    any route, makes it sighted. Picks of the
+    recorded it, tells the two worlds apart (`_blind_decider`): whatever a
+    seat has learned of the swap by that pick, through any route, makes it
+    sighted. Picks of the
     first Chooser call are skipped: its candidates are computed before
     `on_first_decision` fires (`driver.play_game`), so they agree by
     construction. `refused_last` says world B's last pick is one its position
@@ -880,9 +882,7 @@ def compare_blind_picks(
                 f"{game_name}: same information, different offer at pick {k} for "
                 f"seat {seat}: {detail}. {what}: the proof judges seat {seat}'s "
                 f"information the same in both worlds, and its offer differs. "
-                f"Either a rule or branch read something seat {seat} cannot see, "
-                f"or the adapter's information state drops a fact seat {seat} was "
-                f"shown (issue #612)."
+                f"A rule or branch read something seat {seat} cannot see."
             )
         compared += 1
     return compared

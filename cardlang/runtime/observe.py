@@ -13,9 +13,11 @@ admits. This is what each carries:
                                           the zone they land in — None where
                                           the site cannot know that zone before
                                           the choice is made
-  ("chose", <rendered value>)             delivered to the actor only, at the
-                                          moment of the chooser draw (perfect
-                                          recall of one's own decisions)
+  ("chose", <rendered value>)             one per pick, delivered to the
+                                          decider alone as the pick is made
+                                          (`chooser.decide`): perfect recall
+                                          of one's own decisions, one record
+                                          per pick on every route
   ("announce", actor, <rendered value>)   a decision whose chosen value is
                                           public — a bid, bet, pass, offer
                                           pick, or `choose` result (state
@@ -99,10 +101,8 @@ PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
         value is None or _is_integer(value) or _is_card_renderings(value)
     ),
     # a decision value as `render` spells it: a string, an integer or flag,
-    # nothing, or a multi-card selection
-    "value": lambda value: (
-        value is None or isinstance(value, (str, int)) or _is_card_renderings(value)
-    ),
+    # or nothing. A decision is one pick, so no value is a group of cards.
+    "value": lambda value: value is None or isinstance(value, (str, int)),
     # the phase a decision is asked in, by the name the designer wrote. Never
     # None: a decision asked outside every phase names no stretch of play, and
     # the ask is refused at its choke point rather than sentinelled here.
@@ -123,8 +123,8 @@ PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
 
 # The closed set of observation-event kinds, each with the shape of every field
 # it carries after its tag (closed-domain completeness, decisions.md). Emission
-# sites: `choice`/`announce`/`movement` below, `chooser.sequential_decisions`'
-# per-pick `chose`, and `execute._reveal`. A new kind, or a new field on one, is
+# sites: `announce`/`movement` below, `chooser.decide` (the `asked` and one
+# `chose` per pick), and `execute._reveal`. A new kind, or a new field on one, is
 # declared here first. Pinned by tests/test_observation_payloads.py, which plays
 # every registered game with an observer installed and holds every delivered
 # event to its row.
@@ -193,8 +193,6 @@ def render(value: Any) -> Any:
     """A deterministic, readable rendering of a decision value."""
     if isinstance(value, Card):
         return str(value)
-    if isinstance(value, (list,)):  # a multi-card selection (simultaneous pass)
-        return tuple(sorted(str(c) for c in value))
     if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str):
         name, param = value  # a (move_type, param) auction/betting candidate
         return render_candidate(name, param)
@@ -211,11 +209,6 @@ def render(value: Any) -> Any:
         f"decision value of type {type(value).__name__} has no declared "
         f"rendering in observe.render — add it deliberately"
     )
-
-
-def choice(ctx: Ctx, actor: Player, value: Any) -> None:
-    """The actor observes their own decision at the draw."""
-    ctx.observe(actor, ("chose", render(value)))
 
 
 def announce(ctx: Ctx, actor: Player, value: Any) -> None:

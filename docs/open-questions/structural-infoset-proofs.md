@@ -193,7 +193,8 @@ checklist for resolving this question.
   observation log is probed along every sequence dimension (presence,
   per-index deletion, adjacent order, extension). The
   replay-level probe still perturbs only the observer's own hand; declared
-  frames only — mid-round mechanic state is
+  frames only, every phase frame standing where the seat is asked —
+  mid-round mechanic state is
   [round-state-in-information-states](round-state-in-information-states.md).
 - **Perfect recall over histories.** Information sets are functions of the
   observation *log*, not the current snapshot — true by construction (the
@@ -272,7 +273,13 @@ checklist for resolving this question.
   dead code); the seven that do not — six multi-hand score-target games
   plus Coup, whose greedy line is legally unbounded at interactive scope —
   record `terminal=False`, their returns exercised only by the conformance
-  sim.
+  sim. That comparison holds the adapter against its own replay route, so
+  it cannot see a divergence both share. *Covered across routes:*
+  `tests/test_route_agreement.py` holds a native playout — the route the
+  table, the rigs and the playout tests take — against pyspiel at sampled
+  decisions of every registered game (the seat asked, the legal ids, every
+  seat's information-state string), the returns, and every seat's whole
+  observation log against the adapter's replay of the same picks.
 
 Two obligations on the *proof machinery itself*, whatever form it takes,
 both of which the harness meets: a failing check must report its witness —

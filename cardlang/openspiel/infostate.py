@@ -159,13 +159,10 @@ class Ask:
     construct asking, how many picks it wants, and the zone they land in where
     the site knew it before the choice.
 
-    How far THROUGH the call the seat is, is deliberately not a field. One
-    Chooser call is `count` decisions of the game tree, but the `chose` events
-    that would count them are route-dependent — a native playout emits one
-    aggregate for the whole call while a replayed one emits a per-pick event
-    too — so a progress count read off the log answers differently on the two
-    routes for the same completed decision. A seat's position within a call is
-    the caller's to track until the log says it unambiguously (issue #592).
+    How far THROUGH the call the seat is, is not a field: one Chooser call
+    is `count` decisions of the game tree, and the log holds one `chose` per
+    pick made since the ask, on every route, so a caller reads the seat's
+    position within the call off the log.
     """
 
     phase: str

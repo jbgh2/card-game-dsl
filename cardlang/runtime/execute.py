@@ -787,8 +787,8 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     # order — one flat candidate list, exactly like the auction form. A nullary
     # move contributes at most one `(name, None)` candidate, so the index the
     # chooser draws is that move type's position in the offering; `render()`
-    # turns `(name, None)` back into the bare name for observation, so
-    # `observe.announce`/`observe.choice` see identical text.
+    # turns `(name, None)` back into the bare name for observation, so the
+    # decider's `chose` and the table's `announce` carry identical text.
     # `pctx` (already bound to `player`) is threaded into `concrete_moves` so
     # the binding isn't redundantly recomputed for every move type in the
     # offering.
@@ -806,7 +806,6 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
             f"offer so it is only made when the player can act."
         )
     chosen = decide(ctx, player, candidates, 1, "execute._offer")[0]
-    observe.choice(ctx, player, chosen)
     observe.announce(ctx, player, chosen)
     name, value = chosen
     mt = ctx.rs.move_type_index[name]
@@ -914,7 +913,6 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
     except REFUSALS as exc:
         exc.locate(zone=_stamped_zone(ctx, source))
         raise
-    observe.choice(ctx, actor, chosen)
     return chosen
 
 

@@ -103,15 +103,7 @@ does not prove:  Only the exact long spelling of each option. The parser is
                  the adapter's Chooser draws nothing, so a game that deals
                  again deals it differently on each route (issue #621) and
                  nothing here says the two agree at a decision in a later
-                 hand. And the view is compared over two of its three
-                 segments, because the adapter reads a world already unwound
-                 past every phase frame and its `state:` segment drops every
-                 phase-local variable (issue #612); the strict xfail beside
-                 the comparison is what reddens the day that is fixed. A
-                 green here equally says nothing about which `chose` events
-                 either route OUGHT to emit — that the two emit the same ones
-                 across that deal is pinned, what they should hold is issue
-                 #592. And the combination cross against a refusing game pins
+                 hand. And the combination cross against a refusing game pins
                  what a dying playout prints, not what it ought to: the
                  decisions made before the refusal are built and then
                  discarded, and whether they print is issue #623.
@@ -996,11 +988,15 @@ def _tree_walk(
             shared.append(len(line))
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
+        # The picks this call has made so far, as the seat remembers them; the
+        # engine enters them in the log itself once the call returns.
+        committed: list[tuple[Any, ...]] = []
         taken = play_uniformly(player, candidates, count)
         for choice in taken:
-            views.append(information_state(seat, world[0], logs[seat]))
+            recalled = logs[seat] + (committed if seat == player else [])
+            views.append(information_state(seat, world[0], recalled))
             line.append(space.encode(choice))
-            observe(player, ("chose", render(choice)))
+            committed.append(("chose", render(choice)))
         return taken
 
     play_game(
@@ -1077,12 +1073,8 @@ def test_the_view_at_every_decision_agrees_with_the_adapter() -> None:
     decision N on one route and decision N on the other are the same position,
     so a seat sees the same zones and remembers the same log at each. The
     positions inside Hearts' three-card pass — the ones a per-call numbering
-    cannot name at all — are in the walk with the rest.
-
-    The `state:` segment is left out: the adapter reads a world already unwound
-    past every phase frame, so its state segment drops every phase-local
-    variable (issue #612). The cell below holds that segment against the day it
-    is fixed.
+    cannot name at all — are in the walk with the rest. All three segments
+    are compared, the `state:` segment's phase-local variables among them.
 
     red under: number Chooser calls in `cardlang.cli._demo`; node 1 is then the
     next seat's ask, whose log holds one finished selection where the tree's
@@ -1106,6 +1098,7 @@ def test_the_view_at_every_decision_agrees_with_the_adapter() -> None:
         mine = _segments(views[index])
         theirs = _segments(str(state.information_state_string(0)))
         assert mine[0] == theirs[0], f"the zones differ at decision {index}"
+        assert mine[1] == theirs[1], f"the state variables differ at decision {index}"
         assert mine[2] == theirs[2], f"the logs differ at decision {index}"
         state.apply_action(line[index])
 
@@ -1130,35 +1123,7 @@ def test_at_prints_the_view_the_walk_holds_at_that_decision(
         )
         mine = _segments(printed)
         theirs = _segments(_adapter_view(HEARTS, 7, line[:index], 0))
-        assert mine[0] == theirs[0], f"the zones differ at decision {index}"
-        assert mine[2] == theirs[2], f"the logs differ at decision {index}"
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="issue #612: the adapter reads a world unwound past every phase "
-    "frame, so its state segment names only the game-level variables",
-)
-def test_the_state_segment_agrees_across_the_two_routes(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The third segment, which the comparison above leaves out. Strict, so the
-    day issue #612 lands this reddens and the carve-out in the ledger comes out
-    with it.
-
-    Only the segment comparison is an assertion; a run that fails for any other
-    reason raises what the mark does not catch, so this cannot xfail on a wall
-    it does not name.
-    """
-    pytest.importorskip("pyspiel")
-    line, _, _ = _tree_walk(HEARTS, 7, 0)
-    argv = ["demo", str(HEARTS), "--seed", "7", "--info-state", "0", "--at", "1"]
-    if main(argv) != 0:
-        raise RuntimeError("the invocation this cell compares was refused")
-    mine = _segments(_seats_view(capsys.readouterr().out, 0))
-    theirs = _segments(_adapter_view(HEARTS, 7, line[:1], 0))
-    assert mine[1] == theirs[1], "the state variables differ"
+        assert mine == theirs, f"the view differs at decision {index}"
 
 
 def test_a_decision_records_the_cards_the_same_call_already_took(
@@ -1211,12 +1176,14 @@ def _views_walk(path: Path, seed: int, seat: int, last: int) -> list[tuple[int, 
         logs[player].append(event)
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
+        committed: list[tuple[Any, ...]] = []
         taken = play_uniformly(player, candidates, count)
         for choice in taken:
-            views.append((player, derive(seat, world[0], logs[seat])))
+            recalled = logs[seat] + (committed if seat == player else [])
+            views.append((player, derive(seat, world[0], recalled)))
             if len(views) > last:
                 raise _WalkedFarEnough
-            observe(player, ("chose", render(choice)))
+            committed.append(("chose", render(choice)))
         return taken
 
     with pytest.raises(_WalkedFarEnough):

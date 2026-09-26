@@ -122,14 +122,12 @@ class ReplayChooser:
     that walks a call one card at a time reads — so multi-card selections stay
     in the same global action space.
 
-    Each consumed card is emitted to the actor as a ``("chose", ...)`` event at
-    the moment of the draw. The runtime's own aggregate `chose` (fired when the
-    whole call returns) cannot cover a pause *inside* a multi-card call — the
-    cards already taken would be invisible, collapsing distinct decision nodes
-    into one information state (a perfect-recall violation). Per-draw emission
-    keeps every replayed card in the actor's log, and the log append-only
-    across ``(seed, history)`` extensions; the runtime aggregate that follows a
-    completed call is kept (it is the canonical event native playouts emit).
+    Each consumed card enters the actor's log as its ``("chose", ...)`` event
+    at the moment of the draw (`chooser.decide`'s recorder), so a pause
+    *inside* a multi-card call surfaces the cards already taken: without them
+    distinct decision nodes would collapse into one information state (a
+    perfect-recall violation). A native playout records the same events, one
+    per pick, so the log is the same whichever route made the picks.
 
     ``beyond`` is the continuation past the recorded history. Without one the
     chooser pauses the run; with one it asks ``beyond(decider, legal)`` for an
@@ -145,7 +143,6 @@ class ReplayChooser:
         self,
         space: ActionSpace,
         history: tuple[int, ...],
-        emit: Callable[[int, tuple[Any, ...]], None],
         beyond: Callable[[int, list[int]], int] | None = None,
         taken: list[int] | None = None,
         picks: list[RecordedPick] | None = None,
@@ -153,7 +150,6 @@ class ReplayChooser:
     ) -> None:
         self.space = space
         self.history = history
-        self.emit = emit
         self.beyond = beyond
         self.cursor = 0
         self.taken: list[int] = [] if taken is None else taken
@@ -205,7 +201,7 @@ class ReplayChooser:
             self.deciders.append(actor)
             return self.space.match(aid, pool)
 
-        return sequential_decisions(player, candidates, k, decide, self.emit)
+        return sequential_decisions(player, candidates, k, decide)
 
     def _legal(self, pool: list[Any]) -> list[int]:
         return sorted({self.space.encode(c) for c in pool})
@@ -365,8 +361,7 @@ class LiveLine:
     line resumes, and how a truncated one takes a pick back.
 
     A policy is handed the Decider's Seat View derived inside the Chooser call,
-    where every phase frame stands — not a `DecisionNode`'s, whose world has
-    unwound past them (issue #612)."""
+    which is the view a `DecisionNode` at the same position derives."""
 
     def __init__(self, path_str: str, seed: int, prefix: Sequence[int] = ()) -> None:
         self.path = path_str
@@ -395,7 +390,7 @@ class LiveLine:
         # The chooser appends each live pick to this line's own history as the
         # pick is made, so a policy reading the line mid-run sees every pick
         # before it.
-        chooser = ReplayChooser(space, tuple(self.history), observe, ask, self.history)
+        chooser = ReplayChooser(space, tuple(self.history), ask, self.history)
         self.deciders = chooser.deciders
         result = play_game(
             game,
@@ -440,7 +435,6 @@ def run(
     chooser = ReplayChooser(
         space,
         history,
-        observe,
         picks=picks,
         view=lambda seat: derive(seat, world[0], logs[seat]),
     )
