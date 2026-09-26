@@ -221,7 +221,7 @@ class ComboCodec(Protocol):
 
 
 def climb_announcements(name: str) -> tuple[str, ...]:
-    """The announcement vocabulary of the engine keyed by its lead query:
+    """The announcement tokens of the engine keyed by its lead query:
     every token a play's `announce` may name, so the action space numbers
     them. Empty for an engine whose plays open no announcement — stated per
     engine, so absence is a fact and not an unmatched arm."""

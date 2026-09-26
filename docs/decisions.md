@@ -851,7 +851,7 @@ further regimes beside the ring, never two at one step:
   rule that spans plays. A play the standing rule compels is marked
   `compelled` by the query, and a candidate list holding one offers the
   compelled plays alone and no pass — the query marks, the form narrows.
-  Tichu's Mahjong wish is the witness; the vocabulary is the engine's,
+  Tichu's Mahjong wish is the witness; the tokens are the engine's,
   docked by `primitives.climb_announcements`. A pending announcement is
   void once the round has terminated, since the hand is over.
 - **The Interrupt Window.** For an engine whose registry row declares a
@@ -873,7 +873,7 @@ further regimes beside the ring, never two at one step:
   widens a legal set.
 
 Rejected for both: folding the announcement into the play (one action per
-play-and-token pair multiplies the action space by the vocabulary and still
+play-and-token pair multiplies the action space by the token count and still
 needs the announce, since a play's movement carries its cards and nothing
 else); asking only the seats that hold an interrupting play (who is asked
 becomes a function of hidden holdings — the swap proof's "same seat asked"

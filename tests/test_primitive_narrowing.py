@@ -367,6 +367,9 @@ NARROWED: frozenset[str] = frozenset(
         "tichu.py::tichu_dragon_won",
         "tichu.py::tichu_follows",
         "tichu.py::tichu_lead_options",
+        "tichu.py::tichu_wish_after_trick",
+        "tichu_combinations.py::INTERRUPT_DECLINE",
+        "tichu_combinations.py::WISH_TOKENS",
     }
 )
 
@@ -1394,7 +1397,7 @@ def test_climb_follow_freezes_the_standing_play() -> None:
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
     standing = Play("single", 1, (5,), (Card("8", "spades"),))
-    form.candidates(0, {"current": standing, "last": 0}, ctx)
+    form.candidates(0, {"current": standing, "last": 0, "pending": None, "window": None}, ctx)
 
     assert seen["current"] == standing and seen["current"] is not standing, (
         "the follow query received the engine's live standing Play"

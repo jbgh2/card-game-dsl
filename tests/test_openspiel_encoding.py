@@ -358,7 +358,7 @@ def test_tichu_space_derives_its_own_56_block_and_the_combo_codec() -> None:
 
     assert codec.size == _tichu_universe_size() == 873_322_273
     # The named-move block follows the cards: the six call/Dragon moves, then
-    # the climb form's own vocabulary — the pass, the engine's announcement
+    # the climb form's own names — the pass, the engine's announcement
     # tokens (the wish), and its interrupt decline — in the order the game's
     # decision sites are walked.
     tokens = primitives.climb_announcements("tichu_lead_options")

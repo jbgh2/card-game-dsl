@@ -398,7 +398,7 @@ class ActionSpace:
         combo_codec: ComboCodec | None = None
         if climb_engines:
             assert len(climb_engines) == 1, "one climb engine per game for now"
-            # The climb form's own vocabulary beside the plays: the pass, the
+            # The climb form's own names beside the plays: the pass, the
             # engine's announcement tokens, and its interrupt decline.
             decline = primitives.climb_interrupt_decline(climb_engines[0])
             for token in ("pass", *primitives.climb_announcements(climb_engines[0]),

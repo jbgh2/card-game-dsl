@@ -827,7 +827,7 @@ class ClimbForm:
                 # play announces must be drawn from — both Python in
                 # cardlang/runtime/, unreachable from a .cardlang file.
                 raise ShadowGuardError(
-                    "primitives.climb_announcements (the engine's declared vocabulary)",
+                    "primitives.climb_announcements (the engine's declared tokens)",
                     f"a play announces {sorted(set(play.announce) - set(self.announcements))}, "
                     f"which its engine's row does not declare",
                 )
