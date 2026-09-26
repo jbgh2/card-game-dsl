@@ -631,6 +631,10 @@ class ClimbForm:
         self.climb_row = primitives.climb_row(stmt.combos_fn)
         self.announcements = primitives.climb_announcements(stmt.combos_fn)
         self.decline = primitives.climb_interrupt_decline(stmt.combos_fn)
+        # registry: the decline token is the engine's declared row
+        # (`primitives.climb_interrupt_decline`), and "pass" is the ring's own
+        # word; a row spelling the decline "pass" would fold two decisions
+        # into one rendering.
         assert self.decline != "pass", "the interrupt decline and the pass are two words"
         self.seating = ctx.rs.seating
         self.hands = ctx.rs.zones.families[stmt.source_zone]
@@ -754,7 +758,7 @@ class ClimbForm:
             # The interrupt regime: what beats the standing play out of
             # turn, and the decline every asked seat is offered. A
             # compulsion binds on turn only.
-            assert self.decline is not None
+            assert self.decline is not None  # registry: a window opens only for an engine whose row declares a decline
             standing = reads.deep_freeze(state["current"])
             interrupts = [p for p in self.follow_query(facts, gr, hand, standing) if p.interrupt]
             return [*interrupts, self.decline]

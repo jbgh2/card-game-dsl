@@ -1223,9 +1223,7 @@ class ReadinessProofs:
     def test_seed_and_undrawn_randomness_are_not_observable(self, seed: int) -> None:
         """No information state may be sensitive to the root chance seed
         beyond what dealt-and-observed cards already reveal, nor to rng draws
-        not yet made — including the rules-level rng gates carrying the
-        Tichu/Coup scope reductions, which draw from the same generator
-        (structural-infoset-proofs, 'Seed and undrawn-randomness
+        not yet made (structural-infoset-proofs, 'Seed and undrawn-randomness
         non-observability'). Two direct perturbations at a paused world:
         replace the live generator outright (a different seed's entire future
         stream), and reverse the order of every all-hidden stock (the pending

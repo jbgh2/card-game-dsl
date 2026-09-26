@@ -30,7 +30,7 @@ def _tichu_bundles() -> tuple[narrowing.EngineFacts, reads.GameReads]:
     rs.push_frame()
     rs.declare("out_first", False, None)
     rs.declare("out_second", False, None)
-    rs.declare("wish", 0, None)  # the row's one state read: no wish in force
+    rs.declare("wish", False, 0)  # the row's one state read: no wish in force
     return narrowing.bind(rs, None, TICHU_ROW)
 
 

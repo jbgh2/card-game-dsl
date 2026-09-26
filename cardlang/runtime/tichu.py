@@ -578,6 +578,8 @@ class TichuComboCodec:
                     suit_vals = [v for v in range(lo, lo + length) if v not in (1, wild)]
                     cards = self._straight_cards(suit_vals, digit, lo == 1)
                     return frozenset(cards | {_PHOENIX}), wild
+            # Shadow Guard of the codec's own window tables: offsets and sizes
+            # partition the segment, so an in-bounds index matched above.
             raise AssertionError("unreachable phoenix straight index")
         if index < self.size:
             i = index - _BASE_PAIRSEQ
@@ -588,6 +590,8 @@ class TichuComboCodec:
                         digit = i - off
                         cards = self._pairseq_cards(list(range(lo, lo + length)), digit)
                         return frozenset(cards), None
+                # Shadow Guard of the codec's own window tables: offsets and
+                # sizes partition the segment, so an in-bounds index matched.
                 raise AssertionError("unreachable pairseq index")
             i -= _N_PAIRSEQ_NAT
             for (length, lo, wild, sz) in _PPAIRSEQ_WINDOWS:
@@ -599,6 +603,8 @@ class TichuComboCodec:
                     cards.add(Card(_RANK_OF_VAL[wild], SUITS[s]))
                     cards.add(_PHOENIX)
                     return frozenset(cards), wild
+            # Shadow Guard of the codec's own window tables: offsets and sizes
+            # partition the segment, so an in-bounds index matched above.
             raise AssertionError("unreachable phoenix pairseq index")
         raise ShadowGuardError(
             "openspiel.encoding.ActionSpace.decode",

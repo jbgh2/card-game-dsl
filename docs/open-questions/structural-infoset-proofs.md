@@ -90,12 +90,13 @@ agents are made artificially ignorant, so any measurement built on the
 partition (an equilibrium baseline, a who-knows-what study of belief
 reasoning across seats) quietly measures the wrong game while every test
 reads green. Two standing caveats bound any partition claim made today: the
-Tichu scope reductions keep its call gates and Dragon routing inside rng
-primitives, so those choices appear in *no one's* information set until
-Tichu's chooser upgrade ([kernel-migration.md](../kernel-migration.md),
-Workstream 5 — Coup's upgrade is done: its challenges, blocks, claimed
-characters, and targets are real announced decisions); and the guarantee
-covers the *structured* partition only — if the
+shared proofs walk the greedy line, which sorts a name-block id below
+every combination id, so in Tichu they certify the declining line of every
+Interrupt Window and the first wish token and never a taken window bomb —
+the driver-exploration gap named below, covered for those two mechanics by
+the dedicated driven witnesses (`tests/test_tichu_bombs.py`,
+`tests/test_tichu_wish.py`) rather than by the shared proofs; and the
+guarantee covers the *structured* partition only — if the
 language ever grows free-form communication channels (an LLM seat and
 table-talk), meaning carried in that text lives outside the game state and
 outside this guarantee.
@@ -203,9 +204,7 @@ checklist for resolving this question.
   information states.
 - **Seed and undrawn-randomness non-observability.** No information state
   may be sensitive to the root chance seed beyond what dealt-and-observed
-  cards already reveal, nor to rng draws not yet made — including the
-  rules-level rng gates carrying the Tichu/Coup scope reductions, which
-  draw from the same generator. *Pinned structurally per game:* replacing
+  cards already reveal, nor to rng draws not yet made. *Pinned structurally per game:* replacing
   the live generator outright and reversing every all-hidden stock's order
   at a paused world leaves every player's information state byte-identical.
   On today's renderer this cannot fail — the information state reads only

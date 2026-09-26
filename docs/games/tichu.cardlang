@@ -283,7 +283,7 @@ move_type no_call {
 
 // The Dragon's gift: the trick goes to the opponent the winner names, and
 // lands in that opponent's own pile. Left and right are seat neighbours,
-// and in a partnership game both are opponents.
+// and in a team game both are opponents.
 move_type dragon_to_left {
   effect { move all cards from trick_pile to captured[actor offset_by left] }
 }

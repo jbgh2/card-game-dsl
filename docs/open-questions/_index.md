@@ -123,7 +123,6 @@ or when a game forces the issue.
   the family-library tier is measured against it.
 - [special-cards-declaration](special-cards-declaration.md) — `specials:`
   block and contextual-rank cards (Tichu's Mahjong, Dog, Phoenix, Dragon).
-- [out-of-turn-moves](out-of-turn-moves.md) — `out_of_turn_legal`
   vs permitting-rules vs phase-level lists (Tichu bombs).
 - [phase-legal-moves](phase-legal-moves.md) — what `legal_moves:` is for
   (derived from the body vs explicit) and whether to statically check it

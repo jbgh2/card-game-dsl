@@ -70,6 +70,7 @@ class _Driven:
         self.failures: list[str] = []
         self.awaiting_wish: Player | None = None
         self.mahjong_ended_hand = 0
+        self.tokens_chosen: set[str] = set()
 
     def attach(self, rs: RuntimeState) -> None:
         self.rs = rs
@@ -85,8 +86,9 @@ class _Driven:
             self.awaiting_wish = None
             self.wish_nodes += 1
             assert set(candidates) == set(WISH_TOKENS)
-            wished = [t for t in candidates if t != "no_wish"]
-            return [self.rng.choice(wished)]
+            token = self.rng.choice(candidates)
+            self.tokens_chosen.add(token)
+            return [token]
         if self.awaiting_wish is not None:
             self.failures.append(f"P{self.awaiting_wish} played the Mahjong and was not asked to wish")
             self.awaiting_wish = None
@@ -154,6 +156,7 @@ def test_the_wish_is_asked_of_the_mahjong_player_and_compels_the_table() -> None
         total.compelled_nodes += driven.compelled_nodes
         total.free_nodes += driven.free_nodes
         total.mahjong_ended_hand += driven.mahjong_ended_hand
+        total.tokens_chosen |= driven.tokens_chosen
     # Live, not vacuously green: the wish was asked, seats were compelled,
     # and the void case — the Mahjong ending the hand — was reached and no
     # announcement followed it (a failure above would have named it).
@@ -161,6 +164,10 @@ def test_the_wish_is_asked_of_the_mahjong_player_and_compels_the_table() -> None
     assert total.compelled_nodes > 10, total.compelled_nodes
     assert total.free_nodes > total.compelled_nodes
     assert total.mahjong_ended_hand > 0, "the hand-ending Mahjong play was never reached"
+    # Every token was announced somewhere in the sweep — the coverage the
+    # bounded conformance walk cannot buy (one wish per hand), cited by its
+    # caveat in tests/openspiel_ready/test_tichu.py.
+    assert total.tokens_chosen == set(WISH_TOKENS), set(WISH_TOKENS) - total.tokens_chosen
 
 
 def test_the_wish_is_a_public_announcement_every_seat_records() -> None:

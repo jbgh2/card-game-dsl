@@ -830,13 +830,54 @@ The leader leads a combination from the `combinations` lead query; each
 participant in turn beats the standing play with a higher combination of the same
 size (from the `follows` query) or passes — a pass does **not** drop a player. The
 trick ends when action returns to the last player who played (everyone else passed
-one full lap), when `until` holds (a player has shed out — Big Two; a game whose
-tricks always play out writes `until false` and ends the hand in the surrounding
-`repeat until` — Tichu), or the instant the lead itself is a trick-ending play:
+one full lap), when `until` holds (a player has shed out — Big Two; the third
+player out or a completed double victory — Tichu, whose `until` reads the
+round's own `state.shed_first` / `state.shed_second` beside the game's
+finishing order), or the instant the lead itself is a trick-ending play:
 the engine may mark a play `ends_trick` (Tichu's Dog), and the form then closes
 the trick with **zero follower draws**. The last player to play is
 the `outcome`; the surrounding body routes the pile and the next lead, exactly as
 for a trick.
+
+A play the engine returns conforms to a declared protocol
+(`primitives.ClimbPlay`), and three of its members open the form's two
+further regimes beside the ring, never two at one step:
+
+- **The Play Announcement.** A play whose `announce` names tokens is
+  followed by exactly one further decision of the same seat over those
+  tokens before the ring advances; the token is announced publicly and
+  recorded beside every play in the trick's own event record, which a
+  game-local query reads through `EngineFacts.round_state` to enforce a
+  rule that spans plays. A play the standing rule compels is marked
+  `compelled` by the query, and a candidate list holding one offers the
+  compelled plays alone and no pass — the query marks, the form narrows.
+  Tichu's Mahjong wish is the witness; the vocabulary is the engine's,
+  docked by `primitives.climb_announcements`. A pending announcement is
+  void once the round has terminated, since the hand is over.
+- **The Interrupt Window.** For an engine whose registry row declares a
+  decline token (`primitives.climb_interrupt_decline`): after every play
+  but a trick-ending one, and once more when the ring has returned to the
+  last player, every other participant still holding cards is asked in
+  turn order from that player, offered its `interrupt` plays that beat the
+  standing play beside the decline — so a seat with nothing to play submits
+  the same public decline a seat declining by choice does, and who is
+  asked is a function of public state alone. A taken interrupt stands, the
+  ring resumes after the interrupter, and the window reopens; a compulsion
+  binds on turn only. Tichu's bombs out of turn are the witness; Big Two
+  and President declare no decline and open no window. This is the
+  off-the-clock idiom ("Off-the-clock windows") applied inside a form,
+  where a poll cannot sit; the surface options once sketched for it — a
+  move-type property, a permitting rule, a phase-level list — are all
+  refused by the same law that decided the poll: a permission that varies
+  by seat and moment is a decision the kernel asks, never a rule that
+  widens a legal set.
+
+Rejected for both: folding the announcement into the play (one action per
+play-and-token pair multiplies the action space by the vocabulary and still
+needs the announce, since a play's movement carries its cards and nothing
+else); asking only the seats that hold an interrupting play (who is asked
+becomes a function of hidden holdings — the swap proof's "same seat asked"
+fails on the first pair that differs in a bomb).
 
 **The named leader need not be a participant.** `from` and `over` are
 independent expressions, so in a game where going out does not end the hand
@@ -867,7 +908,10 @@ Two decisions distinguish it from the trick and auction forms:
   the five-card group; Tichu: rank-only keys, bombs, the four special cards); they
   merge only at a third instance (Pinochle melds would be a further one), per the
   promote-at-the-third rule. The construct depends only on the queries' interface: a
-  list of plays, each exposing its cards as `.cards`.
+  sequence of plays conforming to `primitives.ClimbPlay` — the cards a play
+  moves, and the behaviours the form acts on (`ends_trick`, `wild`, `compelled`,
+  `announce`, `interrupt`), each answered by its default in an engine that has
+  none of them.
 
 - **The winner is the loop's last player, not an outcome function.** Unlike the
   trick form, which selects the winner from the played cards, the climbing winner is
@@ -3803,6 +3847,13 @@ mid-trick declarations); an `optional: true` move-type property
 (optionality belongs to the offer site, not the move); a state write
 outside the move framework (removes the decision from the observation
 stream, breaking derived information sets).
+
+Where the window falls *inside* a form that owns the decisions of a
+trick — Tichu's bombs out of turn — the poll cannot sit between the
+form's own asks, and the idiom is applied by the form itself: the climb
+form's Interrupt Window ("The climbing form of `round`") asks every
+other seat in turn after each play with the same public decline for the
+seat that cannot act and the seat that will not.
 
 Witnesses: Doppelkopf's announcement ladder at full fidelity
 ([games/doppelkopf.cardlang](games/doppelkopf.cardlang)); Tichu's call

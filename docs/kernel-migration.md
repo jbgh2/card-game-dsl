@@ -66,9 +66,11 @@ rules-level randomness remains: both Workstream 5 halves are done. Coup's
 challenges, blocks, claimed characters, and targets are real announced
 decisions, and so are Tichu's call windows (grand at the eight-card deal
 window, small on the off-the-clock poll — decisions.md "Off-the-clock
-windows") and its Dragon routing. Each game's remaining scope reductions
-are named in its own game file (Tichu's Mahjong wish and bomb variants,
-and the like) — scope, not hidden randomness.
+windows") and its Dragon routing. Tichu plays its rulebook whole (epic
+#762): the wish, the Phoenix in every combination but a bomb, straight-flush
+bombs and bombs out of turn are all in. Big Two's and President's
+representative-card enumerations are named in their own game files —
+scope, not hidden randomness.
 
 The built-in `Trick` mechanic was also engine code, not DSL. Retiring it —
 moving Hearts, Spades, Getaway, and Bridge's play onto the kernel `round` (Oh
@@ -401,10 +403,12 @@ The design the construct settled:
   roundtrip tests (`tests/test_openspiel_encoding.py`); the enumerator
   itself is held to the rules by an independent validator
   (`tests/test_tichu_combinations.py`).
-- The bomb **interrupt** axis (any player, any time) is moot at the migrated
-  scope: the current Tichu omits out-of-turn bombs (bombs play only on-turn, as a
-  follow), and Big Two has no bombs, so the kernel needs no interrupt axis to
-  reproduce either. Revisit if a game forces out-of-turn play.
+- **Bombs out of turn are the climb form's Interrupt Window**, and the
+  Mahjong's wish its Play Announcement (decisions.md, "The climbing form of
+  `round`"): two further regimes of the form's own order function beside
+  the ring, opened by attributes of the plays an engine returns and by the
+  engine's registry rows, so Big Two and President — which declare neither —
+  run unchanged. Neither is a seventh hook.
 
 ## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen)
 
@@ -501,16 +505,16 @@ scope, re-pinned at the WS5 sign-off.
 
 **The Tichu half — done at real-rules fidelity.** The call rules were
 verified against the publisher's English rules (Pagat's commercial-games
-index defers to Fata Morgana for Tichu): grand tichu is a discrete
-first-eight-cards window (offer per player, then the deal completes); small
-tichu is off-the-clock until the caller's first play and runs on the
+index defers to Fata Morgana for Tichu): grand tichu is polled after each
+of the first eight cards (any time before the ninth); small tichu is
+off-the-clock until the caller's first play and runs on the same
 quiescence-lap poll (decisions.md "Off-the-clock windows") with publicly
 derivable eligibility (pre-push: nobody has played; post-push: a 14-card
 hand is exactly "unplayed"); the Dragon's trick is given by a real announced
-choice. The rng gates (`tichu_call_roll`, `tichu_dragon_recipient`) are
-deleted from the registries. New goldens pin the behaviour change, captured
-under a reference call policy — the uniform chooser diverges, which is the
-second legally-unbounded-lines witness
+choice into the named opponent's own pile. No rng gate remains in the
+registries. The goldens are captured under a reference call policy — the
+uniform chooser diverges, which is the second legally-unbounded-lines
+witness
 ([open-questions/unbounded-lines-and-max-length.md](open-questions/unbounded-lines-and-max-length.md)).
 
 ## Cross-cutting build-out

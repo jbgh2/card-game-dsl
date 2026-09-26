@@ -93,7 +93,7 @@ Key design notes:
   and Tichu's combination rules genuinely differ (suit tie-breaks, flushes and
   quads, cross-type five-card beating vs. bombs and special cards), so the engines
   stay per-game until a third instance. The construct depends only on their
-  interface — a list of plays, each exposing the cards it moves as `.cards`.
+  interface — a sequence of plays conforming to `primitives.ClimbPlay`.
 
 - **No winner function.** Unlike the trick form, the winner is not a function of
   the cards — it is the loop's last player to play, returned directly and bound as
@@ -105,9 +105,17 @@ Key design notes:
   hand.** It is the shed-out gate: Big Two's `any player where hand[player] is empty`
   stops the trick the instant a player empties (matching the rule that the
   hand ends on the first shed). It is checked after each play, so the rest of
-  that trick is not offered. A game whose tricks always play out (Tichu — the
-  others must still beat or pass after a shed) writes `until false` and ends
-  the *hand* in the surrounding `repeat until` instead.
+  that trick is not offered. Tichu's ends the trick the instant the third
+  player goes out or a double victory is complete, reading the round's own
+  `state.shed_first` / `state.shed_second` beside the hand's finishing order.
+
+- **Two regimes beside the ring** ([decisions.md](decisions.md) "The
+  climbing form of `round`"): a play whose `announce` names tokens is
+  followed by one decision of the same seat over them (the Play
+  Announcement — Tichu's Mahjong wish), and an engine that declares an
+  interrupt decline has every other seat asked in turn after each play
+  (the Interrupt Window — Tichu's bombs out of turn). A play a rule
+  compels is marked by the query and offered alone, with no pass.
 
 - **The form exposes its terminal state to the body** (the trick form's
   `mech_state` → `last_round_state` pattern, read as `state.x`):
@@ -118,9 +126,10 @@ Key design notes:
 
 - **Routing is the surrounding body, not a parameter** (as for the trick). Big Two
   routes the spent pile to the discard (`move all cards from trick_pile to discard`)
-  and passes the lead to the winner (`leader := winner`); Tichu routes to a team
-  pile (`captured[team_of(winner)]`) — or to a random opponent's on a Dragon
-  win, or to the discard with the lead passing to the partner on the Dog.
+  and passes the lead to the winner (`leader := winner`); Tichu routes to the
+  winner's own pile (`captured[winner]`) — or to the opponent's the winner
+  names on a Dragon win, or to the discard with the lead passing to the
+  partner on the Dog.
 
 ## The turn loop: the `turns` form
 
@@ -491,11 +500,13 @@ in tests/test_trump_slot_class.py.
   `state.shed_second`. The push is one chosen 3-card transfer per player into
   a per-player `gift` pile (simultaneous by construction — gifts land only
   after every pick), distributed giver-major by draw-free `deal` statements.
-  The calls and the Dragon are real decisions: grand tichu is an
-  offer per player at the eight-card deal window, small tichu runs on the
+  The calls and the Dragon are real decisions: grand tichu is polled
+  after each of the first eight cards, small tichu runs on the
   quiescence-lap poll before the push / after it / before each trick, and a
   Dragon-won trick is given by an announced `dragon_to_left` /
-  `dragon_to_right` choice; the team/finishing lookups and card-point
+  `dragon_to_right` choice into that opponent's own pile; the Mahjong's
+  wish is the climb form's Play Announcement and bombs out of turn its
+  Interrupt Window; the team/finishing lookups and card-point
   table are pure primitives. Scoring writes `score[team]` directly, and the
   playout harness derives its conservation audit from observation events
   (tests/playout_trace.py), not from the rules text.
@@ -996,9 +1007,14 @@ the team and finishing lookups are the game's own `function`s and state
 reads in `tichu.cardlang`:
 
 - `tichu_lead_options` / `tichu_follows` — the climb `round`'s queries: every
-  combination a hand can lead (plus the Dragon/Phoenix/Dog lead singles, the
-  Dog marked `ends_trick`), and the follows that beat the standing play (same
-  kind and length and higher, any bomb, the Dragon/Phoenix single answers).
+  combination a hand can lead at every suit choice (plus the Phoenix and Dog
+  lead singles, the Dog marked `ends_trick`, the Mahjong's plays opening the
+  wish), and the follows that beat the standing play (same kind and length
+  and higher, a bomb over anything it outranks, the Phoenix's single
+  answer) — with the plays a standing wish compels marked.
+- `tichu_wish_after_trick() → Integer` — the wish still in force once the
+  completed trick is folded in (the rank value, or 0), read off the round's
+  terminal state; the game carries it to the next trick in `wish`.
 - `tichu_dragon_won() → Boolean` — the completed trick's standing play was
   the lone Dragon, read off the round's terminal state like the `state`
   pronoun.

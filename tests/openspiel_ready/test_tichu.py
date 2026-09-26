@@ -10,6 +10,7 @@ from typing import Any
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.tichu_combinations import WISH_TOKENS
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -19,15 +20,49 @@ class TestReadiness(ReadinessProofs):
         "cardlang_tichu",
         "tichu.cardlang",
         conformance_steps=120,
+        # The bounded walk is a random line from a pinned generator, and the
+        # verbs below sit past what 120 steps of it reach — measured on that
+        # line at 800 steps (2026-09-26): the Dragon arms at 185 and 380, the
+        # first wish token at 396 and the second at 795. Depth buys a coin
+        # flip on each, not coverage; the mechanics behind them are certified
+        # by driven witnesses that aim at them instead.
         conformance_verbs_unreached=(
             (
+                "call_tichu",
+                ("the small-tichu window: on this line every seat calls grand "
+                 "within the eight per-card polls (a random draw calls half the "
+                 "time), so the public gate never opens a small poll and the "
+                 "call is never offered; test_call_windows_are_public_announced_"
+                 "decisions below drives a small call on a declining line"),
+            ),
+            (
+                "no_call",
+                ("the small-tichu window's decline, unreached with `call_tichu` "
+                 "for the same reason and driven by the same test"),
+            ),
+            (
                 "dragon_to_right",
-                ("the mirror arm of the dragon gift: `dragon_to_left` IS applied "
-                "within the bound, and which opponent the trick is given to is "
-                "the same move with the other target. Reaching the right arm on "
-                "this line costs 178 steps (measured), and the arms diverge "
-                "wildly by rng (337 on seed 0, past 400 on seed 1) — depth buys "
-                "a coin flip here, not coverage"),
+                ("one arm of the Dragon gift, first applied at step 185 on this "
+                 "line; the choice's routing into the named opponent's pile is "
+                 "scored by the independent scorer over every hand of the "
+                 "playout probe, and both arms are the same move with the "
+                 "other target"),
+            ),
+            (
+                "dragon_to_left",
+                ("the other arm of the Dragon gift, first applied at step 380 "
+                 "on this line, driven and scored as `dragon_to_right` is"),
+            ),
+            *(
+                (
+                    token,
+                    ("a wish token: the Mahjong is played once a hand, so a line "
+                     "applies at most one token per hand (the first at step 396 "
+                     "on this line, the next at 795), and fourteen need fourteen "
+                     "hands; tests/test_tichu_wish.py drives every token and "
+                     "audits every compelled play"),
+                )
+                for token in WISH_TOKENS
             ),
         ),
     )
