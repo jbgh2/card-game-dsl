@@ -186,10 +186,9 @@ class TichuHands:
     out of a `captured` instance (the TeamPile projection is identity for all
     observers), so at `hand_end` the running total equals the points sitting
     in the two piles after routing. The finishing order derives from hand
-    sizes tracked through movement counts, with one deliberate exception
-    mirrored from the game text (tichu.cardlang, the Dog branch): a shed on a
-    trick-ending Dog lead enters no finishing order, so a lone Dog played
-    into the trick pile records no shed here either. The hand boundary is
+    sizes tracked through movement counts: a seat is out the moment a play
+    empties its hand, the Dog included (the rules end a hand however the
+    last card leaves). The hand boundary is
     the gather (`move all cards to deck` in `before_each`): the first
     movement into the deck resets the per-hand trackers, and its
     captured-side identity views unwind the point total on their own.
@@ -222,13 +221,7 @@ class TichuHands:
             key = _key_of(src, "hand")
             before = self._hand_sizes.get(key, 0)
             self._hand_sizes[key] = before - _moved(src_view)
-            dog_shed = (
-                dst == "trick_pile"
-                and isinstance(dst_view, tuple)
-                and len(dst_view) == 1
-                and rank_of(dst_view[0]) == "Dog"
-            )
-            if before > 0 and self._hand_sizes[key] == 0 and not dog_shed:
+            if before > 0 and self._hand_sizes[key] == 0:
                 self._out_order.append(key)
 
     def hand_summary(self) -> list[int]:

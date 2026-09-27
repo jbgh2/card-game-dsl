@@ -210,6 +210,7 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
+        "tichu_wish_after_trick",  # Tichu: the Mahjong's wish in force once the trick is folded in (0 = none)
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
         "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
@@ -497,6 +498,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_excuse_player",
         "tarot_per_opp",
         "tichu_dragon_won",
+        "tichu_wish_after_trick",
     }
 )
 

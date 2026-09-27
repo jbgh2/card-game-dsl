@@ -182,9 +182,9 @@ abilities" needs ordering), which is why Magic's comprehensive rules
 carry a seven-layer, dependency-ordered application system. An
 **effect-composition algebra** is the third genuinely new design axis
 (after topology and declared projections). Everything else is heavy
-but familiar: the stack is a dense priority loop
-([open-questions/out-of-turn-moves.md](../open-questions/out-of-turn-moves.md)
-is its seed), targeting is parameter domains over object references,
+but familiar: the stack is a dense priority loop (the climb form's
+Interrupt Window, [decisions.md](../decisions.md) "The climbing form of
+`round`", is its seed), targeting is parameter domains over object references,
 face-down cards are pose, hands/libraries are ordinary zones — the
 knowledge machinery, this language's hardest subsystem, is the *easy*
 part of the CCG target.

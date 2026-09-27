@@ -103,15 +103,15 @@ def test_meld_codec_universe_is_the_329_melds_of_standard52() -> None:
 
 def test_meld_codec_round_trips_every_meld() -> None:
     for idx in range(GIN_MELD_CODEC.size):
-        cards = frozenset(GIN_MELD_CODEC.decode(idx))
+        cards, _wild = GIN_MELD_CODEC.decode(idx)
         assert valid_meld(list(cards))
-        assert GIN_MELD_CODEC.encode_cards(cards) == idx
+        assert GIN_MELD_CODEC.encode(cards, None) == idx
         assert GIN_MELD_CODEC.kind_of(idx) in ("set", "run")
 
 
 def test_meld_codec_rejects_a_non_meld() -> None:
     with pytest.raises(KeyError):
-        GIN_MELD_CODEC.encode_cards(frozenset(_h("7C", "8D", "9C")))
+        GIN_MELD_CODEC.encode(frozenset(_h("7C", "8D", "9C")), None)
 
 
 def test_gin_primitive_in_a_zone_less_game_fails_typed() -> None:

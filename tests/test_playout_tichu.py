@@ -12,9 +12,13 @@ worth about -50 in expectation, and the 1000-point race then diverges —
 measured at 2,200+ hands with no terminus. That divergence is real Tichu (a
 table of indiscriminate callers never finishes; recorded as the second witness
 in open-questions/unbounded-lines-and-max-length.md), so the game text stays
-faithful and the play-style assumption lives here: grand tichu gated at 4% per
-offer, small tichu at 2% per poll offer (approximating the pre-WS5 per-hand
-call profile), uniform otherwise.
+faithful and the play-style assumption lives here: a seat calls grand tichu in
+4% of hands and small tichu at 2% of each poll offer, uniform otherwise. The
+grand rate is a PER-HAND rate, and the per-offer gate is derived from it and
+the number of offers a hand makes (one poll per card of the first eight,
+tichu.cardlang): a per-offer gate copied across the eight polls calls grand in
+28% of hands, and the race diverges exactly as under the uniform chooser
+(measured 2026-09-26 at the probe: 45 of 300 games refused at `max_length`).
 """
 
 from __future__ import annotations
@@ -35,19 +39,37 @@ TICHU = Path(__file__).parent.parent / "docs" / "games" / "tichu.cardlang"
 SUITS = ("clubs", "diamonds", "hearts", "spades")
 
 
+# The grand-tichu window is polled once per card of the first eight
+# (tichu.cardlang, "Grand tichu"), so a seat declining every poll of a hand is
+# asked this many times.
+GRAND_OFFERS_PER_HAND = 8
+GRAND_CALL_RATE_PER_HAND = 0.04
+GRAND_CALL_RATE_PER_OFFER = 1 - (1 - GRAND_CALL_RATE_PER_HAND) ** (1 / GRAND_OFFERS_PER_HAND)
+SMALL_CALL_RATE_PER_OFFER = 0.02
+
+
 def tichu_reference_policy(
     rng: random.Random, stats: dict[str, int] | None = None
 ) -> Callable[[Player, list[Any], int], list[Any]]:
     """The playout policy: uniform play except at the call windows, which are
-    gated at rates approximating the pre-WS5 per-hand call profile."""
+    gated so a seat calls grand tichu in about 4% of hands and small tichu at
+    2% of each poll offer."""
     base = random_chooser(rng)
 
     def chooser(player: Player, candidates: list[Any], n: int) -> list[Any]:
         names = {c[0]: c for c in candidates if isinstance(c, tuple) and c}
         if "call_grand_tichu" in names:
-            pick = names["call_grand_tichu"] if rng.random() < 0.04 else names["decline_grand"]
+            pick = (
+                names["call_grand_tichu"]
+                if rng.random() < GRAND_CALL_RATE_PER_OFFER
+                else names["decline_grand"]
+            )
         elif "call_tichu" in names:
-            pick = names["call_tichu"] if rng.random() < 0.02 else names["no_call"]
+            pick = (
+                names["call_tichu"]
+                if rng.random() < SMALL_CALL_RATE_PER_OFFER
+                else names["no_call"]
+            )
         else:
             return base(player, candidates, n)
         if stats is not None:

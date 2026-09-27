@@ -49,6 +49,7 @@ from cardlang.openspiel.infostate import SeatView, derive
 from cardlang.openspiel.seat_policy import SeatPolicy
 from cardlang.pipeline import check_source
 from cardlang.runtime.chance import RefusingRandom, is_chance_free
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.chooser import sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
 from cardlang.runtime.state import ChooserAbort, RuntimeState
@@ -204,7 +205,23 @@ class ReplayChooser:
         return sequential_decisions(player, candidates, k, decide)
 
     def _legal(self, pool: list[Any]) -> list[int]:
-        return sorted({self.space.encode(c) for c in pool})
+        ids = [self.space.encode(c) for c in pool]
+        combos = [i for i in ids if self.space.block_of(i) == "combination"]
+        if len(set(combos)) != len(combos):
+            # Shadow Guard of the combo codecs' injectivity (the Owner is the
+            # engine's codec, `primitives.ComboCodec`, whose identity is the
+            # card-set plus the wildcard value): two live combination
+            # candidates sharing an id would collapse into one legal action,
+            # and the second would be a play the chooser offers that no
+            # pyspiel history can ever pick. The card block is exempt by
+            # design: a deck declared with `copies` offers identical cards
+            # that ARE one action, and the set below folds them.
+            shared = sorted({i for i in combos if combos.count(i) > 1})
+            raise ShadowGuardError(
+                "primitives.ComboCodec (the engine's combo codec)",
+                f"two combination candidates of one decision share action id(s) {shared}",
+            )
+        return sorted(set(ids))
 
 
 # The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),

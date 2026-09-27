@@ -8,8 +8,13 @@ re-simulates the whole (seed, history) state after every action).
 
 from typing import Any
 
+import random
+
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
+from cardlang.runtime.driver import play_game
+from cardlang.runtime.tichu_combinations import INTERRUPT_DECLINE, Play
+from cardlang.runtime.tichu_combinations import WISH_TOKENS
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -19,15 +24,53 @@ class TestReadiness(ReadinessProofs):
         "cardlang_tichu",
         "tichu.cardlang",
         conformance_steps=120,
+        # The bounded walk is a random line from a pinned generator, and the
+        # verbs below sit past what 120 steps of it reach — measured on that
+        # line at 800 steps (2026-09-26): the Dragon arms at 185 and 380, the
+        # first wish token at 396 and the second at 795. Depth buys a coin
+        # flip on each, not coverage; the mechanics behind them are certified
+        # by driven witnesses that aim at them instead.
         conformance_verbs_unreached=(
             (
+                "call_tichu",
+                ("the small-tichu window: on this line every seat calls grand "
+                 "within the eight per-card polls (a random draw calls half the "
+                 "time), so the public gate never opens a small poll and the "
+                 "call is never offered; test_call_windows_are_public_announced_"
+                 "decisions below drives a small call on a declining line"),
+            ),
+            (
+                "no_call",
+                ("the small-tichu window's decline, unreached with `call_tichu` "
+                 "for the same reason and driven by the same test"),
+            ),
+            (
                 "dragon_to_right",
-                ("the mirror arm of the dragon gift: `dragon_to_left` IS applied "
-                "within the bound, and which opponent the trick is given to is "
-                "the same move with the other target. Reaching the right arm on "
-                "this line costs 178 steps (measured), and the arms diverge "
-                "wildly by rng (337 on seed 0, past 400 on seed 1) — depth buys "
-                "a coin flip here, not coverage"),
+                ("one arm of the Dragon gift, first applied at step 185 on this "
+                 "line; the choice's routing into the named opponent's pile is "
+                 "scored by the independent scorer over every hand of the "
+                 "playout probe, and both arms are the same move with the "
+                 "other target"),
+            ),
+            (
+                "dragon_to_left",
+                ("the other arm of the Dragon gift, first applied at step 380 "
+                 "on this line, driven and scored as `dragon_to_right` is"),
+            ),
+            *(
+                (
+                    token,
+                    ("a wish token: the Mahjong is played once a hand, so a line "
+                     "applies at most one token per hand (the first at step 396 "
+                     "on this line, the next at 795), and fourteen need fourteen "
+                     "hands; tests/test_tichu_wish.py drives every token and "
+                     "audits every compelled play")
+                    if token != "no_wish"
+                    else ("the wish declined: one of the fourteen tokens a Mahjong "
+                          "play offers, unreached for the same reason as the "
+                          "ranks and driven by the same test"),
+                )
+                for token in WISH_TOKENS
             ),
         ),
     )
@@ -188,3 +231,55 @@ def test_call_windows_are_public_announced_decisions() -> None:
                 assert f"hand[{caller}]=[" not in info, (
                     f"P{q} sees inside hand[{caller}] after a call"
                 )
+
+
+def test_a_taken_window_bomb_replays_at_the_seam() -> None:
+    """A bomb taken out of turn is a node the shared proofs never reach (the
+    greedy line declines every window; issue #765), so the seam is held to
+    it here: a live line that bombs whenever a window offers one is recorded
+    as action ids, and the recorded history replays through the adapter
+    without mismatch — the window node offers the bomb's id to the bomber,
+    and the node after it is a window ask of the next seat in turn (the
+    window reopens after every play), never the seat the ring had queued."""
+    path = str(GAMES_DIR / "tichu.cardlang")
+    game, space = load(path)
+    seed = 4
+    history: list[int] = []
+    taken: dict[str, Any] = {}
+
+    class _Stop(Exception):
+        pass
+
+    def chooser(player: int, candidates: list[Any], n: int) -> list[Any]:
+        rng = taken.setdefault("rng", random.Random(seed ^ 0xB0B))
+        plays = [c for c in candidates if isinstance(c, Play)]
+        if INTERRUPT_DECLINE in candidates and plays:
+            taken["before"] = tuple(history)
+            taken["bomber"] = player
+            taken["bomb"] = space.encode(plays[0])
+            history.append(taken["bomb"])
+            raise _Stop
+        picked = [candidates[rng.randrange(len(candidates))] for _ in range(n)] if n > 1 else [candidates[rng.randrange(len(candidates))]]
+        if n > 1:  # a multi-card selection draws without replacement
+            pool = list(candidates)
+            picked = [pool.pop(rng.randrange(len(pool))) for _ in range(n)]
+        history.extend(space.encode(c) for c in picked)
+        return picked
+
+    try:
+        play_game(game, random.Random(seed), None, chooser)
+    except _Stop:
+        pass
+    assert "bomb" in taken, "no window offered a bomb on this line"
+
+    at_window = run(path, seed, taken["before"])
+    assert isinstance(at_window, DecisionNode)
+    assert at_window.player == taken["bomber"]
+    assert taken["bomb"] in at_window.legal
+    assert space.encode(INTERRUPT_DECLINE) in at_window.legal
+
+    after = run(path, seed, tuple(history))
+    assert isinstance(after, DecisionNode)
+    assert after.player != taken["bomber"]
+    assert space.encode(INTERRUPT_DECLINE) in after.legal, "the window did not reopen after the bomb"
+    assert space.encode("pass") not in after.legal
