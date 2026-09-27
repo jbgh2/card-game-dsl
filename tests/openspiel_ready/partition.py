@@ -57,8 +57,6 @@ def _perturbed_view(view: Any) -> Any:
 def _perturbed_value(value: Any) -> Any:
     if value is None:
         return _SENTINEL
-    if isinstance(value, tuple):
-        return _with_probe_card(value)
     return value + (_SENTINEL if isinstance(value, str) else 1)
 
 

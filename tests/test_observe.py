@@ -53,6 +53,7 @@ def test_ctx_observe_delivers_to_installed_observer() -> None:
 # Task 3: Observation emitter tests
 
 from cardlang.runtime import observe
+from cardlang.runtime.chooser import decide
 from cardlang.runtime.values import Card
 
 
@@ -74,14 +75,16 @@ def test_render_shapes() -> None:
     assert observe.render(("bid", "hearts")) == "bid(hearts)"
     assert observe.render(7) == 7
     assert observe.render("pass") == "pass"
-    two = [Card("2", "clubs"), Card("A", "spades")]
-    assert observe.render(two) == tuple(sorted(str(c) for c in two))
 
 
-def test_choice_reaches_only_the_actor() -> None:
+def test_each_pick_reaches_only_the_decider() -> None:
+    """A Chooser that makes its picks at once leaves one `chose` per pick, in
+    the order it made them, after the `asked` that put the question."""
     ctx, logs = _ctx_with_log()
-    observe.choice(ctx, 2, Card("Q", "spades"))
-    assert logs[2] == [("chose", str(Card("Q", "spades")))]
+    ctx = ctx.in_phase(n.Phase("play", None, ()))
+    picks = [Card("Q", "spades"), Card("2", "clubs")]
+    assert decide(ctx, 2, picks, 2, "execute._select_from") == picks
+    assert logs[2][1:] == [("chose", str(picks[0])), ("chose", str(picks[1]))]
     assert logs[0] == logs[1] == logs[3] == []
 
 

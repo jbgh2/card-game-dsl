@@ -25,11 +25,10 @@ arrangements this module's retired unit tests asserted transfer there 1:1).
 Side-pot *misallocation* is likewise invisible to conservation and is pinned
 by known-value tests in tests/test_holdem_settle.py.
 
-The hook for the state-reading tests is the chooser: phase state is unwound by
-the time a decision surfaces to a caller (`DecisionNode.rs` carries only game-level
-names), but the chooser runs INSIDE the phase body with `in_hand`/`bet_by`/
-`button` still in scope, and `RuntimeState` is one object for the whole game —
-so capturing it at the first decision makes it readable at every later one.
+The hook for the state-reading tests is the chooser: it runs INSIDE the phase
+body with `in_hand`/`bet_by`/`button` in scope, and `RuntimeState` is one object
+for the whole game — so capturing it at the first decision makes it readable at
+every later one.
 """
 
 from __future__ import annotations
@@ -131,11 +130,10 @@ def test_heads_up_reverses_the_blinds() -> None:
     readings conserve chips and both terminate, so nothing else in this file can
     tell them apart — this reads the posted amounts off Hold'em's own live state.
 
-    The hook is the chooser: phase state is unwound by the time a decision
-    surfaces to a caller (`DecisionNode.rs` carries only game-level names), but the
-    chooser runs INSIDE the phase body with `in_hand`/`bet_by`/`button` still in
-    scope. `RuntimeState` is one object for the whole game, so capturing it at
-    the first decision makes it readable at every later one.
+    The hook is the chooser: it runs INSIDE the phase body with
+    `in_hand`/`bet_by`/`button` in scope. `RuntimeState` is one object for the
+    whole game, so capturing it at the first decision makes it readable at
+    every later one.
     """
     game = check_source(HOLDEM)
     box: list[Any] = []

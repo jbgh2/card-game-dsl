@@ -14,15 +14,20 @@ Contract
 Assumes: a checked game, and a [[context]] naming the phase and the decider.
 Establishes: `decide` is the one route from a decision site to the Chooser, and
 it emits the decider's `asked` observation before the Chooser is consulted, so
-what a seat is asked reaches it by the same channel as what it chose. Illegal
+what a seat is asked reaches it by the same channel as what it chose. `decide`
+is also the one site that records a pick: the decider's log gains one `chose`
+event per pick, whether the Chooser makes its picks at once or one at a time
+(`sequential_decisions`), so every route records one decision alike. Illegal
 after this: `ctx.chooser(...)` outside `decide`; a decision site absent from
-`delegation.DECISION_POINTS`; a decision asked outside every phase.
+`delegation.DECISION_POINTS`; a decision asked outside every phase; a `chose`
+event emitted anywhere but `decide`'s recorder.
 """
 
 from __future__ import annotations
 
 import random
 from collections.abc import Callable
+from contextvars import ContextVar
 from typing import Any
 
 from cardlang.runtime.delegation import DECISION_POINTS
@@ -31,22 +36,27 @@ from cardlang.runtime.observe import PAYLOAD_SHAPES, render
 from cardlang.runtime.state import Chooser, Ctx
 from cardlang.runtime.values import Player
 
+# The recorder of the decision `decide` is asking: it enters one pick in the
+# decider's log. Set only while a Chooser call is in progress, so a Chooser that
+# walks its call one pick at a time records each pick as it is made.
+_RECORDER: ContextVar[Callable[[Any], None] | None] = ContextVar("_RECORDER", default=None)
+
 
 def sequential_decisions(
     player: Player,
     candidates: list[Any],
     n: int,
     decide: Callable[[Player, list[Any]], Any],
-    emit: Callable[[Player, tuple[Any, ...]], None],
 ) -> list[Any]:
     """One Chooser call as the `n` decisions the game tree makes of it.
 
     A call for `n` [[candidate]]s branches the tree `n` times, each from the
     pool the ones before it left (docs/authoring.md, "`move chosen N cards` is
     N sequential single-card decisions"). `decide` answers at one of those
-    decisions; `emit` delivers the [[decider]]'s own record of what it took.
-    Every route that walks a call this way reads this one definition, so no two
-    of them can number the same call differently or leave a seat remembering
+    decisions, and the pick enters the [[decider]]'s log through the recorder
+    of the decision being asked (`decide` below) as it is made. Every route
+    that walks a call this way reads this one definition, so no two of them
+    can number the same call differently or leave a seat remembering
     different halves of it.
 
     Two details are load-bearing. `decide` sees the pool before the candidate
@@ -63,13 +73,22 @@ def sequential_decisions(
         # route that reads a call one pick at a time, before the first pick
         # leaves a later one choosing from nothing.
         raise OwnerGuardError(f"cannot choose {n} of {len(candidates)} candidates")
+    record = _RECORDER.get()
+    if record is None:
+        # Shadow Guard: the OWNER is `decide`'s Contract, the one route from a
+        # decision site to the Chooser, which sets the recorder for the length
+        # of the call.
+        raise AssertionError(
+            "sequential_decisions walked a Chooser call no decision is asking; "
+            "a Chooser is consulted only through chooser.decide"
+        )
     pool = list(candidates)
     taken: list[Any] = []
     for _ in range(n):
         choice = decide(player, pool)
         pool.remove(choice)
         taken.append(choice)
-        emit(player, ("chose", render(choice)))
+        record(choice)
     return taken
 
 
@@ -129,7 +148,23 @@ def decide(
             f"offers at least one, and an amount is checked before it is asked"
         )
     ctx.observe(decider, ("asked", ctx.current_phase.name, word, n, destination))
-    return ctx.chooser(decider, candidates, n)
+    recorded: list[Any] = []
+
+    def record(pick: Any) -> None:
+        # The decider's own record of one pick, delivered to it alone.
+        ctx.observe(decider, ("chose", render(pick)))
+        recorded.append(pick)
+
+    token = _RECORDER.set(record)
+    try:
+        taken = ctx.chooser(decider, candidates, n)
+    finally:
+        _RECORDER.reset(token)
+    # A Chooser that makes its picks at once records them here, in the order it
+    # made them; one that walked its call has recorded every pick already.
+    for pick in taken[len(recorded):]:
+        record(pick)
+    return taken
 
 
 def random_chooser(rng: random.Random) -> Chooser:

@@ -86,13 +86,13 @@ GAMES_DIR = Path(__file__).parent.parent / "docs" / "games"
 # observer sees of moved cards through a projection — card renderings in
 # sorted order with repeats kept (none, when nothing moved), a count, or
 # nothing at all; a value is a decision value as `observe.render` spells it —
-# a string, an integer or flag, nothing, or a multi-card selection.
+# a string, an integer or flag, or nothing.
 SHAPE_MEMBERS: dict[str, tuple[Any, ...]] = {
     "seat": (0, 3),
     "label": ("deck", "hand[2]", "square[a1]"),
     "card": ("Q♠", "10♥", "Joker:joker", "mark:x"),
     "view": (("2♣", "9♥"), ("Joker:joker", "Joker:joker"), (), 2, 0, None),
-    "value": ("pass", "bid(3)", 7, True, None, ("2♣", "A♠")),
+    "value": ("pass", "bid(3)", 7, True, None),
     "phase": ("play", "passing", "hand_sequence", "_setup"),
     # The whole closed set, derived rather than listed: a word minted without
     # a phrase or a table row arrives here as an uncovered cell.
@@ -117,7 +117,9 @@ _REFUSALS: dict[str, tuple[Any, ...]] = {
         1.0,
         (Card("2", "clubs"),),
     ),
-    "value": (("A♠", "2♣"), ("pass",), object(), 1.5, ["pass"], (Card("2", "clubs"),)),
+    # A decision is one pick: a group of cards, in either order, is the
+    # aggregate record no site emits.
+    "value": (("2♣", "A♠"), ("A♠", "2♣"), ("pass",), object(), 1.5, ["pass"], (Card("2", "clubs"),)),
     # A phase names one declaration, so a zone label, a qualified path, the
     # sentinel a site would reach for outside every phase, and a seat are all
     # refused where a phase belongs.

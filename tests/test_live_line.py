@@ -4,10 +4,9 @@ property:        A line of play that replays recorded picks and then asks each
                  seat's Seat Policy reaches the positions the adapter's replay
                  reaches from the same seed and history: at every probed pick the
                  same Decider is asked, over the same legal action ids, holding
-                 the Seat View the adapter derives there in its zones and its
-                 observation log. The policy is handed that view while the phase
-                 frames still stand, so it carries the phase-local state variables
-                 a node has lost. A line cut at any pick and played again with the
+                 the Seat View the adapter derives there in its zones, its
+                 observation log and its state variables, a phase's own among
+                 them. A line cut at any pick and played again with the
                  same policies reaches the same line. The line refuses an answer
                  that is not one of the legal action ids, a recorded pick that is
                  not an action id or that the position does not offer, recorded
@@ -38,13 +37,8 @@ registry:        games: `cardlang.openspiel.registry.GAMES`; the generator rule:
 does not prove:  The decomposition. Both routes read `sequential_decisions` and
                  `ActionSpace.match`, so a fault in either moves them alike; what
                  the comparison discriminates is the live extension and the
-                 generator discipline. The state variables past Hearts: a node
-                 has popped its phase frames and run `after_each` (issue #612),
-                 so the state is compared on Hearts alone, as a strict expected
-                 failure. A decision inside `after_each`, where a node names the
-                 wrong decision (issue #612): no registered game has one. Lines
-                 under any policy but the uniform one, and positions outside the
-                 sampled set.
+                 generator discipline. Lines under any policy but the uniform
+                 one, and positions outside the sampled set.
 """
 
 from __future__ import annotations
@@ -174,6 +168,11 @@ def _divergences(short_name: str, asks: Sequence[_Ask], history: Sequence[int], 
             found.append(f"pick {ask.at}: P{ask.decider}'s zones differ")
         if replayed.obs_log != ask.view.obs_log:
             found.append(f"pick {ask.at}: P{ask.decider}'s observation log differs")
+        if replayed.state != ask.view.state:
+            found.append(
+                f"pick {ask.at}: P{ask.decider}'s state variables differ: the node holds "
+                f"{sorted(replayed.state)}, the line {sorted(ask.view.state)}"
+            )
     return found
 
 
@@ -385,7 +384,7 @@ def test_each_policy_is_asked_for_its_own_seat_over_sorted_legal_ids(short_name:
 def test_a_policy_is_handed_the_state_variables_its_phases_declare() -> None:
     """Hearts declares `pass_direction` in its hand phase and `leader` in the
     play phase inside it, so what a seat is handed follows the frames it
-    stands in: a node unwound past a phase has none of that phase's."""
+    stands in."""
     # Past the pass, which is twelve picks (three cards per seat).
     _, recording = _played("cardlang_hearts", 20)
     passing = dict(recording.asks[0].view.state)  # the pass, before `play`
@@ -414,14 +413,66 @@ def test_a_live_line_reaches_the_adapter_positions_past_the_first_deals() -> Non
     assert not found, "\n".join(found[:12])
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #612")
-def test_the_state_a_policy_is_handed_is_the_state_the_adapter_node_holds() -> None:
-    line, recording = _played("cardlang_hearts", 3)
-    path = _path("cardlang_hearts")
-    for ask in recording.asks:
-        node = run(path, _SEED, tuple(line.history[: ask.at]))
+# A decision inside a `repeat until` phase's `after_each`, beside one in its
+# body: the shape where a node read off a world unwound past the body's
+# decision would run `after_each` and name its decision instead.
+_AFTER_EACH_DECIDES = """
+game AfterEachDecides {
+  players: 2
+  max_length: 60
+  cards: standard52
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    pile : Discard
+  }
+  state {
+    score[player] : Integer = 0
+    rounds : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+  phase play repeat until rounds >= 2 {
+    state {
+      local_marker : Integer = 7
+    }
+    as 0 { move chosen 1 card from hand to pile }
+    after_each {
+      rounds += 1
+      as 1 { move chosen 1 card from hand to pile }
+    }
+  }
+  winner: highest score
+}
+"""
+
+
+def test_a_node_is_the_decision_the_line_is_asked_when_after_each_also_decides(tmp_path: Path) -> None:
+    path = _fixture(tmp_path, "after_each_decides", _AFTER_EACH_DECIDES)
+    asks: list[tuple[int, tuple[int, ...], tuple[tuple[str, Any], ...]]] = []
+
+    def policy(seat: int) -> SeatPolicy:
+        uniform = UniformSeatPolicy(5)
+
+        def ask(view: SeatView, legal: Sequence[int]) -> int:
+            asks.append((seat, tuple(legal), view.state))
+            return uniform(view, legal)
+
+        return ask
+
+    line = LiveLine(path, 5)
+    line.play({0: policy(0), 1: policy(1)})
+    assert [seat for seat, _, _ in asks] == [0, 1, 0, 1]
+    for at, (seat, legal, state) in enumerate(asks):
+        node = run(path, 5, tuple(line.history[:at]))
         assert isinstance(node, DecisionNode)
-        assert derive(node.player, node.rs, node.obs_logs[node.player]).state == ask.view.state
+        assert (node.player, tuple(node.legal)) == (seat, legal), (
+            f"pick {at}: the node asks P{node.player} over {node.legal}, the line "
+            f"P{seat} over {list(legal)}"
+        )
+        assert derive(node.player, node.rs, node.obs_logs[node.player]).state == state
 
 
 # Where each game's line is cut: its first picks, and a sparser run past them.

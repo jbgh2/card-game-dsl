@@ -12,12 +12,12 @@ domain:          Every recorded pick of the greedy line to the spec's depth
                  before the swap fires, for up to `SWAP_PAIRS_PER_SEED` pairs
                  taken in `spread_pairs` order. A decider is blind at a pick
                  unless its Seat Views there, recorded inside the Chooser call,
-                 name a swapped card a different number of times in the two
-                 worlds (`harness.mentions`): every field of the view is read,
-                 so a zone it sees at identity, a State Variable and every
+                 render different information states in the two worlds: a
+                 zone it sees at identity, a State Variable and every
                  observation event kind make it sighted alike, however the
-                 card reached it (`seen_before_pick`), and a seat holding the
-                 other copy of a two-deck card in both worlds stays blind. The
+                 swap reached it (`seen_before_pick`, `told_before_pick`),
+                 and a seat holding the other copy of a two-deck card in both
+                 worlds stays blind. The
                  witnesses that reach the proof read the hidden card at a
                  control position, which the checker's Hidden Read Owner
                  Guard does not judge (issue #755): a phase gate, a rule or a
@@ -43,17 +43,9 @@ does not prove:  That a hidden read is caught once a seat that sees a swapped
                  of it) fails the comparison at the pause, since the sampler
                  draws its pairs as hidden from that seat and a card its view
                  names cannot be dropped without excusing a leak that names
-                 it. Nor that learning a property of a swapped card without
-                 its identity (a transfer count, a challenge verdict) makes a
-                 seat sighted: the game's swap axis keeps such pairs apart.
-                 Nor that the comparison judges a pick by what the adapter
-                 shows: it reads the Seat View recorded inside the Chooser
-                 call, which holds facts the adapter's information state drops
-                 (a phase's own State Variables, issue #612), so a fact present
-                 only in-call can mark a pick sighted that the adapter would
-                 treat as blind; and a pick the proof judges blind can fail
-                 because the adapter drops the fact its offer turns on
-                 (`told_before_pick`). Nor that a leak naming a swapped card in
+                 it. Nor that the Seat View recorded inside the Chooser call
+                 is the one the adapter serves at that position: that is
+                 tests/test_live_line.py's pin. Nor that a leak naming a swapped card in
                  a seat's view is caught at that seat's earlier picks: such a
                  view reads as
                  sighted there, and the leak is the pause comparison's to
@@ -225,22 +217,13 @@ def test_a_seat_that_has_seen_the_swapped_card_is_not_held_to_the_other_world() 
 TOLD_BEFORE_PICK = FIXTURES / "told_before_pick.cardlang"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "issue #612: the adapter reads each decision off a world unwound past "
-        "its phase frames, so a phase's own State Variables are missing from "
-        "the information state it serves"
-    ),
-)
 def test_the_adapter_shows_the_seat_the_phase_state_it_was_asked_under() -> None:
     """At seat 0's second decision in `told_before_pick`, the information
-    state the adapter serves is the Seat View seat 0 holds as it is asked.
-    It is not: the in-call view carries the phase-local `high` its offer
-    turns on, and the node's rendering does not. When this passes, the swap
-    proof judges sightedness by its two views differing, and the
-    `told_before_pick` cell below passes with it."""
+    state the adapter serves is the Seat View seat 0 holds as it is asked,
+    the phase-local `high` its offer turns on included.
+
+    red under: pop the phase frame in `driver.run_phase` when a Chooser
+    suspends the run; the node's rendering then drops `high`."""
     first = run(str(TOLD_BEFORE_PICK), 3, ())
     assert isinstance(first, DecisionNode)
     node = run(str(TOLD_BEFORE_PICK), 3, (first.legal[0],))
@@ -253,25 +236,18 @@ def test_the_adapter_shows_the_seat_the_phase_state_it_was_asked_under() -> None
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "issue #612: seat 0's offer turns on a phase-local State Variable the "
-        "adapter's information state drops, so both worlds give seat 0 the "
-        "same information and a different offer; it passes once the adapter "
-        "keeps the variable AND the comparison judges a pick sighted by its "
-        "two views differing, which the adapter's fix makes sound"
-    ),
-)
-def test_a_fact_the_adapter_drops_does_not_redden_the_swap_proof() -> None:
+def test_a_fact_a_state_variable_announces_does_not_redden_the_swap_proof() -> None:
     """A phase-local State Variable counts seat 2's high cards and seat 0's
-    offer turns on it; the variable is gone before seat 1 is asked, so the
-    divergence is at seat 0's pick before the pause ("same information,
-    different offer at pick 1 for seat 0"). Measured 2026-09-23 over seeds
-    0-29 at depth 3: red at 11; the pause-only proof is green at all 30."""
+    offer turns on it. Seat 0 is told the count, so where the swap moves it
+    seat 0's two views differ and its differing offer is no leak.
+
+    red under: judge a same-seat pick sighted only by the hidden cards its
+    views name (`harness.mentions`) in `harness._blind_decider`; the pick at
+    seat 0 then reads blind, and the proof fails with "same information,
+    different offer at pick 1 for seat 0"."""
     check_source(TOLD_BEFORE_PICK)
-    _prove("told_before_pick", 3, "suit", 3)
+    for seed in SWAP_SEEDS:
+        _prove("told_before_pick", 3, "suit", seed)
 
 
 def test_spread_pairs_reorders_and_keeps_every_pair() -> None:

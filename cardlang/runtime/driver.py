@@ -499,6 +499,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
     # `tests/test_phase_scoped_reads.py::test_a_phases_frame_does_not_outlive_
     # the_phase` pins it — the depth is unchanged across this call.
     ctx.rs.push_frame()
+    suspended = False
     try:
         ctx = ctx.in_phase(phase)
         # Drop this phase's own stale outcome on entry, so a guarded-off or
@@ -548,8 +549,13 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                     _run_phase_body(phase, ctx, hands)
                 except _SkipHand:
                     pass  # `skip to next hand`: abort the rest, run after_each
+                except ChooserAbort:
+                    suspended = True
+                    raise
                 finally:
-                    if after is not None:  # guaranteed, even on mid-iteration exit
+                    # Guaranteed on every exit from the iteration. A suspended
+                    # run has not exited it: the decision is still being asked.
+                    if after is not None and not suspended:
                         run_stmts(after.body, ctx)
                 if ctx.rs.score_var is not None:  # loser games keep no per-hand score
                     ctx.trace("hand_end", dict(ctx.rs.get(ctx.rs.score_var)))
@@ -558,6 +564,9 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                 _run_phase_body(phase, ctx, hands)
         else:
             _run_phase_body(phase, ctx, hands)
+    except ChooserAbort:
+        suspended = True
+        raise
     except REFUSALS as exc:
         # The PHASE only, for the rest of the subtree — a `when` guard, a
         # `repeat until` condition, the phase's own `state { }` — where no
@@ -568,7 +577,12 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
         exc.locate(phase=phase.name)
         raise
     finally:
-        ctx.rs.pop_frame()  # always pop, even on _ContinueTo/_SkipHand unwind
+        # Always pop, even on a _ContinueTo/_SkipHand unwind — except where a
+        # Chooser suspended the run (`ChooserAbort`): the world `play_game`
+        # hands the caller is the one the decision is asked in, every phase
+        # frame standing and no `after_each` run past it.
+        if not suspended:
+            ctx.rs.pop_frame()
 
 
 def _run_phase_body(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:

@@ -637,7 +637,7 @@ def _demo(
                 show(world[0], actor)
             return next(taken)
 
-        return sequential_decisions(player, candidates, count, decide, observe)
+        return sequential_decisions(player, candidates, count, decide)
 
     result = play_game(
         game,

@@ -150,7 +150,6 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
             form.construct,
         )[0]
         ctx.trace("decision", (actor, choice))  # the canonical decision event (§4)
-        observe.choice(ctx, decider, choice)
         state = form.apply(actor, choice, state, ctx)
     result = form.outcome(state, ctx)
     # After `outcome`, never before: the winner function runs as a primitive, and

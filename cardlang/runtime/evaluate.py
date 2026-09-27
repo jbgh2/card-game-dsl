@@ -166,7 +166,6 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
         )
     actor = ctx.require_actor("a `choose`")
     value = decide(ctx, actor, candidates, 1, "evaluate._choose")[0]
-    observe.choice(ctx, actor, value)
     observe.announce(ctx, actor, value)
     return value
 

@@ -165,7 +165,5 @@ def test_blocked_foreign_aid_moves_no_coins() -> None:
     allow = space.encode(("allow", None))
     r = run(path, 5, (fa, block, allow, allow, allow))
     assert isinstance(r, DecisionNode)
-    # (Phase-local window state is unreadable here — the pause's unwind pops
-    # phase frames — so the coin economy is the observable proof.)
     assert r.rs.get("coins")[0] == 2, "a blocked foreign aid still paid out"
     assert r.rs.get("treasury") == 42  # 50 - 4x2 setup, untouched since
