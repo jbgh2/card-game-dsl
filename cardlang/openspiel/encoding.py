@@ -40,7 +40,8 @@ function of the play's identity — its card-set and, where the engine's codec
 declares wilds, the rank a wildcard among those cards stands for — and the
 name block numbers every announcement token and the interrupt decline the
 climb engine's registry rows declare, each under an id no offered move type
-shares (a nullary offered move type spelled like a token is refused), and
+shares (resolve refuses a move type spelled like one of the engine's own
+actions; a Shadow Guard here names it), and
 `move_type_of` says which ids stand for a move type by the list that minted
 them; `encode` and `match` never resolve a move type's candidate to a climb
 engine's action, or the reverse, by a shared spelling. Illegal after
@@ -63,7 +64,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate, render_play
 from cardlang.runtime.primitives import ComboCodec
@@ -413,20 +414,18 @@ class ActionSpace:
             assert len(climb_engines) == 1, "one climb engine per game for now"
             # The climb form's own names beside the plays: the pass, the
             # engine's announcement tokens, and its interrupt decline.
-            decline = primitives.climb_interrupt_decline(climb_engines[0])
-            tokens = ("pass", *primitives.climb_announcements(climb_engines[0]),
-                      *([decline] if decline is not None else []))
+            tokens = primitives.climb_actions(climb_engines[0])
             engine_names = frozenset(tokens)
             for token in tokens:
                 if token in names:
-                    # A nullary offered move type spelled like a climb token
-                    # would share the token's id, so one id would name two
-                    # actions.
-                    raise OwnerGuardError(
+                    # Shadow Guard: resolve refuses a move type spelled like
+                    # one of a climb engine's own actions, located, before
+                    # any action space is built.
+                    raise ShadowGuardError(
+                        "resolve._check_climb_action_names",
                         f"move type `{token}` is offered, and the climb engine "
                         f"`{climb_engines[0]}` names one of its own actions "
-                        f"`{token}` — one action id cannot name both; rename "
-                        f"the move type"
+                        f"`{token}` — one action id cannot name both",
                     )
                 names.append(token)
             combo_codec = primitives.climb_codec_function(climb_engines[0])

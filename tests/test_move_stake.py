@@ -29,22 +29,20 @@ domain:          definition site (`?top_item` and `?library_item`, the
                  domain, and `Card`) x the construct presenting it (each
                  `move_type`-namespace slot of `resolve._REFERENCE_SLOTS`, both
                  at once, an offer made from inside another move type's
-                 effect, one made from a procedure, and none). A row on a
+                 effect, one made from a procedure, one made from inside a
+                 move type nothing reaches, and none). A row on a
                  `Card`-parameterized move is refused: its action id is the
                  card's, so no seat can read the row. A row on a game move type
-                 nothing presents is refused: nothing can read it. A library
-                 move type's row is the library's statement for every game that
-                 imports it, so a game that imports it and presents it nowhere
-                 is not refused. A move type spelled like a climb engine's own
-                 action (`primitives.climb_announcements`,
-                 `primitives.climb_interrupt_decline`, the pass) is refused
-                 only as a nullary `offer`, whose id the action's would be;
-                 presented any other way it loads, and `ranked` reads rows by
-                 the move type an id was minted for
-                 (`ActionSpace.move_type_of`), never by its spelling, so the
-                 action's id carries no row. The row's two words are reserved as
-                 declared names (a state variable, a zone, a function) the way
-                 `outcome` is; a move type keeps the freedom to be named either.
+                 no reachable offering presents is refused: nothing can read
+                 it, and an offer inside a move type or procedure nothing
+                 reaches presents nothing. A library move type's row is the
+                 library's statement for every game that imports it, so a game
+                 that imports it and presents it nowhere is not refused. In a
+                 game with a climbing round, a
+                 move type spelled like one of the engine's own actions
+                 (`primitives.climb_actions`) is refused whatever presents it.
+                 The action space resolves an id by what minted it, never by
+                 spelling, pinned on a space built by hand.
                  The dispositions: every non-empty subset of
                  {plain} + `nodes.STAKES` presented at one decision, in the name
                  block (a nullary `offer`) and the offering block (a
@@ -67,7 +65,7 @@ does not prove:  that the row is marked on the right side. The checker cannot
                  to `no_call`. Nor that `ranked` plays a staked decision well:
                  it declines every stake a plain move stands beside and draws
                  where none does, which is termination at Tichu and Pinochle,
-                 not competence.
+                 not competence; a reason to take a stake is issue #768's.
 """
 
 from __future__ import annotations
@@ -75,6 +73,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import re
+import typing
 from collections.abc import Sequence
 from importlib import resources
 from pathlib import Path
@@ -96,7 +95,6 @@ from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _REFERENCE_SLOTS, _walk
 from cardlang.runtime import primitives
-from cardlang.runtime.errors import OwnerGuardError
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
 GRAMMAR = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
@@ -133,10 +131,12 @@ def test_the_axes_are_pinned_by_the_grammar_and_the_registries() -> None:
     words are exactly `nodes.STAKES`, each an anchored keyword of the
     `move_stake` production; the presenters are the `move_type` slots."""
     assert SITES == ["library_item", "top_item"]
-    production = GRAMMAR[GRAMMAR.index("move_stake:") :].split("\n\n", 1)[0]
+    production = GRAMMAR[GRAMMAR.index("\nmove_stake:") :].split("\nSTAKE_FLAG_COLON", 1)[0]
+    keywords = set(re.findall(r"_([A-Z]+)_KW", production))
+    assert keywords == {stake.upper() for stake in n.STAKES}, "the row words are exactly the registry's"
+    assert typing.get_args(n.Stake) == n.STAKES
     words = re.findall(r'"([a-z_]+)"\s*/\(\?!\[A-Za-z0-9_\]\)/', GRAMMAR)
     for stake in n.STAKES:
-        assert f"_{stake.upper()}_KW" in production
         assert stake in words
     assert "[move_stake] [move_when] move_effect" in GRAMMAR
     assert PRESENTERS == ("AuctionRound.offering", "Offer.offering")
@@ -184,6 +184,7 @@ def _game(site: str, move: str, presenter: str, board: bool = False) -> str:
         "effect": "for each player p: offer to p one of [opener]",
         "procedure": "run present_m()",
         "none": "for each player p: offer to p one of [stay]",
+        "unreached": "for each player p: offer to p one of [stay]",
     }[presenter]
     setup = "" if board else "shuffle deck\n    deal 2 cards from deck to each hand\n    "
     tail = move if site == "top_item" else ""
@@ -191,6 +192,7 @@ def _game(site: str, move: str, presenter: str, board: bool = False) -> str:
     header = _BOARD_HEADER if board else _HEADER
     extra = {
         "effect": "move_type opener { effect { offer to actor one of [m, stay] } }",
+        "unreached": "move_type opener { effect { offer to actor one of [m, stay] } }",
         "procedure": "procedure present_m() { for each player p: offer to p one of [m, stay] }",
     }
     return f"""
@@ -270,7 +272,7 @@ def test_the_row_reaches_the_checked_game_or_is_refused(
 # ---------------------------------------------------------------------------
 
 PRESENTATION_CELLS = list(
-    itertools.product(SITES, ROWS, (*PRESENTERS, "both", "effect", "procedure", "none"))
+    itertools.product(SITES, ROWS, (*PRESENTERS, "both", "effect", "procedure", "none", "unreached"))
 )
 
 
@@ -283,10 +285,10 @@ def test_a_row_nothing_can_read_is_refused(
     site: str, row: str | None, presenter: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     move = _move(row, False, None)
-    if presenter == "none" and row is not None and site == "top_item":
+    if presenter in ("none", "unreached") and row is not None and site == "top_item":
         with pytest.raises(DiagnosticError) as ei:
             _checked(site, move, presenter, monkeypatch)
-        assert f"`{row}` on move type `m`, which no `offer` or `round offering` presents" in str(ei.value)
+        assert f"`{row}` on move type `m`, which no reachable `offer` or `round offering` presents" in str(ei.value)
         return
     assert _m(_checked(site, move, presenter, monkeypatch)).stake == row
 
@@ -295,42 +297,68 @@ def test_a_row_nothing_can_read_is_refused(
 # The misuse probes: the sentences a designer would plausibly get wrong.
 # ---------------------------------------------------------------------------
 
+# (body, the fix the refusal names, the line the refusal points at). Every
+# refusal lands on the word to move or delete, never on the `move_type` line.
 _REJECT_WITH_FIX = {
-    "row-after-when": ("when: done < 50\n  wager\n  effect { done += 1 }", "before `when:`"),
-    "flag-true": ("wager: true\n  effect { done += 1 }", "write `wager` alone"),
-    "flag-false": ("wager: false\n  effect { done += 1 }", "leaving the row out"),
-    "concession-flag": ("concession: true\n  effect { done += 1 }", "write `concession` alone"),
+    "row-after-when": ("when: done < 50\n  wager\n  effect { done += 1 }", "before `when:`", "  wager"),
+    "flag-true": ("wager: true\n  effect { done += 1 }", "write `wager` alone", "  wager: true"),
+    "flag-false": ("wager: false\n  effect { done += 1 }", "leaving the row out", "  wager: false"),
+    "flag-empty": ("wager:\n  effect { done += 1 }", "write `wager` alone", "  wager:"),
+    "flag-empty-before-when": ("wager:\n  when: done < 50\n  effect { done += 1 }", "write `wager` alone", "  wager:"),
+    "concession-flag": ("concession: true\n  effect { done += 1 }", "write `concession` alone", "  concession: true"),
+    "flag-after-when": (
+        "when: done < 50\n  concession: true\n  effect { done += 1 }",
+        "a row, not a flag, and it stands with the move's name, before `when:`",
+        "  concession: true",
+    ),
+    "second-row-after-when": (
+        "wager\n  when: done < 50\n  concession\n  effect { done += 1 }",
+        "one Stake row — `wager` stands under its name, so delete the `concession`",
+        "  concession",
+    ),
 }
 
+# (body, the word the parser refuses). Each is a syntax error AT that word, so
+# a grammar that came to accept the shape would redden the cell.
 _SYNTAX_ERRORS = {
-    "doubled": "wager\n  wager\n  effect { done += 1 }",
-    "both-words": "wager\n  concession\n  effect { done += 1 }",
-    "row-after-effect": "effect { done += 1 }\n  wager",
-    "comma": "wager,\n  effect { done += 1 }",
-    "capitalised": "Wager\n  effect { done += 1 }",
-    "plural": "wagers\n  effect { done += 1 }",
-    "verb": "concede\n  effect { done += 1 }",
-    "cautious": "cautious\n  effect { done += 1 }",
-    "optional": "optional\n  effect { done += 1 }",
-    "fused": "wagerwhen: done < 50\n  effect { done += 1 }",
+    "doubled": ("wager\n  wager\n  effect { done += 1 }", "wager"),
+    "both-words": ("wager\n  concession\n  effect { done += 1 }", "concession"),
+    "row-after-effect": ("effect { done += 1 }\n  wager", "wager"),
+    "comma": ("wager,\n  effect { done += 1 }", ","),
+    "capitalised": ("Wager\n  effect { done += 1 }", "Wager"),
+    "plural": ("wagers\n  effect { done += 1 }", "wagers"),
+    "verb": ("concede\n  effect { done += 1 }", "concede"),
+    "cautious": ("cautious\n  effect { done += 1 }", "cautious"),
+    "optional": ("optional\n  effect { done += 1 }", "optional"),
+    "fused": ("wagerwhen: done < 50\n  effect { done += 1 }", "wagerwhen"),
+    "equals": ("wager = true\n  effect { done += 1 }", "="),
 }
 
 
 @pytest.mark.parametrize("probe", sorted(_REJECT_WITH_FIX))
 def test_a_misplaced_or_flagged_row_is_refused_naming_the_fix(probe: str) -> None:
-    body, needle = _REJECT_WITH_FIX[probe]
+    body, needle, at = _REJECT_WITH_FIX[probe]
     src = _game("top_item", f"move_type m {{\n  {body}\n}}", "Offer.offering")
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
     assert needle in str(ei.value), str(ei.value)
+    lines = src.splitlines()
+    head = next(i for i, line in enumerate(lines) if line.startswith("move_type m {"))
+    expected = next(i for i in range(head, len(lines)) if lines[i] == at) + 1
+    span = ei.value.diagnostic.span
+    assert span is not None and span.line == expected, (span, expected)
 
 
 @pytest.mark.parametrize("probe", sorted(_SYNTAX_ERRORS))
 def test_other_words_in_the_slot_are_syntax_errors(probe: str) -> None:
-    src = _game("top_item", f"move_type m {{\n  {_SYNTAX_ERRORS[probe]}\n}}", "Offer.offering")
+    body, word = _SYNTAX_ERRORS[probe]
+    src = _game("top_item", f"move_type m {{\n  {body}\n}}", "Offer.offering")
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
+    assert f"syntax error: unexpected `{word}`" in str(ei.value), str(ei.value)
     assert ei.value.diagnostic.span is not None
+    # The flag's colon is spelled only by the two refusals, so no hint offers it.
+    assert "`:`" not in str(ei.value), str(ei.value)
 
 
 @pytest.mark.parametrize(
@@ -343,9 +371,16 @@ def test_other_words_in_the_slot_are_syntax_errors(probe: str) -> None:
     ids=["function", "procedure", "rule"],
 )
 def test_the_row_belongs_to_move_types_alone(holder: str) -> None:
+    """A syntax error on the holder's own line: a grammar that came to accept
+    the row there would leave only the holder's unrelated refusals (a rule
+    with no `if_impossible`, a procedure nothing runs), which are no syntax
+    error."""
     src = _game("top_item", _move(None, False, None), "Offer.offering") + "\n" + holder
-    with pytest.raises(DiagnosticError):
+    with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
+    assert "syntax error" in str(ei.value), str(ei.value)
+    span = ei.value.diagnostic.span
+    assert span is not None and span.line == len(src.splitlines())
 
 
 @pytest.mark.parametrize("stake", n.STAKES)
@@ -377,18 +412,35 @@ def test_a_move_type_may_be_named_like_its_row(stake: str) -> None:
     assert {mt.name: mt.stake for mt in game.move_types}[stake] == stake
 
 
-def _climb_tokens() -> tuple[str, ...]:
-    """The names Tichu's climb engine numbers in the name block beside the
-    moves an `offer` presents: its pass, announcements and interrupt decline."""
-    game = check_dsl((GAMES / "tichu.cardlang").read_text(), "tichu.cardlang")
-    (engine,) = {nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)}
-    decline = primitives.climb_interrupt_decline(engine)
-    return ("pass", *primitives.climb_announcements(engine), *([decline] if decline else []))
+def _climb_actions_by_game() -> list[tuple[str, str]]:
+    """Every own action of every climb engine a registered game plays, beside
+    that game's file: the engines from the games, the actions from the
+    registry (`primitives.climb_actions`)."""
+    cells: list[tuple[str, str]] = []
+    for file_name in sorted(REGISTERED.values()):
+        game = check_dsl((GAMES / file_name).read_text(), file_name)
+        engines = sorted({nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)})
+        cells += [(file_name, action) for engine in engines for action in primitives.climb_actions(engine)]
+    return cells
 
 
-_TOKENS = _climb_tokens()
-# One of each kind the engine declares: the pass, an announcement, the decline.
-_TOKEN_CELLS = sorted({_TOKENS[0], _TOKENS[1], _TOKENS[-1]})
+CLIMB_ACTION_CELLS = _climb_actions_by_game()
+
+
+@pytest.mark.parametrize(("file_name", "action"), CLIMB_ACTION_CELLS, ids=[f"{f}-{a}" for f, a in CLIMB_ACTION_CELLS])
+def test_every_climb_action_is_a_name_no_move_type_takes(file_name: str, action: str) -> None:
+    """A move type spelled like any of the engine's own actions is refused by
+    name, located at the move type, whether or not anything presents it.
+
+    red under: drop the `_check_climb_action_names` call from `resolve`."""
+    text = (GAMES / file_name).read_text() + f"\nmove_type {action} {{\n  effect {{ }}\n}}\n"
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(text, f"{file_name}-{action}")
+    assert f"move type `{action}` is spelled like the climb engine" in str(ei.value), str(ei.value)
+    span = ei.value.diagnostic.span
+    assert span is not None and span.line == len(text.splitlines()) - 2
+
+
 _TOKEN_PRESENTERS = (
     "offer",
     "offer-parameterized",
@@ -398,7 +450,7 @@ _TOKEN_PRESENTERS = (
     "library, unpresented",
 )
 _TOKEN_PARAMS = {"offer-parameterized": "(s : Suit)", "offer-nullable": "(s : Suit?)", "round offering-nullable": "(s : Suit?)"}
-TOKEN_CELLS = list(itertools.product(_TOKEN_CELLS, _TOKEN_PRESENTERS, ROWS))
+TOKEN_CELLS = list(itertools.product(("pass",), _TOKEN_PRESENTERS, ROWS))
 
 
 @pytest.mark.parametrize(
@@ -406,24 +458,20 @@ TOKEN_CELLS = list(itertools.product(_TOKEN_CELLS, _TOKEN_PRESENTERS, ROWS))
     TOKEN_CELLS,
     ids=[f"{t}-{p}-{r or 'plain'}" for t, p, r in TOKEN_CELLS],
 )
-def test_a_move_type_spelled_like_a_climb_token(
-    token: str, presenter: str, row: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_a_move_type_spelled_like_a_climb_token_is_refused(
+    token: str, presenter: str, row: str | None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The name block numbers a climb engine's own actions beside the nullary
-    moves an `offer` presents, so a nullary offered move spelled like one
-    would share its id, and is refused whatever its row. Presented any other
-    way, a move type spelled like a token has ids of its own and loads — and
-    the token's id stands for no move type, so `ranked` never reads the move
-    type's row at the climb's own decisions, where the token stands beside a
-    combination. Its own candidates round-trip through ids of their own — a
-    nullary one and a nullable one at `none` included, both of which the
-    runtime writes `(name, None)` as a nullary `offer` is written — so each
-    stands for the move type and carries its row, and the token's id matches
-    none of them."""
+    """In a game with a climbing round, a move type spelled like one of the
+    engine's own actions is refused by the checker, located, whatever presents
+    it and whatever its row: a seat would see the two alike, and a nullary
+    `offer` of it would share the action's id.
+
+    red under: drop the `_check_climb_action_names` call from `resolve`."""
     text = (GAMES / "tichu.cardlang").read_text()
     param = _TOKEN_PARAMS.get(presenter, "")
     move = f"move_type {token}{param} {{\n  {row or ''}\n  effect {{ quiet += 0 }}\n}}\n"
     dragon = "offer to winner one of [dragon_to_left, dragon_to_right]"
+    assert dragon in text and "game Tichu {" in text, "the witness's anchors moved"
     if presenter.startswith("offer"):
         text = text.replace(dragon, f"offer to winner one of [dragon_to_left, dragon_to_right, {token}]") + move
     elif presenter.startswith("round offering"):
@@ -438,36 +486,51 @@ def test_a_move_type_spelled_like_a_climb_token(
         monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({name}))
         monkeypatch.setattr("cardlang.resolve.load_library", lambda _: library)
         text = text.replace("game Tichu {", f"game Tichu {{\n  uses {name}", 1)
-    path = tmp_path / f"tichu-{token}-{presenter.replace(' ', '_').replace(',', '')}-{row}.cardlang"
-    path.write_text(text)
-    if presenter == "offer":
-        with pytest.raises(OwnerGuardError) as ei:
-            load(str(path))
-        assert f"`{token}`" in str(ei.value) and "climb" in str(ei.value)
-        return
-    game, space = load(str(path))
-    token_id = space.encode(token)
-    assert space.move_type_of(token_id) is None
-    combination = _first_of_block(space, "combination")
-    ranked = RankedSeatPolicy(SeatBinding(game, space, 0, 7))
-    assert list(ranked._declined([token_id, combination])) == [token_id, combination]
-    own = [aid for aid in _ids_before_combinations(space) if space.block_of(aid) == "offering" and space.verb_of(aid) == token]
-    assert bool(own) is (presenter != "library, unpresented")
-    for aid in own:
-        candidate = space.decode(aid)
-        assert space.encode(candidate) == aid, f"{candidate!r} encodes to another id"
-        assert space.move_type_of(aid) == token
-        assert ranked._stake(aid) == row
-        assert space.match(aid, [candidate]) == candidate
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(text, f"tichu-{token}-{presenter}-{row}.cardlang")
+    assert f"move type `{token}` is spelled like the climb engine" in str(ei.value), str(ei.value)
+    assert ei.value.diagnostic.span is not None
+
+
+# A space built by hand: the checker refuses a move type spelled like a climb
+# action, so no game reaches this. The action space still resolves by what
+# minted an id, never by spelling, and these cells pin that it does.
+_BY_HAND = ActionSpace(
+    None,
+    ["bid", "pass"],
+    [("pass", None), ("pass", "hearts"), ("raise", None)],
+    None,
+    [],
+    engine_names=frozenset({"pass"}),
+)
+_OFFERING_IDS = [aid for aid in range(_BY_HAND.num_distinct_actions) if _BY_HAND.block_of(aid) == "offering"]
+
+
+@pytest.mark.parametrize("aid", _OFFERING_IDS, ids=[str(_BY_HAND.decode(a)) for a in _OFFERING_IDS])
+def test_an_offering_id_resolves_by_what_minted_it(aid: int) -> None:
+    """A move type's candidate encodes to its own id, stands for its move type,
+    and is never matched by an engine action spelled like it.
+
+    red under: drop `name not in self._engine_names` from `ActionSpace.encode`,
+    or `move_named` from `ActionSpace.match`."""
+    candidate = _BY_HAND.decode(aid)
+    assert _BY_HAND.encode(candidate) == aid
+    assert _BY_HAND.move_type_of(aid) == candidate[0]
+    assert _BY_HAND.match(aid, [candidate]) == candidate
+    engine_pass = _BY_HAND.encode("pass")
+    assert _BY_HAND.move_type_of(engine_pass) is None
+    if candidate[0] == "pass":
         with pytest.raises(ValueError):
-            space.match(token_id, [candidate])
+            _BY_HAND.match(engine_pass, [candidate])
 
 
-def _first_of_block(space: ActionSpace, block: str) -> int:
-    aid = 0
-    while space.block_of(aid) != block:
-        aid += 1
-    return aid
+def test_a_nullary_offer_keeps_its_bare_name_id() -> None:
+    """The runtime writes a nullary `offer` move as `(name, None)`, and the
+    space numbers it by its bare name, which stands for the move type."""
+    bid = _BY_HAND.encode("bid")
+    assert _BY_HAND.encode(("bid", None)) == bid
+    assert _BY_HAND.move_type_of(bid) == "bid"
+    assert _BY_HAND.match(bid, [("bid", None)]) == ("bid", None)
 
 
 def _ids_before_combinations(space: ActionSpace) -> range:
@@ -489,10 +552,7 @@ def test_move_type_of_names_exactly_the_ids_a_move_type_minted(short_name: str) 
     game, space = load(str(GAMES / REGISTERED[short_name]))
     move_types = {mt.name for mt in game.move_types}
     engines = {nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)}
-    tokens: set[str] = set()
-    for engine in engines:
-        decline = primitives.climb_interrupt_decline(engine)
-        tokens |= {"pass", *primitives.climb_announcements(engine), *([decline] if decline else [])}
+    tokens = {action for engine in engines for action in primitives.climb_actions(engine)}
     for aid in _ids_before_combinations(space):
         block = space.block_of(aid)
         named = space.move_type_of(aid)
@@ -536,6 +596,8 @@ def _unmarked(game_file: str, tmp_path: Path) -> str:
 
 @pytest.mark.parametrize("game_file", ["tichu.cardlang", "pinochle.cardlang"])
 def test_the_row_mints_no_action_id(game_file: str, tmp_path: Path) -> None:
+    """red under: mint each staked move type's candidates twice, once per
+    Stake, in `ActionSpace.for_game`'s offering block."""
     marked, _ = load(str(GAMES / game_file))
     bare, _ = load(_unmarked(game_file, tmp_path))
     a, b = ActionSpace.for_game(marked), ActionSpace.for_game(bare)
@@ -654,8 +716,21 @@ def test_ranked_answers_a_plain_move_wherever_one_is_offered(
     assert asked, "no decision was reached"
 
 
-def test_the_name_and_offering_blocks_state_what_ranked_does() -> None:
-    assert DISPOSITIONS["name"] == DISPOSITIONS["offering"] == "declines stakes"
+_SITE_BLOCK = {"name": "name", "offering": "offering", "offering-parameterized": "offering"}
+
+
+def test_the_blocks_that_name_a_move_type_are_the_blocks_that_decline_stakes() -> None:
+    """The blocks whose ids stand for a move type, derived over every
+    registered game through `move_type_of`, are exactly the blocks `ranked`
+    declines stakes in and exactly the blocks the disposition grid presents.
+
+    red under: set `ranked.DISPOSITIONS["offering"]` to "ranked"."""
+    naming: set[str] = set()
+    for file_name in REGISTERED.values():
+        _, space = load(str(GAMES / file_name))
+        naming |= {space.block_of(aid) for aid in _ids_before_combinations(space) if space.move_type_of(aid) is not None}
+    assert naming == {block for block, disposition in DISPOSITIONS.items() if disposition == "declines stakes"}
+    assert naming == set(_SITE_BLOCK.values()) and set(_SITE_BLOCK) == set(_BLOCK_SITES)
 
 
 # ---------------------------------------------------------------------------

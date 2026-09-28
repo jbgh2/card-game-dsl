@@ -15,7 +15,7 @@ grows one construct at a time as the corpus forces one (`docs/games/`).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, TypeAlias
+from typing import Literal, TypeAlias, get_args
 
 from cardlang.diagnostics import Span
 from cardlang.types import Flavor
@@ -1192,8 +1192,9 @@ class PrimitivesBlock:
 # at stake for certain. A move type that says neither is plain. The grammar's
 # `move_stake` production spells exactly these words, pinned equal by
 # tests/test_move_stake.py::test_the_axes_are_pinned_by_the_grammar_and_the_registries.
+# The value-level tuple is read off the type, so the two are one definition.
 Stake = Literal["wager", "concession"]
-STAKES: tuple[Stake, ...] = ("wager", "concession")
+STAKES: tuple[Stake, ...] = get_args(Stake)
 
 
 @dataclass(frozen=True, slots=True)

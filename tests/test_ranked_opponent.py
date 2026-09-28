@@ -541,7 +541,7 @@ def test_an_offering_is_the_uniform_draw_the_table_says_it_is() -> None:
     def compare(view: SeatView, legal: Sequence[int]) -> int:
         nonlocal asked
         picked = ranked(view, legal)
-        if all(space.block_of(aid) in _delegated() for aid in legal):
+        if all(space.block_of(aid) in _declining() for aid in legal):
             assert picked == uniform(view, legal), "an unstaked offering answered otherwise"
             asked += 1
         return picked
@@ -550,7 +550,7 @@ def test_an_offering_is_the_uniform_draw_the_table_says_it_is() -> None:
     assert asked, "no offering decision was reached"
 
 
-def _delegated() -> set[str]:
+def _declining() -> set[str]:
     return {block for block, disposition in DISPOSITIONS.items() if disposition == "declines stakes"}
 
 

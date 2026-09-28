@@ -306,6 +306,7 @@ class _MoveEffect:
 @dataclass(frozen=True, slots=True)
 class _MoveStake:
     stake: n.Stake
+    span: Span | None
 
 
 @cache
@@ -2108,39 +2109,45 @@ class _Builder(Transformer[Token, n.Game]):
         return tuple(x for x in c if isinstance(x, n.Parameter))
 
     def stake_wager(self, meta: Meta, c: list[object]) -> _MoveStake:
-        return _MoveStake("wager")
+        return _MoveStake("wager", self._span(meta))
 
     def stake_concession(self, meta: Meta, c: list[object]) -> _MoveStake:
-        return _MoveStake("concession")
-
-    def move_stake_flag(self, meta: Meta, c: list[object]) -> _MoveStake:
-        assert isinstance(c[0], _MoveStake)
-        return c[0]
+        return _MoveStake("concession", self._span(meta))
 
     def move_stake_flag_reject(self, meta: Meta, c: list[object]) -> None:
         # The flag habit: every scalar clause a designer has met takes a colon.
         # The grammar owns the shape so the rejection can name the fix.
-        stake = next(x for x in c if isinstance(x, _MoveStake)).stake
+        row = next(x for x in c if isinstance(x, _MoveStake))
         raise DiagnosticError(
             Diagnostic(
                 Severity.ERROR,
-                f"`{stake}` is a row, not a flag — write `{stake}` alone under the "
-                f"move's name; a move that stakes nothing is written by leaving the "
-                f"row out",
-                self._span(meta),
+                f"`{row.stake}` is a row, not a flag — write `{row.stake}` alone "
+                f"under the move's name; a move that stakes nothing is written "
+                f"by leaving the row out",
+                row.span or self._span(meta),
             )
         )
 
     def move_stake_after_when_reject(self, meta: Meta, c: list[object]) -> None:
-        stake = [x for x in c if isinstance(x, _MoveStake)][-1].stake
-        raise DiagnosticError(
-            Diagnostic(
-                Severity.ERROR,
-                f"`{stake}` stands with the move's name, before `when:` — it says "
-                f"what the move is, not when it is legal",
-                self._span(meta),
+        rows = [x for x in c if isinstance(x, _MoveStake)]
+        late = rows[-1]
+        flagged = any(isinstance(x, Token) and x.type == "STAKE_FLAG_COLON" for x in c)
+        if len(rows) == 2:
+            message = (
+                f"a move type carries one Stake row — `{rows[0].stake}` stands "
+                f"under its name, so delete the `{late.stake}` after `when:`"
             )
-        )
+        elif flagged:
+            message = (
+                f"`{late.stake}` is a row, not a flag, and it stands with the "
+                f"move's name, before `when:` — write `{late.stake}` alone there"
+            )
+        else:
+            message = (
+                f"`{late.stake}` stands with the move's name, before `when:` — "
+                f"it says what the move is, not when it is legal"
+            )
+        raise DiagnosticError(Diagnostic(Severity.ERROR, message, late.span or self._span(meta)))
 
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])

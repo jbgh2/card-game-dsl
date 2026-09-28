@@ -567,16 +567,19 @@ lvalue: NAME [index_expr]
 // stake"): one bare word saying the move is a wager or a concession, standing
 // with the name because it says what the move IS, not when it is legal. No row
 // is the plain move. Two reject-with-replacement twins (the `card_points_table`
-// mechanism): the flag habit `wager: true`, and the row written after `when:`.
-// Each derives only strings the well-formed arm cannot, so no sentence has two
-// readings; a doubled row is the parser's own refusal at the second word.
+// mechanism): the flag habit (`wager: true`, or `wager:` with the value left
+// off), and a row written after `when:` — as a flag or not, and whether or not
+// a row already stands under the name. Each derives only strings the
+// well-formed arm cannot, so no sentence has two readings; two rows under the
+// name are the parser's own refusal at the second word. The flag's colon is a
+// terminal of its own, spelled only in the two refusals, so no hint offers it.
 move_type_def: _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] [move_when] move_effect "}"
-             | _MOVE_TYPE_KW NAME [move_params] "{" move_stake_flag [move_when] move_effect "}"       -> move_stake_flag_reject
-             | _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] move_when move_stake move_effect "}" -> move_stake_after_when_reject
+             | _MOVE_TYPE_KW NAME [move_params] "{" move_stake STAKE_FLAG_COLON [expr] [move_when] move_effect "}" -> move_stake_flag_reject
+             | _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] move_when move_stake [STAKE_FLAG_COLON [expr]] move_effect "}" -> move_stake_after_when_reject
 move_params: "(" parameter ("," parameter)* ")"
 move_stake: _WAGER_KW       -> stake_wager
           | _CONCESSION_KW  -> stake_concession
-move_stake_flag: move_stake ":" expr
+STAKE_FLAG_COLON: /:/
 // An optional, comma-separated parameter list; each parameter is drawn from an
 // enumerable domain (Suit/Suit?, Rank, Player) or the state-dependent Card
 // domain. Their value-domains flatten into one per-turn candidate list.

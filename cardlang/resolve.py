@@ -151,13 +151,18 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               deciding seat sees every card they offer from its own
               instance.
               And a Stake row no seat can read: on a game's own move type
-              that no ``offer`` or ``round offering`` presents
+              that no reachable ``offer`` or ``round offering`` presents
               (``_check_unread_stakes``, before the library splice, since a
               library move type's row is the library's statement for every
               game importing it), and on a ``Card``-parameterized move type,
               whose action id is its card's (``_check_move_params``). Every
               row reaching a Seat Policy is therefore on a move type whose
-              action ids name it.
+              action ids name it. And, in a game with a climbing round, a
+              move type spelled like one of the engine's own actions
+              (``_check_climb_action_names``, over
+              ``primitives.climb_actions``): the action space's name block
+              and every rendering may therefore assume no move type and no
+              climb action share a word.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -2315,6 +2320,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_trick_order_partition(game, bag)
     _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
+    _check_climb_action_names(game, bag)
     _check_reserved_params(game, bag)
     _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
@@ -3521,6 +3527,32 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
             helpers[0].span,
         )
 
+def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
+    """In a game with a climbing round, no move type is spelled like one of
+    the engine's own actions (`primitives.climb_actions`: its pass,
+    announcements and interrupt decline). The two would render and announce
+    alike to every seat, report one verb, and — for a nullary move an `offer`
+    presents — share one action id, so the refusal is by name, whatever
+    presents the move type and whether or not anything does. A library move
+    type is judged in the game that imports it, where the climb is."""
+    from cardlang.runtime import primitives
+
+    engines = sorted(
+        {nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)}
+        & PRIMITIVE_CLIMB_LEADS
+    )
+    owner = {action: engine for engine in engines for action in primitives.climb_actions(engine)}
+    for mt in game.move_types:
+        engine = owner.get(mt.name)
+        if engine is not None:
+            bag.error(
+                f"move type `{mt.name}` is spelled like the climb engine "
+                f"`{engine}`'s own action `{mt.name}` — a seat would see the "
+                f"two alike; rename the move type",
+                mt.span,
+            )
+
+
 def _offered_move_types(node: object) -> frozenset[str]:
     """Every move type an `offer` or a `round offering` under `node` presents —
     the two `move_type`-namespace slots of `_REFERENCE_SLOTS`, the only
@@ -3535,18 +3567,21 @@ def _offered_move_types(node: object) -> frozenset[str]:
 
 
 def _check_unread_stakes(game: n.Game, bag: DiagnosticBag) -> None:
-    """A Stake row on one of the game's own move types that nothing presents is
-    a declaration nothing reads (the `_resolve_trump` precedent), so it is
-    refused. Runs before the library splice: a library move type's row states
-    the fact for every game importing it, and a game that presents it nowhere
-    has not written a row nobody reads."""
-    offered = _offered_move_types(game)
+    """A Stake row on one of the game's own move types that no reachable
+    `offer` or `round offering` presents is a declaration nothing reads (the
+    `_resolve_trump` precedent), so it is refused. Reachable is
+    `_reachable_definitions`' fixpoint from the phases, so an offer inside a
+    move type or procedure nothing reaches presents nothing. Runs before the
+    library splice: a library move type's row states the fact for every game
+    importing it, and a game that presents it nowhere has not written a row
+    nobody reads."""
+    offered = {name for ns, name in _reachable_definitions(game) if ns == "move_type"}
     for mt in game.move_types:
         if mt.stake is not None and mt.name not in offered:
             bag.error(
-                f"`{mt.stake}` on move type `{mt.name}`, which no `offer` or "
-                f"`round offering` presents: nothing reads the row. Delete it, "
-                f"or present the move at an offering",
+                f"`{mt.stake}` on move type `{mt.name}`, which no reachable "
+                f"`offer` or `round offering` presents: nothing reads the row. "
+                f"Delete it, or present the move at an offering the game reaches",
                 mt.span,
             )
 

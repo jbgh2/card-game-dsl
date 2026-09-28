@@ -3896,9 +3896,11 @@ move_type throw_in {
 
 A Wager stakes something the game settles later (Tichu's call, a bid);
 a Concession gives up what was at stake for certain (Pinochle's
-throw-in, a resignation). A move type with no row is plain, and the
-plain side of an offering — the decline, the pass — is never marked:
-the mark is on what is staked. The row says what the move IS, never
+throw-in, a resignation). A move type with no row states no stake, and
+a Seat Policy reads it as plain; the plain side of an offering — the
+decline, the pass — is never marked: the mark is on what is staked.
+Which corpus games state their stakes is issue #768's sweep, one game
+per measured line. The row says what the move IS, never
 what it is worth; the amount stays in the scoring that settles it
 ("Bidding patterns").
 
@@ -3919,25 +3921,28 @@ decision, and draws where none is.
 
 **What the checker refuses.** Every row is readable or refused:
 
-- a row on a game's own move type that no `offer` or `round offering`
-  presents — nothing reads it. A library move type's row is the
-  library's statement for every game importing it, so a game that
-  presents it nowhere is not refused;
+- a row on a game's own move type that no reachable `offer` or `round
+  offering` presents — nothing reads it. An offer made inside a move
+  type or procedure that nothing reaches presents nothing. A library
+  move type's row is the library's statement for every game importing
+  it, so a game that presents it nowhere is not refused;
 - a row on a `Card`-parameterized move type — a card play is offered as
   its card, whose action id names no move type;
-- `wager: true` / `wager: false` (the row is a fact, not a flag; a plain
-  move is written by leaving the row out), and the row written after
-  `when:` — each refused naming the fix;
+- `wager: true` / `wager: false` / `wager:` (the row is a fact, not a
+  flag; a plain move is written by leaving the row out), and a row
+  written after `when:` — as a flag or not, and a second row there
+  when one already stands under the name — each refused at the word,
+  naming the fix;
 - `wager` and `concession` as the name of a state variable, zone or
   function — both are clause keywords, reserved as `outcome` is. A move
   type may still be named either, since a move type's name is never a
   bare value;
-- a nullary offered move type spelled like one of a climb engine's own
-  actions (`pass`, an announcement token, the interrupt decline), which
-  would share the action's id. Presented any other way the move type
-  has ids of its own, and a Seat Policy reads a row by the move type an
-  id was minted for, never by its spelling, so the action's id carries
-  no row.
+- in a game with a climbing round, a move type spelled like one of the
+  engine's own actions (`pass`, an announcement token, the interrupt
+  decline), whatever presents it: a seat would see the two alike, and a
+  nullary `offer` of it would share the action's id. A Seat Policy
+  reads a row by the move type an id was minted for, never by its
+  spelling.
 
 One cell is not refusable, by design: the row on the wrong side
 (`wager` on `no_call`). The checker cannot read a stake off an effect —
