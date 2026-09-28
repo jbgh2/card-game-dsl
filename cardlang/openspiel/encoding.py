@@ -40,13 +40,15 @@ function of the play's identity — its card-set and, where the engine's codec
 declares wilds, the rank a wildcard among those cards stands for — and the
 name block numbers every announcement token and the interrupt decline the
 climb engine's registry rows declare, each under an id no offered move type
-shares and a name no staked move type carries (a move type spelled like a
-token is refused where either would happen). Illegal after
+shares (a nullary offered move type spelled like a token is refused), and
+`move_type_of` says which ids stand for a move type by the list that minted
+them. Illegal after
 this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
 game's space from below, or that `verbs()` contains `CARD_VERB`; keying a play
 by its card-set alone; a codec answering an id for a wild outside its declared
-`wilds`. Encoding a content item against a game with no card block is
-refused, never numbered.
+`wilds`; reading an id's move type from its verb, which a climb token and a
+move type presented another way may share. Encoding a content item against a
+game with no card block is refused, never numbered.
 """
 
 from __future__ import annotations
@@ -258,6 +260,7 @@ class ActionSpace:
         int_ceiling: int | None,
         combos: list[Any],
         combo_codec: ComboCodec | None = None,
+        engine_names: frozenset[str] = frozenset(),
     ) -> None:
         # Three states, and the empty one is not the `None` one. `None` means
         # "number cards by the standard 52-slot formula"; an EMPTY list means
@@ -274,6 +277,12 @@ class ActionSpace:
         # waiting to disagree.
         self._has_card_block = card_block is None or len(card_block) > 0
         self._names = names
+        # The bare names a climb engine numbers for its own actions (its pass,
+        # announcements, interrupt decline). Every other bare name is a move
+        # type an `offer` presents; `move_type_of` answers from this, never
+        # from a name's spelling.
+        assert engine_names <= set(names)
+        self._engine_names = engine_names
         self._offering = offering
         # The game's largest integer-`choose` ceiling, or None if it has no
         # integer decision. The shared integer block reserves `ceiling + 1` ids
@@ -398,6 +407,7 @@ class ActionSpace:
                     entries = _offering_entries(mt, sources)
                     offering.extend(e for e in entries if e not in offering)
         combo_codec: ComboCodec | None = None
+        engine_names: frozenset[str] = frozenset()
         if climb_engines:
             assert len(climb_engines) == 1, "one climb engine per game for now"
             # The climb form's own names beside the plays: the pass, the
@@ -405,25 +415,12 @@ class ActionSpace:
             decline = primitives.climb_interrupt_decline(climb_engines[0])
             tokens = ("pass", *primitives.climb_announcements(climb_engines[0]),
                       *([decline] if decline is not None else []))
-            # A Seat Policy reads a move type's Stake row by the name an id
-            # carries (`verb_of`), and a climb token's id carries its token.
-            # So a staked move type spelled like one is refused wherever it is
-            # presented, or never: its row would be read at the climb's own
-            # decisions.
-            for mt in game.move_types:
-                if mt.stake is not None and mt.name in tokens:
-                    raise OwnerGuardError(
-                        f"move type `{mt.name}` carries a `{mt.stake}` row, and "
-                        f"the climb engine `{climb_engines[0]}` names one of its "
-                        f"own actions `{mt.name}` — the row would be read at the "
-                        f"climb's decisions; rename the move type"
-                    )
+            engine_names = frozenset(tokens)
             for token in tokens:
                 if token in names:
-                    # An offered move type spelled like a climb token would
-                    # share the token's id, so one id would name two actions
-                    # and a Seat Policy reading the move type's Stake row
-                    # would read it at the climb's own decisions too.
+                    # A nullary offered move type spelled like a climb token
+                    # would share the token's id, so one id would name two
+                    # actions.
                     raise OwnerGuardError(
                         f"move type `{token}` is offered, and the climb engine "
                         f"`{climb_engines[0]}` names one of its own actions "
@@ -486,7 +483,8 @@ class ActionSpace:
                 )
             combo_codec = next(iter(codecs.values()))
         return ActionSpace(
-            card_block, sorted(names), offering, int_ceiling, combos, combo_codec
+            card_block, sorted(names), offering, int_ceiling, combos, combo_codec,
+            engine_names=engine_names,
         )
 
     def encode(self, value: Any) -> int:
@@ -634,6 +632,22 @@ class ActionSpace:
         if aid < self._combo_base:
             return "offering"
         return "combination"
+
+    def move_type_of(self, aid: int) -> str | None:
+        """The move type `aid` stands for, or None where it stands for none: a
+        bare-name id an offered nullary move type minted, or an offering id,
+        names its move type; a card, integer or combination id, and a climb
+        engine's own action, name none. Answered from which list minted the
+        id, never from a name's spelling — a move type and a climb token may
+        share a spelling in different blocks, and only the nullary `offer`
+        that would share the token's id is refused."""
+        block = self.block_of(aid)
+        if block == "name":
+            name = self._names[aid - self._name_base]
+            return None if name in self._engine_names else name
+        if block == "offering":
+            return str(self._offering[aid - self._offering_base][0])
+        return None
 
     def verb_of(self, aid: int) -> str:
         """The move-type name `aid` denotes, at the granularity the encoding

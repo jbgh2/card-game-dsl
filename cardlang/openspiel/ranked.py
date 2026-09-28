@@ -97,11 +97,6 @@ DISPOSITIONS: dict[str, str] = {
     "offering": "declines stakes",
 }
 
-# The blocks whose ids name a move type of the game's own, and so the only ids
-# a Stake row can be read from: a card, integer or combination id names its
-# block, never a move type (`encoding.verb_of`).
-_NAMING_BLOCKS = frozenset({"name", "offering"})
-
 
 def _strengths(game: n.Game) -> dict[str, int]:
     """Each declared rank's strength, dearest first in the declaration."""
@@ -261,9 +256,8 @@ class RankedSeatPolicy:
         return plain if plain else legal
 
     def _stake(self, aid: int) -> str | None:
-        if self.space.block_of(aid) not in _NAMING_BLOCKS:
-            return None
-        return self.stakes.get(self.space.verb_of(aid))
+        move_type = self.space.move_type_of(aid)
+        return None if move_type is None else self.stakes.get(move_type)
 
     def _combination(self, legal: Sequence[int]) -> int:
         """The fewest cards on offer, ties by the lowest id."""

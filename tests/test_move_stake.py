@@ -35,14 +35,14 @@ domain:          definition site (`?top_item` and `?library_item`, the
                  nothing presents is refused: nothing can read it. A library
                  move type's row is the library's statement for every game that
                  imports it, so a game that imports it and presents it nowhere
-                 is not refused. A move type spelled like a climb engine's
-                 token is refused by the encoding where the two would be
-                 confused: a nullary `offer` of it, whose id the token's would
-                 be, whatever its row; and a staked one however it is
-                 presented, or never, since its row is read by the name an id
-                 carries. The tokens are the engine's registry rows
-                 (`primitives.climb_announcements`,
-                 `primitives.climb_interrupt_decline`, the pass). The row's two words are reserved as
+                 is not refused. A move type spelled like a climb engine's own
+                 action (`primitives.climb_announcements`,
+                 `primitives.climb_interrupt_decline`, the pass) is refused
+                 only as a nullary `offer`, whose id the action's would be;
+                 presented any other way it loads, and `ranked` reads rows by
+                 the move type an id was minted for
+                 (`ActionSpace.move_type_of`), never by its spelling, so the
+                 action's id carries no row. The row's two words are reserved as
                  declared names (a state variable, a zone, a function) the way
                  `outcome` is; a move type keeps the freedom to be named either.
                  The dispositions: every non-empty subset of
@@ -54,7 +54,8 @@ registry:        definition sites: the grammar's productions naming
                  the grammar's `move_stake` production (reconciled below);
                  parameter domains: `domains.PARAM_DOMAIN_ORDER`,
                  `board_domains.DIRECTION_DOMAIN`; presentation:
-                 `resolve._REFERENCE_SLOTS`; blocks: `encoding.BLOCKS`.
+                 `resolve._REFERENCE_SLOTS`; blocks: `encoding.BLOCKS`;
+                 games: `cardlang.openspiel.registry.GAMES`.
                  Keyword anchoring for `_WAGER_KW` / `_CONCESSION_KW`: the
                  derived grid in tests/test_keyword_anchoring.py. The designer
                  word for each new terminal:
@@ -88,6 +89,7 @@ from cardlang.domains import PARAM_DOMAIN_ORDER
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.infostate import SeatView, render_information_state
 from cardlang.openspiel.ranked import DISPOSITIONS, RankedSeatPolicy
+from cardlang.openspiel.registry import GAMES as REGISTERED
 from cardlang.openspiel.replay import LiveLine, load
 from cardlang.openspiel.seat_policy import SeatBinding, UniformSeatPolicy
 from cardlang.parse import parse_library
@@ -399,13 +401,13 @@ TOKEN_CELLS = list(itertools.product(_TOKEN_CELLS, _TOKEN_PRESENTERS, ROWS))
 def test_a_move_type_spelled_like_a_climb_token(
     token: str, presenter: str, row: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The naming blocks number a climb engine's tokens beside the game's move
-    types, and a Seat Policy reads a Stake row by the name an id carries. So a
-    nullary offered move spelled like a token, which would share the token's
-    id, is refused whatever its row; and a staked move type spelled like one is
-    refused however it is presented, or its row would be read at the climb's
-    own decisions. A plain move type presented another way has ids of its own
-    and loads."""
+    """The name block numbers a climb engine's own actions beside the nullary
+    moves an `offer` presents, so a nullary offered move spelled like one
+    would share its id, and is refused whatever its row. Presented any other
+    way, a move type spelled like a token has ids of its own and loads — and
+    the token's id stands for no move type, so `ranked` never reads the move
+    type's row at the climb's own decisions, where the token stands beside a
+    combination."""
     text = (GAMES / "tichu.cardlang").read_text()
     param = "(s : Suit)" if presenter == "offer-parameterized" else ""
     move = f"move_type {token}{param} {{\n  {row or ''}\n  effect {{ quiet += 0 }}\n}}\n"
@@ -426,12 +428,60 @@ def test_a_move_type_spelled_like_a_climb_token(
         text = text.replace("game Tichu {", f"game Tichu {{\n  uses {name}", 1)
     path = tmp_path / f"tichu-{token}-{presenter.replace(' ', '_').replace(',', '')}-{row}.cardlang"
     path.write_text(text)
-    if presenter == "offer" or row is not None:
+    if presenter == "offer":
         with pytest.raises(OwnerGuardError) as ei:
             load(str(path))
         assert f"`{token}`" in str(ei.value) and "climb" in str(ei.value)
         return
-    load(str(path))
+    game, space = load(str(path))
+    token_id = space.encode(token)
+    assert space.move_type_of(token_id) is None
+    combination = _first_of_block(space, "combination")
+    ranked = RankedSeatPolicy(SeatBinding(game, space, 0, 7))
+    assert list(ranked._declined([token_id, combination])) == [token_id, combination]
+
+
+def _first_of_block(space: ActionSpace, block: str) -> int:
+    aid = 0
+    while space.block_of(aid) != block:
+        aid += 1
+    return aid
+
+
+def _ids_before_combinations(space: ActionSpace) -> range:
+    stop = 0
+    while stop < space.num_distinct_actions and space.block_of(stop) != "combination":
+        stop += 1
+    return range(stop)
+
+
+@pytest.mark.parametrize("short_name", sorted(REGISTERED))
+def test_move_type_of_names_exactly_the_ids_a_move_type_minted(short_name: str) -> None:
+    """An offering id stands for its move type; a bare-name id for the offered
+    move type it is, or for none where a climb engine minted it; a card or
+    integer id for none. The combination block is a codec's arithmetic and
+    stands for none (`encoding.verb_of` names it `COMBO_VERB`).
+
+    red under: answer `move_type_of` from `verb_of` (every climb game's `pass`
+    then stands for a move type)."""
+    game, space = load(str(GAMES / REGISTERED[short_name]))
+    move_types = {mt.name for mt in game.move_types}
+    engines = {nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)}
+    tokens: set[str] = set()
+    for engine in engines:
+        decline = primitives.climb_interrupt_decline(engine)
+        tokens |= {"pass", *primitives.climb_announcements(engine), *([decline] if decline else [])}
+    for aid in _ids_before_combinations(space):
+        block = space.block_of(aid)
+        named = space.move_type_of(aid)
+        if block == "offering":
+            assert named == space.verb_of(aid) and named in move_types
+        elif block == "name":
+            verb = space.verb_of(aid)
+            assert named == (None if verb in tokens else verb)
+            assert named is None or named in move_types
+        else:
+            assert named is None
 
 
 # ---------------------------------------------------------------------------

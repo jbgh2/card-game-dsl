@@ -3932,12 +3932,12 @@ decision, and draws where none is.
   function — both are clause keywords, reserved as `outcome` is. A move
   type may still be named either, since a move type's name is never a
   bare value;
-- a move type spelled like one of a climb engine's own actions (`pass`,
-  an announcement token, the interrupt decline) where the two would be
-  confused: offered as a nullary `offer`, it would share the action's
-  id; carrying a row, however it is presented, its row would be read
-  at the climb's own decisions, since a Seat Policy reads the row by
-  the name an id carries.
+- a nullary offered move type spelled like one of a climb engine's own
+  actions (`pass`, an announcement token, the interrupt decline), which
+  would share the action's id. Presented any other way the move type
+  has ids of its own, and a Seat Policy reads a row by the move type an
+  id was minted for, never by its spelling, so the action's id carries
+  no row.
 
 One cell is not refusable, by design: the row on the wrong side
 (`wager` on `no_call`). The checker cannot read a stake off an effect —
