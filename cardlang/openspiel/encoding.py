@@ -40,7 +40,8 @@ function of the play's identity — its card-set and, where the engine's codec
 declares wilds, the rank a wildcard among those cards stands for — and the
 name block numbers every announcement token and the interrupt decline the
 climb engine's registry rows declare, each under an id no offered move type
-shares (a move type spelled like a token is refused). Illegal after
+shares and a name no staked move type carries (a move type spelled like a
+token is refused where either would happen). Illegal after
 this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
 game's space from below, or that `verbs()` contains `CARD_VERB`; keying a play
 by its card-set alone; a codec answering an id for a wild outside its declared
@@ -402,8 +403,22 @@ class ActionSpace:
             # The climb form's own names beside the plays: the pass, the
             # engine's announcement tokens, and its interrupt decline.
             decline = primitives.climb_interrupt_decline(climb_engines[0])
-            for token in ("pass", *primitives.climb_announcements(climb_engines[0]),
-                          *([decline] if decline is not None else [])):
+            tokens = ("pass", *primitives.climb_announcements(climb_engines[0]),
+                      *([decline] if decline is not None else []))
+            # A Seat Policy reads a move type's Stake row by the name an id
+            # carries (`verb_of`), and a climb token's id carries its token.
+            # So a staked move type spelled like one is refused wherever it is
+            # presented, or never: its row would be read at the climb's own
+            # decisions.
+            for mt in game.move_types:
+                if mt.stake is not None and mt.name in tokens:
+                    raise OwnerGuardError(
+                        f"move type `{mt.name}` carries a `{mt.stake}` row, and "
+                        f"the climb engine `{climb_engines[0]}` names one of its "
+                        f"own actions `{mt.name}` — the row would be read at the "
+                        f"climb's decisions; rename the move type"
+                    )
+            for token in tokens:
                 if token in names:
                     # An offered move type spelled like a climb token would
                     # share the token's id, so one id would name two actions

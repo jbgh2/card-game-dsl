@@ -35,9 +35,14 @@ domain:          definition site (`?top_item` and `?library_item`, the
                  nothing presents is refused: nothing can read it. A library
                  move type's row is the library's statement for every game that
                  imports it, so a game that imports it and presents it nowhere
-                 is not refused. An offered move type sharing its name-block id
-                 with a climb engine's token is refused by the encoding, since
-                 the id would name both. The row's two words are reserved as
+                 is not refused. A move type spelled like a climb engine's
+                 token is refused by the encoding where the two would be
+                 confused: a nullary `offer` of it, whose id the token's would
+                 be, whatever its row; and a staked one however it is
+                 presented, or never, since its row is read by the name an id
+                 carries. The tokens are the engine's registry rows
+                 (`primitives.climb_announcements`,
+                 `primitives.climb_interrupt_decline`, the pass). The row's two words are reserved as
                  declared names (a state variable, a zone, a function) the way
                  `outcome` is; a move type keeps the freedom to be named either.
                  The dispositions: every non-empty subset of
@@ -87,7 +92,8 @@ from cardlang.openspiel.replay import LiveLine, load
 from cardlang.openspiel.seat_policy import SeatBinding, UniformSeatPolicy
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
-from cardlang.resolve import _REFERENCE_SLOTS
+from cardlang.resolve import _REFERENCE_SLOTS, _walk
+from cardlang.runtime import primitives
 from cardlang.runtime.errors import OwnerGuardError
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
@@ -369,18 +375,63 @@ def test_a_move_type_may_be_named_like_its_row(stake: str) -> None:
     assert {mt.name: mt.stake for mt in game.move_types}[stake] == stake
 
 
-def test_an_offered_move_sharing_a_climb_token_is_refused(tmp_path: Path) -> None:
-    """The name block numbers a climb engine's tokens beside the nullary moves
-    an `offer` presents; a move type spelled like a token would share its id,
-    and its row would be read at the climb's own decisions."""
+def _climb_tokens() -> tuple[str, ...]:
+    """The names Tichu's climb engine numbers in the name block beside the
+    moves an `offer` presents: its pass, announcements and interrupt decline."""
+    game = check_dsl((GAMES / "tichu.cardlang").read_text(), "tichu.cardlang")
+    (engine,) = {nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)}
+    decline = primitives.climb_interrupt_decline(engine)
+    return ("pass", *primitives.climb_announcements(engine), *([decline] if decline else []))
+
+
+_TOKENS = _climb_tokens()
+# One of each kind the engine declares: the pass, an announcement, the decline.
+_TOKEN_CELLS = sorted({_TOKENS[0], _TOKENS[1], _TOKENS[-1]})
+_TOKEN_PRESENTERS = ("offer", "offer-parameterized", "round offering", "library, unpresented")
+TOKEN_CELLS = list(itertools.product(_TOKEN_CELLS, _TOKEN_PRESENTERS, ROWS))
+
+
+@pytest.mark.parametrize(
+    ("token", "presenter", "row"),
+    TOKEN_CELLS,
+    ids=[f"{t}-{p}-{r or 'plain'}" for t, p, r in TOKEN_CELLS],
+)
+def test_a_move_type_spelled_like_a_climb_token(
+    token: str, presenter: str, row: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The naming blocks number a climb engine's tokens beside the game's move
+    types, and a Seat Policy reads a Stake row by the name an id carries. So a
+    nullary offered move spelled like a token, which would share the token's
+    id, is refused whatever its row; and a staked move type spelled like one is
+    refused however it is presented, or its row would be read at the climb's
+    own decisions. A plain move type presented another way has ids of its own
+    and loads."""
     text = (GAMES / "tichu.cardlang").read_text()
-    text = text.replace("one of [dragon_to_left, dragon_to_right]", "one of [dragon_to_left, dragon_to_right, no_wish]")
-    text += "\nmove_type no_wish {\n  effect { quiet += 0 }\n}\n"
-    path = tmp_path / "tichu.cardlang"
+    param = "(s : Suit)" if presenter == "offer-parameterized" else ""
+    move = f"move_type {token}{param} {{\n  {row or ''}\n  effect {{ quiet += 0 }}\n}}\n"
+    dragon = "offer to winner one of [dragon_to_left, dragon_to_right]"
+    if presenter in ("offer", "offer-parameterized"):
+        text = text.replace(dragon, f"offer to winner one of [dragon_to_left, dragon_to_right, {token}]") + move
+    elif presenter == "round offering":
+        text = text.replace(
+            dragon,
+            f"round offering [dragon_to_left, dragon_to_right, {token}] from winner "
+            f"over players where player is winner until trick_pile is empty",
+        ) + move
+    else:
+        name = _library_name(move + token)
+        library = parse_library(f"library {name} {{\n{move.replace('quiet += 0', '')}}}", f"{name}.cardlang")
+        monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({name}))
+        monkeypatch.setattr("cardlang.resolve.load_library", lambda _: library)
+        text = text.replace("game Tichu {", f"game Tichu {{\n  uses {name}", 1)
+    path = tmp_path / f"tichu-{token}-{presenter.replace(' ', '_').replace(',', '')}-{row}.cardlang"
     path.write_text(text)
-    with pytest.raises(OwnerGuardError) as ei:
-        load(str(path))
-    assert "`no_wish`" in str(ei.value) and "climb" in str(ei.value)
+    if presenter == "offer" or row is not None:
+        with pytest.raises(OwnerGuardError) as ei:
+            load(str(path))
+        assert f"`{token}`" in str(ei.value) and "climb" in str(ei.value)
+        return
+    load(str(path))
 
 
 # ---------------------------------------------------------------------------
