@@ -6,6 +6,15 @@ no game by name — what it does at a decision follows from the declared ranking
 the `winner:` clause's direction, and the library type of the zones the view
 shows it, all of which every game states for itself.
 
+Before any block is ranked, a decision is thinned by what the game says its
+move types stake. Where the candidates on offer mix plain move types with ones
+the game marks a [[wager]] or a [[concession]], the marked ones are declined and
+the decision is answered from the plain ones alone; where nothing plain is on
+offer, nothing is declined. It reads no reason to take a stake, so it takes none
+it can refuse: at Tichu no seat calls, and at Pinochle no seat bids or throws a
+hand in. That is how those tables reach the end of the game, and it is not how
+either game is played well.
+
 What it does with each block of action ids is `DISPOSITIONS`, keyed by
 `encoding.BLOCKS`:
 
@@ -43,12 +52,12 @@ What it does with each block of action ids is `DISPOSITIONS`, keyed by
   one mean; Cheat's number is the count a player claims to be playing and may be
   lying about, and this answers it as though it were a bid. Knowing which
   sentence asked does not settle it: what a number MEANS is a fact no game
-  states today (issue #703).
+  states today (issue #771).
 - **combination** — the fewest cards that are legal, so a hand is spent slowly;
   ties by the lowest id, which keeps the answer a function of the view.
-- **name**, **offering** — drawn uniformly, and the table says so. Which side
-  of an offer is a wager is not a fact any game states today (issue #703), and
-  an opponent that guessed would be guessing in shipped code.
+- **name**, **offering** — the stakes declined, then drawn uniformly. The move
+  types these ids name are the game's own, and the game states nothing that
+  ranks one plain move above another.
 
 Every answer is a function of the binding's seed and the view, as a Seat Policy
 must be: the draw it delegates to is the uniform opponent on that seed, and
@@ -59,9 +68,10 @@ Contract
 Assumes: a checked game, its action space, and a seat that game seats.
 Establishes: the answer is one of the legal ids; it is a function of the seed
 and the view; every block of `encoding.BLOCKS` has a disposition, and a block
-whose ids are not all alike at one decision is drawn rather than ranked.
+whose ids are not all alike at one decision is drawn rather than ranked; the
+answer is a staked move type only where no plain one is on offer.
 Illegal after: reading the World, a decision node, or any game by name; ranking
-a block `DISPOSITIONS` calls delegated.
+a block `DISPOSITIONS` does not call ranked.
 """
 
 from __future__ import annotations
@@ -83,8 +93,8 @@ DISPOSITIONS: dict[str, str] = {
     "card": "ranked",
     "integer": "ranked",
     "combination": "ranked",
-    "name": "delegated",
-    "offering": "delegated",
+    "name": "declines stakes",
+    "offering": "declines stakes",
 }
 
 
@@ -218,8 +228,10 @@ class RankedSeatPolicy:
             and self.trump_spec is not _DISAGREE
         )
         self.wants_high = None if binding.game.winner is None else binding.game.winner.rank_dir == "highest"
+        self.stakes = {mt.name: mt.stake for mt in binding.game.move_types if mt.stake is not None}
 
     def __call__(self, view: SeatView, legal: Sequence[int]) -> int:
+        legal = self._declined(legal)
         blocks = {self.space.block_of(aid) for aid in legal}
         if len(blocks) != 1:
             # A decision offering ids of two kinds — a combination beside a
@@ -236,6 +248,16 @@ class RankedSeatPolicy:
         if block == "integer":
             return self._number(view, legal)
         return self._card(view, legal)
+
+    def _declined(self, legal: Sequence[int]) -> Sequence[int]:
+        """The candidates left once every staked move type is declined — or all
+        of them, where declining would leave nothing plain to answer."""
+        plain = [aid for aid in legal if self._stake(aid) is None]
+        return plain if plain else legal
+
+    def _stake(self, aid: int) -> str | None:
+        move_type = self.space.move_type_of(aid)
+        return None if move_type is None else self.stakes.get(move_type)
 
     def _combination(self, legal: Sequence[int]) -> int:
         """The fewest cards on offer, ties by the lowest id."""

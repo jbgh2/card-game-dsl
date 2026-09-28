@@ -39,12 +39,18 @@ built to make, on both axes, and states there. A combination id is a pure
 function of the play's identity — its card-set and, where the engine's codec
 declares wilds, the rank a wildcard among those cards stands for — and the
 name block numbers every announcement token and the interrupt decline the
-climb engine's registry rows declare. Illegal after
+climb engine's registry rows declare, each under an id no offered move type
+shares (resolve refuses a move type spelled like one of the engine's own
+actions; a Shadow Guard here names it), and
+`move_type_of` says which ids stand for a move type by the list that minted
+them; `encode` and `match` never resolve a move type's candidate to a climb
+engine's action, or the reverse, by a shared spelling. Illegal after
 this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
 game's space from below, or that `verbs()` contains `CARD_VERB`; keying a play
 by its card-set alone; a codec answering an id for a wild outside its declared
-`wilds`. Encoding a content item against a game with no card block is
-refused, never numbered.
+`wilds`; reading an id's move type from its verb, which a climb token and a
+move type presented another way may share. Encoding a content item against a
+game with no card block is refused, never numbered.
 """
 
 from __future__ import annotations
@@ -256,6 +262,7 @@ class ActionSpace:
         int_ceiling: int | None,
         combos: list[Any],
         combo_codec: ComboCodec | None = None,
+        engine_names: frozenset[str] = frozenset(),
     ) -> None:
         # Three states, and the empty one is not the `None` one. `None` means
         # "number cards by the standard 52-slot formula"; an EMPTY list means
@@ -272,6 +279,12 @@ class ActionSpace:
         # waiting to disagree.
         self._has_card_block = card_block is None or len(card_block) > 0
         self._names = names
+        # The bare names a climb engine numbers for its own actions (its pass,
+        # announcements, interrupt decline). Every other bare name is a move
+        # type an `offer` presents; `move_type_of` answers from this, never
+        # from a name's spelling.
+        assert engine_names <= set(names)
+        self._engine_names = engine_names
         self._offering = offering
         # The game's largest integer-`choose` ceiling, or None if it has no
         # integer decision. The shared integer block reserves `ceiling + 1` ids
@@ -396,15 +409,25 @@ class ActionSpace:
                     entries = _offering_entries(mt, sources)
                     offering.extend(e for e in entries if e not in offering)
         combo_codec: ComboCodec | None = None
+        engine_names: frozenset[str] = frozenset()
         if climb_engines:
             assert len(climb_engines) == 1, "one climb engine per game for now"
             # The climb form's own names beside the plays: the pass, the
             # engine's announcement tokens, and its interrupt decline.
-            decline = primitives.climb_interrupt_decline(climb_engines[0])
-            for token in ("pass", *primitives.climb_announcements(climb_engines[0]),
-                          *([decline] if decline is not None else [])):
-                if token not in names:
-                    names.append(token)
+            tokens = primitives.climb_actions(climb_engines[0])
+            engine_names = frozenset(tokens)
+            for token in tokens:
+                if token in names:
+                    # Shadow Guard: resolve refuses a move type spelled like
+                    # one of a climb engine's own actions, located, before
+                    # any action space is built.
+                    raise ShadowGuardError(
+                        "resolve._check_climb_action_names",
+                        f"move type `{token}` is offered, and the climb engine "
+                        f"`{climb_engines[0]}` names one of its own actions "
+                        f"`{token}` — one action id cannot name both",
+                    )
+                names.append(token)
             combo_codec = primitives.climb_codec_function(climb_engines[0])
             if combo_codec is None:
                 universe = primitives.climb_universe_function(climb_engines[0])()
@@ -460,7 +483,8 @@ class ActionSpace:
                 )
             combo_codec = next(iter(codecs.values()))
         return ActionSpace(
-            card_block, sorted(names), offering, int_ceiling, combos, combo_codec
+            card_block, sorted(names), offering, int_ceiling, combos, combo_codec,
+            engine_names=engine_names,
         )
 
     def encode(self, value: Any) -> int:
@@ -500,13 +524,15 @@ class ActionSpace:
             name, param = value
             if isinstance(param, Card):
                 return self.encode(param)  # Card-param move: the card block id
-            if param is None and name in self._name_ids:
+            if param is None and name in self._name_ids and name not in self._engine_names:
                 # A nullary `offer` move: the runtime represents it as
                 # `(name, None)` (the same empty-product shape a nullary
                 # round-offering move uses), but this game's action space
-                # names it as a bare string — it was never a round-offering
-                # member, so no `(name, None)` was minted into `offering`. Same
-                # action either way.
+                # names it as a bare string. Same action either way — but only
+                # where the bare name IS a move type's: a climb engine's own
+                # action may share the spelling of a move type a round offering
+                # presents, or of a nullable parameter's `none`, and those
+                # candidates keep their own offering ids.
                 return self._name_base + self._name_ids[name]
             return self._offering_base + self._offering_ids[value]
         if getattr(value, "cards", None) is not None:
@@ -578,11 +604,14 @@ class ActionSpace:
             # appear in `pool` as itself or, for an offer's nullary move, as
             # the runtime's `(name, None)` shape — both denote the same action
             # (see the mirroring case in `encode`).
+            # A climb engine's own action matches only itself, never a move
+            # type's candidate spelled like it (see `encode`).
+            move_named = isinstance(value, str) and value not in self._engine_names
             found = next(
                 (
                     c
                     for c in pool
-                    if c == value or (isinstance(value, str) and c == (value, None))
+                    if c == value or (move_named and c == (value, None))
                 ),
                 _missing,
             )
@@ -608,6 +637,22 @@ class ActionSpace:
         if aid < self._combo_base:
             return "offering"
         return "combination"
+
+    def move_type_of(self, aid: int) -> str | None:
+        """The move type `aid` stands for, or None where it stands for none: a
+        bare-name id an offered nullary move type minted, or an offering id,
+        names its move type; a card, integer or combination id, and a climb
+        engine's own action, name none. Answered from which list minted the
+        id, never from a name's spelling — a move type and a climb token may
+        share a spelling in different blocks, and only the nullary `offer`
+        that would share the token's id is refused."""
+        block = self.block_of(aid)
+        if block == "name":
+            name = self._names[aid - self._name_base]
+            return None if name in self._engine_names else name
+        if block == "offering":
+            return str(self._offering[aid - self._offering_base][0])
+        return None
 
     def verb_of(self, aid: int) -> str:
         """The move-type name `aid` denotes, at the granularity the encoding

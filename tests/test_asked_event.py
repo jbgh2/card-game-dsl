@@ -44,7 +44,7 @@ does not prove:  That a game gates its phases on facts its own rules
                  construct is a MEANING: a number decision's
                  label says which sentence asked, never whether the number is a
                  bid on a hand or a claim a seat may be lying about, which is
-                 issue #703's class. The sweep plays each witness game along a bounded
+                 issue #771's class. The sweep plays each witness game along a bounded
                  seeded line, so a construct only a longer line reaches is
                  unwitnessed by it and covered by the registry cells alone.
 """

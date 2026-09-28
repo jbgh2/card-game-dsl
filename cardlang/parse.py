@@ -303,6 +303,12 @@ class _MoveEffect:
     body: tuple[object, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _MoveStake:
+    stake: n.Stake
+    span: Span | None
+
+
 @cache
 def _grammar_text() -> str:
     return resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
@@ -2099,21 +2105,76 @@ class _Builder(Transformer[Token, n.Game]):
     def skip_stmt(self, meta: Meta, c: list[object]) -> n.SkipToNextHand:
         return n.SkipToNextHand(span=self._span(meta))
 
+    def move_params(self, meta: Meta, c: list[object]) -> tuple[n.Parameter, ...]:
+        return tuple(x for x in c if isinstance(x, n.Parameter))
+
+    def stake_wager(self, meta: Meta, c: list[object]) -> _MoveStake:
+        return _MoveStake("wager", self._span(meta))
+
+    def stake_concession(self, meta: Meta, c: list[object]) -> _MoveStake:
+        return _MoveStake("concession", self._span(meta))
+
+    def move_stake_flag_reject(self, meta: Meta, c: list[object]) -> None:
+        # The flag habit: every scalar clause a designer has met takes a colon.
+        # The grammar owns the shape so the rejection can name the fix.
+        row = next(x for x in c if isinstance(x, _MoveStake))
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"`{row.stake}` is a row, not a flag — write `{row.stake}` alone "
+                f"under the move's name; a move that stakes nothing is written "
+                f"by leaving the row out",
+                row.span or self._span(meta),
+            )
+        )
+
+    def move_stake_after_when_reject(self, meta: Meta, c: list[object]) -> None:
+        rows = [x for x in c if isinstance(x, _MoveStake)]
+        late = rows[-1]
+        flagged = any(isinstance(x, Token) and x.type == "STAKE_FLAG_COLON" for x in c)
+        if len(rows) == 2:
+            message = (
+                f"a move type carries one Stake row — `{rows[0].stake}` stands "
+                f"under its name, so delete the `{late.stake}` after `when:`"
+            )
+        elif flagged:
+            message = (
+                f"`{late.stake}` is a row, not a flag, and it stands with the "
+                f"move's name, before `when:` — write `{late.stake}` alone there"
+            )
+        else:
+            message = (
+                f"`{late.stake}` stands with the move's name, before `when:` — "
+                f"it says what the move is, not when it is legal"
+            )
+        raise DiagnosticError(Diagnostic(Severity.ERROR, message, late.span or self._span(meta)))
+
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])
         when_pred: object | None = None
         effect: tuple[object, ...] = ()
+        stake: n.Stake | None = None
+        params: tuple[n.Parameter, ...] = ()
         for item in c[1:]:
-            if isinstance(item, _MoveWhen):
-                when_pred = _as_expr(item.pred)
-            elif isinstance(item, _MoveEffect):
-                effect = item.body
-        params = tuple(x for x in c if isinstance(x, n.Parameter))
+            match item:
+                case _MoveWhen():
+                    when_pred = _as_expr(item.pred)
+                case _MoveEffect():
+                    effect = item.body
+                case _MoveStake():
+                    stake = item.stake
+                case tuple():
+                    params = item
+                case None:
+                    pass  # an absent optional group
+                case _:
+                    raise AssertionError(f"move_type_def: unexpected child {item!r}")
         return n.MoveTypeDef(
             name=name,
             when=when_pred,  # type: ignore[arg-type]
             effect=effect,  # type: ignore[arg-type]
             params=params,
+            stake=stake,
             span=self._span(meta),
         )
 

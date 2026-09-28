@@ -10,9 +10,9 @@ property:        `ranked` answers from its seat's view and the game's own
                  game's `winner:` names; at a numeric
                  decision it answers near its hand's strength, counting a
                  fair share against the deck's suits; at a combination decision
-                 it spends the fewest cards; at every other id it draws
-                 uniformly, which the table states rather than leaves to be
-                 noticed. A card of the trump suit takes a trick the suit led
+                 it spends the fewest cards; at an offering it declines what
+                 the game marks staked and draws among the rest, which the
+                 table states rather than leaves to be noticed. A card of the trump suit takes a trick the suit led
                  cannot, the trump being the one the game's Trick Round
                  declares — read through the view where the round names a State
                  Variable rather than fixing a suit. A card decision is ranked
@@ -37,8 +37,9 @@ domain:          Dispositions: every block `encoding.BLOCKS` declares, crossed
                  likewise one played line per seed: Spades over `_SPADES_SEEDS`
                  against `_SPADES_FLOOR`, Hearts over `_HEARTS_SEEDS` against
                  `_HEARTS_FLOOR`, each beside the uniform table on those seeds.
-                 The delegated block: an offering decision compared against the
-                 uniform draw it delegates to, and a card decision of a game
+                 The offering blocks, in a game marking no Stake: an offering
+                 decision compared against the uniform draw it is, and a card
+                 decision of a game
                  with its own Trick Order (Belote) against the same draw. The
                  trick rules, recomputed from the view and the declarations at
                  every decision they cover: the trump that takes where the suit
@@ -74,10 +75,11 @@ registry:        blocks: `cardlang.openspiel.encoding.BLOCKS`; opponents:
                  (issue #711).
 does not prove:  That `ranked` plays a game well. It reads no game's own
                  strategy: it ignores partners, position, what has already been
-                 played, and every state variable, and it draws uniformly at
-                 every offering — so a game whose decisions are offerings is
-                 played as a uniform draw plays it, Tichu's calls included
-                 (issue #703, and the wall issue #553 leaves standing). A game
+                 played, and every state variable, and at an offering it only
+                 declines what the game marks staked and draws among the rest —
+                 so it never calls at Tichu and never bids at Pinochle, which
+                 finishes both games and plays neither well
+                 (tests/test_move_stake.py). A game
                  that declares no ranking has nothing here to rank by, and the
                  disposition says so rather than pretending otherwise. A trump
                  a game keeps in a state variable rather than in `trump:` is
@@ -115,7 +117,7 @@ does not prove:  That `ranked` plays a game well. It reads no game's own
                  be lying about. Answering a bluff by hand strength plays a
                  different game; it is legal, and it is wrong. Drawing instead
                  is not the fix: measured 2026-09-17, Spades' +500 falls from 12
-                 of 12 seeds to 0 of 12, so both arms are wrong and issue #713
+                 of 12 seeds to 0 of 12, so both arms are wrong and issue #771
                  is what settles it.
 
                  (3) Reading the trump costs play where the opponent has a
@@ -177,7 +179,7 @@ def test_every_block_of_action_ids_has_a_disposition() -> None:
 
     red under: add a block to `encoding.BLOCKS` without a row here."""
     assert set(DISPOSITIONS) == set(BLOCKS), "decide what `ranked` does with each block"
-    assert set(DISPOSITIONS.values()) <= {"ranked", "delegated"}
+    assert set(DISPOSITIONS.values()) <= {"ranked", "declines stakes"}
 
 
 def test_the_opponent_names_no_game() -> None:
@@ -524,8 +526,9 @@ def test_a_game_that_declares_its_own_trick_order_is_drawn() -> None:
 
 
 def test_an_offering_is_the_uniform_draw_the_table_says_it_is() -> None:
-    """The delegated blocks are delegated to the draw, not to something else
-    that happens to be uniform-looking.
+    """In a game that marks no Stake, the blocks that decline stakes are the
+    draw, not something else that happens to be uniform-looking. What they do
+    where a game does mark one is tests/test_move_stake.py's.
 
     red under: delegate to a second `random.Random` stream."""
     path = _path("cardlang_kuhn_poker")
@@ -538,17 +541,17 @@ def test_an_offering_is_the_uniform_draw_the_table_says_it_is() -> None:
     def compare(view: SeatView, legal: Sequence[int]) -> int:
         nonlocal asked
         picked = ranked(view, legal)
-        if all(space.block_of(aid) in _delegated() for aid in legal):
-            assert picked == uniform(view, legal), "a delegated decision answered otherwise"
+        if all(space.block_of(aid) in _declining() for aid in legal):
+            assert picked == uniform(view, legal), "an unstaked offering answered otherwise"
             asked += 1
         return picked
 
     LiveLine(path, _SEED).play({0: FirstSeatPolicy(), 1: compare})
-    assert asked, "no delegated decision was reached"
+    assert asked, "no offering decision was reached"
 
 
-def _delegated() -> set[str]:
-    return {block for block, disposition in DISPOSITIONS.items() if disposition == "delegated"}
+def _declining() -> set[str]:
+    return {block for block, disposition in DISPOSITIONS.items() if disposition == "declines stakes"}
 
 
 def test_the_help_and_the_table_carry_the_new_row() -> None:

@@ -220,6 +220,28 @@ class ComboCodec(Protocol):
     def kind_of(self, index: int) -> str: ...
 
 
+# The climbing ring's own word for a seat that does not play: every engine's,
+# so no registry row states it.
+CLIMB_PASS = "pass"
+
+
+def climb_actions(name: str) -> tuple[str, ...]:
+    """Every bare-name action the engine keyed by its lead query offers of its
+    own: the pass, its announcement tokens, its interrupt decline. The one
+    list the checker, the action space and the round read, so a word one of
+    them treats as the engine's is the engine's for all three. Refused where
+    two rows spell one word: the two decisions would share one rendering and
+    one action id."""
+    decline = climb_interrupt_decline(name)
+    actions = (CLIMB_PASS, *climb_announcements(name), *([decline] if decline is not None else []))
+    if len(set(actions)) != len(actions):
+        # Shadow guard: the registry's rows are Python, unreachable from a
+        # game file, and every registered engine's actions are pinned apart by
+        # tests/test_move_stake.py::test_every_climb_engine_spells_its_own_actions_apart.
+        raise AssertionError(f"climb engine '{name}' spells two of its own actions alike: {actions}")
+    return actions
+
+
 def climb_announcements(name: str) -> tuple[str, ...]:
     """The announcement tokens of the engine keyed by its lead query:
     every token a play's `announce` may name, so the action space numbers

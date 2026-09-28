@@ -2393,7 +2393,8 @@
             "ref": "pronoun"
           }
         }
-      ]
+      ],
+      "stake": "wager"
     },
     {
       "kind": "move_type",
@@ -2568,7 +2569,8 @@
             "ref": "bool"
           }
         }
-      ]
+      ],
+      "stake": "concession"
     },
     {
       "kind": "move_type",

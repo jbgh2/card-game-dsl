@@ -532,8 +532,8 @@ def test_the_block_domain_is_the_size_the_recipes_define() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 53, "library.md": 14, "model.md": 5}
-    assert len(_BLOCKS) == 72
+    assert per_doc == {"decisions.md": 54, "library.md": 14, "model.md": 5}
+    assert len(_BLOCKS) == 73
 
 
 def _block_id(block: FencedBlock) -> str:

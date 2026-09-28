@@ -608,7 +608,8 @@ class ClimbForm:
                    spans plays (the query marks `compelled`, the form
                    narrows); a query deciding whether a seat is asked; a
                    window whose participants depend on any private zone; the
-                   decline token and "pass" sharing a spelling; this form
+                   two of the engine's own actions
+                   (`primitives.climb_actions`) sharing a spelling; this form
                    writing a game state variable; a query reading the live
                    trick's events from anywhere but
                    `EngineFacts.round_state["events"]`.
@@ -630,11 +631,9 @@ class ClimbForm:
         self.climb_row = primitives.climb_row(stmt.combos_fn)
         self.announcements = primitives.climb_announcements(stmt.combos_fn)
         self.decline = primitives.climb_interrupt_decline(stmt.combos_fn)
-        # registry: the decline token is the engine's declared row
-        # (`primitives.climb_interrupt_decline`), and "pass" is the ring's own
-        # word; a row spelling the decline "pass" would fold two decisions
-        # into one rendering.
-        assert self.decline != "pass", "the interrupt decline and the pass are two words"
+        # The engine's own words, refused by the registry where two coincide:
+        # two decisions would fold into one rendering.
+        primitives.climb_actions(stmt.combos_fn)
         self.seating = ctx.rs.seating
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
@@ -771,7 +770,7 @@ class ClimbForm:
         standing = reads.deep_freeze(state["current"])
         follows = list(self.follow_query(facts, gr, hand, standing))
         compelled = [p for p in follows if p.compelled]
-        return compelled or [*follows, "pass"]
+        return compelled or [*follows, primitives.CLIMB_PASS]
 
     def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
         if state["pending"] is not None:
@@ -785,8 +784,8 @@ class ClimbForm:
         if state["window"] is not None and choice == self.decline:
             observe.announce(ctx, actor, str(choice))
             return state
-        if choice == "pass":
-            observe.announce(ctx, actor, "pass")
+        if choice == primitives.CLIMB_PASS:
+            observe.announce(ctx, actor, primitives.CLIMB_PASS)
             state["idx"] += 1
             return state
         play: primitives.ClimbPlay = choice
