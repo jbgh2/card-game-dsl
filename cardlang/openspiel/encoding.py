@@ -39,7 +39,8 @@ built to make, on both axes, and states there. A combination id is a pure
 function of the play's identity — its card-set and, where the engine's codec
 declares wilds, the rank a wildcard among those cards stands for — and the
 name block numbers every announcement token and the interrupt decline the
-climb engine's registry rows declare. Illegal after
+climb engine's registry rows declare, each under an id no offered move type
+shares (a move type spelled like a token is refused). Illegal after
 this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
 game's space from below, or that `verbs()` contains `CARD_VERB`; keying a play
 by its card-set alone; a codec answering an id for a wild outside its declared
@@ -58,7 +59,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime.errors import ShadowGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate, render_play
 from cardlang.runtime.primitives import ComboCodec
@@ -403,8 +404,18 @@ class ActionSpace:
             decline = primitives.climb_interrupt_decline(climb_engines[0])
             for token in ("pass", *primitives.climb_announcements(climb_engines[0]),
                           *([decline] if decline is not None else [])):
-                if token not in names:
-                    names.append(token)
+                if token in names:
+                    # An offered move type spelled like a climb token would
+                    # share the token's id, so one id would name two actions
+                    # and a Seat Policy reading the move type's Stake row
+                    # would read it at the climb's own decisions too.
+                    raise OwnerGuardError(
+                        f"move type `{token}` is offered, and the climb engine "
+                        f"`{climb_engines[0]}` names one of its own actions "
+                        f"`{token}` — one action id cannot name both; rename "
+                        f"the move type"
+                    )
+                names.append(token)
             combo_codec = primitives.climb_codec_function(climb_engines[0])
             if combo_codec is None:
                 universe = primitives.climb_universe_function(climb_engines[0])()

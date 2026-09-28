@@ -308,6 +308,7 @@ game Pinochle {
 // rather than a `choose` over an empty range.
 
 move_type submit_bid {
+  wager
   when: bid_tens < 400
   effect {
     bid_tens    := choose integer in bid_tens + 1 .. 400
@@ -373,6 +374,7 @@ move_type pass_four {
 // chance prefers it: the defenders take no trick points because there are no
 // tricks.
 move_type throw_in {
+  concession
   effect { thrown_in := true  decided := true }
 }
 

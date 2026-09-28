@@ -258,6 +258,7 @@ game Tichu {
 // chosen one.
 
 move_type call_grand_tichu {
+  wager
   when: called[actor] is 0
   effect {
     called[actor] := 200
@@ -270,6 +271,7 @@ move_type decline_grand {
 }
 
 move_type call_tichu {
+  wager
   when: called[actor] is 0 and (not push_done or (number of cards in hand[actor]) is 14)
   effect {
     called[actor] := 100

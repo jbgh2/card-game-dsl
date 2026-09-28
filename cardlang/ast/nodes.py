@@ -1187,19 +1187,32 @@ class PrimitivesBlock:
     span: Span | None = None
 
 
+# What a move type may say it stakes (decisions.md "A move type's stake"): a
+# Wager stakes something the game settles later, a Concession gives up what was
+# at stake for certain. A move type that says neither is plain. The grammar's
+# `move_stake` production spells exactly these words, pinned equal by
+# tests/test_move_stake.py::test_the_axes_are_pinned_by_the_grammar_and_the_registries.
+Stake = Literal["wager", "concession"]
+STAKES: tuple[Stake, ...] = ("wager", "concession")
+
+
 @dataclass(frozen=True, slots=True)
 class MoveTypeDef:
-    """`move_type NAME [(<param> : <type>, …)] { when: <pred> effect { <stmt>* } }` —
-    a named action, legal only where its predicate holds. ``when`` is None when the
-    move is always legal — the field is named for the clause the designer writes;
-    ``params`` is empty for a nullary move (the trick/offer form). Parameters
-    enumerate in declaration order (leftmost outermost); see decisions.md
-    "Declared parameter domains"."""
+    """`move_type NAME [(<param> : <type>, …)] { [wager|concession] [when: <pred>]
+    effect { <stmt>* } }` — a named action, legal only where its predicate holds.
+    ``when`` is None when the move is always legal — the field is named for the
+    clause the designer writes; ``params`` is empty for a nullary move (the
+    trick/offer form). Parameters enumerate in declaration order (leftmost
+    outermost); see decisions.md "Declared parameter domains". ``stake`` is the
+    row the designer writes under the name, None for a plain move: static game
+    text that the runtime, the encoding and every information state ignore, and
+    that a Seat Policy reads from the checked game."""
 
     name: str
     when: Expr | None
     effect: tuple[Stmt, ...]
     params: tuple[Parameter, ...] = ()
+    stake: Stake | None = None
     span: Span | None = None
 
 

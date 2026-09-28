@@ -150,6 +150,14 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               climb forms and its parameter domains may therefore assume the
               deciding seat sees every card they offer from its own
               instance.
+              And a Stake row no seat can read: on a game's own move type
+              that no ``offer`` or ``round offering`` presents
+              (``_check_unread_stakes``, before the library splice, since a
+              library move type's row is the library's statement for every
+              game importing it), and on a ``Card``-parameterized move type,
+              whose action id is its card's (``_check_move_params``). Every
+              row reaching a Seat Policy is therefore on a move type whose
+              action ids name it.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -328,15 +336,18 @@ _PRONOUNS = frozenset({"state", "action", "winner", "active_rules", "actor"})
 _CALL_SITE_PRONOUNS = frozenset({"actor", "action", "winner"})
 
 # Reserved because the language spells them as CLAUSE KEYWORDS, not because a
-# pronoun namespace claims them. `outcome` is the only member: it opens a phase's
-# `-> outcome { }` and names an auction's outcome function, but nothing binds it
-# as a value (an auction's tagged result reaches its consumer through the produce
-# path — `execute.py`'s `_ProduceSignal` — never a context slot). Keeping it
-# reserved is what makes the pre-#205 spelling of a trick winner (`leader :=
-# outcome`) fail loudly rather than bind to whatever state variable a game
-# happens to declare. Un-reserving it would widen the accepted surface, so it
-# waits for its own change.
-_KEYWORD_RESERVED = frozenset({"outcome"})
+# pronoun namespace claims them. `outcome` opens a phase's `-> outcome { }` and
+# names an auction's outcome function, but nothing binds it as a value (an
+# auction's tagged result reaches its consumer through the produce path —
+# `execute.py`'s `_ProduceSignal` — never a context slot). Keeping it reserved
+# is what makes the pre-#205 spelling of a trick winner (`leader := outcome`)
+# fail loudly rather than bind to whatever state variable a game happens to
+# declare. Un-reserving it would widen the accepted surface, so it waits for its
+# own change. The Stake words (`n.STAKES`) are a move type's row and never a
+# value either, so a declaration spelled like one would read, at every bare use,
+# as something the row is not. Move-type names stay free of the sweep, as for
+# `outcome`: a move type's name is never a bare value.
+_KEYWORD_RESERVED = frozenset({"outcome", *n.STAKES})
 
 # Value-words a DECLARATION may never take, because a bare NameRef spelling
 # the same word can never mean "the declaration" — some other fixed reading
@@ -367,6 +378,7 @@ _RESERVED_WHY: dict[str, str] = {
     "action": "it is the call-site action pronoun",
     "winner": "it is the call-site winner pronoun",
     "outcome": "it is a clause keyword (a phase's `-> outcome`, an auction's `outcome`)",
+    **{stake: "it is a clause keyword (a move type's Stake row)" for stake in n.STAKES},
     "active_rules": "it is the active-rules pronoun",
     "actor": "it is the call-site actor pronoun",
 }
@@ -641,6 +653,9 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         # holds a string like any other keyword slot: the clause that selected
         # the component set, stamped at parse.
         (n.Game, "content_flavor"),
+        # Annotated `Stake` (a `Literal`): the row word the `move_stake`
+        # production put there, never a name.
+        (n.MoveTypeDef, "stake"),
     }
 )
 
@@ -2286,6 +2301,7 @@ def resolve(game: n.Game) -> n.Game:
     # unmet `requires`) make the spliced game unrepresentative, so they are
     # reported as a complete set and raised before the rest of the pass adds
     # noise derived from a half-assembled game.
+    _check_unread_stakes(game, bag)
     game = _apply_uses(game, bag)
     _raise_if_errors(bag)
     _resolve_component_set(game, bag)
@@ -3505,6 +3521,36 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
             helpers[0].span,
         )
 
+def _offered_move_types(node: object) -> frozenset[str]:
+    """Every move type an `offer` or a `round offering` under `node` presents —
+    the two `move_type`-namespace slots of `_REFERENCE_SLOTS`, the only
+    constructs that present a game's own move type to a deciding seat. A
+    procedure body and a move type's effect are under the game, so an offer
+    made from either counts."""
+    offered: set[str] = set()
+    for nd in _walk(node):
+        if isinstance(nd, (n.Offer, n.AuctionRound)):
+            offered.update(nd.offering)
+    return frozenset(offered)
+
+
+def _check_unread_stakes(game: n.Game, bag: DiagnosticBag) -> None:
+    """A Stake row on one of the game's own move types that nothing presents is
+    a declaration nothing reads (the `_resolve_trump` precedent), so it is
+    refused. Runs before the library splice: a library move type's row states
+    the fact for every game importing it, and a game that presents it nowhere
+    has not written a row nobody reads."""
+    offered = _offered_move_types(game)
+    for mt in game.move_types:
+        if mt.stake is not None and mt.name not in offered:
+            bag.error(
+                f"`{mt.stake}` on move type `{mt.name}`, which no `offer` or "
+                f"`round offering` presents: nothing reads the row. Delete it, "
+                f"or present the move at an offering",
+                mt.span,
+            )
+
+
 def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
     """Every implicit decision pool shows its decider the cards in it.
 
@@ -3534,7 +3580,6 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
             f"(`Hand`, or `PublicHand`)"
         )
 
-    offered: set[str] = set()
     for node in _walk(game):
         match node:
             case n.TrickRound() | n.ClimbRound():
@@ -3547,9 +3592,7 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
                         f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(node.source_zone)}",
                         node.span,
                     )
-            case n.Offer() | n.AuctionRound():
-                offered.update(node.offering)
-    for name in sorted(offered):
+    for name in sorted(_offered_move_types(game)):
         mt = move_types.get(name)
         if mt is None:
             continue
@@ -7440,6 +7483,13 @@ def _check_move_params(
                 span,
             )
             return
+    if "Card" in types and mt.stake is not None:
+        bag.error(
+            f"`{mt.stake}` on move type `{mt.name}`: a card play is offered as "
+            f"its card, and its action id is the card's, naming no move type, "
+            f"so no seat can read the row — delete it (issue #770)",
+            span,
+        )
     if "Card" in types and len(types) > 1:
         bag.error(
             f"move '{mt.name}' combines a Card parameter with another parameter; "

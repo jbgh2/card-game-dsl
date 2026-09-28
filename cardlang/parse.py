@@ -303,6 +303,11 @@ class _MoveEffect:
     body: tuple[object, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _MoveStake:
+    stake: n.Stake
+
+
 @cache
 def _grammar_text() -> str:
     return resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
@@ -2099,21 +2104,70 @@ class _Builder(Transformer[Token, n.Game]):
     def skip_stmt(self, meta: Meta, c: list[object]) -> n.SkipToNextHand:
         return n.SkipToNextHand(span=self._span(meta))
 
+    def move_params(self, meta: Meta, c: list[object]) -> tuple[n.Parameter, ...]:
+        return tuple(x for x in c if isinstance(x, n.Parameter))
+
+    def stake_wager(self, meta: Meta, c: list[object]) -> _MoveStake:
+        return _MoveStake("wager")
+
+    def stake_concession(self, meta: Meta, c: list[object]) -> _MoveStake:
+        return _MoveStake("concession")
+
+    def move_stake_flag(self, meta: Meta, c: list[object]) -> _MoveStake:
+        assert isinstance(c[0], _MoveStake)
+        return c[0]
+
+    def move_stake_flag_reject(self, meta: Meta, c: list[object]) -> None:
+        # The flag habit: every scalar clause a designer has met takes a colon.
+        # The grammar owns the shape so the rejection can name the fix.
+        stake = next(x for x in c if isinstance(x, _MoveStake)).stake
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"`{stake}` is a row, not a flag — write `{stake}` alone under the "
+                f"move's name; a move that stakes nothing is written by leaving the "
+                f"row out",
+                self._span(meta),
+            )
+        )
+
+    def move_stake_after_when_reject(self, meta: Meta, c: list[object]) -> None:
+        stake = [x for x in c if isinstance(x, _MoveStake)][-1].stake
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"`{stake}` stands with the move's name, before `when:` — it says "
+                f"what the move is, not when it is legal",
+                self._span(meta),
+            )
+        )
+
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])
         when_pred: object | None = None
         effect: tuple[object, ...] = ()
+        stake: n.Stake | None = None
+        params: tuple[n.Parameter, ...] = ()
         for item in c[1:]:
-            if isinstance(item, _MoveWhen):
-                when_pred = _as_expr(item.pred)
-            elif isinstance(item, _MoveEffect):
-                effect = item.body
-        params = tuple(x for x in c if isinstance(x, n.Parameter))
+            match item:
+                case _MoveWhen():
+                    when_pred = _as_expr(item.pred)
+                case _MoveEffect():
+                    effect = item.body
+                case _MoveStake():
+                    stake = item.stake
+                case tuple():
+                    params = item
+                case None:
+                    pass  # an absent optional group
+                case _:
+                    raise AssertionError(f"move_type_def: unexpected child {item!r}")
         return n.MoveTypeDef(
             name=name,
             when=when_pred,  # type: ignore[arg-type]
             effect=effect,  # type: ignore[arg-type]
             params=params,
+            stake=stake,
             span=self._span(meta),
         )
 

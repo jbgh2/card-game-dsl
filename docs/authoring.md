@@ -148,10 +148,11 @@ the seats, shows a command that seats them, and lists every opponent, as
 `cardlang play --help` does. `ranked` is the one that plays: it orders its
 cards by your `ranking:`, takes a trick with the cheapest card that takes it
 where your `winner:` clause wants the score high and sheds where it wants it
-low, and answers a numbered choice near the strength of the hand it holds. A
-decision your game states nothing about — which side of an offer is the wager
-(issue #703) — it draws at random, and the header says which opponent is at
-which seat. An opponent that always takes the first pick
+low, and answers a numbered choice near the strength of the hand it holds. At
+an offer it declines any move you marked `wager` or `concession` (a row under
+the move's name; decisions.md, "A move type's stake") whenever a plain move is
+on offer beside it, and draws among the rest; the header says which opponent is
+at which seat. An opponent that always takes the first pick
 repeats itself, so a table where every seat does, you included, can run a game
 past its `max_length`, and that refusal blames the game (issue #698).
 

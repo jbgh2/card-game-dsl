@@ -213,6 +213,10 @@ def _move_type(m: n.MoveTypeDef) -> IRDict:
         "params": [{"name": p.name, "type_name": p.type_name} for p in m.params],
         "when": _expr(m.when) if m.when is not None else None,
         "effect": [_stmt(s) for s in m.effect],
+        # Keyed only where the designer wrote the row, the `content_flavor`
+        # precedent: an absent key is a plain move, and the goldens of games
+        # with no row stay byte-stable.
+        **({"stake": m.stake} if m.stake is not None else {}),
     }
 
 

@@ -563,7 +563,20 @@ lvalue: NAME [index_expr]
 // Rules (top-level)
 // ----------------------------------------------------------------------------
 
-move_type_def: _MOVE_TYPE_KW NAME ["(" parameter ("," parameter)* ")"] "{" [move_when] move_effect "}"
+// The optional first row is the move's [[stake]] (decisions.md "A move type's
+// stake"): one bare word saying the move is a wager or a concession, standing
+// with the name because it says what the move IS, not when it is legal. No row
+// is the plain move. Two reject-with-replacement twins (the `card_points_table`
+// mechanism): the flag habit `wager: true`, and the row written after `when:`.
+// Each derives only strings the well-formed arm cannot, so no sentence has two
+// readings; a doubled row is the parser's own refusal at the second word.
+move_type_def: _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] [move_when] move_effect "}"
+             | _MOVE_TYPE_KW NAME [move_params] "{" move_stake_flag [move_when] move_effect "}"       -> move_stake_flag_reject
+             | _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] move_when move_stake move_effect "}" -> move_stake_after_when_reject
+move_params: "(" parameter ("," parameter)* ")"
+move_stake: _WAGER_KW       -> stake_wager
+          | _CONCESSION_KW  -> stake_concession
+move_stake_flag: move_stake ":" expr
 // An optional, comma-separated parameter list; each parameter is drawn from an
 // enumerable domain (Suit/Suit?, Rank, Player) or the state-dependent Card
 // domain. Their value-domains flatten into one per-turn candidate list.
@@ -965,6 +978,7 @@ _CHOOSE_KW: "choose" /(?![A-Za-z0-9_])/
 _CHOSEN_KW: "chosen" /(?![A-Za-z0-9_])/
 _CLIMB_KW: "climb" /(?![A-Za-z0-9_])/
 _COMBINATIONS_KW: "combinations" /(?![A-Za-z0-9_])/
+_CONCESSION_KW: "concession" /(?![A-Za-z0-9_])/
 _CONSTRAINS_KW: "constrains" /(?![A-Za-z0-9_])/
 _CONTINUE_KW: "continue" /(?![A-Za-z0-9_])/
 _DEMANDS_KW: "demands" /(?![A-Za-z0-9_])/
@@ -1064,6 +1078,7 @@ _UNTIL_KW: "until" /(?![A-Za-z0-9_])/
 _UP_KW: "up" /(?![A-Za-z0-9_])/
 _USES_KW: "uses" /(?![A-Za-z0-9_])/
 _VISIBILITY_KW: "visibility" /(?![A-Za-z0-9_])/
+_WAGER_KW: "wager" /(?![A-Za-z0-9_])/
 _WHEN_KW: "when" /(?![A-Za-z0-9_])/
 _WHERE_KW: "where" /(?![A-Za-z0-9_])/
 _WINNER_KW: "winner" /(?![A-Za-z0-9_])/
