@@ -42,7 +42,8 @@ name block numbers every announcement token and the interrupt decline the
 climb engine's registry rows declare, each under an id no offered move type
 shares (a nullary offered move type spelled like a token is refused), and
 `move_type_of` says which ids stand for a move type by the list that minted
-them. Illegal after
+them; `encode` and `match` never resolve a move type's candidate to a climb
+engine's action, or the reverse, by a shared spelling. Illegal after
 this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
 game's space from below, or that `verbs()` contains `CARD_VERB`; keying a play
 by its card-set alone; a codec answering an id for a wild outside its declared
@@ -524,13 +525,15 @@ class ActionSpace:
             name, param = value
             if isinstance(param, Card):
                 return self.encode(param)  # Card-param move: the card block id
-            if param is None and name in self._name_ids:
+            if param is None and name in self._name_ids and name not in self._engine_names:
                 # A nullary `offer` move: the runtime represents it as
                 # `(name, None)` (the same empty-product shape a nullary
                 # round-offering move uses), but this game's action space
-                # names it as a bare string — it was never a round-offering
-                # member, so no `(name, None)` was minted into `offering`. Same
-                # action either way.
+                # names it as a bare string. Same action either way — but only
+                # where the bare name IS a move type's: a climb engine's own
+                # action may share the spelling of a move type a round offering
+                # presents, or of a nullable parameter's `none`, and those
+                # candidates keep their own offering ids.
                 return self._name_base + self._name_ids[name]
             return self._offering_base + self._offering_ids[value]
         if getattr(value, "cards", None) is not None:
@@ -602,11 +605,14 @@ class ActionSpace:
             # appear in `pool` as itself or, for an offer's nullary move, as
             # the runtime's `(name, None)` shape — both denote the same action
             # (see the mirroring case in `encode`).
+            # A climb engine's own action matches only itself, never a move
+            # type's candidate spelled like it (see `encode`).
+            move_named = isinstance(value, str) and value not in self._engine_names
             found = next(
                 (
                     c
                     for c in pool
-                    if c == value or (isinstance(value, str) and c == (value, None))
+                    if c == value or (move_named and c == (value, None))
                 ),
                 _missing,
             )

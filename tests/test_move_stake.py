@@ -389,7 +389,15 @@ def _climb_tokens() -> tuple[str, ...]:
 _TOKENS = _climb_tokens()
 # One of each kind the engine declares: the pass, an announcement, the decline.
 _TOKEN_CELLS = sorted({_TOKENS[0], _TOKENS[1], _TOKENS[-1]})
-_TOKEN_PRESENTERS = ("offer", "offer-parameterized", "round offering", "library, unpresented")
+_TOKEN_PRESENTERS = (
+    "offer",
+    "offer-parameterized",
+    "offer-nullable",
+    "round offering",
+    "round offering-nullable",
+    "library, unpresented",
+)
+_TOKEN_PARAMS = {"offer-parameterized": "(s : Suit)", "offer-nullable": "(s : Suit?)", "round offering-nullable": "(s : Suit?)"}
 TOKEN_CELLS = list(itertools.product(_TOKEN_CELLS, _TOKEN_PRESENTERS, ROWS))
 
 
@@ -407,14 +415,18 @@ def test_a_move_type_spelled_like_a_climb_token(
     way, a move type spelled like a token has ids of its own and loads — and
     the token's id stands for no move type, so `ranked` never reads the move
     type's row at the climb's own decisions, where the token stands beside a
-    combination."""
+    combination. Its own candidates round-trip through ids of their own — a
+    nullary one and a nullable one at `none` included, both of which the
+    runtime writes `(name, None)` as a nullary `offer` is written — so each
+    stands for the move type and carries its row, and the token's id matches
+    none of them."""
     text = (GAMES / "tichu.cardlang").read_text()
-    param = "(s : Suit)" if presenter == "offer-parameterized" else ""
+    param = _TOKEN_PARAMS.get(presenter, "")
     move = f"move_type {token}{param} {{\n  {row or ''}\n  effect {{ quiet += 0 }}\n}}\n"
     dragon = "offer to winner one of [dragon_to_left, dragon_to_right]"
-    if presenter in ("offer", "offer-parameterized"):
+    if presenter.startswith("offer"):
         text = text.replace(dragon, f"offer to winner one of [dragon_to_left, dragon_to_right, {token}]") + move
-    elif presenter == "round offering":
+    elif presenter.startswith("round offering"):
         text = text.replace(
             dragon,
             f"round offering [dragon_to_left, dragon_to_right, {token}] from winner "
@@ -439,6 +451,16 @@ def test_a_move_type_spelled_like_a_climb_token(
     combination = _first_of_block(space, "combination")
     ranked = RankedSeatPolicy(SeatBinding(game, space, 0, 7))
     assert list(ranked._declined([token_id, combination])) == [token_id, combination]
+    own = [aid for aid in _ids_before_combinations(space) if space.block_of(aid) == "offering" and space.verb_of(aid) == token]
+    assert bool(own) is (presenter != "library, unpresented")
+    for aid in own:
+        candidate = space.decode(aid)
+        assert space.encode(candidate) == aid, f"{candidate!r} encodes to another id"
+        assert space.move_type_of(aid) == token
+        assert ranked._stake(aid) == row
+        assert space.match(aid, [candidate]) == candidate
+        with pytest.raises(ValueError):
+            space.match(token_id, [candidate])
 
 
 def _first_of_block(space: ActionSpace, block: str) -> int:
