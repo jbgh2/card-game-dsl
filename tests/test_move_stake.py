@@ -83,6 +83,7 @@ import pytest
 from cardlang import ir
 from cardlang.ast import nodes as n
 from cardlang.board_domains import DIRECTION_DOMAIN
+from cardlang.builtins.functions import PRIMITIVE_CLIMB_LEADS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.domains import PARAM_DOMAIN_ORDER
 from cardlang.openspiel.encoding import ActionSpace
@@ -425,6 +426,19 @@ def _climb_actions_by_game() -> list[tuple[str, str]]:
 
 
 CLIMB_ACTION_CELLS = _climb_actions_by_game()
+
+
+@pytest.mark.parametrize("engine", sorted(PRIMITIVE_CLIMB_LEADS))
+def test_every_climb_engine_spells_its_own_actions_apart(engine: str) -> None:
+    """Every registered climb engine's own actions are distinct words, so no
+    two of its decisions share a rendering or an action id — the Owner the
+    registry's own refusal in `primitives.climb_actions` shadows.
+
+    red under: make any engine's `climb_interrupt_decline` answer "pass"."""
+    decline = primitives.climb_interrupt_decline(engine)
+    rows = (primitives.CLIMB_PASS, *primitives.climb_announcements(engine), *([decline] if decline else []))
+    assert len(set(rows)) == len(rows), rows
+    assert primitives.climb_actions(engine) == rows
 
 
 @pytest.mark.parametrize(("file_name", "action"), CLIMB_ACTION_CELLS, ids=[f"{f}-{a}" for f, a in CLIMB_ACTION_CELLS])

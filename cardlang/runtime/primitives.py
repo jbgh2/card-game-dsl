@@ -235,6 +235,9 @@ def climb_actions(name: str) -> tuple[str, ...]:
     decline = climb_interrupt_decline(name)
     actions = (CLIMB_PASS, *climb_announcements(name), *([decline] if decline is not None else []))
     if len(set(actions)) != len(actions):
+        # Shadow guard: the registry's rows are Python, unreachable from a
+        # game file, and every registered engine's actions are pinned apart by
+        # tests/test_move_stake.py::test_every_climb_engine_spells_its_own_actions_apart.
         raise AssertionError(f"climb engine '{name}' spells two of its own actions alike: {actions}")
     return actions
 
