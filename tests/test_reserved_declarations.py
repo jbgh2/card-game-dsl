@@ -118,6 +118,9 @@ def test_reserved_value_names_registry_is_exactly_the_documented_set() -> None:
             # the reservation is what makes the pre-#205 spelling of a trick winner
             # fail loudly instead of binding to a state variable (`_KEYWORD_RESERVED`).
             "outcome",
+            # A move type's Stake row (`n.STAKES`): clause keywords, never values.
+            "wager",
+            "concession",
         }
     )
 
