@@ -589,15 +589,18 @@ class ClimbForm:
                    its movement. A play marked `ends_trick` closes the trick
                    with no follower draw and no window. For an engine whose
                    registry row declares an interrupt decline: after every
-                   other play, and once more when the ring has returned to
-                   the last player, every other participant still holding
-                   cards is asked in turn order from that player, offered its
-                   `interrupt` plays that beat the standing play beside the
-                   decline (so a seat with nothing to play submits the same
-                   public decline a seat declining by choice does); a taken
-                   interrupt becomes the standing play and the last player,
-                   the ring resumes after the interrupter, and the window
-                   reopens. A pending announcement, and a window, are VOID
+                   ordinary turn — every other play, and every pass — every
+                   participant still holding cards is asked in turn order
+                   from the seat after the one who acted round to that seat
+                   itself, asked last, offered its `interrupt` plays that
+                   beat the standing play beside the decline (so a seat with
+                   nothing to play submits the same public decline a seat
+                   declining by choice does); the window after the pass that
+                   returns the ring to the last player is the trick's last,
+                   and nothing is asked between it and the trick's end; a
+                   taken interrupt becomes the standing play and the last
+                   player, the ring resumes after the interrupter, and the
+                   window reopens. A pending announcement, and a window, are VOID
                    once the round has terminated — `run_decision_round`
                    consults `terminated` before `next_actor`, so neither is
                    asked once a hand-ending play has closed the trick (pinned
@@ -677,18 +680,15 @@ class ClimbForm:
         state["events"] = []  # ("play", seat, play) / ("announce", seat, token), in order
         state["pending"] = None  # (seat, tokens) owed an announcement, else None
         state["window"] = None  # the interrupt window's queue of seats, else None
-        state["spent"] = False  # the ring has returned to `last`
         ctx.rs.mech_state.append(state)
         return state
 
     def _window_after(self, seat: Player) -> list[Player]:
-        """The interrupt window a play by `seat` opens: every other
-        participant still holding cards, in turn order from `seat`."""
-        return [
-            p
-            for p in self.seating.turn_order_from(seat)
-            if p != seat and p in self.ring and self.hands[p].cards
-        ]
+        """The interrupt window an ordinary turn by `seat` opens: every
+        participant still holding cards, in turn order from the seat after
+        `seat` round to `seat` itself, asked last."""
+        order = self.seating.turn_order_from(seat)
+        return [p for p in [*order[1:], seat] if p in self.ring and self.hands[p].cards]
 
     def terminated(self, state: RoundState, ctx: Ctx) -> bool:
         # Gated on `current is not None`: the shed-out predicate is checked only
@@ -713,8 +713,6 @@ class ClimbForm:
                 if self.hands[seat].cards:
                     return seat
             state["window"] = None
-            if state["spent"]:
-                return None  # the closing window found no interrupt: the trick is spent
         ring = self.ring
         while True:
             state["guard"] += 1
@@ -729,12 +727,8 @@ class ClimbForm:
             pointer: int = state["idx"]
             turn = ring[pointer % len(ring)]
             if state["current"] is not None and turn == state["last"]:
-                # Action returned to the last player: the trick is spent —
-                # after one closing window, for an engine that has one.
-                if self.decline is not None and not state["spent"]:
-                    state["spent"] = True
-                    state["window"] = self._window_after(state["last"])
-                    return self.next_actor(state, ctx)
+                # Action returned to the last player: the trick is spent.
+                # The window after the pass that returned it was its last.
                 return None
             if not self.hands[turn].cards:  # already shed out (Tichu): skip, no draw
                 state["idx"] = pointer + 1
@@ -787,6 +781,9 @@ class ClimbForm:
         if choice == primitives.CLIMB_PASS:
             observe.announce(ctx, actor, primitives.CLIMB_PASS)
             state["idx"] += 1
+            if self.decline is not None:
+                # A pass is an ordinary turn: the window follows it too.
+                state["window"] = self._window_after(actor)
             return state
         play: primitives.ClimbPlay = choice
         for c in play.cards:
@@ -814,10 +811,8 @@ class ClimbForm:
             state["lead_ended_trick"] = True
             state["window"] = None
         elif self.decline is not None:
-            # Every play but a trick-ending one opens the window anew, and
-            # the trick is live again however spent the ring was.
+            # Every play but a trick-ending one opens the window anew.
             state["window"] = self._window_after(actor)
-            state["spent"] = False
         if play.announce:
             if not set(play.announce) <= set(self.announcements):
                 # Shadow Guard. The Owner is the engine's registry row

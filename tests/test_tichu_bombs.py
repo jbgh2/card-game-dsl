@@ -33,8 +33,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import RuntimeState
@@ -42,6 +40,7 @@ from cardlang.runtime.tichu_combinations import (
     INTERRUPT_DECLINE,
     WISH_TOKENS,
     Play,
+    _combos,
     _legal_follows,
 )
 from cardlang.runtime.values import Player
@@ -60,6 +59,12 @@ INTERRUPT = "interrupt"
 INTERRUPT_ENDING_THE_ROUND = "interrupt ending the round"
 ANNOUNCEMENT = "announcement"
 
+# The window policy's tempers, one per seed in turn.
+EAGER = "eager"
+OWN_PLAY = "over its own play"
+LAST_CARDS = "with its last cards"
+TEMPERS = (EAGER, OWN_PLAY, LAST_CARDS)
+
 
 class _Driven:
     """A window-bombing chooser that audits every climb decision against
@@ -68,6 +73,7 @@ class _Driven:
     def __init__(self, seed: int) -> None:
         self.rng = random.Random(seed)
         self.base = tichu_reference_policy(self.rng)
+        self.temper = TEMPERS[seed % len(TEMPERS)]
         self.rs: RuntimeState | None = None
         # Per step kind: how often it was taken, and what went wrong after it.
         self.kinds: Counter[str] = Counter()
@@ -185,7 +191,16 @@ class _Driven:
             offered = {(frozenset(p.cards), p.wild) for p in plays}
             if offered != bombs:
                 self._fail(self.owed[0] if self.owed else self.last_kind, f"P{player}'s window offered {offered ^ bombs}")
-            if plays:
+            # Aimed, in three tempers, one per seed: an eager table bombs
+            # whenever it can, which reaches the bomb over a bomb; the other
+            # two hold their bombs for one shape each — over the bomber's own
+            # standing play, or with the bomber's last cards.
+            wanted = {
+                EAGER: True,
+                OWN_PLAY: frame["last"] == player,
+                LAST_CARDS: any(len(p.cards) == len(hand) for p in plays),
+            }[self.temper]
+            if plays and wanted:
                 self.window_bombs += 1
                 if standing.is_bomb:
                     self.over_bombs += 1
@@ -220,10 +235,15 @@ class _Driven:
                 self._fail(INTERRUPT, f"the ring resumed at P{player}, not after the bomber (P{self.resume_at})")
             self.resumes_checked += 1
             self.resume_at = None
-        picked = self.base(player, candidates, n)
+        # Aimed: on turn a table that holds its bombs keeps them whole where
+        # it has another choice, so a bomb outlives the seat's own plays and
+        # a hand whittles down to one.
+        hand = rs.zones.families["hand"][player].cards
+        kept = {c for p in _combos(list(hand)) if p.is_bomb for c in p.cards} if self.temper != EAGER else set()
+        spare = [c for c in candidates if not (isinstance(c, Play) and kept & set(c.cards))]
+        picked = [self.rng.choice(spare)] if kept and spare else self.base(player, candidates, n)
         chosen = picked[0]
         if isinstance(chosen, Play):
-            hand = rs.zones.families["hand"][player].cards
             if chosen.kind == "dog":
                 kind = PLAY_ENDING_THE_TRICK  # the Dog cannot be bombed
             elif self._play_ends_the_hand(player, chosen):
@@ -269,7 +289,6 @@ def driven_tichu_run(seeds: int = 10) -> tuple[Counter[str], dict[str, list[str]
     return kinds, failures, totals
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #775")
 def test_the_window_follows_the_faq_chain_after_every_ordinary_turn() -> None:
     kinds, failures, totals = driven_tichu_run()
     assert not failures, {k: v[:5] for k, v in failures.items()}

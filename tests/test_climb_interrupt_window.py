@@ -106,24 +106,6 @@ def _kinds(engine: str) -> list[str]:
 
 CELLS = [(engine, kind) for engine in sorted(PRIMITIVE_CLIMB_LEADS) for kind in _kinds(engine)]
 
-# The cells the FAQ's chain of events moves (issue #775): red until the
-# window follows every ordinary turn and asks the actor last.
-_FLIPS = {
-    ("tichu_lead_options", k)
-    for k in (tb.PASS, tb.CLOSING_PASS, tb.PLAY, tb.ANNOUNCEMENT, tb.INTERRUPT, tb.INTERRUPT_ENDING_THE_ROUND)
-}
-_PARAMS = [
-    pytest.param(
-        e,
-        k,
-        id=f"{e}-{k}",
-        marks=[pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #775")]
-        if (e, k) in _FLIPS
-        else [],
-    )
-    for e, k in CELLS
-]
-
 
 class _Windowless:
     """A uniform chooser over an engine that declares no decline: tallies the
@@ -176,7 +158,7 @@ def test_every_climb_engine_has_a_corpus_game() -> None:
     assert set(_engine_games()) == PRIMITIVE_CLIMB_LEADS
 
 
-@pytest.mark.parametrize(("engine", "kind"), _PARAMS)
+@pytest.mark.parametrize(("engine", "kind"), CELLS, ids=[f"{e}-{k}" for e, k in CELLS])
 def test_the_window_owed_after_each_step(engine: str, kind: str) -> None:
     game = _engine_games()[engine]
     if primitives.climb_interrupt_decline(engine) is None:
