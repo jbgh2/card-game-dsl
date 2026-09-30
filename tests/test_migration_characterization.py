@@ -39,9 +39,11 @@ An EIGHTH sanctioned regeneration covers `tichu_scores.json` and
 `tichu_hands.json` on every seed they hold: the climb form's Interrupt Window
 asks every seat still holding cards after every ordinary turn — every play
 but a trick-ending one, and every pass — the one who acted last (issue #775,
-the rules source's FAQ). That changes who is ASKED and how often, so every
-chooser draw after a hand's first window moves. No other game declares an
-interrupt decline, and no other golden here moves.
+the rules source's FAQ), and a seat that has neither called nor played is
+polled for small tichu before every ask inside a trick, the climbing round's
+Hosted Poll (issue #776). Both change who is ASKED and how often, so every
+chooser draw after a hand's first in-trick ask moves. No other game declares
+an interrupt decline or a Hosted Poll, and no other golden here moves.
 
 A SIXTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
 seed it holds: `poker_betting`'s `raise` COMPLETES a standing bet short of the

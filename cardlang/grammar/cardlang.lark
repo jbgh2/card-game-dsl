@@ -552,7 +552,13 @@ auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // there is no winner *function* — the winner is the loop's last player, not a
 // function of the cards. (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the same `round`
 // kernel along the offering / order / termination axes.)
-climb_stmt: _ROUND_KW _CLIMB_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _COMBINATIONS_KW NAME _FOLLOWS_KW NAME _UNTIL_KW expr   -> climb_stmt
+// The optional trailing `before asking <binder> { … }` is the round's Hosted
+// Poll (decisions.md "Off-the-clock windows"): statements run before each turn
+// and Interrupt Window ask, the binder bound to the seat about to be asked.
+// `before` and `asking` are contextual — keywords only here, never excluded
+// from NAME — so a game may still bind a local named `before`.
+climb_stmt: _ROUND_KW _CLIMB_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _COMBINATIONS_KW NAME _FOLLOWS_KW NAME _UNTIL_KW expr [_BEFORE_KW hosted_poll]   -> climb_stmt
+hosted_poll: _ASKING_KW NAME "{" statement* "}"
 let_stmt: _LET_KW NAME [index] "=" expr
 assign_stmt: lvalue assign_op expr
 assign_op: ASSIGN_OP
@@ -952,6 +958,7 @@ zone_expr: NAME [index_expr]
 _ACTIVE_RULES_KW: "active_rules" /(?![A-Za-z0-9_])/
 _AFTER_EACH_KW: "after_each" /(?![A-Za-z0-9_])/
 _AGAIN_KW: "again" /(?![A-Za-z0-9_])/
+_ASKING_KW: "asking" /(?![A-Za-z0-9_])/
 _ALL_KW: "all" /(?![A-Za-z0-9_])/
 _ALWAYS_KW: "always" /(?![A-Za-z0-9_])/
 _AND_KW: "and" /(?![A-Za-z0-9_])/
@@ -964,6 +971,7 @@ _APPLIES_WHEN_KW: "applies_when" /(?![A-Za-z0-9_])/
 // asserts `as` is the only one.
 _AS_KW: "as" /(?![A-Za-z0-9_-])/
 _AS_EQUALLY_AS_POSSIBLE_KW: "as-equally-as-possible" /(?![A-Za-z0-9_])/
+_BEFORE_KW: "before" /(?![A-Za-z0-9_])/
 _BEFORE_EACH_KW: "before_each" /(?![A-Za-z0-9_])/
 _BOARD_KW: "board" /(?![A-Za-z0-9_])/
 _BY_KW: "by" /(?![A-Za-z0-9_])/

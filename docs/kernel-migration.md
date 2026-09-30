@@ -508,7 +508,8 @@ verified against the publisher's English rules (Pagat's commercial-games
 index defers to Fata Morgana for Tichu): grand tichu is polled after each
 of the first eight cards (any time before the ninth); small tichu is
 off-the-clock until the caller's first play and runs on the same
-quiescence-lap poll (decisions.md "Off-the-clock windows") with publicly
+quiescence-lap poll, hosted inside every climbing trick by the round's
+Hosted Poll (decisions.md "Off-the-clock windows"), with publicly
 derivable eligibility (pre-push: nobody has played; post-push: a 14-card
 hand is exactly "unplayed"); the Dragon's trick is given by a real announced
 choice into the named opponent's own pile. No rng gate remains in the

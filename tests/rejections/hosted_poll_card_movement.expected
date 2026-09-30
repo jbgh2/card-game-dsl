@@ -1,0 +1,1 @@
+hosted_poll_card_movement.cardlang:33:13: error: the Hosted Poll (`before asking seat`) may not hold a card movement: it runs between two asks of a live climbing trick, where only decisions and state writes may happen

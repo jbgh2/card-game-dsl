@@ -146,7 +146,7 @@ game G {{
             over players where hand[player] is not empty
             source hand into trick_pile
             combinations president_lead_options follows president_follows
-            until (any player where hand[player] is empty)
+            until (any player where hand[player] is empty){before}
       leader := winner
       taken[winner] += 1
       move all cards from trick_pile to discard
@@ -167,6 +167,8 @@ _SPELLINGS = {
     ("early", "present"): " early on_play_off_led_suit",
     ("outcome", "absent"): "",
     ("outcome", "present"): " outcome bridge_auction_outcome",
+    ("before", "absent"): "",
+    ("before", "present"): " before asking p { taken[p] += 0 }",
 }
 
 # The one clause setting that stops a cell from being executable: an auction

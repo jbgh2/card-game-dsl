@@ -463,6 +463,15 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "combos_fn": s.combos_fn,
                 "follows_fn": s.follows_fn,
                 "until": _expr(s.until),
+                "hosted": (
+                    {
+                        "kind": "hosted_poll",
+                        "binder": s.hosted.binder,
+                        "body": [_stmt(x) for x in s.hosted.body],
+                    }
+                    if s.hosted is not None
+                    else None
+                ),
             }
         case n.Produce():
             return {

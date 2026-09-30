@@ -110,6 +110,19 @@ class _Driven:
         order = rs.seating.turn_order_from(seat)
         return [p for p in [*order[1:], seat] if self._holds(p)]
 
+    def _in_hosted_poll(self, candidates: list[Any]) -> bool:
+        """A decision made while a climbing trick is live that is none of the
+        trick's own asks (a play, a pass, a decline, a wish token): the
+        trick's Hosted Poll."""
+        rs = self.rs
+        assert rs is not None
+        if not rs.mech_state or "window" not in rs.mech_state[-1]:
+            return False
+        return not any(
+            isinstance(c, Play) or c in ("pass", INTERRUPT_DECLINE) or (isinstance(c, str) and c in WISH_TOKENS)
+            for c in candidates
+        )
+
     def _open(self, kind: str, seat: Player) -> None:
         self.owed = (kind, self._window_after(seat))
 
@@ -168,6 +181,11 @@ class _Driven:
             return [self.rng.choice(candidates)]
         plays = [c for c in candidates if isinstance(c, Play)]
         in_window = INTERRUPT_DECLINE in candidates
+        if self._in_hosted_poll(candidates):
+            # The round's Hosted Poll asks before the next ring or window
+            # ask; it is no step of the chain and owes nothing to it
+            # (tests/test_hosted_poll.py holds it to its own moments).
+            return self.base(player, candidates, n)
         if not plays and not in_window and "pass" not in candidates:
             self._close_owed(f"P{player} decided outside the trick")
             return self.base(player, candidates, n)
@@ -293,13 +311,34 @@ def test_the_window_follows_the_faq_chain_after_every_ordinary_turn() -> None:
     kinds, failures, totals = driven_tichu_run()
     assert not failures, {k: v[:5] for k, v in failures.items()}
     # Live, not vacuously green: windows were asked after plays and passes
-    # and at the close, bombs were taken out of turn (over-bombed, and over
-    # the bomber's own standing play), the ring resumed after the bomber,
-    # and the Dog's no-window rule was exercised.
+    # and at the close, bombs were taken out of turn (over the bomber's own
+    # standing play among them), the ring resumed after the bomber, and the
+    # Dog's no-window rule was exercised. A bomb over a standing bomb is
+    # reached by its own search below.
     assert totals["asks"] > 1000, totals
     assert totals["bombs"] > 20, totals
-    assert totals["over"] > 0, totals
     assert totals["own"] > 0, totals
     assert totals["resumes"] > 20, totals
     assert kinds[CLOSING_PASS] > 100, kinds
     assert kinds[PLAY_ENDING_THE_TRICK] > 0, kinds
+
+
+def test_the_window_offers_a_bomb_over_a_standing_bomb() -> None:
+    """Aimed (P10): a bomb over a bomb needs two seats holding bombs in one
+    trick, which a random deal gives rarely, so an eager table (every seat
+    bombs whenever it can) is played seed after seed until one window has
+    offered and taken a bomb over the bomb that stands. Every ask on the way
+    is held to the FAQ chain.
+
+    red under: `ClimbForm.candidates` offering no interrupt in the window
+    while a bomb stands — the first eager table holding a higher bomb is
+    offered only the decline, and the oracle's offered-set check fails."""
+    game = check_source(TICHU)
+    for seed in range(40):
+        driven = _Driven(seed)
+        driven.temper = EAGER
+        play_game(game, random.Random(seed), None, driven, on_first_decision=driven.attach)
+        assert not driven.failures, {k: v[:5] for k, v in driven.failures.items()}
+        if driven.over_bombs:
+            return
+    raise AssertionError("no eager table in the searched seeds bombed over a standing bomb")
