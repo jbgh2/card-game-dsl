@@ -35,6 +35,14 @@ keeps that true of captures nobody has written yet. The captures run in a
 subprocess for interpreter isolation — a fresh process per game, holding nothing
 the test session already imported.
 
+An EIGHTH sanctioned regeneration covers `tichu_scores.json` and
+`tichu_hands.json` on every seed they hold: the climb form's Interrupt Window
+asks every seat still holding cards after every ordinary turn — every play
+but a trick-ending one, and every pass — the one who acted last (issue #775,
+the rules source's FAQ). That changes who is ASKED and how often, so every
+chooser draw after a hand's first window moves. No other game declares an
+interrupt decline, and no other golden here moves.
+
 A SIXTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
 seed it holds: `poker_betting`'s `raise` COMPLETES a standing bet short of the
 street's size to that size, instead of adding a size on top of it (issue #431).
