@@ -1,0 +1,37 @@
+// Guard: resolve.py's `_check_hosted_binder`. A Hosted Poll's binder names
+// the seat about to be asked; spelled like the game's `leader` state
+// variable, it would change what `leader` means inside the body alone.
+game HostedPollBinderShadow {
+  players: 4
+  teams: [[0, 2], [1, 3]]
+  direction: counterclockwise
+  max_length: 5000
+  cards: tichu56
+  zones {
+    deck             : Deck
+    hand[player]     : Hand<player>
+    trick_pile       : TrickPile
+    captured[player] : PlayerPile<player>
+  }
+  state {
+    score[player] : Integer = 0
+    wish          : Integer = 0
+    leader        : Player = 0
+    asked         : Player = 0
+  }
+  phase play {
+    legal_moves: [play_combination]
+    shuffle deck
+    deal 14 cards from deck to each hand
+    leader := player_holding(Mahjong of special)
+    round climb play_combination from leader
+          over players where hand[player] is not empty
+          source hand into trick_pile
+          combinations tichu_lead_options follows tichu_follows
+          until (number of players where hand[player] is not empty) <= 1
+          before asking leader {
+            asked := leader
+          }
+  }
+  winner: highest score
+}

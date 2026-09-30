@@ -83,7 +83,13 @@ round climb <move_type> from <leader> over <participants>
       source <zone> into <zone>
       combinations <lead_query> follows <follows_query>
       until <predicate>
+      [before asking <binder> { <statement>* }]
 ```
+
+The optional trailing clause is the round's Hosted Poll: the game's own
+statements, run before every turn and bomb ask of the trick with the
+binder bound to the seat about to be asked — how Tichu polls small tichu
+inside a trick ([decisions.md](decisions.md) "Off-the-clock windows").
 
 Key design notes:
 

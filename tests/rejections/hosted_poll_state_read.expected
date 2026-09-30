@@ -1,0 +1,1 @@
+hosted_poll_state_read.cardlang:33:16: error: the Hosted Poll (`before asking seat`) may not read `state.shed_first`: the round's state is published only once the round has ended

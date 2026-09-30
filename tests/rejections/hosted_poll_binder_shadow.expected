@@ -1,0 +1,1 @@
+hosted_poll_binder_shadow.cardlang:32:18: error: the Hosted Poll's binder 'leader' shadows a state variable of the same name — inside `before asking leader { … }` the name would mean the seat about to be asked; pick a fresh name

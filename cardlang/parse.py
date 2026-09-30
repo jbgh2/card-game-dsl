@@ -1294,10 +1294,14 @@ class _Builder(Transformer[Token, n.Game]):
 
     def climb_stmt(self, meta: Meta, c: list[object]) -> n.ClimbRound:
         # c: [NAME(move_type), expr(leader), expr(participants), NAME(source),
-        #     NAME(into), NAME(combinations), NAME(follows), expr(termination)].
-        # The climbing form keeps the trick zones (source/into) but names the
-        # combination-engine queries instead of a winner function; the winner is
-        # the loop's last player.
+        #     NAME(into), NAME(combinations), NAME(follows), expr(termination),
+        #     HostedPoll|None]. The climbing form keeps the trick zones
+        # (source/into) but names the combination-engine queries instead of a
+        # winner function; the winner is the loop's last player. With
+        # maybe_placeholders=True the optional `before asking` clause is None
+        # when absent.
+        hosted = c[8]
+        assert hosted is None or isinstance(hosted, n.HostedPoll)
         return n.ClimbRound(
             move_type=str(c[0]),
             leader=_as_expr(c[1]),
@@ -1307,6 +1311,15 @@ class _Builder(Transformer[Token, n.Game]):
             combos_fn=str(c[5]),
             follows_fn=str(c[6]),
             until=_as_expr(c[7]),
+            hosted=hosted,
+            span=self._span(meta),
+        )
+
+    def hosted_poll(self, meta: Meta, c: list[object]) -> n.HostedPoll:
+        # c: [NAME(binder), statement*]
+        return n.HostedPoll(
+            binder=str(c[0]),
+            body=tuple(_as_stmt(s) for s in c[1:]),
             span=self._span(meta),
         )
 

@@ -716,7 +716,8 @@ class AuctionRound:
 @dataclass(frozen=True, slots=True)
 class ClimbRound:
     """`round climb <move_type> from <leader> over <participants> source <zone>
-    into <zone> combinations <fn> follows <fn> until <pred>`.
+    into <zone> combinations <fn> follows <fn> until <pred> [before asking
+    <binder> { <stmt>* }]`.
 
     One combination-climbing trick (Big Two, Tichu). The leader leads a
     combination from the engine, then each participant beats the standing play or
@@ -724,7 +725,8 @@ class ClimbRound:
     `termination` holds (a player has shed out). `combos_fn` / `follows_fn` name
     the game-local combination-engine queries (the engines differ across games,
     so the construct depends only on their interface). The last player to play is
-    bound as `winner`; there is no winner *function*.
+    bound as `winner`; there is no winner *function*. `hosted` is the round's
+    [[hosted-poll]], or None.
     """
 
     move_type: str
@@ -735,6 +737,20 @@ class ClimbRound:
     combos_fn: str
     follows_fn: str
     until: Expr
+    hosted: HostedPoll | None = None
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HostedPoll:
+    """`before asking <binder> { <stmt>* }` — the statements a climbing round
+    runs before each of its turn and Interrupt Window asks, with `binder`
+    bound to the seat about to be asked (decisions.md "Off-the-clock
+    windows"). The body holds decisions and state writes only; resolve owns
+    that allow-list (`resolve._check_hosted_polls`)."""
+
+    binder: str
+    body: tuple[Stmt, ...]
     span: Span | None = None
 
 
@@ -1488,6 +1504,7 @@ Node = (
     | TrickRound
     | AuctionRound
     | ClimbRound
+    | HostedPoll
     | Produce
     | ProduceArm
     | Produces
