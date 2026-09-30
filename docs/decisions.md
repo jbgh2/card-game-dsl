@@ -855,14 +855,16 @@ further regimes beside the ring, never two at one step:
   docked by `primitives.climb_announcements`. A pending announcement is
   void once the round has terminated, since the hand is over.
 - **The Interrupt Window.** For an engine whose registry row declares a
-  decline token (`primitives.climb_interrupt_decline`): after every play
-  but a trick-ending one, and once more when the ring has returned to the
-  last player, every other participant still holding cards is asked in
-  turn order from that player, offered its `interrupt` plays that beat the
-  standing play beside the decline — so a seat with nothing to play submits
-  the same public decline a seat declining by choice does, and who is
-  asked is a function of public state alone. A taken interrupt stands, the
-  ring resumes after the interrupter, and the window reopens; a compulsion
+  decline token (`primitives.climb_interrupt_decline`): after every
+  ordinary turn — a play but a trick-ending one, or a pass — every
+  participant still holding cards is asked in turn order from the seat
+  after the one who acted round to that seat itself, asked last, offered
+  its `interrupt` plays that beat the standing play beside the decline —
+  so a seat with nothing to play submits the same public decline a seat
+  declining by choice does, and who is asked is a function of public
+  state alone. The window after the pass that returns the ring to the
+  last player is the trick's last. A taken interrupt stands, the ring
+  resumes after the interrupter, and the window reopens; a compulsion
   binds on turn only. Tichu's bombs out of turn are the witness; Big Two
   and President declare no decline and open no window. This is the
   off-the-clock idiom ("Off-the-clock windows") applied inside a form,
@@ -3867,8 +3869,8 @@ Where the window falls *inside* a form that owns the decisions of a
 trick — Tichu's bombs out of turn — the poll cannot sit between the
 form's own asks, and the idiom is applied by the form itself: the climb
 form's Interrupt Window ("The climbing form of `round`") asks every
-other seat in turn after each play with the same public decline for the
-seat that cannot act and the seat that will not.
+seat in turn after each ordinary turn with the same public decline for
+the seat that cannot act and the seat that will not.
 
 Witnesses: Doppelkopf's announcement ladder at full fidelity
 ([games/doppelkopf.cardlang](games/doppelkopf.cardlang)); Tichu's call

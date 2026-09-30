@@ -22,10 +22,12 @@ Each hand:
    consecutive pairs (≥2), and bombs — four of a kind, or five or more
    consecutive cards of one suit; bombs rank first by number of cards, then
    by rank, so any straight flush beats any four of a kind.
-3. **Bombs play out of turn.** After every play but the Dog, and once more
-   when the trick would otherwise be gathered, every other player still
-   holding cards is asked in turn whether they bomb; a bomb played there
-   stands, and play resumes after the bomber.
+3. **Bombs play out of turn.** After every ordinary turn — every play but
+   the Dog, and every pass — every player still holding cards is asked in
+   turn whether they bomb, starting with the next player and ending with
+   the one who just played or passed: you may bomb your own play, and after
+   the third pass every player may bomb before the trick is gathered. A
+   bomb played there stands, and play resumes after the bomber.
 4. The special cards: the **Mahjong** is rank 1 (lowest), leads first, and
    goes only into a straight from the one; whoever plays it may **wish** for
    a rank, and from then on every player asked in turn must play a
@@ -76,9 +78,9 @@ a standing wish compels and the form offers those alone, with no pass; the
 wish outlives the trick in `wish`, written after each round from the
 round's own record. Bombs out of turn are the form's interrupt window: the
 engine names which plays interrupt (bombs) and what a decline is called
-(`no_bomb`), and the form asks every other seat in turn after each play and
-at the close, so a seat with no bomb says the same thing as one who
-declines. The Phoenix's rank in a play is announced beside the play's
+(`no_bomb`), and the form asks every seat in turn after each ordinary turn,
+the one who just acted last, so a seat with no bomb says the same thing as
+one who declines. The Phoenix's rank in a play is announced beside the play's
 movement, because the movement shows the cards alone and every follower's
 legal set depends on that rank.
 

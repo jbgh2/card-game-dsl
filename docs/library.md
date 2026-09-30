@@ -113,8 +113,8 @@ Key design notes:
   climbing form of `round`"): a play whose `announce` names tokens is
   followed by one decision of the same seat over them (the Play
   Announcement — Tichu's Mahjong wish), and an engine that declares an
-  interrupt decline has every other seat asked in turn after each play
-  (the Interrupt Window — Tichu's bombs out of turn). A play a rule
+  interrupt decline has every seat asked in turn after each ordinary
+  turn (the Interrupt Window — Tichu's bombs out of turn). A play a rule
   compels is marked by the query and offered alone, with no pass.
 
 - **The form exposes its terminal state to the body** (the trick form's

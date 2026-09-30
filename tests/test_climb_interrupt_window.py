@@ -122,10 +122,11 @@ class _Windowless:
         self.rs = rs
 
     def __call__(self, player: Player, candidates: list[Any], n: int) -> list[Any]:
-        climb = [c for c in candidates if hasattr(c, "ends_trick")]
-        if not climb and primitives.CLIMB_PASS not in candidates:
+        # A climb decision is any the climb round asks while its frame is
+        # the innermost: the form owns every decision inside its trick.
+        frame = self.rs.mech_state[-1] if self.rs.mech_state else None
+        if frame is None or not {"current", "last"} <= set(frame):
             return self.base(player, candidates, n)
-        frame = self.rs.mech_state[-1]
         if frame["current"] is not None and primitives.CLIMB_PASS not in candidates:
             self.windows.append(f"P{player} asked off the ring over {frame['current']}: {candidates}")
         picked = self.base(player, candidates, n)
@@ -153,13 +154,24 @@ def test_every_climb_play_member_is_classified() -> None:
 
 
 def test_every_climb_engine_has_a_corpus_game() -> None:
-    """red under: add a lead query to `PRIMITIVE_CLIMB_LEADS` that no corpus
-    game names."""
+    """red under: name `bigtwo_lead_options` in the `combinations` slot of
+    docs/games/president.cardlang."""
     assert set(_engine_games()) == PRIMITIVE_CLIMB_LEADS
 
 
 @pytest.mark.parametrize(("engine", "kind"), CELLS, ids=[f"{e}-{k}" for e, k in CELLS])
 def test_the_window_owed_after_each_step(engine: str, kind: str) -> None:
+    """red under, for a decline engine's ordinary-turn cells (`pass`, the
+    closing pass, `play`, `announcement`, `interrupt`): leave the actor out
+    of `ClimbForm._window_after`; for the two pass cells, also: open no
+    window in `apply`'s pass branch.
+    red under, for each windowless engine's cells: fall back to a decline in
+    `ClimbForm.__init__` (`climb_interrupt_decline(...) or "no_bomb"`).
+    red under, for `play ending the trick`: drop `terminated`'s
+    `lead_ended_trick` return and open the window in `apply`'s `ends_trick`
+    branch.
+    red under, for `play ending the round` and `interrupt ending the round`:
+    have `ClimbForm.terminated` answer False while a window is queued."""
     game = _engine_games()[engine]
     if primitives.climb_interrupt_decline(engine) is None:
         kinds, windows = _windowless_run(game)
