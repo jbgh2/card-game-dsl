@@ -149,7 +149,8 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
 # The role spellings that are NOT roles. Authorized one by one; each is an
 # English word, a mapping-table key, a parser keyword row, or an axis name.
 #
-# resolve's `rank`/`suit` are the reference-slot registry's KEYS -- the AST field
+# resolve's `rank`/`suit` are the reference-slot registry's KEYS, and the same
+# keys again in `HOSTED_REACH_INERT_SLOTS` -- the AST field
 # names `CardLiteral.rank` and `CardLiteral.suit`, which coincide with two role
 # ids and select nothing. The namespaces those rows map TO are spelled
 # `deck_rank`/`deck_suit` precisely so the value half stays out of this band.
@@ -170,7 +171,7 @@ _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
     "ir.py": ["player", "player", "rank", "rank", "suit"],
     "openspiel/replay.py": ["player", "team"],
     "parse.py": ["player", "player", "rank", "rank", "suit", "suit", "team", "team"],
-    "resolve.py": ["player", "player", "player", "player", "rank", "rank", "suit"],
+    "resolve.py": ["player", "player", "player", "player", "rank", "rank", "rank", "suit", "suit"],
     "runtime/evaluate.py": ["player", "player"],
     # `_contract`'s return tag: a Skat contract KIND ("suit"/"grand"/"null"),
     # unrelated to the domain table's roles.

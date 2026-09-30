@@ -1,0 +1,1 @@
+hosted_poll_offered_move_moves_cards.cardlang:39:12: error: the Hosted Poll (`before asking seat`) may not hold a card movement, reached through move type 'discard_one' (offered): it runs between two asks of a live climbing trick, where only decisions and state writes may happen

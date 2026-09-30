@@ -8,12 +8,14 @@ windows", "The climbing form of `round`", "Surface totality").
                 bound to the seat about to be asked, and never before a Play
                 Announcement or once the round has ended; a body whose writes
                 end the round is followed by no ask. Every sentence the clause
-                accepts is either run so, or refused at resolve: a body
-                statement outside the allow-list, a `state.` read, and a
-                binder spelled like a name already classifiable where the
-                clause is written.
+                accepts is either run so, or refused at resolve: anywhere in
+                what the body can execute — its text and every definition it
+                reaches by name — a statement outside the allow-list, an
+                auction's `outcome` clause, a `state.` read, and a Primitive
+                call; and a binder spelled like a name already classifiable
+                where the clause is written.
 
-    domain:     Five axes, each derived from its registry in code:
+    domain:     Six axes, each derived from its registry in code:
                   A. body statement kind — every member of the `Stmt` union,
                      split three ways: admitted, refused, synthetic;
                   B. nesting — every refused kind inside every admitted
@@ -29,7 +31,19 @@ windows", "The climbing form of `round`", "Surface totality").
                   E. ask moment — every member of `CLIMB_ASK_KINDS`, plus the
                      two moments no ask is made at (after termination, and
                      after a body whose writes end the round), each executed
-                     on the miniature fixture below and reached by playout.
+                     on the miniature fixture below and reached by playout;
+                  F. reached through — every route by which a body names a
+                     definition whose text then runs (its own text, a `run`,
+                     an offered move type's effect and guard by `offer` and by
+                     `round offering`, a function call, a function's call,
+                     and a `run` that offers), crossed with every payload the
+                     route can hold: the refused statement kinds and the
+                     `outcome` clause where it holds statements, the `state.`
+                     read and the Primitive call everywhere. The routes are
+                     the naming slots on statement and expression nodes whose
+                     namespace is in `HOSTED_REACH_POOLS`, and every other
+                     such slot is filed inert, refused, or on a refused
+                     statement (`test_the_routes_are_every_definition_a_body_can_name`).
                 The clause is written on `round climb` only: the trick and
                 auction forms carry no Hosted Poll by grammar
                 (`test_the_clause_is_a_climb_clause_only`).
@@ -40,6 +54,11 @@ windows", "The climbing form of `round`", "Surface totality").
                 D. the string literals `cardlang.resolve._classify` returns,
                    scraped from its source
                 E. `cardlang.runtime.mechanics.CLIMB_ASK_KINDS`
+                F. `cardlang.resolve._NAMING_SLOTS_BY_TYPE` over
+                   `typing.get_args(n.Stmt)` and `typing.get_args(n.Expr)`,
+                   against `resolve.HOSTED_REACH_POOLS`,
+                   `resolve.HOSTED_REACH_INERT_SLOTS`,
+                   `resolve.HOSTED_REACH_REFUSED_SLOTS`
                 Procedure-body refusals: tests/test_procedures.py.
                 A synthetic `Block` is unwritable from source:
                 tests/test_procedures.py::test_a_synthetic_block_is_not_writable_from_source.
@@ -59,13 +78,22 @@ windows", "The climbing form of `round`", "Surface totality").
 red under (each planted in the code under guard, run, and reverted):
 - axis A/B: delete `n.AsBlock` from `resolve.HOSTED_POLL_ALLOWED` — the
   admitted `AsBlock` cell reddens;
-- axis A/B: drop the `_child_nodes` walk into procedure bodies in
-  `resolve._check_hosted_polls` — every `via_procedure` cell reddens;
+- axis A/B: drop the `"procedure"` row of `resolve.HOSTED_REACH_POOLS` —
+  every `via_procedure` cell reddens;
 - axis C: delete the `state.` arm of `resolve._check_hosted_polls`;
 - axis D: return early from `resolve._check_hosted_binder`;
 - axis E: add "announcement" to `mechanics.HOSTED_ASK_KINDS` — the
   announcement cell reddens; drop the second `form.terminated` check in
-  `run_decision_round` — the body-ends-the-round cell reddens.
+  `run_decision_round` — the body-ends-the-round cell reddens;
+- axis F: delete the `"move_type"` row of `resolve.HOSTED_REACH_POOLS` — every
+  offered-effect and offered-guard cell reddens; delete its `"function"` row —
+  the function cells redden; delete the `outcome_fn` row of
+  `resolve.HOSTED_REACH_REFUSED_SLOTS` — the `outcome_clause` cells redden;
+  empty the Primitive set in `resolve._check_hosted_polls` — the
+  `primitive_call` cells redden; skip a move type's `when` field there — the
+  guard cells redden; stop `resolve._definition_closure` pushing a reached
+  definition onto its frontier — the `function_of_function` and
+  `run_then_offer` cells redden.
 """
 
 from __future__ import annotations
@@ -104,6 +132,7 @@ game HostedMini {{
   direction: counterclockwise
   max_length: 5000
   cards: tichu56
+{clauses}
   zones {{
     deck             : Deck
     hand[player]     : Hand<player>
@@ -155,9 +184,12 @@ COUNTING = "              runs += 1\n              asked_last := p"
 
 
 def source(
-    body: str = COUNTING, binder: str = "p", prelude: str = "", procs: str = "", extra: str = ""
+    body: str = COUNTING, binder: str = "p", prelude: str = "", procs: str = "", extra: str = "",
+    clauses: str = "",
 ) -> str:
-    return GAME.format(body=body, binder=binder, prelude=prelude, procs=procs, extra=extra)
+    return GAME.format(
+        body=body, binder=binder, prelude=prelude, procs=procs, extra=extra, clauses=clauses
+    )
 
 
 def check(**kw: str) -> n.Game:
@@ -315,7 +347,7 @@ def test_a_refused_kind_via_procedure(kind: str) -> None:
     stmt = stmt.replace("[p]", "[who]").replace(" p ", " who ").replace("from p", "from who")
     procs = f"procedure bad(who : Player) {{\n{stmt}\n}}"
     message = refusal(body=indent("run bad(p)"), procs=procs, **needs)
-    assert "may not hold" in message and "(in procedure 'bad')" in message, message
+    assert "may not hold" in message and "reached through procedure 'bad'" in message, message
 
 
 def test_a_produces_over_an_outcome_is_refused_in_the_body() -> None:
@@ -367,7 +399,7 @@ def test_a_state_read_via_procedure_is_refused() -> None:
         body=indent("run peek()"),
         procs="procedure peek() { if state.lead_ended_trick { runs += 1 } }",
     )
-    assert "may not read `state.lead_ended_trick` (in procedure 'peek')" in message, message
+    assert "may not read `state.lead_ended_trick`, reached through procedure 'peek'" in message, message
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +446,150 @@ def test_a_binder_spelled_like_a_classifiable_name_is_refused(kind: str) -> None
 
 def test_a_fresh_binder_is_admitted() -> None:
     check(binder="seat", body=indent("asked_last := seat"))
+
+
+# ---------------------------------------------------------------------------
+# Axis F — reached through: everything the body can execute, not its text
+# ---------------------------------------------------------------------------
+
+# How a payload reaches the body, one row per way a body names a definition
+# that then runs: its own text, a procedure it runs, the effect and the guard
+# of a move type it offers (by `offer` and by `round offering`), a function it
+# calls, and a function that function calls. `{x}` is the payload. Each route
+# is (body, extra top-level text, whether it holds statements).
+ROUTES: dict[str, tuple[str, str, bool]] = {
+    "direct": ("{x}", "", True),
+    "run": ("run via(p)", "procedure via(who : Player) {{\n{x}\n}}", True),
+    "offer_effect": ("offer to p one of [via]", "move_type via {{ effect {{\n{x}\n}} }}", True),
+    "round_offering_effect": (
+        "round offering [via, nop] from p over all players until runs > 0",
+        "move_type via {{ effect {{\n{x}\n}} }}",
+        True,
+    ),
+    "offer_guard": ("offer to p one of [via, nop]", "move_type via {{ when: {e} effect {{ }} }}", False),
+    "round_offering_guard": (
+        "round offering [via, nop] from p over all players until runs > 0",
+        "move_type via {{ when: {e} effect {{ }} }}",
+        False,
+    ),
+    "function": ("if via() {{ runs += 1 }}", "function via() = {e}", False),
+    "function_of_function": ("if via() {{ runs += 1 }}", "function via() = inner()\nfunction inner() = {e}", False),
+    "run_then_offer": (
+        "run via(p)",
+        "procedure via(who : Player) {{ offer to who one of [deep] }}\n"
+        "move_type deep {{ effect {{\n{x}\n}} }}",
+        True,
+    ),
+}
+
+# What must not be reached. An expression payload is a Boolean read (so it
+# fits a `when:` and an `if`); a statement payload is a statement. The
+# Primitive is declared in the game's `primitives { }` block, because a game
+# module reads the live round frame through `EngineFacts.round_state`.
+PRIMITIVE_CLAUSE = "  primitives { tichu_dragon_won() : Boolean }"
+EXPR_PAYLOADS: dict[str, tuple[str, str]] = {
+    "state_read": ("state.lead_ended_trick", "may not read `state.lead_ended_trick`"),
+    "primitive_call": ("tichu_dragon_won()", "may not call the Primitive `tichu_dragon_won`"),
+}
+STMT_PAYLOADS: dict[str, tuple[str, str]] = {
+    **{
+        kind: (SNIPPETS[kind][0], "may not hold")
+        for kind in sorted(REFUSED - {"Produces", "RunStmt"})
+    },
+    "outcome_clause": (
+        "round offering [nop] from 0 over all players until runs > 0 outcome bridge_auction_outcome",
+        "may not hold a `round offering` with an `outcome` clause",
+    ),
+}
+
+
+def _route_source(route: str, payload: str, is_stmt: bool) -> dict[str, str]:
+    body, extra, _ = ROUTES[route]
+    if is_stmt:
+        stmt = payload.replace("[p]", "[who]") if route == "run" else payload
+        filled_body = body.format(x=stmt) if route == "direct" else body.format()
+        filled_extra = extra.format(x=stmt)
+    else:
+        read = f"if {payload} {{ runs += 1 }}" if route == "direct" else payload
+        filled_body = body.format(x=read) if route == "direct" else body.format()
+        filled_extra = extra.format(e=payload, x=f"if {payload} {{ score[0] += 0 }}")
+    return {"body": indent(filled_body), "extra": filled_extra, "clauses": PRIMITIVE_CLAUSE}
+
+
+REACH_CELLS = [
+    pytest.param(route, name, id=f"{route}-{name}")
+    for route, (_, _, holds_stmts) in ROUTES.items()
+    for name in (
+        [*EXPR_PAYLOADS, *(STMT_PAYLOADS if holds_stmts else ())]
+    )
+]
+
+
+def test_the_routes_are_every_definition_a_body_can_name() -> None:
+    """Axis F's routes are derived, not listed: every reference slot on a
+    statement or expression node that names a definition whose body RUNS
+    (a procedure, a move type, a function) is followed, and every other slot
+    on those nodes names something that runs no DSL text of the game's
+    (a zone, a phase, a kernel move type, a Primitive query, a deck value, a
+    role) or sits on a statement the allow-list refuses outright.
+
+    red under: delete the `"procedure"` row of `resolve.HOSTED_REACH_POOLS`."""
+    stmt_expr = set(typing.get_args(n.Stmt)) | set(typing.get_args(n.Expr))
+    slots = {
+        (cls, field): resolve_module._REFERENCE_SLOTS.get((cls, field))
+        for cls, fields in resolve_module._NAMING_SLOTS_BY_TYPE.items()
+        if cls in stmt_expr
+        for field in fields
+    }
+    followed = {k for k, ns in slots.items() if ns in resolve_module.HOSTED_REACH_POOLS}
+    inert = set(resolve_module.HOSTED_REACH_INERT_SLOTS)
+    refused_slot = set(resolve_module.HOSTED_REACH_REFUSED_SLOTS)
+    refused_owner = {k for k in slots if k[0] in resolve_module.HOSTED_POLL_REFUSED}
+    classified = [followed, inert, refused_slot, refused_owner]
+    assert set().union(*classified) == set(slots), set(slots) - set().union(*classified)
+    assert sum(map(len, classified)) == len(set().union(*classified)), "a slot filed twice"
+    assert {(cls.__name__, f) for cls, f in followed} == {
+        ("RunStmt", "name"), ("Offer", "offering"), ("AuctionRound", "offering"), ("Call", "func"),
+    }
+
+
+@pytest.mark.parametrize(("route", "payload"), REACH_CELLS)
+def test_a_payload_reached_through_a_route_is_refused(route: str, payload: str) -> None:
+    if payload in EXPR_PAYLOADS:
+        text, words = EXPR_PAYLOADS[payload]
+        kw = _route_source(route, text, is_stmt=False)
+    else:
+        text, words = STMT_PAYLOADS[payload]
+        kw = _route_source(route, text, is_stmt=True)
+    message = refusal(**kw)
+    assert f"the Hosted Poll (`before asking p`) {words}" in message, message
+    if route != "direct":
+        assert "reached through" in message, message
+
+
+@pytest.mark.parametrize("route", sorted(ROUTES))
+def test_each_route_with_a_clean_payload_is_admitted(route: str) -> None:
+    """The control: every route's fixture is valid with nothing refused in it,
+    so a refusal above is the payload's and never the fixture's."""
+    body, extra, holds_stmts = ROUTES[route]
+    kw = _route_source(route, "runs > 0", is_stmt=False)
+    if holds_stmts and route != "direct":
+        kw = _route_source(route, "score[0] += 0", is_stmt=True)
+    kw["clauses"] = ""
+    check(**kw)
+
+
+def test_the_outcome_free_round_offering_is_admitted() -> None:
+    check(body=indent("round offering [nop] from p over all players until runs > 0"))
+
+
+def test_a_move_type_offered_outside_the_poll_is_not_judged_by_it() -> None:
+    """Reach is the Hosted Poll's: a move type that moves cards is refused
+    only when the poll offers it."""
+    check(
+        prelude="    offer to 0 one of [mover]",
+        extra="move_type mover { effect { move all cards from trick_pile to captured[actor] } }",
+    )
 
 
 # ---------------------------------------------------------------------------

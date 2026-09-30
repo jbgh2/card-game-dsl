@@ -3920,14 +3920,22 @@ where eligibility is private the poll walks every seat instead, as
 Doppelkopf's does.
 
 The body holds decisions and state writes only: `if`, `let`, assignment,
-`offer`, `round offering`, `as`, `for each`, and `run` of a procedure
-whose body holds the same. Resolve refuses everything else there — a
-card movement changes the hands and pile the live trick reads, a nested
+`offer`, `round offering` without an `outcome` clause, `as`, `for each`,
+and `run`. The rule binds everything the body can execute, not only its
+own text: the body's statements and, transitively, every procedure it
+runs, every move type it offers — its `when:` guard and its effect alike,
+whether offered by `offer` or by `round offering` — and every function it
+calls. Resolve refuses, anywhere in that closure, every other statement —
+a card movement changes the hands and pile the live trick reads, a nested
 trick or climbing round starts a second trick inside the first, a loop
 (`repeat until`, `turns`, `each … simultaneously`) has no bound the
 poll's lap does not already give, non-local control unwinds out of the
-trick mid-play — and refuses a `state.` read, since a round's state is
-published only once it ends. The binder is a fresh name, spelled like
+trick mid-play — and an auction's `outcome` clause, whose typed outcome
+unwinds out of the trick the same way. It refuses a `state.` read and a
+call of a Primitive, since a round's state is published only once it
+ends and a game module reads the live frame through its engine facts. A
+move type the poll offers is judged as part of the poll; offered
+anywhere else, the same move type is not. The binder is a fresh name, spelled like
 nothing already classifiable where the clause is written, and is never
 the acting player: the body is no seat's action, so `actor` inside it
 means what it means at the round statement. `before` and `asking` are
