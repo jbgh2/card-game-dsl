@@ -256,7 +256,8 @@ So a change answering a finding on an audit-triggering mechanism writes a
 **class ledger** BEFORE the fix, in the commit message or the PR body:
 
 ```
-finding:  <what the reviewer named, verbatim in one line>
+finding:  <what the reviewer named, verbatim, one line per finding —
+           several findings on one guard share this ledger and are listed here>
 class:    <the closed domain that finding is one member of>
 members:  <the members, DERIVED from the registry that defines them>
 covered:  <which the fix closes>
