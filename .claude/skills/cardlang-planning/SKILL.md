@@ -135,7 +135,10 @@ anything deferred — and where the artifact can exist at plan time, it exists a
 is red (`xfail(strict=True)` for grid cells, a failing test for
 behavior). A step with no named artifact is not a plan step; it is a
 hope. "Done" is defined before work starts, so the review's merge-base
-check has a claimed delta to diff against.
+check has a claimed delta to diff against. A counsel's "newly illegal" and
+"newly required" lines are plan steps like any other: each names the
+guard, test, Contract line or issue that will prove it before the PR
+merges. A counsel line with no artifact is a rule nobody will keep.
 
 ## Composition
 

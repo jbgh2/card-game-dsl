@@ -261,6 +261,8 @@ class:    <the closed domain that finding is one member of>
 members:  <the members, DERIVED from the registry that defines them>
 covered:  <which the fix closes>
 residual: <which it does not, each with its guard and roadmap line>
+why missed: <the guard and the test that should have caught it, and why
+             they did not — what the guard models that the member escaped>
 ```
 
 The value is that it cannot be satisfied by intending to sweep. Writing
@@ -274,6 +276,16 @@ role string"), because the narrow spelling is how the next member escapes.
 If deriving the class shows the finding is genuinely a one-off — the class
 has exactly one member — say so in `class:` and why. That is a legitimate
 outcome; an unexamined one is not.
+
+`why missed:` is the row that can change the fix. If the answer is "the
+guard reads the code and nothing checks what actually runs", stop adding
+members: give the guard a runtime check behind it and a test that runs
+every row with the static check turned off (`tests/test_hosted_poll.py`,
+axis H; the other guards like it are issue #779). If a second ledger in the
+same change names the same guard, the guard is the problem, not the list of
+members, and the new ledger says what the old `class:` got wrong. If
+nothing should have caught it, say so: that is a missing guard, not a
+missed member.
 
 ## Step 3 — The completeness ledger
 

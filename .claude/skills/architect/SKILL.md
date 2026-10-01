@@ -66,7 +66,9 @@ never substitutes: the change attaches its own, produced fresh.
 5. **What becomes illegal after.** The Contract-block delta each option
    implies: what a pass would newly establish, and what downstream code
    may no longer do. An option with no statable delta is not yet a
-   design.
+   design. Each delta the chosen option implies names the artifact the
+   plan carries for it — a guard, a test, a Contract line — or says it is
+   advisory.
 6. **Counsel.** Strongest case for, strongest case against, then what
    the Architect would do — always all three. Counsel that hides the
    against-case is not counsel.
