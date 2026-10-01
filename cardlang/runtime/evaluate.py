@@ -293,6 +293,12 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
             # before any round has run — is a game-description error (the
             # checker validates the field, not the read's position in time),
             # so it fails as an Owner Guard, not a stale/empty frame.
+            if ctx.rs.hosting:
+                raise ShadowGuardError(
+                    "resolve._check_hosted_polls",
+                    "a Hosted Poll's body evaluated the `state` pronoun while "
+                    "its climbing round's state is live and unpublished",
+                )
             if ctx.rs.mech_state:
                 return ctx.rs.mech_state[-1]
             if ctx.rs.last_round_state is None:

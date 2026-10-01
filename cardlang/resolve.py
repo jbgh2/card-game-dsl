@@ -163,6 +163,20 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               ``primitives.climb_actions``): the action space's name block
               and every rendering may therefore assume no move type and no
               climb action share a word.
+              And, anywhere in what a [[hosted-poll]] body can execute — its
+              own statements and every definition reachable from them by
+              name (``HOSTED_REACH_POOLS``: a procedure it runs, a move type
+              it offers, guard and effect, a function it calls, each
+              transitively, by ``_definition_closure``) — a statement kind
+              outside ``HOSTED_POLL_ALLOWED``, a ``round offering`` with an
+              ``outcome`` clause, the ``state`` pronoun, or a call of a
+              Primitive the game's namespace holds; and a Hosted Poll binder spelled like a name
+              already classifiable where the clause is written
+              (``_check_hosted_polls``, ``_check_hosted_binder``).
+              ``runtime/mechanics``' ``run_decision_round`` may therefore
+              assume a hosted body, and all it runs, moves no card, starts no
+              round of the trick or climbing form, raises no outcome or jump
+              out of the round, and reads no live Round State.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -257,6 +271,11 @@ from cardlang.stdlib.enums import (
     enum_values,
     rank_names,
     suit_names,
+)
+from cardlang.stdlib.hosted_poll import (
+    HOSTED_POLL_ALLOWED,
+    HOSTED_POLL_REFUSED,
+    HOSTED_REACH_REFUSED_SLOTS,
 )
 from cardlang.stdlib.moves import (
     CLIMB_DECISION_MOVE_TYPE,
@@ -518,6 +537,7 @@ _BINDER_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.SubsetQuery, "binder"),
         (n.ForEach, "binder"),
         (n.Turns, "binder"),
+        (n.HostedPoll, "binder"),
         (n.ProduceArm, "binders"),
         (n.LetStmt, "index"),
     }
@@ -846,10 +866,26 @@ def _reachable_definitions(game: n.Game) -> dict[tuple[str, str], object]:
         ns: {d.name: d for d in getattr(game, field)}
         for field, ns in _DEFINITION_CONTAINERS.values()
     }
-    reached: dict[tuple[str, str], object] = {}
-    frontier: list[object] = list(game.phases)
+    return {
+        key: target
+        for key, (target, _via) in _definition_closure(list(game.phases), pools).items()
+    }
+
+
+def _definition_closure(
+    roots: list[object], pools: dict[str, dict[str, object]]
+) -> dict[tuple[str, str], tuple[object, tuple[str, str] | None]]:
+    """The definitions reachable from `roots` by name, through the pools
+    given, as a fixpoint: each reached definition's own body is walked in
+    turn. Keyed by (namespace, name); the value is the definition and the key
+    of the definition that first named it (None for a root). Which slots NAME
+    a definition is read off `slot_namespace`, so an invoking construct added
+    to `_REFERENCE_SLOTS` reaches every caller of this walk."""
+    reached: dict[tuple[str, str], tuple[object, tuple[str, str] | None]] = {}
+    frontier: list[tuple[object, tuple[str, str] | None]] = [(r, None) for r in roots]
     while frontier:
-        for node in _walk(frontier.pop()):
+        root, via = frontier.pop()
+        for node in _walk(root):
             for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
                 namespace = slot_namespace(node, field_name)
                 if namespace is None:
@@ -862,8 +898,8 @@ def _reachable_definitions(game: n.Game) -> dict[tuple[str, str], object]:
                     target = pool.get(name)
                     if target is None or key in reached:
                         continue
-                    reached[key] = target
-                    frontier.append(target)
+                    reached[key] = (target, via)
+                    frontier.append((target, key))
     return reached
 
 
@@ -1338,7 +1374,7 @@ def _check_provided_readonly(
 # binding_kind`, so a new binding node kind must be filed under one side or the
 # other rather than defaulting to either.
 _AUTHOR_CHOSEN_BINDERS: frozenset[type] = frozenset(
-    {n.ForEach, n.Turns, n.LetStmt, n.ProduceArm}
+    {n.ForEach, n.Turns, n.HostedPoll, n.LetStmt, n.ProduceArm}
 )
 
 
@@ -2398,6 +2434,7 @@ def resolve(game: n.Game) -> n.Game:
     # rather than re-deriving what is or is not a zone reference.
     _check_arrival_record_pile_args(game, bag)
     _check_procedures(game, bag)
+    _check_hosted_polls(game, bag)
     _check_chooses(game, bag)
     _check_actor_alias_comparisons(game, bag)
     _check_delegation(game, bag)
@@ -2416,6 +2453,7 @@ def resolve(game: n.Game) -> n.Game:
 # union itself, and tests/test_node_registry.py pins that union to the module's
 # actual dataclasses — so this tuple cannot silently miss a node kind.
 _NODE_KINDS: tuple[type, ...] = get_args(n.Node)
+_STMT_KINDS: tuple[type, ...] = get_args(n.Stmt)
 
 
 def _introduced_binders(node: object, flavor: Flavor = "card") -> tuple[str, ...]:
@@ -2469,7 +2507,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
     game), so the noun they bind is fixed."""
     match node:
         case (
-            n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns()
+            n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns() | n.HostedPoll()
             | n.DomainQuery() | n.SubsetQuery()
         ):
             return (node.binder,)
@@ -6864,6 +6902,9 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     # evaluate in the enclosing scope (the binder does not exist until a turn
     # is bound — decisions.md "The `turns` form").
     n.Turns: ("body",),
+    # A Hosted Poll's binder is the seat about to be asked, bound for its body
+    # alone; the climbing round's own clauses never see it.
+    n.HostedPoll: ("body",),
 }
 
 
@@ -6996,6 +7037,8 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             qualifier=qualifier,  # type: ignore[arg-type]
             items=tuple(out_items),  # type: ignore[arg-type]
         )
+    if isinstance(node, n.HostedPoll):
+        _check_hosted_binder(node, cats, bag)
     scope_fields = _BINDER_SCOPE_FIELDS.get(type(node))
     if scope_fields is not None:
         binders = _introduced_binders(node, cats.flavor)
@@ -7298,6 +7341,155 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     if kind == "state_var":
         what_it_is = "a state variable"
     return f"cannot {what} '{root.name}': it is {what_it_is}, not a zone"
+
+
+def _check_hosted_binder(poll: n.HostedPoll, cats: _Categories, bag: DiagnosticBag) -> None:
+    """A Hosted Poll's binder is a fresh name: one that classifies as nothing
+    where the clause is written. The body reads it beside the game's own names
+    and the enclosing binders, and a binder spelled like one of them would
+    change what that name means inside the body alone. The reserved
+    spellings (the pronouns, `none`, `true`, `false`) are
+    `_check_reserved_binders`'s, which refuses them for every binder."""
+    kind = _classify(poll.binder, cats)
+    if kind is None or kind in ("null", "bool", "pronoun"):
+        return
+    what = {
+        "local": "a name already bound here",
+        "state_var": "a state variable",
+        "zone": "a zone",
+        "enum_value": "an enum value",
+        "function": "a function",
+    }[kind]
+    bag.error(
+        f"the Hosted Poll's binder '{poll.binder}' shadows {what} of the same "
+        f"name — inside `before asking {poll.binder} {{ … }}` the name would "
+        f"mean the seat about to be asked; pick a fresh name",
+        poll.span,
+    )
+
+
+# What a Hosted Poll's body can EXECUTE, beyond its own text: the definitions
+# it names whose bodies then run, by the reference namespace that names them
+# (namespace -> the `n.Game` field holding them). A procedure it runs, a move
+# type it offers — by `offer` or by `round offering`, guard and effect alike —
+# and a function it calls, each followed transitively. Pinned against every
+# naming slot on a statement or expression node by tests/test_hosted_poll.py,
+# with `HOSTED_REACH_INERT_SLOTS` and `HOSTED_REACH_REFUSED_SLOTS` beside it.
+HOSTED_REACH_POOLS: dict[str, str] = {
+    "procedure": "procedures",
+    "move_type": "move_types",
+    "function": "functions",
+}
+
+# The naming slots on statement and expression nodes that name nothing whose
+# DSL text runs: a deck value, a role, a field name (the `state` pronoun is
+# refused wherever it stands, by its own arm), a position binder. Every other
+# such slot is followed above, sits on a statement `HOSTED_POLL_REFUSED`
+# names, or is refused below.
+HOSTED_REACH_INERT_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {
+        (n.CardLiteral, "rank"),
+        (n.CardLiteral, "suit"),
+        (n.ForEach, "role"),
+        (n.Quantifier, "role"),
+        (n.Member, "field"),
+        (n.DomainQuery, "binder"),
+    }
+)
+
+_HOSTED_REACH_VERB = {"procedure": "run", "move_type": "offered", "function": "called"}
+_HOSTED_REACH_NOUN = {"procedure": "procedure", "move_type": "move type", "function": "function"}
+
+# The parts of a reached definition a diagnostic names apart, by field.
+_HOSTED_REACH_PART: dict[tuple[type, str], str] = {
+    (n.MoveTypeDef, "when"): "its `when:`",
+    (n.MoveTypeDef, "params"): "its parameters",
+}
+
+
+def _check_hosted_polls(game: n.Game, bag: DiagnosticBag) -> None:
+    """The Owner Guard of what a Hosted Poll's body can execute (decisions.md
+    "Off-the-clock windows"), judged over the closure of the body: its own
+    statements and every definition reachable from them by name
+    (`HOSTED_REACH_POOLS`, followed by `_definition_closure`). Across all of
+    it, every statement is one `HOSTED_POLL_ALLOWED` names; no `round
+    offering` carries an `outcome` clause; the `state` pronoun stands
+    nowhere, since it evaluates to the live round frame wherever it stands
+    (a `let` or an argument carries the frame on to a later read); and
+    nothing calls a Primitive, whose game module reads the live round frame
+    through `EngineFacts.round_state`. Those two are every route from an
+    expression to the frame. The round's frame is live and unpublished while
+    the body runs, and every card and every signal the body could raise
+    would land inside a trick in progress. After `_classify_names`, so a
+    pronoun is recognized by the `ref_kind` the classifier stamped."""
+    pools: dict[str, dict[str, object]] = {
+        ns: {d.name: d for d in getattr(game, field)}
+        for ns, field in HOSTED_REACH_POOLS.items()
+    }
+    # The Primitives a call here can name: the game's own native namespace
+    # less the Builtins. A designer function is never among them — a call
+    # dispatches to the designer's function first, and `_check_functions`
+    # refuses a function spelled like a name in this same namespace — so a
+    # function spelled like another game's Primitive is followed as a
+    # function, never refused as a Primitive.
+    primitives = set(call_namespace(game) - BUILTIN_CALL_FUNCS)
+    for poll in (nd for nd in _walk(game) if isinstance(nd, n.HostedPoll)):
+        clause = f"the Hosted Poll (`before asking {poll.binder}`)"
+        reached = _definition_closure([poll], pools)
+
+        def path(key: tuple[str, str] | None, part: str) -> str:
+            segments: list[str] = []
+            while key is not None:
+                ns, name = key
+                segments.append(f"{_HOSTED_REACH_NOUN[ns]} '{name}' ({_HOSTED_REACH_VERB[ns]})")
+                key = reached[key][1]
+            text = " → ".join(reversed(segments))
+            return f", reached through {text}{', ' + part if part else ''}"
+
+        units: list[tuple[object, str]] = [(poll.body, "")]
+        for key, (target, _via) in reached.items():
+            for f in fields(cast(n.Node, target)):
+                part = _HOSTED_REACH_PART.get((type(target), f.name), "")
+                units.append((getattr(target, f.name), path(key, part)))
+        for unit, via in units:
+            for nd in _child_nodes(unit):
+                _check_hosted_node(nd, clause, via, primitives, bag)
+
+
+def _check_hosted_node(
+    nd: object, clause: str, via: str, primitives: set[str], bag: DiagnosticBag
+) -> None:
+    """One node of a Hosted Poll's closure against the four refusals."""
+    why_live = (
+        "it runs between two asks of a live climbing trick, where only "
+        "decisions and state writes may happen"
+    )
+    if isinstance(nd, _STMT_KINDS) and type(nd) not in HOSTED_POLL_ALLOWED:
+        bag.error(
+            f"{clause} may not hold {HOSTED_POLL_REFUSED[type(nd)]}{via}: {why_live}",
+            cast(n.Stmt, nd).span,
+        )
+        return
+    for (cls, field_name), what in HOSTED_REACH_REFUSED_SLOTS.items():
+        if isinstance(nd, cls) and getattr(nd, field_name) is not None:
+            bag.error(
+                f"{clause} may not hold {what}{via}: its outcome unwinds out of "
+                f"the live climbing trick",
+                getattr(nd, "span", None),
+            )
+    if isinstance(nd, n.NameRef) and nd.name == "state" and nd.ref_kind == "pronoun":
+        bag.error(
+            f"{clause} may not read `state`{via}: the round's state is "
+            f"published only once the round has ended",
+            nd.span,
+        )
+    elif isinstance(nd, n.Call) and nd.func in primitives:
+        bag.error(
+            f"{clause} may not call the Primitive `{nd.func}`{via}: a game "
+            f"module reads the round's live, unpublished state through its "
+            f"engine facts",
+            nd.span,
+        )
 
 
 def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
@@ -9362,6 +9554,14 @@ class _HiddenReads:
             case n.AuctionRound() | n.ClimbRound():
                 for outer in (stmt.leader, stmt.participants, stmt.until):
                     self._outside(outer, scope, seat)
+                if isinstance(stmt, n.ClimbRound) and stmt.hosted is not None:
+                    # The Hosted Poll runs before every ask in the round's
+                    # own context: the acting seat stands, the binder names
+                    # a seat that is not proven to be it, and the body runs
+                    # again after any write in it.
+                    hosted = stmt.hosted
+                    loop = self._after(hosted.body, scope).shadow((hosted.binder,))
+                    self._stmts(hosted.body, loop, seat)
             case n.Transfer():
                 self._transfer(stmt, scope, seat)
             case n.Produce():

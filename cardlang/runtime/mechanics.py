@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import replace
-from typing import Any, Protocol
+from typing import Any, Final, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS
@@ -86,19 +86,41 @@ class DecisionForm(Protocol):
         """The round's result: a winning `Player`, a typed `(tag, payloads)`
         outcome, or `None` (a betting round mutated shared state and just closes)."""
 
+    def hosted_poll(self, state: RoundState) -> n.HostedPoll | None:
+        """The [[hosted-poll]] to run before the ask `next_actor` has just
+        chosen, or None — for a form with no Hosted Poll, always None."""
+
 
 def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outcome:
     """The one per-step decision loop behind every kernel `round` form (§4 of
     docs/design-notes/kernel-extensibility.md). `form` supplies the six slots; this
-    skeleton is fixed. Exactly one `ctx.chooser` draw happens per step — the sole
-    source of nondeterminism, and what the OpenSpiel one-node-per-turn compilation
-    rests on.
+    skeleton is fixed. Exactly one `ctx.chooser` draw happens per step of THIS
+    loop — the sole source of nondeterminism, and what the OpenSpiel
+    one-node-per-turn compilation rests on. A Hosted Poll's body runs between a
+    step's choice of actor and its draw, and every decision it makes is a step
+    of the round that body holds (a `round offering`) or an `offer`'s own
+    single draw; the step's own draw stays one.
 
     The round-state frame's lifetime is exactly this call. Whether there IS one is
     the form's choice — `init` pushes it, and the auction form deliberately
     publishes nothing — but ending it belongs here, so `outcome` computes a result
     and does nothing else. Popping back to the depth `init` was handed keeps push
-    and pop symmetric without the protocol carrying a "do I publish?" slot."""
+    and pop symmetric without the protocol carrying a "do I publish?" slot.
+
+    Contract:
+      assumes      a Hosted Poll's body moves no card, starts no round of the
+                   trick or climbing form, and reads no live Round State
+                   (resolve's `_check_hosted_polls`); the runtime refuses each
+                   as a Shadow Guard while the body runs.
+      establishes  the form's Hosted Poll, when it names one for the ask just
+                   chosen, runs exactly once before that ask, with its binder
+                   bound to the seat about to be asked, and never once the
+                   round has terminated; `terminated` is consulted again after
+                   it, so a body whose writes end the round is followed by no
+                   ask.
+      illegal after it
+                   a form running a Hosted Poll's body itself; asking a seat
+                   after a Hosted Poll has ended the round."""
     depth = len(ctx.rs.mech_state)
     state = form.init(state, ctx)
     published = len(ctx.rs.mech_state) > depth
@@ -108,6 +130,11 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
         actor = form.next_actor(state, ctx)  # ring / came-back-to-last
         if actor is None:  # the actor sequence is structurally spent
             break
+        hosted = form.hosted_poll(state)
+        if hosted is not None:
+            _run_hosted_poll(hosted, actor, ctx)
+            if form.terminated(state, ctx):  # the body's writes ended the round
+                break
         candidates = form.candidates(actor, state, ctx)
         # A decision node must be non-empty. That contract lives in each form's
         # `candidates` (which raises the form-specific malformed-game error), not
@@ -158,6 +185,23 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
     if published:
         ctx.rs.last_round_state = ctx.rs.mech_state.pop()
     return result
+
+
+def _run_hosted_poll(hosted: n.HostedPoll, asked: Player, ctx: Ctx) -> None:
+    """Run a Hosted Poll's body in the round's own context, its binder bound
+    to the seat about to be asked. The binder names that seat and nothing
+    more: the body is no seat's action, so the acting player stands as the
+    round statement found it. `RuntimeState.hosting` holds for exactly the
+    body's run, which arms the Shadow Guards behind resolve's
+    `_check_hosted_polls` (cardlang/stdlib/hosted_poll.py)."""
+    from cardlang.runtime.execute import run_body
+
+    outer = ctx.rs.hosting
+    ctx.rs.hosting = True
+    try:
+        run_body(hosted.body, ctx.with_local(hosted.binder, asked))
+    finally:
+        ctx.rs.hosting = outer
 
 
 class TrickForm:
@@ -277,6 +321,9 @@ class TrickForm:
         if self.early_term is not None and self.early_term(choice, state["led_suit"]):
             state["trick_terminated_early"] = True
         return state
+
+    def hosted_poll(self, state: RoundState) -> n.HostedPoll | None:
+        return None  # the trick form's grammar carries no Hosted Poll
 
     def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:
         ctx.trace(
@@ -534,6 +581,9 @@ class AuctionForm:
         state["history"].append((actor, name, value))
         return state
 
+    def hosted_poll(self, state: RoundState) -> n.HostedPoll | None:
+        return None  # the auction form's grammar carries no Hosted Poll
+
     def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:
         if self.stmt.outcome_fn is None:
             return None  # betting: the shared chip/fold state is already settled
@@ -542,6 +592,16 @@ class AuctionForm:
         return primitives.auction_outcome_function(self.stmt.outcome_fn)(
             state["history"], ctx
         )
+
+
+# The kinds of ask a climbing round makes across its three regimes: the ring's
+# lead and follow, the Interrupt Window's ask after an ordinary turn, and the
+# Play Announcement.
+CLIMB_ASK_KINDS: Final = ("lead", "follow", "window", "announcement")
+
+# The kinds a Hosted Poll runs before: every one but the Play Announcement,
+# which is the same seat's same act as the play that opened it.
+HOSTED_ASK_KINDS: Final = frozenset({"lead", "follow", "window"})
 
 
 class ClimbForm:
@@ -589,19 +649,26 @@ class ClimbForm:
                    its movement. A play marked `ends_trick` closes the trick
                    with no follower draw and no window. For an engine whose
                    registry row declares an interrupt decline: after every
-                   other play, and once more when the ring has returned to
-                   the last player, every other participant still holding
-                   cards is asked in turn order from that player, offered its
-                   `interrupt` plays that beat the standing play beside the
-                   decline (so a seat with nothing to play submits the same
-                   public decline a seat declining by choice does); a taken
-                   interrupt becomes the standing play and the last player,
-                   the ring resumes after the interrupter, and the window
-                   reopens. A pending announcement, and a window, are VOID
+                   ordinary turn — every other play, and every pass — every
+                   participant still holding cards is asked in turn order
+                   from the seat after the one who acted round to that seat
+                   itself, asked last, offered its `interrupt` plays that
+                   beat the standing play beside the decline (so a seat with
+                   nothing to play submits the same public decline a seat
+                   declining by choice does); the window after the pass that
+                   returns the ring to the last player is the trick's last,
+                   and nothing is asked between it and the trick's end; a
+                   taken interrupt becomes the standing play and the last
+                   player, the ring resumes after the interrupter, and the
+                   window reopens. A pending announcement, and a window, are VOID
                    once the round has terminated — `run_decision_round`
                    consults `terminated` before `next_actor`, so neither is
                    asked once a hand-ending play has closed the trick (pinned
                    by tests/test_tichu_wish.py and tests/test_tichu_bombs.py).
+                   `ask_kind` names each ask one of `CLIMB_ASK_KINDS`, and the
+                   round's Hosted Poll is offered to the loop before every
+                   ask of a kind in `HOSTED_ASK_KINDS` — never before a Play
+                   Announcement (tests/test_hosted_poll.py).
       illegal after it
                    reading any play attribute by a soft `getattr` in this
                    form; a query narrowing its returned list by a rule that
@@ -625,6 +692,7 @@ class ClimbForm:
         from cardlang.runtime import primitives
 
         self.until: n.Expr = stmt.until
+        self.hosted: n.HostedPoll | None = stmt.hosted
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.lead_query = primitives.climb_lead_function(stmt.combos_fn)
         self.follow_query = primitives.climb_follow_function(stmt.follows_fn)
@@ -677,18 +745,15 @@ class ClimbForm:
         state["events"] = []  # ("play", seat, play) / ("announce", seat, token), in order
         state["pending"] = None  # (seat, tokens) owed an announcement, else None
         state["window"] = None  # the interrupt window's queue of seats, else None
-        state["spent"] = False  # the ring has returned to `last`
         ctx.rs.mech_state.append(state)
         return state
 
     def _window_after(self, seat: Player) -> list[Player]:
-        """The interrupt window a play by `seat` opens: every other
-        participant still holding cards, in turn order from `seat`."""
-        return [
-            p
-            for p in self.seating.turn_order_from(seat)
-            if p != seat and p in self.ring and self.hands[p].cards
-        ]
+        """The interrupt window an ordinary turn by `seat` opens: every
+        participant still holding cards, in turn order from the seat after
+        `seat` round to `seat` itself, asked last."""
+        order = self.seating.turn_order_from(seat)
+        return [p for p in [*order[1:], seat] if p in self.ring and self.hands[p].cards]
 
     def terminated(self, state: RoundState, ctx: Ctx) -> bool:
         # Gated on `current is not None`: the shed-out predicate is checked only
@@ -713,8 +778,6 @@ class ClimbForm:
                 if self.hands[seat].cards:
                     return seat
             state["window"] = None
-            if state["spent"]:
-                return None  # the closing window found no interrupt: the trick is spent
         ring = self.ring
         while True:
             state["guard"] += 1
@@ -729,12 +792,8 @@ class ClimbForm:
             pointer: int = state["idx"]
             turn = ring[pointer % len(ring)]
             if state["current"] is not None and turn == state["last"]:
-                # Action returned to the last player: the trick is spent —
-                # after one closing window, for an engine that has one.
-                if self.decline is not None and not state["spent"]:
-                    state["spent"] = True
-                    state["window"] = self._window_after(state["last"])
-                    return self.next_actor(state, ctx)
+                # Action returned to the last player: the trick is spent.
+                # The window after the pass that returned it was its last.
                 return None
             if not self.hands[turn].cards:  # already shed out (Tichu): skip, no draw
                 state["idx"] = pointer + 1
@@ -787,6 +846,9 @@ class ClimbForm:
         if choice == primitives.CLIMB_PASS:
             observe.announce(ctx, actor, primitives.CLIMB_PASS)
             state["idx"] += 1
+            if self.decline is not None:
+                # A pass is an ordinary turn: the window follows it too.
+                state["window"] = self._window_after(actor)
             return state
         play: primitives.ClimbPlay = choice
         for c in play.cards:
@@ -814,10 +876,8 @@ class ClimbForm:
             state["lead_ended_trick"] = True
             state["window"] = None
         elif self.decline is not None:
-            # Every play but a trick-ending one opens the window anew, and
-            # the trick is live again however spent the ring was.
+            # Every play but a trick-ending one opens the window anew.
             state["window"] = self._window_after(actor)
-            state["spent"] = False
         if play.announce:
             if not set(play.announce) <= set(self.announcements):
                 # Shadow Guard. The Owner is the engine's registry row
@@ -831,6 +891,20 @@ class ClimbForm:
                 )
             state["pending"] = (actor, play.announce)
         return state
+
+    def ask_kind(self, state: RoundState) -> str:
+        """Which of `CLIMB_ASK_KINDS` the ask `next_actor` has just chosen
+        is, read off the regime `next_actor` left standing."""
+        if state["pending"] is not None:
+            return "announcement"
+        if state["window"] is not None:
+            return "window"
+        return "lead" if state["current"] is None else "follow"
+
+    def hosted_poll(self, state: RoundState) -> n.HostedPoll | None:
+        if self.hosted is None or self.ask_kind(state) not in HOSTED_ASK_KINDS:
+            return None
+        return self.hosted
 
     def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:
         last: Player = state["last"]

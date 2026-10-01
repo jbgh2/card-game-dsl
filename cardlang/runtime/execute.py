@@ -35,7 +35,7 @@ from cardlang.domains import (
 )
 from cardlang.runtime import mechanics, observe, subsets
 from cardlang.runtime.chooser import decide
-from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError
+from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
     Ctx,
@@ -47,6 +47,11 @@ from cardlang.runtime.state import (
     elements,
 )
 from cardlang.runtime.values import Card, CardSet, Player, content_noun
+from cardlang.stdlib.hosted_poll import (
+    HOSTED_POLL_ALLOWED,
+    HOSTED_POLL_REFUSED,
+    HOSTED_REACH_REFUSED_SLOTS,
+)
 from cardlang.stdlib.zones import zone_capacity
 
 
@@ -60,10 +65,33 @@ REFUSALS = (GameDescriptionError, IllegalMove)
 def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
     """Run one statement, naming it on any refusal that escapes it."""
     try:
+        if ctx.rs.hosting:
+            _refuse_unhosted(stmt)
         return _dispatch(stmt, ctx)
     except REFUSALS as exc:
         exc.locate(span=stmt.span, phase=phase_name(ctx))
         raise
+
+
+def _refuse_unhosted(stmt: n.Stmt) -> None:
+    """The Shadow Guard behind resolve's `_check_hosted_polls`, at the one
+    point every statement a Hosted Poll's body executes passes through — its
+    own, a spliced procedure's, an offered move type's effect. Keyed on the
+    statement that runs, never on the text that named it."""
+    kind = type(stmt)
+    if kind not in HOSTED_POLL_ALLOWED:
+        raise ShadowGuardError(
+            "resolve._check_hosted_polls",
+            f"a Hosted Poll's body ran {HOSTED_POLL_REFUSED[kind]} while its "
+            f"climbing round was live",
+        )
+    for (cls, field), what in HOSTED_REACH_REFUSED_SLOTS.items():
+        if isinstance(stmt, cls) and getattr(stmt, field) is not None:
+            raise ShadowGuardError(
+                "resolve._check_hosted_polls",
+                f"a Hosted Poll's body ran {what} while its climbing round "
+                f"was live",
+            )
 
 
 def phase_name(ctx: Ctx) -> str | None:

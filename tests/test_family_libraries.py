@@ -2520,7 +2520,12 @@ class _Site(typing.NamedTuple):
 
     `accepts` marks the row that is a designed NON-error: a Primitive's
     parameters scope no DSL body, so no game text sits inside their scope and
-    there is nothing to shadow."""
+    there is nothing to shadow.
+
+    `fresh` marks the row whose binder must be spelled like nothing the game
+    already names (a Hosted Poll's, `resolve._check_hosted_binder`): in the
+    `requires` column the game declares the spelling itself, so that guard
+    refuses the cell the other rows accept."""
 
     kind: str
     binds: str
@@ -2531,6 +2536,7 @@ class _Site(typing.NamedTuple):
     board: bool = False
     already: bool = False
     accepts: bool = False
+    fresh: bool = False
 
 
 _INTRODUCE: tuple[_Site, ...] = (
@@ -2539,6 +2545,14 @@ _INTRODUCE: tuple[_Site, ...] = (
     _Site(
         "Turns", "shared", True,
         "turns shared from 0 over all players until true { score[shared] := 1 }",
+    ),
+    _Site(
+        "HostedPoll", "shared", True,
+        "legal_moves: [play_combination]\n"
+        "    round climb play_combination from 0 over all players source hand "
+        "into pile combinations president_lead_options follows president_follows "
+        "until true before asking shared { score[shared] := 1 }",
+        fresh=True,
     ),
     _Site("LetStmt", "shared", True, "let shared = 5\n    score[0] := shared"),
     # `index` is `LetStmt`'s OTHER binder, scoped to its own `value` alone.
@@ -2876,6 +2890,11 @@ def test_a_game_introduced_name_may_not_shadow_provided_state(
     _patch_libraries(monkeypatch, {"provider": _shadow_library(site, claim)})
     source, file_name = _shadow_source(site, claim)
     game = parse_text(source, file_name)
+    if claim == "requires" and site.fresh:
+        with pytest.raises(DiagnosticError) as fresh_exc:
+            resolve(game)
+        assert "shadows a state variable" in _whole_bag(fresh_exc.value)
+        return
     if claim != "state" or site.accepts:
         resolve(game)
         return

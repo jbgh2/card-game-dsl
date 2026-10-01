@@ -13,9 +13,9 @@ measured at 2,200+ hands with no terminus. That divergence is real Tichu (a
 table of indiscriminate callers never finishes; recorded as the second witness
 in open-questions/unbounded-lines-and-max-length.md), so the game text stays
 faithful and the play-style assumption lives here: a seat calls grand tichu in
-4% of hands and small tichu at 2% of each poll offer, uniform otherwise. The
-grand rate is a PER-HAND rate, and the per-offer gate is derived from it and
-the number of offers a hand makes (one poll per card of the first eight,
+4% of hands and small tichu in about 7%, uniform otherwise. Both are
+PER-HAND rates, and each per-offer gate is derived from its rate and the
+number of offers a seat takes in a hand (grand: one poll per card of the first eight,
 tichu.cardlang): a per-offer gate copied across the eight polls calls grand in
 28% of hands, and the race diverges exactly as under the uniform chooser
 (measured 2026-09-26 at the probe: 45 of 300 games refused at `max_length`).
@@ -45,15 +45,25 @@ SUITS = ("clubs", "diamonds", "hearts", "spades")
 GRAND_OFFERS_PER_HAND = 8
 GRAND_CALL_RATE_PER_HAND = 0.04
 GRAND_CALL_RATE_PER_OFFER = 1 - (1 - GRAND_CALL_RATE_PER_HAND) ** (1 / GRAND_OFFERS_PER_HAND)
-SMALL_CALL_RATE_PER_OFFER = 0.02
+
+# The small-tichu window is polled before the push and then before every
+# turn and bomb ask of a trick while the seat has not played
+# (tichu.cardlang's Hosted Poll), so how often a seat is asked in a hand is
+# a fact of play rather than of structure. The per-offer gate is derived from
+# a per-hand rate and the mean offers a seat takes in a hand, measured under
+# this policy (2026-09-30, 40 games from seed 0: 37,253 offers over 645
+# hands, about 14 per seat per hand).
+SMALL_OFFERS_PER_SEAT_HAND = 14
+SMALL_CALL_RATE_PER_HAND = 0.07
+SMALL_CALL_RATE_PER_OFFER = 1 - (1 - SMALL_CALL_RATE_PER_HAND) ** (1 / SMALL_OFFERS_PER_SEAT_HAND)
 
 
 def tichu_reference_policy(
     rng: random.Random, stats: dict[str, int] | None = None
 ) -> Callable[[Player, list[Any], int], list[Any]]:
     """The playout policy: uniform play except at the call windows, which are
-    gated so a seat calls grand tichu in about 4% of hands and small tichu at
-    2% of each poll offer."""
+    gated so a seat calls grand tichu in about 4% of hands and small tichu in
+    about 7%."""
     base = random_chooser(rng)
 
     def chooser(player: Player, candidates: list[Any], n: int) -> list[Any]:

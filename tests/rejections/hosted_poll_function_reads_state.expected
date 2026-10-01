@@ -1,0 +1,1 @@
+hosted_poll_function_reads_state.cardlang:39:25: error: the Hosted Poll (`before asking seat`) may not read `state`, reached through function 'nobody_out' (called): the round's state is published only once the round has ended

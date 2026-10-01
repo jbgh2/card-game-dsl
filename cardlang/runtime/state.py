@@ -356,6 +356,11 @@ class RuntimeState:
         # `None` means no round has completed yet — reading `state` then is an
         # error, not a silent empty frame.
         self.last_round_state: dict[str, Any] | None = None
+        # True while a Hosted Poll's body runs (`mechanics._run_hosted_poll`):
+        # the climbing round's frame is live and unpublished, and the Shadow
+        # Guards in cardlang/stdlib/hosted_poll.py's docstring refuse what the
+        # body may not execute.
+        self.hosting: bool = False
         self.fired_transitions: set[str] = set()  # transition targets reached this iteration
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
         self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition

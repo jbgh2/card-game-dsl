@@ -1039,6 +1039,11 @@ def _stmt_tree_scoped(
             # The binder names the current player, one turn at a time —
             # typed Player like a `for each player` binder.
             yield from _seq_tree_scoped(s.body, binders + ((s.binder, TPlayer()),))
+        case n.ClimbRound() if s.hosted is not None:
+            # The Hosted Poll's binder names the seat about to be asked —
+            # typed Player like a `turns` binder.
+            hosted = s.hosted
+            yield from _seq_tree_scoped(hosted.body, binders + ((hosted.binder, TPlayer()),))
         case n.Block():
             # Synthetic, and created only by `expand`, which runs AFTER this
             # pass — so nothing here ever sees one today. The arm exists anyway:
@@ -3251,6 +3256,12 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
             # Transparent like the other compound statements: a jump inside a
             # turn body unwinds out of the loop to the enclosing construct.
             for s in stmt.body:
+                yield from _control_flow_nodes(s)
+        case n.ClimbRound() if stmt.hosted is not None:
+            # Transparent like the compound statements, though resolve's
+            # `_check_hosted_polls` refuses every jump a Hosted Poll could
+            # hold; this arm keeps the walk total over the tree.
+            for s in stmt.hosted.body:
                 yield from _control_flow_nodes(s)
         case n.Block():
             # A block is transparent to control flow: a jump written in a

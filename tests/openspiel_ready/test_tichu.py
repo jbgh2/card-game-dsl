@@ -107,7 +107,8 @@ def _walk_through_push(path: str, seed: int) -> DecisionNode:
         nxt = run(path, seed, tuple(history))
         assert isinstance(nxt, DecisionNode)
         r = nxt
-    # Clear the post-push poll too, so the pause is the first climbing lead.
+    # Clear the poll the first trick hosts before its lead too, so the pause
+    # is the first climbing lead.
     while any(a in declines for a in r.legal):
         history.append(next(a for a in r.legal if a in declines))
         nxt = run(path, seed, tuple(history))

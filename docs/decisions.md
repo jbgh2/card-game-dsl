@@ -824,6 +824,7 @@ round climb <move_type> from <leader> over <participants>
       source <zone> into <zone>
       combinations <lead_query> follows <follows_query>
       until <predicate>
+      [before asking <binder> { <statement>* }]
 ```
 
 The leader leads a combination from the `combinations` lead query; each
@@ -855,14 +856,16 @@ further regimes beside the ring, never two at one step:
   docked by `primitives.climb_announcements`. A pending announcement is
   void once the round has terminated, since the hand is over.
 - **The Interrupt Window.** For an engine whose registry row declares a
-  decline token (`primitives.climb_interrupt_decline`): after every play
-  but a trick-ending one, and once more when the ring has returned to the
-  last player, every other participant still holding cards is asked in
-  turn order from that player, offered its `interrupt` plays that beat the
-  standing play beside the decline — so a seat with nothing to play submits
-  the same public decline a seat declining by choice does, and who is
-  asked is a function of public state alone. A taken interrupt stands, the
-  ring resumes after the interrupter, and the window reopens; a compulsion
+  decline token (`primitives.climb_interrupt_decline`): after every
+  ordinary turn — a play but a trick-ending one, or a pass — every
+  participant still holding cards is asked in turn order from the seat
+  after the one who acted round to that seat itself, asked last, offered
+  its `interrupt` plays that beat the standing play beside the decline —
+  so a seat with nothing to play submits the same public decline a seat
+  declining by choice does, and who is asked is a function of public
+  state alone. The window after the pass that returns the ring to the
+  last player is the trick's last. A taken interrupt stands, the ring
+  resumes after the interrupter, and the window reopens; a compulsion
   binds on turn only. Tichu's bombs out of turn are the witness; Big Two
   and President declare no decline and open no window. This is the
   off-the-clock idiom ("Off-the-clock windows") applied inside a form,
@@ -871,6 +874,17 @@ further regimes beside the ring, never two at one step:
   refused by the same law that decided the poll: a permission that varies
   by seat and moment is a decision the kernel asks, never a rule that
   widens a legal set.
+
+Every ask the three regimes make is one of a closed set of kinds — the
+ring's lead and follow, the window's ask after an ordinary turn, and the
+Play Announcement (`mechanics.CLIMB_ASK_KINDS`). The optional trailing
+clause is the round's **Hosted Poll**: a body of the game's own
+statements that the shared decision loop runs before every ask of the
+first three kinds, its
+binder bound to the seat about to be asked, so a game can poll its own
+off-the-clock moves between the form's asks — Tichu's small tichu call,
+open to a seat until it first plays. What the body may hold, and why the
+round rather than the form runs it, is in "Off-the-clock windows".
 
 Rejected for both: folding the announcement into the play (one action per
 play-and-token pair multiplies the action space by the token count and still
@@ -3864,16 +3878,95 @@ every site lives on the move); a state write outside the move framework
 information sets).
 
 Where the window falls *inside* a form that owns the decisions of a
-trick — Tichu's bombs out of turn — the poll cannot sit between the
-form's own asks, and the idiom is applied by the form itself: the climb
-form's Interrupt Window ("The climbing form of `round`") asks every
-other seat in turn after each play with the same public decline for the
-seat that cannot act and the seat that will not.
+trick, no statement sits between the form's own asks, and the idiom
+takes one of two shapes there. When the window's moves are the form's
+own — Tichu's bombs out of turn, which are plays — the form applies the
+idiom itself: the climb form's Interrupt Window ("The climbing form of
+`round`") asks every seat in turn after each ordinary turn with the
+same public decline for the seat that cannot act and the seat that will
+not.
+When the window's moves are the game's — Tichu's small tichu call, a
+move type with its own guard and effect — the round hosts the poll the
+game writes, as a **Hosted Poll**
+([glossary/hosted-poll.md](glossary/hosted-poll.md)):
+
+```text
+round climb play_combination from leader over …
+      combinations tichu_lead_options follows tichu_follows
+      until …
+      before asking seat {
+        if tichu_window_open() {
+          round offering [call_tichu, no_call] from seat
+                over players where may_call(player)
+                until quiet >= (number of players where may_call(player))
+          quiet := 0
+        }
+      }
+```
+
+The body runs once before every turn and every Interrupt Window ask of
+the trick, with its binder bound to the seat about to be asked, which is
+the placement the idiom asks for — "before each decision the enclosing
+phase offers" — made at the one layer that can see those decisions. It
+never runs before a Play Announcement, which is the same seat's same act
+as the play that opened it, and never once the round has ended; a body
+whose writes satisfy the round's `until` is followed by no ask. The poll
+inside is written exactly as it would be written between two tricks, so
+everything above holds of it unchanged: its asks are ordinary offering
+decisions emitting ordinary public announce events, and its gate and
+participants read public state. Polling only the seats whose eligibility
+is public (Tichu's `may_call`) is the game's choice at the offer site;
+where eligibility is private the poll walks every seat instead, as
+Doppelkopf's does.
+
+The body holds decisions and state writes only: `if`, `let`, assignment,
+`offer`, `round offering` without an `outcome` clause, `as`, `for each`,
+and `run`. The rule binds everything the body can execute, not only its
+own text: the body's statements and, transitively, every procedure it
+runs, every move type it offers — its `when:` guard and its effect alike,
+whether offered by `offer` or by `round offering` — and every function it
+calls. Resolve refuses, anywhere in that closure, every other statement —
+a card movement changes the hands and pile the live trick reads, a nested
+trick or climbing round starts a second trick inside the first, a loop
+(`repeat until`, `turns`, `each … simultaneously`) has no bound the
+poll's lap does not already give, non-local control unwinds out of the
+trick mid-play — and an auction's `outcome` clause, whose typed outcome
+unwinds out of the trick the same way. It refuses the `state` pronoun
+wherever it stands — not only as a `state.` read, since a `let` or an
+argument carries the live frame on to a later one — and a call of a
+Primitive the game's own namespace holds, since a round's state is
+published only once it ends and a game module reads the live frame
+through its engine facts. A designer function spelled like another
+game's Primitive is a function there, followed like any other. Resolve's
+judgement is the Owner Guard, and the runtime stands behind it on what
+actually executes: while a body runs, every statement it executes, the
+`state` pronoun, and every Primitive's engine facts are refused as a Shadow
+Guard (`cardlang/stdlib/hosted_poll.py`), so a route the static judgement
+does not model is still refused when it runs. A
+move type the poll offers is judged as part of the poll; offered
+anywhere else, the same move type is not. The binder is a fresh name, spelled like
+nothing already classifiable where the clause is written, and is never
+the acting player: the body is no seat's action, so `actor` inside it
+means what it means at the round statement. `before` and `asking` are
+keywords only in the clause's position, so a game may still bind a local
+named either. The clause is the climbing form's alone; the trick form
+has no Hosted Poll, which is why Doppelkopf writes its tricks out by
+hand.
+
+Rejected: a Python registry row naming the game's move types and gate on
+the combination engine, which runs the same decisions with no grammar —
+it hides the offer site from the game file, which is exactly the reason
+the `optional: true` property was refused above, and it binds a
+combination engine to move types it does not own; a clause with no body
+and a form-owned lap (`polling [...]`), which would either leave the
+game's lap counter drifting across hosted polls, breaking the Decision
+Episode's reset, or have the form write a game State Variable.
 
 Witnesses: Doppelkopf's announcement ladder at full fidelity
 ([games/doppelkopf.cardlang](games/doppelkopf.cardlang)); Tichu's call
 windows (the WS5 upgrade,
-[kernel-migration.md](kernel-migration.md)).
+[kernel-migration.md](kernel-migration.md)), its small tichu hosted in
+every climbing trick ([games/tichu.cardlang](games/tichu.cardlang)).
 
 ## A move type's stake
 
