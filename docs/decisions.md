@@ -4507,7 +4507,8 @@ before the fix — `finding` / `class` / `members` / `covered` / `residual` /
 guard and test should have caught the member and what they looked at
 instead. "The guard reads the code and nothing checks what runs" means the
 fix is a runtime check and an agreement test, not another member; a second
-ledger on the same guard means the guard is the problem. It cannot be satisfied by
+ledger on the same guard, or several findings at once on one guard, means
+the guard is the problem and takes one ledger. It cannot be satisfied by
 intending to sweep: a `members` line narrower than its own `class` line is
 visibly wrong on the page, which is the one thing the exhortation could
 never be. State `class` as the position or property — "every way a role id

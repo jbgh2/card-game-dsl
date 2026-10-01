@@ -282,8 +282,10 @@ guard reads the code and nothing checks what actually runs", stop adding
 members: give the guard a runtime check behind it and a test that runs
 every row with the static check turned off (`tests/test_hosted_poll.py`,
 axis H; the other guards like it are issue #779). If a second ledger in the
-same change names the same guard, the guard is the problem, not the list of
-members, and the new ledger says what the old `class:` got wrong. If
+same change names the same guard, or several findings arrive at once on
+one guard, the guard is the problem, not the list of members: write one
+ledger for the guard, and where an earlier ledger exists say what its
+`class:` got wrong. If
 nothing should have caught it, say so: that is a missing guard, not a
 missed member.
 
