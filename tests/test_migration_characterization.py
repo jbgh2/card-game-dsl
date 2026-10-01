@@ -35,6 +35,16 @@ keeps that true of captures nobody has written yet. The captures run in a
 subprocess for interpreter isolation — a fresh process per game, holding nothing
 the test session already imported.
 
+A NINTH sanctioned regeneration covers `tichu_scores.json` and
+`tichu_hands.json` on every seed they hold: grand tichu's polls start from
+the dealer, the player who went out first in the previous hand, and the
+eighth card's poll closes only after two silent laps, the rules source's
+FAQ order before the ninth card (issue #781); the reference policy's
+per-offer grand gate is re-derived from the offers a hand now makes. Both
+change who is ASKED first and how often in every hand's deal, so every
+chooser draw from the first hand's eighth card on moves. No other game's
+deal moves, and no other golden here moves.
+
 An EIGHTH sanctioned regeneration covers `tichu_scores.json` and
 `tichu_hands.json` on every seed they hold: the climb form's Interrupt Window
 asks every seat still holding cards after every ordinary turn — every play

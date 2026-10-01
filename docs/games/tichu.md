@@ -8,9 +8,11 @@ Pagat's Commercial Card Games index names for Tichu.
 
 Each hand:
 
-1. Every player takes eight cards, one at a time; any time before taking
-   the ninth, a player may call **Grand Tichu** (±200) — on one card or on
-   eight, and having seen whether the others called. The deal completes to
+1. Every player takes eight cards, one at a time, starting with the
+   dealer — the player who went out first in the previous hand (seat 0 in
+   the first). Any time before taking the ninth, a player may call **Grand
+   Tichu** (±200) — on one card or on eight; on eight, every player decides
+   last having seen every other player decline. The deal completes to
    14 and every player **pushes** one card to each other player. Any player
    who has not called may call **Tichu** (±100) at any time before playing
    their first card — including before or during the push.
@@ -89,10 +91,13 @@ pile — simultaneous, since gifts land only after every pick — distributed
 giver-major and draw-free (pick *i* to the *i*-th other seat), so each
 receiver learns exactly what landed and from whom, and nobody else learns
 anything but counts. The calls are real decisions. Grand tichu is polled
-after each of the first eight cards — the off-the-clock quiescence-lap poll
-([decisions.md](../decisions.md) "Off-the-clock windows"), so a call on any
-card count is a decision the game offers, and a seat that sees another
-decline may still call before the next card. Small tichu is off-the-clock —
+after each of the first eight cards, from the dealer — the off-the-clock
+quiescence-lap poll ([decisions.md](../decisions.md) "Off-the-clock
+windows"), so a call on any card count is a decision the game offers, and a
+seat that sees another decline may still call before the next card. The
+eighth card's poll closes only after two silent laps, the FAQ's order before
+the ninth card ("A, seeing that C does not call, may now call"): every seat
+takes its ninth card having seen every other seat decline on eight. Small tichu is off-the-clock —
 any time before the caller's first play — encoded as the same poll over the
 seats that may still call: once before the push, and then inside every
 climbing trick, before each turn and each out-of-turn bomb ask, through the

@@ -39,10 +39,11 @@ TICHU = Path(__file__).parent.parent / "docs" / "games" / "tichu.cardlang"
 SUITS = ("clubs", "diamonds", "hearts", "spades")
 
 
-# The grand-tichu window is polled once per card of the first eight
-# (tichu.cardlang, "Grand tichu"), so a seat declining every poll of a hand is
-# asked this many times.
-GRAND_OFFERS_PER_HAND = 8
+# The grand-tichu window is polled once per card of the first seven and twice
+# on the eighth, whose poll closes after two silent laps (tichu.cardlang,
+# "Grand tichu"), so a seat declining every poll of a hand is asked this many
+# times.
+GRAND_OFFERS_PER_HAND = 9
 GRAND_CALL_RATE_PER_HAND = 0.04
 GRAND_CALL_RATE_PER_OFFER = 1 - (1 - GRAND_CALL_RATE_PER_HAND) ** (1 / GRAND_OFFERS_PER_HAND)
 
