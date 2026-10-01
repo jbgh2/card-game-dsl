@@ -3931,9 +3931,13 @@ trick or climbing round starts a second trick inside the first, a loop
 (`repeat until`, `turns`, `each … simultaneously`) has no bound the
 poll's lap does not already give, non-local control unwinds out of the
 trick mid-play — and an auction's `outcome` clause, whose typed outcome
-unwinds out of the trick the same way. It refuses a `state.` read and a
-call of a Primitive, since a round's state is published only once it
-ends and a game module reads the live frame through its engine facts. A
+unwinds out of the trick the same way. It refuses the `state` pronoun
+wherever it stands — not only as a `state.` read, since a `let` or an
+argument carries the live frame on to a later one — and a call of a
+Primitive the game's own namespace holds, since a round's state is
+published only once it ends and a game module reads the live frame
+through its engine facts. A designer function spelled like another
+game's Primitive is a function there, followed like any other. A
 move type the poll offers is judged as part of the poll; offered
 anywhere else, the same move type is not. The binder is a fresh name, spelled like
 nothing already classifiable where the clause is written, and is never

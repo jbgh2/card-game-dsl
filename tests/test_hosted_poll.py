@@ -11,11 +11,12 @@ windows", "The climbing form of `round`", "Surface totality").
                 accepts is either run so, or refused at resolve: anywhere in
                 what the body can execute — its text and every definition it
                 reaches by name — a statement outside the allow-list, an
-                auction's `outcome` clause, a `state.` read, and a Primitive
-                call; and a binder spelled like a name already classifiable
+                auction's `outcome` clause, the `state` pronoun wherever it
+                stands, and a call of a Primitive the game's own namespace
+                holds; and a binder spelled like a name already classifiable
                 where the clause is written.
 
-    domain:     Six axes, each derived from its registry in code:
+    domain:     Seven axes, each derived from its registry in code:
                   A. body statement kind — every member of the `Stmt` union,
                      split three ways: admitted, refused, synthetic;
                   B. nesting — every refused kind inside every admitted
@@ -24,8 +25,12 @@ windows", "The climbing form of `round`", "Surface totality").
                      for the refused kinds a procedure body itself admits;
                   C. pronoun reads — every name in `resolve._PRONOUNS`, read
                      in the body and read by the same statement written
-                     before the round: the two agree, but for `state.`,
-                     which the body refuses;
+                     before the round: the two agree, but for `state`,
+                     which the body refuses — crossed, for `state`, with
+                     the positions a value stands in (`STATE_POSITIONS`:
+                     a member receiver, a `let`, an `is` operand, a function
+                     and a procedure argument, a list element, and bare in a
+                     reached function), each admitted before the round;
                   D. binder spelling — every classification `_classify`
                      can answer for a bare name, spelled as the binder;
                   E. ask moment — every member of `CLIMB_ASK_KINDS`, plus the
@@ -38,12 +43,15 @@ windows", "The climbing form of `round`", "Surface totality").
                      `round offering`, a function call, a function's call,
                      and a `run` that offers), crossed with every payload the
                      route can hold: the refused statement kinds and the
-                     `outcome` clause where it holds statements, the `state.`
+                     `outcome` clause where it holds statements, the `state`
                      read and the Primitive call everywhere. The routes are
                      the naming slots on statement and expression nodes whose
                      namespace is in `HOSTED_REACH_POOLS`, and every other
                      such slot is filed inert, refused, or on a refused
                      statement (`test_the_routes_are_every_definition_a_body_can_name`).
+                  G. call namespace — every `primitives_block.Regime`,
+                     crossed with what the called name is in that game: a
+                     Primitive, or a designer function spelled like one.
                 The clause is written on `round climb` only: the trick and
                 auction forms carry no Hosted Poll by grammar
                 (`test_the_clause_is_a_climb_clause_only`).
@@ -59,6 +67,7 @@ windows", "The climbing form of `round`", "Surface totality").
                    against `resolve.HOSTED_REACH_POOLS`,
                    `resolve.HOSTED_REACH_INERT_SLOTS`,
                    `resolve.HOSTED_REACH_REFUSED_SLOTS`
+                G. `cardlang.primitives_block.Regime`
                 Procedure-body refusals: tests/test_procedures.py.
                 A synthetic `Block` is unwritable from source:
                 tests/test_procedures.py::test_a_synthetic_block_is_not_writable_from_source.
@@ -73,14 +82,25 @@ windows", "The climbing form of `round`", "Surface totality").
                 engine, so a sequence the engine makes rare (a bomb taken in
                 the window after a trick's last pass, straight after a Play
                 Announcement) is
-                sampled rather than enumerated.
+                sampled rather than enumerated. Nor that axis C's positions
+                are every place an expression can stand: the refusal keys
+                on the pronoun itself, never on what holds it, so the rows
+                sample positions to witness that, and a position a later
+                node kind adds is covered by the same arm unwitnessed. Nor
+                that axes C and F name every route from an expression to the
+                live frame: the routes are the readers of `mech_state` that
+                `cardlang/runtime/` holds — the pronoun's evaluation and a
+                Primitive's `EngineFacts.round_state` — and a reader added
+                there is a route no row names.
 
 red under (each planted in the code under guard, run, and reverted):
 - axis A/B: delete `n.AsBlock` from `resolve.HOSTED_POLL_ALLOWED` — the
   admitted `AsBlock` cell reddens;
 - axis A/B: drop the `"procedure"` row of `resolve.HOSTED_REACH_POOLS` —
   every `via_procedure` cell reddens;
-- axis C: delete the `state.` arm of `resolve._check_hosted_polls`;
+- axis C: delete the `state` arm of `resolve._check_hosted_node`; key it on
+  a `Member` whose receiver is the pronoun — every `STATE_POSITIONS` row but
+  `member_receiver` reddens;
 - axis D: return early from `resolve._check_hosted_binder`;
 - axis E: add "announcement" to `mechanics.HOSTED_ASK_KINDS` — the
   announcement cell reddens; drop the second `form.terminated` check in
@@ -93,7 +113,10 @@ red under (each planted in the code under guard, run, and reverted):
   `primitive_call` cells redden; skip a move type's `when` field there — the
   guard cells redden; stop `resolve._definition_closure` pushing a reached
   definition onto its frontier — the `function_of_function` and
-  `run_then_offer` cells redden.
+  `run_then_offer` cells redden;
+- axis G: judge the Primitive refusal against `PRIMITIVE_CALL_FUNCS` instead
+  of the game's `call_namespace` — the declared `designer_function` cell
+  reddens.
 """
 
 from __future__ import annotations
@@ -110,10 +133,12 @@ import pytest
 
 import cardlang.ast.nodes as n
 import cardlang.resolve as resolve_module
+from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
+from cardlang.primitives_block import Regime
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.mechanics import CLIMB_ASK_KINDS
@@ -386,7 +411,7 @@ def test_a_pronoun_read_in_the_body(pronoun: str) -> None:
     read = PRONOUN_READS[pronoun]
     if pronoun == "state":
         message = refusal(body=indent(read))
-        assert "may not read `state.lead_ended_trick`" in message, message
+        assert "may not read `state`" in message, message
         return
     # The body runs in the round statement's own context, so a read there is
     # judged as the same statement written just before the round: admitted.
@@ -399,7 +424,41 @@ def test_a_state_read_via_procedure_is_refused() -> None:
         body=indent("run peek()"),
         procs="procedure peek() { if state.lead_ended_trick { runs += 1 } }",
     )
-    assert "may not read `state.lead_ended_trick`, reached through procedure 'peek'" in message, message
+    assert "may not read `state`, reached through procedure 'peek'" in message, message
+
+
+# Where the `state` pronoun can stand as a value: the live frame it evaluates
+# to escapes through any of them, so the refusal is the pronoun's wherever it
+# stands, never the `state.field` shape alone. Each row is (body, extra
+# top-level text).
+STATE_POSITIONS: dict[str, tuple[str, str]] = {
+    "member_receiver": ("if state.lead_ended_trick { runs += 1 }", ""),
+    "let_alias": ("let live = state\nasked_last := live.leader", ""),
+    "is_operand": ("if state is none { runs += 1 }", ""),
+    "function_argument": ("if peek(state) { runs += 1 }", "function peek(s : Integer) = true"),
+    "run_argument": ("run peek(state)", "procedure peek(s : Integer) { runs += 1 }"),
+    "list_element": ("let frames = [state]\nruns += 1", ""),
+    "bare_in_reached_function": ("if peek() { runs += 1 }", "function peek() = state is none"),
+}
+
+
+@pytest.mark.parametrize("position", sorted(STATE_POSITIONS))
+def test_the_state_pronoun_is_refused_wherever_it_stands(position: str) -> None:
+    """red under: key `resolve._check_hosted_node`'s `state` arm on a
+    `Member` whose receiver is the pronoun instead of on the pronoun itself —
+    every row but `member_receiver` reddens."""
+    body, extra = STATE_POSITIONS[position]
+    message = refusal(body=indent(body), extra=extra)
+    assert "the Hosted Poll (`before asking p`) may not read `state`" in message, message
+
+
+@pytest.mark.parametrize("position", sorted(STATE_POSITIONS))
+def test_each_state_position_is_admitted_before_the_round(position: str) -> None:
+    """The control: every position is a sentence the language accepts written
+    before the round, so a refusal above is the Hosted Poll's and never the
+    fixture's."""
+    body, extra = STATE_POSITIONS[position]
+    check(prelude=textwrap.indent(body, "    "), extra=extra)
 
 
 # ---------------------------------------------------------------------------
@@ -488,7 +547,7 @@ ROUTES: dict[str, tuple[str, str, bool]] = {
 # module reads the live round frame through `EngineFacts.round_state`.
 PRIMITIVE_CLAUSE = "  primitives { tichu_dragon_won() : Boolean }"
 EXPR_PAYLOADS: dict[str, tuple[str, str]] = {
-    "state_read": ("state.lead_ended_trick", "may not read `state.lead_ended_trick`"),
+    "state_read": ("state.lead_ended_trick", "may not read `state`"),
     "primitive_call": ("tichu_dragon_won()", "may not call the Primitive `tichu_dragon_won`"),
 }
 STMT_PAYLOADS: dict[str, tuple[str, str]] = {
@@ -577,6 +636,62 @@ def test_each_route_with_a_clean_payload_is_admitted(route: str) -> None:
         kw = _route_source(route, "score[0] += 0", is_stmt=True)
     kw["clauses"] = ""
     check(**kw)
+
+
+# Which calls the Primitive refusal speaks for, by the game's Primitive regime
+# (`primitives_block.Regime`) and by what the called name is in that game: a
+# Primitive the game can call, or a designer function spelled like a
+# Primitive. A call dispatches to the designer's function first, so the
+# refusal follows the game's own native namespace (`call_namespace`), never
+# the corpus-wide registry. Each cell is (clauses, body, extra, the words the
+# diagnostic carries, or None when the sentence is admitted).
+SHADOW_PRIMITIVE = "gin_can_knock"
+PRIMITIVE_NAMESPACE_CELLS: dict[tuple[str, str], tuple[str, str, str, str | None]] = {
+    ("declared", "primitive"): (
+        PRIMITIVE_CLAUSE,
+        "if tichu_dragon_won() { runs += 1 }",
+        "",
+        "may not call the Primitive `tichu_dragon_won`",
+    ),
+    ("declared", "designer_function"): (
+        PRIMITIVE_CLAUSE,
+        f"if {SHADOW_PRIMITIVE}() {{ runs += 1 }}",
+        f"function {SHADOW_PRIMITIVE}() = runs > 0",
+        None,
+    ),
+    ("legacy", "primitive"): (
+        "",
+        "if tichu_dragon_won() { runs += 1 }",
+        "",
+        "is a Primitive a game reaches only by declaring it",
+    ),
+    ("legacy", "designer_function"): (
+        "",
+        f"if {SHADOW_PRIMITIVE}() {{ runs += 1 }}",
+        f"function {SHADOW_PRIMITIVE}() = runs > 0",
+        "shadows the native function of the same name",
+    ),
+}
+
+
+def test_the_primitive_namespace_axis_is_every_regime() -> None:
+    assert {regime for regime, _ in PRIMITIVE_NAMESPACE_CELLS} == {r.value for r in Regime}
+    assert SHADOW_PRIMITIVE in PRIMITIVE_CALL_FUNCS
+    assert SHADOW_PRIMITIVE not in PRIMITIVE_CLAUSE
+
+
+@pytest.mark.parametrize(("regime", "name"), sorted(PRIMITIVE_NAMESPACE_CELLS))
+def test_a_call_in_the_body_by_regime_and_name(regime: str, name: str) -> None:
+    """red under: judge the Primitive refusal in
+    `resolve._check_hosted_polls` against `PRIMITIVE_CALL_FUNCS` instead of
+    the game's `call_namespace` — the declared designer-function cell
+    reddens."""
+    clauses, body, extra, words = PRIMITIVE_NAMESPACE_CELLS[(regime, name)]
+    if words is None:
+        check(body=indent(body), extra=extra, clauses=clauses)
+        return
+    message = refusal(body=indent(body), extra=extra, clauses=clauses)
+    assert words in message, message
 
 
 def test_the_outcome_free_round_offering_is_admitted() -> None:

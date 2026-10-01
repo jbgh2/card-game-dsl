@@ -7411,10 +7411,10 @@ HOSTED_REACH_POOLS: dict[str, str] = {
 }
 
 # The naming slots on statement and expression nodes that name nothing whose
-# DSL text runs: a deck value, a role, a field name (a `state.` read is
-# refused by its own arm), a position binder. Every other such slot is
-# followed above, sits on a statement `HOSTED_POLL_REFUSED` names, or is
-# refused below.
+# DSL text runs: a deck value, a role, a field name (the `state` pronoun is
+# refused wherever it stands, by its own arm), a position binder. Every other
+# such slot is followed above, sits on a statement `HOSTED_POLL_REFUSED`
+# names, or is refused below.
 HOSTED_REACH_INERT_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
         (n.CardLiteral, "rank"),
@@ -7449,20 +7449,26 @@ def _check_hosted_polls(game: n.Game, bag: DiagnosticBag) -> None:
     statements and every definition reachable from them by name
     (`HOSTED_REACH_POOLS`, followed by `_definition_closure`). Across all of
     it, every statement is one `HOSTED_POLL_ALLOWED` names; no `round
-    offering` carries an `outcome` clause; nothing reads the `state.`
-    pronoun; and nothing calls a Primitive, whose game module reads the live
-    round frame through `EngineFacts.round_state`. The round's frame is live
-    and unpublished while the body runs, and every card and every signal the
-    body could raise would land inside a trick in progress. After
-    `_classify_names`, so a pronoun is recognized by the `ref_kind` the
-    classifier stamped."""
+    offering` carries an `outcome` clause; the `state` pronoun stands
+    nowhere, since it evaluates to the live round frame wherever it stands
+    (a `let` or an argument carries the frame on to a later read); and
+    nothing calls a Primitive, whose game module reads the live round frame
+    through `EngineFacts.round_state`. Those two are every route from an
+    expression to the frame. The round's frame is live and unpublished while
+    the body runs, and every card and every signal the body could raise
+    would land inside a trick in progress. After `_classify_names`, so a
+    pronoun is recognized by the `ref_kind` the classifier stamped."""
     pools: dict[str, dict[str, object]] = {
         ns: {d.name: d for d in getattr(game, field)}
         for ns, field in HOSTED_REACH_POOLS.items()
     }
-    primitives = set(PRIMITIVE_CALL_FUNCS) | {
-        d.name for d in (game.primitives.decls if game.primitives is not None else ())
-    }
+    # The Primitives a call here can name: the game's own native namespace
+    # less the Builtins. A designer function is never among them — a call
+    # dispatches to the designer's function first, and `_check_functions`
+    # refuses a function spelled like a name in this same namespace — so a
+    # function spelled like another game's Primitive is followed as a
+    # function, never refused as a Primitive.
+    primitives = set(call_namespace(game) - BUILTIN_CALL_FUNCS)
     for poll in (nd for nd in _walk(game) if isinstance(nd, n.HostedPoll)):
         clause = f"the Hosted Poll (`before asking {poll.binder}`)"
         reached = _definition_closure([poll], pools)
@@ -7507,15 +7513,10 @@ def _check_hosted_node(
                 f"the live climbing trick",
                 getattr(nd, "span", None),
             )
-    if (
-        isinstance(nd, n.Member)
-        and isinstance(nd.obj, n.NameRef)
-        and nd.obj.name == "state"
-        and nd.obj.ref_kind == "pronoun"
-    ):
+    if isinstance(nd, n.NameRef) and nd.name == "state" and nd.ref_kind == "pronoun":
         bag.error(
-            f"{clause} may not read `state.{nd.field}`{via}: the round's state "
-            f"is published only once the round has ended",
+            f"{clause} may not read `state`{via}: the round's state is "
+            f"published only once the round has ended",
             nd.span,
         )
     elif isinstance(nd, n.Call) and nd.func in primitives:
