@@ -52,7 +52,10 @@ Counsel is a `## Hoyle's counsel` block attached to the change — its PR
 body, or a design note in its diff — with exactly these sections. An
 early consult may post counsel to the issue or note that sketches the
 surface, but that never substitutes: the Merge Lane A change attaches
-its own counsel, produced fresh at planning time.
+its own counsel, produced fresh at planning time. Every consequence the
+counsel names — a cell the grid must cover, a bound the construct must
+keep — names the artifact the plan carries for it; only an observation
+that binds nothing may be advisory.
 
 1. **The sentences.** The proposal's designer prose in situ — a real
    game fragment, not a schema — plus at least two alternative surfaces
