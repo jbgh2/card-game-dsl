@@ -169,8 +169,8 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               it offers, guard and effect, a function it calls, each
               transitively, by ``_definition_closure``) — a statement kind
               outside ``HOSTED_POLL_ALLOWED``, a ``round offering`` with an
-              ``outcome`` clause, a read of the ``state.`` pronoun, or a call
-              of a Primitive; and a Hosted Poll binder spelled like a name
+              ``outcome`` clause, the ``state`` pronoun, or a call of a
+              Primitive the game's namespace holds; and a Hosted Poll binder spelled like a name
               already classifiable where the clause is written
               (``_check_hosted_polls``, ``_check_hosted_binder``).
               ``runtime/mechanics``' ``run_decision_round`` may therefore
@@ -271,6 +271,11 @@ from cardlang.stdlib.enums import (
     enum_values,
     rank_names,
     suit_names,
+)
+from cardlang.stdlib.hosted_poll import (
+    HOSTED_POLL_ALLOWED,
+    HOSTED_POLL_REFUSED,
+    HOSTED_REACH_REFUSED_SLOTS,
 )
 from cardlang.stdlib.moves import (
     CLIMB_DECISION_MOVE_TYPE,
@@ -7338,40 +7343,6 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     return f"cannot {what} '{root.name}': it is {what_it_is}, not a zone"
 
 
-# The statement kinds a Hosted Poll's body may hold (decisions.md "Off-the-clock
-# windows"): decisions and state writes, and the scoping and control that
-# arrange them. `Block` is what a `run` expands into, so it arrives only after
-# this pass and is admitted for the same reason `run` is.
-HOSTED_POLL_ALLOWED: frozenset[type] = frozenset(
-    {
-        n.IfStmt, n.LetStmt, n.AssignStmt, n.Offer, n.AuctionRound,
-        n.AsBlock, n.ForEach, n.RunStmt, n.Block,
-    }
-)
-
-# Every other statement kind, with the words its refusal names it by. The body
-# runs between two asks of a live climbing trick: a card movement would change
-# the hands and the pile the round is reading, a nested trick or climbing round
-# would start a second trick inside the first, a loop (`repeat`, `turns`,
-# `each … simultaneously`) has no bound the poll's lap does not already give,
-# and non-local control would unwind out of the round mid-trick. The two sets
-# partition the `Stmt` union (tests/test_hosted_poll.py pins it).
-HOSTED_POLL_REFUSED: dict[type, str] = {
-    n.Transfer: "a card movement",
-    n.EpistemicOp: "a reveal or forget",
-    n.RotateStmt: "`rotate`",
-    n.EachSimultaneous: "`each … simultaneously`",
-    n.RepeatUntil: "`repeat until`",
-    n.Turns: "`turns`",
-    n.TrickRound: "a trick `round`",
-    n.ClimbRound: "a `round climb`",
-    n.Produce: "`produce`",
-    n.Produces: "`produces:`",
-    n.ContinueTo: "`continue to`",
-    n.SkipToNextHand: "`skip to next hand`",
-}
-
-
 def _check_hosted_binder(poll: n.HostedPoll, cats: _Categories, bag: DiagnosticBag) -> None:
     """A Hosted Poll's binder is a fresh name: one that classifies as nothing
     where the clause is written. The body reads it beside the game's own names
@@ -7425,13 +7396,6 @@ HOSTED_REACH_INERT_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.DomainQuery, "binder"),
     }
 )
-
-# The one admitted statement whose optional clause the body may not use: an
-# auction's `outcome` produces a typed outcome, which unwinds to the enclosing
-# outcome phase — out of the live climbing round, past the frame it publishes.
-HOSTED_REACH_REFUSED_SLOTS: dict[tuple[type, str], str] = {
-    (n.AuctionRound, "outcome_fn"): "a `round offering` with an `outcome` clause",
-}
 
 _HOSTED_REACH_VERB = {"procedure": "run", "move_type": "offered", "function": "called"}
 _HOSTED_REACH_NOUN = {"procedure": "procedure", "move_type": "move type", "function": "function"}

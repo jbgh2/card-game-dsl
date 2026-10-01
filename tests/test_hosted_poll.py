@@ -16,7 +16,7 @@ windows", "The climbing form of `round`", "Surface totality").
                 holds; and a binder spelled like a name already classifiable
                 where the clause is written.
 
-    domain:     Seven axes, each derived from its registry in code:
+    domain:     Eight axes, each derived from its registry in code:
                   A. body statement kind — every member of the `Stmt` union,
                      split three ways: admitted, refused, synthetic;
                   B. nesting — every refused kind inside every admitted
@@ -51,13 +51,20 @@ windows", "The climbing form of `round`", "Surface totality").
                      statement (`test_the_routes_are_every_definition_a_body_can_name`).
                   G. call namespace — every `primitives_block.Regime`,
                      crossed with what the called name is in that game: a
-                     Primitive, or a designer function spelled like one.
+                     Primitive, or a designer function spelled like one;
+                  H. the runtime agrees — every row of A, F and C's `state`
+                     positions, and G's declared-regime cells, played with
+                     resolve's `_check_hosted_polls` switched off: a row
+                     resolve refuses trips the runtime's Shadow Guard when it
+                     executes, a row it admits plays through, and a refused
+                     row no game can run (`_refused_elsewhere`, authored by
+                     rule) is still refused by another check.
                 The clause is written on `round climb` only: the trick and
                 auction forms carry no Hosted Poll by grammar
                 (`test_the_clause_is_a_climb_clause_only`).
 
     registry:   A, B. `typing.get_args(cardlang.ast.nodes.Stmt)` against
-                   `resolve.HOSTED_POLL_ALLOWED` / `resolve.HOSTED_POLL_REFUSED`
+                   `stdlib.hosted_poll.HOSTED_POLL_ALLOWED` / `stdlib.hosted_poll.HOSTED_POLL_REFUSED`
                 C. `cardlang.resolve._PRONOUNS`
                 D. the string literals `cardlang.resolve._classify` returns,
                    scraped from its source
@@ -66,8 +73,10 @@ windows", "The climbing form of `round`", "Surface totality").
                    `typing.get_args(n.Stmt)` and `typing.get_args(n.Expr)`,
                    against `resolve.HOSTED_REACH_POOLS`,
                    `resolve.HOSTED_REACH_INERT_SLOTS`,
-                   `resolve.HOSTED_REACH_REFUSED_SLOTS`
+                   `stdlib.hosted_poll.HOSTED_REACH_REFUSED_SLOTS`
                 G. `cardlang.primitives_block.Regime`
+                H. the rows of A, C, F and G above; the runtime half's tables
+                   are `cardlang/stdlib/hosted_poll.py`'s, shared with resolve
                 Procedure-body refusals: tests/test_procedures.py.
                 A synthetic `Block` is unwritable from source:
                 tests/test_procedures.py::test_a_synthetic_block_is_not_writable_from_source.
@@ -91,10 +100,17 @@ windows", "The climbing form of `round`", "Surface totality").
                 live frame: the routes are the readers of `mech_state` that
                 `cardlang/runtime/` holds — the pronoun's evaluation and a
                 Primitive's `EngineFacts.round_state` — and a reader added
-                there is a route no row names.
+                there is a route no row names. Nor that axis H's agreement
+                is total: its verdicts sample the seeds in `AGREEMENT_SEEDS`,
+                so an offered move's effect executes only when a uniform
+                draw picks it, and the non-local control kinds reach the
+                runtime's statement arm on no row — the miniature has no
+                outcome phase, later sibling, or hand loop to make them
+                legal in the body; the arm reads the same table for them as
+                for the kinds that do.
 
 red under (each planted in the code under guard, run, and reverted):
-- axis A/B: delete `n.AsBlock` from `resolve.HOSTED_POLL_ALLOWED` — the
+- axis A/B: delete `n.AsBlock` from `stdlib.hosted_poll.HOSTED_POLL_ALLOWED` — the
   admitted `AsBlock` cell reddens;
 - axis A/B: drop the `"procedure"` row of `resolve.HOSTED_REACH_POOLS` —
   every `via_procedure` cell reddens;
@@ -108,7 +124,7 @@ red under (each planted in the code under guard, run, and reverted):
 - axis F: delete the `"move_type"` row of `resolve.HOSTED_REACH_POOLS` — every
   offered-effect and offered-guard cell reddens; delete its `"function"` row —
   the function cells redden; delete the `outcome_fn` row of
-  `resolve.HOSTED_REACH_REFUSED_SLOTS` — the `outcome_clause` cells redden;
+  `stdlib.hosted_poll.HOSTED_REACH_REFUSED_SLOTS` — the `outcome_clause` cells redden;
   empty the Primitive set in `resolve._check_hosted_polls` — the
   `primitive_call` cells redden; skip a move type's `when` field there — the
   guard cells redden; stop `resolve._definition_closure` pushing a reached
@@ -116,7 +132,12 @@ red under (each planted in the code under guard, run, and reverted):
   `run_then_offer` cells redden;
 - axis G: judge the Primitive refusal against `PRIMITIVE_CALL_FUNCS` instead
   of the game's `call_namespace` — the declared `designer_function` cell
-  reddens.
+  reddens;
+- axis H: drop the `hosting` arm of `execute.execute` — every statement row
+  reddens; of the `state` pronoun's evaluation — the `state` rows redden; of
+  `narrowing.engine_facts` — the Primitive rows redden; drop the `finally`
+  that clears `RuntimeState.hosting` in `mechanics._run_hosted_poll` — the
+  admitted rows redden.
 """
 
 from __future__ import annotations
@@ -124,6 +145,7 @@ from __future__ import annotations
 import ast
 import inspect
 import random
+import re
 import textwrap
 import typing
 from collections import Counter
@@ -133,9 +155,10 @@ import pytest
 
 import cardlang.ast.nodes as n
 import cardlang.resolve as resolve_module
+import cardlang.stdlib.hosted_poll as hosted_registry
 from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS
 from cardlang.diagnostics import DiagnosticError
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import Regime
@@ -157,6 +180,7 @@ game HostedMini {{
   direction: counterclockwise
   max_length: 5000
   cards: tichu56
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
 {clauses}
   zones {{
     deck             : Deck
@@ -170,6 +194,7 @@ game HostedMini {{
     leader        : Player = 0
     runs          : Integer = 0
     asked_last    : Player = 0
+    nops          : Integer = 0
     stop          : Boolean = false
     pass_dir      : SeatDirection = left
   }}
@@ -199,7 +224,7 @@ game HostedMini {{
   }}
   winner: highest score
 }}
-move_type nop {{ effect {{ }} }}
+move_type nop {{ effect {{ nops += 1 }} }}
 function seat_zero() = 0
 {procs}
 {extra}
@@ -259,11 +284,11 @@ SNIPPETS: dict[str, tuple[str, dict[str, str]]] = {
     "AssignStmt": ("runs += 1", {}),
     "Offer": ("offer to p one of [nop]", {}),
     "TrickRound": (
-        "round play_combination from p over all players source hand into trick_pile "
-        "winner highest_by_trick_order",
+        "round play_to_trick from p over all players source hand into trick_pile "
+        "winner highest_of_led_suit",
         {},
     ),
-    "AuctionRound": ("round offering [nop] from p over all players until runs > 0", {}),
+    "AuctionRound": ("round offering [nop] from p over all players until nops > 0", {}),
     "ClimbRound": (
         "round climb play_combination from p over all players source hand into trick_pile "
         "combinations tichu_lead_options follows tichu_follows until runs > 0",
@@ -286,8 +311,8 @@ SNIPPETS: dict[str, tuple[str, dict[str, str]]] = {
 SYNTHETIC = {"Block"}
 
 STMT_KINDS = sorted(t.__name__ for t in typing.get_args(n.Stmt))
-ALLOWED = {t.__name__ for t in resolve_module.HOSTED_POLL_ALLOWED}
-REFUSED = {t.__name__ for t in resolve_module.HOSTED_POLL_REFUSED}
+ALLOWED = {t.__name__ for t in hosted_registry.HOSTED_POLL_ALLOWED}
+REFUSED = {t.__name__ for t in hosted_registry.HOSTED_POLL_REFUSED}
 
 # The expected column, authored as the operator's ruling on issue #776 reads
 # it, never read off the implementation's sets above.
@@ -302,7 +327,7 @@ def test_the_stmt_union_is_partitioned() -> None:
     ruling's admitted set is the implementation's. A new `Stmt` member fails
     here until someone decides which it is.
 
-    red under: delete any row of `resolve.HOSTED_POLL_REFUSED`."""
+    red under: delete any row of `stdlib.hosted_poll.HOSTED_POLL_REFUSED`."""
     union = set(STMT_KINDS)
     assert ALLOWED | REFUSED == union
     assert not ALLOWED & REFUSED
@@ -521,13 +546,13 @@ ROUTES: dict[str, tuple[str, str, bool]] = {
     "run": ("run via(p)", "procedure via(who : Player) {{\n{x}\n}}", True),
     "offer_effect": ("offer to p one of [via]", "move_type via {{ effect {{\n{x}\n}} }}", True),
     "round_offering_effect": (
-        "round offering [via, nop] from p over all players until runs > 0",
+        "nops := 0\nround offering [via, nop] from p over all players until nops > 0",
         "move_type via {{ effect {{\n{x}\n}} }}",
         True,
     ),
     "offer_guard": ("offer to p one of [via, nop]", "move_type via {{ when: {e} effect {{ }} }}", False),
     "round_offering_guard": (
-        "round offering [via, nop] from p over all players until runs > 0",
+        "nops := 0\nround offering [via, nop] from p over all players until nops > 0",
         "move_type via {{ when: {e} effect {{ }} }}",
         False,
     ),
@@ -562,10 +587,22 @@ STMT_PAYLOADS: dict[str, tuple[str, str]] = {
 }
 
 
+# The name the asked seat goes by where a route's payload is written: the
+# parameter a run procedure takes it as, and the acting player inside an
+# offered move type's effect. A payload naming `p` there would be an unbound
+# name — refused, but not by the Hosted Poll.
+SEAT_IN_ROUTE = {
+    "run": "who",
+    "offer_effect": "actor",
+    "round_offering_effect": "actor",
+    "run_then_offer": "actor",
+}
+
+
 def _route_source(route: str, payload: str, is_stmt: bool) -> dict[str, str]:
     body, extra, _ = ROUTES[route]
     if is_stmt:
-        stmt = payload.replace("[p]", "[who]") if route == "run" else payload
+        stmt = re.sub(r"\bp\b", SEAT_IN_ROUTE.get(route, "p"), payload)
         filled_body = body.format(x=stmt) if route == "direct" else body.format()
         filled_extra = extra.format(x=stmt)
     else:
@@ -602,8 +639,8 @@ def test_the_routes_are_every_definition_a_body_can_name() -> None:
     }
     followed = {k for k, ns in slots.items() if ns in resolve_module.HOSTED_REACH_POOLS}
     inert = set(resolve_module.HOSTED_REACH_INERT_SLOTS)
-    refused_slot = set(resolve_module.HOSTED_REACH_REFUSED_SLOTS)
-    refused_owner = {k for k in slots if k[0] in resolve_module.HOSTED_POLL_REFUSED}
+    refused_slot = set(hosted_registry.HOSTED_REACH_REFUSED_SLOTS)
+    refused_owner = {k for k in slots if k[0] in hosted_registry.HOSTED_POLL_REFUSED}
     classified = [followed, inert, refused_slot, refused_owner]
     assert set().union(*classified) == set(slots), set(slots) - set().union(*classified)
     assert sum(map(len, classified)) == len(set().union(*classified)), "a slot filed twice"
@@ -913,3 +950,128 @@ def _walk(node: object) -> typing.Iterator[object]:
     elif isinstance(node, tuple):
         for item in node:
             yield from _walk(item)
+
+
+# ---------------------------------------------------------------------------
+# Axis H — the runtime agrees with resolve, by execution
+# ---------------------------------------------------------------------------
+
+# Every row the grid above judges statically, played with resolve's
+# `_check_hosted_polls` switched off: a sentence resolve refuses must be
+# refused by the runtime's Shadow Guard the moment it executes, and a sentence
+# resolve admits must play through with no Shadow Guard firing. Resolve judges
+# a static model of what the body executes; the runtime refuses what actually
+# executes; a row where the two disagree is a route the model does not hold.
+# Each row is (keyword arguments to `source`, whether resolve refuses it).
+AGREEMENT_SEEDS = range(6)
+
+
+def _agreement_rows() -> dict[str, tuple[dict[str, str], bool]]:
+    rows: dict[str, tuple[dict[str, str], bool]] = {}
+    for kind in STMT_KINDS:
+        if kind in SYNTHETIC:
+            continue
+        stmt, needs = SNIPPETS[kind]
+        rows[f"kind-{kind}"] = ({"body": indent(stmt), **needs}, kind in REFUSED)
+    for param in REACH_CELLS:
+        route, payload = typing.cast(tuple[str, str], param.values)
+        if payload in EXPR_PAYLOADS:
+            kw = _route_source(route, EXPR_PAYLOADS[payload][0], is_stmt=False)
+        else:
+            kw = _route_source(route, STMT_PAYLOADS[payload][0], is_stmt=True)
+        rows[f"reach-{route}-{payload}"] = (kw, True)
+    for route, (_, _, holds_stmts) in ROUTES.items():
+        kw = _route_source(route, "runs > 0", is_stmt=False)
+        if holds_stmts and route != "direct":
+            kw = _route_source(route, "score[0] += 0", is_stmt=True)
+        kw["clauses"] = ""
+        rows[f"clean-{route}"] = (kw, False)
+    for position, (body, extra) in STATE_POSITIONS.items():
+        rows[f"state-{position}"] = ({"body": indent(body), "extra": extra}, True)
+    for (regime, name), (clauses, body, extra, words) in PRIMITIVE_NAMESPACE_CELLS.items():
+        if regime == "declared":
+            rows[f"call-{regime}-{name}"] = (
+                {"body": indent(body), "extra": extra, "clauses": clauses}, words is not None,
+            )
+    return rows
+
+
+AGREEMENT_ROWS = _agreement_rows()
+
+# The refused rows no game can run even with the Hosted Poll judgement off,
+# authored by rule. Non-local control (`produce`, `continue to`, `skip to next
+# hand`) is refused by its own position Owner Guards in a move type's effect
+# and a procedure, and written in the body itself it needs an outcome phase,
+# a later sibling phase, and a hand loop the miniature does not have; a
+# procedure holds no `round` of any form. Every other refused row executes.
+NON_LOCAL = {"Produce", "ContinueTo", "SkipToNextHand"}
+ROUND_PAYLOADS = {"TrickRound", "ClimbRound", "outcome_clause"}
+
+
+def _refused_elsewhere(row: str) -> bool:
+    payload = row.rsplit("-", 1)[-1]
+    return payload in NON_LOCAL or (row.startswith("reach-run-") and payload in ROUND_PAYLOADS)
+
+
+def _runtime_verdict(kw: dict[str, str], monkeypatch: pytest.MonkeyPatch) -> str:
+    """Play the row with resolve's Hosted Poll judgement off: "static" when
+    another check still refuses it, "refused" when the Shadow Guard fires,
+    "played" when every seed runs to its end."""
+    monkeypatch.setattr(resolve_module, "_check_hosted_polls", lambda game, bag: None)
+    try:
+        game = check(**kw)
+    except DiagnosticError:
+        return "static"
+    for seed in AGREEMENT_SEEDS:
+        try:
+            play_game(game, random.Random(seed), None, random_chooser(random.Random(seed)), None)
+        except ShadowGuardError as exc:
+            assert exc.leaked == "resolve._check_hosted_polls", exc
+            return "refused"
+    return "played"
+
+
+def test_the_agreement_rows_cover_every_static_row() -> None:
+    """The rows are the grid's own: every statement kind, every reach cell,
+    every route's clean control, every `state` position, every declared-regime
+    call cell."""
+    names = set(AGREEMENT_ROWS)
+    assert {f"kind-{k}" for k in STMT_KINDS if k not in SYNTHETIC} <= names
+    assert {f"reach-{p.values[0]}-{p.values[1]}" for p in REACH_CELLS} <= names
+    assert {f"state-{p}" for p in STATE_POSITIONS} <= names
+    assert any(not refused for _, refused in AGREEMENT_ROWS.values())
+
+
+@pytest.mark.expects_shadow_guard
+@pytest.mark.parametrize(
+    "row", sorted(k for k, (_, refused) in AGREEMENT_ROWS.items() if refused)
+)
+def test_a_sentence_resolve_refuses_is_refused_when_it_runs(
+    row: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A row `_refused_elsewhere` names must still be refused by another
+    check with the Hosted Poll judgement off, so the set cannot hide a
+    sentence that would run.
+
+    red under: drop the `hosting` arm of `execute.execute`, of the `state`
+    pronoun's evaluation, or of `narrowing.engine_facts` — the statement, the
+    `state`, or the Primitive rows redden."""
+    kw, _ = AGREEMENT_ROWS[row]
+    expected = "static" if _refused_elsewhere(row) else "refused"
+    assert _runtime_verdict(kw, monkeypatch) == expected
+
+
+@pytest.mark.parametrize(
+    "row", sorted(k for k, (_, refused) in AGREEMENT_ROWS.items() if not refused)
+)
+def test_a_sentence_resolve_admits_plays_through(
+    row: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unmarked, so the suite-wide Pin (tests/conftest.py) also fails this
+    test on any Shadow Guard constructed and caught on the way.
+
+    red under: leave `RuntimeState.hosting` set once a body has run (drop the
+    `finally` of `mechanics._run_hosted_poll`) — the next ask's own statements
+    trip the Shadow Guard."""
+    kw, _ = AGREEMENT_ROWS[row]
+    assert _runtime_verdict(kw, monkeypatch) == "played"

@@ -3937,7 +3937,12 @@ argument carries the live frame on to a later one — and a call of a
 Primitive the game's own namespace holds, since a round's state is
 published only once it ends and a game module reads the live frame
 through its engine facts. A designer function spelled like another
-game's Primitive is a function there, followed like any other. A
+game's Primitive is a function there, followed like any other. Resolve's
+judgement is the Owner Guard, and the runtime stands behind it on what
+actually executes: while a body runs, every statement it executes, the
+`state` pronoun, and every Primitive's engine facts are refused as a Shadow
+Guard (`cardlang/stdlib/hosted_poll.py`), so a route the static judgement
+does not model is still refused when it runs. A
 move type the poll offers is judged as part of the poll; offered
 anywhere else, the same move type is not. The binder is a fresh name, spelled like
 nothing already classifiable where the clause is written, and is never

@@ -54,6 +54,7 @@ from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Player, Seating
 
@@ -107,7 +108,16 @@ def engine_facts(rs: RuntimeState, actor: Player | None) -> EngineFacts:
     bundle by freezing a dict of raw values (rather than freezing a chosen
     few by hand) makes it structurally impossible to forget a field: a
     scalar `actor` frozen is a no-op, a `Seating` frozen is a copy, a
-    round-state dict frozen is a deep snapshot."""
+    round-state dict frozen is a deep snapshot.
+
+    Every Primitive reads the live round frame through here, so a Hosted
+    Poll's body reaching one is refused here, behind resolve's Owner Guard."""
+    if rs.hosting:
+        raise ShadowGuardError(
+            "resolve._check_hosted_polls",
+            "a Primitive ran inside a Hosted Poll's body, where its engine "
+            "facts would read the climbing round's live, unpublished state",
+        )
     raw: dict[str, Any] = {
         "seating": rs.seating,
         "team_of": rs.team_of,

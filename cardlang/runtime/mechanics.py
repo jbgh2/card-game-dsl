@@ -110,7 +110,8 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
     Contract:
       assumes      a Hosted Poll's body moves no card, starts no round of the
                    trick or climbing form, and reads no live Round State
-                   (resolve's `_check_hosted_polls`).
+                   (resolve's `_check_hosted_polls`); the runtime refuses each
+                   as a Shadow Guard while the body runs.
       establishes  the form's Hosted Poll, when it names one for the ask just
                    chosen, runs exactly once before that ask, with its binder
                    bound to the seat about to be asked, and never once the
@@ -190,10 +191,17 @@ def _run_hosted_poll(hosted: n.HostedPoll, asked: Player, ctx: Ctx) -> None:
     """Run a Hosted Poll's body in the round's own context, its binder bound
     to the seat about to be asked. The binder names that seat and nothing
     more: the body is no seat's action, so the acting player stands as the
-    round statement found it."""
+    round statement found it. `RuntimeState.hosting` holds for exactly the
+    body's run, which arms the Shadow Guards behind resolve's
+    `_check_hosted_polls` (cardlang/stdlib/hosted_poll.py)."""
     from cardlang.runtime.execute import run_body
 
-    run_body(hosted.body, ctx.with_local(hosted.binder, asked))
+    outer = ctx.rs.hosting
+    ctx.rs.hosting = True
+    try:
+        run_body(hosted.body, ctx.with_local(hosted.binder, asked))
+    finally:
+        ctx.rs.hosting = outer
 
 
 class TrickForm:
