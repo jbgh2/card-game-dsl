@@ -634,6 +634,14 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
         "node.selection_mode not in SELECTION_MODE_DRAWS",
     ],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
+    # The Hosted Poll's statement Shadow Guard: a statement a body executes,
+    # checked against the table resolve's `_check_hosted_polls` judges by
+    # (cardlang/stdlib/hosted_poll.py), so admitting a kind there admits it
+    # here and there is no hard-coded row to go stale. Unreachable from a game
+    # description while the Owner Guard holds; its witness is axis H of
+    # tests/test_hosted_poll.py, which plays every refused statement row with
+    # the Owner Guard switched off and reddens when this arm is dropped.
+    "runtime/execute.py": ["kind not in HOSTED_POLL_ALLOWED"],
     # The declared-regime half of the native dispatch: a call that is neither a
     # Builtin nor a Primitive the game's own `primitives { }` block declares.
     # It reconciles no rows — the sentinel is the Builtin half's way of saying
