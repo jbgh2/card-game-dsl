@@ -8,11 +8,11 @@ Pagat's Commercial Card Games index names for Tichu.
 
 Each hand:
 
-1. Every player takes eight cards, one at a time, starting with the
-   dealer — the player who went out first in the previous hand (seat 0 in
-   the first). Any time before taking the ninth, a player may call **Grand
-   Tichu** (±200) — on one card or on eight; on eight, every player decides
-   last having seen every other player decline. The deal completes to
+1. Every player takes eight cards, one at a time. Any time before taking
+   the ninth, a player may call **Grand Tichu** (±200) — on one card or on
+   eight, in turn from the dealer, the player who went out first in the
+   previous hand (seat 0 in the first); on eight, every player decides last
+   having seen every other player decline. The deal completes to
    14 and every player **pushes** one card to each other player. Any player
    who has not called may call **Tichu** (±100) at any time before playing
    their first card — including before or during the push.

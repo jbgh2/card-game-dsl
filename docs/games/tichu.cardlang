@@ -110,7 +110,7 @@ game Tichu {
   state {
     // Game-level: persists across hands.
     score[team] : Integer = 0
-    dealer      : Player = 0     // takes the first card; the deal-time polls start here
+    dealer      : Player = 0     // the deal-time polls start here
   }
 
   phase hand_sequence repeat until (any team where score[team] >= 1000) {
@@ -140,6 +140,14 @@ game Tichu {
       // taken. On eight cards the next card is the ninth, so the poll closes
       // only after two silent laps: "A (seeing that C does not call) may now
       // call, and takes his ninth card" (the FAQ).
+      //
+      // Each card still goes to seat 0 first, where the rules have the dealer
+      // take the top card. That half is not expressible: `to each` walks the
+      // seat domain in registry order and no movement form takes a starting
+      // seat (issue #196; Hold'em and Stud deal seat-0-first for the same
+      // reason). Distributionally identical on a shuffled deck, so nothing but
+      // the rulebook can tell; the order of the calls is what the dealer
+      // changes.
       repeat until dealt >= 8 {
         deal one card from deck to each hand
         dealt += 1
