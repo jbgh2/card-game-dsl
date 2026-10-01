@@ -414,11 +414,12 @@ ROUNDS: dict[str, Rounds] = {
     ),
     "tichu.cardlang": Rounds(
         # ONE poll idiom at two vocabularies: the grand-tichu poll after each
-        # of the first eight cards, and the small-tichu poll before the push,
-        # after it, and before each climbing trick. A call is a result
-        # (`called`); the lap count is the poll's own and shared by every
-        # site, and `poll_anchor` is a never-assigned constant, not a seat the
-        # ring steers. `dealt` counts the cards taken and is the deal's, not
+        # of the first eight cards, and the small-tichu poll before the push
+        # and before each ask inside a climbing trick (the Hosted Poll). A
+        # call is a result (`called`); the lap count is the poll's own and
+        # shared by every site, and `dealer` is the seat the deal-time polls
+        # start from, written once per hand from its first player out, not a
+        # seat the ring steers. `dealt` counts the cards taken and is the deal's, not
         # the poll's; `wish` is the Mahjong's wish carried between tricks,
         # written after each climb round. Green as written; red under: drop
         # the `quiet := 0` that follows any one poll site.
@@ -430,8 +431,8 @@ ROUNDS: dict[str, Rounds] = {
         ),
         persistent=frozenset(
             {
-                "called", "dealt", "leader", "out_first", "out_second",
-                "poll_anchor", "push_done", "score", "wish",
+                "called", "dealer", "dealt", "leader", "out_first", "out_second",
+                "push_done", "score", "wish",
             }
         ),
     ),
