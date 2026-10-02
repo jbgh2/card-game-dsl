@@ -21,12 +21,12 @@
 #         open issue it blocks, transitively, so a tiered issue's
 #         unblocking work ranks where the issue does. The tier and the
 #         milestones are the direction review's decisions; nothing here
-#         reads #143. The open milestones are fetched on their own, so an
-#         open milestone without exactly one OPEN epic issue aborts whether
-#         it is malformed or merely finished: a unit with no row to take it
-#         by is a milestone nobody can work, and one whose every issue has
-#         closed is the review's to close against its finish line — until
-#         it does, it still counts toward the cap, and the sweep says so.
+#         reads #143. The open milestones are fetched on their own: one
+#         with open issues but not exactly one OPEN epic is malformed and
+#         aborts (a unit with no row to take it by is a milestone nobody
+#         can work); one whose every issue has closed is finished and
+#         unclosed, named on stderr and not fatal — its close is the next
+#         step (docs/harness.md, "The Ready Front"), not a fault here.
 # stderr: every open issue accounted for, as counted exclusion buckets.
 #         The sweep never truncates silently: a capped fetch is a loud
 #         failure, never a shorter list, and a failed Lease or label
@@ -141,11 +141,15 @@ result=$(jq -s \
     (if $milestones.totalCount > 50 or ([$milestones.nodes[] | select(.issues.totalCount > 100)] | length) > 0
      then error("capped fetch on milestones — a connection passed first: 50/100; raise it")
      else empty end),
+    # A finished milestone (no open issue at all) is reported, never fatal:
+    # closing it is the next step of the unit. One with open parts and no
+    # open epic, or two epics, is malformed and aborts.
     ($milestones.nodes
+     | map(select(.issues.totalCount > 0))
      | map({title, epics: [.issues.nodes[] | select([.labels.nodes[].name] | index("epic")) | .number]})
      | map(select((.epics | length) != 1))
      | if length > 0
-       then error("open milestone(s) without exactly one open epic issue — close each against its finish line, or give it its epic: \(map("\(.title) (open epics: \(.epics))") | join("; "))")
+       then error("open milestone(s) with open issues but not exactly one open epic — give each its epic, or close it: \(map("\(.title) (open epics: \(.epics))") | join("; "))")
        else empty end),
   (map({number, title, bucket: bucket,
         reach: (([labelnames[] | select(startswith("reachability:"))][0] // "")
@@ -166,6 +170,7 @@ result=$(jq -s \
 {
   echo "open issues by bucket:"
   jq -r '.stats[] | "  \(.n)\t\(.bucket)"' <<<"$result"
+  jq -r '.nodes[] | select(.issues.totalCount == 0) | "finished, unclosed: milestone \(.number) \(.title) -- close it, then its epic (docs/harness.md, The Ready Front)"' <<<"$milestones_json"
 } >&2
 
 jq -r '(.active[] | [.number, "M", .progress, "\(.milestone.title) -- \(.title)"] | @tsv),
