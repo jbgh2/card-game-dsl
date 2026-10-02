@@ -50,15 +50,17 @@
 // the dealer (decisions.md "Off-the-clock windows"), so a call on one card
 // or seven is a decision the game offers, and a seat that sees another
 // decline may still call before the next card. The eighth card is the last
-// look, so its poll closes only after two silent laps: every seat takes its
-// ninth card having seen every other seat decline on eight. The dealer is
-// the player who went out first in the previous hand ("the winner of the
-// previous round"), seat 0 in the first. Small tichu is off-the-clock — any
-// time before the caller's first play — encoded as the same poll over the seats
-// that may still call: once before the push, and then inside every climbing
-// trick, before each turn and each out-of-turn bomb ask (the round's
-// `before asking` clause), so a seat that has not played may call on
-// everything it has seen so far in the trick. A call re-opens the lap; a
+// look, so its poll asks exactly two laps, whoever calls: every seat takes
+// its ninth card having seen every other seat's choice on eight, and a call
+// in the last lap is not answered by a seat that has already taken its
+// ninth. The dealer is the player who went out first in the previous hand
+// ("the winner of the previous round"), seat 0 in the first. Small tichu is
+// off-the-clock — any time before the caller's first play — encoded as the
+// same poll over the seats that may still call: before the push; after it,
+// before anyone learns who leads; and inside every climbing trick once a
+// lead has been made, before each turn and each out-of-turn bomb ask (the
+// round's `before asking` clause), so a seat that has not played may call
+// on everything it has seen so far in the trick. A call re-opens the lap; a
 // silent lap of `no_call`s closes it. Eligibility is public with no
 // dedicated tracking: before the push nobody has played; after it, exactly
 // the players still holding 14 cards haven't (plays are the only thing that
@@ -126,6 +128,7 @@ game Tichu {
         out_second : Player? = none    //   all the scoring ever reads
         leader     : Player? = none
         quiet      : Integer = 0       // consecutive decline count (poll bookkeeping)
+        grand_asks : Integer = 0       // grand tichu asks in a poll (the eighth card's two laps)
         push_done  : Boolean = false   // public flip: post-push, hand size 14 = unplayed
         dealt      : Integer = 0       // cards each player has taken of the first eight
         wish       : Integer = 0       // the Mahjong's wish in force: a rank value 2..14, or 0
@@ -137,9 +140,10 @@ game Tichu {
       // cards is taken by every player at once; after each, while somebody
       // may still call, a poll walks the ring from the dealer — a call
       // re-opens the lap, a silent lap closes it — and then the next card is
-      // taken. On eight cards the next card is the ninth, so the poll closes
-      // only after two silent laps: "A (seeing that C does not call) may now
-      // call, and takes his ninth card" (the FAQ).
+      // taken. On eight cards the next card is the ninth, so the poll asks
+      // exactly two laps, whoever calls: "A (seeing that C does not call) may
+      // now call, and takes his ninth card / C (knowing that A does not call)
+      // may call, and takes his ninth card" (the FAQ).
       //
       // Each card still goes to seat 0 first, where the rules have the dealer
       // take the top card. That half is not expressible: `to each` walks the
@@ -157,9 +161,10 @@ game Tichu {
                   until quiet >= 4
           } else {
             round offering [call_grand_tichu, decline_grand] from dealer over all players
-                  until quiet >= 8
+                  until grand_asks >= 8
           }
           quiet := 0
+          grand_asks := 0
         }
       }
       deal 6 cards from deck to each hand
@@ -180,6 +185,16 @@ game Tichu {
       for each player p: for each player q: if q is not p { deal one card from gift[p] to hand[q] }
       push_done := true
 
+      // Small tichu after the push, before anyone learns who leads: "again
+      // everyone may consider a call (after the push), but without
+      // information about the lead" (the FAQ).
+      if tichu_window_open() {
+        round offering [call_tichu, no_call] from dealer
+              over players where may_call(player)
+              until quiet >= (number of players where may_call(player))
+        quiet := 0
+      }
+
       // The Mahjong holder (post-push) leads the first trick.
       leader := player_holding(Mahjong of special)
 
@@ -190,9 +205,10 @@ game Tichu {
         // the instant the second finisher completes a double victory — with
         // a finisher recorded earlier in the hand (`out_first`), or both in
         // this trick (`state.shed_first` / `state.shed_second`). The Dog ends
-        // it through the engine's `ends_trick`. Before each turn and each
-        // bomb ask, the seats that may still call small tichu are polled,
-        // starting from the seat about to be asked.
+        // it through the engine's `ends_trick`. Once the hand's first lead has
+        // been made, before each turn and each bomb ask, the seats that may
+        // still call small tichu are polled, starting from the seat about to
+        // be asked.
         round climb play_combination from leader
               over players where hand[player] is not empty
               source hand into trick_pile
@@ -201,7 +217,7 @@ game Tichu {
                     or (out_first is not none and state.shed_first is not none and team_of(out_first) is team_of(state.shed_first))
                     or (out_first is none and state.shed_first is not none and state.shed_second is not none and team_of(state.shed_first) is team_of(state.shed_second))
               before asking seat {
-                if tichu_window_open() {
+                if tichu_window_open() and lead_made() {
                   round offering [call_tichu, no_call] from seat
                         over players where may_call(player)
                         until quiet >= (number of players where may_call(player))
@@ -285,11 +301,15 @@ move_type call_grand_tichu {
   effect {
     called[actor] := 200
     quiet := 0
+    grand_asks += 1
   }
 }
 
 move_type decline_grand {
-  effect { quiet += 1 }
+  effect {
+    quiet += 1
+    grand_asks += 1
+  }
 }
 
 move_type call_tichu {
@@ -324,6 +344,10 @@ function may_call(p : Player) =
 
 // The public small-tichu gate: some seat may still call.
 function tichu_window_open() = any player where may_call(player)
+
+// The hand's first lead has been made: after the push every hand holds 14
+// cards until somebody plays (public counts).
+function lead_made() = any player where (number of cards in hand[player]) < 14
 
 // Double victory: both recorded finishers are teammates (ends the hand
 // early; a flat +200 with no card points).

@@ -11,11 +11,13 @@ Each hand:
 1. Every player takes eight cards, one at a time. Any time before taking
    the ninth, a player may call **Grand Tichu** (±200) — on one card or on
    eight, in turn from the dealer, the player who went out first in the
-   previous hand (seat 0 in the first); on eight, every player decides last
-   having seen every other player decline. The deal completes to
-   14 and every player **pushes** one card to each other player. Any player
-   who has not called may call **Tichu** (±100) at any time before playing
-   their first card — including before or during the push.
+   previous hand (seat 0 in the first); on eight, every player decides
+   twice and takes the ninth card having seen every other player's choice.
+   The deal completes to 14 and every player **pushes** one card to each
+   other player. Any player who has not called may call **Tichu** (±100) at
+   any time before playing their first card — before the push, after it
+   (before anyone knows who leads), and during the tricks — but not during
+   the push.
 2. The Mahjong holder leads. Players **climb**: each play must be a
    combination of the led *type and length* and **beat** the previous play
    in rank, or be a **bomb** that outranks whatever stands, or **pass**.
@@ -95,14 +97,17 @@ after each of the first eight cards, from the dealer — the off-the-clock
 quiescence-lap poll ([decisions.md](../decisions.md) "Off-the-clock
 windows"), so a call on any card count is a decision the game offers, and a
 seat that sees another decline may still call before the next card. The
-eighth card's poll closes only after two silent laps, the FAQ's order before
-the ninth card ("A, seeing that C does not call, may now call"): every seat
-takes its ninth card having seen every other seat decline on eight. Small tichu is off-the-clock —
-any time before the caller's first play — encoded as the same poll over the
-seats that may still call: once before the push, and then inside every
-climbing trick, before each turn and each out-of-turn bomb ask, through the
-climbing round's Hosted Poll ([decisions.md](../decisions.md) "Off-the-clock
-windows"). A seat that has not played may therefore call on everything it
+eighth card's poll asks exactly two laps, whoever calls, the FAQ's order
+before the ninth card ("A, seeing that C does not call, may now call"):
+every seat takes its ninth card having seen every other seat's choice on
+eight, and a call in the last lap is not answered by a seat that has already
+taken its ninth. Small tichu is off-the-clock — any time before the
+caller's first play — encoded as the same poll over the seats that may still
+call, in the FAQ's three windows: before the push; after it, before anyone
+learns who holds the Mahjong ("without information about the lead"); and,
+once the first lead has been made, inside every climbing trick, before each
+turn and each out-of-turn bomb ask, through the climbing round's Hosted Poll
+([decisions.md](../decisions.md) "Off-the-clock windows"). A seat that has not played may therefore call on everything it
 has seen so far in the trick, the plays before its turn included; a silent
 lap of `no_call`s closes each poll. Eligibility is public with no dedicated
 tracking: before the push nobody has played; after it, exactly the players

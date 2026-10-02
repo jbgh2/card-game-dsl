@@ -3895,7 +3895,7 @@ round climb play_combination from leader over …
       combinations tichu_lead_options follows tichu_follows
       until …
       before asking seat {
-        if tichu_window_open() {
+        if tichu_window_open() and lead_made() {
           round offering [call_tichu, no_call] from seat
                 over players where may_call(player)
                 until quiet >= (number of players where may_call(player))

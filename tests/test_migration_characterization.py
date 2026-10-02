@@ -35,6 +35,16 @@ keeps that true of captures nobody has written yet. The captures run in a
 subprocess for interpreter isolation — a fresh process per game, holding nothing
 the test session already imported.
 
+A TENTH sanctioned regeneration covers `tichu_scores.json` and
+`tichu_hands.json` on every seed they hold: the eighth card's grand tichu
+poll asks exactly two laps, so a call in the last lap is not answered by a
+seat that has already taken its ninth card (issue #785), and the small
+tichu window after the push runs from the dealer before the Mahjong's
+holder is written, the Hosted Poll waiting for the hand's first lead (issue
+#786). Both change who is asked when, and a seed moves wherever a call
+falls in a window whose order changed. No other game's deal moves, and no
+other golden here moves.
+
 A NINTH sanctioned regeneration covers `tichu_scores.json` and
 `tichu_hands.json` on every seed they hold: grand tichu's polls start from
 the dealer, the player who went out first in the previous hand, and the
