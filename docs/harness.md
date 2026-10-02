@@ -255,7 +255,14 @@ bucket on stderr.
 milestone is the unit the fleet is finishing: it holds one epic issue and
 that epic's parts, its description carries the finish line in the game's
 or the designer's terms, and it closes against that sentence — never
-against the sub-issue count. The sweep lists each open milestone as one
+against a count. A part is a sub-issue of the epic or a member of its
+milestone; the two relations are meant to agree, the sweep holds a part
+by either so one filed only one way is never offered loose, and it names
+any part in one relation and not the other on stderr for the review to
+reconcile. The unit's parts are not final until it closes: a read-gated
+unit gains parts from each read, so "the last part" is judged against
+the epic's open sub-issues and the milestone's open members together,
+never against the milestone's count alone. The sweep lists each open milestone as one
 takeable row, the epic's, ahead of every tiered issue — the nearest due
 date first, so the due date is how the review says which of the two is
 taken first — and holds every other issue in the milestone off the front: the epic is taken as a unit,
@@ -266,11 +273,14 @@ label to keep it honest. Who closes one follows from its finish line. A
 checkable finish line — a sentence an artifact can hold, such as "a test
 fails when the two routes stop agreeing" or "each sentence is refused at
 check time with a planted-fault witness" — is closed by the epic's taker
-in the step that lands the last part: milestone first, then the epic,
-with the closing comment naming the artifact that now holds the sentence
-and its green on the merged head. A judgment finish line — "a fresh read
-against the rules finds no divergence", "a designer can do X from the docs
-alone" — is closed only by the review, read against the tree. The review
+in the step that lands the last part: milestone first, then the epic, then
+the Lease released (the PR's branch is not always the Lease ref), with the
+closing comment on the epic — a milestone takes none — naming the artifact
+that now holds the sentence and its green on the merged head. A judgment
+finish line — "a fresh read against the rules finds no divergence", "a
+designer can do X from the docs alone" — is closed only by the review, read
+against the tree, and a finish line with any judgment clause is a judgment
+finish line. The review
 audits every closure since its previous verdict against the artifact the
 closing comment names, and reopens one that names none. An Active Epic holds no Merge Lane A
 part: grammar is the operator's with the Language Owner, and a unit an

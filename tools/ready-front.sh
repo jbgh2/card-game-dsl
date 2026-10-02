@@ -52,6 +52,7 @@ issues_json=$(gh api graphql --paginate \
             blockedBy(first: 50) { totalCount nodes { number state } }
             assignees(first: 10) { totalCount }
             milestone { number title state dueOn done: issues(states: [CLOSED]) { totalCount } all: issues { totalCount } }
+            parent { number }
           }
         }
       }
@@ -106,17 +107,22 @@ result=$(jq -s \
               | ($t[$r.number | tostring] // 3) as $from
               | if $from < $cur then .[$b | tostring] = $from else . end)));
   def in_open_milestone: (.milestone != null) and (.milestone.state == "OPEN");
+  # A part of an Active Epic is a sub-issue of the epic OR a member of its
+  # milestone; the sweep holds it by either relation, so a part filed one
+  # way and not the other is never offered loose, and the drift is named
+  # on stderr for the review to reconcile.
+  def is_part($em): (.parent != null) and ($em[.parent.number | tostring] != null);
   # One bucket per issue, first match wins, in docs/harness.md list order.
   # The epic of an open milestone is ACTIVE unless a hand is on it; the
   # rest of the milestone is held, whatever else it carries.
-  def bucket:
+  def bucket($em):
     .number as $n
     | if $n == $ordering then "ordering issue (not work)"
     elif in_open_milestone and (labelnames | index("epic")) then
       (if .assignees.totalCount > 0 then "claimed (assigned)"
        elif $leased | index($n) then "leased"
        else "ACTIVE" end)
-    elif in_open_milestone then "held by an open milestone"
+    elif in_open_milestone or is_part($em) then "held by an open milestone"
     elif labelnames | index("epic") then "epic (container)"
     elif (labelnames | index("needs-triage"))
          or (((labelnames - (labelnames - kinds)) | length) == 0)
@@ -131,7 +137,14 @@ result=$(jq -s \
     elif $leased | index($n) then "leased"
     else "READY" end;
   [.[].data.repository.issues.nodes[]]
-  | (map(select(.labels.totalCount > 50 or .blockedBy.totalCount > 50))
+  | ([.[] | select(in_open_milestone and (labelnames | index("epic")))]
+   | map({key: (.number | tostring), value: .milestone.number}) | from_entries) as $em
+  | (map(select(is_part($em) and ((.milestone.number // -1) != $em[.parent.number | tostring])))
+     | group_by(.parent.number)
+     | map(. as $g | ([$g[].number | "#\(.)"] | join(", ")) as $list
+           | "epic #\($g[0].parent.number): \($list) (add to milestone \($em[$g[0].parent.number | tostring]))")) as $drift
+  | (
+  (map(select(.labels.totalCount > 50 or .blockedBy.totalCount > 50))
      | if length > 0
        then error("capped fetch on issue(s) \([.[].number]) — a connection passed first: 50; raise it")
        else empty end),
@@ -151,7 +164,7 @@ result=$(jq -s \
      | if length > 0
        then error("open milestone(s) with open issues but not exactly one open epic — give each its epic, or close it: \(map("\(.title) (open epics: \(.epics))") | join("; "))")
        else empty end),
-  (map({number, title, bucket: bucket,
+  (map({number, title, bucket: bucket($em),
         reach: (([labelnames[] | select(startswith("reachability:"))][0] // "")
                 | sub("^reachability:"; "")),
         tier: own_tier,
@@ -161,15 +174,17 @@ result=$(jq -s \
    | (inherit_tiers) as $tiers
    | map(.tier = $tiers[.number | tostring])
    | {stats: (group_by(.bucket) | map({bucket: .[0].bucket, n: length})),
+      drift: $drift,
       active: ([.[] | select(.bucket == "ACTIVE")]
                | sort_by([(.milestone.dueOn // "9999"), .milestone.number])),
       ready: ([.[] | select(.bucket == "READY")]
-              | sort_by([.tier, .reach, .number]))})
+              | sort_by([.tier, .reach, .number]))}))
   ' <<<"$issues_json")
 
 {
   echo "open issues by bucket:"
   jq -r '.stats[] | "  \(.n)\t\(.bucket)"' <<<"$result"
+  jq -r '.drift[] | "parts outside their milestone (held anyway): \(.)"' <<<"$result"
   jq -r '.nodes[] | select(.issues.totalCount == 0) | "finished, unclosed: milestone \(.number) \(.title) -- close it, then its epic (docs/harness.md, The Ready Front)"' <<<"$milestones_json"
 } >&2
 
