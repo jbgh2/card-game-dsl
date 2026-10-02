@@ -29,7 +29,15 @@ single CI runner; raising it is a charter edit.
    item: Lease the epic, work its held parts on one branch or one short
    series, and each PR closes the parts it completes — a part that needs
    its own planning cycle is named in the PR as the unit's next step,
-   never fragmented into a round of its own. A cluster an issue body names
+   never fragmented into a round of its own. When the PR landing the last
+   part merges — no open sub-issue of the epic and no open member of its
+   milestone other than the epic itself remains, the count alone is not
+   it — and the milestone's
+   finish line is checkable with no judgment clause, close the milestone,
+   then the epic, then release the Lease, and name in the epic's closing
+   comment the artifact that holds the finish line and its green on the
+   merged head (docs/harness.md, "The Ready Front"); a judgment finish
+   line is the review's to close, and the PR says the unit awaits it. A cluster an issue body names
    ("four issues, one defect") is one item the same way: Lease the
    primary, comment the linkage on each sibling, one PR closes all.
    (Single-Dispatcher assumption, recorded: sibling issues stay

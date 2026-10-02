@@ -67,9 +67,12 @@ unit stops at the operator's button — and no part is Merge Lane A: that
 part is done by the operator with Hoyle before activation, or excluded
 and left on its own issue as the operator's step, named in the epic's
 body — never queued in #143, whose head must be promotable to a
-milestone, which a Lane A unit cannot be. Close one only against that sentence,
-read against the tree — a
-sub-issue count is not it. Open the next from the head of #143 only when one closes, and make a
+milestone, which a Lane A unit cannot be. Close one with a judgment
+finish line only against that sentence, read against the tree — a
+sub-issue count is not it; a checkable finish line is the taker's to close
+when the last part lands, and the review audits every closure since its
+previous verdict: the closing comment names the artifact and it is green
+on main, or the milestone is reopened. Open the next from the head of #143 only when one closes, and make a
 generator issue (a read, a sweep) blocked-by the epic its pick spawned so
 the finding stream drains before it fills again.
 

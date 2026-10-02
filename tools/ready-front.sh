@@ -21,12 +21,12 @@
 #         open issue it blocks, transitively, so a tiered issue's
 #         unblocking work ranks where the issue does. The tier and the
 #         milestones are the direction review's decisions; nothing here
-#         reads #143. The open milestones are fetched on their own, so an
-#         open milestone without exactly one OPEN epic issue aborts whether
-#         it is malformed or merely finished: a unit with no row to take it
-#         by is a milestone nobody can work, and one whose every issue has
-#         closed is the review's to close against its finish line — until
-#         it does, it still counts toward the cap, and the sweep says so.
+#         reads #143. The open milestones are fetched on their own: one
+#         with open issues but not exactly one OPEN epic is malformed and
+#         aborts (a unit with no row to take it by is a milestone nobody
+#         can work); one whose every issue has closed is finished and
+#         unclosed, named on stderr and not fatal — its close is the next
+#         step (docs/harness.md, "The Ready Front"), not a fault here.
 # stderr: every open issue accounted for, as counted exclusion buckets.
 #         The sweep never truncates silently: a capped fetch is a loud
 #         failure, never a shorter list, and a failed Lease or label
@@ -52,6 +52,7 @@ issues_json=$(gh api graphql --paginate \
             blockedBy(first: 50) { totalCount nodes { number state } }
             assignees(first: 10) { totalCount }
             milestone { number title state dueOn done: issues(states: [CLOSED]) { totalCount } all: issues { totalCount } }
+            parent { number }
           }
         }
       }
@@ -75,6 +76,7 @@ milestones_json=$(gh api graphql \
         milestones(states: [OPEN], first: 50) {
           totalCount
           nodes { number title
+            ever: issues { totalCount }
             issues(states: [OPEN], first: 100) { totalCount nodes { number labels(first: 50) { nodes { name } } } } }
         }
       }
@@ -106,17 +108,22 @@ result=$(jq -s \
               | ($t[$r.number | tostring] // 3) as $from
               | if $from < $cur then .[$b | tostring] = $from else . end)));
   def in_open_milestone: (.milestone != null) and (.milestone.state == "OPEN");
+  # A part of an Active Epic is a sub-issue of the epic OR a member of its
+  # milestone; the sweep holds it by either relation, so a part filed one
+  # way and not the other is never offered loose, and the drift is named
+  # on stderr for the review to reconcile.
+  def is_part($em): (.parent != null) and ($em[.parent.number | tostring] != null);
   # One bucket per issue, first match wins, in docs/harness.md list order.
   # The epic of an open milestone is ACTIVE unless a hand is on it; the
   # rest of the milestone is held, whatever else it carries.
-  def bucket:
+  def bucket($em):
     .number as $n
     | if $n == $ordering then "ordering issue (not work)"
     elif in_open_milestone and (labelnames | index("epic")) then
       (if .assignees.totalCount > 0 then "claimed (assigned)"
        elif $leased | index($n) then "leased"
        else "ACTIVE" end)
-    elif in_open_milestone then "held by an open milestone"
+    elif in_open_milestone or is_part($em) then "held by an open milestone"
     elif labelnames | index("epic") then "epic (container)"
     elif (labelnames | index("needs-triage"))
          or (((labelnames - (labelnames - kinds)) | length) == 0)
@@ -131,7 +138,21 @@ result=$(jq -s \
     elif $leased | index($n) then "leased"
     else "READY" end;
   [.[].data.repository.issues.nodes[]]
-  | (map(select(.labels.totalCount > 50 or .blockedBy.totalCount > 50))
+  | ([.[] | select(in_open_milestone and (labelnames | index("epic")))]
+   | map({key: (.number | tostring), value: .milestone.number}) | from_entries) as $em
+  | ([.[] | select(in_open_milestone and (labelnames | index("epic")))]
+   | map({key: (.milestone.number | tostring), value: .number}) | from_entries) as $me
+  | ((map(select(is_part($em) and ((.milestone.number // -1) != $em[.parent.number | tostring])))
+      | group_by(.parent.number)
+      | map(. as $g | ([$g[].number | "#\(.)"] | join(", ")) as $list
+            | "epic #\($g[0].parent.number): \($list) (add to milestone \($em[$g[0].parent.number | tostring]))"))
+     + (map(select(in_open_milestone and ((labelnames | index("epic")) | not)
+                   and ((.parent.number // -1) != $me[.milestone.number | tostring])))
+        | group_by(.milestone.number)
+        | map(. as $g | ([$g[].number | "#\(.)"] | join(", ")) as $list
+              | "milestone \($g[0].milestone.number): \($list) (make each a sub-issue of epic #\($me[$g[0].milestone.number | tostring]))"))) as $drift
+  | (
+  (map(select(.labels.totalCount > 50 or .blockedBy.totalCount > 50))
      | if length > 0
        then error("capped fetch on issue(s) \([.[].number]) — a connection passed first: 50; raise it")
        else empty end),
@@ -141,13 +162,18 @@ result=$(jq -s \
     (if $milestones.totalCount > 50 or ([$milestones.nodes[] | select(.issues.totalCount > 100)] | length) > 0
      then error("capped fetch on milestones — a connection passed first: 50/100; raise it")
      else empty end),
+    # A finished milestone (it held issues and none is open) is reported,
+    # never fatal: closing it is the next step of the unit. One that never
+    # held an issue, or has open parts and no open epic, or two epics, is
+    # malformed and aborts.
     ($milestones.nodes
+     | map(select(.issues.totalCount > 0 or .ever.totalCount == 0))
      | map({title, epics: [.issues.nodes[] | select([.labels.nodes[].name] | index("epic")) | .number]})
      | map(select((.epics | length) != 1))
      | if length > 0
-       then error("open milestone(s) without exactly one open epic issue — close each against its finish line, or give it its epic: \(map("\(.title) (open epics: \(.epics))") | join("; "))")
+       then error("open milestone(s) with open issues but not exactly one open epic — give each its epic, or close it: \(map("\(.title) (open epics: \(.epics))") | join("; "))")
        else empty end),
-  (map({number, title, bucket: bucket,
+  (map({number, title, bucket: bucket($em),
         reach: (([labelnames[] | select(startswith("reachability:"))][0] // "")
                 | sub("^reachability:"; "")),
         tier: own_tier,
@@ -157,15 +183,18 @@ result=$(jq -s \
    | (inherit_tiers) as $tiers
    | map(.tier = $tiers[.number | tostring])
    | {stats: (group_by(.bucket) | map({bucket: .[0].bucket, n: length})),
+      drift: $drift,
       active: ([.[] | select(.bucket == "ACTIVE")]
                | sort_by([(.milestone.dueOn // "9999"), .milestone.number])),
       ready: ([.[] | select(.bucket == "READY")]
-              | sort_by([.tier, .reach, .number]))})
+              | sort_by([.tier, .reach, .number]))}))
   ' <<<"$issues_json")
 
 {
   echo "open issues by bucket:"
   jq -r '.stats[] | "  \(.n)\t\(.bucket)"' <<<"$result"
+  jq -r '.drift[] | "parts outside their milestone (held anyway): \(.)"' <<<"$result"
+  jq -r '.nodes[] | select(.issues.totalCount == 0 and .ever.totalCount > 0) | "finished, unclosed: milestone \(.number) \(.title) -- close it, then its epic (docs/harness.md, The Ready Front)"' <<<"$milestones_json"
 } >&2
 
 jq -r '(.active[] | [.number, "M", .progress, "\(.milestone.title) -- \(.title)"] | @tsv),
