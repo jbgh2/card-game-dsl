@@ -16,11 +16,17 @@ file's polls:
 - every hand's grand tichu decisions on each card count begin with the
   dealer;
 - every seat's last decision on eight cards — the one it takes the ninth
-  card after — comes once every other seat has decided on eight cards.
+  card after — comes once every other seat has decided on eight cards;
+- no seat decides on eight cards more than twice: a call in the last lap is
+  not answered by a seat that has already taken its ninth card (the
+  operator's ruling on issue #785). An aimed run reaches that case: in a
+  game's first hands, a seat asked a second time on eight cards calls
+  whenever the call is offered.
 
 red under: anchor tichu.cardlang's deal-time polls at a fixed seat — the
 dealer counter reddens; close the eighth card's poll after one silent lap —
-the final-decision counter reddens.
+the final-decision counter reddens; let a call re-open the eighth card's
+poll — the aimed run's third-decision counter reddens.
 
 What a green here does not prove: nothing about the earlier counts beyond
 who opens them (the next card is itself the next look), and nothing at the
@@ -43,6 +49,10 @@ from tests.test_playout_tichu import tichu_reference_policy
 TICHU = Path(__file__).parent.parent / "docs" / "games" / "tichu.cardlang"
 SEEDS = range(3)
 GRAND = {"call_grand_tichu", "decline_grand"}
+# The aimed run calls on a second look only in a game's first hands: calling
+# grand that eagerly every hand loses the race to 1000 for both teams, so the
+# game never ends and its declared `max_length` stops it.
+EAGER_HANDS = 2
 
 
 class _Order:
@@ -50,8 +60,10 @@ class _Order:
     grand tichu decisions as (seat, cards held), the dealer the rules name,
     and the first seat out."""
 
-    def __init__(self, seed: int) -> None:
+    def __init__(self, seed: int, eager_second: bool = False) -> None:
         self.base = tichu_reference_policy(random.Random(seed))
+        self.eager_second = eager_second
+        self.second_look_calls = 0
         self.rs: RuntimeState | None = None
         self.hands: list[dict[str, Any]] = []
 
@@ -72,7 +84,13 @@ class _Order:
                 self.hands.append(
                     {"dealer": first_out if first_out is not None else 0, "asks": [], "first_out": None}
                 )
+            looked = self.hands[-1]["asks"].count((player, 8))
             self.hands[-1]["asks"].append((player, held))
+            call = next((c for c in candidates if c[0] == "call_grand_tichu"), None)
+            aimed = self.eager_second and len(self.hands) <= EAGER_HANDS
+            if aimed and held == 8 and looked == 1 and call is not None:
+                self.second_look_calls += 1
+                return [call]
         elif self.hands and self.hands[-1]["first_out"] is None and self.hands[-1]["asks"][-1][1] >= 8:
             empty = [p for p in seats if self._held(p) == 0]
             if len(empty) == 1:
@@ -80,11 +98,11 @@ class _Order:
         return self.base(player, candidates, n)
 
 
-def _played() -> list[_Order]:
+def _played(eager_second: bool = False) -> list[_Order]:
     game = check_source(TICHU)
     out = []
     for seed in SEEDS:
-        rec = _Order(seed)
+        rec = _Order(seed, eager_second)
         play_game(game, random.Random(seed), None, rec, None, on_first_decision=rec.attach)
         out.append(rec)
     return out
@@ -107,6 +125,8 @@ def _violations(runs: list[_Order]) -> Counter[str]:
                 seen = {s for s in eight[:last] if s != seat}
                 if seen != seats - {seat}:
                     found["grand.final_eighth_card_decision_before_the_others"] += 1
+                if eight.count(seat) > 2:
+                    found["grand.decision_after_taking_the_ninth_card"] += 1
     return found
 
 
@@ -115,3 +135,12 @@ def test_grand_tichu_follows_the_faq_order() -> None:
     assert found["grand.counts_reached"] > 0, found
     assert found["grand.count_not_opened_by_the_dealer"] == 0, found
     assert found["grand.final_eighth_card_decision_before_the_others"] == 0, found
+    assert found["grand.decision_after_taking_the_ninth_card"] == 0, found
+
+
+def test_a_call_on_the_last_lap_is_not_answered() -> None:
+    runs = _played(eager_second=True)
+    assert sum(r.second_look_calls for r in runs) > 0
+    found = _violations(runs)
+    assert found["grand.decision_after_taking_the_ninth_card"] == 0, found
+    assert found["grand.count_not_opened_by_the_dealer"] == 0, found

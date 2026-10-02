@@ -508,7 +508,8 @@ in tests/test_trump_slot_class.py.
   after every pick), distributed giver-major by draw-free `deal` statements.
   The calls and the Dragon are real decisions: grand tichu is polled
   after each of the first eight cards, small tichu runs on the
-  quiescence-lap poll before the push / after it / before each trick, and a
+  quiescence-lap poll before the push / after it, before anyone learns who
+  leads / inside each trick once the first lead is made (the Hosted Poll), and a
   Dragon-won trick is given by an announced `dragon_to_left` /
   `dragon_to_right` choice into that opponent's own pile; the Mahjong's
   wish is the climb form's Play Announcement and bombs out of turn its
