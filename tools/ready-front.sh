@@ -76,6 +76,7 @@ milestones_json=$(gh api graphql \
         milestones(states: [OPEN], first: 50) {
           totalCount
           nodes { number title
+            ever: issues { totalCount }
             issues(states: [OPEN], first: 100) { totalCount nodes { number labels(first: 50) { nodes { name } } } } }
         }
       }
@@ -139,10 +140,17 @@ result=$(jq -s \
   [.[].data.repository.issues.nodes[]]
   | ([.[] | select(in_open_milestone and (labelnames | index("epic")))]
    | map({key: (.number | tostring), value: .milestone.number}) | from_entries) as $em
-  | (map(select(is_part($em) and ((.milestone.number // -1) != $em[.parent.number | tostring])))
-     | group_by(.parent.number)
-     | map(. as $g | ([$g[].number | "#\(.)"] | join(", ")) as $list
-           | "epic #\($g[0].parent.number): \($list) (add to milestone \($em[$g[0].parent.number | tostring]))")) as $drift
+  | ([.[] | select(in_open_milestone and (labelnames | index("epic")))]
+   | map({key: (.milestone.number | tostring), value: .number}) | from_entries) as $me
+  | ((map(select(is_part($em) and ((.milestone.number // -1) != $em[.parent.number | tostring])))
+      | group_by(.parent.number)
+      | map(. as $g | ([$g[].number | "#\(.)"] | join(", ")) as $list
+            | "epic #\($g[0].parent.number): \($list) (add to milestone \($em[$g[0].parent.number | tostring]))"))
+     + (map(select(in_open_milestone and ((labelnames | index("epic")) | not)
+                   and ((.parent.number // -1) != $me[.milestone.number | tostring])))
+        | group_by(.milestone.number)
+        | map(. as $g | ([$g[].number | "#\(.)"] | join(", ")) as $list
+              | "milestone \($g[0].milestone.number): \($list) (make each a sub-issue of epic #\($me[$g[0].milestone.number | tostring]))"))) as $drift
   | (
   (map(select(.labels.totalCount > 50 or .blockedBy.totalCount > 50))
      | if length > 0
@@ -154,11 +162,12 @@ result=$(jq -s \
     (if $milestones.totalCount > 50 or ([$milestones.nodes[] | select(.issues.totalCount > 100)] | length) > 0
      then error("capped fetch on milestones — a connection passed first: 50/100; raise it")
      else empty end),
-    # A finished milestone (no open issue at all) is reported, never fatal:
-    # closing it is the next step of the unit. One with open parts and no
-    # open epic, or two epics, is malformed and aborts.
+    # A finished milestone (it held issues and none is open) is reported,
+    # never fatal: closing it is the next step of the unit. One that never
+    # held an issue, or has open parts and no open epic, or two epics, is
+    # malformed and aborts.
     ($milestones.nodes
-     | map(select(.issues.totalCount > 0))
+     | map(select(.issues.totalCount > 0 or .ever.totalCount == 0))
      | map({title, epics: [.issues.nodes[] | select([.labels.nodes[].name] | index("epic")) | .number]})
      | map(select((.epics | length) != 1))
      | if length > 0
@@ -185,7 +194,7 @@ result=$(jq -s \
   echo "open issues by bucket:"
   jq -r '.stats[] | "  \(.n)\t\(.bucket)"' <<<"$result"
   jq -r '.drift[] | "parts outside their milestone (held anyway): \(.)"' <<<"$result"
-  jq -r '.nodes[] | select(.issues.totalCount == 0) | "finished, unclosed: milestone \(.number) \(.title) -- close it, then its epic (docs/harness.md, The Ready Front)"' <<<"$milestones_json"
+  jq -r '.nodes[] | select(.issues.totalCount == 0 and .ever.totalCount > 0) | "finished, unclosed: milestone \(.number) \(.title) -- close it, then its epic (docs/harness.md, The Ready Front)"' <<<"$milestones_json"
 } >&2
 
 jq -r '(.active[] | [.number, "M", .progress, "\(.milestone.title) -- \(.title)"] | @tsv),

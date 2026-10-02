@@ -261,8 +261,8 @@ by either so one filed only one way is never offered loose, and it names
 any part in one relation and not the other on stderr for the review to
 reconcile. The unit's parts are not final until it closes: a read-gated
 unit gains parts from each read, so "the last part" is judged against
-the epic's open sub-issues and the milestone's open members together,
-never against the milestone's count alone. The sweep lists each open milestone as one
+the epic's open sub-issues and the milestone's open members other than
+the epic itself, together, never against the milestone's count alone. The sweep lists each open milestone as one
 takeable row, the epic's, ahead of every tiered issue — the nearest due
 date first, so the due date is how the review says which of the two is
 taken first — and holds every other issue in the milestone off the front: the epic is taken as a unit,
