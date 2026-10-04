@@ -15,9 +15,16 @@ bombs a window offers, who may call and when the calls are polled, who
 leads, who takes a trick, the Dragon's gift, the finishing order, the
 tailender, the double victory, the hand's score and the game's end. It
 plays whole games under `tichu_reference_policy` as the chooser and an
-observer, compares every decision the engine offers with its own derivation
-from the live hand and the plays it has itself made, and recomputes every
-hand's score delta. The engine is read for the world only — the hands, the
+observer. At every decision it compares the engine's whole menu with its
+own derivation from the live hand and the plays it has itself made — each
+play as a reading (cards, kind, length, key), never as a bare card-set, and
+each call, gift and push as the exact set of choices the rules give — and
+who is asked; at every hand end it recomputes the score delta. Who is asked
+in a climbing trick's ring and bomb window is held by
+tests/test_tichu_bombs.py and the order of grand tichu calls by
+tests/test_tichu_grand_order.py; the referee holds who is asked everywhere
+else: the lead, the small tichu polls, the wish, the Dragon's gift and the
+push. The engine is read for the world only — the hands, the
 standing play, the scores, and the cards it moves — never for a legal set,
 a winner or a score.
 
@@ -81,7 +88,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.tichu_combinations import Play
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.values import Card, Player, build_deck
 from tests.test_playout_tichu import tichu_reference_policy
 
 TICHU = Path(__file__).parent.parent / "docs" / "games" / "tichu.cardlang"
@@ -133,6 +140,8 @@ def _readings(cards: frozenset[Card]) -> frozenset[Reading]:
             and sorted(naturals) == list(range(min(naturals), min(naturals) + size))
         ):
             out.add(("bomb", size, float(max(naturals))))
+    # A suited run of natural cards is a bomb, never an ordinary straight.
+    flush = any(kind == "bomb" and length >= 5 for kind, length, _ in out)
     # The Phoenix stands for any one card from 2 to Ace.
     fills = [[*naturals, v] for v in range(2, 15)] if phoenix else [naturals]
     for values in fills:
@@ -147,7 +156,7 @@ def _readings(cards: frozenset[Card]) -> frozenset[Reading]:
                 if keys == list(range(keys[0], keys[0] + len(keys))):
                     out.add(("pairseq", size // 2, float(keys[-1])))
         run = sorted(values + ([1] if mahjong else []))
-        if size >= 5 and len(set(run)) == size and run == list(range(run[0], run[0] + size)):
+        if not flush and size >= 5 and len(set(run)) == size and run == list(range(run[0], run[0] + size)):
             out.add(("straight", size, float(run[-1])))
     return frozenset(out)
 
@@ -188,8 +197,31 @@ def _legal(hand: frozenset[Card], standing: Play | None) -> frozenset[frozenset[
     return frozenset(out)
 
 
-def _bombs(cards: frozenset[Card]) -> bool:
-    return any(kind == "bomb" for kind, _, _ in _readings(cards))
+Offer = tuple[frozenset[Card], str, int, float]  # (cards, kind, length, key)
+
+
+@functools.lru_cache(maxsize=None)
+def _offers(hand: frozenset[Card], standing: Play | None) -> frozenset[Offer]:
+    """Every play the rules let `hand` make over `standing`: each legal
+    card-set under each reading of it that beats the standing play."""
+    out: set[Offer] = set()
+    for cards in _legal(hand, standing):
+        for kind, length, key in _readings(cards):
+            if _beats((kind, length, key), len(cards), standing):
+                if key == PHOENIX_SINGLE:
+                    # The Phoenix single counts half a rank above the single
+                    # it is played on, and 1.5 when led.
+                    key = 1.5 if standing is None else standing.key + 0.5
+                out.add((cards, kind, length, key))
+    return frozenset(out)
+
+
+def _as_offers(plays: list[Play]) -> frozenset[Offer]:
+    return frozenset((frozenset(p.cards), p.kind, p.length, p.key) for p in plays)
+
+
+def _show_offers(offers: set[Offer] | frozenset[Offer]) -> list[str]:
+    return [f"{kind}/{length}@{key:g} {_show(cards)}" for cards, kind, length, key in sorted(offers, key=str)][:4]
 
 
 def _holds(cards: tuple[Card, ...] | frozenset[Card], rank: int) -> bool:
@@ -209,6 +241,8 @@ CHECKS: dict[str, tuple[str, ...]] = {
     "hand.ended_without_a_single_tailender": ("hands.with_a_tailender",),
     "trick.captured_by_someone_else": ("tricks.captured",),
     "dragon.trick_given_to_own_team": ("dragon.given_away",),
+    "dragon.offer_wrong": ("decisions.dragon",),
+    "dragon.trick_taken_without_the_winners_choice": ("tricks.captured", "dragon.given_away"),
     "grand.offered_after_the_eighth_card": ("decisions.grand_poll",),
     "grand.offer_wrong_for_seat": ("decisions.grand_poll", "grand.offers_to_a_seat_that_called"),
     "small.offer_wrong_for_seat": ("decisions.small_poll", "small.calls_in_a_trick"),
@@ -235,12 +269,12 @@ CHECKS: dict[str, tuple[str, ...]] = {
     "wish.compelled_set_differs": ("decisions.compelled_by_the_wish",),
     "wish.pass_offered_though_the_wish_can_be_fulfilled": ("decisions.compelled_by_the_wish",),
     "push.candidates_not_the_whole_hand": ("decisions.push",),
+    "push.seats_not_each_asked_once": ("decisions.push",),
     "climb.decision_with_one_or_no_holder": ("decisions.lead", "decisions.follow"),
     "climb.decision_after_a_double_victory": ("hands.double_victory",),
     "climb.offered_set_differs": ("decisions.lead", "decisions.follow"),
     "climb.pass_offered_on_the_lead": ("decisions.lead",),
     "climb.no_pass_on_a_follow": ("decisions.follow",),
-    "offered.play_the_rules_do_not_read_that_way": ("decisions.lead", "decisions.follow", "decisions.window"),
     "window.asked_with_nothing_standing": ("decisions.window",),
     "window.asked_over_the_dog": ("decisions.window", "tricks.dog"),
     "window.offers_pass": ("decisions.window",),
@@ -321,6 +355,8 @@ class Referee:
         self.wish: int | None = None
         self.pile: dict[Player, list[Card]] = {p: [] for p in range(4)}
         self.trick_last: Player | None = None
+        self.trick_top: Play | None = None
+        self.pushes: Counter[Player] = Counter()
         self.trick_open = False
         self.trick_cards: list[Card] = []
         self.last_was_dog = False
@@ -391,6 +427,9 @@ class Referee:
             self._note("small.poll_with_no_ask_after_it", f"block={self.block}")
             self.block = []
         self.counts["hands"] += 1
+        # Every seat pushes once a hand.
+        if self.pushes != Counter(range(4)):
+            self._note("push.seats_not_each_asked_once", f"pushes={dict(self.pushes)}")
         delta = {0: 0, 1: 0}
         if self._double_victory():
             # A double victory scores a flat 200 and no card points.
@@ -446,14 +485,20 @@ class Referee:
                         self._note("dragon.trick_given_to_own_team", f"P{self.pending_dragon} gave to P{taker}")
                     self.counts["dragon.given_away"] += 1
                     self.pending_dragon = None
-                elif taker != self.trick_last:
-                    self._note("trick.captured_by_someone_else", f"won by P{self.trick_last}, taken by P{taker}")
+                else:
+                    if self._dragon_on_top():
+                        self._note(
+                            "dragon.trick_taken_without_the_winners_choice", f"won by P{self.trick_last}, taken by P{taker}"
+                        )
+                    if taker != self.trick_last:
+                        self._note("trick.captured_by_someone_else", f"won by P{self.trick_last}, taken by P{taker}")
                 self.pile[taker].extend(self.trick_cards)
                 self.counts["tricks.captured"] += 1
             elif target == "discard":
                 self.counts["tricks.dog"] += 1
             self.trick_open = False
             self.trick_cards = []
+            self.trick_top = None
         if source.startswith("hand[") and target.startswith("captured["):
             tail = int(source[len("hand[") : -1])
             self.hand_cards_at_end[tail] = self._hand(tail) or self.hand_cards_at_end.get(tail, [])
@@ -483,16 +528,14 @@ class Referee:
         if names & {"call_tichu", "no_call"}:
             return self._small(player, cands, count, names)
         if names & {"dragon_to_left", "dragon_to_right"}:
-            self._close_poll("dragon", player)
-            self.counts["decisions.dragon"] += 1
-            self.pending_dragon = player
-            return self.base(player, cands, count)
+            return self._dragon(player, cands, count, names)
         if tokens and all(s.startswith("wish_") or s == "no_wish" for s in tokens):
             return self._wish(player, tokens)
         if count == 3 and cands and not plays:
             # The push: three cards from the whole fourteen-card hand.
             self._close_poll("push", player)
             self.pushed = True
+            self.pushes[player] += 1
             self.counts["decisions.push"] += 1
             if sorted(map(str, cands)) != sorted(map(str, hand)) or len(hand) != 14:
                 self._note("push.candidates_not_the_whole_hand", f"P{player} offered {len(cands)}")
@@ -510,8 +553,9 @@ class Referee:
             self._note("grand.offered_after_the_eighth_card", f"P{player} on {len(hand)} cards")
         if player in self.called:
             self.counts["grand.offers_to_a_seat_that_called"] += 1
-        if ("call_grand_tichu" in names) != (player not in self.called):
-            self._note("grand.offer_wrong_for_seat", f"P{player} called={self.called}")
+        want = {"call_grand_tichu", "decline_grand"} if player not in self.called else {"decline_grand"}
+        if names != want or len(cands) != len(want):
+            self._note("grand.offer_wrong_for_seat", f"P{player} offered {sorted(names)} called={self.called}")
         pick = self.base(player, cands, count)
         if pick[0][0] == "call_grand_tichu":
             self.called[player] = 200
@@ -520,10 +564,12 @@ class Referee:
     def _small(self, player: Player, cands: list[Any], count: int, names: set[Any]) -> list[Any]:
         self.counts["decisions.small_poll"] += 1
         may = player in self._may_call()
-        if ("call_tichu" in names) != may:
+        want = {"call_tichu", "no_call"} if may else {"no_call"}
+        if names != want or len(cands) != len(want):
             self._note(
                 "small.offer_wrong_for_seat",
-                f"P{player} called={self.called} played={player in self.played} cards={len(self._hand(player))}",
+                f"P{player} offered {sorted(names)} called={self.called} played={player in self.played}"
+                f" cards={len(self._hand(player))}",
             )
         if not may:
             self._note("small.asked_a_seat_that_may_not_call", f"P{player}")
@@ -538,6 +584,29 @@ class Referee:
         else:
             self.block.append((player, "decline"))
         return pick
+
+    def _dragon(self, player: Player, cands: list[Any], count: int, names: set[Any]) -> list[Any]:
+        # The player who wins a trick with the Dragon gives it to the
+        # opponent of their choice, on either side.
+        self._close_poll("dragon", player)
+        self.counts["decisions.dragon"] += 1
+        if (
+            names != {"dragon_to_left", "dragon_to_right"}
+            or len(cands) != 2
+            or player != self.trick_last
+            or not self._dragon_on_top()
+        ):
+            top = self.trick_top
+            self._note(
+                "dragon.offer_wrong",
+                f"P{player} offered {sorted(names)}; trick won by P{self.trick_last} with {_show(top.cards) if top else '-'}",
+            )
+        self.pending_dragon = player
+        return self.base(player, cands, count)
+
+    def _dragon_on_top(self) -> bool:
+        top = self.trick_top
+        return top is not None and [x.rank for x in top.cards] == ["Dragon"]
 
     def _wish(self, player: Player, tokens: set[str]) -> list[Any]:
         # The Mahjong's player may wish for a rank from 2 to Ace, or wish for
@@ -566,10 +635,7 @@ class Referee:
             self._note("climb.decision_with_one_or_no_holder", f"P{player}")
         if self._double_victory():
             self._note("climb.decision_after_a_double_victory", f"out={self.out}")
-        offered = {frozenset(p.cards) for p in plays}
-        for p in plays:
-            if (p.kind, p.length) not in {(k, length) for k, length, _ in _readings(frozenset(p.cards))}:
-                self._note("offered.play_the_rules_do_not_read_that_way", f"{p.kind}/{p.length} {_show(p.cards)}")
+        offered = _as_offers(plays)
         self._close_poll("window" if in_window else ("lead" if standing is None else "follow"), player)
         held = frozenset(hand)
 
@@ -582,11 +648,11 @@ class Referee:
                 self._note("window.asked_over_the_dog", f"P{player}")
             if "pass" in tokens:
                 self._note("window.offers_pass", f"P{player}")
-            want = {s for s in _legal(held, standing) if _bombs(s)}
+            want = {o for o in _offers(held, standing) if o[1] == "bomb"}
             if offered != want:
                 self._note(
                     "window.bombs_differ",
-                    f"P{player} extra={[_show(x) for x in offered - want]} missing={[_show(x) for x in want - offered]}",
+                    f"P{player} extra={_show_offers(offered - want)} missing={_show_offers(want - offered)}",
                 )
             pick: list[Any] = (
                 [plays[self.rng.randrange(len(plays))]] if plays and self.rng.random() < 0.5 else ["no_bomb"]
@@ -600,20 +666,18 @@ class Referee:
         self.counts["decisions.lead" if leading else "decisions.follow"] += 1
         if leading:
             self._check_leader(player)
-        legal = set(_legal(held, standing))
-        if not leading:
-            legal = {s for s in legal if not (len(s) == 1 and next(iter(s)).rank == "Dog")}
+        legal = set(_offers(held, standing))
         # A wish in force compels a play holding the wished rank whenever the
         # player has a legal one; then passing is not allowed.
         wish = self.wish
-        compelled = {s for s in legal if _holds(s, wish)} if wish is not None else set()
+        compelled = {o for o in legal if _holds(o[0], wish)} if wish is not None else set()
         if compelled:
             self.counts["decisions.compelled_by_the_wish"] += 1
             if offered != compelled:
                 self._note(
                     "wish.compelled_set_differs",
-                    f"P{player} wish {wish} extra={[_show(x) for x in offered - compelled][:4]}"
-                    f" missing={[_show(x) for x in compelled - offered][:4]}",
+                    f"P{player} wish {wish} extra={_show_offers(offered - compelled)}"
+                    f" missing={_show_offers(compelled - offered)}",
                 )
             if "pass" in tokens:
                 self._note("wish.pass_offered_though_the_wish_can_be_fulfilled", f"P{player} wish {wish}")
@@ -622,7 +686,7 @@ class Referee:
                 self._note(
                     "climb.offered_set_differs",
                     f"P{player} lead={leading} standing={_show(standing.cards) if standing else '-'}"
-                    f" extra={[_show(x) for x in offered - legal][:4]} missing={[_show(x) for x in legal - offered][:4]}",
+                    f" extra={_show_offers(offered - legal)} missing={_show_offers(legal - offered)}",
                 )
             if leading and "pass" in tokens:
                 self._note("climb.pass_offered_on_the_lead", f"P{player}")
@@ -663,6 +727,7 @@ class Referee:
             self.trick_cards = []
         self.trick_cards.extend(play.cards)
         self.trick_last = player
+        self.trick_top = play
         self.last_was_dog = play.kind == "dog"
         if self.wish is not None and _holds(play.cards, self.wish):
             self.wish = None
@@ -741,6 +806,20 @@ def test_checks_name_exactly_the_referees_notes() -> None:
     assert noted == set(CHECKS)
 
 
+def test_an_offer_is_judged_by_its_reading_not_only_its_cards() -> None:
+    """A suited run of natural cards is a bomb and never an ordinary
+    straight, so the same cards offered as a straight are a divergence even
+    though the card-set is legal.
+
+    red under: `_readings` adding the straight reading beside the bomb, or
+    the referee comparing card-sets instead of offers."""
+    hearts = [c for c in build_deck("tichu56") if c.suit == "hearts" and c.rank in ("5", "6", "7", "8", "9")]
+    run = frozenset(hearts)
+    assert _readings(run) == {("bomb", 5, 9.0)}
+    as_straight = Play("straight", 5, 9, tuple(hearts))
+    assert _as_offers([as_straight]) - _offers(run, None)
+
+
 # --- the reddening record --------------------------------------------------------
 
 # Each row reverts one rule in a copy of the game file: the rule, the edits
@@ -791,6 +870,21 @@ PLANTED: list[tuple[str, list[tuple[str, str]], set[str]]] = [
         "the Dragon's left gift stays with the winner",
         [("captured[actor offset_by left]", "captured[actor]")],
         {"dragon.trick_given_to_own_team"},
+    ),
+    (
+        "the Dragon's winner may only give it to the left",
+        [
+            (
+                "offer to winner one of [dragon_to_left, dragon_to_right]",
+                "offer to winner one of [dragon_to_left]",
+            )
+        ],
+        {"dragon.offer_wrong", "dragon.trick_taken_without_the_winners_choice"},
+    ),
+    (
+        "the Dragon's trick stays with its winner",
+        [("if tichu_dragon_won() {", "if false {")],
+        {"dragon.trick_taken_without_the_winners_choice"},
     ),
     (
         "the wish ends with its trick",
