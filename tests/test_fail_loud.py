@@ -177,6 +177,7 @@ game G {
   state { strain : Suit? = none  picked[player] : Suit? = none  score[player] : Integer = 0 }
   phase play {
     for each player p: picked[p] := strain
+    for each player p: offer to p one of [bid]
   }
   winner: highest score
 }

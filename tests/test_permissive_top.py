@@ -368,16 +368,17 @@ def test_function_parameter_type_name_is_validated() -> None:
 
 
 def test_move_parameter_domain_is_gated_even_when_never_offered() -> None:
-    """`_check_move_params` used to run only for moves reachable from an
-    `offer`/round vocabulary, so a move type no vocabulary named had its
-    parameter domains unchecked entirely. It now gates every DECLARED move
-    type."""
+    """`_check_move_params` gates every DECLARED move type, offered or not: a
+    move type no vocabulary names still has its parameter domains checked, and
+    that sharper diagnostic leads the never-offered one the same pass reports."""
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(
             _game("move_type mv(x : Integar) { effect { score[actor] := 1 } }"),
             "g.cardlang",
         )
-    assert "unsupported parameter domain 'Integar'" in str(ei.value)
+    assert "unsupported parameter domain 'Integar'" in ei.value.diagnostic.message
+    report = "\n".join(getattr(ei.value, "__notes__", []) or [])
+    assert "move type `mv` is never offered" in report
 
 
 def test_variant_payload_type_name_is_validated() -> None:
@@ -404,7 +405,7 @@ game G {
   positions { column : 1..4 }
   zones { deck : Deck  pile[column] : Cascade<column> }
   state { score[player] : Integer = 0 }
-  phase play { for each player p: score[p] := 1 }
+  phase play { for each player p: offer to p one of [build] }
   winner: highest score
 }
 move_type build(src : column) { effect { score[actor] := 1 } }
@@ -513,11 +514,12 @@ procedure bump(p : Player) { score[p] := 1 }
 # surviving site, so a count change can be checked against an argument rather
 # than just re-blessed:
 #
-# typecheck.py (15)
-#   legitimate top (no better type exists) — 4:
-#     pronoun member access (deferred shape); a non-`actor` pronoun; a bare
-#     function NAME in value position; a procedure `Sig.ret` (a procedure is a
-#     statement — the field is never read).
+# typecheck.py (14)
+#   legitimate top (no better type exists) — 3:
+#     pronoun member access (deferred shape); a non-`actor` pronoun; a
+#     procedure `Sig.ret` (a procedure is a statement — the field is never
+#     read). A bare trick-winner or auction-outcome name never reaches the
+#     type layer: resolve refuses it outside the round slot that reads it.
 #   gradual propagation, downstream of a guard that already fired — 6:
 #     `type_from_name`'s unknown name (every declared-type-name position is
 #     refused at resolve for a name no registry holds, so a resolved game
@@ -552,7 +554,7 @@ procedure bump(p : Player) { score[p] := 1 }
 #   the `Sig` model cannot express — `highest_by_trick_order`'s VALUE_SIGS row
 #   among them — and the `ChipStack` resource zone's element.
 AUDITED_TOP_SITES: dict[str, int] = {
-    "typecheck.py": 15,
+    "typecheck.py": 14,
     "types.py": 2,
     "builtins/signatures.py": 13,
 }

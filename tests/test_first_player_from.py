@@ -629,12 +629,10 @@ def test_trick_round_from_parse_shape() -> None:
     assert stmt.leader.kind == "first_from"
 
 
-def test_transfer_amount_host_fences_and_computes() -> None:
+def test_transfer_amount_host_fences_and_refuses_a_seat() -> None:
     # The form abuts the transfer's own noun and `from`: the amount is the
-    # query, `cards from deck` is the transfer's machinery. The amount slot
-    # is statically unchecked today (a String or Player amount checks green
-    # and dies at play in a raw ValueError; issue #338); the seat coerces to
-    # a count at play: seat 2 moves 2 cards.
+    # query, `cards from deck` is the transfer's machinery. A seat is not a
+    # count, so the amount slot refuses it, naming the Player it was handed.
     src = _game(
         """
         shuffle deck
@@ -643,7 +641,8 @@ def test_transfer_amount_host_fences_and_computes() -> None:
         s[0] := number of cards in hand[0]
         """
     )
-    assert _scores(src)[0] == 2
+    with pytest.raises(DiagnosticError, match="expected an Integer, got Player"):
+        check_dsl(src, "mini.cardlang")
 
 
 def test_state_default_host_evaluates_at_setup() -> None:

@@ -398,14 +398,23 @@ def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
             _deposit(ctx, dest, taken, ctx.current_player, loc)
 
 
-def _check_count(count: int, mode: str | None) -> int:
+def _check_count(count: Any, mode: str | None) -> int:
     """The amount-expression domain [[owner-guard]]: an amount is runtime data (a
     computed expression can go negative at a ring's edge), and Python's
     negative slice would SILENTLY move len+count cards — the worst class.
-    Negative is never meaningful; zero under `chosen` is a vacuous decision
-    node (no-implicit-actions); zero under dealt/`random` is an allowed
-    no-op (a computed "deal what remains" may legitimately be zero —
+    A non-Integer is refused for the dynamic class, one reaching here through
+    the permissive top (the static class is `typecheck._check_transfer`'s);
+    `bool` is refused ahead of `int` because it subclasses it, and a bare int
+    conversion would deal `true` as one card (`evaluate._choose_operand`'s
+    rule). Negative is never meaningful; zero under `chosen` is a vacuous
+    decision node (no-implicit-actions); zero under dealt/`random` is an
+    allowed no-op (a computed "deal what remains" may legitimately be zero —
     recorded in roadmap.md, "Grammar surface deferred by the checker")."""
+    if isinstance(count, bool) or not isinstance(count, int):
+        raise OwnerGuardError(
+            f"movement amount evaluated to {count!r}, not an Integer — a "
+            f"movement moves a whole number of cards"
+        )
     if count < 0:
         raise OwnerGuardError(
             f"movement amount evaluated to {count} — a negative amount is "
@@ -466,7 +475,7 @@ def _select_from(
         # reach here — resolve rejects `some` without `jointly`, and every
         # joint movement took the joint branch before this.
         assert not isinstance(amount, str)
-        count = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
+        count = _check_count(evaluate(amount, ctx), stmt.selection_mode)
     if stmt.selection_mode == "chosen":
         chosen = decide(
             ctx, player, list(source.cards), count, "execute._select_from", destination
@@ -526,7 +535,7 @@ def _select_joint(
         # Shadow Guard: parse admits "all" | "one" | "some" | Expr, and the
         # three string literals are handled above.
         assert not isinstance(amount, str)
-        k = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
+        k = _check_count(evaluate(amount, ctx), stmt.selection_mode)
         sizes = range(k, k + 1)
     assert stmt.where is not None  # grammar: `jointly` IS a where-clause form
     noun = content_noun(ctx.rs.content_flavor, plural=True)
@@ -579,7 +588,7 @@ def _select_filtered(
         # path — resolve's Owner Guard confines `some` to `jointly`, which
         # routes to `_select_joint`.
         assert not isinstance(amount, str)
-        count = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
+        count = _check_count(evaluate(amount, ctx), stmt.selection_mode)
     if stmt.selection_mode == "chosen":
         chosen = decide(
             ctx, player, pool, count, "execute._select_filtered", destination
@@ -668,7 +677,7 @@ def _assign(stmt: n.AssignStmt, ctx: Ctx) -> None:
     else:
         key = evaluate(stmt.index, ctx)
         target = ctx.rs.get(stmt.target.name)  # the per-key map
-        if key not in target:
+        if isinstance(key, bool) or key not in target:
             # The store's key set IS the index domain's member set (the driver
             # declares it from the domain table), and a write outside it used
             # to mint a phantom key silently: `n[9] := 1` in a 4-player game
@@ -685,6 +694,13 @@ def _assign(stmt: n.AssignStmt, ctx: Ctx) -> None:
 
 
 def _apply(op: str, current: Any, rhs: Any) -> Any:
+    if isinstance(rhs, bool) and op in ("+=", "-="):
+        # `evaluate._binop`'s arithmetic guard, for the compound assignment:
+        # a Boolean reaching here through the permissive top would add 1 or 0.
+        raise OwnerGuardError(
+            f"`{op}` expects an Integer — got {rhs!r}; the checker leaves this "
+            f"value's type open, so it is checked here"
+        )
     if op == "+=":
         return current + rhs
     if op == "-=":
@@ -932,7 +948,7 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
             f"simultaneous-pass source is not a zone (got {type(source).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
-    count = _check_count(int(evaluate(body.amount, ctx)), body.selection_mode)
+    count = _check_count(evaluate(body.amount, ctx), body.selection_mode)
     actor = ctx.require_actor("a simultaneous-pass selection")
     try:
         chosen = decide(

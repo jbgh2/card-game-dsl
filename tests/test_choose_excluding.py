@@ -374,6 +374,8 @@ RESOLVE_REJECTIONS: tuple[tuple[str, str], ...] = (
     ("0 .. (13 - 1)", "statically known upper bound"),
     ("-1 .. 5", "below the reserved block"),
     ("-1 .. n up to 5", "below the reserved block"),
+    ("n .. -1", "is negative"),
+    ("0 .. -1", "is negative"),
 )
 
 EXCLUSION_NEEDLES: tuple[str, ...] = ("can never act", "would always empty")

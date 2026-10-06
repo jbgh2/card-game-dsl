@@ -25,7 +25,7 @@ game Mini {
   zones { deck : Deck  hand[player] : PublicHand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase p {
-    move chosen 2 cards from hand[0] where card.suit is hearts to pile
+    as 0 { move chosen 2 cards from hand[0] where card.suit is hearts to pile }
   }
   winner: highest score
 }
@@ -39,7 +39,7 @@ game Mini {
   zones { deck : Deck  hand[player] : PublicHand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase p {
-    move chosen 2 cards from hand[0] to pile
+    as 0 { move chosen 2 cards from hand[0] to pile }
   }
   winner: highest score
 }
@@ -47,7 +47,9 @@ game Mini {
 
 
 def _movement(game: n.Game) -> n.Transfer:
-    stmt = game.phases[0].items[-1]
+    block = game.phases[0].items[-1]
+    assert isinstance(block, n.AsBlock)
+    stmt = block.body[-1]
     assert isinstance(stmt, n.Transfer)
     return stmt
 
@@ -74,8 +76,11 @@ def test_typecheck_accepts_the_where_predicate() -> None:
 def test_filter_ir_key_emitted_only_when_present() -> None:
     filtered_ir: Any = emit(check_dsl(FILTERED_SRC, "mini.cardlang"))
     plain_ir: Any = emit(check_dsl(PLAIN_SRC, "mini.cardlang"))
-    filtered_mv = filtered_ir["phases"][0]["items"][0]
-    plain_mv = plain_ir["phases"][0]["items"][0]
+    filtered_block = filtered_ir["phases"][0]["items"][0]
+    plain_block = plain_ir["phases"][0]["items"][0]
+    assert filtered_block["kind"] == "as" and plain_block["kind"] == "as"
+    filtered_mv = filtered_block["body"][0]
+    plain_mv = plain_block["body"][0]
     assert filtered_mv["kind"] == "transfer" and plain_mv["kind"] == "transfer"
 
     assert "where" in filtered_mv

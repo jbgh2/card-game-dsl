@@ -25,7 +25,8 @@ windows", "The climbing form of `round`", "Surface totality").
                      for the refused kinds a procedure body itself admits;
                   C. pronoun reads — every name in `resolve._PRONOUNS`, read
                      in the body and read by the same statement written
-                     before the round: the two agree, but for `state`,
+                     before the round, with the round at a phase's top level
+                     and inside `as 0 { }`: the two agree, but for `state`,
                      which the body refuses — crossed, for `state`, with
                      the positions a value stands in (`STATE_POSITIONS`:
                      a member receiver, a `let`, an `is` operand, a function
@@ -158,7 +159,7 @@ import cardlang.resolve as resolve_module
 import cardlang.stdlib.hosted_poll as hosted_registry
 from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS
 from cardlang.diagnostics import DiagnosticError
-from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import Regime
@@ -172,7 +173,11 @@ from cardlang.runtime.values import Player
 # The miniature: one hand of Tichu-engine climbing tricks, whose Hosted Poll
 # counts its own runs and records the seat it was run for. `{prelude}` sits
 # before the trick loop, `{binder}` and `{body}` fill the clause, `{procs}` and
-# `{extra}` add top-level definitions.
+# `{extra}` add top-level definitions. `{acting}`, when given, is a seat whose
+# `as` block holds the prelude and the trick loop, so a player is acting where
+# the round and its Hosted Poll stand. The helper move type `nop` is defined
+# only in a sentence that names it, because a move type no reachable offering
+# presents is refused.
 GAME = """
 game HostedMini {{
   players: 4
@@ -203,6 +208,7 @@ game HostedMini {{
     shuffle deck
     deal 14 cards from deck to each hand
     leader := player_holding(Mahjong of special)
+{acting_open}
 {prelude}
     repeat until (number of players where hand[player] is not empty) <= 1 {{
       stop := false
@@ -220,11 +226,12 @@ game HostedMini {{
         leader := the first player from leader where hand[player] is not empty
       }}
     }}
+{acting_close}
     for each player q: score[q] += runs
   }}
   winner: highest score
 }}
-move_type nop {{ effect {{ nops += 1 }} }}
+{nop}
 function seat_zero() = 0
 {procs}
 {extra}
@@ -233,12 +240,19 @@ function seat_zero() = 0
 COUNTING = "              runs += 1\n              asked_last := p"
 
 
+NOP = "move_type nop { effect { nops += 1 } }"
+
+
 def source(
     body: str = COUNTING, binder: str = "p", prelude: str = "", procs: str = "", extra: str = "",
-    clauses: str = "",
+    clauses: str = "", acting: str = "",
 ) -> str:
+    names_nop = re.search(r"\bnop\b", "\n".join((body, prelude, procs, extra))) is not None
     return GAME.format(
-        body=body, binder=binder, prelude=prelude, procs=procs, extra=extra, clauses=clauses
+        body=body, binder=binder, prelude=prelude, procs=procs, extra=extra, clauses=clauses,
+        nop=NOP if names_nop else "",
+        acting_open=f"    as {acting} {{" if acting else "",
+        acting_close="    }" if acting else "",
     )
 
 
@@ -431,17 +445,29 @@ def _verdict(**kw: str) -> bool:
     return True
 
 
+# Whether each read is admitted where the round stands, at a phase's top level
+# and inside `as 0 { }`. `actor` names no one where no player is acting.
+EXPECTED_PRONOUN_VERDICT: dict[str, dict[str, bool]] = {
+    "action": {"": True, "0": True},
+    "winner": {"": True, "0": True},
+    "actor": {"": False, "0": True},
+    "active_rules": {"": True, "0": True},
+}
+
+
+@pytest.mark.parametrize("acting", ["", "0"], ids=["phase_top_level", "as_0"])
 @pytest.mark.parametrize("pronoun", sorted(PRONOUN_READS))
-def test_a_pronoun_read_in_the_body(pronoun: str) -> None:
+def test_a_pronoun_read_in_the_body(pronoun: str, acting: str) -> None:
     read = PRONOUN_READS[pronoun]
     if pronoun == "state":
-        message = refusal(body=indent(read))
+        message = refusal(body=indent(read), acting=acting)
         assert "may not read `state`" in message, message
         return
     # The body runs in the round statement's own context, so a read there is
-    # judged as the same statement written just before the round: admitted.
-    assert _verdict(body=indent(read)) is True
-    assert _verdict(body=COUNTING, prelude="    " + read) is True
+    # judged as the same statement written just before the round.
+    want = EXPECTED_PRONOUN_VERDICT[pronoun][acting]
+    assert _verdict(body=indent(read), acting=acting) is want
+    assert _verdict(body=COUNTING, prelude="    " + read, acting=acting) is want
 
 
 def test_a_state_read_via_procedure_is_refused() -> None:
@@ -512,7 +538,6 @@ BINDER_SPELLINGS: dict[str, tuple[str, dict[str, str], str]] = {
     "state_var": ("runs", {}, "shadows a state variable"),
     "zone": ("deck", {}, "shadows a zone"),
     "enum_value": ("left", {}, "shadows an enum value"),
-    "function": ("highest_by_trick_order", {}, "shadows a function"),
 }
 
 
@@ -921,14 +946,31 @@ def test_the_asked_seat_is_the_binder_not_the_actor() -> None:
     """The plausible misreading `round offering … from actor` inside the body:
     the body is no seat's action, so `actor` there is what it is at the round
     statement — at a phase's top level, no seat — and never the asked seat.
-    The poll's `from` then names no seat, and the runtime's seat Owner Guard
-    refuses it loudly, exactly as it refuses the same sentence written just
-    before the round."""
+    The checker refuses it there, exactly as it refuses the same sentence
+    written just before the round."""
     poll = "runs += 1\nround offering [nop] from actor over all players until runs > 0"
     for kw in ({"body": indent(poll)}, {"body": COUNTING, "prelude": "    " + poll}):
-        game = check(**kw)
-        with pytest.raises(OwnerGuardError, match="cannot start a round from None"):
-            play_game(game, random.Random(0), None, random_chooser(random.Random(0)), None)
+        message = refusal(**kw)
+        assert "no player is acting" in message, message
+
+
+def test_under_an_acting_seat_actor_in_the_body_is_that_seat_not_the_asked_one() -> None:
+    """Where a player is acting, `actor` in the body names that player at
+    every ask, while the binder names each seat as it is asked."""
+    game = check(body=indent("runs += 1\nasked_last := actor"), acting="1")
+    rec = _Recorder(0)
+    pairs: list[tuple[Player, Player]] = []
+
+    def chooser(player: Player, candidates: list[Any], k: int) -> list[Any]:
+        assert rec.rs is not None
+        if EXPECTED_HOSTED[rec.kind(candidates)]:
+            pairs.append((rec.rs.get("asked_last"), player))
+        return rec.base(player, candidates, k)
+
+    play_game(game, random.Random(0), None, chooser, None, on_first_decision=rec.attach)
+    assert pairs
+    assert {read for read, _ in pairs} == {1}
+    assert {asked for _, asked in pairs} - {1}
 
 
 def test_a_gate_reading_a_concealed_hand_is_judged_as_at_the_phase() -> None:

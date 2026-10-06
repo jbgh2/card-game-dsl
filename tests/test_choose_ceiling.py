@@ -147,6 +147,19 @@ def test_negative_literal_lo_is_rejected() -> None:
         check_dsl(_game("x[player] : Integer = 0", "choose integer in -1 .. 5"), "t")
 
 
+@pytest.mark.parametrize(
+    "choose",
+    ["choose integer in n .. -1", "choose integer in n .. -1 excluding 0"],
+)
+def test_negative_literal_hi_is_rejected(choose: str) -> None:
+    # `n .. -1`: a negative static ceiling reserves no action id at all, so no
+    # value can ever be offered, whatever the runtime `lo` turns out to be.
+    # The playout's empty-range refusal is the runtime Shadow Guard this
+    # Owner Guard makes unreachable from source.
+    with pytest.raises(DiagnosticError, match="upper bound \\(-1\\) is negative"):
+        check_dsl(_game("n : Integer = 0  x[player] : Integer = 0", choose), "t")
+
+
 def test_literal_lo_within_the_ceiling_is_accepted() -> None:
     # The mirror: a literal lower bound at or below the ceiling is fine (a
     # non-empty sub-range), and does not spuriously trip the new check.

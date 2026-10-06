@@ -316,7 +316,7 @@ class ZoneStore:
                 f"family the game never declared"
             )
         family = self.families[name]
-        if key not in family:
+        if isinstance(key, bool) or key not in family:
             role = self.zone_index.get(name)
             indexed = f"indexed by '{role}'" if role else "indexed"
             raise OwnerGuardError(

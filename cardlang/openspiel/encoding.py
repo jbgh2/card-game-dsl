@@ -360,7 +360,7 @@ class ActionSpace:
         for node in _walk(game):
             if isinstance(node, n.Choose):
                 # The shared integer block is sized to the game's largest
-                # declared ceiling (resolve guarantees each is a non-neg int).
+                # declared ceiling (`resolve._check_chooses` refuses a negative one).
                 ceiling = n.static_ceiling(node)
                 assert ceiling is not None
                 int_ceiling = ceiling if int_ceiling is None else max(int_ceiling, ceiling)

@@ -115,7 +115,7 @@ def test_rejects_a_non_card_item_noun() -> None:
         "deal 13 cards from deck to each hand",  # the standard deal
         "move all cards to deck",  # the standard gather
         "move one card from deck to pile",  # singular noun (Cribbage's starter cut)
-        "move chosen 2 cards from pile to hand[0]",
+        "as 0 { move chosen 2 cards from pile to hand[0] }",  # a chosen movement names who decides
     ],
 )
 def test_accepts_the_implemented_combinations(stmt: str) -> None:

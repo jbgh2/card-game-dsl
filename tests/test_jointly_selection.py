@@ -449,7 +449,6 @@ def test_action_space_walls_a_climb_plus_joint_game() -> None:
         "            where jointly gin_valid_meld(cards) to discard }\n"
         "  }\n"
         "}\n"
-        "move_type play_combination { effect { } }\n"
     )
     game = check_dsl(dsl, "t.cardlang")
     with pytest.raises(NotImplementedError, match="climb"):

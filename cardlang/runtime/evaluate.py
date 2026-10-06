@@ -278,8 +278,6 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
             return e.name
         case "pronoun":
             return _pronoun(e.name, ctx)
-        case "function":
-            return primitives.value_function(e.name)
         case _:
             raise AssertionError(f"name '{e.name}' was not resolved (ref_kind=None)")
 
@@ -370,9 +368,39 @@ def _member(obj: Any, field: str) -> Any:
 def _subscript(e: n.Subscript, ctx: Ctx) -> Any:
     obj = e.obj
     index = evaluate(e.index, ctx)
+    if isinstance(index, bool):
+        # No index domain holds a Boolean, and Python would read `true` as 1:
+        # seat 1, position 1, the integer key 1.
+        raise OwnerGuardError(
+            f"an index evaluated to {index!r}, a Boolean — no seat, position "
+            f"or key is a Boolean"
+        )
     if isinstance(obj, n.NameRef) and obj.ref_kind == "zone":
         return ctx.rs.zones.instance(obj.name, index)
-    return evaluate(obj, ctx)[index]
+    value = evaluate(obj, ctx)
+    if isinstance(value, Zone):
+        # Shadow Guard of typecheck's positional Subscript arm, which refuses
+        # a zone receiver; reached through the permissive top.
+        raise OwnerGuardError(
+            "a zone's cards are not addressed by position — read the zone "
+            "with a card query (`cards in ... where ...`) or `top_of(...)`"
+        )
+    if isinstance(value, (list, tuple)):
+        # A positional collection, addressed by position from 0: the Owner
+        # Guard for a computed index (a literal one is the checker's —
+        # `typecheck`'s Subscript arm and `resolve._check_positional_index_range`).
+        # Python would wrap a negative index from the end.
+        if not isinstance(index, int):
+            raise OwnerGuardError(
+                f"a position in a collection evaluated to {index!r}, not an "
+                f"Integer counted from 0"
+            )
+        if not 0 <= index < len(value):
+            raise OwnerGuardError(
+                f"position {index} is outside a collection holding "
+                f"{len(value)} (positions count from 0)"
+            )
+    return value[index]
 
 
 def _binop(e: n.BinOp, ctx: Ctx) -> Any:
@@ -382,6 +410,13 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
         return bool(evaluate(e.left, ctx)) or bool(evaluate(e.right, ctx))
     left = evaluate(e.left, ctx)
     right = evaluate(e.right, ctx)
+    if e.op in ("+", "-", "*") and (isinstance(left, bool) or isinstance(right, bool)):
+        # The dynamic class of typecheck's arithmetic operand guard: a Boolean
+        # reaching here through the permissive top would count as 1 or 0.
+        raise OwnerGuardError(
+            f"`{e.op}` expects Integer operands — got {left!r} and {right!r}; "
+            f"the checker leaves this value's type open, so it is checked here"
+        )
     match e.op:
         case "+":
             return left + right

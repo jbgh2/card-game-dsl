@@ -85,7 +85,8 @@ from cardlang.runtime.driver import play_game
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 
 # A minimal game with the pieces every probe needs: a player-indexed state var to
-# assign, a hand to move from, and a move type to `offer`.
+# assign and a hand to move from. A probe that offers a move type declares it in
+# `procs`, since a declared move type no offering presents is refused.
 GAME = """
 game P {{
   players: 3
@@ -100,9 +101,10 @@ game P {{
   }}
   winner: highest score
 }}
-move_type pass_move {{ effect {{ }} }}
 {procs}
 """
+
+PASS_MOVE = "move_type pass_move { effect { } }"
 
 
 def check(body: str, procs: str) -> n.Game:
@@ -174,10 +176,10 @@ def test_a_body_decision_site_is_not_counted_twice() -> None:
     Counting `num_distinct_actions` does NOT test this — the encoder dedupes move
     names and vocab entries, so the width is invariant under duplication and the
     assertion could not fail. Count the decision NODES the walk actually sees."""
-    procs = "procedure poll(who : Player) { offer to who one of [pass_move] }"
+    procs = f"procedure poll(who : Player) {{ offer to who one of [pass_move] }}\n{PASS_MOVE}"
     viaproc = check("    run poll(0)\n    run poll(1)", procs)
     inline = check(
-        "    offer to 0 one of [pass_move]\n    offer to 1 one of [pass_move]", ""
+        "    offer to 0 one of [pass_move]\n    offer to 1 one of [pass_move]", PASS_MOVE
     )
     def offers(g: n.Game) -> int:
         return sum(1 for nd in _walk(g) if isinstance(nd, n.Offer))
@@ -468,7 +470,7 @@ procedure window(who : Player) {
   reveal one card from hand[seat]
   shuffle deck
 }
-""",
+""" + PASS_MOVE,
     )
     exercised = {type(nd).__name__ for nd in _walk(game) if isinstance(nd, typing.get_args(n.Stmt))}
     assert _BODY_ACCEPTED <= exercised, _BODY_ACCEPTED - exercised
@@ -495,11 +497,12 @@ def test_run_expands_in_every_statement_sequence_context() -> None:
 
 def test_run_expands_in_a_move_type_effect() -> None:
     game = check_dsl(
-        GAME.format(body="    offer to 0 one of [act]", procs="")
-        .replace(
-            "move_type pass_move { effect { } }",
-            "move_type act { effect { run bump(actor) } }\n"
-            "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }",
+        GAME.format(
+            body="    offer to 0 one of [act]",
+            procs=(
+                "move_type act { effect { run bump(actor) } }\n"
+                "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }"
+            ),
         ),
         "probe",
     )
@@ -620,11 +623,12 @@ def test_one_written_decision_stays_one_decision() -> None:
     relative to the written text, which is the one thing CLAUDE.md says bounds
     every design choice here."""
     game = check_dsl(
-        GAME.format(body="    offer to 0 one of [donate]", procs="")
-        .replace(
-            "move_type pass_move { effect { } }",
-            "move_type donate { effect { run bump(choose integer in 0 .. 1) } }\n"
-            "procedure bump(p : Player) { score[p] += 1  score[p] += 2 }",
+        GAME.format(
+            body="    offer to 0 one of [donate]",
+            procs=(
+                "move_type donate { effect { run bump(choose integer in 0 .. 1) } }\n"
+                "procedure bump(p : Player) { score[p] += 1  score[p] += 2 }"
+            ),
         ),
         "probe",
     )
@@ -639,11 +643,12 @@ def test_an_unused_parameter_still_evaluates_its_argument() -> None:
     """The mirror of the above: a parameter read ZERO times dropped the argument,
     and its decision, entirely — a written decision that never happened."""
     game = check_dsl(
-        GAME.format(body="    offer to 0 one of [donate]", procs="")
-        .replace(
-            "move_type pass_move { effect { } }",
-            "move_type donate { effect { run bump(choose integer in 0 .. 1) } }\n"
-            "procedure bump(p : Player) { score[0] += 1 }",
+        GAME.format(
+            body="    offer to 0 one of [donate]",
+            procs=(
+                "move_type donate { effect { run bump(choose integer in 0 .. 1) } }\n"
+                "procedure bump(p : Player) { score[0] += 1 }"
+            ),
         ),
         "probe",
     )
@@ -689,12 +694,13 @@ def test_an_argument_naming_the_actor_survives_an_actor_rebinding_body() -> None
     move's actor and the loop cannot shadow it. Coup depends on this at four
     sites."""
     game = check_dsl(
-        GAME.format(body="    offer to 0 one of [go]", procs="")
-        .replace(
-            "move_type pass_move { effect { } }",
-            "move_type go { effect { run mark(actor) } }\n"
-            "procedure mark(who : Player) "
-            "{ for each player q: if q is who { score[q] += 1 } }",
+        GAME.format(
+            body="    offer to 0 one of [go]",
+            procs=(
+                "move_type go { effect { run mark(actor) } }\n"
+                "procedure mark(who : Player) "
+                "{ for each player q: if q is who { score[q] += 1 } }"
+            ),
         ),
         "probe",
     )

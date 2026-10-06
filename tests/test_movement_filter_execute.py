@@ -38,13 +38,15 @@ game Mini {{
   zones {{ deck : Deck  hand[player] : PublicHand<player>  pile : TrickPile }}
   state {{ score[player] : Integer = 0 }}
   phase p {{
-    {stmt_src}
+    as 0 {{ {stmt_src} }}
   }}
   winner: highest score
 }}
 """
     game = check_dsl(src, "mini.cardlang")
-    stmt = game.phases[0].items[-1]
+    block = game.phases[0].items[-1]
+    assert isinstance(block, n.AsBlock)
+    stmt = block.body[-1]
     assert isinstance(stmt, n.Transfer)
     return game, stmt
 

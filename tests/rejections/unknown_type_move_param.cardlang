@@ -5,8 +5,8 @@
 // entirely: `Integar` fell through `typecheck.type_from_name` to the
 // permissive `TAny`, and the guard's always-false `x is hearts` — rejected
 // when the domain is spelled correctly — was accepted. Declaring a move type
-// is what makes its parameters real; whether a phase happens to offer it is
-// not the checker's business.
+// is what makes its parameters real, so they are checked whether or not a
+// phase offers it; a move type nothing offers is refused for that too, after.
 game UnknownTypeMoveParam {
   players: 2
   max_length: 1000

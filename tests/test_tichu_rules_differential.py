@@ -875,8 +875,12 @@ PLANTED: list[tuple[str, list[tuple[str, str]], set[str]]] = [
         "the Dragon's winner may only give it to the left",
         [
             (
+                # The right gift stays offered where no play reaches it: a move
+                # type nothing offers is the checker's to refuse, and this row
+                # is the referee's.
                 "offer to winner one of [dragon_to_left, dragon_to_right]",
-                "offer to winner one of [dragon_to_left]",
+                "offer to winner one of [dragon_to_left]\n"
+                "        if false { offer to winner one of [dragon_to_right] }",
             )
         ],
         {"dragon.offer_wrong", "dragon.trick_taken_without_the_winners_choice"},

@@ -507,6 +507,10 @@ round offering [<move_type>, …] from <seat> over <ring>
       until <predicate> [outcome <fn>]
 ```
 
+The `outcome <fn>`, like a trick round's `winner <fn>`, names a function the
+round calls. Neither name is a value: written where an expression stands, it
+is refused, naming the slot that takes it.
+
 - **Move vocabulary (`offering`).** Each turn presents the acting player **one
   flat candidate list** of the legal concrete moves — every parameterized
   `move_type` expanded over its value-domain and guard-filtered, plus the nullary
@@ -754,8 +758,9 @@ the ceiling** — an inverted literal range (`5 .. 3`) or a literal `lo` past an
 value the `choose` could offer already exceeds every id the block reserves, so
 no value can ever be chosen. A **literal lower bound below zero** (`-1 .. 5`)
 is rejected for the mirror reason: the block starts at 0, so its smallest
-value has no id. A runtime `lo` is not statically decidable and is
-left to the runtime guard. At runtime the *range* is guarded
+value has no id. A **negative literal upper bound** (`n .. -1`) is rejected
+whatever `lo` is: the block reserves no id at all. A runtime `lo` is not
+statically decidable and is left to the runtime guard. At runtime the *range* is guarded
 where `hi` is evaluated (`lo >= 0` and `hi <= ceiling`): a live range that
 escaped its declared domain would offer a legal value with no action id, and a
 value-only check would pass whenever the chooser happened to draw inside the
@@ -1034,7 +1039,15 @@ live in the standard library so a game opts into a behaviour by name:
   no acting player is an error ("who is choosing?"), not a silent attribution to
   player 0 — wrap it in a per-player context (`as <player>` for one named decider,
   `for each player p` or the simultaneous pass for everyone) so the chooser knows
-  who decides.
+  who decides. The checker refuses it, and a read of `actor`, wherever no
+  player is acting: a phase's own statements, its `before_each`/`after_each`,
+  a phase's `when` or `repeat until`, `loser:`, a state default, and a trick
+  round's mode triggers and Delegated Play helpers where the round stands
+  outside any per-player context — a function or procedure reached from one
+  included. A chosen deal `to each` is decided by each receiver and needs no
+  acting player. A gate or `loser:` cannot hold a per-player context, so the
+  fix there is to decide during play, before the gate is read, into a state
+  variable and read it.
 
 ## Single-actor decisions: the `as` block
 
@@ -1345,7 +1358,14 @@ types as `Player` inside `E` only, and `base` as a collection of `E`'s
 type, keyed by `Player`. Keyed collections — indexed lets and indexed
 state variables — carry their key domain, and subscript reads and
 indexed writes are checked against it (`n[hearts]` on a player-keyed
-store is a compile error). A zone VALUE is likewise distinguished from
+store is a compile error). A keyed collection is addressed one entry at a
+time: where the language reads a collection's members — a native's
+collection parameter, a card query's or aggregation's source — a keyed one
+is refused, since its members would be read as its keys. A positional
+collection — a `[...]` list, a board region such as `home(p)` — is
+addressed by an Integer position counted from 0; a negative position, or a
+literal one past a length the sentence states, is refused at check time,
+and a computed one outside the collection at play time. A zone VALUE is likewise distinguished from
 a computed card collection: a query result or list literal types
 `Collection<Card>` too, but only a zone (or a binder holding one) may
 stand in a transfer endpoint or an epistemic target — narrowing a
@@ -1885,6 +1905,11 @@ surface reads like the rulebook. The engine word is Transfer; its verbs
 primitive, and a future board family mints its own (`place`, `capture`) as
 registry rows rather than as new syntax.
 
+**A move type is played only where it is offered.** A game's own move type
+that no reachable `offer` or `round offering` presents is refused: no seat
+can ever play it, so it is a declaration nothing reads. A game importing a library
+need not present every move type the library defines.
+
 ## The operation vocabulary
 
 Games relocate cards and resources, reveal and hide them, shuffle and
@@ -1898,7 +1923,10 @@ rather than syntax ([principles.md](principles.md)).
 every transfer verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
 are sugar that differ only in defaults, not in kind. A transfer carries a
 selection (`all`, a count, or a `chosen`/`random` amount), an item noun, a
-source place, and a destination (a single zone or `to each` recipient). The
+source place, and a destination (a single zone or `to each` recipient). A
+count is an Integer, never a comparison or a flag: a non-Integer count is
+refused at check time, or at play time where it reaches the executor through
+the permissive top, and a negative literal count is refused at check time. The
 item noun is `cards`/`card` today; the noun stays open in the grammar so a
 resource transfer (coins, chips) can one day be the *same* construct as a
 card deal rather than separate syntax — but resource transfers and the

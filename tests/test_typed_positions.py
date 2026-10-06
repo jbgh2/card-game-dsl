@@ -129,8 +129,12 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     ("SubsetQuery", "count"): (GRADUAL, "Integer"),
     ("Choose", "hi"): (GRADUAL, "Integer"),
     ("Choose", "excluding"): (GRADUAL, "Integer"),
+    # The amount and a positional index raise because their runtime Owner
+    # Guards refuse `bool` ahead of `int` (`execute._check_count`,
+    # `evaluate._subscript`); a bare `int(...)` or `[...]` would read `true`
+    # as 1 and play on.
     ("Transfer", "amount"): (GRADUAL, "Integer"),
-    ("Subscript", "index"): (GRADUAL, "key domain"),
+    ("Subscript", "index"): (GRADUAL, "key domain, or Integer on an unkeyed receiver"),
     ("Subscript", "obj"): (GRADUAL, "Collection"),
     ("IsCheck", "operand"): (GRADUAL, "Collection"),
     ("Member", "obj"): (GRADUAL, "object"),

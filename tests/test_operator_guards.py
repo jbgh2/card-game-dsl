@@ -448,8 +448,8 @@ def test_offset_by_types_through_a_let() -> None:
     # would be.
     _accepts(
         _game(
-            "let second = actor offset_by left\n"
-            "    for each player p: let probe = (second offset_by left is p)"
+            "as 0 { let second = actor offset_by left\n"
+            "    for each player p: let probe = (second offset_by left is p) }"
         )
     )
     _rejects(

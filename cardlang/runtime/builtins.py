@@ -183,7 +183,10 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
     # at the call site); a non-literal `k` (no rung-1 witness) is only knowable
     # at runtime. `lines` raises `OwnerGuardError` for both, so there is
     # nothing to convert here — the bound's Owner Guard already speaks the
-    # runtime's typed channel and names the game author.
+    # runtime's typed channel and names the game author. A Boolean `k`
+    # reaching here through the permissive top would read as 0 or 1.
+    if isinstance(k, bool):
+        raise OwnerGuardError(f"lines() expects an Integer length — got {k!r}")
     return board.lines(k)
 
 

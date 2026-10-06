@@ -286,10 +286,24 @@ def test_a_row_nothing_can_read_is_refused(
     site: str, row: str | None, presenter: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     move = _move(row, False, None)
-    if presenter in ("none", "unreached") and row is not None and site == "top_item":
+    if presenter in ("none", "unreached") and site == "top_item":
         with pytest.raises(DiagnosticError) as ei:
             _checked(site, move, presenter, monkeypatch)
-        assert f"`{row}` on move type `m`, which no reachable `offer` or `round offering` presents" in str(ei.value)
+        # Under "unreached" the game's own `opener` is never offered either,
+        # and is reported beside `m`; the pass's whole report is the evidence.
+        report = "\n".join([str(ei.value), *(getattr(ei.value, "__notes__", []) or [])])
+        if row is not None:
+            assert f"`{row}` on move type `m`, which no reachable `offer` or `round offering` presents" in report
+        else:
+            assert "move type `m` is never offered" in report
+        if presenter == "unreached":
+            assert "move type `opener` is never offered" in report
+        return
+    if presenter == "unreached":
+        # The library's `m` is the library's vocabulary; the game's own
+        # `opener`, which nothing offers, is what the game wrote and nobody plays.
+        with pytest.raises(DiagnosticError, match="move type `opener` is never offered"):
+            _checked(site, move, presenter, monkeypatch)
         return
     assert _m(_checked(site, move, presenter, monkeypatch)).stake == row
 
