@@ -641,10 +641,10 @@ def test_two_libraries_may_not_define_the_same_name(
 #               provided `state`, plus every kind in `_LIBRARY_DEF_KINDS`.
 #             TARGET = every namespace a bare name can resolve against, read off
 #               `resolve._classify`'s precedence chain — state / zone / deck value
-#               (suit|rank|direction) / the `function` bucket, which is
-#               `VALUE_NAMES`, NOT the game's own functions (those resolve
-#               as `Call`s, never bare) — plus the def kinds and position domains
-#               that own a name without going through `_classify`.
+#               (suit|rank|direction) — plus the round slots' callback names
+#               (`VALUE_NAMES`, which the game names in its rounds), the def
+#               kinds and position domains that own a name without going
+#               through `_classify`.
 #             Two things sit outside, and neither is a gap. Library-vs-LIBRARY
 #               cross-kind collisions (lib A provides `foo`, lib B defines
 #               `function foo`) are not this property's, which is injected-vs-
@@ -734,7 +734,7 @@ _TARGET_NAME: dict[str, str] = {
     "suit": "hearts",
     "rank": "Q",  # standard52 ranks are single glyphs (2..10, J, Q, K, A)
     "direction": "left",
-    "native_value": _VALUE_NAME,  # `_classify`'s `function` bucket
+    "native_value": _VALUE_NAME,  # a round slot's callback name
 }
 
 

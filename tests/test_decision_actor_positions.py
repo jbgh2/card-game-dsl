@@ -22,9 +22,8 @@ registry:   the acting-seat scope of `resolve._HiddenReads` (`_ReadScope.acting`
             set by the binders `_seat_rebinding` names; the differentials below
             hold each refused decision against the runtime's own refusal
             (`Ctx.require_actor`) by execution
-does not prove:  that a trick round under a binder reads its mode triggers
-            under that binder's seat: the trick-context positions are judged
-            acting only where every trick round of the game stands under one.
+does not prove:  the seat a bound trick round's mode trigger reads; the
+            accepted controls prove only that one is bound.
 """
 
 from __future__ import annotations
@@ -283,3 +282,44 @@ def test_each_refused_trick_context_decision_is_one_the_runtime_refuses(
     game = check_dsl(src, f"{position}.cardlang")
     with pytest.raises((*REFUSALS, OwnerGuardError), match="no acting player"):
         play_game(game, random.Random(0))
+
+
+_TWO_TRICK_PHASES = """game TwoPhases {
+  players: 2
+  max_length: 200
+  cards: standard52
+  ranking: aces high
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile  pile : Discard }
+  state { score[player] : Integer = 0 }
+  phase bound {
+    legal_moves: [play_to_trick]
+    mode open { transition_to: shut when play_to_trick where actor is 0 }
+    mode shut { }
+    shuffle deck
+    deal 1 card from deck to each hand
+    as 0 {
+      round play_to_trick from 0 over all players source hand into trick_pile
+            winner highest_of_led_suit
+    }
+    move all cards from trick_pile to pile
+  }
+  phase unbound {
+    legal_moves: [play_to_trick]
+    deal 1 card from deck to each hand
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_of_led_suit
+    move all cards from trick_pile to pile
+  }
+  winner: highest score
+}"""
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=DiagnosticError,
+    reason="issue #798: a mode trigger is judged against every trick round of the game, not its own phase's",
+)
+def test_a_mode_trigger_is_judged_by_its_own_phases_trick_rounds() -> None:
+    """Phase `bound` plays its trick under `as 0`, so its mode trigger reads a
+    real `actor`; phase `unbound` has no mode."""
+    play_game(check_dsl(_TWO_TRICK_PHASES, "two.cardlang"), random.Random(0))
