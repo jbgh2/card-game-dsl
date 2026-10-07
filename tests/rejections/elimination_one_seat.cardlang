@@ -1,0 +1,14 @@
+// Guard: resolve's result-clause check (`_resolve_winner_loser`). `loser:`
+// names the player eliminated from the rest, so a one-seat table has nobody
+// left to win; a ranked result is spelled `winner:`.
+game Solo {
+  players: 1
+  max_length: 100
+  cards: standard52
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+  }
+  phase setup { deal 13 cards from deck to each hand }
+  loser: the player where hand[player] is not empty
+}

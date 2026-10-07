@@ -21,8 +21,9 @@ domain:     {the team-asking sentences} x {a game with `teams:`, one
             game declaring `teams:`, with that line deleted, is swept: each
             team question it writes is refused.
             The other ways a team reaches a sentence are refused elsewhere: a
-            team-indexed `state` or `zone`, and a team literal, which a
-            teamless game's empty bound refuses at every operand. A `Team`
+            team-indexed `state` or `zone`, and a team literal written as an
+            operand, which a teamless game's empty bound refuses (a literal
+            inside an `if` branch escapes that bound: issue #805). A `Team`
             annotation on a parameter, payload or scalar state asks nothing
             and is accepted. A Primitive's own reads of the partition are the
             runtime accessor's, `cardlang.runtime.values.TeamOf`.

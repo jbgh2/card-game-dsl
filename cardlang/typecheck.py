@@ -2128,6 +2128,13 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     else:
         return
     if not 0 <= index.value < bound:
+        if isinstance(bare, TTeam) and bound == 0:
+            bag.error(
+                f"team {index.value} names a team, but this game declares no "
+                f"`teams:` — declare the partnerships (`teams: [[0, 2], [1, 3]]`)",
+                index.span,
+            )
+            return
         ids = f"0..{bound - 1}" if bound > 1 else ("0" if bound == 1 else "none")
         bag.error(
             f"{label} {index.value} is out of range: the game has "

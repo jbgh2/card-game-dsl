@@ -529,8 +529,7 @@ def test_team_literal_in_a_teamless_game_is_rejected(pid: str) -> None:
     # like a team-keyed subscript -- the range check is the only guard it hits.
     msg = _diagnose(_TEAMLESS_TEAM_LITERAL[pid]())
     assert msg is not None, f"{pid}: a team literal was accepted in a teamless game"
-    assert "team 0 is out of range" in msg
-    assert "0 team(s)" in msg
+    assert "team 0 names a team, but this game declares no `teams:`" in msg
 
 
 # The untyped clauses (`offer to`, `loser:`, `round … from`) carried NO player

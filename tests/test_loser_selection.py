@@ -29,11 +29,12 @@ registry:   declared types: `tests/winner_axes.py` (`type_cells`, over
             `tests/test_winner_target.py::test_default_table_covers_every_declared_type`).
             Elimination games: the `docs/games/*.cardlang` glob, filtered on
             the parsed `loser` clause.
-does not prove:  that a `Team` or `Integer` value in the selection is
-            refused: both are integers at runtime, indistinguishable from a
-            seat, so an in-range one is accepted as that seat. Telling them
-            apart is the checker's typing of the selection, which the
-            permissive top leaves open for a mixed `if`.
+does not prove:  that a value meaning something other than a seat is
+            refused. The language coerces an Integer to a Player, so an
+            in-range Integer -- a count, a score, `out + 1` -- is accepted as
+            that seat; and a Team reaching the selection through a mixed `if`
+            is an integer at runtime, indistinguishable from one. What a
+            green establishes is that the loser is a seat of the table.
 """
 
 from __future__ import annotations

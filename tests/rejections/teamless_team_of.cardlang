@@ -1,0 +1,38 @@
+// Guard: resolve's team Builtin arm (`_validate_refs`, `_TEAM_CALL_FUNCS`).
+// `team_of` asks the game's `teams:` partition, so a game declaring none is
+// refused at the call rather than failing when the game reaches it.
+game P {
+  players: 4
+  direction: clockwise
+  max_length: 1000
+  cards: standard52
+  ranking: aces high
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile
+    waste        : Discard
+  }
+  state {
+    score[player] : Integer = 0
+    leader        : Player = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 13 cards from deck to each hand
+  }
+  phase play {
+    active_rules: [MustFollowSuit]
+    legal_moves:  [play_to_trick]
+    repeat until (all players where hand[player] is empty) {
+      round play_to_trick from leader over all players source hand into trick_pile
+            winner highest_of_led_suit
+      move all cards from trick_pile to waste
+      score[winner] += 1
+      leader := winner
+      if team_of(winner) is 0 { shuffle waste }
+    }
+  }
+  winner: highest score
+}

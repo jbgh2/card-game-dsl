@@ -1,0 +1,1 @@
+teamless_team_of.cardlang:34:10: error: `team_of` asks which team a seat is on, but this game declares no `teams:` — declare the partnerships (`teams: [[0, 2], [1, 3]]`) or ask about the player

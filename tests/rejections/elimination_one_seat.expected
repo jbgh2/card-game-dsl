@@ -1,0 +1,1 @@
+elimination_one_seat.cardlang:13:3: error: `loser:` names the player eliminated from the rest, so an elimination game needs at least two players — this game seats one; rank a score with `winner:` instead
