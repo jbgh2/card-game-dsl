@@ -258,11 +258,14 @@ def test_a_binder_kind_can_be_absent_from_the_scope_field_table() -> None:
         "`produce_arm_binder_shadows` cell against the new entry"
     )
     assert n.ProduceArm not in get_args(n.Stmt) and n.ProduceArm not in get_args(n.Expr)
+
+
+def test_actor_is_the_only_pronoun_that_follows_the_acting_player() -> None:
     """The pronoun axis, checked as BEHAVIOUR rather than asserted: a pronoun
     is an acting-player pronoun exactly when its value FOLLOWS `acting_as`. So
     evaluate every pronoun in two contexts that differ in nothing but the
     acting player, and collect the ones whose value moved. `actor` is the only
-    one today; a second one reading `ctx.current_player` joins that set by
+    one; a second one reading `ctx.current_player` joins that set by
     behaviour, and fails here instead of shipping unswept — which a test
     asserting the name `actor` against itself could never do. Mirrors
     `test_domain_registry`'s treatment of the `binds_actor` column.
