@@ -121,17 +121,19 @@ class TCollection:
     ``key`` is the subscript's domain when the collection is a KEYED map — a
     per-player/per-team state variable, an indexed `let` — and ``None`` for
     positional collections and untracked shapes. It drives the
-    subscript/indexed-assignment key checks and the keyed-membership Owner Guard.
-    Facets do not decide compatibility at ANY depth: `coercible`'s collection
-    arm compares elements only, `join` preserves facets the two sides agree on
-    rather than judging by them, and both RECURSE — so a facet mismatch one
-    level down is as invisible as one at the top. Value shapes that nest a
+    subscript/indexed-assignment key checks, and it decides compatibility: a
+    keyed collection never stands where an unkeyed one is wanted, nor the
+    reverse, nor across key domains (`keys_fit`), at every depth, because the
+    runtime holds a keyed collection as a map, whose members are its keys.
+    ``zone`` never decides compatibility at any depth: a zone and a computed
+    card collection hold the same cards, and only the positions that need a
+    definite zone (transfer endpoints, epistemic targets) consult it. Both
+    relations RECURSE, so a facet one level down is judged (``key``) or
+    ignored (``zone``) exactly as one at the top. Value shapes that nest a
     flag-bearing collection do exist: a zone-family subscript keeps the flag
     (`hand[p]` is a `Collection<Card>` with ``zone``), and an indexed `let`
     wraps it, so `let probe[p] = hand[p]` is a `Collection<Collection<Card>>`
-    whose inner collection is a zone.
-    The value space of `score[player]` IS `Collection<Integer>`; the key is a
-    fact about how you may ADDRESS it, not about what it holds.
+    keyed by `Player` whose inner collection is a zone.
 
     Facets are bookkeeping, and bookkeeping riding on a structural type must
     be PRESERVED by every site that rebuilds one — an obligation that already
@@ -139,7 +141,7 @@ class TCollection:
     path to real nominal kinds (`TZone`, `TMap`), and the three named
     triggers that would fire it, are recorded in issue #123.
 
-    A facet mismatch does not distinguish, at the top or one level down:
+    A zone mismatch does not distinguish, at the top or one level down:
 
     >>> coercible(TCollection(TCard(), zone=True), TCollection(TCard(), zone=False))
     True
@@ -147,6 +149,16 @@ class TCollection:
     >>> deep_plain = TCollection(TCollection(TCard(), zone=False))
     >>> coercible(deep_zone, deep_plain)
     True
+
+    A key mismatch does, at the top or one level down:
+
+    >>> per_seat = TCollection(TInteger(), key=TPlayer())
+    >>> coercible(per_seat, TCollection(TInteger())), coercible(TCollection(TInteger()), per_seat)
+    (False, False)
+    >>> coercible(per_seat, TCollection(TInteger(), key=TTeam()))
+    False
+    >>> coercible(TCollection(per_seat), TCollection(TCollection(TInteger())))
+    False
 
     ``join`` preserves a facet both sides agree on, and drops one they do not:
 
@@ -162,7 +174,8 @@ class TCollection:
     # zone-family subscript) — as opposed to a COMPUTED card collection (a
     # query result, a list literal), which types identically by element but
     # evaluates to a plain list. Transfer/epistemic zone positions require it;
-    # like `key`, it never participates in coercion or joining.
+    # it never participates in coercion, and `join` keeps it only where both
+    # sides agree.
     zone: bool = False
 
 
@@ -334,9 +347,47 @@ def coercible(src: Type, dst: Type) -> bool:
     if isinstance(src, TInteger) and isinstance(dst, (TPlayer, TTeam)):
         return True
     if isinstance(src, TCollection) and isinstance(dst, TCollection):
-        # The key is how a map is ADDRESSED, not part of its value space —
-        # strip it and compare elements. RECURSE rather than compare with `==`,
-        # so every rule above — the permissive top, the nominal outcome, the
-        # optional — reaches through the wrapper.
-        return coercible(src.element, dst.element)
+        # The key decides first; the element then RECURSES rather than
+        # comparing with `==`, so every rule above — the permissive top, the
+        # nominal outcome, the optional — reaches through the wrapper.
+        return keys_fit(src.key, dst.key) and coercible(src.element, dst.element)
     return False
+
+
+def keys_fit(a: Type | None, b: Type | None) -> bool:
+    """Whether two collections' ``key`` facets let one stand for the other.
+
+    An unkeyed collection fits only an unkeyed one. The unknown key (`TAny`)
+    fits only itself: `join` mints it exactly when two branches' keys
+    DISAGREE, so it marks a value that may be a map of either shape, or no
+    map at all — never a gradual unknown that some definite key could
+    satisfy. Two definite keys fit when each coerces to the other — the same
+    domain, or a declared type by its name. One-way coercion is not enough:
+    `Integer` stands for `Player` as a seat literal, never as the domain a
+    store is keyed by.
+
+    >>> keys_fit(None, None), keys_fit(TPlayer(), None), keys_fit(None, TAny())
+    (True, False, False)
+    >>> keys_fit(TPlayer(), TPlayer()), keys_fit(TPlayer(), TTeam()), keys_fit(TAny(), TTeam())
+    (True, False, False)
+    >>> keys_fit(TAny(), TAny()), keys_fit(TInteger(), TPlayer())
+    (True, False)
+    """
+    if a is None or b is None:
+        return a is None and b is None
+    if isinstance(a, TAny) or isinstance(b, TAny):
+        return isinstance(a, TAny) and isinstance(b, TAny)
+    return coercible(a, b) and coercible(b, a)
+
+
+def elements_fit(src: TCollection, dst: TCollection) -> bool:
+    """Whether ``src``'s elements may stand where ``dst``'s are wanted —
+    `coercible`'s collection arm with the key set aside, for a diagnostic
+    asking whether the key is the ONLY reason one collection does not stand
+    for the other.
+
+    >>> per_seat = TCollection(TInteger(), key=TPlayer())
+    >>> elements_fit(per_seat, TCollection(TInteger())), elements_fit(per_seat, TCollection(TCard()))
+    (True, False)
+    """
+    return coercible(src.element, dst.element)
