@@ -1363,9 +1363,10 @@ time: where the language reads a collection's members — a native's
 collection parameter, a card query's or aggregation's source — a keyed one
 is refused, since its members would be read as its keys. A positional
 collection — a `[...]` list, a board region such as `home(p)` — is
-addressed by an Integer position counted from 0; a negative position, or a
-literal one past a length the sentence states, is refused at check time,
-and a computed one outside the collection at play time. A zone VALUE is likewise distinguished from
+addressed by an Integer position counted from 0; a position that does not
+type exactly Integer, a negative one, or a literal one past a length the
+sentence states, is refused at check time, and a computed one outside the
+collection at play time. A zone's cards are not addressed by position. A zone VALUE is likewise distinguished from
 a computed card collection: a query result or list literal types
 `Collection<Card>` too, but only a zone (or a binder holding one) may
 stand in a transfer endpoint or an epistemic target — narrowing a
@@ -1924,9 +1925,10 @@ every transfer verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
 are sugar that differ only in defaults, not in kind. A transfer carries a
 selection (`all`, a count, or a `chosen`/`random` amount), an item noun, a
 source place, and a destination (a single zone or `to each` recipient). A
-count is an Integer, never a comparison or a flag: a non-Integer count is
-refused at check time, or at play time where it reaches the executor through
-the permissive top, and a negative literal count is refused at check time. The
+count is an Integer, never a comparison or a flag: a count that does not
+type exactly Integer — the permissive top included — is refused at check
+time, as is a negative literal count; a Boolean hidden inside arithmetic over
+the top is refused at play time. The
 item noun is `cards`/`card` today; the noun stays open in the grammar so a
 resource transfer (coins, chips) can one day be the *same* construct as a
 card deal rather than separate syntax — but resource transfers and the
