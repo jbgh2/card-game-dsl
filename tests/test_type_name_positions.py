@@ -264,6 +264,7 @@ _PAST_THE_GATE: tuple[str, ...] = (
     "constrains no move type",
     "but its default has type",
     "is out of range",
+    "names a team, but this game declares no `teams:`",
 )
 
 
