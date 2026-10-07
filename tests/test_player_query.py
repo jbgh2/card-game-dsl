@@ -95,7 +95,7 @@ def test_player_query_zero_ambiguity() -> None:
 
 PICK_GAME = """
 game PickTest {
-  players: 1
+  players: 2
   max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
@@ -103,7 +103,7 @@ game PickTest {
     deck : Deck
     hand[player] : Hand<player>
   }
-  phase setup { deal 13 cards from deck to each hand }
+  phase setup { move 13 cards from deck to hand[0] }
   loser: the player where hand[player] is not empty
 }
 """
@@ -112,4 +112,4 @@ game PickTest {
 def test_the_player_where_selects_the_unique_match_at_runtime() -> None:
     game = check_dsl(PICK_GAME, "pick.dsl")
     result = play_game(game, random.Random(0))
-    assert result.loser == 0  # the sole player, who holds cards
+    assert result.loser == 0  # the one player who holds cards

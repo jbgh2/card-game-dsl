@@ -17,7 +17,9 @@ property:   in a game with no `teams:`, a sentence that ranges over the
 domain:     {the team-asking sentences} x {a game with `teams:`, one
             without}. A Builtin call is written at three expression positions
             -- a statement's condition, a function body, a `let` binding. A
-            state default cannot call a Builtin in any game.
+            state default cannot call a Builtin in any game. And every corpus
+            game declaring `teams:`, with that line deleted, is swept: each
+            team question it writes is refused.
             The other ways a team reaches a sentence are refused elsewhere: a
             team-indexed `state` or `zone`, and a team literal, which a
             teamless game's empty bound refuses at every operand. A `Team`
@@ -30,13 +32,16 @@ registry:   `tests/team_question_axes.py` -- role-ranging nodes from the
             tables are pinned against both derivations below.
             Team literals: `tests/test_player_literal_range.py`.
 does not prove:  that every expression position is walked. Resolve's arm sits
-            in the whole-tree walk, and the three positions here sample it.
+            in the whole-tree walk; the grid samples three positions, and the
+            corpus sweep covers every position the partnership games write.
 """
 
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -71,6 +76,7 @@ game G {{
 """
 
 TEAMS = "teams: [[0, 2], [1, 3]]"
+REPO = Path(__file__).resolve().parent.parent
 
 
 def _source(cell: Cell, teams: str) -> str:
@@ -148,3 +154,36 @@ def test_a_non_seat_asking_its_team_fails_typed(seat: object) -> None:
     assert [team_of[p] for p in range(4)] == [0, 1, 0, 1]
     with pytest.raises(OwnerGuardError, match="not a seat of any team"):
         team_of[seat]
+
+
+GAMES = REPO / "docs" / "games"
+_TEAMS_LINE = re.compile(r"^\s*teams:.*\n", re.M)
+_TEAM_QUESTION = re.compile(r"team_of\(|\bany team where\b|\ball teams where\b|\bfor each team\b")
+
+
+def _team_games() -> list[Path]:
+    return [p for p in sorted(GAMES.glob("*.cardlang")) if _TEAMS_LINE.search(p.read_text())]
+
+
+def test_the_corpus_has_partnership_games() -> None:
+    """The sweep below is over a glob; an empty one would pass unearned."""
+    assert _team_games()
+
+
+@pytest.mark.parametrize("path", _team_games(), ids=lambda p: p.stem)
+def test_a_partnership_game_without_its_teams_refuses_every_team_question(path: Path) -> None:
+    """A half-finished conversion: the corpus game with its `teams:` line
+    deleted. Every team question the file writes -- at whatever position
+    the game puts it -- is refused, one diagnostic each, beside the walls on
+    its team-indexed declarations.
+
+    red under: `resolve._TEAM_CALL_FUNCS` emptied -- every game here then
+    reports fewer refusals than team questions."""
+    source = path.read_text()
+    code = "\n".join(line.split("//", 1)[0] for line in source.splitlines())
+    sites = len(_TEAM_QUESTION.findall(code))
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_TEAMS_LINE.sub("", source), path.name)
+    text = "\n".join([exc.value.diagnostic.message, *(getattr(exc.value, "__notes__", []) or [])])
+    refused = len(re.findall(r"ranges over teams|asks which team", text))
+    assert refused == sites, f"{path.stem}: {refused} of {sites} team questions refused"

@@ -17,7 +17,9 @@ domain:          Every game in the adapter registry (`GAMES`), at each seed in
                  (`tests/playout_policy.REFERENCE_POLICIES`), else uniformly. Compared at the Chooser calls `_CALLS` names that
                  the line reaches — the first decision of each call, the
                  position both routes have — and at the terminal position.
-registry:        games: `cardlang.openspiel.registry.GAMES`; the generator a
+registry:        games: `cardlang.openspiel.registry.GAMES`, the corpus glob:
+                 tests/test_openspiel_registration.py::test_a_registered_path_game_is_not_in_the_corpus_registry;
+                 the generator a
                  `(path, seed)` plays under: `replay.generator_for`; the one
                  site a pick is recorded: `cardlang.runtime.chooser.decide`.
 does not prove:  The positions inside a multi-pick call past its first pick:

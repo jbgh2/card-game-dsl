@@ -3242,7 +3242,9 @@ deliver seat ids as utilities). See [Winner](glossary/winner.md).
 An *elimination* game has no score: players drop out until one
 remains, and that survivor is named directly, so `loser: <selection>`
 takes a player-valued expression (typically the singular player-selection
-`the player where <pred>`) evaluated at game end.
+`the player where <pred>`) evaluated at game end. It seats at least two
+players: a one-seat table's only player is its loser, with nobody left to
+win, so `loser:` beside `players: 1` is refused at check time.
 
 `loser:` reads zone state (`hand[player]` non-empty), not phase-scoped
 variables, so it resolves at the top level after the elimination phase

@@ -3613,6 +3613,15 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             "`loser: <player-expr>` — without one the playout has no result",
             game.span,
         )
+    elif game.loser is not None and game.players.count == 1:
+        # An elimination names one loser among the survivors, so a one-seat
+        # table has nobody left to win. A malformed count is typecheck's.
+        bag.error(
+            "`loser:` names the player eliminated from the rest, so an "
+            "elimination game needs at least two players — this game seats "
+            "one; rank a score with `winner:` instead",
+            game.loser.span,
+        )
 
 
 # The declared types a game may be RANKED by: totally ordered, and their

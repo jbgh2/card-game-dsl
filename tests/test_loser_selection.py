@@ -22,7 +22,8 @@ domain:     the runtime value shapes a selection can yield through the
             three-seat table (below it, its first and last seats, one past
             it) plus a Boolean literal, written directly in the branch.
             Every corpus game that declares `loser:` is swept for the
-            sum-to-zero property.
+            sum-to-zero property. The table size is split at two: a
+            one-seat elimination game is refused at check time.
 registry:   declared types: `tests/winner_axes.py` (`type_cells`, over
             `typecheck.KNOWN_TYPE_NAMES`, its default table pinned by
             `tests/test_winner_target.py::test_default_table_covers_every_declared_type`).
@@ -42,6 +43,7 @@ from pathlib import Path
 
 import pytest
 
+from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.openspiel.replay import returns_for
 from cardlang.runtime.driver import play_game
@@ -148,3 +150,29 @@ def test_an_elimination_games_returns_sum_to_zero(name: str) -> None:
         rng = random.Random(seed)
         result = play_game(game, rng, chooser=reference_policy_for(name, rng))
         assert sum(returns_for(game, result)) == 0, (name, seed, result.loser)
+
+
+ONE_SEAT = """
+game G {{
+  players: {seats}
+  max_length: 1000
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  phase setup {{ move 13 cards from deck to hand[0] }}
+  loser: the player where hand[player] is not empty
+}}
+"""
+
+
+@pytest.mark.parametrize("seats", [1, 2], ids=["one-seat", "two-seat"])
+def test_an_elimination_game_seats_at_least_two(seats: int) -> None:
+    """A one-seat table's only player is its loser, so nobody is left to win
+    and the result's winners would be empty. The table-size axis is the
+    count `players:` takes, split where an elimination stops meaning one."""
+    source = ONE_SEAT.format(seats=seats)
+    if seats == 1:
+        with pytest.raises(DiagnosticError, match="at least two players"):
+            check_dsl(source, "t.cardlang")
+        return
+    result = play_game(check_dsl(source, "t.cardlang"), random.Random(0))
+    assert (result.loser, result.winners) == (0, frozenset({1}))
