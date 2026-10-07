@@ -628,13 +628,6 @@ def test_a_field_read_on_a_position_binder_is_refused(guard: str) -> None:
 
 
 @pytest.mark.parametrize("index", ['"zz"', "99"])
-@pytest.mark.xfail(
-    strict=True,
-    raises=pytest.fail.Exception,
-    reason="issue #588: a positional collection's index is never checked",
-)
 def test_a_region_subscript_is_index_checked(index: str) -> None:
-    # `home`/`far_row` produce key=None positional collections, and the
-    # Subscript key check runs only when a key type is present, so any index
-    # at all is accepted here today.
+    # The whole receiver x index grid is tests/test_positional_index.py.
     _reject(_board_game(guard=f"square[home(actor)[{index}]] is empty"))

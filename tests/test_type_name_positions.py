@@ -159,6 +159,7 @@ def _prog(*, extra: str = "", extra_state: str = "", outcome: str = "",
 POSITIONS: dict[str, tuple[str, object]] = {
     "P1 state_decl": ("state_decl", lambda d: _prog(extra_state=f"  s : {d} = 1")),
     "P3 move_param": ("move_type_def", lambda d: _prog(
+        rules=" offer to 0 one of [mv]",
         extra=f"move_type mv(x : {d}) {{ effect {{ score[actor] := 1 }} }}")),
     "P4 proc_param": ("procedure_def", lambda d: _prog(
         extra=f"procedure pr(x : {d}) {{ tick := 1 }}")),

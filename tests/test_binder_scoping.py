@@ -269,7 +269,7 @@ def test_nested_card_queries_shadow_legally() -> None:
     _accepts(
         """
   phase p {
-    let z = number of cards in pile where (any card in captured[actor] where card.rank is card.rank)
+    let z = number of cards in pile where (any card in captured[0] where card.rank is card.rank)
   }
 """
     )
@@ -279,7 +279,7 @@ def test_movement_filter_binds_card() -> None:
     _accepts(
         """
   phase p {
-    move all cards from hand[actor] where card.suit is hearts to pile
+    move all cards from hand[0] where card.suit is hearts to pile
   }
 """
     )
@@ -340,7 +340,7 @@ def test_let_in_before_each_is_not_visible_in_the_phase_body() -> None:
 
 def _move_type_game(move_type: str) -> str:
     # `move_type` is a top-level item, outside the `game { }` block.
-    return _game("  phase p {\n    let x = 1\n  }\n") + move_type
+    return _game("  phase p {\n    offer to 0 one of [m]\n  }\n") + move_type
 
 
 def test_let_in_a_move_effect_is_visible_later_in_the_effect() -> None:

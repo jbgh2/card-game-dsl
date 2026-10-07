@@ -307,7 +307,9 @@ def _game(body: str = "hits[0] += 0", effect: str = "hits[target] += 1") -> str:
     is the only alias source. `effect` splices into a move type's effect — the
     OTHER root shape, where the acting player arrives from the call site rather
     than from anything lexically above, and where the corpus idiom this guard
-    must not break actually lives (docs/games/tic-tac-toe.cardlang)."""
+    must not break actually lives (docs/games/tic-tac-toe.cardlang). The phase
+    offers `mark` to seat 0 after the block, so an accepted effect cell is
+    played and not merely resolved."""
     return f"""
 game G {{
   players: 2
@@ -318,6 +320,7 @@ game G {{
   phase play {{
     deal 2 cards from deck to each hand
     as 0 {{ {body} }}
+    offer to 0 one of [mark]
   }}
   winner: highest hits
 }}

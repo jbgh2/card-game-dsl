@@ -79,7 +79,6 @@ game H {{
   }}
   winner: highest taken
 }}
-move_type play_to_trick {{ effect {{ }} }}
 """
 
 

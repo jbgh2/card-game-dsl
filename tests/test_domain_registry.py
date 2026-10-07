@@ -211,7 +211,7 @@ def test_a_non_row_noun_parses_but_is_rejected_at_resolve() -> None:
 
 def test_for_each_accepts_exactly_the_iterable_rows() -> None:
     for row in DOMAINS:
-        src = _src(f"for each {row.id.value} x: marker[actor] += 1")
+        src = _src(f"as 0 {{ for each {row.id.value} x: marker[actor] += 1 }}")
         if row.iterable:
             _accepts(src)
         else:  # pragma: no cover - no such row today; the cell is declared, not dead
@@ -236,13 +236,16 @@ def test_for_each_binds_the_actor_iff_the_row_is_a_seat_domain() -> None:
     or an `execute._for_each` that reintroduces a hand-written per-role arm —
     fails here.
     """
-    rs = _first_decision_state(_accepts(_src("for each player x: marker[actor] += 1")))
+    rs = _first_decision_state(_accepts(_src("as 0 { for each player x: marker[actor] += 1 }")))
 
     for row in DOMAINS:
         if not row.iterable:  # pragma: no cover - no such row today
             continue
-        game = _accepts(_src(f"for each {row.id.value} x: marker[actor] += 1"))
-        stmt = next(s for s in game.phases[0].items if isinstance(s, n.ForEach))
+        # Under `as 0`, the ambient actor the value rows leave standing; the
+        # loop itself is executed below under that same seat.
+        game = _accepts(_src(f"as 0 {{ for each {row.id.value} x: marker[actor] += 1 }}"))
+        block = next(s for s in game.phases[0].items if isinstance(s, n.AsBlock))
+        stmt = next(s for s in block.body if isinstance(s, n.ForEach))
 
         ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k])).acting_as(0)
         ctx.rs.push_frame()
@@ -378,7 +381,7 @@ def test_the_rank_rows_two_member_columns_diverge() -> None:
     So in a game with no `ranking:`, `for each rank` is legal and a `Rank`
     parameter is a compile error. Folding the two accessors into one member
     enumerator would break exactly one of these two cells."""
-    _accepts(_src("for each rank r: marker[actor] += 1", ranking=False))
+    _accepts(_src("as 0 { for each rank r: marker[actor] += 1 }", ranking=False))
     _rejects(
         _src(vocab="stop, m", extra=_param_move("Rank"), ranking=False),
         "has a Rank parameter, but the game declares no ranking:",

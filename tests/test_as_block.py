@@ -165,9 +165,10 @@ def test_tany_non_player_bound_as_actor_is_a_loud_runtime_error() -> None:
 
 def test_encoder_descends_into_as_body() -> None:
     # The OpenSpiel action-space encoder must see decisions nested in an `as`
-    # body. It uses a generic `_walk`, so a `choose` inside `as` sets the same
-    # int-ceiling as one written bare — if the encoder ever stopped descending,
-    # this ceiling would drop to the default and the test would fail.
+    # body. It uses a generic `_walk`, so a `choose` inside `as` sets the
+    # int-ceiling; the same `as` body without the `choose` leaves the game with
+    # no integer decision (ceiling `None`), which is what an encoder that
+    # stopped descending would report for both.
     from cardlang.openspiel.encoding import ActionSpace
 
     def _choose_game(body: str) -> n.Game:
@@ -185,12 +186,12 @@ def test_encoder_descends_into_as_body() -> None:
             "test.cardlang",
         )
 
-    bare = ActionSpace.for_game(_choose_game("bid[dealer] := choose integer in 0 .. 7"))
+    no_choose = ActionSpace.for_game(_choose_game("as dealer { bid[dealer] := 7 }"))
     in_as = ActionSpace.for_game(
         _choose_game("as dealer { bid[dealer] := choose integer in 0 .. 7 }")
     )
+    assert no_choose._int_ceiling is None
     assert in_as._int_ceiling == 7  # the choose inside `as` was found
-    assert in_as._int_ceiling == bare._int_ceiling
 
 
 def test_as_equally_as_possible_still_parses() -> None:

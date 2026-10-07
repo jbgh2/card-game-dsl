@@ -12,11 +12,10 @@ moves use), so the full dealing/phase-loop scaffolding `play_game` sets up is
 not needed. The `MoveTypeDef`s under test come from a real `check_dsl` pass
 (not hand-built AST) so their guards carry properly resolved `NameRef`s
 (`actor` as a pronoun, params as scoped locals) exactly as a real game would
-see them — the game below declares `ping`/`bid_or_notrump` standalone,
-referenced by no `offer`/`round`, so this file exercises the runtime fold in
-isolation without needing a full vocabulary/round wiring in the game (that
-wiring, and the closed set of accepted/rejected parameter domains it
-enforces, is tests/test_resolve_param_domains.py's concern).
+see them — the game below presents `ping`/`bid_or_notrump` at one plain
+`offer`, and this file calls the runtime fold on the checked move types
+directly, never playing the game (the closed set of accepted/rejected
+parameter domains is tests/test_resolve_param_domains.py's concern).
 """
 
 from __future__ import annotations
@@ -40,6 +39,7 @@ game G {
   phase play repeat until rounds >= 3 {
     before_each { rounds += 1 }
     for each player p: coins[p] += 1
+    for each player p: offer to p one of [ping, bid_or_notrump]
   }
   winner: highest coins
 }

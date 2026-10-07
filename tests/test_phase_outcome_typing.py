@@ -694,7 +694,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0 }
-  phase p { }
+  phase p { offer to 0 one of [m] }
   winner: highest score
 }
 """

@@ -686,12 +686,6 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             # move-type/mechanic-specific (see ACTION_FIELDS for the
             # sound subset of `action` typed via Member access).
             return TPlayer() if e.name == "actor" else TAny()
-        case "function":
-            # A bare function NAME in value position (a callback handed to a
-            # round form, never applied here). Genuinely the top: its type is the
-            # signature of whatever consumes it, which no `Type` in this model
-            # can spell. One of the audited permissive sites.
-            return TAny()
         case _:
             # Every `ref_kind` resolve stamps is handled above, and resolve
             # RAISES on an unclassified name before this pass runs — so an
@@ -1764,6 +1758,57 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
         )
 
 
+def _spell_operand(e: n.Expr) -> str:
+    """An operand as a diagnostic quotes it: the shapes a collection read
+    takes, and `...` for anything longer."""
+    match e:
+        case n.NameRef():
+            return e.name
+        case n.IntLit():
+            return str(e.value)
+        case n.Subscript():
+            return f"{_spell_operand(e.obj)}[{_spell_operand(e.index)}]"
+        case n.Call():
+            return f"{e.func}({', '.join(_spell_operand(a) for a in e.args)})"
+        case n.ListLit():
+            return "[...]"
+        case _:
+            return "..."
+
+
+def _refuse_keyed_elements(
+    operand: n.Expr, got: Type, reader: str, env: TypeEnv, bag: DiagnosticBag
+) -> bool:
+    """A keyed collection where a collection's ELEMENTS are read: the Owner
+    Guard for the two element-reading positions, a native's collection
+    parameter and a card query's source. The runtime holds a keyed collection
+    as a map, and reading a map's elements reads its keys, so the reader would
+    answer on the seat (or team) ids, never on a card. `coercible` cannot
+    decide this, since facets never decide compatibility (`TCollection`); the
+    position does. Reports, and answers whether it did."""
+    bare = _bare(got)
+    if not isinstance(bare, TCollection) or bare.key is None:
+        return False
+    what = f"`{_spell_operand(operand)}`"
+    keyed = (
+        f"a map keyed by {_type_name(bare.key)}"
+        if not isinstance(bare.key, TAny)
+        else "a value that may be a keyed map (one branch of its conditional is)"
+    )
+    bag.error(
+        f"{reader} {what}, which is {keyed}: reading its elements would read "
+        f"the keys, not the cards — pass one entry (`{_entry_hint(operand)}`) "
+        f"or a zone",
+        operand.span,
+    )
+    return True
+
+
+def _entry_hint(operand: n.Expr) -> str:
+    base = operand.name if isinstance(operand, n.NameRef) else "m"
+    return f"{base}[p]"
+
+
 def _check_card_source(
     source: n.Expr, env: TypeEnv, bag: DiagnosticBag, *, lists_zones: bool = False
 ) -> None:
@@ -1797,9 +1842,7 @@ def _check_card_source(
         )
         return
     ebare = _bare(bare_src.element)
-    if isinstance(ebare, TAny):
-        return
-    if join(ebare, TCard()) is None:
+    if not isinstance(ebare, TAny) and join(ebare, TCard()) is None:
         hint = ""
         if isinstance(ebare, TCollection) and join(_bare(ebare.element), TCard()) is not None:
             # A list of zones: the one shape with a plain intent in every slot.
@@ -1815,6 +1858,8 @@ def _check_card_source(
             f"{_type_name(src_t)}{hint}",
             source.span,
         )
+        return
+    _refuse_keyed_elements(source, src_t, "'cards in ...' reads the cards of", env, bag)
 
 
 def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -1853,6 +1898,12 @@ def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> N
         f"{_type_name(infer(e.count, env))}",
         e.count.span,
     )
+    if isinstance(e.count, n.IntLit) and e.count.value < 1:
+        bag.error(
+            f"a subset size is {e.count.value}: a subset holds at least one "
+            f"card, so this size names no subset — write 1 or more",
+            e.count.span,
+        )
     for member in e.source:
         _check_expr(member, env, bag)
         _check_card_source(member, env, bag, lists_zones=True)
@@ -1965,9 +2016,12 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
     t = infer(e.operand, env)
     bare = _bare(t)
     if e.kind in ("empty", "not_empty"):
-        if isinstance(bare, (TAny, TCollection)):
-            return
         surface = "is empty" if e.kind == "empty" else "is not empty"
+        if isinstance(bare, TCollection):
+            _refuse_keyed_elements(e.operand, t, f"`{surface}` asks for the members of", env, bag)
+            return
+        if isinstance(bare, TAny):
+            return
         bag.error(
             f"`{surface}` asks a zone or collection — got {_type_name(bare)}",
             e.operand.span,
@@ -2343,6 +2397,7 @@ def _check_participants(
             f"{where} — expected a collection of players, got {_type_name(pt)}",
             span,
         )
+        _refuse_keyed_elements(node, pt, f"{where} takes its players from", env, bag)
 
 
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2457,6 +2512,10 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
                     )
+                    if isinstance(_bare(param), TCollection):
+                        _refuse_keyed_elements(
+                            arg, got, f"{e.func}() reads the cards of", env, bag
+                        )
         if (
             e.func in RANKING_GATED_FUNCS
             and e.func not in env.functions
@@ -2514,6 +2573,43 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"{_type_name(idx_t)}",
                     e.span,
                 )
+            elif isinstance(obj, TCollection) and obj.zone:
+                what = f"`{_spell_operand(e.obj)}`"
+                bag.error(
+                    f"{what} is a zone, and a zone's cards are not addressed by "
+                    f"position — read them with a card query (`cards in ... "
+                    f"where ...`) or `top_of(...)`",
+                    e.span,
+                )
+            elif isinstance(obj, TCollection):
+                # A POSITIONAL collection (a `[…]` list, a board region such as
+                # `home(p)`) is addressed by position, counted from 0. Its
+                # static length, where it has one, is resolve's to range
+                # (`_check_positional_index_range`); a computed index is the
+                # runtime's (`evaluate._subscript`).
+                idx_t = infer(e.index, env)
+                what = f"`{_spell_operand(e.obj)}`"
+                _check_operand(
+                    e.index, idx_t, TInteger(), env, bag,
+                    f"a position in {what} is an Integer counted from 0 — got "
+                    f"{_type_name(idx_t)}",
+                    e.index.span or e.span,
+                )
+                if isinstance(_bare(idx_t), TAny):
+                    bag.error(
+                        f"a position in {what} types as `Any`, the permissive "
+                        f"top (a value the checker cannot type -- a "
+                        f"mixed-branch `if`, an untyped read); it must type "
+                        f"exactly Integer, because a wrong position is "
+                        f"otherwise found only when the game is played",
+                        e.index.span or e.span,
+                    )
+                if isinstance(e.index, n.IntLit) and e.index.value < 0:
+                    bag.error(
+                        f"position {e.index.value} is before the first: a "
+                        f"position in {what} counts from 0",
+                        e.index.span or e.span,
+                    )
     elif isinstance(e, n.Member):
         obj_ref = e.obj
         if (
@@ -3039,6 +3135,40 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"movement {what} must be a zone, got "
                 f"{_type_name(t)}{_zone_hint(t, filterable)}",
                 stmt.span,
+            )
+    if not isinstance(stmt.amount, str):
+        amount_t = infer(stmt.amount, env)
+        _check_operand(
+            stmt.amount, amount_t, TInteger(), env, bag,
+            f"a movement's amount counts how many "
+            f"{content_noun(env.flavor, plural=True)} to move — expected an "
+            f"Integer, got {_type_name(amount_t)}",
+            stmt.amount.span or stmt.span,
+        )
+        if isinstance(_bare(amount_t), TAny):
+            bag.error(
+                f"a movement's amount types as `Any`, the permissive top (a "
+                f"value the checker cannot type -- a mixed-branch `if`, an "
+                f"untyped read); it must type exactly Integer, because a "
+                f"wrong count is otherwise found only when the game is played",
+                stmt.amount.span or stmt.span,
+            )
+        if (
+            isinstance(stmt.amount, n.IntLit)
+            and stmt.amount.value == 0
+            and stmt.selection_mode == "chosen"
+        ):
+            bag.error(
+                "a chosen movement's amount is 0: a decision that selects "
+                "nothing is not a decision — choose 1 or more, or guard the "
+                "movement instead",
+                stmt.amount.span or stmt.span,
+            )
+        if isinstance(stmt.amount, n.IntLit) and stmt.amount.value < 0:
+            bag.error(
+                f"a movement's amount is {stmt.amount.value}: no movement "
+                f"moves fewer than none — write a count of 0 or more",
+                stmt.amount.span or stmt.span,
             )
     own = (content_noun(env.flavor, plural=False), content_noun(env.flavor, plural=True))
     other_flavor: Flavor = "card" if env.flavor == "piece" else "piece"

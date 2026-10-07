@@ -150,11 +150,13 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               climb forms and its parameter domains may therefore assume the
               deciding seat sees every card they offer from its own
               instance.
-              And a Stake row no seat can read: on a game's own move type
-              that no reachable ``offer`` or ``round offering`` presents
-              (``_check_unread_stakes``, before the library splice, since a
-              library move type's row is the library's statement for every
-              game importing it), and on a ``Card``-parameterized move type,
+              And one of the game's own move types that no reachable
+              ``offer`` or ``round offering`` presents, with or without a
+              Stake row on it (``_check_unoffered_move_types``; a library's
+              move types are exempt, since a game importing a library need
+              not present every move type it offers); every game move type after this
+              pass is one some reachable offering presents. And a Stake row no seat
+              can read on a ``Card``-parameterized move type,
               whose action id is its card's (``_check_move_params``). Every
               row reaching a Seat Policy is therefore on a move type whose
               action ids name it. And, in a game with a climbing round, a
@@ -290,7 +292,7 @@ from cardlang.stdlib.zones import (
     reveals,
 )
 from cardlang.typecheck import KNOWN_TYPE_NAMES
-from cardlang.types import Flavor, TPlayer
+from cardlang.types import Flavor, TCollection, TPlayer
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
 # is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
@@ -1135,13 +1137,9 @@ def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
             continue  # already added above, with their own spans
         for definition in getattr(game, field):
             bindings.setdefault(definition.name, (noun, definition.span))
-    # `_classify`'s `function` bucket is the native value names, not the game's
-    # own functions (those resolve as `Call`s, never as bare names) — so a
-    # provided variable spelled like a native value shadows it exactly as a
-    # deck-value clash does, `state_vars` winning over `functions`. Lowest
+    # The round slots' callback names: the game names them in its rounds, so a
+    # library may not bring one in as a definition of its own. Lowest
     # precedence, added last, so a real game binding keeps the reported noun.
-    # `test_game_bindings_covers_every_resolvable_value_bucket` pins this against
-    # `_categories` so a value bucket added there cannot slip past uncovered.
     for value_fn in VALUE_NAMES:
         bindings.setdefault(value_fn, ("standard-library value", None))
     return bindings
@@ -1746,7 +1744,6 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         # blind — which is the shape of the defect the slot registry exists for.
         zones=frozenset(r.name for r in library.requires if is_zone_contract(r)),
         enums=SEAT_DIRECTION_VALUES,
-        functions=VALUE_NAMES,
         ranks=frozenset(),
         suits=frozenset(),
     )
@@ -1905,6 +1902,9 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     leak in the first place."""
     reach = _library_reach(library)
     for ref in reach.unresolved:
+        if ref.name in VALUE_NAMES:
+            bag.error(_callback_outside_slot(ref.name), ref.span)
+            continue
         bag.error(
             f"library '{library.name}' reads '{ref.name}', which is neither in "
             f"its `requires` contract nor defined in the library — add it to "
@@ -2342,7 +2342,9 @@ def resolve(game: n.Game) -> n.Game:
     # unmet `requires`) make the spliced game unrepresentative, so they are
     # reported as a complete set and raised before the rest of the pass adds
     # noise derived from a half-assembled game.
-    _check_unread_stakes(game, bag)
+    # The game's own move types, before the splice adds a library's: a
+    # game importing a library need not present every move type it brings.
+    own_move_types = frozenset(mt.name for mt in game.move_types)
     game = _apply_uses(game, bag)
     _raise_if_errors(bag)
     _resolve_component_set(game, bag)
@@ -2436,6 +2438,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_procedures(game, bag)
     _check_hosted_polls(game, bag)
     _check_chooses(game, bag)
+    _check_positional_index_range(game, bag)
     _check_actor_alias_comparisons(game, bag)
     _check_delegation(game, bag)
     _check_implicit_pools(game, bag)
@@ -2444,6 +2447,9 @@ def resolve(game: n.Game) -> n.Game:
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
     _resolve_winner_loser(game, bag)
+    # After every sharper diagnostic, for the same reason: a fixture written to
+    # probe one move type's declaration need not also present it.
+    _check_unoffered_move_types(game, own_move_types, bag)
 
     _raise_if_errors(bag)
     return game
@@ -2951,6 +2957,19 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                         f"information set to attach to. Move it into a phase",
                         node.span or decl.span,
                     )
+                elif (
+                    isinstance(node, n.NameRef)
+                    and node.ref_kind == "pronoun"
+                    and node.name == "actor"
+                ):
+                    bag.error(
+                        f"the default of state variable '{decl.name}' cannot "
+                        f"read `actor`: a default is evaluated where it is "
+                        f"written, outside any player's turn, so `actor` names "
+                        f"no one. Use a seat number, or set the variable during "
+                        f"play",
+                        node.span or decl.span,
+                    )
                 elif isinstance(node, n.Call):
                     bag.error(
                         f"the default of state variable '{decl.name}' cannot "
@@ -3144,6 +3163,60 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
         )
 
 
+# The board verbs that return a positional collection, each the `BoardEntry`
+# method of the same name (pinned by tests/test_positional_index.py): the
+# lengths `_static_length` reads off the declared board.
+_REGION_CALL_FUNCS = frozenset(
+    fn
+    for fn, ret in ((fn, CALL_SIGS[fn].ret) for fn in BOARD_ONLY_CALL_FUNCS)
+    if isinstance(ret, TCollection) and ret.key is None
+)
+
+
+def _static_length(obj: n.Expr, game: n.Game) -> int | None:
+    """How many members a positional collection holds, where the sentence
+    states it: a `[...]` list's own count, or a board region on the declared
+    board. A per-seat region answers the largest seat's count, so a position
+    one seat holds is never refused. None where the count is runtime data."""
+    if isinstance(obj, n.ListLit):
+        return len(obj.elements)
+    if not (isinstance(obj, n.Call) and obj.func in _REGION_CALL_FUNCS):
+        return None
+    if game.board is None or len(obj.args) != 1:
+        return None
+    try:
+        method = getattr(board_entry(game.board.family, game.board.args), obj.func)
+        if isinstance(CALL_SIGS[obj.func].params[0], TPlayer):
+            return max(len(method(seat)) for seat in range(game.players.count))
+        arg = obj.args[0]
+        return len(method(arg.value)) if isinstance(arg, n.IntLit) else None
+    except (OwnerGuardError, ValueError):
+        # Refused where it is written: an invalid `board:` clause
+        # (`_resolve_board`), or the call itself (`_check_board_call`, the
+        # frame's two-seat guard). There is no region to count.
+        return None
+
+
+def _check_positional_index_range(game: n.Game, bag: DiagnosticBag) -> None:
+    """A literal position in a collection whose length the sentence states is
+    inside it. A position counts from 0 (the type layer refuses a negative or
+    non-Integer one); past the last member, the read names nothing, and the
+    runtime's positional Owner Guard (`evaluate._subscript`) would refuse it
+    at play time instead of here. A computed position, or a collection whose
+    length is runtime data, is that guard's alone."""
+    for nd in _walk(game):
+        if not (isinstance(nd, n.Subscript) and isinstance(nd.index, n.IntLit)):
+            continue
+        length = _static_length(nd.obj, game)
+        if length is None or nd.index.value < length:
+            continue
+        bag.error(
+            f"position {nd.index.value} is past the end: this collection holds "
+            f"{length}, at positions 0 .. {length - 1}",
+            nd.index.span or nd.span,
+        )
+
+
 def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
     """Every integer `choose` must have a statically known, non-negative upper
     bound — the width the OpenSpiel action space reserves for it (decisions.md
@@ -3178,8 +3251,8 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
     for node in _walk(game):
         if not isinstance(node, n.Choose):
             continue
-        # `static_ceiling` is a non-negative int (INT / IntLit) or None; only the
-        # None case — a runtime `hi` with no `up to` — is possible from source.
+        # `static_ceiling` is an `up to` INT (never negative), a literal `hi`
+        # (negative through `- INT`), or None — a runtime `hi` with no `up to`.
         ceiling = n.static_ceiling(node)
         if ceiling is None:
             bag.error(
@@ -3187,6 +3260,14 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 "give it a literal upper bound (`0 .. 13`) or declare a ceiling "
                 "with `up to N` (`0 .. hand_size up to 10`) — the OpenSpiel "
                 "action space reserves that many ids up front",
+                node.span,
+            )
+            continue
+        if ceiling < 0:
+            bag.error(
+                f"`choose integer` upper bound ({ceiling}) is negative: values "
+                f"start at 0, so the range reserves no action id and no value "
+                f"can ever be chosen — raise the upper bound to 0 or more",
                 node.span,
             )
             continue
@@ -3604,24 +3685,35 @@ def _offered_move_types(node: object) -> frozenset[str]:
     return frozenset(offered)
 
 
-def _check_unread_stakes(game: n.Game, bag: DiagnosticBag) -> None:
-    """A Stake row on one of the game's own move types that no reachable
-    `offer` or `round offering` presents is a declaration nothing reads (the
-    `_resolve_trump` precedent), so it is refused. Reachable is
-    `_reachable_definitions`' fixpoint from the phases, so an offer inside a
-    move type or procedure nothing reaches presents nothing. Runs before the
-    library splice: a library move type's row states the fact for every game
-    importing it, and a game that presents it nowhere has not written a row
-    nobody reads."""
+def _check_unoffered_move_types(
+    game: n.Game, own: frozenset[str], bag: DiagnosticBag
+) -> None:
+    """One of the game's `own` move types (those it declares, not a library's)
+    that no reachable `offer` or `round offering` presents is a declaration
+    nothing reads (the `_resolve_trump` precedent): no seat can ever play it,
+    so it is refused, and a Stake row on it is named as the row nothing reads.
+    Reachable is `_reachable_definitions`' fixpoint from the phases, so an
+    offer inside a move type or procedure nothing reaches presents nothing. A
+    library's move types are its own to define: a game that imports one and
+    presents it nowhere has not made an error."""
     offered = {name for ns, name in _reachable_definitions(game) if ns == "move_type"}
     for mt in game.move_types:
-        if mt.stake is not None and mt.name not in offered:
+        if mt.name not in own or mt.name in offered:
+            continue
+        if mt.stake is not None:
             bag.error(
                 f"`{mt.stake}` on move type `{mt.name}`, which no reachable "
                 f"`offer` or `round offering` presents: nothing reads the row. "
                 f"Delete it, or present the move at an offering the game reaches",
                 mt.span,
             )
+            continue
+        bag.error(
+            f"move type `{mt.name}` is never offered: no reachable `offer` or "
+            f"`round offering` presents it, so no seat can ever play it. "
+            f"Present it at an offering the game reaches, or delete it",
+            mt.span,
+        )
 
 
 def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
@@ -4504,7 +4596,6 @@ class _Categories:
     state_vars: frozenset[str]
     zones: frozenset[str]
     enums: frozenset[str]
-    functions: frozenset[str]
     ranks: frozenset[str]
     suits: frozenset[str]
     # `Game.content_flavor` — the dispatch key for the flavor-aware Owner Guards
@@ -4543,7 +4634,6 @@ def _categories(game: n.Game) -> _Categories:
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
         enums=enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES,
-        functions=VALUE_NAMES,
         # Card-literal validation asks "does this card EXIST in the deck",
         # so ranks derive from the deck like `suits` below — never from
         # `ranking:`, which is an ORDERING (optional, and legitimately
@@ -6836,8 +6926,6 @@ def _classify(name: str, cats: _Categories) -> str | None:
         return "enum_value"
     if name in _PRONOUNS:
         return "pronoun"
-    if name in cats.functions:
-        return "function"
     return None
 
 
@@ -6908,6 +6996,23 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
 }
 
 
+def _callback_outside_slot(name: str) -> str:
+    """A trick winner or an auction outcome named where an expression stands.
+    Its one reading is the round slot that takes it (`TrickRound.winner_fn`,
+    `AuctionRound.outcome_fn`), a name the round calls, never a value, so no
+    expression position classifies it."""
+    if name in TRICK_WINNER_NAMES:
+        kind, slot = "a trick winner", "a trick round's `winner` slot (`... winner " + name + "`)"
+    else:
+        # `VALUE_NAMES` is the two registries' union, pinned partitioned by
+        # tests/test_bare_callback_names.py.
+        kind, slot = "an auction outcome", "an auction round's `outcome` slot (`... outcome " + name + "`)"
+    return (
+        f"`{name}` is {kind}, read only in {slot}; it is not a value an "
+        f"expression can hold — name it in its round"
+    )
+
+
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     if isinstance(node, n.NameRef):
         kind = _classify(node.name, cats)
@@ -6926,6 +7031,9 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             # tests/test_role_comparison_pin.py).
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
+            elif node.name in VALUE_NAMES:
+                bag.error(_callback_outside_slot(node.name), node.span)
+                return replace(node, ref_kind=kind)
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
         return replace(node, ref_kind=kind)
     if isinstance(node, n.Produces):
@@ -8056,7 +8164,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # resolves and then dispatches through a table this game never
                 # claimed (issue #364).
                 bag.error(
-                    f"call to unknown function '{nd.func}'"
+                    _callback_outside_slot(nd.func)
+                    if nd.func in VALUE_NAMES
+                    else f"call to unknown function '{nd.func}'"
                     + _undeclared_primitive_hint(game, nd.func),
                     nd.span,
                 )
@@ -8877,6 +8987,26 @@ _LOCATE = "locate"
 # The seat of a scope whose value was bound under another acting seat: equal
 # to no scope's own, so nothing it binds carries a proof either.
 _NO_ACTING_SEAT = -2
+# Where a decision is refused for want of an acting seat, which decides the fix
+# the refusal names: a statement takes a binder, a gate or the result reads a
+# state variable decided during play.
+_NO_ACTOR_STATEMENT = "statement"
+_NO_ACTOR_GATE = "gate"
+_NO_ACTOR_RESULT = "result"
+_NO_ACTOR_ROUND = "round"
+_NO_ACTOR_WHERE = {
+    _NO_ACTOR_STATEMENT: (
+        "outside any `as <player>`, `for each player`, `turns` or offered "
+        "move, nobody is taking a turn"
+    ),
+    _NO_ACTOR_GATE: "a phase's `when` or `repeat until` is read between turns",
+    _NO_ACTOR_RESULT: "`loser:` is read after the last phase",
+    _NO_ACTOR_ROUND: (
+        "a trick round reads its mode triggers and Delegated Play helpers in "
+        "its own context, and a trick round that reads this one stands "
+        "outside any binder that names who acts"
+    ),
+}
 _ACTOR_SCOPE = _ReadScope(aliases=_ActorAliases(), acting=True, seat=-1)
 
 
@@ -8917,6 +9047,9 @@ class _HiddenReads:
         self.seats = 0
         self.verdicts: list[HiddenReadVerdict] = []
         self._reported: set[tuple[str, Span | None]] = set()
+        # Where the walk stands when no seat is acting, for the fix a refused
+        # decision there is told: a statement, a gate, or the result.
+        self.place = _NO_ACTOR_STATEMENT
 
     # --- the reader ---------------------------------------------------------
 
@@ -9309,6 +9442,12 @@ class _HiddenReads:
     def _walk_game(self) -> None:
         self.seats = 0
         self.outcome_phase = []
+        self.place = _NO_ACTOR_STATEMENT
+        # Whether each trick round stands where a seat acts, by the phase it
+        # runs in: a round's mode triggers and its Delegated Play helpers are
+        # evaluated in the round statement's own context.
+        self.trick_rounds_acting: list[tuple[int, bool]] = []
+        self.phase_stack: list[int] = []
         for phase in self.game.phases:
             self._phase(phase, _ReadScope())
         for mt in self.game.move_types:
@@ -9376,29 +9515,144 @@ class _HiddenReads:
                         "", self.reads_of(expr, evaluator[0]), evaluator[1], expr.span,
                         only_choose=True,
                     )
+        self._judge_trick_context_positions()
         if self.game.loser is not None:
+            self.place = _NO_ACTOR_RESULT
             self._outside(self.game.loser.selection, _ReadScope(), _NO_SEAT)
+
+    def _judge_trick_context_positions(self) -> None:
+        """A mode's `transition_to` trigger and a Delegated Play helper's body
+        are evaluated by a trick round, in the round statement's context. A
+        trigger is read by the trick rounds of its own phase only
+        (`active_rules.active_mode_exits`), so a seat acts there where each of
+        them stands under a binder that names one; a helper is read by every
+        trick round of the game."""
+        self.place = _NO_ACTOR_ROUND
+        for phase in (nd for nd in _walk(self.game) if isinstance(nd, n.Phase)):
+            if all(acting for at, acting in self.trick_rounds_acting if at == id(phase)):
+                continue
+            for item in phase.items:
+                if not isinstance(item, n.Mode):
+                    continue
+                for transition in item.transitions:
+                    if transition.event.where is not None:
+                        self._refuse_unacting_decisions(transition.event.where, _ReadScope())
+        if not all(acting for _, acting in self.trick_rounds_acting):
+            for fn in self.game.functions:
+                if fn.name in (CHOOSER_HELPER, SOURCE_HELPER):
+                    self._refuse_unacting_decisions(fn.body, _ReadScope())
+        self.place = _NO_ACTOR_STATEMENT
 
     def _outside(self, expr: object, scope: _ReadScope, seat: _Seat) -> None:
         """A position no verdict judges: only a `choose` nested in it decides."""
         if expr is None:
             return
+        if self._refuse_unacting_decisions(expr, scope):
+            return
         self._judge("", self.reads_of(expr, scope), seat, getattr(expr, "span", None), only_choose=True)
+
+    def _refuse_unacting_decisions(self, expr: object, scope: _ReadScope) -> bool:
+        """Where no seat is acting, a `choose` the expression evaluates has no
+        one to decide it, and an `actor` it reads names no one -- in it, or in
+        a function it calls, whose body inherits the caller's acting seat. A
+        `let` is not followed: its initialiser is evaluated where the `let`
+        stands. Reports each, and answers whether there was one."""
+        if scope.acting:
+            return False
+        found = False
+        for node, route in self._actor_needs_in(expr, ()):
+            found = True
+            if isinstance(node, n.Choose):
+                self._report_no_actor("a `choose`", route, node.span)
+            else:
+                self._report_no_actor("`actor`", route, node.span, reads=True)
+        return found
+
+    def _actor_needs_in(
+        self, expr: object, calls: tuple[str, ...]
+    ) -> Iterator[tuple[n.Choose | n.NameRef, tuple[str, ...]]]:
+        """Each `choose` and each `actor` read `expr` evaluates, with the
+        functions it is reached through."""
+        for node in _child_nodes(expr):
+            route = tuple(f"function `{c}`" for c in calls)
+            if isinstance(node, n.Choose):
+                yield node, route
+            elif isinstance(node, n.NameRef) and node.ref_kind == "pronoun" and node.name == "actor":
+                yield node, route
+            elif isinstance(node, n.Call) and node.func in self.functions and node.func not in calls:
+                yield from self._actor_needs_in(self.functions[node.func].body, calls + (node.func,))
+
+    def _report_no_actor(
+        self, what: str, route: tuple[str, ...], span: Span | None, reads: bool = False
+    ) -> None:
+        through = f" (through {', then '.join(route)})" if route else ""
+        where = _NO_ACTOR_WHERE[self.place]
+        if reads:
+            fix = (
+                "Name the player itself, or read it under a binder that names "
+                "who acts (`as <player> { ... }`, `for each player p: ...`)"
+                if self.place == _NO_ACTOR_STATEMENT
+                else "Name the player itself, or record who acted in a state "
+                "variable during play and read that variable here"
+            )
+            message = (
+                f"{what}{through} names the acting player, but it is read where "
+                f"no player is acting ({where}), so it names no one. {fix}"
+            )
+        else:
+            fix = {
+                _NO_ACTOR_STATEMENT: (
+                    "Name who decides: `as <player> { ... }` for one player, "
+                    "`for each player p: ...` for every player"
+                ),
+                _NO_ACTOR_GATE: (
+                    "Make the decision before the gate is read -- in an earlier "
+                    "phase, or for `repeat until` in the phase's own body -- into "
+                    "a state variable (`as <player> { pick := choose ... }`), and "
+                    "read that variable here"
+                ),
+                _NO_ACTOR_RESULT: (
+                    "Make it during play into a state variable "
+                    "(`as <player> { pick := choose ... }`) and name that "
+                    "variable here"
+                ),
+                _NO_ACTOR_ROUND: (
+                    "Make it during play into a state variable "
+                    "(`as <player> { pick := choose ... }`) and read that "
+                    "variable here"
+                ),
+            }[self.place]
+            message = (
+                f"{what}{through} is written where no player is acting "
+                f"({where}), so no one can make the decision. {fix}"
+            )
+        key = (message, span)
+        if key not in self._reported:
+            self._reported.add(key)
+            self.bag.error(message, span)
 
     def _phase(self, phase: n.Phase, scope: _ReadScope) -> None:
         if phase.qualifier is not None:
             kind = "`when` gate" if phase.qualifier.kind == "when" else "`repeat until` condition"
-            self._judge(
-                f"phase `{phase.name}`'s {kind}",
-                self.reads_of(phase.qualifier.expr, scope), _NO_SEAT, phase.qualifier.expr.span,
-            )
+            self.place = _NO_ACTOR_GATE
+            refused = self._refuse_unacting_decisions(phase.qualifier.expr, scope)
+            self.place = _NO_ACTOR_STATEMENT
+            if not refused:
+                self._judge(
+                    f"phase `{phase.name}`'s {kind}",
+                    self.reads_of(phase.qualifier.expr, scope), _NO_SEAT, phase.qualifier.expr.span,
+                )
         if phase.outcome_cases:
             self.outcome_phase.append(phase.name)
+        self.phase_stack.append(id(phase))
         for item in phase.items:
             match item:
                 case n.StateBlock():
+                    # A default's `choose` is `_check_state_default_scope`'s,
+                    # which refuses every `choose` there; judged as acting so
+                    # the two never co-report.
                     for decl in item.decls:
-                        self._outside(decl.default, _ReadScope(), _NO_SEAT)
+                        self._outside(decl.default, _ACTOR_SCOPE, _NO_SEAT)
                 case n.Mode():
                     for transition in item.transitions:
                         where = transition.event.where
@@ -9415,6 +9669,7 @@ class _HiddenReads:
                     pass
                 case _:
                     scope = self._stmt(item, scope, _Seat("the acting seat"))
+        self.phase_stack.pop()
         if phase.outcome_cases:
             self.outcome_phase.pop()
 
@@ -9548,6 +9803,8 @@ class _HiddenReads:
             case n.Offer():
                 self._outside(stmt.player, scope, seat)
             case n.TrickRound():
+                if self.phase_stack:
+                    self.trick_rounds_acting.append((self.phase_stack[-1], scope.acting))
                 self._outside(stmt.leader, scope, seat)
                 self._outside(stmt.participants, scope, seat)
                 self._outside(stmt.trump, scope, seat)
@@ -9629,6 +9886,17 @@ class _HiddenReads:
             self._outside(stmt.where, filtered, seat)
             self._outside(stmt.dest, scope, seat)
             return
+        if not scope.acting:
+            if not stmt.dest_each:
+                # A chosen movement to one zone is decided by the acting seat;
+                # one `to each` is decided by each receiving seat in turn.
+                self._report_no_actor("a chosen movement", (), stmt.span)
+                return
+            clauses = (stmt.amount, stmt.source, stmt.where, stmt.dest)
+            if any(
+                [self._refuse_unacting_decisions(c, scope) for c in clauses if not isinstance(c, str)]
+            ):
+                return
         seats = {
             SEAT_ACTING: seat,
             SEAT_EACH_RECEIVER: _Seat("each receiving seat", every=True),

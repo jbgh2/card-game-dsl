@@ -3226,21 +3226,14 @@ def test_a_collection_return_is_refused_against_every_implementation() -> None:
     ) == "gate-admits"
 
 
-# The keyed map at a collection parameter: issue #539's cell, NOT this
-# change's fix. `coercible` compares elements only, so a player-keyed map
-# reaches the parameter and the implementation answers on the keys.
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="issue #539: a keyed collection coerces into an unkeyed parameter",
-)
 def test_a_keyed_map_is_refused_at_a_collection_parameter() -> None:
     """A per-player map handed where a card collection is wanted.
 
-    `coercible` compares collection ELEMENTS only, so the map reaches the
-    implementation and it answers on the player ids. The call site is where
-    the refusal belongs (issue #539); the cell is here because the spelling is
-    what puts a declared collection parameter in a designer's reach."""
+    `coercible` compares collection ELEMENTS only, so the call site refuses
+    the map (`typecheck._refuse_keyed_elements`; its grid is
+    tests/test_keyed_collection_positions.py); the cell is here because the
+    spelling is what puts a declared collection parameter in a designer's
+    reach."""
     entry = "gin_valid_meld(cards : Collection<Card>) : Boolean"
     body = (
         "    let probe[p] = A of spades\n"

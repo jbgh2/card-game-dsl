@@ -19,8 +19,9 @@ property:   a zone-position whose root name classifies as anything that
 domain:     zone position {movement from, movement to, epistemic target}
             × root classification {zone, state_var, enum_value, pronoun,
             null, bool, local, unresolved} (`_classify`'s result kinds plus
-            the reserved literals; a `function` root cannot survive — the
-            classifier reports it as unresolved first, which is also loud);
+            the reserved literals; a trick-winner or auction-outcome name is
+            refused by the classifier, naming its round slot, before any
+            position reads it);
             plus the ARITY axis for `to each` (singleton / player family /
             team family — the executor keys parcels per player, so only a
             player-indexed family is legal there)

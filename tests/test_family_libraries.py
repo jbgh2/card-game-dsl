@@ -641,10 +641,10 @@ def test_two_libraries_may_not_define_the_same_name(
 #               provided `state`, plus every kind in `_LIBRARY_DEF_KINDS`.
 #             TARGET = every namespace a bare name can resolve against, read off
 #               `resolve._classify`'s precedence chain — state / zone / deck value
-#               (suit|rank|direction) / the `function` bucket, which is
-#               `VALUE_NAMES`, NOT the game's own functions (those resolve
-#               as `Call`s, never bare) — plus the def kinds and position domains
-#               that own a name without going through `_classify`.
+#               (suit|rank|direction) — plus the round slots' callback names
+#               (`VALUE_NAMES`, which the game names in its rounds), the def
+#               kinds and position domains that own a name without going
+#               through `_classify`.
 #             Two things sit outside, and neither is a gap. Library-vs-LIBRARY
 #               cross-kind collisions (lib A provides `foo`, lib B defines
 #               `function foo`) are not this property's, which is injected-vs-
@@ -660,9 +660,8 @@ def test_two_libraries_may_not_define_the_same_name(
 # registry:   `_INJECT` is derived from `{"state"} | _LIBRARY_DEF_KINDS`. The
 #               TARGET buckets are pinned two ways: `_game_bindings` is checked to
 #               cover every value bucket `_categories` exposes
-#               (`test_game_bindings_covers_every_resolvable_value_bucket` — the
-#               pin that would have caught the `function`=VALUE_NAMES hole
-#               by construction), and the grid's `_TARGET_NAME` is checked against
+#               (`test_game_bindings_covers_every_resolvable_value_bucket`),
+#               and the grid's `_TARGET_NAME` is checked against
 #               those buckets plus def kinds and positions
 #               (`test_target_axis_names_every_resolvable_bucket`). Neither axis is
 #               a hand-list compared to another hand-list. The guards behind
@@ -735,7 +734,7 @@ _TARGET_NAME: dict[str, str] = {
     "suit": "hearts",
     "rank": "Q",  # standard52 ranks are single glyphs (2..10, J, Q, K, A)
     "direction": "left",
-    "native_value": _VALUE_NAME,  # `_classify`'s `function` bucket
+    "native_value": _VALUE_NAME,  # a round slot's callback name
 }
 
 
@@ -772,12 +771,11 @@ def test_game_bindings_covers_every_resolvable_value_bucket() -> None:
     """The registry pin the TARGET axis answers to: every bare name `_categories`
     resolves for a game must appear in `_game_bindings`, so a value bucket added
     to `_categories` (a new deck-derived namespace, another kernel table wired
-    into `functions`) cannot slip past the shadow guard uncovered. This is the
-    check that would have caught the `functions`-bucket = `VALUE_NAMES`
-    hole by construction, rather than by an audit noticing a hand-list lied.
+    as a bucket) cannot slip past the shadow guard uncovered, by construction
+    rather than by an audit noticing a hand-list lied.
 
-    red under: delete the `VALUE_NAMES` loop from `_game_bindings` (drops
-    the native-value bucket), or a deck-value loop (drops ranks/suits)."""
+    red under: delete a deck-value loop from `_game_bindings` (drops
+    ranks/suits)."""
     from cardlang.resolve import _categories, _game_bindings
 
     probe = parse_text(
@@ -800,7 +798,6 @@ game Cover {
         cats.state_vars
         | cats.zones
         | cats.enums
-        | cats.functions
         | cats.ranks
         | cats.suits
     )
@@ -1821,7 +1818,10 @@ game SlotHost {
     wanted_plain     : Integer     = 0
   }
   positions { column : 1..7 }
-  phase play { run game_proc() }
+  phase play {
+    run game_proc()
+    for each player p: offer to p one of [game_move]
+  }
   winner: highest keyed
 }
 procedure game_proc() { declared_thing := 1 }
@@ -2666,7 +2666,7 @@ _INTRODUCE: tuple[_Site, ...] = (
     ),
     _Site(
         "Transfer", "pieces", False,
-        "move chosen 2 pieces from reserve[1] where jointly true to reserve[0]",
+        "as 0 { move chosen 2 pieces from reserve[1] where jointly true to reserve[0] }",
         board=True,
     ),
 )
@@ -2949,6 +2949,7 @@ game Declarer {
       winner highest_of_led_suit
     run pr()
     score[0] := f() + d_use()
+    offer to 0 one of [mt]
   }
   winner: highest score
 }
