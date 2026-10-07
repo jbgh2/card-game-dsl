@@ -113,9 +113,20 @@ SYNTHETIC: dict[tuple[str, str], tuple[str, str]] = {
     ),
     ("MoveTypeDef", "when"): (
         "move_type m {\n  when: {W}\n  effect { score[actor] += 1 }\n}\n",
-        "    score[0] += 1",
+        "    offer to 0 one of [m]",
     ),
+    ("Transfer", "amount"): ("", "    deal {W} cards from deck to each hand"),
 }
+
+# The concrete producer is an Integer literal, the wrong value for every
+# position but one that requires an Integer; there it is a Suit.
+_CONCRETE_FOR = {"Integer": "hearts"}
+
+
+def _wrong(position: tuple[str, str], producer: str) -> str:
+    if producer == "concrete":
+        return _CONCRETE_FOR.get(TREATMENT[position][1], PRODUCERS["concrete"])
+    return PRODUCERS[producer]
 
 # Positions needing a construct too large to synthesize: substituted into a
 # corpus game that already has one. The anchor is asserted present, so a corpus
@@ -245,7 +256,7 @@ def test_total_position_refuses_a_wrong_value(
         request.node.add_marker(
             pytest.mark.xfail(strict=True, raises=AssertionError, reason="guard not written yet")
         )
-    assert _refuses(_source(position, PRODUCERS[producer])), (
+    assert _refuses(_source(position, _wrong(position, producer))), (
         f"{position[0]}.{position[1]} accepted a {producer} wrong value"
     )
 

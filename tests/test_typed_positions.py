@@ -124,16 +124,19 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     # same clause mistyped plays on, every seed differing. The sibling shape
     # done right is `evaluate.py`'s `divided by` arm, which raises.
     ("RuleDef", "if_impossible"): (TOTAL, "Collection<Card>"),
+    # Total by ruling, an exception to the rule above: its runtime Owner Guard
+    # (`execute._check_count`) raises on a non-Integer, so the slot is loud
+    # either way; a count is refused where it is written, not where a playout
+    # happens to reach it.
+    ("Transfer", "amount"): (TOTAL, "Integer"),
     # -- coerced / indexed / iterated / compared: raises, so gradual is loud ---
     ("Choose", "lo"): (GRADUAL, "Integer"),
     ("SubsetQuery", "count"): (GRADUAL, "Integer"),
     ("Choose", "hi"): (GRADUAL, "Integer"),
     ("Choose", "excluding"): (GRADUAL, "Integer"),
-    # The amount and a positional index raise because their runtime Owner
-    # Guards refuse `bool` ahead of `int` (`execute._check_count`,
-    # `evaluate._subscript`); a bare `int(...)` or `[...]` would read `true`
-    # as 1 and play on.
-    ("Transfer", "amount"): (GRADUAL, "Integer"),
+    # A positional index on an UNKEYED receiver is total -- the type layer
+    # refuses the top there (tests/test_positional_index.py); a keyed one
+    # stays gradual, since a computed key outside the domain raises.
     ("Subscript", "index"): (GRADUAL, "key domain, or Integer on an unkeyed receiver"),
     ("Subscript", "obj"): (GRADUAL, "Collection"),
     ("IsCheck", "operand"): (GRADUAL, "Collection"),

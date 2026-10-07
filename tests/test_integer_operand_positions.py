@@ -6,8 +6,9 @@ property:   an operand written where the language counts -- how many cards a
             Integer, located at the line and naming what the position counts;
             a literal count below its floor is refused too (a movement moves 0
             or more, a subset holds 1 or more; the choose bounds' floor is
-            `resolve._check_chooses`'); a non-Integer count reaching the
-            executor through the permissive top is refused at play time
+            `resolve._check_chooses`'); a count typed as the permissive top
+            is refused at check time, and a Boolean reaching the executor
+            through arithmetic over the top is refused at play time
 domain:     count position {movement amount, subset size, choose lower bound,
             choose upper bound, choose exclusion} x operand type {Integer
             literal, Integer variable, Boolean comparison, Boolean literal,
@@ -141,12 +142,22 @@ def test_a_zero_movement_amount_is_accepted() -> None:
     check_dsl(_game("deal 0 cards from deck to each hand"), "g.cardlang")
 
 
-def test_a_laundered_amount_is_refused_at_play() -> None:
-    """The same wrongness behind the permissive top: the checker cannot see
-    it, and the executor refuses it rather than dealing `true` as one card."""
+def test_a_laundered_amount_is_refused_at_its_line() -> None:
+    """The same wrongness behind the permissive top: a count must type exactly
+    Integer (the treatment table's TOTAL row)."""
+    with pytest.raises(DiagnosticError, match="amount types as `Any`"):
+        check_dsl(
+            _game("deal (if true then (13 > 2) else 1) cards from deck to each hand"),
+            "g.cardlang",
+        )
+
+
+def test_a_boolean_laundered_through_arithmetic_is_refused_at_play() -> None:
+    """Arithmetic over the top types Integer, so the checker passes it; the
+    executor refuses the Boolean rather than dealing `true` as one card."""
     game = check_dsl(
-        _game("deal (if true then (13 > 2) else 1) cards from deck to each hand"),
+        _game("deal (0 + (if true then (13 > 2) else 1)) cards from deck to each hand"),
         "g.cardlang",
     )
-    with pytest.raises(OwnerGuardError, match="not an Integer"):
+    with pytest.raises(OwnerGuardError):
         play_game(game, random.Random(0))

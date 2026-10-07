@@ -2595,6 +2595,15 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"{_type_name(idx_t)}",
                     e.index.span or e.span,
                 )
+                if isinstance(_bare(idx_t), TAny):
+                    bag.error(
+                        f"a position in {what} types as `Any`, the permissive "
+                        f"top (a value the checker cannot type -- a "
+                        f"mixed-branch `if`, an untyped read); it must type "
+                        f"exactly Integer, because a wrong position is "
+                        f"otherwise found only when the game is played",
+                        e.index.span or e.span,
+                    )
                 if isinstance(e.index, n.IntLit) and e.index.value < 0:
                     bag.error(
                         f"position {e.index.value} is before the first: a "
@@ -3136,6 +3145,14 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"Integer, got {_type_name(amount_t)}",
             stmt.amount.span or stmt.span,
         )
+        if isinstance(_bare(amount_t), TAny):
+            bag.error(
+                f"a movement's amount types as `Any`, the permissive top (a "
+                f"value the checker cannot type -- a mixed-branch `if`, an "
+                f"untyped read); it must type exactly Integer, because a "
+                f"wrong count is otherwise found only when the game is played",
+                stmt.amount.span or stmt.span,
+            )
         if (
             isinstance(stmt.amount, n.IntLit)
             and stmt.amount.value == 0

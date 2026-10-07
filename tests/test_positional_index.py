@@ -163,3 +163,10 @@ def test_an_invalid_board_is_reported_not_crashed_on() -> None:
     assert "grid(0, 8)" in src
     with pytest.raises(DiagnosticError):
         check_dsl(src, "board.cardlang")
+
+
+def test_a_position_typed_as_the_top_is_refused_at_its_line() -> None:
+    """An unkeyed receiver's position must type exactly Integer."""
+    src = _board_game(guard="square[home(actor)[(if true then (1 > 0) else 1)]] is empty")
+    with pytest.raises(DiagnosticError, match="types as `Any`"):
+        check_dsl(src, "board.cardlang")
