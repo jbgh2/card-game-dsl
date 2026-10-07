@@ -828,7 +828,10 @@ def test_the_regime_product_lands_where_the_table_says(
     block = {"block declares it": entry, "block omits it": "", "no block": None}[
         regime_label
     ]
-    source = _game(block=block, body=body)
+    # A Team argument is spelled `team_of(...)`, a team question, so the game
+    # asking it declares teams.
+    teams = "  teams: [[0], [1]]\n" if "team_of(" in body else ""
+    source = _game(block=block, body=body, extra=teams)
     if _REGIME_PRODUCT[(home, regime_label)]:
         assert name in call_namespace(_checks(source))
         return
@@ -2731,15 +2734,17 @@ def test_the_witness_fixture_plays() -> None:
     a playout can show a declared read SUFFICES for its implementation."""
     game = check_source(WITNESS)
     assert declared_names(game) == {"pinochle_meld_value"}
-    winners = set()
+    outcomes: set[frozenset[int]] = set()
     for seed in range(8):
         result = play_game(game, random.Random(seed))
         assert set(result.scores) == {0, 1}
         assert all(v >= 0 for v in result.scores.values())
-        winners.add(result.winner)
-    # Both seats win on some seed: a fixture whose result never moved would
-    # pass on an implementation that returned a constant.
-    assert winners == {0, 1}
+        top = max(result.scores.values())
+        assert result.winners == {p for p, s in result.scores.items() if s == top}
+        outcomes.add(result.winners)
+    # Each seat wins alone on some seed: a fixture whose result never moved
+    # would pass on an implementation that returned a constant.
+    assert {frozenset({0}), frozenset({1})} <= outcomes
 
 
 # --- axis 25: the game-file input form --------------------------------------

@@ -58,7 +58,7 @@ for seed in range(50):
     r = play_game(game, random.Random(seed))
     out[str(seed)] = {
         "scores": {str(k): v for k, v in sorted(r.scores.items())},
-        "winner": r.winner,
+        "winners": sorted(r.winners),
         "loser": r.loser,
         "hands_played": r.hands_played,
     }

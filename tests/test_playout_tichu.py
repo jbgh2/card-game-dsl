@@ -155,7 +155,10 @@ def test_30_random_games_satisfy_invariants() -> None:
 
         assert bad_points == 0, f"seed {seed}: a hand miscounted card points"
         assert census["total"] == 56, f"seed {seed}: {census}"
-        assert result.winner == max(result.scores, key=lambda t: result.scores[t])
+        top = max(result.scores.values())
+        assert result.winners == {
+            p for t, s in result.scores.items() if s == top for p in game.teams[t]
+        }
         assert max(result.scores.values()) >= 1000
 
     # The windows are live, not vacuously green: across the suite the policy

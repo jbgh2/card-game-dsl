@@ -208,24 +208,30 @@ class PlayoutOutcome:
 
 def _check_reconciliation(game: n.Game, result: GameResult) -> None:
     """T3's "scores reconcile" invariant, generically: `play_game` already
-    computes `winner`/`loser` from the game's own declared shape
+    computes `winners`/`loser` from the game's own declared shape
     (`cardlang/runtime/driver.py`), so this re-checks the SHAPE agrees with
     what was declared — the same stop-and-fix tell CLAUDE.md names (don't
     re-derive a fact another pass established) would flag a per-game score
     arithmetic re-check as out of place here; this is the one fact `play_game`
     does NOT already assert about its own return value."""
+    seats = frozenset(range(game.players.count))
+    if not result.winners or not result.winners <= seats:
+        raise AssertionError(
+            f"a game returned {result!r} — expected a non-empty set of its seats "
+            "as winners"
+        )
     if game.winner is not None:
-        if result.winner is None or result.loser is not None:
+        if result.loser is not None or len(result.seat_scores) != len(seats):
             raise AssertionError(
-                f"a `winner:`-declared game returned {result!r} — expected "
-                "winner set, loser unset"
+                f"a `winner:`-declared game returned {result!r} — expected one "
+                "score per seat, loser unset"
             )
     else:
         assert game.loser is not None  # resolve rejects neither being set
-        if result.loser is None or result.winner is not None:
+        if result.loser is None or result.winners != seats - {result.loser}:
             raise AssertionError(
                 f"a `loser:`-declared game returned {result!r} — expected "
-                "loser set, winner unset"
+                "loser set, every other seat a winner"
             )
 
 

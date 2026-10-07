@@ -72,4 +72,4 @@ def test_no_observer_changes_nothing() -> None:
     a = play_game(game, random.Random(7))
     b_logs: dict[int, list[Any]] = {p: [] for p in range(4)}
     b = play_game(game, random.Random(7), observer=lambda pl, ev: b_logs[pl].append(ev))
-    assert a.scores == b.scores and a.winner == b.winner
+    assert a.scores == b.scores and a.winners == b.winners

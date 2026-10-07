@@ -38,9 +38,10 @@ gate = the `simultaneous` column), `typecheck.py` (`role_type`),
 `runtime/evaluate.py` and `runtime/execute.py` (`role_members`, `binds_actor`),
 `runtime/mechanics.py` and `openspiel/encoding.py` (`enumerate_domain`).
 
-A leaf module (it imports only `cardlang.types`; `Ctx` is a `TYPE_CHECKING`
-import), so the parse front end, the checker and the runtime can all read the
-one table without a cycle.
+A leaf module at load (it imports only `cardlang.types`; `Ctx` is a
+`TYPE_CHECKING` import, and the team row's Shadow Guard imports the runtime's
+error inside the call), so the parse front end, the checker and the runtime can
+all read the one table without a cycle.
 
 Two members, one domain — the deliberate divergence
 ---------------------------------------------------
@@ -198,6 +199,21 @@ class Domain:
     zone_key_of: Callable[[RuntimeState, int], int | None] | None = None
 
 
+
+def _team_members(ctx: Ctx) -> list[Any]:
+    """The team ids a `for each team` or team quantifier ranges over. A game
+    with no `teams:` never reaches here -- resolve refuses the team question --
+    so an empty partition is the engine's gap, raised behind that refusal. The
+    import is local so this module stays a leaf at load."""
+    if not ctx.rs.teams:
+        from cardlang.runtime.errors import ShadowGuardError
+
+        raise ShadowGuardError(
+            "resolve._validate_refs (a team question in a game with no `teams:`)",
+            "a team role ranged over the empty team domain",
+        )
+    return list(ctx.rs.teams)
+
 DOMAINS: tuple[Domain, ...] = (
     Domain(
         id=Role.PLAYER,
@@ -219,7 +235,7 @@ DOMAINS: tuple[Domain, ...] = (
         iterable=True,
         simultaneous=False,
         param_domains=(),
-        members=lambda ctx: list(ctx.rs.teams),
+        members=lambda ctx: _team_members(ctx),
         static_members=lambda src: list(src.teams),
         zone_key_of=lambda rs, observer: rs.team_of.get(observer),
     ),

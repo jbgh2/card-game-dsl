@@ -119,6 +119,6 @@ def test_50_random_games_satisfy_invariants() -> None:
 
         crossed = [p for p, s in result.scores.items() if s >= 121]
         assert len(crossed) == 1, f"seed {seed}: {result.scores}"  # exactly one winner
-        assert result.winner == crossed[0]
-        assert result.winner == max(result.scores, key=lambda p: result.scores[p])
+        assert result.winners == frozenset(crossed)
+        assert max(result.scores.values()) == result.scores[crossed[0]]
         assert census["total"] == 52, f"seed {seed}: {census}"

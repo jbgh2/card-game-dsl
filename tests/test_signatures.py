@@ -221,10 +221,13 @@ def test_call_funcs_are_dispatchable() -> None:
     from cardlang.runtime.errors import ShadowGuardError
     from cardlang.runtime.evaluate import native_call as call
     from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-    from cardlang.runtime.values import Seating
+    from cardlang.runtime.values import Seating, TeamOf
 
     decls = (n.ZoneDecl(name="probe", index=None, type_ref=n.TypeRef(name="Hand")),)
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
+    # A team Builtin's game declares teams (resolve refuses it otherwise).
+    rs.teams = (0, 1)
+    rs.team_of = TeamOf.partition(((0,), (1,)))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
 
     for name in CALL_FUNCS:

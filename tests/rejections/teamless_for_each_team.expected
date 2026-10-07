@@ -1,0 +1,1 @@
+teamless_for_each_team.cardlang:34:7: error: `for each team ...` ranges over teams, but this game declares no `teams:` — there are no teams to range over; declare the partnerships (`teams: [[0, 2], [1, 3]]`) or range over players

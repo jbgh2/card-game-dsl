@@ -57,4 +57,5 @@ def test_outcome_less_round_runs_to_termination_and_returns() -> None:
     game = check_dsl(SRC, "betting.cardlang")
     for seed in range(20):
         result = play_game(game, random.Random(seed))  # must not raise
-        assert result.winner in (0, 1, 2)
+        top = max(result.scores.values())
+        assert result.winners == {p for p, s in result.scores.items() if s == top}

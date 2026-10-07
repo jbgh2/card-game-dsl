@@ -1,0 +1,38 @@
+// Guard: resolve's team-question arm (`_validate_refs`). A game with no
+// `teams:` has an empty team domain, so ranging over it would answer
+// nothing; the sentence is refused where it is written, naming the clause.
+game P {
+  players: 4
+  direction: clockwise
+  max_length: 1000
+  cards: standard52
+  ranking: aces high
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile
+    waste        : Discard
+  }
+  state {
+    score[player] : Integer = 0
+    leader        : Player = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 13 cards from deck to each hand
+  }
+  phase play {
+    active_rules: [MustFollowSuit]
+    legal_moves:  [play_to_trick]
+    repeat until (all players where hand[player] is empty) {
+      round play_to_trick from leader over all players source hand into trick_pile
+            winner highest_of_led_suit
+      move all cards from trick_pile to waste
+      score[winner] += 1
+      leader := winner
+      for each team t: shuffle waste
+    }
+  }
+  winner: highest score
+}

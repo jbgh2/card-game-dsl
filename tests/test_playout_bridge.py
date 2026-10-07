@@ -57,8 +57,11 @@ def test_40_random_rubbers_satisfy_invariants() -> None:
 
         result = play_game(game, random.Random(seed), tracer)
 
-        # Terminated with a winner who has the higher total.
-        assert result.winner == max(result.scores, key=lambda t: result.scores[t])
+        # Terminated, won by the seats of the side with the higher total.
+        top = max(result.scores.values())
+        assert result.winners == {
+            p for t, s in result.scores.items() if s == top for p in game.teams[t]
+        }
         assert census["total"] == 52, f"seed {seed}: {census}"
 
         # Played hands are 13 tricks of four plays; all-pass hands add none.

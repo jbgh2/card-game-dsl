@@ -13,16 +13,22 @@ text it escaped — the statement executor stamps the sentences it dispatches,
 and `_evaluate_stamped` below stamps the expressions the phase tree owns and
 the driver evaluates itself, which the executor never sees; `run_phase` adds
 the phase around both, so a position outside every phase carries its
-expression and names no phase, because none is running. Illegal after this:
+expression and names no phase, because none is running. And a finished game's
+`GameResult.winners` is the non-empty set of seats sharing the best seat score
+-- read through the `winner:` clause's stamped index role, so a team-keyed
+target names every member of the best team -- or, for a `loser:` game, every
+seat but the selected one, which is a seat of the table. Illegal after this:
 handing game text to `evaluate` from this module without that helper —
 `tests/test_runtime_refusal_location.py` derives the driver's evaluation sites
-from the module, so a new one arrives unstamped only by going around it.
+from the module, so a new one arrives unstamped only by going around it. And a
+second site mapping a seat to its score key (`seat_scores_of` is the one), or
+picking one winner out of `scores` by iteration order.
 """
 
 from __future__ import annotations
 
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
@@ -30,7 +36,7 @@ from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
-from cardlang.domains import require_role, role_members
+from cardlang.domains import Role, require_role, role_members, role_names, role_of
 from cardlang.primitives_block import (
     PRIMITIVE_IMPLEMENTATIONS,
     InvocationContract,
@@ -59,6 +65,7 @@ from cardlang.runtime.values import (
     Card,
     Player,
     Seating,
+    TeamOf,
     axis_attributes,
     build_deck,
     deck_ranks,
@@ -92,17 +99,59 @@ def _evaluate_stamped(expr: n.Expr, ctx: Ctx) -> Any:
 
 @dataclass(frozen=True, slots=True)
 class GameResult:
-    # `scores` is keyed by the `winner:` target's OWN index domain — by player
-    # for `score[player]`, by TEAM for `score[team]` — so a key is not always a
-    # seat, and `winner`, picked from it, is a team index in a team-scored game
-    # (issue #154). A reader
-    # deciding which it holds must consult the target's declaration, never the
-    # key set: the two are indistinguishable whenever a game's team count equals
-    # its player count (`openspiel/replay._winner_target_is_team_keyed`).
-    scores: dict[Player, int]  # empty for games with no score var (loser games)
-    winner: Player | None
+    """A finished game's result (decisions.md "Game result: `winner:` and
+    `loser:`").
+
+    `scores` is the `winner:` target as the game holds it, keyed by the
+    target's own index domain -- a TEAM id for `score[team]` -- so a key is
+    not always a seat. `seat_scores` is the same score read once per seat
+    (`seat_scores_of`), and `winners` is every seat sharing the best of them:
+    both members of a winning team, every tied seat. An elimination game has
+    no scores, and its winners are the seats it did not select as `loser`.
+    """
+
+    scores: dict[int, int]  # empty for a `loser:` game, which keeps no score
+    seat_scores: tuple[int, ...]  # one per seat; empty for a `loser:` game
+    winners: frozenset[Player]  # never empty
     loser: Player | None
     hands_played: int
+
+
+# How a seat finds its own key in a `winner:` target, per index role: its own
+# seat, or its team. An ALLOW-LIST over the roles a state variable may be
+# indexed by -- reconciled against `domains.ZONE_INDEX_ROLES` by
+# tests/test_openspiel_returns_keying.py -- so a seat-anchored role added to
+# the domain registry raises in `seat_scores_of` instead of being read as
+# player keying, which would pay the wrong seats.
+SEAT_KEY_BY_ROLE: dict[Role, Callable[[Player, TeamOf], int]] = {
+    Role.PLAYER: lambda seat, _team_of: seat,
+    Role.TEAM: lambda seat, team_of: team_of[seat],
+}
+
+
+def seat_scores_of(
+    winner: n.Winner, scores: Mapping[int, Any], team_of: TeamOf, n_players: int
+) -> tuple[Any, ...]:
+    """Each seat's score in the `winner:` target: its own for a player-keyed
+    target, its team's for a team-keyed one. The keying is the declaration's
+    index role, which resolve stamps on the clause (`Winner.keyed_by`) --
+    never the score dict's key set, which cannot tell team keys from seat keys
+    when a game has as many teams as seats."""
+    assert winner.keyed_by is not None, "resolve stamps `keyed_by` on every `winner:`"
+    role = role_of(winner.keyed_by)
+    if role not in SEAT_KEY_BY_ROLE:
+        # Shadow guard behind the registry pin: `SEAT_KEY_BY_ROLE` is
+        # reconciled against `ZONE_INDEX_ROLES`, every role resolve lets a
+        # state variable be indexed by.
+        raise AssertionError(
+            f"the `winner:` target is indexed by '{winner.keyed_by}', which "
+            f"`SEAT_KEY_BY_ROLE` does not invert (it handles "
+            f"{role_names(frozenset(SEAT_KEY_BY_ROLE))}) — those seats' scores "
+            f"would be read as player-keyed. Add the role, mapping a seat to "
+            f"its key as that domain's `zone_key_of` does (cardlang/domains.py)"
+        )
+    key_of = SEAT_KEY_BY_ROLE[role]
+    return tuple(scores[key_of(seat, team_of)] for seat in range(n_players))
 
 
 # The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
@@ -111,7 +160,7 @@ class GameResult:
 # `test_rank_dir_set_is_pinned` (tests/test_comprehension_aggregators.py)
 # reconciles this set against the grammar terminal so a new RANK_DIR token
 # cannot land uncovered here.
-RANK_DIR_TO_PICK: dict[str, Callable[..., Player]] = {"highest": max, "lowest": min}
+RANK_DIR_TO_PICK: dict[str, Callable[..., Any]] = {"highest": max, "lowest": min}
 
 
 def declared_card_points(game: n.Game) -> dict[str, int]:
@@ -297,9 +346,7 @@ def play_game(
     # means clockwise.
     seating = Seating(game.players.count, clockwise=game.direction != "counterclockwise")
     teams = tuple(range(len(game.teams)))
-    team_of = {
-        p: ti for ti, members in enumerate(game.teams) for p in members
-    }
+    team_of = TeamOf.partition(game.teams)
     positions = dict(position_domains_of(game))
     zones = ZoneStore(game.zones, seating.players, teams, positions=positions)
     rs = RuntimeState(seating, zones, rng)
@@ -401,8 +448,8 @@ def play_game(
     ctx.trace("game_end", _final_card_census(rs))
 
     # Compute the result against the final state, before unwinding the frame.
-    scores: dict[Player, int] = {}
-    winner: Player | None = None
+    scores: dict[int, int] = {}
+    seat_scores: tuple[int, ...] = ()
     loser: Player | None = None
     if game.winner is not None:
         # Shadow Guard behind resolve's `_check_winner_target`: a target that
@@ -417,27 +464,40 @@ def play_game(
                 "it to RANK_DIR_TO_PICK"
             )
         pick = RANK_DIR_TO_PICK[game.winner.rank_dir]
-        winner = pick(scores, key=lambda p: scores[p])
+        seat_scores = seat_scores_of(
+            game.winner, scores, rs.team_of, rs.seating.count
+        )
+        best = pick(seat_scores)
+        winners = frozenset(
+            seat for seat, score in enumerate(seat_scores) if score == best
+        )
     else:
         # winner is None here, so resolve's winner-or-loser Owner Guard leaves a loser
         assert game.loser is not None
         selected = _evaluate_stamped(game.loser.selection, ctx)
-        if not isinstance(selected, int):
+        if not rs.seating.is_seat(selected):
             # `loser:` takes any expression and the checker leaves its type
-            # open, so the player-ness of the result is checked here — a
-            # game-description error, refused by its Owner Guard. The message
-            # names the clause and carries no span, unlike the evaluation
-            # above: a raise site says its class outright, because the Author
-            # census (tests/test_guard_role_sites.py) reads that class off the
+            # open, so whether the result is a seat of this table is checked
+            # here — a game-description error, refused by its Owner Guard. A
+            # value off the table would leave OpenSpiel a returns vector that
+            # does not sum to zero. The message names the clause and carries
+            # no span, unlike the evaluation above: a raise site says its
+            # class outright, because the Author census
+            # (tests/test_guard_role_sites.py) reads that class off the
             # `raise` itself.
             raise OwnerGuardError(
                 f"`loser:` selected {selected!r} ({type(selected).__name__}), "
-                f"not a player"
+                f"not a player of this {rs.seating.count}-player game"
             )
         loser = selected
+        winners = frozenset(rs.seating.players) - {loser}
     rs.pop_frame()
     return GameResult(
-        scores=scores, winner=winner, loser=loser, hands_played=hands.value
+        scores=scores,
+        seat_scores=seat_scores,
+        winners=winners,
+        loser=loser,
+        hands_played=hands.value,
     )
 
 

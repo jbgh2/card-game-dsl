@@ -35,6 +35,12 @@ keeps that true of captures nobody has written yet. The captures run in a
 subprocess for interpreter isolation — a fresh process per game, holding nothing
 the test session already imported.
 
+Every result capture pins `winners` -- the sorted set of seats sharing the
+best score, both partners of a winning team and every tied seat
+(decisions.md, "Game result: `winner:` and `loser:`") -- beside the scores
+it is read from, so a golden's winners are checkable against its own
+scores and the game's `teams:` without running anything.
+
 A TENTH sanctioned regeneration covers `tichu_scores.json` and
 `tichu_hands.json` on every seed they hold: the eighth card's grand tichu
 poll asks exactly two laps, so a call in the last lap is not answered by a
@@ -386,7 +392,7 @@ for seed in range(int(sys.argv[2])):
     r = play_game(game, rng, chooser=reference_policy_for(name, rng))
     out[str(seed)] = {
         "scores": {str(k): v for k, v in sorted(r.scores.items())},
-        "winner": r.winner,
+        "winners": sorted(r.winners),
         "hands_played": r.hands_played,
     }
 print(json.dumps(out))
@@ -864,7 +870,7 @@ for seed in range(int(sys.argv[1])):
     r = play_game(game, rng, None, policy(rng))
     out[str(seed)] = {
         "scores": {str(k): v for k, v in sorted(r.scores.items())},
-        "winner": r.winner,
+        "winners": sorted(r.winners),
     }
 print(json.dumps(out))
 """
@@ -963,7 +969,7 @@ for seed in range(int(sys.argv[1])):
     r = play_game(game, random.Random(seed))
     out[str(seed)] = {
         "scores": {str(k): v for k, v in sorted(r.scores.items())},
-        "winner": r.winner,
+        "winners": sorted(r.winners),
     }
 print(json.dumps(out))
 """
@@ -1238,7 +1244,7 @@ for seed in range(int(sys.argv[1])):
         "reveals": log.reveals,
         "coins": {str(k): v for k, v in sorted(terminal.state["coins"].items())},
         "alive": {str(k): v for k, v in sorted(terminal.state["alive"].items())},
-        "winner": r.winner,
+        "winners": sorted(r.winners),
     }
 print(json.dumps(out))
 """

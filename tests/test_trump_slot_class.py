@@ -203,7 +203,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.runtime import primitives
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.values import DECKS, SUITS, Card, Seating, deck_ranks, deck_suits
+from cardlang.runtime.values import DECKS, SUITS, Card, Seating, TeamOf, deck_ranks, deck_suits
 from cardlang.typecheck import (
     RANKING_GATED_CLIMB_QUERIES,
     RANKING_GATED_FUNCS,
@@ -827,7 +827,7 @@ def _drive_peg_run_points() -> None:
 
     facts = EngineFacts(
         seating=Seating(2),
-        team_of=MappingProxyType({}),
+        team_of=TeamOf({}),
         rank_index=_PARTIAL,
         round_state=None,
         last_round_state=None,
@@ -864,7 +864,7 @@ def _drive_scopa(entry: str) -> Callable[[], None]:
 
         facts = EngineFacts(
             seating=Seating(2),
-            team_of=MappingProxyType({}),
+            team_of=TeamOf({}),
             rank_index=_PARTIAL,
             round_state=None,
             last_round_state=None,
@@ -888,7 +888,7 @@ def _drive_president(query: str) -> Callable[[], None]:
 
         facts = EngineFacts(
             seating=Seating(2),
-            team_of=MappingProxyType({}),
+            team_of=TeamOf({}),
             rank_index=_PARTIAL,
             round_state=None,
             last_round_state=None,

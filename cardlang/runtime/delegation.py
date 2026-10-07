@@ -127,7 +127,7 @@ def decider_for(ctx: "Ctx", actor: Player) -> Player:
     from cardlang.runtime.evaluate import call_user_function
 
     decided = call_user_function(fn, [actor], ctx)
-    if not isinstance(decided, Player) or decided not in ctx.rs.seating.players:
+    if not ctx.rs.seating.is_seat(decided):
         raise OwnerGuardError(
             f"{CHOOSER_HELPER}({actor}) returned {decided!r}, which is not a "
             f"seat in this game — the decider of a delegated move must be a "

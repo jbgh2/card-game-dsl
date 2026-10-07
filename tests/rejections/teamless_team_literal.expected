@@ -1,0 +1,1 @@
+teamless_team_literal.cardlang:20:19: error: team 0 names a team, but this game declares no `teams:` — declare the partnerships (`teams: [[0, 2], [1, 3]]`)

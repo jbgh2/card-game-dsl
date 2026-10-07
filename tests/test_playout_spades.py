@@ -62,9 +62,11 @@ def test_200_random_games_satisfy_invariants() -> None:
 
         result = play_game(game, random.Random(seed), tracer)
 
-        # Terminates at a real threshold, and the winner is the top-scoring team.
-        assert result.winner in (0, 1)
-        assert result.winner == max(result.scores, key=lambda t: result.scores[t])
+        # Terminates at a real threshold, won by the top-scoring team's seats.
+        top = max(result.scores.values())
+        assert result.winners == {
+            p for t, s in result.scores.items() if s == top for p in game.teams[t]
+        }
         assert max(result.scores.values()) >= 500 or min(result.scores.values()) <= -200
 
         # Conservation: all 52 cards still exist; no hand holds cards at the end.

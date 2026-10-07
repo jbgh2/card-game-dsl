@@ -22,7 +22,7 @@ from cardlang.domains import (
     role_static_members,
 )
 from cardlang.runtime.errors import Located, OwnerGuardError, ShadowGuardError
-from cardlang.runtime.values import Card, Player, Seating
+from cardlang.runtime.values import Card, Player, Seating, TeamOf
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.builtins.signatures import Sig
@@ -372,7 +372,7 @@ class RuntimeState:
         self.score_var: str | None = None  # the winner's score var (None for loser games)
         self.trump: str | None = None  # the trump suit, if the game declares one
         self.teams: tuple[int, ...] = ()  # team ids (empty for teamless games)
-        self.team_of: dict[Player, int] = {}  # player -> their team id
+        self.team_of: TeamOf = TeamOf({})  # player -> their team id
         self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
         # rank -> card points, materialized over the deck's ranks from the
         # game's `card_points { }` clause; empty for a game declaring none.
@@ -514,7 +514,7 @@ class Ctx:
         unconditionally, so the seat check moves here). The trusted callers
         (`for each`, the simultaneous pass, move effects) always pass a real
         seat, so this never fires for them."""
-        if player not in self.rs.seating.players:
+        if not self.rs.seating.is_seat(player):
             raise OwnerGuardError(
                 f"cannot act as {player!r}: not a seat of this "
                 f"{len(self.rs.seating.players)}-player game — the player "

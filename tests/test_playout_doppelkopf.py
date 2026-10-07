@@ -327,9 +327,9 @@ def _run_and_verify(
             totals[p] += delta
 
     assert totals == result.scores, f"seed {seed}: {totals} != {result.scores}"
-    assert result.winner in [
+    assert result.winners == {
         p for p, s in result.scores.items() if s == max(result.scores.values())
-    ], f"seed {seed}"
+    }, f"seed {seed}"
     return branches
 
 
@@ -375,7 +375,7 @@ for seed in range(40):
     r = play_game(game, random.Random(seed))
     out[str(seed)] = {
         "scores": {str(p): s for p, s in sorted(r.scores.items())},
-        "winner": r.winner,
+        "winners": sorted(r.winners),
     }
 print(json.dumps(out))
 """

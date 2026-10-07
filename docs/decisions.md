@@ -3242,18 +3242,33 @@ deliver seat ids as utilities). See [Winner](glossary/winner.md).
 An *elimination* game has no score: players drop out until one
 remains, and that survivor is named directly, so `loser: <selection>`
 takes a player-valued expression (typically the singular player-selection
-`the player where <pred>`) evaluated at game end.
+`the player where <pred>`) evaluated at game end. It seats at least two
+players: a one-seat table's only player is its loser, with nobody left to
+win, so `loser:` beside `players: 1` is refused at check time.
 
 `loser:` reads zone state (`hand[player]` non-empty), not phase-scoped
 variables, so it resolves at the top level after the elimination phase
-has exited. The runtime returns the selected player as the result; a
-`winner:` game additionally carries its final scores, a `loser:` game
-does not (it has none).
+has exited. The value it selects must be a seat of the table: anything
+else -- a seat number off the table, a Boolean, a card -- is refused when
+the game ends, so an elimination game's returns always sum to zero.
 
 A game declares one or the other, never both. `winner:` is not sugar for
 `loser:` of the complement: an elimination game may end with several
 non-losers whom the rules never rank, so there is no single winner to
 name.
+
+**The result names a set of winning seats.** A finished game reports its
+winners as the set of seats sharing the best score: every seat that ranks
+first by the `winner:` target, read once per seat -- its own score for a
+target indexed by player, its team's for one indexed by team. So a
+team-scored game names both partners of the winning side, a tie names
+every tied seat, and a drawn game names every seat. The set is never
+empty, and it is exactly the seats OpenSpiel pays the best return, because
+the returns are the same per-seat scores. An elimination game's winners
+are every seat but the one `loser:` selected -- a reading of the result,
+not a ranking of the survivors and not a second declaration. A `winner:`
+game also carries its final scores; a `loser:` game carries none, and
+names its loser.
 
 ## Player-collection queries
 

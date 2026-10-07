@@ -115,7 +115,13 @@ def _one_match(seed: int, witnesses: dict[str, set[int]]) -> None:
     # the winner is the higher cumulative total.
     assert result.hands_played == 4 and len(hand_ends) == 4
     assert set(result.scores) == {0, 1}
-    assert result.winner == max(result.scores, key=lambda t: result.scores[t])
+    game = check_source(CANASTA)
+    assert result.winners == frozenset(
+        p
+        for t, s in result.scores.items()
+        if s == max(result.scores.values())
+        for p in game.teams[t]
+    )
 
     # Conservation: all 108 cards are somewhere (stock, hands, pile, stage,
     # melds, red-three rows).
@@ -139,7 +145,7 @@ def _one_match(seed: int, witnesses: dict[str, set[int]]) -> None:
     # went-out is inferable from the final hands.)
     prev = hand_ends[2]
     for team in (0, 1):
-        members = [p for p, t in rs.team_of.items() if t == team]
+        members = [p for p, t in rs.team_of.of.items() if t == team]
         melds = [
             list(rs.zones.instance(name, team).cards) for name in _MELD_FAMILIES
         ]
@@ -172,7 +178,7 @@ def test_seed0_characterization() -> None:
     # hash-independent (identical under PYTHONHASHSEED 0/7/12): every
     # collection on the decision path is ordered.
     result, _, hand_ends = _run(0)
-    assert result.winner == 0
+    assert result.winners == frozenset(check_source(CANASTA).teams[0])
     assert result.scores == {0: 4500, 1: 2655}
     assert hand_ends == [
         {0: 1260, 1: 255},

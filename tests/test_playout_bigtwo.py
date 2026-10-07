@@ -128,5 +128,6 @@ def test_random_games_satisfy_invariants() -> None:
 
         assert census["total"] == 52, f"seed {seed}: {census}"
         assert result.scores == hand_totals[-1], f"seed {seed}: final score mismatch"
-        assert result.winner == min(result.scores, key=lambda p: result.scores[p])
+        low = min(result.scores.values())
+        assert result.winners == {p for p, s in result.scores.items() if s == low}
         assert max(result.scores.values()) >= 100, f"seed {seed}: match did not reach the threshold"

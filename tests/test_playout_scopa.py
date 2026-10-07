@@ -282,7 +282,8 @@ def test_random_games_obey_the_capture_and_scoring_rules() -> None:
         # The match ends with a lone leader at or past the target.
         top = max(result.scores.values())
         assert top >= TARGET, f"seed {seed}: {result.scores}"
-        assert [p for p, s in result.scores.items() if s == top] == [result.winner]
+        leaders = {p for p, s in result.scores.items() if s == top}
+        assert len(leaders) == 1 and result.winners == leaders, f"seed {seed}: {result.scores}"
 
         # Every card ends in a capture pile: the layout is empty at the end of
         # each deal, swept by the last capturer.

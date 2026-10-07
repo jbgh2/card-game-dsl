@@ -2099,8 +2099,9 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     coercion routes through -- so the check applies at EVERY position an integer
     literal reaches a Player or Team, by construction (the pin
     tests/test_operand_choke_point.py enforces it). A non-role `expected` is a
-    no-op, and a count of 0 (a game with no teams has `max_teams == 0`)
-    disables the team bound, mirroring `max_players <= 0`.
+    no-op. A team count of 0 (a game with no teams has `max_teams == 0`) is a
+    known-empty domain, so every team literal is refused there; a player count
+    of 0 is a partial env and skips the seat bound.
 
     An OPTIONAL expectation (`Player?`/`Team?`) is unwrapped first: `coercible`
     coerces an Integer into the optional by reaching its payload, so a literal in
@@ -2127,6 +2128,13 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     else:
         return
     if not 0 <= index.value < bound:
+        if isinstance(bare, TTeam) and bound == 0:
+            bag.error(
+                f"team {index.value} names a team, but this game declares no "
+                f"`teams:` — declare the partnerships (`teams: [[0, 2], [1, 3]]`)",
+                index.span,
+            )
+            return
         ids = f"0..{bound - 1}" if bound > 1 else ("0" if bound == 1 else "none")
         bag.error(
             f"{label} {index.value} is out of range: the game has "

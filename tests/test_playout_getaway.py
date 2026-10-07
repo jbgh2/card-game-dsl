@@ -1,8 +1,9 @@
 """Random-playout harness for Getaway (Bhabhi) — the second game on the runtime
-net. Getaway's invariants are NOT Hearts': there is no score and no winner. The
-game terminates by elimination, every card is conserved, the tochoo/pickup
-mechanic actually fires, and the single survivor is the loser (or, in the rare
-all-escape trick, the winner of that final trick).
+net. Getaway's invariants are NOT Hearts': there is no score, and every seat
+but the loser wins. The game terminates by elimination, every card is
+conserved, the tochoo/pickup mechanic actually fires, and the single survivor
+is the loser (or, in the rare all-escape trick, the winner of that final
+trick).
 """
 
 from __future__ import annotations
@@ -41,10 +42,11 @@ def test_200_random_games_satisfy_invariants() -> None:
 
         result = play_game(game, random.Random(seed), tracer)
 
-        # An elimination game has a loser, no winner, and no scores.
+        # An elimination game has a loser, every other seat wins, and no scores.
         assert result.loser is not None
-        assert result.winner is None
+        assert result.winners == frozenset(range(game.players.count)) - {result.loser}
         assert result.scores == {}
+        assert result.seat_scores == ()
         assert result.loser in range(game.players.count)
         # Card conservation: all 52 cards are still somewhere (no loss/dup).
         assert census["total"] == 52, f"seed {seed}: {census['total']} cards"

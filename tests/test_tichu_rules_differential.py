@@ -60,7 +60,7 @@ Completeness ledger:
              tests/test_tichu_grand_order.py and the secrecy of the lead by
              tests/test_tichu_lead_secrecy.py; this module rechecks their
              offered sets in play but plants no fault in Python primitives.
-             The push (`push.candidates_not_the_whole_hand`) and the winner
+             The push (`push.candidates_not_the_whole_hand`) and the winners
              (`game.winner_not_the_higher_score`) carry no planted row: no
              one-line mutation of the game file breaks either while the game
              still checks.
@@ -758,9 +758,7 @@ def referee_games(game: n.Game, seeds: range, *, stop: bool = False) -> Referee:
         top = max(result.scores.values())
         if top < 1000:
             ref._note("game.ended_below_1000", str(result.scores))
-        if list(result.scores.values()).count(top) == 1 and result.winner != max(
-            result.scores, key=lambda t: result.scores[t]
-        ):
+        if result.winners != {p for p, t in TEAM.items() if result.scores[t] == top}:
             ref._note("game.winner_not_the_higher_score", str(result))
         total.counts.update(ref.counts)
         for key, found in ref.examples.items():

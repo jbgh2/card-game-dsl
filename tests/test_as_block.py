@@ -316,3 +316,15 @@ def test_nested_as_rebinds_to_the_inner_player() -> None:
     _, calls = _run_capturing(game)
     assert len(calls) == 1
     assert calls[0][0] == 0  # the inner `as other`, not the outer `as dealer`
+
+
+def test_a_boolean_bound_as_actor_is_a_loud_runtime_error() -> None:
+    # `True == 1`, so a membership test in the seat ring reads a flag as seat
+    # 1; the mixed `if` keeps the checker's type open so the flag reaches the
+    # bind-time guard.
+    game = _decision_game(
+        "as (if (any player where false) then 0 else true) "
+        "{ move chosen 1 cards from hand to discard }"
+    )
+    with pytest.raises(OwnerGuardError, match="not a seat"):
+        _run_capturing(game)

@@ -36,9 +36,9 @@ def test_200_random_games_satisfy_invariants() -> None:
 
         # Terminates (returned), and someone crossed the 100-point threshold.
         assert max(result.scores.values()) >= 100
-        # Winner is the lowest cumulative score.
-        assert result.winner is not None
-        assert result.winner == min(result.scores, key=lambda p: result.scores[p])
+        # The winners hold the lowest cumulative score.
+        low = min(result.scores.values())
+        assert result.winners == {p for p, s in result.scores.items() if s == low}
         assert result.loser is None
         # Each hand contributes 26 points (13 hearts + Q♠). A shoot-the-moon
         # contributes what its shooter chose: 78 with the other three charged

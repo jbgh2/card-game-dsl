@@ -41,7 +41,7 @@ def test_ante_all_in_hand_settles_without_crashing() -> None:
         # Two chips total, always; the game ends with one player holding them.
         assert sum(result.scores.values()) == 2, f"seed {seed}: {result.scores}"
         with_chips = [p for p, s in result.scores.items() if s > 0]
-        assert len(with_chips) == 1 and result.winner == with_chips[0]
+        assert len(with_chips) == 1 and result.winners == frozenset(with_chips)
 
 
 def test_partial_bring_in_settles_and_conserves_chips() -> None:
@@ -53,7 +53,7 @@ def test_partial_bring_in_settles_and_conserves_chips() -> None:
         result = play_game(game, random.Random(seed))  # must not raise
         assert sum(result.scores.values()) == 6, f"seed {seed}: {result.scores}"
         with_chips = [p for p, s in result.scores.items() if s > 0]
-        assert len(with_chips) == 1 and result.winner == with_chips[0]
+        assert len(with_chips) == 1 and result.winners == frozenset(with_chips)
 
 
 def test_a_short_bring_in_leaves_the_standing_bet_at_what_was_posted() -> None:

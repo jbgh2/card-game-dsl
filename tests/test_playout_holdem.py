@@ -105,8 +105,8 @@ def test_12_random_games_satisfy_invariants() -> None:
         assert sum(result.scores.values()) == _TOTAL_CHIPS, f"seed {seed}: {result.scores}"
         with_chips = [p for p, s in result.scores.items() if s > 0]
         assert len(with_chips) == 1, f"seed {seed}: {result.scores}"
-        assert result.winner == with_chips[0]
-        assert result.scores[result.winner] == _TOTAL_CHIPS
+        assert result.winners == frozenset(with_chips)
+        assert result.scores[with_chips[0]] == _TOTAL_CHIPS
         # Card conservation.
         assert census["total"] == 52, f"seed {seed}: {census}"
 

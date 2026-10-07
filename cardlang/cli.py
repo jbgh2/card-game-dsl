@@ -744,15 +744,8 @@ def _summary(game: n.Game, result: GameResult, decisions: int, seed: int) -> str
 
     `result.scores` is keyed by the `winner:` target's own index domain, so a
     team-scored game's keys are teams and a `loser:` game has none at all
-    (`driver.GameResult`). `returns_for` is where that inversion already lives;
-    reading the dict here instead would pay the wrong seats in exactly the
-    games where nobody would notice.
-
-    It inverts the seat-anchored roles `replay._RETURNS_KEYED_ROLES` names, and
-    raises on any other — so a `winner:` target indexed by a role added later
-    stops this command with an engine assertion rather than printing a plausible
-    line. That refusal is what makes reading returns here safe; it is not a
-    claim that every index role is handled.
+    (`driver.GameResult`); `returns_for` reads the per-seat scores instead, so
+    the line pays the seats OpenSpiel pays.
     """
     returns = returns_for(game, result)
     best = max(returns)

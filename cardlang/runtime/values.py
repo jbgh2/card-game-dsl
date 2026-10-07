@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TypeGuard
 
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.types import Flavor
@@ -473,6 +474,13 @@ class Seating:
     def players(self) -> tuple[Player, ...]:
         return tuple(range(self.count))
 
+    def is_seat(self, value: object) -> TypeGuard[Player]:
+        """Whether a runtime value names one of this table's seats: an `int`,
+        never a `bool`, in `0 <= value < count`. Membership in `players` is
+        not this test -- `True == 1`, so a flag passes it as seat 1 -- and
+        every runtime guard on a computed seat asks here."""
+        return type(value) is int and 0 <= value < self.count
+
     def offset_by(self, player: Player, direction: str) -> Player:
         delta = {
             "hold": 0,
@@ -499,7 +507,7 @@ class Seating:
         its Owner Guard. The membership test also catches a non-`Player`
         value (a `none`-valued `Player?`, an unrefined pronoun), which would
         otherwise die on a bare `TypeError` inside the comprehension."""
-        if leader not in self.players:
+        if not self.is_seat(leader):
             raise OwnerGuardError(
                 f"cannot start a round from {leader!r}: not a seat of this "
                 f"{self.count}-player game — the `from` expression bound a "
@@ -507,3 +515,41 @@ class Seating:
             )
         step = 1 if self.clockwise else -1
         return [(leader + i * step) % self.count for i in range(self.count)]
+
+
+@dataclass(frozen=True, slots=True)
+class TeamOf:
+    """Seat -> team id, as the game's `teams:` partition assigns them.
+
+    Every runtime read of a seat's team goes through `[]` here -- the
+    `team_of` Builtin, and each Primitive through its engine facts -- so a
+    seat the partition cannot answer for is refused once, in the runtime's
+    own error, never as a bare `KeyError`. A Primitive's reads have no
+    check-time guard, so this is their Owner Guard; the `team_of` Builtin is
+    refused at check time in a game with no `teams:` before it gets here.
+    """
+
+    of: Mapping[Player, int]
+
+    @classmethod
+    def partition(cls, teams: tuple[tuple[int, ...], ...]) -> TeamOf:
+        return cls({p: ti for ti, members in enumerate(teams) for p in members})
+
+    def __getitem__(self, seat: object) -> int:
+        if type(seat) is int and seat in self.of:
+            return self.of[seat]
+        if not self.of:
+            raise OwnerGuardError(
+                f"seat {seat!r} was asked which team it is on, but this game "
+                f"declares no `teams:` — declare the partnerships "
+                f"(`teams: [[0, 2], [1, 3]]`)"
+            )
+        raise OwnerGuardError(
+            f"{seat!r} was asked which team it is on, but it is not a seat of "
+            f"any team (seats {sorted(self.of)}) — the expression naming the "
+            f"seat computed a non-seat"
+        )
+
+    def get(self, seat: object) -> int | None:
+        """The seat's team, or `None` for a value no team holds."""
+        return self.of.get(seat) if type(seat) is int else None

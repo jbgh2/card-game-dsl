@@ -25,7 +25,7 @@ from cardlang.runtime.driver import play_game
 GIN = Path(__file__).parent.parent / "docs" / "games" / "gin-rummy.cardlang"
 
 
-def _run(seed: int) -> tuple[int | None, dict[int, int], dict[int, int], dict[str, int]]:
+def _run(seed: int) -> tuple[frozenset[int], dict[int, int], dict[int, int], dict[str, int]]:
     game = check_source(GIN)
     rs_box: list[Any] = []
     final: dict[str, Any] = {}
@@ -43,16 +43,17 @@ def _run(seed: int) -> tuple[int | None, dict[int, int], dict[int, int], dict[st
         tracer=tracer,
         on_first_decision=lambda rs: rs_box.append(rs),
     )
-    return result.winner, final["match_score"], final["hands_won"], final["census"]
+    return result.winners, final["match_score"], final["hands_won"], final["census"]
 
 
 def test_30_random_matches_satisfy_invariants() -> None:
     for seed in range(30):
-        winner, match_score, hands_won, census = _run(seed)
+        winners, match_score, hands_won, census = _run(seed)
         assert census["total"] == 52, f"seed {seed}: {census}"
         # Exactly one champion, and the settle gives them at least the game
         # bonus on top of the 100 they reached.
-        assert winner is not None
+        assert len(winners) == 1, f"seed {seed}: {winners}"
+        (winner,) = winners
         assert match_score[winner] >= 200, f"seed {seed}: {match_score}"
         assert hands_won[winner] >= 1, f"seed {seed}: {hands_won}"
         # Every point on the table came from a won hand.
@@ -72,7 +73,7 @@ def test_seed0_characterization() -> None:
     # to <zone>` collects zones in sorted-name order): the gather feeds the
     # pre-shuffle deck permutation, so a gather-order change legitimately
     # moves these numbers (a sanctioned regeneration, not a construct drift).
-    winner, match_score, hands_won, _ = _run(0)
-    assert winner == 1
+    winners, match_score, hands_won, _ = _run(0)
+    assert winners == frozenset({1})
     assert match_score == {0: 135, 1: 328}
     assert hands_won == {0: 2, 1: 3}

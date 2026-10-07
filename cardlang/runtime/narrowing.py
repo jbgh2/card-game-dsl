@@ -56,7 +56,7 @@ from typing import Any, NamedTuple
 from cardlang.runtime import reads
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.state import RuntimeState
-from cardlang.runtime.values import Player, Seating
+from cardlang.runtime.values import Player, Seating, TeamOf
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +75,7 @@ class EngineFacts:
     """The player ring — a frozen value type, so `players`, `turn_order_from`
     and `offset_by` come along without an engine handle."""
 
-    team_of: Mapping[Player, int]
+    team_of: TeamOf
     """Player -> team id."""
 
     rank_index: Mapping[str, int]

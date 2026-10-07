@@ -36,7 +36,10 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               head from `declarable_type_names`, a collection's element from
               `COLLECTION_ELEMENT_NAMES` — and no name declared or minted at
               any of the sites in ``RESERVATION_SITES`` takes a spelling one of
-              ``POSITION_NAME_SOURCES`` already holds.
+              ``POSITION_NAME_SOURCES`` already holds. And a ``winner:``
+              clause carries its target declaration's index role
+              (``Winner.keyed_by``), so no later pass walks state
+              declarations to learn how the result is keyed.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -292,7 +295,7 @@ from cardlang.stdlib.zones import (
     reveals,
 )
 from cardlang.typecheck import KNOWN_TYPE_NAMES
-from cardlang.types import Flavor, TCollection, TPlayer
+from cardlang.types import Flavor, TCollection, TPlayer, TTeam
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
 # is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
@@ -304,6 +307,24 @@ _FRAME_CALL_FUNCS = frozenset(
     fn
     for fn in BOARD_ONLY_CALL_FUNCS
     if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
+)
+
+def _mentions_team(value: object) -> bool:
+    """Whether a type, or any type nested in it, is `Team`."""
+    if isinstance(value, TTeam):
+        return True
+    if isinstance(value, tuple):
+        return any(_mentions_team(v) for v in value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return any(_mentions_team(getattr(value, f.name)) for f in fields(value))
+    return False
+
+
+# The Builtins that take or yield a team: each asks the game's `teams:`
+# partition, so a game declaring none is refused at the call. Derived from the
+# signatures, so a later team Builtin joins the refusal by construction.
+_TEAM_CALL_FUNCS = frozenset(
+    fn for fn, sig in CALL_SIGS.items() if _mentions_team(sig)
 )
 
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
@@ -697,9 +718,12 @@ _OPAQUE_SLOTS: frozenset[tuple[type, str]] = frozenset(
     }
 )
 
-# The two slots this pass owns itself.
+# The slots this pass owns itself: a name it classifies, and the facts it
+# stamps -- a reference's kind, a `winner:` clause's index role.
 _CLASSIFIED_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "name")})
-_METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "ref_kind")})
+_METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {(n.NameRef, "ref_kind"), (n.Winner, "keyed_by")}
+)
 
 
 # The registry as one view: slot -> kind. Derived from the seven tables above so
@@ -2443,7 +2467,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_delegation(game, bag)
     _check_implicit_pools(game, bag)
     _check_hidden_reads(game, bag)
-    _check_winner_target(game, bag)
+    game = _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
     _resolve_winner_loser(game, bag)
@@ -3589,6 +3613,15 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             "`loser: <player-expr>` — without one the playout has no result",
             game.span,
         )
+    elif game.loser is not None and game.players.count == 1:
+        # An elimination names one loser among the survivors, so a one-seat
+        # table has nobody left to win. A malformed count is typecheck's.
+        bag.error(
+            "`loser:` names the player eliminated from the rest, so an "
+            "elimination game needs at least two players — this game seats "
+            "one; rank a score with `winner:` instead",
+            game.loser.span,
+        )
 
 
 # The declared types a game may be RANKED by: totally ordered, and their
@@ -3780,8 +3813,10 @@ _OWN_POOL_BLIND = (
 )
 
 
-def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
-    """A `winner:` target must be a state variable a game can be ranked by.
+def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
+    """A `winner:` target must be a state variable a game can be ranked by,
+    and the game it returns carries the target's index role on its `winner:`
+    clause (`Winner.keyed_by`) -- the one fact the result is keyed through.
 
     Resolve already walls the NAME -- undeclared, or declared inside a phase
     -- and says nothing about the DECLARATION it lands on. Two of that
@@ -3807,12 +3842,12 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
     The grid is tests/test_winner_target.py.
     """
     if game.winner is None or game.state is None:
-        return
+        return game
     decl = next(
         (d for d in game.state.decls if d.name == game.winner.state_var), None
     )
     if decl is None:
-        return
+        return game
     what = f"`winner:` ranks the game on state variable '{decl.name}', "
     if decl.index is None:
         bag.error(
@@ -3822,14 +3857,14 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
             f"per-member value to rank",
             game.winner.span,
         )
-        return
+        return game
     if decl.optional:
         bag.error(
             f"{what}declared `{decl.type_name}?` — an optional score may be "
             f"`none`, which cannot be ranked against a number",
             game.winner.span,
         )
-        return
+        return game
     if decl.type_name not in _RANKABLE_TYPES:
         rankable = ", ".join(sorted(_RANKABLE_TYPES))
         bag.error(
@@ -3838,6 +3873,8 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
             f"the game's OpenSpiel returns",
             game.winner.span,
         )
+        return game
+    return replace(game, winner=replace(game.winner, keyed_by=decl.index))
 
 
 def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
@@ -8206,6 +8243,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     "but this game declares no `card_points { }` clause",
                     nd.span,
                 )
+            case n.Call() if nd.func in _TEAM_CALL_FUNCS and not game.teams:
+                # The team-indexed `state`/`zone` arms below refuse the
+                # declaration side of a missing `teams:`; this and the
+                # role-ranging arm refuse the questions.
+                bag.error(
+                    f"`{nd.func}` asks which team a seat is on, but this game "
+                    f"declares no `teams:` — declare the partnerships "
+                    f"(`teams: [[0, 2], [1, 3]]`) or ask about the player",
+                    nd.span,
+                )
             case n.Call() if nd.func in BOARD_ONLY_CALL_FUNCS:
                 # A board-reading call (lines) in a boardless game, or a literal
                 # out-of-range k. The DECK_ONLY twin above (`game.board is None`
@@ -8323,6 +8370,24 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"{content_kind_clause(game.content_flavor, game.deck)} -- "
                     f"the `{nd.role}` role ranges over a deck's {nd.role}s, which "
                     f"a piece set has none of",
+                    nd.span,
+                )
+            case (n.ForEach() | n.Quantifier()) if (
+                role_of(nd.role) is Role.TEAM and not game.teams
+            ):
+                # The team domain of a game with no `teams:` is empty, so the
+                # question would answer itself: `any` false, `all` true, `for
+                # each` never running.
+                spelled = (
+                    "for each team"
+                    if isinstance(nd, n.ForEach)
+                    else ("any team where" if nd.kind == "any" else "all teams where")
+                )
+                bag.error(
+                    f"`{spelled} ...` ranges over teams, but this game declares "
+                    f"no `teams:` — there are no teams to range over; declare "
+                    f"the partnerships (`teams: [[0, 2], [1, 3]]`) or range "
+                    f"over players",
                     nd.span,
                 )
             case n.EachSimultaneous() if role_of(nd.role) not in SIMULTANEOUS_ROLES:

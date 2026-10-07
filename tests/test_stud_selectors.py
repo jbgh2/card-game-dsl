@@ -20,7 +20,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.stud import _best_showing, _lowest_door, bring_in_seat
-from cardlang.runtime.values import Card, Seating
+from cardlang.runtime.values import Card, Seating, TeamOf
 
 
 def _c(rank: str, suit: str) -> Card:
@@ -124,7 +124,7 @@ def test_selectors_are_callable_from_the_dsl() -> None:
 def _facts(n: int) -> EngineFacts:
     return EngineFacts(
         seating=Seating(n),
-        team_of=MappingProxyType({}),
+        team_of=TeamOf({}),
         rank_index=MappingProxyType({}),
         round_state=None,
         last_round_state=None,

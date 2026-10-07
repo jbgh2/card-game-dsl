@@ -499,7 +499,7 @@ def test_the_same_seed_replays_identically() -> None:
             # it too keeps this from depending on a hand-picked seed that
             # happens to terminate.
             return ("guard", str(exc))
-        return ("result", r.scores, r.winner, r.hands_played)
+        return ("result", r.scores, r.winners, r.hands_played)
 
     for seed in (0, 7, 11):
         assert outcome(seed) == outcome(seed), f"seed {seed} did not replay"

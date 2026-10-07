@@ -224,8 +224,9 @@ def test_a_team_indexed_target_in_a_teamless_game_is_refused() -> None:
 
     The grid's `team` row is accepted, but every one of its games declares
     `teams:`. Drop that clause and the target indexes a role the game has no
-    members for — the silent-answer shape of issue #300, which would rank
-    over an empty team map.
+    members for, and it would rank over an empty team map -- the same
+    silent answer `tests/test_teamless_team_questions.py` refuses for a team
+    question.
 
     The wall that answers is the state DECLARATION guard (`_validate_refs`'
     `n.StateDecl()` team-without-`teams:` arm), NOT this module's guard: the

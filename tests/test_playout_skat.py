@@ -174,7 +174,8 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
     table, census, hand_ends, result = _play(game, seed)
 
     assert hand_ends == HANDS  # fixed 36-hand game
-    assert result.winner == max(result.scores, key=lambda p: result.scores[p])
+    best = max(result.scores.values())
+    assert result.winners == {p for p, s in result.scores.items() if s == best}
 
     # Deck integrity.
     assert census["total"] == 32, f"seed {seed}: {census}"
