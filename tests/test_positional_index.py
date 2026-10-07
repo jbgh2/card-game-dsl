@@ -152,3 +152,14 @@ def test_a_laundered_boolean_never_acts_as_one(stmt: str) -> None:
     game = check_dsl(src, "l.cardlang")
     with pytest.raises(OwnerGuardError):
         play_game(game, random.Random(0))
+
+
+def test_an_invalid_board_is_reported_not_crashed_on() -> None:
+    """A region read on a board the clause cannot mint: the static length has
+    no board to count, and the board clause's own diagnostic is reported."""
+    src = _board_game(guard="square[home(actor)[0]] is empty").replace(
+        "board: grid(8, 8)", "board: grid(0, 8)"
+    )
+    assert "grid(0, 8)" in src
+    with pytest.raises(DiagnosticError):
+        check_dsl(src, "board.cardlang")

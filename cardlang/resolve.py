@@ -3184,15 +3184,16 @@ def _static_length(obj: n.Expr, game: n.Game) -> int | None:
         return None
     if game.board is None or len(obj.args) != 1:
         return None
-    method = getattr(board_entry(game.board.family, game.board.args), obj.func)
     try:
+        method = getattr(board_entry(game.board.family, game.board.args), obj.func)
         if isinstance(CALL_SIGS[obj.func].params[0], TPlayer):
             return max(len(method(seat)) for seat in range(game.players.count))
         arg = obj.args[0]
         return len(method(arg.value)) if isinstance(arg, n.IntLit) else None
     except (OwnerGuardError, ValueError):
-        # Refused at the call itself (`_check_board_call`, the frame's
-        # two-seat guard); there is no region to count.
+        # Refused where it is written: an invalid `board:` clause
+        # (`_resolve_board`), or the call itself (`_check_board_call`, the
+        # frame's two-seat guard). There is no region to count.
         return None
 
 
@@ -9002,8 +9003,8 @@ _NO_ACTOR_WHERE = {
     _NO_ACTOR_RESULT: "`loser:` is read after the last phase",
     _NO_ACTOR_ROUND: (
         "a trick round reads its mode triggers and Delegated Play helpers in "
-        "its own context, and a trick round of this game stands outside any "
-        "binder that names who acts"
+        "its own context, and a trick round that reads this one stands "
+        "outside any binder that names who acts"
     ),
 }
 _ACTOR_SCOPE = _ReadScope(aliases=_ActorAliases(), acting=True, seat=-1)
@@ -9442,10 +9443,11 @@ class _HiddenReads:
         self.seats = 0
         self.outcome_phase = []
         self.place = _NO_ACTOR_STATEMENT
-        # Whether each trick round stands where a seat acts: a round's mode
-        # triggers and its Delegated Play helpers are evaluated in the round
-        # statement's own context.
-        self.trick_rounds_acting: list[bool] = []
+        # Whether each trick round stands where a seat acts, by the phase it
+        # runs in: a round's mode triggers and its Delegated Play helpers are
+        # evaluated in the round statement's own context.
+        self.trick_rounds_acting: list[tuple[int, bool]] = []
+        self.phase_stack: list[int] = []
         for phase in self.game.phases:
             self._phase(phase, _ReadScope())
         for mt in self.game.move_types:
@@ -9520,18 +9522,25 @@ class _HiddenReads:
 
     def _judge_trick_context_positions(self) -> None:
         """A mode's `transition_to` trigger and a Delegated Play helper's body
-        are evaluated by the trick round, in the round statement's context:
-        a seat acts there only where every trick round stands under a binder
-        that names one."""
-        if self.trick_rounds_acting and all(self.trick_rounds_acting):
-            return
+        are evaluated by a trick round, in the round statement's context. A
+        trigger is read by the trick rounds of its own phase only
+        (`active_rules.active_mode_exits`), so a seat acts there where each of
+        them stands under a binder that names one; a helper is read by every
+        trick round of the game."""
         self.place = _NO_ACTOR_ROUND
-        for node in _walk(self.game):
-            if isinstance(node, n.TransitionTo) and node.event.where is not None:
-                self._refuse_unacting_decisions(node.event.where, _ReadScope())
-        for fn in self.game.functions:
-            if fn.name in (CHOOSER_HELPER, SOURCE_HELPER):
-                self._refuse_unacting_decisions(fn.body, _ReadScope())
+        for phase in (nd for nd in _walk(self.game) if isinstance(nd, n.Phase)):
+            if all(acting for at, acting in self.trick_rounds_acting if at == id(phase)):
+                continue
+            for item in phase.items:
+                if not isinstance(item, n.Mode):
+                    continue
+                for transition in item.transitions:
+                    if transition.event.where is not None:
+                        self._refuse_unacting_decisions(transition.event.where, _ReadScope())
+        if not all(acting for _, acting in self.trick_rounds_acting):
+            for fn in self.game.functions:
+                if fn.name in (CHOOSER_HELPER, SOURCE_HELPER):
+                    self._refuse_unacting_decisions(fn.body, _ReadScope())
         self.place = _NO_ACTOR_STATEMENT
 
     def _outside(self, expr: object, scope: _ReadScope, seat: _Seat) -> None:
@@ -9635,6 +9644,7 @@ class _HiddenReads:
                 )
         if phase.outcome_cases:
             self.outcome_phase.append(phase.name)
+        self.phase_stack.append(id(phase))
         for item in phase.items:
             match item:
                 case n.StateBlock():
@@ -9659,6 +9669,7 @@ class _HiddenReads:
                     pass
                 case _:
                     scope = self._stmt(item, scope, _Seat("the acting seat"))
+        self.phase_stack.pop()
         if phase.outcome_cases:
             self.outcome_phase.pop()
 
@@ -9792,7 +9803,8 @@ class _HiddenReads:
             case n.Offer():
                 self._outside(stmt.player, scope, seat)
             case n.TrickRound():
-                self.trick_rounds_acting.append(scope.acting)
+                if self.phase_stack:
+                    self.trick_rounds_acting.append((self.phase_stack[-1], scope.acting))
                 self._outside(stmt.leader, scope, seat)
                 self._outside(stmt.participants, scope, seat)
                 self._outside(stmt.trump, scope, seat)

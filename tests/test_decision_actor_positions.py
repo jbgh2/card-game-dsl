@@ -9,8 +9,9 @@ domain:     position {phase statement, phase `when`, phase `repeat until`,
             `before_each`, `after_each`, `loser:`, a function called from
             `loser:`, a procedure run from a phase statement, an `if` in a
             phase, an `offer`'s player, a `turns` leader, a mode's
-            `transition_to` trigger and a Delegated Play helper where a trick
-            round stands outside any binder, a state default} x need {`choose
+            `transition_to` trigger where a trick round of its own phase, and a
+            Delegated Play helper where any trick round, stands outside any
+            binder, a state default} x need {`choose
             integer`, `chosen` movement, `actor`} where the position holds it
             (a function never reads `actor`: functions are hermetic; a state
             default's `choose` and `actor` are `_check_state_default_scope`'s);
@@ -314,12 +315,28 @@ _TWO_TRICK_PHASES = """game TwoPhases {
 }"""
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=DiagnosticError,
-    reason="issue #798: a mode trigger is judged against every trick round of the game, not its own phase's",
-)
 def test_a_mode_trigger_is_judged_by_its_own_phases_trick_rounds() -> None:
     """Phase `bound` plays its trick under `as 0`, so its mode trigger reads a
-    real `actor`; phase `unbound` has no mode."""
+    real `actor`; phase `unbound` has no mode, and its round does not read
+    `bound`'s triggers."""
     play_game(check_dsl(_TWO_TRICK_PHASES, "two.cardlang"), random.Random(0))
+
+
+def test_the_same_trigger_in_the_unbound_phase_is_refused() -> None:
+    moved = (
+        _TWO_TRICK_PHASES.replace(
+            "    mode open { transition_to: shut when play_to_trick where actor is 0 }\n"
+            "    mode shut { }\n",
+            "",
+            1,
+        ).replace(
+            "  phase unbound {\n    legal_moves: [play_to_trick]\n",
+            "  phase unbound {\n    legal_moves: [play_to_trick]\n"
+            "    mode open { transition_to: shut when play_to_trick where actor is 0 }\n"
+            "    mode shut { }\n",
+            1,
+        )
+    )
+    assert moved.count("mode open") == 1 and moved.index("mode open") > moved.index("phase unbound")
+    with pytest.raises(DiagnosticError, match="no player is acting"):
+        check_dsl(moved, "moved.cardlang")
