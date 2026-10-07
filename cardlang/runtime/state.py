@@ -514,7 +514,7 @@ class Ctx:
         unconditionally, so the seat check moves here). The trusted callers
         (`for each`, the simultaneous pass, move effects) always pass a real
         seat, so this never fires for them."""
-        if player not in self.rs.seating.players:
+        if not self.rs.seating.is_seat(player):
             raise OwnerGuardError(
                 f"cannot act as {player!r}: not a seat of this "
                 f"{len(self.rs.seating.players)}-player game — the player "

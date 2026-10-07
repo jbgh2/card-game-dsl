@@ -214,7 +214,7 @@ def _seat(ctx: Ctx, fn: str, player: int) -> int:
     in place of the frame's internal `_player_sign` `ValueError`, which reads as
     a registry bug rather than a game one. Game-facing by design: the author who
     wrote the expression is who must change it."""
-    if player not in ctx.rs.seating.players:
+    if not ctx.rs.seating.is_seat(player):
         raise OwnerGuardError(
             f"`{fn}` reads seat {player!r}, not a seat of this "
             f"{len(ctx.rs.seating.players)}-player game"

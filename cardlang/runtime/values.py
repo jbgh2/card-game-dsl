@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TypeGuard
 
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.types import Flavor
@@ -473,6 +474,13 @@ class Seating:
     def players(self) -> tuple[Player, ...]:
         return tuple(range(self.count))
 
+    def is_seat(self, value: object) -> TypeGuard[Player]:
+        """Whether a runtime value names one of this table's seats: an `int`,
+        never a `bool`, in `0 <= value < count`. Membership in `players` is
+        not this test -- `True == 1`, so a flag passes it as seat 1 -- and
+        every runtime guard on a computed seat asks here."""
+        return type(value) is int and 0 <= value < self.count
+
     def offset_by(self, player: Player, direction: str) -> Player:
         delta = {
             "hold": 0,
@@ -499,7 +507,7 @@ class Seating:
         its Owner Guard. The membership test also catches a non-`Player`
         value (a `none`-valued `Player?`, an unrefined pronoun), which would
         otherwise die on a bare `TypeError` inside the comprehension."""
-        if leader not in self.players:
+        if not self.is_seat(leader):
             raise OwnerGuardError(
                 f"cannot start a round from {leader!r}: not a seat of this "
                 f"{self.count}-player game — the `from` expression bound a "

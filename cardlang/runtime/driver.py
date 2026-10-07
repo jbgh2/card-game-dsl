@@ -422,17 +422,19 @@ def play_game(
         # winner is None here, so resolve's winner-or-loser Owner Guard leaves a loser
         assert game.loser is not None
         selected = _evaluate_stamped(game.loser.selection, ctx)
-        if not isinstance(selected, int):
+        if not rs.seating.is_seat(selected):
             # `loser:` takes any expression and the checker leaves its type
-            # open, so the player-ness of the result is checked here — a
-            # game-description error, refused by its Owner Guard. The message
-            # names the clause and carries no span, unlike the evaluation
-            # above: a raise site says its class outright, because the Author
-            # census (tests/test_guard_role_sites.py) reads that class off the
+            # open, so whether the result is a seat of this table is checked
+            # here — a game-description error, refused by its Owner Guard. A
+            # value off the table would leave OpenSpiel a returns vector that
+            # does not sum to zero. The message names the clause and carries
+            # no span, unlike the evaluation above: a raise site says its
+            # class outright, because the Author census
+            # (tests/test_guard_role_sites.py) reads that class off the
             # `raise` itself.
             raise OwnerGuardError(
                 f"`loser:` selected {selected!r} ({type(selected).__name__}), "
-                f"not a player"
+                f"not a player of this {rs.seating.count}-player game"
             )
         loser = selected
     rs.pop_frame()
