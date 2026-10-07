@@ -3229,8 +3229,8 @@ def test_a_collection_return_is_refused_against_every_implementation() -> None:
 def test_a_keyed_map_is_refused_at_a_collection_parameter() -> None:
     """A per-player map handed where a card collection is wanted.
 
-    `coercible` compares collection ELEMENTS only, so the call site refuses
-    the map (`typecheck._refuse_keyed_elements`; its grid is
+    A declared collection parameter is unkeyed, and `coercible`'s key
+    decides (`types.keys_fit`; its grid is
     tests/test_keyed_collection_positions.py); the cell is here because the
     spelling is what puts a declared collection parameter in a designer's
     reach."""

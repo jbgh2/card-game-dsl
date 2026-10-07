@@ -70,8 +70,8 @@ does not prove:  two things, and the second is about how the outcome
             and opaque positions the rule under test reads only the NAME, so
             the payload's shape is not a dimension of it — but that argument
             does NOT
-            reach the keying position, where `join` compares keys with raw
-            `==` and the payload is exactly what the cells turn on. What
+            reach `join` at the keying position, where it compares keys with
+            raw `==` and the payload is exactly what the cells turn on. What
             makes one payload enough there is the closed inhabitant set: no
             nominal type can reach the slot at all.
             That a `TOutcome` reaches either relation from a DSL sentence.
@@ -122,22 +122,24 @@ TRANSPARENT = "transparent"
 #: The enclosing constructor is itself nominal, so its own name decides and
 #: the nested identity is erased before either relation looks at it.
 OPAQUE = "opaque"
-#: Neither relation consults the slot: it is how a collection is ADDRESSED,
-#: not part of its value space (`cardlang/types.py`, `TCollection.key`). Its
-#: own rule is the sticky-key merge, covered separately below.
+#: The relation does not judge the slot: `join` merges a collection's key
+#: (the sticky-key rule, covered separately below) rather than refusing on it.
 IGNORED = "ignored"
 
 #: The behaviour class of every shape position whose declaring constructor is
-#: not itself nominal. `OPAQUE` is DERIVED (`position.ctor in
+#: not itself nominal, per relation. `OPAQUE` is DERIVED (`position.ctor in
 #: NOMINAL_MEMBERS`); these are the positions where the answer is a design
 #: decision rather than a consequence, so they are authored — and pinned below
-#: to cover exactly the positions the derivation leaves. A new nested position
-#: therefore fails collection instead of being guessed into a passing row.
-_AUTHORED_CLASSES: dict[str, str] = {
-    "bare": TRANSPARENT,
-    "TOptional.inner": TRANSPARENT,
-    "TCollection.element": TRANSPARENT,
-    "TCollection.key": IGNORED,
+#: to cover exactly the positions and relations the derivation leaves. A new
+#: nested position or relation therefore fails collection instead of being
+#: guessed into a passing row. The keying position is the one whose class
+#: depends on the relation: `coercible` judges a key (`types.keys_fit`), and
+#: `join` merges it.
+_AUTHORED_CLASSES: dict[str, dict[str, str]] = {
+    "bare": {"coercible": TRANSPARENT, "join": TRANSPARENT},
+    "TOptional.inner": {"coercible": TRANSPARENT, "join": TRANSPARENT},
+    "TCollection.element": {"coercible": TRANSPARENT, "join": TRANSPARENT},
+    "TCollection.key": {"coercible": TRANSPARENT, "join": IGNORED},
 }
 
 #: How to build a value with the probe type at each shape position. The
@@ -200,14 +202,16 @@ _covers(
     {p.label for p in SHAPE_POSITIONS if p.ctor not in NOMINAL_MEMBERS},
     "behaviour class",
 )
+for _label_, _by_relation in _AUTHORED_CLASSES.items():
+    _covers(_by_relation, RELATIONS, f"behaviour class at {_label_}")
 
 
-def _behaviour(position: ShapePosition) -> str:
-    """The class of a shape position: derived where it follows from the union,
-    authored where it is a decision."""
+def _behaviour(position: ShapePosition, relation: str) -> str:
+    """The class of a shape position under a relation: derived where it
+    follows from the union, authored where it is a decision."""
     if position.ctor in NOMINAL_MEMBERS:
         return OPAQUE
-    return _AUTHORED_CLASSES[position.label]
+    return _AUTHORED_CLASSES[position.label][relation]
 
 
 def _expected(behaviour: str, same_name: bool) -> bool:
@@ -252,7 +256,7 @@ def test_a_declared_types_identity_is_its_name_at_every_position(
     wrap = _WRAPPERS[position.label]
     stale, settled = build("R", TAny()), build("R", TInteger())
     unrelated = build("S", TInteger())
-    behaviour = _behaviour(position)
+    behaviour = _behaviour(position, relation)
     compatible = _COMPATIBLE[relation]
 
     same = compatible(*_ordered((wrap(stale), wrap(settled)), order))
@@ -304,8 +308,8 @@ def test_a_name_only_member_is_already_nominal_under_equality(
 
 
 def test_the_keying_domain_admits_no_nominal_type() -> None:
-    """Why `TCollection.key` is `IGNORED` rather than an uncovered cell of the
-    nominal rule.
+    """Why `join`'s raw key comparison at `TCollection.key` is not a hole in
+    the nominal rule.
 
     A nominal type cannot inhabit the slot at all. `key` is set at exactly
     three sites: a state variable's index (`role_type` of the declared index
@@ -313,8 +317,9 @@ def test_the_keying_domain_admits_no_nominal_type() -> None:
     key-disagreement branch (the permissive top). Resolve narrows the first to
     `ZONE_INDEX_ROLES`, so the reachable set is the zone-index rows' binder
     types plus `TPlayer` and the top — no member of which carries a declared
-    name. The nominal rule has nothing to reach here, so the sticky-key rule
-    below is not a hole in it but the rule that governs the slot.
+    name. The nominal rule has nothing to reach there through `join`, so the
+    sticky-key rule below is not a hole in it but the rule that governs
+    `join` at the slot.
 
     Derived from the domain registry rather than listed, so a widened
     `ZONE_INDEX_ROLES` — the one edit that could put a named type in a key —
@@ -333,16 +338,16 @@ def test_the_keying_domain_admits_no_nominal_type() -> None:
     )
     assert not offenders, (
         f"{offenders} can now key a collection, so the keying domain is no "
-        f"longer outside the nominal rule — reclassify TCollection.key in "
-        f"_AUTHORED_CLASSES and decide the cell"
+        f"longer outside the nominal rule — decide join's class at "
+        f"TCollection.key in _AUTHORED_CLASSES"
     )
 
 
 def test_the_keying_domain_is_governed_by_the_sticky_key_rule() -> None:
-    """The rule that DOES govern the slot, asserted on `join`'s output.
+    """The rule that governs `join` at the slot, asserted on its output.
 
-    Neither relation lets the key decide the verdict, so a test reading only
-    the verdict can never see this slot — it would be a row that cannot fail.
+    `join` does not let the key decide its verdict, so a test reading only
+    that verdict can never see this slot — it would be a row that cannot fail.
     The observable is the key `join` RETURNS: agreeing keys keep their domain;
     disagreeing keys stay keyed with the domain unknowable (the permissive
     top, which the subscript check accepts and the keyed-membership Owner

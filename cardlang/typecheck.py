@@ -99,6 +99,7 @@ from cardlang.types import (
     Type,
     coercible,
     join,
+    keys_fit,
     subscriptable,
 )
 
@@ -707,7 +708,12 @@ def _type_name(t: Type) -> str:
     if isinstance(t, TOptional):
         return f"{_type_name(t.inner)}?"
     if isinstance(t, TCollection):
-        return f"Collection<{_type_name(t.element)}>"
+        base = f"Collection<{_type_name(t.element)}>"
+        if t.key is None:
+            return base
+        if isinstance(t.key, TAny):
+            return f"{base} keyed in one branch of a conditional"
+        return f"{base} keyed by {_type_name(t.key)}"
     if isinstance(t, TEnum):
         return t.name
     if isinstance(t, TOutcome):
@@ -1511,25 +1517,38 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
         return
     if isinstance(lbare, TAny) or isinstance(rbare, TAny):
         return
-    compatible = (
-        coercible(lbare, rbare)  # choke-point-exempt: symmetric equality, two operands and no single `expected` — not an operand coercion
-        or coercible(rbare, lbare)  # choke-point-exempt: the reverse direction of the same symmetric check
-        # `join` as well as `coercible`, because `coercible` honours `TAny` only at
-        # the TOP level: a deliberately-unrefined element type (a chip stack is
-        # `Collection<Any>` precisely because that part of the object model is
-        # unrefined) would be judged disjoint from `Collection<Card>`, and this
-        # Owner Guard would MANUFACTURE an error — the exact thing its own
-        # gradual-typing promise forbids. `coercible` alone is also not enough in
-        # the other direction, so both are consulted: `Player`/`Integer` must stay
-        # comparable (a player IS an integer seat), and only `coercible` says so.
-        or join(lbare, rbare) is not None
-    )
-    if not compatible:
+    if not _comparable(lbare, rbare):
         bag.error(
             f"comparing {_type_name(lbare)} with {_type_name(rbare)} can never be "
-            f"equal",
+            f"equal" + _key_hint(lbare, rbare, _name_of(e.left), _name_of(e.right)),
             e.span,
         )
+
+
+def _mutually_coercible(a: Type, b: Type) -> bool:
+    """Either operand may stand for the other: the symmetric reading of
+    `coercible` that the two comparison Owner Guards (equality, membership's
+    element) share."""
+    return (
+        coercible(a, b)  # choke-point-exempt: symmetric comparison, two operands and no single `expected` — not an operand coercion
+        or coercible(b, a)  # choke-point-exempt: the reverse direction of the same symmetric check
+    )
+
+
+def _comparable(a: Type, b: Type) -> bool:
+    """Whether two values of these types can ever be equal.
+
+    Two collections are comparable exactly when one coerces to the other:
+    `coercible` recurses through the element, honouring `TAny` at every depth,
+    and its key decides (`types.keys_fit`). `join` cannot answer for them,
+    because it keeps a merged key sticky rather than judging it — a per-seat
+    value joins with a list. Any other pair is comparable when either coerces
+    to the other (`Player`/`Integer` stay comparable — a player IS an integer
+    seat — and only `coercible` says so) or when the two join (`none` against
+    a bare value)."""
+    if isinstance(a, TCollection) and isinstance(b, TCollection):
+        return _mutually_coercible(a, b)
+    return _mutually_coercible(a, b) or join(a, b) is not None
 
 
 def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -1724,10 +1743,15 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
     ebare = _bare(right_t.element)
     if isinstance(lbare, TAny) or isinstance(ebare, TAny):
         return
-    if join(lbare, ebare) is None:
+    both_collections = isinstance(lbare, TCollection) and isinstance(ebare, TCollection)
+    if join(lbare, ebare) is None or (both_collections and not _mutually_coercible(lbare, ebare)):
         bag.error(
             f"membership compares {_type_name(lbare)} with a collection of "
-            f"{_type_name(ebare)} — never true",
+            f"{_type_name(ebare)} — never true"
+            + _key_hint(
+                lbare, ebare, _name_of(e.left), None,
+                unnamed_want="each member of the collection",
+            ),
             e.span,
         )
 
@@ -1776,37 +1800,61 @@ def _spell_operand(e: n.Expr) -> str:
             return "..."
 
 
-def _refuse_keyed_elements(
-    operand: n.Expr, got: Type, reader: str, env: TypeEnv, bag: DiagnosticBag
-) -> bool:
-    """A keyed collection where a collection's ELEMENTS are read: the Owner
-    Guard for the two element-reading positions, a native's collection
-    parameter and a card query's source. The runtime holds a keyed collection
-    as a map, and reading a map's elements reads its keys, so the reader would
-    answer on the seat (or team) ids, never on a card. `coercible` cannot
-    decide this, since facets never decide compatibility (`TCollection`); the
-    position does. Reports, and answers whether it did."""
-    bare = _bare(got)
-    if not isinstance(bare, TCollection) or bare.key is None:
-        return False
-    what = f"`{_spell_operand(operand)}`"
-    keyed = (
-        f"a map keyed by {_type_name(bare.key)}"
-        if not isinstance(bare.key, TAny)
-        else "a value that may be a keyed map (one branch of its conditional is)"
-    )
-    bag.error(
-        f"{reader} {what}, which is {keyed}: reading its elements would read "
-        f"the keys, not the cards — pass one entry (`{_entry_hint(operand)}`) "
-        f"or a zone",
-        operand.span,
-    )
-    return True
+#: What a position that reads a collection's members wants: any element, and
+#: no key — `types.coercible` refuses a keyed collection here, at every such
+#: position, so none keeps a refusal of its own.
+_UNKEYED_COLLECTION = TCollection(TAny())
 
 
-def _entry_hint(operand: n.Expr) -> str:
-    base = operand.name if isinstance(operand, n.NameRef) else "m"
-    return f"{base}[p]"
+def _key_hint(
+    got: Type,
+    want: Type,
+    got_name: str | None,
+    want_name: str | None,
+    *,
+    unnamed_want: str = "the value",
+) -> str:
+    """The fix a refusal appends when two collections differ by their key
+    (`types.keys_fit`): the entry-wise spelling of whichever side is keyed.
+    Empty when the key is not what failed. ``got_name``/``want_name`` are the
+    designer's names for the two sides, when a side is a plain name;
+    ``unnamed_want`` says what the wanted side is when it has none."""
+    g, w = _bare(got), _bare(want)
+    if not (isinstance(g, TCollection) and isinstance(w, TCollection)):
+        return ""
+    if keys_fit(g.key, w.key):
+        return ""
+    if isinstance(g.key, TAny) or isinstance(w.key, TAny):
+        return (
+            " — the branches of its conditional do not hold their entries "
+            "the same way; give every branch the same shape"
+        )
+    if g.key is not None and w.key is not None:
+        return (
+            f" — {_side(got_name)} holds one entry per "
+            f"{_type_name(g.key).lower()} and {_side(want_name, unnamed_want)} one per "
+            f"{_type_name(w.key).lower()}; copy them one entry at a time"
+        )
+    key, name, unnamed = (
+        (g.key, got_name, "the value")
+        if g.key is not None
+        else (w.key, want_name, unnamed_want)
+    )
+    assert key is not None, "keys_fit refuses only when some side is keyed"
+    entry = f": `{name}[p]`" if name is not None else ""
+    return (
+        f" — {_side(name, unnamed)} holds one entry per "
+        f"{_type_name(key).lower()}, so it is read and written one entry "
+        f"at a time{entry}"
+    )
+
+
+def _side(name: str | None, unnamed: str = "the value") -> str:
+    return f"`{name}`" if name is not None else unnamed
+
+
+def _name_of(e: n.Expr) -> str | None:
+    return e.name if isinstance(e, n.NameRef) else None
 
 
 def _check_card_source(
@@ -1859,7 +1907,12 @@ def _check_card_source(
             source.span,
         )
         return
-    _refuse_keyed_elements(source, src_t, "'cards in ...' reads the cards of", env, bag)
+    _check_operand(
+        source, src_t, _UNKEYED_COLLECTION, env, bag,
+        f"'cards in ...' expects a zone or collection of cards, got "
+        f"{_type_name(src_t)}",
+        source.span,
+    )
 
 
 def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2017,12 +2070,8 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
     bare = _bare(t)
     if e.kind in ("empty", "not_empty"):
         surface = "is empty" if e.kind == "empty" else "is not empty"
-        if isinstance(bare, TCollection):
-            _refuse_keyed_elements(e.operand, t, f"`{surface}` asks for the members of", env, bag)
-            return
-        if isinstance(bare, TAny):
-            return
-        bag.error(
+        _check_operand(
+            e.operand, t, _UNKEYED_COLLECTION, env, bag,
             f"`{surface}` asks a zone or collection — got {_type_name(bare)}",
             e.operand.span,
         )
@@ -2143,6 +2192,8 @@ def _check_operand(
     bag: DiagnosticBag,
     msg: str,
     span: Span | None,
+    *,
+    expected_name: str | None = None,
 ) -> None:
     """The ONE operand-coercion check every `coercible(_, expected)` site routes
     through, so the seat-range check is applied at EVERY position an integer
@@ -2150,7 +2201,9 @@ def _check_operand(
     happen here and nowhere else:
 
       1. the coercion Owner Guard -- if `got` cannot stand where `expected` is
-         wanted, the site's own `msg` is reported at `span`; and
+         wanted, the site's own `msg` is reported at `span`, followed by the
+         entry-wise fix when the two differ by their key (`_key_hint`;
+         ``expected_name`` names the wanted side when the site has one); and
       2. the role-literal range check -- an out-of-range integer literal
          (`hand[5]` on a two-seat game) is rejected, a non-role `expected` making
          it a no-op so every operand routes through uniformly.
@@ -2170,7 +2223,7 @@ def _check_operand(
     day a new operand position calls `coercible` directly instead of routing
     here."""
     if not coercible(got, expected):
-        bag.error(msg, span)
+        bag.error(msg + _key_hint(got, expected, _name_of(node), expected_name), span)
     _check_role_literal(node, expected, env, bag)
 
 
@@ -2397,7 +2450,6 @@ def _check_participants(
             f"{where} — expected a collection of players, got {_type_name(pt)}",
             span,
         )
-        _refuse_keyed_elements(node, pt, f"{where} takes its players from", env, bag)
 
 
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2512,10 +2564,6 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
                     )
-                    if isinstance(_bare(param), TCollection):
-                        _refuse_keyed_elements(
-                            arg, got, f"{e.func}() reads the cards of", env, bag
-                        )
         if (
             e.func in RANKING_GATED_FUNCS
             and e.func not in env.functions
@@ -2748,13 +2796,15 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
             expr.span or rule.span,
         )
         return
+    message = (
+        f"rule '{rule.name}' `if_impossible:` must be a set of cards (a zone "
+        f"like `hand`, or a card query) or an `error(...)`, got "
+        f"{_type_name(got)}"
+    )
     if not (isinstance(got, TCollection) and isinstance(got.element, (TCard, TAny))):
-        bag.error(
-            f"rule '{rule.name}' `if_impossible:` must be a set of cards (a zone "
-            f"like `hand`, or a card query) or an `error(...)`, got "
-            f"{_type_name(got)}",
-            expr.span or rule.span,
-        )
+        bag.error(message, expr.span or rule.span)
+        return
+    _check_operand(expr, got, _UNKEYED_COLLECTION, env, bag, message, expr.span or rule.span)
 
 
 def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
@@ -2946,6 +2996,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             stmt.value, rhs, target, env, bag,
             f"cannot assign {_type_name(rhs)} to '{name}' ({_type_name(target)})",
             stmt.span,
+            expected_name=name,
         )
 
 

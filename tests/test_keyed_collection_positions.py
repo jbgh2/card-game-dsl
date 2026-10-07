@@ -40,6 +40,7 @@ does not prove:  a keyed map reached through the permissive top -- a Builtin
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import pytest
@@ -62,24 +63,29 @@ KEYS: dict[str, Type | None] = {
 }
 
 #: The authored decision: which (source key, wanted key) pairs fit. Present
-#: never fits absent; a present key fits the same domain, and the unknown key
-#: fits any present one (its domain is unknown, its keyedness is not).
+#: never fits absent, a present key fits only its own domain, and the unknown
+#: key fits only itself: a conditional mints it when its branches' keys
+#: disagree, so `score := if flag then score else [0, 0]` may install a list.
 FITS: frozenset[tuple[str, str]] = frozenset(
     {
         ("unkeyed", "unkeyed"),
         ("player", "player"),
         ("team", "team"),
-        ("player", "maybe-keyed"),
-        ("team", "maybe-keyed"),
-        ("maybe-keyed", "player"),
-        ("maybe-keyed", "team"),
         ("maybe-keyed", "maybe-keyed"),
     }
 )
 
-DEPTHS = {
-    "top": lambda key: TCollection(TInteger(), key=key),
-    "one level down": lambda key: TCollection(TCollection(TInteger(), key=key)),
+def _top(key: Type | None) -> Type:
+    return TCollection(TInteger(), key=key)
+
+
+def _one_level_down(key: Type | None) -> Type:
+    return TCollection(TCollection(TInteger(), key=key))
+
+
+DEPTHS: dict[str, Callable[[Type | None], Type]] = {
+    "top": _top,
+    "one level down": _one_level_down,
 }
 
 
@@ -225,12 +231,21 @@ ARGUMENTS: dict[str, dict[str, tuple[str, bool]]] = {
 #: one-entry spelling of whichever side is keyed.
 NAMES: dict[str, tuple[str, ...]] = {
     "probe": ("keyed by Player", "probe[p]"),
-    "maybe_cards": ("one branch of a conditional",),
+    "maybe_cards": ("one branch of a conditional", "give every branch the same shape"),
     "mates": ("keyed by Player", "mates[p]"),
     "nums": ("keyed by Player", "score[p]"),
     "[3, 4]": ("keyed by Player", "score[p]"),
     "tscore": ("keyed by Team", "keyed by Player"),
-    "maybe_nums": ("one branch of a conditional",),
+    "maybe_nums": ("one branch of a conditional", "give every branch the same shape"),
+}
+
+#: Membership's keyed side is each member of the right-hand collection, which
+#: has no one name to subscript.
+MEMBERSHIP_NAMES: dict[str, tuple[str, ...]] = {
+    "nums": ("keyed by Player", "each member of the collection holds one entry per player"),
+    "[3, 4]": ("keyed by Player", "each member of the collection holds one entry per player"),
+    "tscore": ("keyed by Team", "keyed by Player"),
+    "maybe_nums": ("one branch of a conditional", "give every branch the same shape"),
 }
 
 CELLS = [
@@ -253,7 +268,8 @@ def test_a_keyed_collection_stands_only_where_its_key_is_wanted(
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "g.cardlang")
     msg = str(ei.value)
-    for name in NAMES[spelling]:
+    names = MEMBERSHIP_NAMES if position == "membership element" else NAMES
+    for name in names[spelling]:
         assert name in msg, msg
     assert msg.count("error:") == 1, msg
 

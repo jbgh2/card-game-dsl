@@ -1359,9 +1359,18 @@ type, keyed by `Player`. Keyed collections — indexed lets and indexed
 state variables — carry their key domain, and subscript reads and
 indexed writes are checked against it (`n[hearts]` on a player-keyed
 store is a compile error). A keyed collection is addressed one entry at a
-time: where the language reads a collection's members — a native's
-collection parameter, a card query's or aggregation's source — a keyed one
-is refused, since its members would be read as its keys. A positional
+time, and its key decides where it may stand: it never stands where an
+unkeyed collection is wanted, nor an unkeyed one where it is wanted, nor
+where a collection keyed by another domain is wanted — wherever the
+language reads a collection's members (a native's collection parameter, a
+card query's or aggregation's source, `is empty`, a turn ring's players),
+compares two values, or assigns a whole variable. A crossing is refused at
+check time, naming the key and the one-entry spelling (`score[p]`): the
+runtime holds a keyed collection as a map, so its members would be read as
+its keys, a map never equals a list, and a whole-variable assignment would
+replace a store with a differently-keyed one. A conditional whose branches
+are keyed differently, or keyed and unkeyed, stands only where the same
+mixed shape is wanted. A positional
 collection — a `[...]` list, a board region such as `home(p)` — is
 addressed by an Integer position counted from 0; a position that does not
 type exactly Integer, a negative one, or a literal one past a length the
