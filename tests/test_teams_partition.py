@@ -37,8 +37,9 @@ domain:     {candidate `teams:` value} x {`players:` shape}. The candidate
             game is a coherent thing to write, nothing about it is known to be
             wrong, and no corpus game writes one. And a game declaring no
             `teams:` has no declaration to check at all — what its
-            team-reading constructs do with an empty partition is issues #299
-            and #300, not this guard's surface.
+            team-reading constructs do with an empty partition is
+            `tests/test_teamless_team_questions.py`'s surface, not this
+            guard's.
 registry:   `tests/teams_axes.py` derives both axes in code. The candidate
             axis is CLASSIFIED by `teams_axes.classify`, the one place the
             partition property is spelled out, which computes each cell's

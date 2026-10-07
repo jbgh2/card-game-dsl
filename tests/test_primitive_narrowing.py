@@ -107,7 +107,7 @@ from cardlang.resolve import _walk
 from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
-from cardlang.runtime.values import Card, Seating
+from cardlang.runtime.values import Card, Seating, TeamOf
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_DIR = REPO_ROOT / "cardlang" / "runtime"
@@ -781,7 +781,7 @@ def _live_state() -> RuntimeState:
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     rs.push_frame()
     rs.teams = (0, 1)
-    rs.team_of = {0: 0, 1: 1}
+    rs.team_of = TeamOf({0: 0, 1: 1})
     rs.rank_index = {"7": 0, "8": 1}
     rs.last_round_state = {"played": [], "marker": "terminal"}
     return rs
@@ -857,7 +857,7 @@ def _bundle_state() -> RuntimeState:
     for var in sorted(row.state_vars):
         rs.declare(var, False, None)
     rs.teams = (0, 1)
-    rs.team_of = {0: 0, 1: 1}
+    rs.team_of = TeamOf({0: 0, 1: 1})
     rs.rank_index = {"7": 0, "8": 1}
     return rs
 

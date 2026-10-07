@@ -222,7 +222,7 @@ def test_team_ownership_follows_the_observers_team() -> None:
     from cardlang.domains import zone_observer_key
     from cardlang.runtime.observe import _is_owner
     from cardlang.runtime.state import RuntimeState, ZoneStore
-    from cardlang.runtime.values import Seating
+    from cardlang.runtime.values import Seating, TeamOf
 
     decls = (
         n.ZoneDecl(
@@ -234,7 +234,7 @@ def test_team_ownership_follows_the_observers_team() -> None:
     rs = RuntimeState(
         Seating(4), ZoneStore(decls, (0, 1, 2, 3), teams=(0, 1)), random.Random(0)
     )
-    rs.team_of = {0: 0, 2: 0, 1: 1, 3: 1}
+    rs.team_of = TeamOf({0: 0, 2: 0, 1: 1, 3: 1})
     assert [zone_observer_key("team", rs, obs) for obs in (0, 1, 2, 3)] == [0, 1, 0, 1]
     assert zone_observer_key("player", rs, 3) == 3
     # Ownership of the instance keyed by team 0: partners 0 and 2, nobody else.
@@ -245,5 +245,5 @@ def test_team_ownership_follows_the_observers_team() -> None:
         False,
     ]
     # An observer with no team owns nothing and crashes nothing.
-    rs.team_of = {}
+    rs.team_of = TeamOf({})
     assert _is_owner(rs, "won", 0, 0) is False

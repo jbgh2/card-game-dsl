@@ -70,6 +70,11 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "player_holding":
             return _player_holding(args[0], ctx)
         case "team_of":
+            if not ctx.rs.teams:
+                raise ShadowGuardError(
+                    "resolve._validate_refs (a team question in a game with no `teams:`)",
+                    "`team_of` ran in a game whose team partition is empty",
+                )
             return ctx.rs.team_of[args[0]]
         case "suit_of":
             return _suit_of(args[0])

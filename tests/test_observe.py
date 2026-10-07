@@ -54,12 +54,12 @@ def test_ctx_observe_delivers_to_installed_observer() -> None:
 
 from cardlang.runtime import observe
 from cardlang.runtime.chooser import decide
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import Card, TeamOf
 
 
 def _ctx_with_log() -> tuple[Ctx, dict[int, list[tuple[Any, ...]]]]:
     rs = RuntimeState(Seating(4), _store(), random.Random(0))
-    rs.team_of = {0: 0, 1: 1, 2: 0, 3: 1}
+    rs.team_of = TeamOf({0: 0, 1: 1, 2: 0, 3: 1})
     logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(4)}
     ctx = Ctx(
         rs=rs,

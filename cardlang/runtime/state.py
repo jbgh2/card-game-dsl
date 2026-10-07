@@ -22,7 +22,7 @@ from cardlang.domains import (
     role_static_members,
 )
 from cardlang.runtime.errors import Located, OwnerGuardError, ShadowGuardError
-from cardlang.runtime.values import Card, Player, Seating
+from cardlang.runtime.values import Card, Player, Seating, TeamOf
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.builtins.signatures import Sig
@@ -372,7 +372,7 @@ class RuntimeState:
         self.score_var: str | None = None  # the winner's score var (None for loser games)
         self.trump: str | None = None  # the trump suit, if the game declares one
         self.teams: tuple[int, ...] = ()  # team ids (empty for teamless games)
-        self.team_of: dict[Player, int] = {}  # player -> their team id
+        self.team_of: TeamOf = TeamOf({})  # player -> their team id
         self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
         # rank -> card points, materialized over the deck's ranks from the
         # game's `card_points { }` clause; empty for a game declaring none.

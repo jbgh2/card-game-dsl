@@ -59,6 +59,7 @@ from cardlang.runtime.values import (
     Card,
     Player,
     Seating,
+    TeamOf,
     axis_attributes,
     build_deck,
     deck_ranks,
@@ -297,9 +298,7 @@ def play_game(
     # means clockwise.
     seating = Seating(game.players.count, clockwise=game.direction != "counterclockwise")
     teams = tuple(range(len(game.teams)))
-    team_of = {
-        p: ti for ti, members in enumerate(game.teams) for p in members
-    }
+    team_of = TeamOf.partition(game.teams)
     positions = dict(position_domains_of(game))
     zones = ZoneStore(game.zones, seating.players, teams, positions=positions)
     rs = RuntimeState(seating, zones, rng)
