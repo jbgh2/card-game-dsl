@@ -54,6 +54,8 @@ _MEMBERSHIP = re.compile(r"\bin\s+[\w.]*\bplayers\b(?!\s*(?:if|for)\b)")
     ],
 )
 def test_is_seat(value: object, seat: bool) -> None:
+    """red under: `Seating.is_seat` as `value in range(self.count)` -- both
+    Booleans then read as seats."""
     assert Seating(4).is_seat(value) is seat
 
 

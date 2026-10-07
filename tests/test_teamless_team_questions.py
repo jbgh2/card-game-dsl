@@ -99,7 +99,9 @@ def _diagnostics(source: str) -> str | None:
 
 def test_the_sentence_tables_cover_their_derivations() -> None:
     """A new role-ranging node or team Builtin reddens here before it can
-    drop out of the grid."""
+    drop out of the grid.
+
+    red under: the `ForEach` row dropped from `ROLE_SENTENCES`."""
     assert set(ROLE_SENTENCES) == role_nodes()
     assert set(BUILTIN_CALLS) == team_builtins()
 
@@ -133,7 +135,12 @@ def test_a_team_question_past_the_checker_fails_typed(cell: Cell) -> None:
     """The refusal turned off: the teamed game checks, then loses its
     partition before playing, which is what a leak in the check-time refusal
     would hand the runtime. The question then fails as the engine's gap,
-    never as a bare `KeyError` or an empty domain's silent answer."""
+    never as a bare `KeyError` or an empty domain's silent answer.
+
+    red under: the empty-partition check removed from the `team_of` Builtin
+    (`runtime/builtins.py`) -- the `team_of` cells then fail on the
+    accessor's `OwnerGuardError`; or removed from `domains._team_members`
+    -- the quantifier and `for each` cells then answer silently."""
     game = check_dsl(_source(cell, teams=TEAMS), "t.cardlang")
     with pytest.raises(ShadowGuardError, match="no `teams:`"):
         play_game(replace(game, teams=()), random.Random(0))
@@ -142,7 +149,10 @@ def test_a_team_question_past_the_checker_fails_typed(cell: Cell) -> None:
 def test_a_primitives_team_read_without_teams_fails_typed() -> None:
     """A Primitive reads the partition through its engine facts, with no
     check-time guard in front, so the accessor is the Owner Guard. The bundle
-    is a frozen copy, and the copy keeps the accessor."""
+    is a frozen copy, and the copy keeps the accessor.
+
+    red under: `TeamOf.__getitem__` reduced to `return self.of[seat]` -- a
+    bare `KeyError`."""
     rs = RuntimeState(Seating(4), ZoneStore((), (0, 1, 2, 3)), random.Random(0))
     facts = engine_facts(rs, None)
     with pytest.raises(OwnerGuardError, match="declares no `teams:`"):
@@ -151,6 +161,8 @@ def test_a_primitives_team_read_without_teams_fails_typed() -> None:
 
 @pytest.mark.parametrize("seat", [True, -1, 4, None], ids=repr)
 def test_a_non_seat_asking_its_team_fails_typed(seat: object) -> None:
+    """red under: `TeamOf.__getitem__` reduced to `return self.of[seat]` --
+    a bare `KeyError` (and `True` answered as seat 1's team)."""
     team_of = TeamOf.partition(((0, 2), (1, 3)))
     assert [team_of[p] for p in range(4)] == [0, 1, 0, 1]
     with pytest.raises(OwnerGuardError, match="not a seat of any team"):
