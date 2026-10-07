@@ -4,8 +4,9 @@ property:   a keyed collection -- an indexed `let`, a per-seat or per-team
             state variable -- is compatible with another collection only when
             the two keys agree: never with an unkeyed collection (a zone, a
             `[...]` list, a query result) in either direction, never across
-            key domains, at every depth; and every refusal names the key and
-            the one-entry spelling. The runtime holds a keyed collection as a
+            key domains, at every depth; every refusal names the key, and
+            offers the one-entry spelling exactly when the key is the only
+            mismatch. The runtime holds a keyed collection as a
             map, so a crossing reads the keys instead of the entries, compares
             a map with a list (never equal), or replaces a store with a
             differently-keyed one.
@@ -348,3 +349,30 @@ def test_two_same_keyed_values_still_compare_and_assign() -> None:
         _game("if score is bids { flag := true }\n    score := bids\n    tscore := tscore"),
         "g.cardlang",
     )
+
+
+#: The fix phrases a key refusal may append. Each is a remedy only when the
+#: key is the sole mismatch, since an entry of the wrong element type fits no
+#: better than the whole value.
+KEY_FIXES = ("one entry at a time", "give every branch the same shape")
+
+#: Positions where the key AND the element mismatch, one per caller of the
+#: hint: an operand position, a member-reading position, an assignment,
+#: equality, and membership's element.
+BOTH_MISMATCH: dict[str, str] = {
+    "builtin parameter": "if top_of(score) is A of spades { flag := true }",
+    "card source": "score[0] := sum of 1 over cards in score",
+    "assignment": "score := pair",
+    "assignment across domains": "score := [tscore, tscore]",
+    "equality": "if score is pair { flag := true }",
+    "membership element": "if pair in [score, bids] { flag := true }",
+}
+
+
+@pytest.mark.parametrize("case", BOTH_MISMATCH)
+def test_a_key_fix_is_offered_only_when_the_key_is_the_sole_mismatch(case: str) -> None:
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(_game(BOTH_MISMATCH[case]), "g.cardlang")
+    msg = str(ei.value)
+    assert "keyed" in msg, msg
+    assert not any(fix in msg for fix in KEY_FIXES), msg

@@ -98,6 +98,7 @@ from cardlang.types import (
     TTeam,
     Type,
     coercible,
+    elements_fit,
     join,
     keys_fit,
     subscriptable,
@@ -1520,7 +1521,8 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
     if not _comparable(lbare, rbare):
         bag.error(
             f"comparing {_type_name(lbare)} with {_type_name(rbare)} can never be "
-            f"equal" + _key_hint(lbare, rbare, _name_of(e.left), _name_of(e.right)),
+            f"equal"
+            + _key_hint(lbare, rbare, _name_of(e.left), _name_of(e.right), symmetric=True),
             e.span,
         )
 
@@ -1751,6 +1753,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             + _key_hint(
                 lbare, ebare, _name_of(e.left), None,
                 unnamed_want="each member of the collection",
+                symmetric=True,
             ),
             e.span,
         )
@@ -1813,16 +1816,22 @@ def _key_hint(
     want_name: str | None,
     *,
     unnamed_want: str = "the value",
+    symmetric: bool = False,
 ) -> str:
-    """The fix a refusal appends when two collections differ by their key
-    (`types.keys_fit`): the entry-wise spelling of whichever side is keyed.
-    Empty when the key is not what failed. ``got_name``/``want_name`` are the
-    designer's names for the two sides, when a side is a plain name;
-    ``unnamed_want`` says what the wanted side is when it has none."""
+    """The fix a refusal appends when the key is the ONLY reason two
+    collections do not fit (`types.keys_fit`, `types.elements_fit`): the
+    entry-wise spelling of whichever side is keyed. Empty otherwise, since an
+    entry of the wrong element type fits no better than the whole value.
+    ``got_name``/``want_name`` are the designer's names for the two sides,
+    when a side is a plain name; ``unnamed_want`` says what the wanted side
+    is when it has none; ``symmetric`` asks the elements in either direction,
+    for a comparison, which has no wanted side."""
     g, w = _bare(got), _bare(want)
     if not (isinstance(g, TCollection) and isinstance(w, TCollection)):
         return ""
     if keys_fit(g.key, w.key):
+        return ""
+    if not (elements_fit(g, w) or (symmetric and elements_fit(w, g))):
         return ""
     if isinstance(g.key, TAny) or isinstance(w.key, TAny):
         return (

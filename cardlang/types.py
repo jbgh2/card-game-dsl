@@ -378,3 +378,16 @@ def keys_fit(a: Type | None, b: Type | None) -> bool:
     if isinstance(a, TAny) or isinstance(b, TAny):
         return isinstance(a, TAny) and isinstance(b, TAny)
     return coercible(a, b) and coercible(b, a)
+
+
+def elements_fit(src: TCollection, dst: TCollection) -> bool:
+    """Whether ``src``'s elements may stand where ``dst``'s are wanted —
+    `coercible`'s collection arm with the key set aside, for a diagnostic
+    asking whether the key is the ONLY reason one collection does not stand
+    for the other.
+
+    >>> per_seat = TCollection(TInteger(), key=TPlayer())
+    >>> elements_fit(per_seat, TCollection(TInteger())), elements_fit(per_seat, TCollection(TCard()))
+    (True, False)
+    """
+    return coercible(src.element, dst.element)
