@@ -11,10 +11,9 @@ practised correctly exactly once".
 This module witnesses those written as a comparison against a literal
 collection, which is the shape whose conjuncts can each be fired by widening a
 registry — the cells are DERIVED, so the module never states how many there
-are. `openspiel/replay`'s returns keying is the one practising site outside
-that shape: it pins by raising past an exhausted if-chain, comparing nothing;
-it is witnessed at `tests/test_openspiel_returns_keying.py`, and the census
-cannot see its shape (issue #171).
+are. The result's seat keying (`driver.SEAT_KEY_BY_ROLE`) practises it as a
+table rather than a literal: its guard is in the census below, and its pin
+against the registry is `tests/test_openspiel_returns_keying.py`.
 
 Neither had a witness, and the reason is structural rather than an oversight:
 **both conjuncts are tautologically true against today's registry**, and no
@@ -633,7 +632,16 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
         "node.op not in EPISTEMIC_OP_DRAWS",
         "node.selection_mode not in SELECTION_MODE_DRAWS",
     ],
-    "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
+    # The second: the result's seat keying. `SEAT_KEY_BY_ROLE` is reconciled
+    # against `ZONE_INDEX_ROLES` by
+    # test_the_mapping_covers_every_zone_index_role, and the raise is
+    # executed by test_an_unhandled_index_role_raises_rather_than_defaulting
+    # (tests/test_openspiel_returns_keying.py), which re-stamps a clause's
+    # index role to one the table lacks.
+    "runtime/driver.py": [
+        "game.winner.rank_dir not in RANK_DIR_TO_PICK",
+        "role not in SEAT_KEY_BY_ROLE",
+    ],
     # The Hosted Poll's statement Shadow Guard: a statement a body executes,
     # checked against the table resolve's `_check_hosted_polls` judges by
     # (cardlang/stdlib/hosted_poll.py), so admitting a kind there admits it

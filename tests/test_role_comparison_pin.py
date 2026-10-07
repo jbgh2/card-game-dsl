@@ -65,7 +65,7 @@ domain:     the first half is mypy's, over every expression in the package --
             anyone could have got wrong. R4 -- auditor-only, and it guards no
             information-set guarantee; whether to sweep it at all is issue #152.
 registry:   `cardlang.domains.Role` for the spellings; `cardlang/**/*.py[i]`
-            for the modules. `_RETURNS_KEYED_ROLES` against `ZONE_INDEX_ROLES`:
+            for the modules. `SEAT_KEY_BY_ROLE` against `ZONE_INDEX_ROLES`:
             tests/test_openspiel_returns_keying.py.
 does not prove:  that any authorized coincidence IS one. The guard compares a
             per-module MULTISET of spellings, so replacing one `"player"` with
@@ -163,13 +163,8 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
 # a role dispatch. `runtime/values.py` holds the card flavor's AXIS spellings,
 # reserved against a piece set claiming them, plus the deck's own rank and
 # suit names.
-# `openspiel/replay.py`'s pair is `_RETURNS_KEYED_ROLES`, the NAMES that
-# module's diagnostic lists; the dispatch beside it is over `Role`, and the two
-# are reconciled against `ZONE_INDEX_ROLES` by
-# tests/test_openspiel_returns_keying.py.
 _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
     "ir.py": ["player", "player", "rank", "rank", "suit"],
-    "openspiel/replay.py": ["player", "team"],
     "parse.py": ["player", "player", "rank", "rank", "suit", "suit", "team", "team"],
     "resolve.py": ["player", "player", "player", "player", "rank", "rank", "rank", "suit", "suit"],
     "runtime/evaluate.py": ["player", "player"],

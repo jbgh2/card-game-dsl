@@ -53,7 +53,7 @@ under a decision CAP (`STEP_CAP`, env-tunable via
 knob"), well under every corpus game's declared `max_length`; a cutoff trace
 compares its recorded prefix only, never the (unreached) `GameResult`. A game
 whose greedy line naturally terminates before the cap compares its
-`GameResult` (scores/winner/loser) too, per the plan ("the sequence of
+`GameResult` (scores/winners/loser) too, per the plan ("the sequence of
 decisions, movements, and the final GameResult").
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)
@@ -258,8 +258,8 @@ def run_pair(
 
 def _result_tuple(
     r: GameResult,
-) -> tuple[tuple[tuple[Player, int], ...], Player | None, Player | None]:
-    return tuple(sorted(r.scores.items())), r.winner, r.loser
+) -> tuple[tuple[tuple[int, int], ...], tuple[Player, ...], Player | None]:
+    return tuple(sorted(r.scores.items())), tuple(sorted(r.winners)), r.loser
 
 
 def compare_traces(

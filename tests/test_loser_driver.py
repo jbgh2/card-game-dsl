@@ -1,9 +1,10 @@
 """`loser:` game result + driver generalization (Getaway).
 
-Getaway has no winner and no score variable: the game ends when one player is
-left holding cards, and that player is the loser. This pins down that the driver
-computes a result from a player-valued selection — not from a numeric score var
-— so `GameResult` carries a winner OR a loser.
+Getaway has no score variable: the game ends when one player is left holding
+cards, and that player is the loser. This pins down that the driver computes a
+result from a player-valued selection — not from a numeric score var — so the
+`GameResult` of a `loser:` game names its loser, and its winners are every
+other seat.
 """
 
 from __future__ import annotations
@@ -34,9 +35,10 @@ game LoserTest {
 def test_driver_computes_a_loser_without_a_score_var() -> None:
     game = check_dsl(LOSER_GAME, "loser.dsl")
     result = play_game(game, random.Random(0))
-    # A loser emerged; no winner, no scores.
+    # A loser emerged; every other seat wins, and there are no scores.
     assert result.loser is not None
-    assert result.winner is None
+    assert result.winners == frozenset(range(4)) - {result.loser}
     assert result.scores == {}
+    assert result.seat_scores == ()
     # The loser is whoever holds the ace of spades (deterministic, unshuffled).
     assert result.loser in range(4)

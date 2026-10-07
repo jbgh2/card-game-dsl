@@ -210,7 +210,9 @@ def test_move_param_scopes_to_its_move_both_directions() -> None:
 
     # Direction A (the dangerous one): the game runs — the outside `strain` read is
     # state, not an unbound local.
-    assert play_game(game, random.Random(0)).winner in (0, 1)
+    played = play_game(game, random.Random(0))
+    top = max(played.scores.values())
+    assert played.winners == {p for p, s in played.scores.items() if s == top}
 
     # Direction B: inside the move's effect, `strain` is the parameter (local).
     bid = next(m for m in game.move_types if m.name == "bid")

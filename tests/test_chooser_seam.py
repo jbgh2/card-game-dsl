@@ -34,4 +34,5 @@ def test_chooser_abort_propagates_with_live_state() -> None:
 def test_default_chooser_unchanged() -> None:
     game = check_source(HEARTS)
     result = play_game(game, random.Random(0))  # no chooser -> random_chooser
-    assert result.winner in range(4)
+    low = min(result.scores.values())
+    assert result.winners == {p for p, s in result.scores.items() if s == low}

@@ -24,6 +24,6 @@ move_type take_one { effect { coins[actor] += 1 } }
 def test_driver_builds_move_type_index_and_game_runs() -> None:
     game = check_dsl(SRC, "g.cardlang")
     result = play_game(game, random.Random(0))
-    # 2 players, 3 rounds, each player takes one coin per round -> 3 coins each; winner is player 0 or 1.
+    # 2 players, 3 rounds, each player takes one coin per round -> 3 coins each, so both players win.
     assert result.scores[0] == 3 and result.scores[1] == 3
-    assert result.winner in (0, 1)
+    assert result.winners == frozenset({0, 1})

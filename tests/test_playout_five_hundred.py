@@ -409,9 +409,12 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
     # Exactly one champion, fixed by the scoring rules: a contract win
     # crossing +500, or the other side out backwards at -500.
     final = hand_scores[-1]
-    assert result.winner is not None
-    loser = 1 - result.winner
-    assert final[result.winner] >= 500 or final[loser] <= -500, f"seed {seed}: {final}"
+    champions = {team_of[p] for p in result.winners}
+    assert len(champions) == 1, f"seed {seed}: {sorted(result.winners)}"
+    champion = champions.pop()
+    assert result.winners == frozenset(game.teams[champion])
+    loser = 1 - champion
+    assert final[champion] >= 500 or final[loser] <= -500, f"seed {seed}: {final}"
 
     # The legality rules, judged on the CANDIDATE SETS the acting seats were
     # offered rather than on the cards that came out of them (see `_Table.offered`).
@@ -605,8 +608,9 @@ def test_seed0_characterization() -> None:
     # pools, the declaration-order action space). The vector also depends on
     # the canonical gather order (`move all cards to deck` collects zones in
     # sorted-name order), which feeds the pre-shuffle deck permutation.
-    table, _census, hand_scores, result = _play(_five_hundred(), 0)
-    assert result.winner == 1
+    game = _five_hundred()
+    table, _census, hand_scores, result = _play(game, 0)
+    assert result.winners == frozenset(game.teams[1])
     assert hand_scores == [{0: -520, 1: 70}]
     assert len(table.hands) == 1
     hand = table.hands[0]

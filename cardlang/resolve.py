@@ -36,7 +36,10 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               head from `declarable_type_names`, a collection's element from
               `COLLECTION_ELEMENT_NAMES` — and no name declared or minted at
               any of the sites in ``RESERVATION_SITES`` takes a spelling one of
-              ``POSITION_NAME_SOURCES`` already holds.
+              ``POSITION_NAME_SOURCES`` already holds. And a ``winner:``
+              clause carries its target declaration's index role
+              (``Winner.keyed_by``), so no later pass walks state
+              declarations to learn how the result is keyed.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -715,9 +718,12 @@ _OPAQUE_SLOTS: frozenset[tuple[type, str]] = frozenset(
     }
 )
 
-# The two slots this pass owns itself.
+# The slots this pass owns itself: a name it classifies, and the facts it
+# stamps -- a reference's kind, a `winner:` clause's index role.
 _CLASSIFIED_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "name")})
-_METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "ref_kind")})
+_METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
+    {(n.NameRef, "ref_kind"), (n.Winner, "keyed_by")}
+)
 
 
 # The registry as one view: slot -> kind. Derived from the seven tables above so
@@ -2461,7 +2467,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_delegation(game, bag)
     _check_implicit_pools(game, bag)
     _check_hidden_reads(game, bag)
-    _check_winner_target(game, bag)
+    game = _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
     _resolve_winner_loser(game, bag)
@@ -3798,8 +3804,10 @@ _OWN_POOL_BLIND = (
 )
 
 
-def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
-    """A `winner:` target must be a state variable a game can be ranked by.
+def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
+    """A `winner:` target must be a state variable a game can be ranked by,
+    and the game it returns carries the target's index role on its `winner:`
+    clause (`Winner.keyed_by`) -- the one fact the result is keyed through.
 
     Resolve already walls the NAME -- undeclared, or declared inside a phase
     -- and says nothing about the DECLARATION it lands on. Two of that
@@ -3825,12 +3833,12 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
     The grid is tests/test_winner_target.py.
     """
     if game.winner is None or game.state is None:
-        return
+        return game
     decl = next(
         (d for d in game.state.decls if d.name == game.winner.state_var), None
     )
     if decl is None:
-        return
+        return game
     what = f"`winner:` ranks the game on state variable '{decl.name}', "
     if decl.index is None:
         bag.error(
@@ -3840,14 +3848,14 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
             f"per-member value to rank",
             game.winner.span,
         )
-        return
+        return game
     if decl.optional:
         bag.error(
             f"{what}declared `{decl.type_name}?` — an optional score may be "
             f"`none`, which cannot be ranked against a number",
             game.winner.span,
         )
-        return
+        return game
     if decl.type_name not in _RANKABLE_TYPES:
         rankable = ", ".join(sorted(_RANKABLE_TYPES))
         bag.error(
@@ -3856,6 +3864,8 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
             f"the game's OpenSpiel returns",
             game.winner.span,
         )
+        return game
+    return replace(game, winner=replace(game.winner, keyed_by=decl.index))
 
 
 def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:

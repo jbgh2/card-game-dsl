@@ -110,9 +110,18 @@ def test_on_first_decision_mutates_the_replayed_world() -> None:
 
 def test_returns_for_team_scored_game_maps_players_through_teams() -> None:
     game, _ = load(str(GAMES / "bridge.cardlang"))
-    from cardlang.runtime.driver import GameResult
+    from cardlang.runtime.driver import GameResult, seat_scores_of
+    from cardlang.runtime.values import TeamOf
 
-    result = GameResult(scores={0: 120, 1: 90}, winner=0, loser=None, hands_played=1)
+    assert game.winner is not None
+    scores = {0: 120, 1: 90}
+    result = GameResult(
+        scores=scores,
+        seat_scores=seat_scores_of(game.winner, scores, TeamOf.partition(game.teams), 4),
+        winners=frozenset(game.teams[0]),
+        loser=None,
+        hands_played=1,
+    )
     rets = returns_for(game, result)
     assert len(rets) == 4
     team_of = {p: ti for ti, members in enumerate(game.teams) for p in members}
@@ -123,8 +132,14 @@ def test_returns_for_loser_game() -> None:
     game, _ = load(str(GAMES / "getaway.cardlang"))
     from cardlang.runtime.driver import GameResult
 
-    result = GameResult(scores={}, winner=None, loser=2, hands_played=1)
     n = game.players.count
+    result = GameResult(
+        scores={},
+        seat_scores=(),
+        winners=frozenset(range(n)) - {2},
+        loser=2,
+        hands_played=1,
+    )
     rets = returns_for(game, result)
     assert rets[2] == float(-(n - 1))
     assert all(rets[p] == 1.0 for p in range(n) if p != 2)

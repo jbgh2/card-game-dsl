@@ -189,7 +189,8 @@ def test_30_random_games_satisfy_invariants() -> None:
         assert census["total"] == 52, f"seed {seed}: {census}"
         assert census["hands_with_cards"] == 1, f"seed {seed}: {census}"
         assert result.scores == hand_totals[-1], f"seed {seed}: final score mismatch"
-        assert result.winner == max(result.scores, key=lambda p: result.scores[p])
+        top = max(result.scores.values())
+        assert result.winners == {p for p, s in result.scores.items() if s == top}
         assert max(result.scores.values()) >= 11, (
             f"seed {seed}: game ended below the 11-point target"
         )
@@ -211,7 +212,7 @@ for seed in range(40):
     r = play_game(game, random.Random(seed))
     out[str(seed)] = {
         "scores": {str(p): s for p, s in sorted(r.scores.items())},
-        "winner": r.winner,
+        "winners": sorted(r.winners),
     }
 print(json.dumps(out))
 """

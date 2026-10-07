@@ -46,4 +46,8 @@ def test_pass_out_routes_through_skip_to_next_hand() -> None:
     result = play_game(game, random.Random(1), tracer=tracer, chooser=chooser)
 
     assert any(c.get("all_pass") for c in contracts)  # the pass-out arm fired
-    assert result.winner in (0, 1)  # ...and the rubber still completed (no crash)
+    # ...and the rubber still completed (no crash), won by the top side's seats
+    top = max(result.scores.values())
+    assert result.winners == {
+        p for t, s in result.scores.items() if s == top for p in game.teams[t]
+    }

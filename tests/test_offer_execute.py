@@ -27,7 +27,8 @@ def test_offer_runs_a_chosen_effect_each_round() -> None:
     result = play_game(game, random.Random(3))
     for p in (0, 1):
         assert 10 <= result.scores[p] <= 20
-    assert result.winner == max(result.scores, key=lambda p: result.scores[p])
+    top = max(result.scores.values())
+    assert result.winners == {p for p, s in result.scores.items() if s == top}
 
 
 def test_guard_filters_illegal_moves() -> None:

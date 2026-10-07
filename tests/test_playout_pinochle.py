@@ -142,7 +142,8 @@ def test_150_random_games_satisfy_invariants() -> None:
         # driver reports is a win and a loss, and the raw totals are not
         # visible from outside at all. Exactly one side wins.
         assert sorted(result.scores.values()) == [0, 1]
-        assert result.winner == max(result.scores, key=lambda t: result.scores[t])
+        (winning_team,) = (t for t, s in result.scores.items() if s == 1)
+        assert result.winners == frozenset(game.teams[winning_team])
 
         # Card and counter-value conservation.
         assert census["total"] == 48, f"seed {seed}: {census}"

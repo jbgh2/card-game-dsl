@@ -235,7 +235,7 @@ import pytest
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
-from cardlang.runtime.driver import play_game
+from cardlang.runtime.driver import RANK_DIR_TO_PICK, play_game
 from cardlang.runtime.values import Player
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
@@ -341,12 +341,19 @@ def _stream_digest(game_file: str, seed: int, excluded: frozenset[str]) -> str:
             traces.append((name, data))
 
     result = play_game(game, rng, tracer, random_chooser(rng), observer=observer)
+    assert game.winner is not None
+    # The `winner` line is the first key ranking best in the scores dict -- a
+    # function of the `scores` line, rendered in the shape the hash files
+    # were captured in. The result's own `winners` set is held to the returns
+    # by tests/test_route_agreement.py.
+    pick = RANK_DIR_TO_PICK[game.winner.rank_dir]
+    first_best = pick(result.scores, key=result.scores.__getitem__)
     rendering = "\n".join(
         [
             *(f"{p} {event!r}" for p, event in events),
             *(f"trace {name} {data!r}" for name, data in traces),
             f"scores {sorted(result.scores.items())!r}",
-            f"winner {result.winner!r}",
+            f"winner {first_best!r}",
             f"hands {result.hands_played!r}",
         ]
     )

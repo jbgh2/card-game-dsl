@@ -60,7 +60,8 @@ def test_function_is_callable_at_runtime() -> None:
     game = check_dsl(SRC, "fn.cardlang")
     for seed in range(20):
         result = play_game(game, random.Random(seed))  # must not raise
-        assert result.winner in (0, 1, 2)
+        top = max(result.scores.values())
+        assert result.winners == {p for p, s in result.scores.items() if s == top}
 
 
 def test_unknown_function_call_is_rejected() -> None:

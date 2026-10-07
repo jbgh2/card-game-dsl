@@ -115,9 +115,10 @@ def test_200_random_games_satisfy_invariants() -> None:
         recon = SchnapsenTricks()
         result = play_game(game, random.Random(seed), tracer, observer=recon.observer)
 
-        # Terminates with a winner who reached 0 (or below); winner is lowest.
-        assert result.winner == min(result.scores, key=lambda p: result.scores[p])
-        assert result.scores[result.winner] <= 0
+        # Terminates with winners who reached 0 (or below); winners are lowest.
+        low = min(result.scores.values())
+        assert result.winners == {p for p, s in result.scores.items() if s == low}
+        assert low <= 0
 
         # Deck integrity: 20 cards, exactly 120 card points, across all zones.
         assert census["total"] == 20, f"seed {seed}: {census}"

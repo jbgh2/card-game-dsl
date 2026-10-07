@@ -51,9 +51,9 @@ def test_cheat_plays_to_completion(seed: int) -> None:
 
     # Exactly one player shed out and survived their final window: the winner.
     assert result.loser is None
-    assert result.winner is not None
-    winners = [p for p, w in result.scores.items() if w]
-    assert winners == [result.winner], f"seed {seed}: {result.scores}"
+    shed_out = {p for p, w in result.scores.items() if w}
+    assert len(shed_out) == 1, f"seed {seed}: {result.scores}"
+    assert result.winners == shed_out, f"seed {seed}: {result.scores}"
 
     # Card conservation: all 52 cards still somewhere (a hand or the face-down
     # pile; `played`/`flipped` empty out inside every adjudication).
@@ -119,6 +119,6 @@ def test_seed0_characterization() -> None:
     result = play_game(
         game, random.Random(0), on_first_decision=lambda rs: rs_box.append(rs)
     )
-    assert result.winner == 3
+    assert result.winners == frozenset({3})
     assert result.scores == {0: False, 1: False, 2: False, 3: True}
     assert rs_box[0].decisions_made == 151

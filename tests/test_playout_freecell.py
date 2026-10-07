@@ -88,7 +88,7 @@ def _resign_averse_playout(seed: int, budget: int = 400) -> int:
     )
     _check_invariants(rs_ref["rs"])
     assert result.loser is None
-    assert result.winner == 0
+    assert result.winners == frozenset({0})
     assert set(result.scores) == {0}
     assert 0 <= result.scores[0] <= 52
     return result.scores[0]
@@ -110,7 +110,7 @@ def test_freecell_plays_to_completion_under_pure_random(seed: int) -> None:
 
     result = play_game(game, random.Random(seed), tracer)
     assert census["total"] == 52
-    assert result.winner == 0 and result.loser is None
+    assert result.winners == frozenset({0}) and result.loser is None
     assert 0 <= result.scores[0] <= 52
 
 

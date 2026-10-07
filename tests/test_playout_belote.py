@@ -599,9 +599,12 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
             totals[t] += d
     assert totals == result.scores, f"seed {seed}: {totals} != {result.scores}"
     assert max(result.scores.values()) >= 1000
-    assert result.winner in [
-        t for t, s in result.scores.items() if s == max(result.scores.values())
-    ]
+    assert result.winners == frozenset(
+        p
+        for t, s in result.scores.items()
+        if s == max(result.scores.values())
+        for p in game.teams[t]
+    )
     return arms
 
 
@@ -710,7 +713,7 @@ def test_seed0_characterization() -> None:
     game = check_source(BELOTE)
     table, result = _play(game, 0)
     assert result.scores == {0: 1106, 1: 998}
-    assert result.winner == 0
+    assert result.winners == frozenset(game.teams[0])
     hand = table.hands[0]
     assert (hand.taker, hand.trump, str(hand.turnup)) == (0, "diamonds", "Q♦")
     assert len(hand.tricks) == TRICKS_PER_HAND

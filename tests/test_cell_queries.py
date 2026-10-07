@@ -554,7 +554,7 @@ def test_scripted_x_wins_by_completing_a_line() -> None:
     result, filled_counts, _ = _scripted_play(["a1", "a2", "b1", "b2", "c1"])
     assert filled_counts == [0, 1, 2, 3, 4]
     assert result.scores == {0: 1, 1: -1}
-    assert result.winner == 0
+    assert result.winners == frozenset({0})
 
 
 def test_scripted_full_board_draw_flips_all_cells_and_count_at_nine() -> None:

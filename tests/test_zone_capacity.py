@@ -154,4 +154,4 @@ def test_freecell_playout_never_trips_the_capacity_guard() -> None:
     game = check_source(FREECELL)
     for seed in range(5):
         result = play_game(game, random.Random(seed))
-        assert result.winner == 0  # the sole player, in a 1-player game
+        assert result.winners == frozenset({0})  # the sole player, in a 1-player game

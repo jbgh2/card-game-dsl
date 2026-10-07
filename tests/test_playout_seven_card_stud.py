@@ -64,11 +64,11 @@ def test_15_random_games_satisfy_invariants() -> None:
 
         # Chip conservation: 4 players × 100 starting chips, always.
         assert sum(result.scores.values()) == 400, f"seed {seed}: {result.scores}"
-        # Terminates with at most one player holding chips; winner holds them all.
+        # Terminates with one player holding chips, who wins holding them all.
         with_chips = [p for p, s in result.scores.items() if s > 0]
         assert len(with_chips) == 1, f"seed {seed}: {result.scores}"
-        assert result.winner == with_chips[0]
-        assert result.scores[result.winner] == 400
+        assert result.winners == frozenset(with_chips)
+        assert result.scores[with_chips[0]] == 400
         # Card conservation.
         assert census["total"] == 52, f"seed {seed}: {census}"
     assert time.monotonic() - start < 60  # stays comfortably fast

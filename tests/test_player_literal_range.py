@@ -138,7 +138,10 @@ _OUT_OF_RANGE = [
 
 @pytest.mark.parametrize("label, body", _OUT_OF_RANGE, ids=[x[0] for x in _OUT_OF_RANGE])
 def test_out_of_range_seat_literal_is_rejected(label: str, body: str) -> None:
-    msg = _reject(card_game(body=body))
+    # A `team_of` call is a team question, so its game declares teams; the
+    # refusal under test is then the seat literal's alone.
+    players = "  players: 2\n  teams: [[0], [1]]\n" if "team_of(" in body else "  players: 2\n"
+    msg = _reject(card_game(players=players, body=body))
     # The offending seat is the actual literal (5), and the count is the game's
     # (2) -- distinct numbers, each reported from its own source.
     assert "seat 5 is out of range" in msg

@@ -8,7 +8,7 @@ the prize, equal bids discard it — the native-OpenSpiel/Pagat-variant tie
 rule the game file declares). Every seed is replayed and EVERYTHING is
 recomputed independently from player 0's observation log — an implementation
 of the rules written against the observation channel, not the runtime — and
-the driver's final scores, winner, and routing movements must match exactly.
+the driver's final scores, winners, and routing movements must match exactly.
 """
 
 from __future__ import annotations
@@ -107,7 +107,7 @@ def _run_and_verify(game: Any, seed: int) -> int:
     assert points[0] + points[1] + discarded == 91, f"seed {seed}"
     assert result.scores == points, f"seed {seed}: {result.scores} != {points}"
     top = max(result.scores.values())
-    assert result.winner in [p for p, s in result.scores.items() if s == top], (
+    assert result.winners == {p for p, s in result.scores.items() if s == top}, (
         f"seed {seed}"
     )
     return ties
@@ -142,7 +142,7 @@ for seed in range(40):
     r = play_game(game, random.Random(seed))
     out[str(seed)] = {
         "scores": {str(p): s for p, s in sorted(r.scores.items())},
-        "winner": r.winner,
+        "winners": sorted(r.winners),
     }
 print(json.dumps(out))
 """

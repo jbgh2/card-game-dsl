@@ -732,7 +732,8 @@ def _verify(table: _Table, result: Any, label: str) -> Counter[str]:
 
     assert sum(scores.values()) == 0, f"{label}: the settlement is not zero-sum"
     assert scores == result.scores, f"{label}: {scores} != {result.scores}"
-    assert result.winner == max(result.scores, key=lambda p: result.scores[p])
+    best = max(result.scores.values())
+    assert result.winners == {p for p, s in result.scores.items() if s == best}
     return arms
 
 
@@ -1122,6 +1123,6 @@ def test_seed0_characterization() -> None:
     game = check_source(TAROT)
     table, result = _play(game, random.Random(0))
     assert result.scores == {0: 896, 1: 984, 2: -788, 3: -1092}
-    assert result.winner == 1
+    assert result.winners == frozenset({1})
     assert len(table.hands) == HANDS
     assert table.hands[0].taker == 2 and table.hands[0].level == 4

@@ -105,7 +105,7 @@ from cardlang.builtins.functions import (
     DECK_ONLY_CALL_FUNCS,
 )
 from cardlang.diagnostics import DiagnosticError
-from cardlang.domains import CARD_AXIS_ROLES, PARAM_DOMAIN_ORDER, role_of
+from cardlang.domains import CARD_AXIS_ROLES, PARAM_DOMAIN_ORDER, Role, role_of
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.values import content_kind_clause
@@ -383,7 +383,8 @@ def test_trump_accepted_in_card_game() -> None:
 # `any suit where`, `for each rank` etc. range over deck axes; the card-axis
 # roles (CARD_AXIS_ROLES = suit, rank) are rejected in a piece game, the seat
 # roles (player, team) stay legal in both. `_ROLE_QUANTIFIER` spells each role's
-# `any <role> where` surface; team needs a team to be non-degenerate.
+# `any <role> where` surface; a team question needs the game to declare teams,
+# so the team cells carry a `teams:` clause.
 
 _ROLE_QUANTIFIER: dict[str, str] = {
     "suit": "any suit where true",
@@ -391,6 +392,10 @@ _ROLE_QUANTIFIER: dict[str, str] = {
     "player": "any player where true",
     "team": "any team where true",
 }
+def _teams_for(role: str) -> str:
+    return "  teams: [[0], [1]]\n" if role_of(role) is Role.TEAM else ""
+
+
 _ROLE_FOREACH: dict[str, str] = {
     "suit": "for each suit s: n += 0\n",
     "rank": "for each rank r: n += 0\n",
@@ -406,8 +411,8 @@ def test_quantifier_role_flavor(role: str) -> None:
         assert PIECE_KIND in _reject(piece_game(filt=q))
         _accept(card_game(filt=q))
     else:
-        _accept(piece_game(filt=q))
-        _accept(card_game(filt=q))
+        _accept(piece_game(clause=_teams_for(role), filt=q))
+        _accept(card_game(clause=_teams_for(role), filt=q))
 
 
 @pytest.mark.parametrize("role", sorted(_ROLE_FOREACH))
@@ -417,8 +422,8 @@ def test_for_each_role_flavor(role: str) -> None:
         assert PIECE_KIND in _reject(piece_game(body=f"    {stmt}"))
         _accept(card_game(body=f"    {stmt}"))
     else:
-        _accept(piece_game(body=f"    {stmt}"))
-        _accept(card_game(body=f"    {stmt}"))
+        _accept(piece_game(clause=_teams_for(role), body=f"    {stmt}"))
+        _accept(card_game(clause=_teams_for(role), body=f"    {stmt}"))
 
 
 # --- move-parameter domains ------------------------------------------------
@@ -572,4 +577,4 @@ def test_minimal_piece_game_runs_one_playout() -> None:
     game = check_dsl(piece_game(body=body), "piece.cardlang")
     result = play_game(game, random.Random(0))
     assert result.scores == {0: 5, 1: 0}
-    assert result.winner == 0
+    assert result.winners == frozenset({0})

@@ -122,8 +122,8 @@ typechecker re-synthesizes surface spellings for diagnostics by hand
 
 **F-11 · The acting player:** `actor` (pronoun), `Ctx.current_player`, `next_actor`,
 "decider" (driver.py:151), "participant" (`Round.participants`), and `seat` — which is
-load-bearing in comments and the OpenSpiel layer ("the challenger's seat",
-`_score_key_by_seat`) but is neither a surface word nor a code type. `seat` vs
+load-bearing in comments and the engine ("the challenger's seat",
+`seat_scores_of`) but is neither a surface word nor a code type. `seat` vs
 `player` vs `actor` deserve the three distinct meanings the glossary assigns them.
 
 **F-12 · The Boolean sub-expression field:** `filter`, `pred`, `cond`, `guard`,
@@ -182,8 +182,9 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
 - `DecisionForm.next_actor` reads as a query but mutates the cursor — calling it
   twice skips a player (mechanics.py:154, 372, 539). `AuctionForm.init` clears
   another form's residue (`last_round_state = None`, :339).
-- `GameResult.scores: dict[Player, int]` / `winner: Player` may be team-keyed —
-  known as issue #154; `Player = int` makes the type unable to say so.
+- `GameResult.scores` is keyed by the `winner:` target's own index domain, team
+  ids included; it is typed `dict[int, int]` and the per-seat reading is
+  `GameResult.seat_scores`.
 - Stale scope claims: `runtime/__init__.py` "(Hearts vertical slice)",
   `state.py:256` points at `run_trick`, which no longer exists.
 

@@ -38,8 +38,7 @@ def test_40_random_games_satisfy_invariants() -> None:
         # Exactly one survivor, who is the winner.
         survivors = [p for p, a in result.scores.items() if a == 1]
         assert len(survivors) == 1, f"seed {seed}: alive = {result.scores}"
-        assert result.winner == survivors[0]
-        assert result.winner == max(result.scores, key=lambda p: result.scores[p])
+        assert result.winners == frozenset(survivors)
 
         # Conservation: 50 coins and 15 influence cards, always.
         totals = coup_totals(terminal)

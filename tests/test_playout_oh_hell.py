@@ -58,7 +58,8 @@ def test_100_random_games_satisfy_invariants() -> None:
         result = play_game(game, random.Random(seed), tracer)
 
         assert result.hands_played == 19
-        assert result.winner == max(result.scores, key=lambda p: result.scores[p])
+        top = max(result.scores.values())
+        assert result.winners == {p for p, s in result.scores.items() if s == top}
 
         # Conservation: 52 cards survive; no hand holds cards at the end.
         assert census["total"] == 52, f"seed {seed}: census {census}"

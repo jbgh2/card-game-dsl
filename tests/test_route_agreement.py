@@ -8,7 +8,8 @@ property:        A native playout — `driver.play_game` under a Chooser that
                  action ids, and every seat's information state is the same
                  string, the `state:` segment and the observation log
                  included. Played to the end, the two agree on the returns,
-                 and every seat's whole observation log is the log the
+                 the result's winners are exactly the seats those returns pay
+                 best, and every seat's whole observation log is the log the
                  adapter's replay of the same picks records.
 domain:          Every game in the adapter registry (`GAMES`), at each seed in
                  `_SEEDS`, under the game's reference policy where a uniform
@@ -26,7 +27,13 @@ does not prove:  The positions inside a multi-pick call past its first pick:
                  Lines under any other Chooser, calls outside
                  `_CALLS` (the final logs compare every event, so a record
                  missing or doubled anywhere is still caught), and seeds
-                 outside `_SEEDS`.
+                 outside `_SEEDS`. The winners check shares the driver's
+                 per-seat keying with the returns (`driver.seat_scores_of`),
+                 so it holds the rank-direction tables and the elimination
+                 arm to each other, not the keying -- that is
+                 tests/test_openspiel_returns_keying.py -- nor that the best
+                 score is the rulebook's winner, which each game's own
+                 playout tests restate.
 """
 
 from __future__ import annotations
@@ -79,6 +86,7 @@ class _NativeLine:
     calls: tuple[_Call, ...]
     logs: dict[int, list[tuple[Any, ...]]]
     returns: list[float]
+    winners: frozenset[int]
 
 
 def _native(path: str, seed: int) -> _NativeLine:
@@ -116,7 +124,9 @@ def _native(path: str, seed: int) -> _NativeLine:
         observer=observe,
         on_first_decision=world.append,
     )
-    return _NativeLine(tuple(history), tuple(calls), logs, returns_for(game, result))
+    return _NativeLine(
+        tuple(history), tuple(calls), logs, returns_for(game, result), result.winners
+    )
 
 
 def _replayed_logs(path: str, seed: int, history: tuple[int, ...]) -> dict[int, list[tuple[Any, ...]]]:
@@ -138,7 +148,9 @@ def test_a_seat_sees_the_same_decision_through_pyspiel_and_at_the_table(short_na
     """red under: record a Chooser call's picks as one aggregate `chose` in
     `chooser.decide`, or pop the phase frame in `driver.run_phase` when a
     Chooser suspends the run; pyspiel's string then differs at the first
-    decision after a pick, or names fewer state variables."""
+    decision after a pick, or names fewer state variables. The winners check,
+    red under: `replay.RANK_DIR_TO_SIGN["lowest"]` set to `1.0`, or the loser
+    paid `1.0` in `returns_for`."""
     path = str(GAMES_DIR / GAMES[short_name])
     line = _native(path, seed)
     state = pyspiel.load_game(register_game_file(Path(path))).new_initial_state()
@@ -168,6 +180,11 @@ def test_a_seat_sees_the_same_decision_through_pyspiel_and_at_the_table(short_na
     end = run(path, _CHANCE_FREE_SEED if chance_free else seed, line.history)
     assert isinstance(end, TerminalNode), f"{short_name} seed {seed}: the adapter's line does not end"
     assert end.returns == line.returns
+    best = max(end.returns)
+    assert line.winners == {p for p, r in enumerate(end.returns) if r == best}, (
+        f"{short_name} seed {seed}: the result names {sorted(line.winners)} as "
+        f"winners, the returns {end.returns} pay others best"
+    )
     replayed = _replayed_logs(path, seed, line.history)
     for seat, log in line.logs.items():
         assert replayed[seat] == log, (

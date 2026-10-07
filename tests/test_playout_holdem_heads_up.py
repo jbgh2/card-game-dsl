@@ -102,12 +102,12 @@ def test_20_random_games_satisfy_invariants() -> None:
         # two-handed hand's scores must sum to zero — the settlement neither
         # creates nor destroys chips.
         assert sum(result.scores.values()) == 0, f"seed {seed}: {result.scores}"
-        # And the winner is the seat that actually won chips (or, on a split,
-        # a seat that lost none). `winner: highest net` always names a seat
-        # here — every hand settles — so a `None` is itself the failure.
-        assert result.winner is not None, f"seed {seed}: no winner named"
+        # And the winners are the seat that actually won chips (or, on a
+        # split, both seats, neither having lost any).
         best = max(result.scores.values())
-        assert result.scores[result.winner] == best, f"seed {seed}: {result.scores}"
+        assert result.winners == {p for p, s in result.scores.items() if s == best}, (
+            f"seed {seed}: {result.scores}"
+        )
 
 
 def test_no_seat_is_ever_all_in() -> None:

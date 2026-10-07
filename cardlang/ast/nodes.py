@@ -1299,11 +1299,16 @@ class PlayersSpec:
 
 @dataclass(frozen=True, slots=True)
 class Winner:
-    """`winner: lowest/highest <target>`."""
+    """`winner: lowest/highest <target>`.
+
+    `keyed_by` is the target declaration's index role (`player`, `team`),
+    stamped by resolve once it has checked the declaration; `None` before
+    resolve. The result's per-seat scores are keyed through it."""
 
     rank_dir: str
     state_var: str
     span: Span | None = None
+    keyed_by: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

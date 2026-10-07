@@ -1,21 +1,19 @@
 """OpenSpiel returns are mapped by the score variable's OWN key domain.
 
-`returns_for` turns a finished game's scores into one return per seat. A score
-variable is keyed EITHER by player (`score[player]`) or by team
-(`score[team]`) -- a team-keyed score must be handed to every member of that
-team, a player-keyed one straight to its seat. Getting this wrong does not
-crash: it silently pays the wrong seats, on the target the whole language exists
-to hit (CLAUDE.md, "OpenSpiel is the target").
+A finished game's scores become one score per seat (`driver.seat_scores_of`),
+and `returns_for` pays each seat its own. A score variable is keyed EITHER by
+player (`score[player]`) or by team (`score[team]`) -- a team-keyed score must
+be handed to every member of that team, a player-keyed one straight to its
+seat. Getting this wrong does not crash: it silently pays the wrong seats, on
+the target the whole language exists to hit (CLAUDE.md, "OpenSpiel is the
+target").
 
-The keying was inferred from the SHAPE of the scores dict --
-`set(scores) == set(range(n_players))` -- which is a guess, and it is wrong
-exactly when a game's team count equals its player count: a 2-player/2-team or
-4-player/4-team game has team keys `{0, 1}` / `{0, 1, 2, 3}` that are
-indistinguishable from player keys, so team scores were read as player scores
-and returns went to the wrong seats. Nothing about such a game is malformed --
-`teams: [[1], [0]]` is a perfectly good partition of two seats. The
-keying is now read STRUCTURALLY: the `winner:` target's own state declaration
-says whether it is indexed by `team`.
+The keying cannot be read off the SHAPE of the scores dict: a 2-player/2-team
+or 4-player/4-team game has team keys `{0, 1}` / `{0, 1, 2, 3}` that are
+indistinguishable from player keys, and nothing about such a game is malformed
+-- `teams: [[1], [0]]` is a perfectly good partition of two seats. It is read
+STRUCTURALLY: resolve stamps the `winner:` target declaration's index role on
+the clause (`Winner.keyed_by`).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -28,29 +26,24 @@ property:   for a game whose `winner:` names score variable V, every seat p
 domain:     {V player-indexed | V team-indexed} x {team count == player count |
             != player count} x {rank_dir highest | lowest}, plus the `loser:`
             (no `winner:`) form, which has no score variable at all. A SCALAR
-            `winner:` target (`winner: highest pot`, no index) sits outside,
-            and the boundary is real rather than a hole in the grid: such a
-            game never reaches `returns_for` at all, because `driver` dies
-            building the score dict from an int first. The checker guard that
-            would make that loud is issue #153.
-registry:   the keying comes from the `winner:` target's `StateDecl.index`
-            (`nodes.state_blocks` walks the game-level block and every nested
-            phase block -- a winner target may be declared in either), and the
-            set of roles that index is allowed to take is `domains.
-            ZONE_INDEX_ROLES`, DERIVED from the domain registry (the rows with a
-            `zone_key_of`). `replay._RETURNS_KEYED_ROLES` names the roles the
-            mapping inverts and is reconciled against that registry below, so a
-            new seat-anchored domain cannot be silently read as player keying --
-            an unhandled role raises, the same contract as
-            `domains.zone_observer_key`. The sign axis is
-            `replay.RANK_DIR_TO_SIGN`; `team_of` is built from
-            `game.teams` exactly as `runtime/driver` builds it.
-does not prove:  that a real playout reaches `returns_for` the way this grid
-            drives it. The grid calls `returns_for` directly, so the score
-            dict is controlled exactly and nothing upstream of it runs; the
-            end-to-end path through `replay.run` is
-            tests/test_openspiel_replay.py and the per-game proof modules
-            under tests/openspiel_ready/.
+            `winner:` target (`winner: highest pot`, no index) is refused at
+            check time (tests/test_winner_target.py), so it never reaches a
+            result.
+registry:   the keying comes from the `winner:` clause's `keyed_by`, which
+            resolve stamps from the target's `StateDecl.index`, and the set of
+            roles that index is allowed to take is `domains.ZONE_INDEX_ROLES`,
+            DERIVED from the domain registry (the rows with a `zone_key_of`).
+            `driver.SEAT_KEY_BY_ROLE` names the roles the mapping inverts and
+            is reconciled against that registry below, so a new seat-anchored
+            domain cannot be silently read as player keying -- an unhandled
+            role raises, the same contract as `domains.zone_observer_key`.
+            The sign axis is `replay.RANK_DIR_TO_SIGN`; the partition is
+            `values.TeamOf.partition`, the one the driver builds.
+does not prove:  that a real playout reaches `seat_scores_of` the way this
+            grid drives it. The grid calls it directly, so the score dict is
+            controlled exactly and nothing upstream of it runs; the end-to-end
+            path through `replay.run` is tests/test_openspiel_replay.py and the
+            per-game proof modules under tests/openspiel_ready/.
 """
 
 from __future__ import annotations
@@ -59,14 +52,11 @@ import dataclasses
 
 import pytest
 
-from cardlang.domains import ZONE_INDEX_ROLES, role_names
-from cardlang.openspiel.replay import (
-    _RETURNS_KEYED_ROLES,
-    RANK_DIR_TO_SIGN,
-    returns_for,
-)
+from cardlang.domains import ZONE_INDEX_ROLES
+from cardlang.openspiel.replay import RANK_DIR_TO_SIGN, returns_for
 from cardlang.pipeline import check_dsl
-from cardlang.runtime.driver import GameResult
+from cardlang.runtime.driver import SEAT_KEY_BY_ROLE, GameResult, seat_scores_of
+from cardlang.runtime.values import TeamOf
 
 
 def _team_game(*, players: int, teams: str, rank_dir: str = "highest") -> str:
@@ -185,8 +175,17 @@ def test_returns_follow_the_score_variables_key_domain(
         expected = [float(sign * scores[team_of[p]]) for p in range(players)]
     else:
         expected = [float(sign * scores[p]) for p in range(players)]
+    assert game.winner is not None
+    seat_scores = seat_scores_of(game.winner, scores, TeamOf.partition(teams), players)
     got = returns_for(
-        game, GameResult(scores=scores, winner=0, loser=None, hands_played=1)
+        game,
+        GameResult(
+            scores=scores,
+            seat_scores=seat_scores,
+            winners=frozenset({0}),
+            loser=None,
+            hands_played=1,
+        ),
     )
     assert got == expected
 
@@ -203,31 +202,23 @@ def test_the_mapping_covers_every_zone_index_role() -> None:
     (domains.py names five sites it replaced); this pin keeps this consumer from
     becoming a sixth.
 
-    red under: drop `"team"` from `replay._RETURNS_KEYED_ROLES`, or add a
+    red under: drop the `Role.TEAM` row from `driver.SEAT_KEY_BY_ROLE`, or add a
     `Domain(..., zone_key_of=...)` row to `domains.DOMAINS` — either way the
     sets diverge and this reddens."""
-    assert set(_RETURNS_KEYED_ROLES) == set(role_names(ZONE_INDEX_ROLES))
+    assert set(SEAT_KEY_BY_ROLE) == set(ZONE_INDEX_ROLES)
 
 
 def test_an_unhandled_index_role_raises_rather_than_defaulting() -> None:
     """The loud half of the same contract, exercised: a `winner:` target indexed
     by a role the mapping does not invert must RAISE, not fall through to player
-    keying. Planted by re-indexing the target's declaration to a role this
-    mapping has no arm for -- the fault goes in the data the function reads, not
-    in the assertion."""
+    keying. Planted by re-stamping the clause's index role to one this mapping
+    has no arm for -- the fault goes in the data the function reads, not in the
+    assertion."""
     game = check_dsl(_team_game(players=2, teams="[[1], [0]]"), "x.cardlang")
-    assert game.state is not None and game.winner is not None
-    decls = tuple(
-        dataclasses.replace(d, index="column") if d.name == game.winner.state_var else d
-        for d in game.state.decls
-    )
-    planted = dataclasses.replace(
-        game, state=dataclasses.replace(game.state, decls=decls)
-    )
+    assert game.winner is not None
+    planted = dataclasses.replace(game.winner, keyed_by="suit")
     with pytest.raises(AssertionError, match="does not invert"):
-        returns_for(
-            planted, GameResult(scores={0: 10, 1: 20}, winner=0, loser=None, hands_played=1)
-        )
+        seat_scores_of(planted, {0: 10, 1: 20}, TeamOf.partition(game.teams), 2)
 
 
 def test_loser_game_returns_are_unaffected() -> None:
@@ -252,7 +243,10 @@ def test_loser_game_returns_are_unaffected() -> None:
     )
     game = check_dsl(src, "loser.cardlang")
     got = returns_for(
-        game, GameResult(scores={}, winner=None, loser=2, hands_played=1)
+        game,
+        GameResult(
+            scores={}, seat_scores=(), winners=frozenset({0, 1}), loser=2, hands_played=1
+        ),
     )
     assert got == [1.0, 1.0, -2.0]
     assert abs(sum(got)) < 1e-9
