@@ -220,7 +220,9 @@ them to milestones, and its body says who may edit it; the **Priority
 Tier**, `priority:P1` or `priority:P2`, orders the loose issues that never
 become a unit, and only the direction review sets it (below). The graph
 answers *what is possible*; the milestones and the tier answer *what is
-next*; #143 answers *what comes after*.
+next*; #143 answers *what comes after*; the Destinations (`roadmap.md`,
+"Destinations") answer *toward what*, and every unit names the one it
+advances.
 
 ### The Ready Front
 
@@ -253,9 +255,13 @@ bucket on stderr.
 
 **An Active Epic is an open milestone, and the epic is the row.** A
 milestone is the unit the fleet is finishing: it holds one epic issue and
-that epic's parts, its description carries the finish line in the game's
-or the designer's terms, and it closes against that sentence — never
-against a count. A part is a sub-issue of the epic or a member of its
+that epic's parts, its description opens with the Destination it advances
+(`roadmap.md`, "Destinations") or `Upkeep` when it advances none, then
+carries the finish line in the game's or the designer's terms, and it
+closes against that sentence — never against a count. At most one open
+milestone is Upkeep, so a class of arrivals can hold one slot and never
+both; a #143 row names its Destination the same way, and a unit that
+names none is queued as Upkeep. A part is a sub-issue of the epic or a member of its
 milestone; the two relations are meant to agree, the sweep holds a part
 by either so one filed only one way is never offered loose, and it names
 any part in one relation and not the other on stderr for the review to

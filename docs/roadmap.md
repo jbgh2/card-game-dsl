@@ -9,9 +9,12 @@ the spec.
 
 ## Where the work is tracked
 
-- **Cross-cutting task sequence** — [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143),
-  the pinned ordering issue. It is the authority on what to build next and in
-  what order.
+- **What is being finished now, and what comes after** — the open
+  [milestones](https://github.com/jbgh2/card-game-dsl/milestones) are the
+  units in progress, and [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143),
+  the pinned queue, orders the units after them
+  ([harness.md](harness.md), "The Ready Front"). Every unit names the
+  Destination below that it advances.
 - **Open design questions and their priority** —
   [open-questions/_index.md](open-questions/_index.md).
 - **The game pipeline** — [games/_candidates.md](games/_candidates.md).
@@ -27,6 +30,53 @@ One carve-out: a *designed constraint* — a recorded trap, deliberately
 not-to-be-fixed — is not work and records at the construct it constrains
 rather than in an issue, saying that it is designed. See CLAUDE.md, "The
 tracker".
+
+## Destinations
+
+A Destination is a finished state of the project, stated in the present
+tense, with the query that reads today's distance from it. The
+Destinations say what every unit of work builds toward; the milestones and
+[issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) say which
+unit is next ([harness.md](harness.md), "The work graph"). Each milestone's
+description opens with the Destination it advances, or `Upkeep` when it
+advances none, and at most one open milestone is Upkeep. The direction
+review reads the distances every run (`python -m tools.destinations`,
+derived on demand and never checked in) and promotes the next unit of
+whichever Destination has not moved. Only the operator adds or retires a
+Destination.
+
+- **OpenSpiel plays every game.** Every corpus game, as its rules source
+  states it, is a game OpenSpiel's imperfect-information algorithms run on:
+  the IS-MCTS family determinizes it, tensor-based learners have an
+  information-state tensor derived from zone visibility, and chance is
+  explicit. Held by [#141](https://github.com/jbgh2/card-game-dsl/issues/141),
+  [#139](https://github.com/jbgh2/card-game-dsl/issues/139),
+  [#99](https://github.com/jbgh2/card-game-dsl/issues/99) and the reads in
+  [#469](https://github.com/jbgh2/card-game-dsl/issues/469). Distance: the
+  adapter's tensor and determinization facts, and the read ledger's unread
+  games.
+- **Python only scores.** A game is written in the DSL alone; where a
+  game names native Python, the function scores a holding and decides
+  nothing else — no legality, no bid ladder, no seat selection, no
+  combination model. Held by
+  [#248](https://github.com/jbgh2/card-game-dsl/issues/248). Distance:
+  every game-local native the corpus names, with its call sites, read
+  against that sentence.
+- **One meaning, written once.** Each construct's meaning is stated in one
+  place and both the checker and the runtime derive from it; a name
+  resolves by declaration, never by precedence; a new game adds no
+  grammar. Held by
+  [open-questions/name-namespaces.md](open-questions/name-namespaces.md)
+  and the class the direction review tracks as "a sentence the checker
+  passes does something else". Distance: grammar rules and keywords
+  against corpus size at every verdict, and the class's inflow against its
+  closure (the review's fourth check).
+- **Boards.** The topology witness ladder in
+  [games/_candidates.md](games/_candidates.md) plays: a board game enters
+  the corpus by the same path as a card game, with the two open questions
+  the ladder's first rungs force settled. Held by
+  [design-notes/board-topology.md](design-notes/board-topology.md).
+  Distance: the ladder's rungs in the corpus.
 
 ## Out of scope
 
