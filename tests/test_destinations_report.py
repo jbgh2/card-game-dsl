@@ -7,12 +7,14 @@ property:   each reader derives its facts from its source and nothing else:
             `primitives { }` block and no continuation line; a game-local
             native is a declared entry or a `PRIMITIVE_*` registry name the
             game writes in CODE (a name in a comment or string is not a
-            site, and the declaration line is not a site); the adapter facts
+            site, and a declaration line inside the block is not a site while
+            a call line opening `word(` outside it is); the adapter facts
             are the literal tensor keyword and the presence of the
             determinization hook on the state class; the read ledger is the
             generator issue's checkboxes; the ladder is the `### ` headings
             of the candidates file's Boards section; a grammar point counts
-            lark's defined rules and distinct keyword spellings.
+            lark's defined rules and distinct keyword spellings, taken at the
+            commit that added each verdict file.
 domain:     synthetic texts built here for every reader, so no cell depends
             on what the tree holds today; the tree-facing pins are that every
             name the real corpus declares or writes from the registries
@@ -56,6 +58,7 @@ GAME = textwrap.dedent(
       }
       phase play {
         let m = skat_matadors(declarer)
+        and (skat_matadors(declarer) > 0)
         when: skat_next_bid(working_bid) > 0
         effect { note := "skat_next_bid" }
         round climb combinations bigtwo_lead_options follows bigtwo_follows
@@ -68,6 +71,8 @@ GAME = textwrap.dedent(
 def test_declared_primitives_reads_entries_not_continuations() -> None:
     assert d.declared_primitives(GAME) == ["skat_next_bid", "skat_matadors"]
     assert d.declared_primitives("game G { players: 2 }") == []
+    assert list(d.declaration_lines(GAME).values()) == ["skat_next_bid", "skat_matadors"]
+    assert d.declaration_lines("game G {\n  f(x : Integer) : Integer\n}") == {}  # outside any block
 
 
 def test_native_uses_counts_code_sites_only() -> None:
@@ -75,7 +80,7 @@ def test_native_uses_counts_code_sites_only() -> None:
     modules = {"skat_next_bid": "skat", "skat_matadors": "skat", "bigtwo_follows": "bigtwo"}
     uses = {u.name: u for u in d.native_uses("t", GAME, natives, modules)}
     assert set(uses) == {"skat_next_bid", "skat_matadors", "bigtwo_lead_options", "bigtwo_follows"}
-    assert len(uses["skat_matadors"].sites) == 1  # comment and declaration excluded
+    assert len(uses["skat_matadors"].sites) == 2  # comment and declaration excluded; `and (` line kept
     assert len(uses["skat_next_bid"].sites) == 1  # the string literal is not a site
     assert uses["skat_next_bid"].module == "skat"
     assert uses["bigtwo_lead_options"].module == "?"
@@ -153,6 +158,13 @@ def test_real_adapter_yields_literals() -> None:
     facts = d.adapter_facts(d.ADAPTER.read_text())
     assert facts["information_state_tensor"] in (True, False)
     assert isinstance(facts["resample_from_infostate"], bool)
+
+
+def test_every_verdict_file_has_an_adding_commit() -> None:
+    files = d.verdict_files()
+    assert files
+    missing = [p.name for p in files if not d.verdict_commit(p, d._main_ref())]
+    assert missing == [], missing
 
 
 def test_real_candidates_file_has_a_boards_ladder() -> None:

@@ -21,8 +21,9 @@ What it derives, and from where:
   or decides legality. The judgment is the review's; the sites are the
   facts.
 * **One meaning, written once** -- the grammar's defined rules and keywords
-  against the corpus size at every direction-review date (the newest commit
-  on main at or before each verdict), compiled with lark. A keyword is a
+  against the corpus size at every direction review (the commit that added
+  the verdict file, whose tree is the one the verdict measured), compiled
+  with lark. A keyword is a
   distinct spelling: the word a `_KW` terminal names, or a compiled plain
   string terminal that spells a word. Rules added per game added is the
   trend to read.
@@ -73,13 +74,14 @@ _BLOCK_OPEN = re.compile(r"^\s*primitives\s*\{\s*$")
 _ENTRY = re.compile(r"^\s*([a-z][a-z0-9_]*)\s*\(")
 
 
-def declared_primitives(text: str) -> list[str]:
-    """The entry names of a game file's `primitives { }` block, in order; empty
-    when the file declares none. An entry is a line opening `name(` inside the
-    block; continuation lines (`reads ...`) are not entries."""
-    names: list[str] = []
+def declaration_lines(text: str) -> dict[int, str]:
+    """Line index -> entry name for every entry of a game file's
+    `primitives { }` block; empty when the file declares none. An entry is a
+    line opening `name(` inside the block; continuation lines (`reads ...`)
+    are not entries, and nothing outside the block is."""
+    found: dict[int, str] = {}
     inside = False
-    for line in text.splitlines():
+    for i, line in enumerate(text.splitlines()):
         if not inside:
             inside = bool(_BLOCK_OPEN.match(line))
             continue
@@ -87,8 +89,13 @@ def declared_primitives(text: str) -> list[str]:
             break
         m = _ENTRY.match(line)
         if m:
-            names.append(m.group(1))
-    return names
+            found[i] = m.group(1)
+    return found
+
+
+def declared_primitives(text: str) -> list[str]:
+    """The entry names of the `primitives { }` block, in order."""
+    return list(declaration_lines(text).values())
 
 
 def registry_natives(registries: object = builtin_registries) -> frozenset[str]:
@@ -135,16 +142,17 @@ def _code_lines(text: str) -> list[str]:
 def native_uses(game: str, text: str, natives: frozenset[str], modules: dict[str, str]) -> list[NativeUse]:
     """Every game-local native function one game names, with its sites."""
     lines = _code_lines(text)
-    declared = declared_primitives(text)
+    declarations = declaration_lines(text)
+    declared = list(declarations.values())
     words = {w for line in lines for w in re.findall(r"[a-z][a-z0-9_]*", line)}
-    names = list(declared) + sorted(n for n in natives & words if n not in declared)
+    names = declared + sorted(n for n in natives & words if n not in declared)
     uses: list[NativeUse] = []
     for name in names:
         pattern = re.compile(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])")
         sites = tuple(
             raw.strip()
-            for raw, code in zip(text.splitlines(), lines, strict=True)
-            if pattern.search(code) and not _ENTRY.match(code)
+            for i, (raw, code) in enumerate(zip(text.splitlines(), lines, strict=True))
+            if pattern.search(code) and i not in declarations
         )
         uses.append(NativeUse(game, name, modules.get(name, "?"), sites))
     return uses
@@ -254,23 +262,31 @@ def _main_ref() -> str:
     return "HEAD"
 
 
-def verdict_dates(verdicts: pathlib.Path = VERDICTS) -> list[str]:
-    return sorted(p.stem for p in verdicts.glob("????-??-??.md"))
+def verdict_files(verdicts: pathlib.Path = VERDICTS) -> list[pathlib.Path]:
+    return sorted(verdicts.glob("????-??-??.md"))
 
 
-def grammar_history(dates: Sequence[str]) -> list[GrammarPoint]:
-    """One point per verdict date (the newest main commit at or before it) and
-    one for the checkout's HEAD."""
+def verdict_commit(path: pathlib.Path, ref: str) -> str:
+    """The commit that added a verdict file, reachable from `ref`: the review
+    branch's head, whose tree is the one the verdict measured plus the
+    verdict itself. Empty when the file is not yet in history."""
+    rel = path.relative_to(ROOT).as_posix()
+    return _git("log", "--diff-filter=A", "--format=%H", "-1", ref, "--", rel).strip()
+
+
+def grammar_history(files: Sequence[pathlib.Path]) -> list[GrammarPoint]:
+    """One point per verdict (the commit that added its file) and one for the
+    checkout's HEAD."""
     ref = _main_ref()
     points: list[GrammarPoint] = []
     grammar_rel = GRAMMAR.relative_to(ROOT).as_posix()
-    for date in dates:
-        sha = _git("rev-list", "-1", f"--before={date} 23:59:59", ref).strip()
+    for path in files:
+        sha = verdict_commit(path, ref)
         if not sha:
             continue
-        files = _git("ls-tree", "-r", "--name-only", sha, "--", "docs/games").split()
+        game_files = _git("ls-tree", "-r", "--name-only", sha, "--", "docs/games").split()
         grammar = _git("show", f"{sha}:{grammar_rel}")
-        points.append(grammar_point(date, sha, grammar, files))
+        points.append(grammar_point(path.stem, sha, grammar, game_files))
     head = _git("rev-parse", "HEAD").strip()
     points.append(
         grammar_point("HEAD", head, GRAMMAR.read_text(), [p.name for p in GAMES_DIR.glob("*.cardlang")])
@@ -369,7 +385,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             facts=adapter_facts(ADAPTER.read_text()),
             registered=len(list(GAMES_DIR.glob("*.cardlang"))),
             ledger=ledger,
-            history=grammar_history(verdict_dates()),
+            history=grammar_history(verdict_files()),
             rungs=ladder(CANDIDATES.read_text()),
             boards=board_games(),
         )
