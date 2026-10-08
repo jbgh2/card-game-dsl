@@ -65,9 +65,14 @@ states which:
   library).
 - *It fails on one named capability* — a procedure that cannot take a
   predicate or a block, a function that cannot take a zone, a declaration
-  the kernel has no site for. The Merge Lane A change is **that
-  capability**, stated as the smallest production that makes the
-  definition check; the mechanic itself still lands as the definition.
+  the kernel has no site for. The change is **that capability**, stated
+  as the smallest edit that makes the definition check, and its Merge
+  Lane is whatever that edit touches (`tools/lane-of.sh`): a sentence
+  the grammar already parses and the checker refuses is a resolve or
+  typecheck change, Merge Lane B, and Hoyle says so and stands down from
+  the grammar question; only a sentence no production accepts is Merge
+  Lane A, and then the production is the capability, never the
+  mechanic. The mechanic itself still lands as the definition.
 - *It fails on nothing the kernel could gain* — the proposal is a
   declaration about the world (a visibility type, a component set, what
   a native reads) that no definition can state. Grammar is the home, and
