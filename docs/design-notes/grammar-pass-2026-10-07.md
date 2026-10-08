@@ -1,6 +1,6 @@
 # Design review: the Card Game DSL grammar
 
-*An outside read of `cardlang.lark`, the stdlib, the two family libraries and the 34-game corpus. Nothing else was consulted. Every usage figure below was computed from those files; a figure is a count of files unless it says otherwise.*
+*An outside read of `cardlang.lark`, the stdlib, the two family libraries and the 34-game corpus, with the review's own census of the names each game writes. Nothing else was consulted: in particular not the engine, so a consumer that lives in Python (the registries, a policy) is outside what this read can see, and two of its claims were narrowed after review on that ground (Finding 5, the `wager` row). Every usage figure below was computed from those files; a figure is a count of files unless it says otherwise.*
 
 ## 0. The short version
 
@@ -41,7 +41,7 @@ The CORE count (94) is also generous: a dozen of those are one-alternative wrapp
 | Quantifiers / queries | `any all number of players player team teams suit suits rank ranks cards card subset subsets the first where in` | 36 | **no** | one binder-explicit quantifier over a domain expression (Finding 4) |
 | Aggregation | `sum highest lowest over or more` | 15 | partly | one `fold` form with an explicit binder |
 | Arithmetic / logic | `is not and or offset_by divided by rounded up down` | 37 | yes | keep; `divided by rounded` is one game |
-| Definitions | `move_type when effect wager concession function procedure` | 33 | yes | `wager`/`concession` are annotations, not language |
+| Definitions | `move_type when effect wager concession function procedure` | 33 | yes | `wager`/`concession` are metadata, read by nothing in the language — their consumer is the engine's ranked opponent policy (`cardlang/openspiel/ranked.py` reads the stake), so they stay as a declaration and are not a cut |
 | Betting | *(none)* | 7 | — | the whole betting family is already a library — the existence proof that the others can be |
 
 The last row is the tell. Poker betting, the family that would most tempt a designer to add keywords (`bet`, `raise`, `pot`, `street`), has **zero** keywords and is the cleanest, most reusable part of the corpus. It is written in the language. Trick play, auctions and climbing, by contrast, got grammar.
@@ -125,7 +125,7 @@ That is three rules (`any/all/number of <binder> in <domain> where`, `fold`, and
 
 ### Finding 5: the native boundary leaks through grammar slots
 
-`primitives { }` is a good idea — a native function declares its signature and what it reads, which is exactly what information-set derivation needs. But nine natives bypass it. `outcome bridge_auction_outcome`, `combinations tichu_lead_options follows tichu_follows` and their siblings are Python names in NAME slots of the round forms, declared in no file; the Tichu and Tarot files comment that the block "cannot" cover them (issue #142). `strain_index`, called by Bridge's `next_level`, is defined nowhere in the DSL either. And `native-functions.txt` lists functions no game text calls at all (`decomposition`, `is_wild`, `peg_pairs`, `hand_rank`, `side_pot_payouts`, the whole `salvo` row), which means the native surface is wider than the declared one.
+`primitives { }` is a good idea — a native function declares its signature and what it reads, which is exactly what information-set derivation needs. But nine natives bypass it. `outcome bridge_auction_outcome`, `combinations tichu_lead_options follows tichu_follows` and their siblings are Python names in NAME slots of the round forms, declared in no file; the Tichu and Tarot files comment that the block "cannot" cover them (issue #142). `strain_index`, called by Bridge's `next_level`, is defined nowhere in the DSL either. Whether the native surface is wider than the declared one — natives registered but named by no game — is a question for the registries (`cardlang/builtins/functions.py`), which this read did not have; the per-module function list it was given mixes registered natives with private helpers and supports no claim either way.
 
 The grammar shape is acting as the FFI: a slot's position decides that its NAME is Python. The fix is the one the block already embodies — every native is declared with reads, and every slot that today takes a bare NAME takes an expression. Then `outcome`, `combinations` and `follows` stop being keywords.
 
@@ -211,7 +211,7 @@ Ordered so that each step leaves the corpus running. Migration shape is **M** (m
 | 9 | Climb as a library procedure; `combinations`/`follows` as declared `Collection<Card>` natives | `climb_stmt hosted_poll` + 3 `state.*` | big-two president tichu | R, after 8 | Tichu's interrupt window and `before asking` poll are the hard cases; Tichu is the acceptance test |
 | 10 | Control-flow unification: `exit <phase>` replaces `skip to next hand`; phases with `-> T` return via `produce`; `continue to` removed in favour of sequencing; `before_each` inlined | `skip_stmt continue_to before_each phase_qualifier(when)` | 6 + 3 + 19 + 2 games | M | `after_each` stays (finally semantics) unless `exit` runs it, which it should |
 | 11 | `loser:` -> `winner: highest <bool>`; `pieces:` -> `cards:`; `positions`/`board` -> `domains` | `loser pieces positions position_decl board` | getaway, breakthrough, tic-tac-toe, freecell, klondike | M | None |
-| 12 | Declare every native: round-slot names and `strain_index` into `primitives { }`; native-functions.txt entries no game calls are deleted or declared | `primitive_type` (absorb `Collection<T>` into `payload_type`) | bridge pinochle french-tarot big-two president tichu | M | Reveals which natives genuinely read hidden state |
+| 12 | Declare every native: round-slot names and `strain_index` into `primitives { }`; a registered native no game names is deleted or declared, read off the registries | `primitive_type` (absorb `Collection<T>` into `payload_type`) | bridge pinochle french-tarot big-two president tichu | M | Reveals which natives genuinely read hidden state |
 
 Done in that order, the grammar lands near 95 rules and about 75 keywords with every game in the corpus still passing its playouts, and the next trick-taker, auction game or climbing game arrives as a library change.
 
@@ -359,7 +359,7 @@ The growth table in the brief (98 -> 138 -> 162 -> 153 rules against 13 -> 30 ->
 | `lvalue` | CORE | All 34. |
 | `move_type_def` | CORE | 28 games + libraries; 2 reject arms. |
 | `move_params` | CORE | 13 games. |
-| `move_stake` | SPECIAL-CASE | pinochle, tichu: `wager` / `concession` annotations read by nothing in the language. |
+| `move_stake` | SPECIAL-CASE | pinochle, tichu: `wager` / `concession` metadata read by nothing in the language; the engine's ranked opponent policy reads it, so it stays. |
 | `parameter` | CORE | Shared by move / function / procedure / rule. |
 | `function_def` | CORE | 23 games. |
 | `procedure_def` | CORE | cheat, coup, scopa + both libraries. |
