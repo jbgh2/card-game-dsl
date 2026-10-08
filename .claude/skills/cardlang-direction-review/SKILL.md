@@ -51,6 +51,14 @@ Each check names its query so the answer is derived, not vibed:
    ruling, decided here and recorded in the verdict — never a gate, since
    surface may land ahead of its first game. The report is derived on
    demand and is never checked in.
+7. **Distance to each Destination.** `python -m tools.destinations
+   --tracker` prints, per Destination (docs/roadmap.md, "Destinations"),
+   the facts that read today's distance. State which Destination the
+   window's closed units advanced, by their `Destination:` line, and
+   which Destination no unit has advanced across the last three verdicts:
+   that one's next unit goes to the head of #143, and the verdict says so.
+   A window whose every closed unit was Upkeep is the circling shape this
+   check exists to catch, whatever the other checks say.
 
 ## Output contract
 
@@ -60,8 +68,9 @@ demands it — a doctrine amendment, drafted as the exact edit.
 
 **Then the Active Epics.** The review is the one role that opens or closes
 a milestone (docs/harness.md, "The Ready Front"): at most two open at a
-time, each holding one epic and its parts, its description the finish
-line, and the epic's body naming each part's Merge Lane (`tools/lane-of.sh`
+time, each holding one epic and its parts, its description opening with
+the Destination it advances or `Upkeep` (at most one open milestone is
+Upkeep) and then the finish line, and the epic's body naming each part's Merge Lane (`tools/lane-of.sh`
 on the files the part touches) so a taker knows before Leasing whether the
 unit stops at the operator's button — and no part is Merge Lane A: that
 part is done by the operator with Hoyle before activation, or excluded
@@ -86,8 +95,9 @@ whose reason has gone comes off. Then re-run `tools/ready-front.sh` and
 check two things: the top of the front is the work the verdict names,
 and every move the verdict names is selectable by the Ready Front (an
 epic container, a doc paragraph, and the verdict itself are not). Issue
-#143 is the queue of units not yet active: promote its head to a
-milestone when a slot opens, and edit it only when the queue changes —
+#143 is the queue of units not yet active, each row naming its
+Destination: promote its head to a milestone when a slot opens (the
+Upkeep slot only if it is free), and edit it only when the queue changes —
 the sweep does not read it, so it ranks nothing. Save
 the verdict where the operator will find it and previous verdicts can be
 compared.
