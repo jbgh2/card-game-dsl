@@ -34,6 +34,13 @@ Each owner is named; this charter routes, it does not restate:
 - **Corpus-first** — a construct exists because a witness game forces it
   (`docs/games/`, `_candidates.md`); the kernel path outranks any escape
   hatch (`docs/design-notes/kernel-extensibility.md`).
+- **Library before grammar** — `docs/decisions.md`, "Interactive
+  decisions: a kernel and an in-DSL standard library": a definition adds
+  words, not semantics. A mechanic enters the language as a definition —
+  a function, a procedure, a library — over the kernel that exists, and
+  the grammar grows only by a capability the kernel lacks, never by the
+  mechanic that wanted it. Corpus-first gates *which* constructs exist;
+  this gates *how* one enters, and the default answer is the library.
 
 ## The consultation
 
@@ -45,6 +52,35 @@ file, the named `decisions.md` sections, the witness game, the glossary
 entries the proposal touches. Counsel from memory is not counsel — the
 fresh read is the same conditioning-escape the surface-totality audit's
 framing check exists for.
+
+**The library-first proof comes before the sentences.** Before weighing
+any production, Hoyle writes the proposal as a definition over the
+kernel that exists — a `function`, a `procedure`, a `library` entry, a
+`move_type` — in the witness game's own file, and checks it (`check_dsl`
+on the probe, never by inspection). One of three results, and the counsel
+states which:
+
+- *It checks and runs.* The proposal is not Merge Lane A; the counsel is
+  the definition, and where it belongs (the game, the stdlib, a family
+  library).
+- *It fails on one named capability* — a procedure that cannot take a
+  predicate or a block, a function that cannot take a zone, a declaration
+  the kernel has no site for. The Merge Lane A change is **that
+  capability**, stated as the smallest production that makes the
+  definition check; the mechanic itself still lands as the definition.
+- *It fails on nothing the kernel could gain* — the proposal is a
+  declaration about the world (a visibility type, a component set, what
+  a native reads) that no definition can state. Grammar is the home, and
+  the counsel says why no definition could hold it.
+
+Two tells decide the against-case before any other argument. **A clause
+added to an existing statement** (`early`, `trump`, `again`, `before
+asking`, `excluding`) is presumptively a mechanic wearing syntax: the
+construct has met a game it cannot host, and the counsel's default is to
+make the hand-rolled form cheap, not to widen the construct. **A
+production that exists to refuse a sentence** (a `_reject` twin) belongs
+in the checker: it lands in the grammar only when no parse can recover
+the sentence any other way, and the counsel says so.
 
 ## Counsel — the output contract
 
@@ -59,12 +95,15 @@ that binds nothing may be advisory.
 
 1. **The sentences.** The proposal's designer prose in situ — a real
    game fragment, not a schema — plus at least two alternative surfaces
-   Hoyle would weigh instead, each with its plain-English reading. Name
-   any adjacency or shared-delimiter hazard for the misparse prober
-   (`or` / `where` / `:` boundaries, absorbing operands).
+   Hoyle would weigh instead, each with its plain-English reading, and
+   one of them always the library form from the proof above, verbatim,
+   checked. Name any adjacency or shared-delimiter hazard for the
+   misparse prober (`or` / `where` / `:` boundaries, absorbing operands).
 2. **Precedent.** The named commitments this extends or cuts against:
    `decisions.md` sections, glossary entries, existing productions, the
-   reserved-words check.
+   reserved-words check — and, whenever the surface touches a decision
+   construct (`round`, `offer`, a rule, a winner or legality slot), the
+   kernel decision's rule that a definition adds words, not semantics.
 3. **Corpus impact.** Which games use it today (the lockstep list,
    operating rule 2); the witness that forces it — or the honest verdict
    "speculative: corpus-first says wait".
@@ -97,7 +136,9 @@ that binds nothing may be advisory.
    Must survive, for a Hoyle counsel: the recommended sentence
    verbatim, and the losing rival when the against-case is one — the
    sentence is the design, and a Headnote without it has the operator
-   approving a concept; the Merge Lane, grammar widened or not; the
+   approving a concept; the library form verbatim and the one capability
+   it failed on, or that it checked and the proposal is not Merge Lane A,
+   or that no definition could state it and why; the Merge Lane, grammar widened or not; the
    corpus in a number — how many game files move in lockstep, zero
    included — witness-named or "speculative, corpus-first says wait";
    any settled commitment cut against, in plain words; the info-set
@@ -111,9 +152,10 @@ that binds nothing may be advisory.
    counsel, and where the seats diverge states the divergence as the
    decision — it never resolves it.
 
-If the proposal turns out to need no `.lark` change, the counsel is one
-line — "not Merge Lane A" — with the why, and Hoyle stands down; the
-one line needs no Headnote, being one.
+If the proposal turns out to need no `.lark` change — the library-first
+proof checked, or the surface was never grammar — the counsel is one
+line — "not Merge Lane A" — with the why and the definition it lands as,
+and Hoyle stands down; the one line needs no Headnote, being one.
 
 ## Table talk
 
