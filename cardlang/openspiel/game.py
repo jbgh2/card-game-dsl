@@ -1,6 +1,6 @@
 """Every fully-kernel game as a registered ``pyspiel.Game``.
 
-One general adapter (SP1 spec): the state is ``(seed, history)`` over the
+One general adapter (SP1 spec): the state is ``(seed, script, history)`` over the
 re-simulation engine — that seed being the [[shuffle-seed]] the root chance node
 draws, fixed and unexposed for a Chance-Free Game, whose tree carries no such
 node — the action space and information states are DERIVED, and
@@ -25,7 +25,8 @@ sound.
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable
+import random
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,8 @@ import pyspiel
 
 from cardlang.openspiel import replay
 from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.resample import resample
+from cardlang.runtime.chance import Outcome
 from cardlang.runtime.errors import GameRegistrationError, ShadowGuardError
 
 _NUM_SEEDS = 4096  # sampled deal space at the root chance node (known limitation)
@@ -110,12 +113,22 @@ class _Observer:
 
 
 class CardlangState(pyspiel.State):
-    """``_seed is None`` exactly while a root chance node is pending.
+    """A world as ``(seed, script, history)``: the root chance outcome, the
+    outcomes of the first draws where they are given rather than dealt by the
+    seed, and the picks.
 
-    A Chance-Free Game has no such node, so its seed is fixed at construction
+    ``_seed is None`` exactly while a root chance node is pending. A
+    Chance-Free Game has no such node, so its seed is fixed at construction
     and the predicate stays true by definition rather than carrying a second
     meaning: `current_player` never reports CHANCE for it, and the root is its
     first decision.
+
+    The script is empty for every state reached through the tree from its
+    root, where the seed deals every draw. `resample_from_infostate` returns
+    the one kind of state that carries a script: a world no seed deals, which
+    holds what a seat has seen in place and redraws the rest
+    (`cardlang.openspiel.resample`). Such a state is not reached from the
+    root, so its pyspiel `history()` is empty, as a `clone`'s is (issue #833).
     """
 
     def __init__(
@@ -126,15 +139,18 @@ class CardlangState(pyspiel.State):
         self._num_players = num_players
         self._chance_free = chance_free
         self._seed: int | None = _CHANCE_FREE_SEED if chance_free else None
+        self._script: tuple[Outcome, ...] = ()
         self._history_ids: list[int] = []
         self._cache_key: Any = object()
         self._cache: replay.DecisionNode | replay.TerminalNode | None = None
 
     def _run(self) -> replay.DecisionNode | replay.TerminalNode:
         assert self._seed is not None
-        key = (self._seed, tuple(self._history_ids))
+        key = (self._seed, self._script, tuple(self._history_ids))
         if self._cache_key != key:
-            self._cache = replay.run(self._path, self._seed, tuple(self._history_ids))
+            self._cache = replay.run(
+                self._path, self._seed, tuple(self._history_ids), script=self._script
+            )
             self._cache_key = key
         assert self._cache is not None
         return self._cache
@@ -201,13 +217,48 @@ class CardlangState(pyspiel.State):
             self.get_game(), self._path, self._num_players, self._chance_free
         )
         copy._seed = self._seed
+        copy._script = self._script
         copy._history_ids = list(self._history_ids)
         return copy
 
+    def resample_from_infostate(
+        self, player_id: int, probability_sampler: Callable[[], float]
+    ) -> CardlangState:
+        """A world `player_id` cannot tell from this one, drawn with
+        `probability_sampler` (OpenSpiel's uniform sampler on [0, 1)).
+
+        The seat to move, its legal actions and `player_id`'s information
+        state are this state's; the cards `player_id` has not seen are
+        redrawn, and so are the picks it did not see
+        (`cardlang.openspiel.resample`). At the root chance node every world
+        is this one. A world that cannot be constructed raises
+        `ResampleRefusal`.
+        """
+        if self._seed is None:
+            return self.clone()
+        rnd = random.Random(int(probability_sampler() * 2**53))
+        world = resample(
+            self._path,
+            self._seed,
+            self._script,
+            tuple(self._history_ids),
+            player_id,
+            rnd,
+            seeds=1 if self._chance_free else _NUM_SEEDS,
+        )
+        copy = CardlangState(
+            self.get_game(), self._path, self._num_players, self._chance_free
+        )
+        copy._seed = _CHANCE_FREE_SEED if self._chance_free else world.seed
+        copy._script = world.script
+        copy._history_ids = list(world.history)
+        return copy
+
     def __str__(self) -> str:
+        script = f" script={list(self._script)}" if self._script else ""
         if self._chance_free:
             return f"history={self._history_ids}"
-        return f"seed={self._seed} history={self._history_ids}"
+        return f"seed={self._seed}{script} history={self._history_ids}"
 
 
 @dataclass(frozen=True)

@@ -119,8 +119,9 @@ def test_no_proof_module_without_a_registered_game() -> None:
     # provenance-opening grid, the greedy-preference grid, the
     # action-rendering purity pin, the Arrival Record's copy-purity pin
     # (whose game axis derives from the component registry, not one game —
-    # issue #256), and the swap proof's blind-decision witnesses, which run it
-    # on probe games outside the registry.
+    # issue #256), the swap proof's blind-decision witnesses, which run it
+    # on probe games outside the registry, and the resample grid, whose game
+    # axis is the registry itself.
     modules = {p.stem for p in here.glob("test_*.py")} - {
         "test_coverage",
         "test_conformance_bounds",
@@ -129,6 +130,7 @@ def test_no_proof_module_without_a_registered_game() -> None:
         "test_action_strings",
         "test_arrival_purity",
         "test_blind_decisions",
+        "test_ismcts",
     }
     expected = {_module_for(short) for short, _ in REGISTERED_GAMES}
     assert modules == expected, (

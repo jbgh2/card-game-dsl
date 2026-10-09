@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import dataclasses
 import random
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from cardlang.ast import nodes as n
@@ -146,3 +146,139 @@ class RefusingRandom(random.Random):
 
     def getrandbits(self, k: int) -> int:
         raise ShadowGuardError(_LEAKED_GUARD, _DREW)
+
+
+# What one draw's outcome is, as positions in the draw's input: for a shuffle,
+# the permutation (output position k holds input position `outcome[k]`); for a
+# random selection, the positions picked, in the order they are taken.
+Outcome = tuple[int, ...]
+
+# The generator method each drawing construct reaches, keyed as `Draw.kind`.
+# The drawing arms of `EPISTEMIC_OP_DRAWS` and `SELECTION_MODE_DRAWS`, spelled
+# as `ScriptedRandom` overrides them; tests/test_scripted_random.py derives the
+# drawing arms from those two tables and holds this tuple to them.
+DRAW_KINDS: tuple[str, ...] = ("shuffle", "sample")
+
+_UNSCRIPTED = (
+    "a game drew from its generator outside `shuffle` and `sample`, the two "
+    "methods its drawing constructs reach — the enumeration in "
+    "cardlang/runtime/chance.py is missing the construct that drew, and a "
+    "constructed world could not script it"
+)
+
+
+@dataclasses.dataclass(frozen=True)
+class Draw:
+    """One draw as it happened: its index among the run's draws, its kind, the
+    items it drew over, and what it produced."""
+
+    index: int
+    kind: str
+    before: tuple[Any, ...]
+    after: tuple[Any, ...]
+
+
+class ScriptedRandom(random.Random):
+    """The generator installed as `rs.rng` for a game that draws.
+
+    A run's draws are numbered in the order they happen. Draw `i` takes its
+    outcome from `outcome_for(i, kind, items)`, which answers from `script`
+    while it lasts; past it, and wherever `outcome_for` answers None, the draw
+    is `random.Random(seed)`'s own, consuming that stream exactly as the plain
+    generator would. An empty script is therefore the plain generator: same
+    seed, same outcomes.
+
+    The script is what lets a world exist that no seed deals — the one
+    `cardlang.openspiel.resample` constructs, holding what an observer has seen
+    in place while redealing the rest. A scripted draw consumes no randomness,
+    so the draws after the script are the seed's from its first bit.
+
+    Drawing anywhere but `shuffle` and `sample` is refused, which makes
+    `chance_sites`'s enumeration falsifiable here as `RefusingRandom` makes the
+    Chance-Free classification falsifiable: a drawing construct the tables miss
+    stops the run where it draws, instead of drawing outcomes no script can
+    name.
+    """
+
+    def __init__(
+        self,
+        seed: int,
+        script: tuple[Outcome, ...] = (),
+        on_draw: Callable[[Draw], None] | None = None,
+        construct: Callable[[int, str, list[Any]], Outcome | None] | None = None,
+    ) -> None:
+        self._inside = True
+        super().__init__(seed)
+        self._inside = False
+        self.script = script
+        self.on_draw = on_draw
+        self.construct = construct
+        self.draws = 0
+
+    def outcome_for(self, index: int, kind: str, items: list[Any]) -> Outcome | None:
+        """The outcome draw `index` takes, or None to draw from the seed:
+        the script's while it lasts, then `construct`'s answer where one is
+        given."""
+        if index < len(self.script):
+            return self.script[index]
+        return None if self.construct is None else self.construct(index, kind, items)
+
+    def shuffle(self, x: Any) -> None:
+        index, before = self._begin(), list(x)
+        outcome = self.outcome_for(index, "shuffle", before)
+        if outcome is None:
+            self._inside = True
+            try:
+                super().shuffle(x)
+            finally:
+                self._inside = False
+        else:
+            if sorted(outcome) != list(range(len(before))):
+                raise ValueError(
+                    f"draw {index} shuffles {len(before)} items, and its scripted "
+                    f"outcome {outcome} is not a permutation of their positions"
+                )
+            x[:] = [before[j] for j in outcome]
+        self._end(index, "shuffle", before, list(x))
+
+    def sample(self, population: Any, k: int, *, counts: Any = None) -> list[Any]:
+        if counts is not None:
+            raise ShadowGuardError(_LEAKED_GUARD, _UNSCRIPTED)
+        index, before = self._begin(), list(population)
+        outcome = self.outcome_for(index, "sample", before)
+        if outcome is None:
+            self._inside = True
+            try:
+                chosen = super().sample(before, k)
+            finally:
+                self._inside = False
+        else:
+            if len(outcome) != k or len(set(outcome)) != k or not all(
+                0 <= j < len(before) for j in outcome
+            ):
+                raise ValueError(
+                    f"draw {index} selects {k} of {len(before)} items, and its "
+                    f"scripted outcome {outcome} is not {k} distinct positions"
+                )
+            chosen = [before[j] for j in outcome]
+        self._end(index, "sample", before, chosen)
+        return chosen
+
+    def _begin(self) -> int:
+        index = self.draws
+        self.draws += 1
+        return index
+
+    def _end(self, index: int, kind: str, before: list[Any], after: list[Any]) -> None:
+        if self.on_draw is not None:
+            self.on_draw(Draw(index, kind, tuple(before), tuple(after)))
+
+    def random(self) -> float:
+        if not self._inside:
+            raise ShadowGuardError(_LEAKED_GUARD, _UNSCRIPTED)
+        return super().random()
+
+    def getrandbits(self, k: int) -> int:
+        if not self._inside:
+            raise ShadowGuardError(_LEAKED_GUARD, _UNSCRIPTED)
+        return super().getrandbits(k)

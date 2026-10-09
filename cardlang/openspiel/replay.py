@@ -22,8 +22,8 @@ Contract
 --------
 Assumes: a checked game whose action space `ActionSpace.for_game` derives.
 Establishes: one decoder of recorded action ids, whether the run then pauses
-or asks a Seat Policy; one rule choosing the generator a ``(path, seed)`` runs
-under (`generator_for`); a Seat Policy asked at a position is handed the
+or asks a Seat Policy; one rule choosing the generator a ``(path, seed,
+script)`` runs under (`generator_for`); a Seat Policy asked at a position is handed the
 [[seat-view]] derived there while every phase frame stands, and its answer is
 one of the legal action ids or the line refuses it; a caller passing
 ``picks`` receives one `RecordedPick` per recorded pick, taken before the pick is
@@ -49,7 +49,13 @@ from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.infostate import SeatView, derive
 from cardlang.openspiel.seat_policy import SeatPolicy
 from cardlang.pipeline import check_source
-from cardlang.runtime.chance import RefusingRandom, is_chance_free
+from cardlang.runtime.chance import (
+    Draw,
+    Outcome,
+    RefusingRandom,
+    ScriptedRandom,
+    is_chance_free,
+)
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.chooser import sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
@@ -139,7 +145,8 @@ class ReplayChooser:
     out of an iteration, exceptions included, and an `after_each` that decides
     would reach it a second time while the run unwinds. ``deciders`` holds the
     seat each pick was made for, recorded and live alike; ``picks``, when
-    given, receives a `RecordedPick` for each recorded pick."""
+    given, receives a `RecordedPick` for each recorded pick, and ``on_pick``
+    hears each recorded pick's index and seat as it is consumed."""
 
     def __init__(
         self,
@@ -149,8 +156,10 @@ class ReplayChooser:
         taken: list[int] | None = None,
         picks: list[RecordedPick] | None = None,
         view: Callable[[int], SeatView] | None = None,
+        on_pick: Callable[[int, int], None] | None = None,
     ) -> None:
         self.space = space
+        self.on_pick = on_pick
         self.history = history
         self.beyond = beyond
         self.cursor = 0
@@ -171,6 +180,8 @@ class ReplayChooser:
                 aid = self.history[index]
                 self.cursor += 1
                 self.deciders.append(actor)
+                if self.on_pick is not None:
+                    self.on_pick(index, actor)
                 if self.picks is not None:
                     assert self.view is not None, "recording picks needs a Seat View to record"
                     self.picks.append(
@@ -259,17 +270,36 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
     return [sign * score for score in result.seat_scores]
 
 
-def generator_for(path_str: str, seed: int) -> random.Random:
-    """The generator the game at `path_str` plays under for `seed`.
+def generator_for(
+    path_str: str,
+    seed: int,
+    script: tuple[Outcome, ...] = (),
+    on_draw: Callable[[Draw], None] | None = None,
+    construct: Callable[[int, str, list[Any]], Outcome | None] | None = None,
+) -> random.Random:
+    """The generator the game at `path_str` plays under for `seed`, its first
+    draws taking `script`'s outcomes.
 
     A Chance-Free Game gets one that refuses every draw; every other game gets
-    `random.Random(seed)`, which only the game draws from. The choice lives
-    here because every route that plays a ``(path, seed)`` must make it the same
-    way, or one seed would name two deals: `run` reads it, and so does every
-    `LiveLine`. A refusing generator belongs where no chooser draws either —
-    the default `random_chooser`'s draws are a policy's, not the game's, and
-    would make the refusal fire on a playout that is behaving correctly."""
-    return RefusingRandom(seed) if chance_free(path_str) else random.Random(seed)
+    a `ScriptedRandom`, which only the game draws from and which, under an
+    empty script, deals exactly as `random.Random(seed)` does. The choice lives
+    here because every route that plays a ``(path, seed, script)`` must make it
+    the same way, or one triple would name two deals: `run` reads it, and so
+    does every `LiveLine`. `construct` answers the draws past the script as
+    they happen (`cardlang.openspiel.resample` building a world), and
+    `on_draw` hears each draw made. A refusing generator belongs where no chooser draws
+    either — the default `random_chooser`'s draws are a policy's, not the
+    game's, and would make the refusal fire on a playout that is behaving
+    correctly. A script for a game that never draws would name outcomes no
+    draw takes, so it is refused rather than ignored."""
+    if chance_free(path_str):
+        if script or construct is not None:
+            raise ValueError(
+                f"{path_str} draws nothing, so a scripted or constructed draw "
+                f"outcome has no draw to give it to"
+            )
+        return RefusingRandom(seed)
+    return ScriptedRandom(seed, script, on_draw, construct)
 
 
 class HistoryMismatch(ValueError):
@@ -349,15 +379,55 @@ class LiveLine:
         return LiveEnd(returns_for(game, result), views)
 
 
+@dataclass(frozen=True)
+class Seen:
+    """An observation event as a run delivered it: the seat it reached, and
+    the event."""
+
+    player: int
+    event: tuple[Any, ...]
+
+
+@dataclass(frozen=True)
+class Drawn:
+    """A draw as a run made it."""
+
+    draw: Draw
+
+
+@dataclass(frozen=True)
+class Picked:
+    """A recorded pick as a run consumed it: its index in the history, and the
+    seat it was made for."""
+
+    index: int
+    decider: int
+
+
+# One moment of a run, as `run`'s `listen` hears it: every observation event,
+# every draw and every recorded pick, in the order the run made them.
+Moment = Seen | Drawn | Picked
+
+
 def run(
     path_str: str,
     seed: int,
     history: tuple[int, ...],
     on_first_decision: Callable[[RuntimeState], None] | None = None,
     picks: list[RecordedPick] | None = None,
+    script: tuple[Outcome, ...] = (),
+    listen: Callable[[Moment], None] | None = None,
+    construct: Callable[[int, str, list[Any]], Outcome | None] | None = None,
+    beyond: Callable[[int, list[int]], int] | None = None,
 ) -> DecisionNode | TerminalNode:
-    """Replay ``history`` under ``seed``; return the next decision or the result.
-    ``picks`` receives what each recorded pick was offered (`ReplayChooser`)."""
+    """Replay ``history`` under ``seed`` and ``script``; return the next
+    decision or the result.
+
+    ``picks`` receives what each recorded pick was offered (`ReplayChooser`);
+    ``listen`` hears every `Moment` of the run as it happens; ``construct``
+    answers the draws past the script (`generator_for`); ``beyond``, when
+    given, is asked for each pick past the history instead of pausing there,
+    and pauses the run itself by raising `ChooserAbort`."""
     game, space = load(path_str)
     logs: dict[int, list[tuple[Any, ...]]] = {
         p: [] for p in range(game.players.count)
@@ -365,6 +435,8 @@ def run(
 
     def observe(player: int, event: tuple[Any, ...]) -> None:
         logs[player].append(event)
+        if listen is not None:
+            listen(Seen(player, event))
 
     world: list[RuntimeState] = []
 
@@ -376,13 +448,21 @@ def run(
     chooser = ReplayChooser(
         space,
         history,
+        beyond=beyond,
         picks=picks,
         view=lambda seat: derive(seat, world[0], logs[seat]),
+        on_pick=None if listen is None else (lambda i, seat: listen(Picked(i, seat))),
     )
     try:
         result = play_game(
             game,
-            generator_for(path_str, seed),
+            generator_for(
+                path_str,
+                seed,
+                script,
+                None if listen is None else (lambda draw: listen(Drawn(draw))),
+                construct,
+            ),
             chooser=chooser,
             observer=observe,
             on_first_decision=first_decision if picks is not None else on_first_decision,
