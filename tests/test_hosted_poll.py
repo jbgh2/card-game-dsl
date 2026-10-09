@@ -332,7 +332,7 @@ REFUSED = {t.__name__ for t in hosted_registry.HOSTED_POLL_REFUSED}
 # it, never read off the implementation's sets above.
 EXPECTED_ADMITTED = {
     "IfStmt", "LetStmt", "AssignStmt", "Offer", "AuctionRound", "AsBlock",
-    "ForEach", "RunStmt",
+    "ForEach", "RunStmt", "Turns",
 }
 
 
