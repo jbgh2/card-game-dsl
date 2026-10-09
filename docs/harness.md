@@ -430,7 +430,12 @@ precedent from `decisions.md` and the games, the edge a new production
 cuts against surface totality — and the operator supplies the decision:
 counsel informs intuition and never substitutes for it. The persona
 advises; the operator rules. Counsel attaches to the change (PR body or
-design note) before the operator merges.
+design note) before the operator merges. Its first question is whether
+the surface is grammar at all: a mechanic enters as a definition over the
+kernel (`decisions.md`, "Interactive decisions: a kernel and an in-DSL
+standard library"), and the grammar grows only by the one capability a
+library-first proof shows the kernel lacks — corpus-first gates which
+constructs exist, the proof gates how one enters.
 
 The Language Owner is named **Hoyle** — after Edmond Hoyle, whose name is
 the English proverb for rules authority ("according to Hoyle"). The
