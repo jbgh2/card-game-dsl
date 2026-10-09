@@ -9,18 +9,20 @@
 //
 // What is here is the ZONE-FREE core: check, bet, call, raise, the three ring
 // predicates that keep a betting round's `over` filter and `until` terminator
-// naming the same set, and `open_street` — the one procedure a street opens
-// with. Every one of them touches chips and betting bookkeeping and nothing
-// else, which is why this library's state surface names no zone.
+// naming the same set, `open_street` — the one procedure a street opens with —
+// and `betting_street`, the ring itself. Every one of them touches chips and
+// betting bookkeeping and nothing else, which is why this library's state
+// surface names no zone.
 //
-// What is deliberately NOT here is `fold`. Folding is the one betting move that
-// touches cards, and which cards — and where they go — is a property of the
-// game, not of the family: Stud sends the folder's upcards to the muck the
-// instant they fold (opponents stop seeing them, and that is an observation
+// What is deliberately NOT defined here is `fold`. Folding is the one betting
+// move that touches cards, and which cards — and where they go — is a property
+// of the game, not of the family: Stud sends the folder's upcards to the muck
+// the instant they fold (opponents stop seeing them, and that is an observation
 // their information sets carry), while Kuhn and Leduc simply end the player's
 // hand. A move touching a game-specific zone stays game-local; the library holds
-// the part that is genuinely the same. Each game defines its own `fold` and
-// offers it alongside the four imported moves in one vocabulary list.
+// the part that is genuinely the same. Each game defines its own `fold`, the
+// contract below names it, and `betting_street` offers it beside the moves
+// defined here.
 //
 // Variation across the family is carried by state the game declares and sets,
 // not by parameters on the import. `raise_cap` — the number of AGGRESSIONS
@@ -44,7 +46,7 @@ library poker_betting {
   // game's per-hand `state` block, which cannot write provided state — so
   // between one hand's last street and the next hand's first, `limit` still
   // holds the size it was last opened at. Nothing reads it there, because a
-  // street that runs a `round` opens first; a game that ran one without
+  // street that runs `betting_street` opens first; a game that ran one without
   // `open_street` would size its bets at the previous hand's street.
   state {
     acted[player] : Boolean = false   // has acted since the last aggression
@@ -84,6 +86,7 @@ library poker_betting {
     raises            : Integer   // raises so far on this street
     raise_cap         : Integer   // raises allowed per street
     big_raise_only    : Boolean   // does a big wager withdraw the small raise?
+    fold              : Move      // the game's own fold, offered on every street
   }
 
   // Open a betting street at a bet size of `bet_size`: no standing bet, no
@@ -130,6 +133,33 @@ library poker_betting {
   function owes(p : Player)    = bet_by[p] < bet_to_match
   function pending(p : Player) = can_act(p) and (not acted[p] or owes(p))
 
+  // One betting street, from the seat the game names. Every seat still
+  // pending is asked in turn, and the ring closes when nobody is pending,
+  // or when one contender is left and nobody owes — the arm a fold reaches.
+  // The ring's `over` filter and its `until` terminator name the same set
+  // (`pending`), so it closes exactly when it empties, and `until` is
+  // checked before every ask, so a street closes mid-lap the moment nobody
+  // is pending, with the seat behind the last aggressor the next one asked.
+  //
+  // The family's whole vocabulary is offered on every street, in one order,
+  // and a move the street cannot take is simply never legal: `bet_big` and
+  // `raise_big` are guarded on `big_limit > limit`, so a one-size street
+  // never presents them, and a game whose cap is one aggression never sees
+  // `raise` legal. Every consumer therefore mints the same seven action ids
+  // (decisions.md "Declared parameter domains"): the cost of one street
+  // written once, and what a seat is asked is unchanged by it. `fold` is
+  // the game's own, contracted above, because folding touches the game's
+  // zones; the street presents it beside the moves the library defines.
+  procedure betting_street(first : Player) {
+    turns seat from first
+          over players where pending(player)
+          until (number of players where pending(player)) is 0
+             or ((number of players where can_act(player)) <= 1
+                 and (number of players where can_act(player) and owes(player)) is 0) {
+      offer to seat one of [check, bet, bet_big, call, fold, raise, raise_big]
+    }
+  }
+
   move_type check {
     when: bet_to_match <= bet_by[actor]
     effect { acted[actor] := true }
@@ -166,9 +196,9 @@ library poker_betting {
   // sub-full wager that still opens the street. Neither is a street the rules
   // have, so neither reaches the action space — a street declared with one
   // runs as the one-size street it effectively is. On an ordinary one-size
-  // street (`big_limit` 0) the guard is false and the move is never offered,
-  // and a game that never names it in a vocabulary list mints no action id for
-  // it either.
+  // street (`big_limit` 0) the guard is false and the move is never legal,
+  // though `betting_street` presents it on every street and so every consumer
+  // carries its action id.
   //
   // IT MUST ALSO BE ABLE TO OUT-WAGER ITS SMALL TWIN. Both moves post what the
   // seat can pay, so a stack at or below the small bet posts the same chips

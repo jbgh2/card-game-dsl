@@ -36,16 +36,20 @@ def test_pass_out_routes_through_skip_to_next_hand() -> None:
             return [pass_move]
         return rand(player, candidates, n)
 
-    contracts: list[dict[str, Any]] = []
+    heard: list[str] = []
 
-    def tracer(event: str, payload: Any) -> None:
-        if event == "bridge_contract":
-            contracts.append(payload)
+    def observer(player: Player, event: tuple[Any, ...]) -> None:
+        if player == 0 and event[0] == "announce":
+            heard.append(str(event[2]))
 
     game = check_dsl(BRIDGE.read_text(), "bridge.cardlang")
-    result = play_game(game, random.Random(1), tracer=tracer, chooser=chooser)
+    result = play_game(game, random.Random(1), chooser=chooser, observer=observer)
 
-    assert any(c.get("all_pass") for c in contracts)  # the pass-out arm fired
+    # The pass-out arm fired: the first auction was four passes, and the
+    # next thing any seat heard was the NEXT auction's opening call — no
+    # card was played in between.
+    assert heard[:4] == ["pass"] * 4
+    assert heard[4].split("(")[0] in {"pass", "submit_bid", "double", "redouble"}
     # ...and the rubber still completed (no crash), won by the top side's seats
     top = max(result.scores.values())
     assert result.winners == {

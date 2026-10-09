@@ -93,6 +93,7 @@ game Invariants {{
   }}
   winner: highest stack
 }}
+move_type fold {{ effect {{ folded[actor] := true }} }}
 
 move_type snapshot {{
   when: not snapped

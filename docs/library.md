@@ -362,21 +362,23 @@ in tests/test_trump_slot_class.py.
   use the auction form. Schnapsen configures the same form differently again: a
   single-participant ring whose free actions loop the leader until a card is led
   (see "Mechanics" below).
-- **Betting runs on the auction form of the kernel `round`** (see
-  [decisions.md](decisions.md) "The auction form of `round`") — the one form
-  serves both, configured here on the **default ring** (a bet or raise
-  re-opens the seats it passed, and the pointer reaches the seats behind the
-  aggressor first — poker's continuation order) and with the
-  `outcome` clause omitted (a bet mutates chip/fold state directly, producing no
-  variant). Stud (see [games/seven-card-stud.md](games/seven-card-stud.md)) runs a
-  `round offering [check, bet, call, fold, raise]` per street over the
-  non-folded, non-allin ring. The accumulator is the state `poker_betting`'s
-  `requires` block makes the game declare, plus the library's own provided
-  intra-street bookkeeping; action-legality is the
+- **Betting runs on the family library's street** — `poker_betting`'s
+  `betting_street(first)`, a `turns` ring over the seats still pending
+  ([decisions.md](decisions.md) "The `turns` form"): a bet or raise re-opens
+  the seats it passed, and the turn reaches the seats behind the aggressor
+  first — poker's continuation order. The library owns the ring, its
+  terminator and the whole betting vocabulary; a bet mutates chip/fold state
+  directly, so the street produces nothing. Stud (see
+  [games/seven-card-stud.md](games/seven-card-stud.md)) runs one street per
+  deal over the non-folded, non-allin ring. The accumulator is the state
+  `poker_betting`'s `requires` block makes the game declare, plus the
+  library's own provided intra-street bookkeeping; action-legality is the
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in seat and the
   seat a street opens on come from the `bring_in_seat()` / `best_showing_seat()`
-  Primitive selectors.
+  Primitive selectors. `fold` is each game's own, because where a folder's
+  cards go is a fact about the game's zones, and the library contracts for
+  it (`requires { fold : Move }`) so its street can offer it.
   A whole street, verbatim from
   [games/leduc-poker.cardlang](games/leduc-poker.cardlang), whose streets open
   from a plain state variable rather than a selector:
@@ -384,22 +386,20 @@ in tests/test_trump_slot_class.py.
   ```cardlang-fragment betting_street
   phase first_street {
     run open_street(2, 0)
-    round offering [check, bet, call, fold, raise] from first_actor
-          over players where pending(player)
-          until (number of players where pending(player)) is 0
-             or ((number of players where can_act(player)) <= 1
-                 and (number of players where can_act(player) and owes(player)) is 0)
+    run betting_street(first_actor)
   }
   ```
 
-  `until` is a clause of the form, and what the family library shares is the
-  predicates the terminator is built from rather than the terminator itself —
-  so every street writes those two arms out, and the corpus's poker streets
-  all write them exactly as above. What a street varies is the bet size
-  `open_street` takes, the seat the ring starts from, whether `raise` is on
-  the offering (Kuhn Poker's is not), whether a contender count guards the
-  street at all, and whether a forced post sits between `open_street` and the
-  `round` (Stud's bring-in).
+  The ring's `over` filter and its `until` terminator are the library's, built
+  from the three ring predicates, so a street is two `run`s: the size it
+  opens at, and the seat it opens from. What a street varies is the bet size
+  `open_street` takes, the seat the ring starts from, whether a contender
+  count guards the street at all, and whether a forced post sits between
+  `open_street` and `betting_street` (Stud's bring-in). The vocabulary does
+  not vary: every street offers the family's seven moves in one order, and a
+  move a street cannot take is never legal there (Kuhn Poker's `raise`, a
+  one-size street's big wagers), so a seat is asked exactly what the rules
+  allow while every consumer mints the same action ids.
   Both arms are the ring's: the street closes when no seat is `pending` — the
   settled field, everyone who can act having acted and owing nothing — or when
   the seats able to act are down to one that owes nothing, the street that

@@ -689,14 +689,8 @@
               }
             },
             {
-              "kind": "auction_round",
-              "offering": [
-                "pass",
-                "bid_petite",
-                "bid_garde",
-                "bid_garde_sans",
-                "bid_garde_contre"
-              ],
+              "kind": "turns",
+              "binder": "bidder",
               "leader": {
                 "kind": "name",
                 "name": "opener",
@@ -750,7 +744,61 @@
                   "value": 0
                 }
               },
-              "outcome_fn": "tarot_auction_outcome"
+              "again": null,
+              "body": [
+                {
+                  "kind": "offer",
+                  "player": {
+                    "kind": "name",
+                    "name": "bidder",
+                    "ref": "local"
+                  },
+                  "offering": [
+                    "pass",
+                    "bid_petite",
+                    "bid_garde",
+                    "bid_garde_sans",
+                    "bid_garde_contre"
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "if",
+              "cond": {
+                "kind": "is_check",
+                "check": "none",
+                "operand": {
+                  "kind": "name",
+                  "name": "lead_taker",
+                  "ref": "state_var"
+                }
+              },
+              "then": [
+                {
+                  "kind": "produce",
+                  "tag": "thrown_in",
+                  "payloads": []
+                }
+              ],
+              "else": [
+                {
+                  "kind": "produce",
+                  "tag": "taken",
+                  "payloads": [
+                    {
+                      "kind": "name",
+                      "name": "lead_taker",
+                      "ref": "state_var"
+                    },
+                    {
+                      "kind": "name",
+                      "name": "current_level",
+                      "ref": "state_var"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },

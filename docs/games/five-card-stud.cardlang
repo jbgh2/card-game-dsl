@@ -194,7 +194,7 @@ game FiveCardStud {
         // post leaves with nothing is not one of the seats the cap protects.
         // Three seats that can ante are not three seats that can act.
         raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
-        // The ring opens ON the poster, because the poster holds the round's
+        // The street opens ON the poster, because the poster holds its
         // first decision: "The player who opens the betting has the option to
         // place a full small bet ($5) instead of just the compulsory minimum
         // $2." The post is made, so the poster owes nothing and `check` is the
@@ -206,11 +206,7 @@ game FiveCardStud {
         // call the bring-in ($2) or to fold. Only if someone completes the bet
         // are later players allowed to raise. If the opener chooses to begin
         // with a full bet ($5), subsequent players can raise."
-        round offering [check, bet, call, fold, raise] from bringer
-              over players where pending(player)
-              until (number of players where pending(player)) is 0
-                 or ((number of players where can_act(player)) <= 1
-                     and (number of players where can_act(player) and owes(player)) is 0)
+        run betting_street(bringer)
       }
 
       // SECOND BETTING ROUND — third card face up. The small bet, and the big
@@ -223,11 +219,7 @@ game FiveCardStud {
         if (number of players where can_act(player)) >= 2 {
           run open_street(10, if (number of players where shows_pair(player)) > 0 then 20 else 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
-          round offering [check, bet, bet_big, call, fold, raise, raise_big] from best_showing_seat()
-                over players where pending(player)
-                until (number of players where pending(player)) is 0
-                   or ((number of players where can_act(player)) <= 1
-                       and (number of players where can_act(player) and owes(player)) is 0)
+          run betting_street(best_showing_seat())
         }
       }
 
@@ -237,11 +229,7 @@ game FiveCardStud {
         if (number of players where can_act(player)) >= 2 {
           run open_street(20, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
-                over players where pending(player)
-                until (number of players where pending(player)) is 0
-                   or ((number of players where can_act(player)) <= 1
-                       and (number of players where can_act(player) and owes(player)) is 0)
+          run betting_street(best_showing_seat())
         }
       }
 
@@ -251,11 +239,7 @@ game FiveCardStud {
         if (number of players where can_act(player)) >= 2 {
           run open_street(20, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
-                over players where pending(player)
-                until (number of players where pending(player)) is 0
-                   or ((number of players where can_act(player)) <= 1
-                       and (number of players where can_act(player) and owes(player)) is 0)
+          run betting_street(best_showing_seat())
         }
       }
 

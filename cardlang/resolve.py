@@ -2560,11 +2560,26 @@ def resolve(game: n.Game) -> n.Game:
     # unmet `requires`) make the spliced game unrepresentative, so they are
     # reported as a complete set and raised before the rest of the pass adds
     # noise derived from a half-assembled game.
-    # The game's own move types, before the splice adds a library's: a
-    # game importing a library need not present every move type it brings.
-    own_move_types = frozenset(mt.name for mt in game.move_types)
+    # The game's own move types and procedures, before the splice adds a
+    # library's: a game importing a library need not present every move type
+    # it brings, nor run every procedure. A move type the library contracts
+    # for (`requires { fold : Move }`) is the game's to define and the
+    # library's to present — its encapsulation ledger proves a library
+    # offering names it — so it is the library's for this purpose too.
+    own_procedures = frozenset(p.name for p in game.procedures)
+    uses_names = [u.name for u in game.uses]
     game = _apply_uses(game, bag)
     _raise_if_errors(bag)
+    required_move_types = frozenset(
+        r.name
+        for name in uses_names
+        for r in load_library(name).requires
+        if is_move_contract(r)
+    )
+    own_move_types = frozenset(mt.name for mt in game.move_types) - (
+        frozenset(m.name for name in uses_names for m in load_library(name).move_types)
+        | required_move_types
+    )
     _resolve_component_set(game, bag)
     _reject_card_content_clauses(game, bag)
     _resolve_direction(game, bag)
@@ -2653,7 +2668,7 @@ def resolve(game: n.Game) -> n.Game:
     # After `_classify_names`: both read the `ref_kind` the classifier stamped,
     # rather than re-deriving what is or is not a zone reference.
     _check_arrival_record_pile_args(game, bag)
-    _check_procedures(game, bag)
+    _check_procedures(game, bag, own_procedures)
     _check_hosted_polls(game, bag)
     _check_chooses(game, bag)
     _check_positional_index_range(game, bag)
@@ -3922,7 +3937,9 @@ def _check_unoffered_move_types(
     Reachable is `_reachable_definitions`' fixpoint from the phases, so an
     offer inside a move type or procedure nothing reaches presents nothing. A
     library's move types are its own to define: a game that imports one and
-    presents it nowhere has not made an error."""
+    presents it nowhere has not made an error — and a move type a library
+    CONTRACTS for (`requires { fold : Move }`) is the library's to present,
+    so a game defining it for a street it never runs has made none either."""
     offered = {name for ns, name in _reachable_definitions(game) if ns == "move_type"}
     for mt in game.move_types:
         if mt.name not in own or mt.name in offered:
@@ -7834,7 +7851,9 @@ def _check_hosted_node(
         )
 
 
-def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
+def _check_procedures(
+    game: n.Game, bag: DiagnosticBag, own: frozenset[str] | None = None
+) -> None:
     """A procedure body must read as the statements it becomes. Hermeticity is the
     same as a function's — a body references only its own parameters, the binders
     it introduces, and game/phase state, never the caller's locals and never the
@@ -7969,8 +7988,11 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
             invoked.add(nd.name)
             if nd.name not in known:
                 bag.error(f"run of unknown procedure '{nd.name}'", nd.span)
+    # Only the game's OWN procedures: a library's are its own to define, and
+    # a game that imports one and runs it nowhere has not made an error — the
+    # rule `_check_unoffered_move_types` keeps for a library's move types.
     for proc in game.procedures:
-        if proc.name not in invoked:
+        if proc.name not in invoked and (own is None or proc.name in own):
             bag.error(
                 f"procedure '{proc.name}' is never run — invoke it with `run "
                 f"{proc.name}(…)`, or delete it (its body would otherwise be "

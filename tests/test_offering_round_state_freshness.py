@@ -1,7 +1,8 @@
 """An offering round's bookkeeping is idle at every decision outside the round.
 
-A `round offering [...] until <state>` — a quiescence-lap poll, an auction
-ring, a declaration round — is a [[decision-episode]] with bookkeeping of
+An offering round — a `turns` ring or a `repeat until` loop whose turn is one
+`offer`: a quiescence-lap poll, an auction ring, a declaration round, a
+single seat re-asked — is a [[decision-episode]] with bookkeeping of
 its own: the lap counter the declines accumulate into, the acted flags
 that shrink the ring, the seat the ring opens from, the pass that ends the
 Reizen. Those variables are live only while the round runs and are read by
@@ -34,8 +35,8 @@ property:        in a game that runs an offering round, every round-scoped
                  [[state-variable]] holds its idle value at every decision
                  outside the round — the declared idle value, or absence
                  where the declaring sub-phase has ended
-domain:          the corpus games that run a `round offering ... until`
-                 window, classified totally: the games whose rounds carry
+domain:          the corpus games that run an offering round, derived by
+                 shape (`_offering_rounds`), classified totally: the games whose rounds carry
                  bookkeeping (`ROUNDS`), the betting family, in which every
                  decision is inside a betting round so no decision is
                  outside one (`NO_DECISION_OUTSIDE`, executed), and
@@ -61,7 +62,8 @@ registry:        the game axis derives from
                  `cardlang.openspiel.registry.GAMES` filtered by
                  `_offering_round_games`; the variable axis from
                  `cardlang.ast.nodes.state_blocks`; the vocabularies from the
-                 `AuctionRound` and `Offer` nodes of each game's AST. The
+                 `Turns`, `RepeatUntil` and `Offer` nodes of each game's AST
+                 (`_offering_rounds`). The
                  entry-anchored property this module completes:
                  tests/test_window_state_freshness.py. The renderer these
                  values reach: `cardlang.openspiel.infostate.information_state`,
@@ -139,13 +141,41 @@ class Indexed:
     value: Any
 
 
+def _offering_rounds(game: n.Game) -> list[tuple[n.Turns | n.RepeatUntil, n.Offer]]:
+    """Every offering round in the game: a `turns` ring or a `repeat until`
+    loop whose body is exactly one `offer` — the auction, the poll, the
+    single-seat re-ask — paired with that offer. A loop whose turn is a body
+    of statements is a turn loop, not a round, and a plain `offer` outside
+    any loop is one decision with no episode of its own. A `repeat until`
+    gated on a declared Boolean is a flag window, the entry-anchored
+    sibling's (tests/test_window_state_freshness.py), and is left to it."""
+    booleans = frozenset(
+        d.name
+        for b in n.state_blocks(game)
+        for d in b.decls
+        if d.type_name == "Boolean" and d.index is None
+    )
+    found: list[tuple[n.Turns | n.RepeatUntil, n.Offer]] = []
+    for x in _subnodes(game):
+        if isinstance(x, (n.Turns, n.RepeatUntil)):
+            body = [s for s in x.body]
+            if len(body) != 1 or not isinstance(body[0], n.Offer):
+                continue
+            if isinstance(x, n.RepeatUntil):
+                named = {y.name for y in _subnodes(x.until) if isinstance(y, n.NameRef)}
+                if named & booleans:
+                    continue
+            found.append((x, body[0]))
+    return found
+
+
 def _round_vocabularies(game: n.Game) -> list[tuple[str, ...]]:
-    return [x.offering for x in _subnodes(game) if isinstance(x, n.AuctionRound)]
+    return [offer.offering for _loop, offer in _offering_rounds(game)]
 
 
 def _offering_round_games() -> dict[str, tuple[tuple[str, ...], ...]]:
-    """Axis A: corpus filename -> the vocabularies of its `round offering`
-    windows, over the whole registry.
+    """Axis A: corpus filename -> the vocabularies of its offering rounds,
+    over the whole registry.
 
     Every offering round, not the ones whose `until` names a state variable:
     a termination can reach state through a function (`pending(player)`) or
@@ -200,9 +230,13 @@ class Rounds:
 
     windows: tuple[Window, ...]
     persistent: frozenset[str]
+    # The seeds the window tests walk. The floors are a fixed sufficiency bar
+    # (`MIN_OUTSIDE_DECISIONS`), so a one-hand game whose window precedes only
+    # its last street widens the walk rather than lowering the bar.
+    walk_seeds: tuple[int, ...] = WALK_SEEDS
 
 
-_POKER_BETTING = ("check", "bet", "call", "fold", "raise")
+_POKER_BETTING = ("check", "bet", "bet_big", "call", "fold", "raise", "raise_big")
 
 _DOPPELKOPF_POLL = (
     "announce_re", "announce_kontra", "announce_re_no90", "announce_re_no60",
@@ -255,7 +289,12 @@ ROUNDS: dict[str, Rounds] = {
         windows=(
             Window(
                 vocabularies=(("pass", "submit_bid", "double", "redouble"),),
-                idle=(("passes", GONE), ("made_bid", GONE)),
+                idle=(
+                    ("passes", GONE), ("made_bid", GONE),
+                    ("first_clubs", GONE), ("first_diamonds", GONE),
+                    ("first_hearts", GONE), ("first_spades", GONE),
+                    ("first_notrump", GONE),
+                ),
             ),
         ),
         persistent=frozenset(
@@ -322,12 +361,14 @@ ROUNDS: dict[str, Rounds] = {
         ),
     ),
     "five-card-draw.cardlang": Rounds(
-        # The only betting-family game with decisions outside its betting
-        # rounds: the exchange. The two rounds are one window at two sites
-        # over the same street bookkeeping, which `open_street` zeroes — and
-        # the game opens the second street where the first CLOSES, at the top
-        # of the draw, so the exchange's decisions see no standing bet, no
-        # aggression and nobody acted rather than the closed round's residue.
+        # The only betting-family game with a second ring: the exchange, a
+        # `turns` ring over the seats still to draw, whose bookkeeping is the
+        # draw phase's own and ends with it. The two betting rounds are one
+        # window at two sites over the same street bookkeeping, which
+        # `open_street` zeroes — and the game opens the second street where
+        # the first CLOSES, at the top of the draw, so the exchange's
+        # decisions see no standing bet, no aggression and nobody acted
+        # rather than the closed round's residue.
         # `limit` is persistent because no game can make it anything else: the
         # library PROVIDES it, so only the library's own definitions may write
         # it, and the only one that does is `open_street`, which sets it to the
@@ -348,24 +389,31 @@ ROUNDS: dict[str, Rounds] = {
                     ("raises", 0),
                 ),
             ),
+            Window(
+                vocabularies=(("toss", "stand"),),
+                value_decisions=True,  # a toss names the card pushed forward
+                idle=(("tossed", GONE), ("drawn", GONE), ("more", GONE)),
+            ),
         ),
         persistent=frozenset(
             {
-                "big_limit", "big_raise_only", "committed", "drawn",
-                "first_actor", "floor", "folded", "in_hand", "limit", "more",
-                "net", "raise_cap", "stack", "tossed",
+                "big_limit", "big_raise_only", "committed",
+                "first_actor", "floor", "folded", "in_hand", "limit",
+                "net", "raise_cap", "stack",
             }
         ),
+        # One hand: after the exchange only the second betting round decides,
+        # a few decisions per seed, so the walk is widened to reach the floor.
+        walk_seeds=tuple(range(12)),
     ),
     "pinochle.cardlang": Rounds(
         # The auction is its own sub-phase, whose whole state block is the
-        # ring's own (the outcome function reads it as the ring closes). The
-        # other three are one-draw windows whose `until` reads their result:
-        # the trump declaration, the exchange (two sites, one vocabulary — the
-        # partner's pass and the declarer's), and the concession. Their
-        # bookkeeping is `phase play`'s, which outlives each of them, so it is
-        # persistent rather than any window's own. Green as written; red under:
-        # declare `passes_done` in the auction's state block.
+        # ring's own (the phase body reads it as the ring closes). The trump
+        # declaration, the exchange and the concession are single-seat
+        # `offer`s, decisions of `phase play` with no episode of their own, so
+        # their bookkeeping is persistent rather than any window's. Green as
+        # written; red under: declare `passes_done` in the auction's state
+        # block.
         windows=(
             Window(
                 vocabularies=(("submit_bid", "pass", "pass_with_help"),),
@@ -379,9 +427,6 @@ ROUNDS: dict[str, Rounds] = {
                     ("seat_under", GONE),
                 ),
             ),
-            Window(vocabularies=(("declare_trump_suit",),), idle=()),
-            Window(vocabularies=(("pass_four",),), idle=()),
-            Window(vocabularies=(("throw_in", "play_on"),), idle=()),
         ),
         persistent=frozenset(
             {
@@ -396,13 +441,12 @@ ROUNDS: dict[str, Rounds] = {
         # The Reizen is one window at two sites: middlehand against forehand,
         # then rearhand against the survivor, over the same three ring roles.
         # `working_bid` is the result the settlement reads. The suit
-        # declaration is a one-draw window whose `until` reads its result.
+        # declaration is a single-seat `offer`, a decision with no episode.
         windows=(
             Window(
                 vocabularies=(("bid", "yes", "pass"),),
                 idle=(("passer", None), ("speaker", None), ("responder", None)),
             ),
-            Window(vocabularies=(("declare_suit",),), idle=()),
         ),
         persistent=frozenset(
             {
@@ -410,6 +454,16 @@ ROUNDS: dict[str, Rounds] = {
                 "hands_played", "is_grand", "is_null", "leader", "score",
                 "thrown", "trump_suit", "working_bid",
             }
+        ),
+    ),
+    "cheat.cardlang": Rounds(
+        # The play loop is a `turns` ring whose turn is one offer, and the
+        # challenge window after each play sits outside it. The loop keeps no
+        # bookkeeping of its own: its `until` reads the hand's result, and
+        # every variable is the hand's.
+        windows=(Window(vocabularies=(("play_cards",),), idle=()),),
+        persistent=frozenset(
+            ['challenged', 'challenger', 'claim_count', 'claim_rank', 'claimant', 'responder', 'window_open', 'won']
         ),
     ),
     "tichu.cardlang": Rounds(
@@ -440,18 +494,24 @@ ROUNDS: dict[str, Rounds] = {
     ),
 }
 
-# The betting family: every decision the game offers is a betting round's
-# turn, so no decision is outside one and the property has nothing to range
-# over. Executed below, not asserted: each game is walked and the walk must
-# see betting turns and nothing else.
+# The games whose every decision is a round's turn — the betting family, and
+# the games whose whole play is one `turns` ring offering its moves — so no
+# decision is outside one and the property has nothing to range over.
+# Executed below, not asserted: each game is walked and the walk must see
+# the rounds' turns and nothing else.
 NO_DECISION_OUTSIDE: frozenset[str] = frozenset(
     {
+        "breakthrough.cardlang",
         "five-card-stud.cardlang",
+        "freecell.cardlang",
+        "go-fish.cardlang",
         "holdem-heads-up.cardlang",
         "holdem.cardlang",
+        "klondike.cardlang",
         "kuhn-poker.cardlang",
         "leduc-poker.cardlang",
         "seven-card-stud.cardlang",
+        "tic-tac-toe.cardlang",
     }
 )
 
@@ -528,7 +588,15 @@ def _walk(filename: str, seed: int) -> Walk:
     """
     game, _space = load(str(GAMES_DIR / filename))
     windows = ROUNDS[filename].windows
-    offers = [frozenset(v) for v in _offering_vocabularies(game)]
+    # The game's plain offers — every `Offer` that is not itself a round's
+    # one decision — so a round's own turn is never read as fitting a plain
+    # offer and attributed to nothing.
+    rounds = {id(offer) for _loop, offer in _offering_rounds(game)}
+    offers = [
+        frozenset(x.offering)
+        for x in _subnodes(game)
+        if isinstance(x, n.Offer) and id(x) not in rounds
+    ]
     live: list[RuntimeState] = []
     inside = [0] * len(windows)
     outside: list[list[dict[str, Any]]] = [[] for _ in windows]
@@ -596,7 +664,7 @@ def test_round_variable_is_idle_outside_its_window(
 ) -> None:
     window = ROUNDS[filename].windows[index]
     idle = dict(window.idle)[var]
-    for seed in WALK_SEEDS:
+    for seed in ROUNDS[filename].walk_seeds:
         for merged in _walk(filename, seed).outside[index]:
             assert _is_idle(merged, var, idle), (
                 f"{filename}: at a decision outside the window offering "
@@ -631,10 +699,11 @@ def test_a_value_decision_window_sees_one(filename: str, index: int) -> None:
     red under: drop `value_decisions` from Pinochle's auction window — the
     bid-amount `choose` is read as outside the window it belongs to, and every
     one of that window's six idle cells fails instead."""
-    seen = sum(_walk(filename, seed).value_seen[index] for seed in WALK_SEEDS)
+    seeds = ROUNDS[filename].walk_seeds
+    seen = sum(_walk(filename, seed).value_seen[index] for seed in seeds)
     assert seen, (
         f"{filename}: window {index} declares `value_decisions` but no "
-        f"decision was attributed to it across {len(WALK_SEEDS)} seeds"
+        f"decision was attributed to it across {len(seeds)} seeds"
     )
 
 
@@ -642,11 +711,12 @@ def test_a_value_decision_window_sees_one(filename: str, index: int) -> None:
 def test_walk_leaves_the_window(filename: str, index: int) -> None:
     """The floor the cells above stand on, kept apart from them so a cell's
     red is the idle assertion and nothing else."""
-    inside = sum(_walk(filename, seed).inside[index] for seed in WALK_SEEDS)
-    outside = sum(len(_walk(filename, seed).outside[index]) for seed in WALK_SEEDS)
+    seeds = ROUNDS[filename].walk_seeds
+    inside = sum(_walk(filename, seed).inside[index] for seed in seeds)
+    outside = sum(len(_walk(filename, seed).outside[index]) for seed in seeds)
     assert inside >= MIN_INSIDE_DECISIONS, (
         f"{filename}: the walk reached only {inside} decisions inside window "
-        f"{index} over {len(WALK_SEEDS)} seeds; fewer than "
+        f"{index} over {len(seeds)} seeds; fewer than "
         f"{MIN_INSIDE_DECISIONS} cannot have closed a round, before which the "
         f"idle value comes from the declaration"
     )
@@ -709,10 +779,10 @@ def test_every_offering_round_belongs_to_one_window(filename: str) -> None:
 @pytest.mark.parametrize(
     "filename", sorted(NO_DECISION_OUTSIDE), ids=lambda f: f.removesuffix(".cardlang")
 )
-def test_betting_family_offers_no_decision_outside_a_round(filename: str) -> None:
-    """The betting family's boundary, executed: a walk of each game sees
-    betting turns and no other decision, so nothing exists for the property
-    to range over.
+def test_single_ring_games_offer_no_decision_outside_a_round(filename: str) -> None:
+    """The boundary of the games whose every decision is a round's turn,
+    executed: a walk of each game sees the rounds' turns and no other
+    decision, so nothing exists for the property to range over.
 
     red under: give Kuhn's hand a `move chosen one card` before the betting
     round — the walk meets a card decision outside every round."""
@@ -758,10 +828,9 @@ def test_no_bookkeeping_round_reads_no_declared_state(filename: str) -> None:
     pile — the flag is then a name this reads."""
     game, _space = load(str(GAMES_DIR / filename))
     declared = _declared_state(game)
-    for node in _subnodes(game):
-        if isinstance(node, n.AuctionRound):
-            named = {x.name for x in _subnodes(node.until) if isinstance(x, n.NameRef)}
-            assert not (named & declared), sorted(named & declared)
+    for loop, _offer in _offering_rounds(game):
+        named = {x.name for x in _subnodes(loop.until) if isinstance(x, n.NameRef)}
+        assert not (named & declared), sorted(named & declared)
 
 
 # The matcher's own boundary, probed directly. The corpus never offers a

@@ -77,17 +77,12 @@ game LeducPoker {
     for each player p: committed[p] := committed[p] + 1
   }
 
-  // First street: private cards only, bets of 2. The ring's `over` filter
-  // and its `until` terminator name the same set (`pending`), so the
-  // ring closes exactly when it empties; the second arm covers the
-  // case where only one player can still act.
+  // First street: private cards only, bets of 2. The street is the
+  // library's: every pending seat is asked from the opener until nobody is
+  // pending, or a fold leaves one contender.
   phase first_street {
     run open_street(2, 0)
-    round offering [check, bet, call, fold, raise] from first_actor
-          over players where pending(player)
-          until (number of players where pending(player)) is 0
-             or ((number of players where can_act(player)) <= 1
-                 and (number of players where can_act(player) and owes(player)) is 0)
+    run betting_street(first_actor)
   }
 
   // Second street: the community card is turned face up and bets double.
@@ -98,11 +93,7 @@ game LeducPoker {
     if (number of players where not folded[player]) > 1 {
       deal 1 card from deck to board
       run open_street(4, 0)
-      round offering [check, bet, call, fold, raise] from first_actor
-            over players where pending(player)
-            until (number of players where pending(player)) is 0
-               or ((number of players where can_act(player)) <= 1
-                   and (number of players where can_act(player) and owes(player)) is 0)
+      run betting_street(first_actor)
     }
   }
 

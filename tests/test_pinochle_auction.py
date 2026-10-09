@@ -145,8 +145,15 @@ def _move(candidates: list[Any], name: str) -> Any | None:
 
 
 def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
-    """Play one game with `chooser` and return every contract the auction's
-    `pinochle_auction_outcome` traced (`pinochle_contract` events, in order).
+    """Play one game with `chooser` and return every contract its auctions
+    settle, re-derived from what the seats observe: an auction is the run of
+    decisions asked in the `auction` phase; the standing high bidder is the
+    actor of the last `submit_bid` announced in it, at the number that seat
+    then chose, in tens (its own `chose` event, the bid being a value
+    decision); when
+    nobody bids, the ring closed before one seat was asked at all, and the
+    contract is that seat's — the dealer, under the rules — at the minimum
+    opening, a number no observation carries.
 
     A chooser this degenerate is not a way anyone plays, and at the game's own
     1500 target it runs past the declared length before a side gets there. That
@@ -155,17 +162,47 @@ def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
     ran long" — because what these tests assert is the FIRST contract, which is
     settled long before the bound is anywhere near.
     """
-    contracts: list[dict[str, Any]] = []
+    seen: list[tuple[int, tuple[Any, ...]]] = []
 
-    def tr(event: str, data: Any) -> None:
-        if event == "pinochle_contract":
-            contracts.append(data)
+    def observer(player: int, event: tuple[Any, ...]) -> None:
+        seen.append((player, event))
 
     try:
-        play_game(game, random.Random(0), tr, chooser=chooser)
+        play_game(game, random.Random(0), chooser=chooser, observer=observer)
     except OwnerGuardError as exc:
         if not is_length_guard(exc):
             raise
+    contracts: list[dict[str, Any]] = []
+    asked: set[int] = set()
+    last_bid: tuple[int, int | None] | None = None
+    in_auction = False
+
+    def close() -> None:
+        if last_bid is None:
+            # Three seats were asked and the fourth never was: the dealer.
+            (declarer,) = set(range(4)) - asked
+            contracts.append({"all_pass": True, "declarer": declarer})
+        else:
+            contracts.append({"all_pass": False, "declarer": last_bid[0], "bid": last_bid[1]})
+
+    for player, event in seen:
+        kind = event[0]
+        if kind == "asked":
+            if event[1] == "auction":
+                if not in_auction:
+                    in_auction, asked, last_bid = True, set(), None
+                asked.add(player)
+            elif in_auction:
+                close()
+                in_auction = False
+        elif in_auction and kind == "announce" and event[2] == "submit_bid":
+            last_bid = (int(event[1]), None)
+        elif in_auction and kind == "chose" and last_bid is not None and last_bid[1] is None:
+            if player == last_bid[0] and isinstance(event[1], int):
+                # The number is chosen in tens, the ladder's own unit.
+                last_bid = (last_bid[0], event[1] * 10)
+    if in_auction:
+        close()
     return contracts
 
 
@@ -194,11 +231,7 @@ def test_every_seat_leaving_gives_the_dealer_the_minimum_contract(leaving: str) 
     contracts = _capture_contracts(game, _picking(leaving))
 
     assert contracts, "no auction ran"
-    assert contracts[0] == {
-        "all_pass": True,
-        "declarer": FIRST_DEALER,
-        "bid": MINIMUM_OPENING,
-    }
+    assert contracts[0] == {"all_pass": True, "declarer": FIRST_DEALER}
 
 
 def test_full_bidding_climbs_the_ladder_to_the_ceiling() -> None:

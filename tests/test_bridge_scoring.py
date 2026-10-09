@@ -1,17 +1,21 @@
 """Independent recompute of Bridge scoring, driving the real bridge.cardlang.
 
 Bridge's scoring lives in the DSL, so this drives actual games and recomputes
-every hand's score from the traced contract (a `bridge_contract` event) and the
-trick winners, mirroring the scoring rules in Python, then asserts the recomputed
-running totals match the traced `hand_end` totals after every hand. This pins the
-whole scoring system — in particular the just-fixed redoubled-undertrick tier
-(×4 → 400/200), which random play exercises heavily — so a regression in any
+every hand's score from the contract and the trick winners, mirroring the
+scoring rules in Python, then asserts the recomputed running totals match the
+traced `hand_end` totals after every hand. The contract is itself recomputed,
+from the auction's announcements as every seat hears them: the standing bid,
+its strain, the doubling and the closing passes are re-derived here from the
+bids, so the game's own bidding bookkeeping is held to the rules too. This
+pins the whole scoring system — in particular the redoubled-undertrick tier
+(x4 -> 400/200), which random play exercises heavily — so a regression in any
 branch makes the recompute diverge and the test fail.
 """
 
 from __future__ import annotations
 
 import random
+import re
 from pathlib import Path
 from typing import Any
 
@@ -20,12 +24,62 @@ from cardlang.runtime.driver import play_game
 
 BRIDGE = Path(__file__).parent.parent / "docs" / "games" / "bridge.cardlang"
 TEAM = {0: 0, 2: 0, 1: 1, 3: 1}  # teams [[0, 2], [1, 3]]
+STRAIN_INDEX = {"clubs": 0, "diamonds": 1, "hearts": 2, "spades": 3, None: 4}
+AUCTION_WORDS = {"pass", "double", "redouble", "submit_bid"}
 
 
 def _per_trick(strain: str | None) -> int:
     if strain is None:
         return 30  # no-trump
     return 20 if strain in ("clubs", "diamonds") else 30
+
+
+class _Auction:
+    """The bidding, re-derived from announcements: the cheapest level that
+    beats the standing bid in a strain, doubling, and the closing passes."""
+
+    def __init__(self) -> None:
+        self.level = 0
+        self.strain: str | None = None
+        self.high: int | None = None
+        self.doubled = 1
+        self.passes = 0
+        self.made_bid = False
+
+    def hear(self, actor: int, text: str) -> None:
+        m = re.fullmatch(r"submit_bid(?:\((\w+)\))?", text)
+        if m:
+            strain = m.group(1)
+            if self.level == 0:
+                level = 1
+            elif STRAIN_INDEX[strain] > STRAIN_INDEX[self.strain]:
+                level = self.level
+            else:
+                level = self.level + 1
+            self.level, self.strain, self.high = level, strain, actor
+            self.doubled, self.made_bid, self.passes = 1, True, 0
+        elif text == "double":
+            self.doubled, self.passes = 2, 0
+        elif text == "redouble":
+            self.doubled, self.passes = 4, 0
+        elif text == "pass":
+            self.passes += 1
+
+    @property
+    def closed(self) -> bool:
+        return (self.made_bid and self.passes >= 3) or (not self.made_bid and self.passes >= 4)
+
+    def contract(self) -> dict[str, Any]:
+        if not self.made_bid:
+            return {"all_pass": True}
+        assert self.high is not None
+        return {
+            "all_pass": False,
+            "declarer_team": TEAM[self.high],
+            "level": self.level,
+            "strain": self.strain,
+            "doubled_mult": self.doubled,
+        }
 
 
 def test_bridge_scoring_matches_independent_recompute() -> None:
@@ -35,21 +89,35 @@ def test_bridge_scoring_matches_independent_recompute() -> None:
         events: list[tuple[str, Any]] = []
 
         def tracer(event: str, data: Any) -> None:
-            if event in ("bridge_contract", "trick", "hand_end"):
+            if event in ("trick", "hand_end"):
                 events.append((event, data))  # noqa: B023 -- consumed before the loop advances
 
-        play_game(game, random.Random(seed), tracer)
+        def observer(player: int, event: tuple[Any, ...]) -> None:
+            # Seat 0 hears every announcement; the auction's are the ones in
+            # its vocabulary (a card play announces a card, never a bid word).
+            if player == 0 and event[0] == "announce":
+                text = str(event[2])
+                if text.split("(")[0] in AUCTION_WORDS:
+                    events.append(("bid", (int(event[1]), text)))  # noqa: B023
+
+        play_game(game, random.Random(seed), tracer, observer=observer)
 
         games_won = {0: 0, 1: 0}
         below = {0: 0, 1: 0}
         total = {0: 0, 1: 0}
         contract: dict[str, Any] | None = None
         tricks = {0: 0, 1: 0}
+        auction: _Auction | None = None
 
         for kind, data in events:
-            if kind == "bridge_contract":
-                contract = data
-                tricks = {0: 0, 1: 0}
+            if kind == "bid":
+                if auction is None or auction.closed:
+                    auction = _Auction()
+                    contract = None
+                auction.hear(*data)
+                if auction.closed:
+                    contract = auction.contract()
+                    tricks = {0: 0, 1: 0}
             elif kind == "trick":
                 tricks[TEAM[data[0]]] += 1
             elif kind == "hand_end":

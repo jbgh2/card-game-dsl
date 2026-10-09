@@ -91,14 +91,16 @@ game StudAllIn {
         bet_to_match := bet_by[bringer]
         raises := 1
         limit := 5
-        round offering [check, bet, call, fold, raise] from bringer offset_by left
+        turns bettor from bringer offset_by left
               over players where not folded[player] and stack[player] > 0
                                 and (not acted[player] or bet_by[player] < bet_to_match)
               until (number of players where not folded[player] and stack[player] > 0
                        and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                  or ((number of players where not folded[player] and stack[player] > 0) <= 1
                      and (number of players where not folded[player] and stack[player] > 0
-                            and bet_by[player] < bet_to_match) is 0)
+                            and bet_by[player] < bet_to_match) is 0) {
+          offer to bettor one of [check, bet, call, fold, raise]
+        }
       }
 
       // 4th–7th streets: burn, deal one card, then a betting round (limits 5/10/10/10;
@@ -117,14 +119,16 @@ game StudAllIn {
           limit := 5
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
+          turns bettor from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
                          and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
                        and (number of players where not folded[player] and stack[player] > 0
-                              and bet_by[player] < bet_to_match) is 0)
+                              and bet_by[player] < bet_to_match) is 0) {
+            offer to bettor one of [check, bet, call, fold, raise]
+          }
         }
       }
 
@@ -138,14 +142,16 @@ game StudAllIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
+          turns bettor from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
                          and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
                        and (number of players where not folded[player] and stack[player] > 0
-                              and bet_by[player] < bet_to_match) is 0)
+                              and bet_by[player] < bet_to_match) is 0) {
+            offer to bettor one of [check, bet, call, fold, raise]
+          }
         }
       }
 
@@ -159,14 +165,16 @@ game StudAllIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
+          turns bettor from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
                          and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
                        and (number of players where not folded[player] and stack[player] > 0
-                              and bet_by[player] < bet_to_match) is 0)
+                              and bet_by[player] < bet_to_match) is 0) {
+            offer to bettor one of [check, bet, call, fold, raise]
+          }
         }
       }
 
@@ -180,14 +188,16 @@ game StudAllIn {
           limit := 10
           for each player p: bet_by[p] := 0
           for each player p: acted[p] := false
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
+          turns bettor from best_showing_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
                 until (number of players where not folded[player] and stack[player] > 0
                          and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
                        and (number of players where not folded[player] and stack[player] > 0
-                              and bet_by[player] < bet_to_match) is 0)
+                              and bet_by[player] < bet_to_match) is 0) {
+            offer to bettor one of [check, bet, call, fold, raise]
+          }
         }
       }
 

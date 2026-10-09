@@ -5,14 +5,14 @@
 // 36-hand game; each hand one declarer plays alone against the other two
 // under a Suit, Grand, or Null contract; highest cumulative score wins.
 //
-// The hand runs fully on the kernel. The Reizen call-and-response is the
-// auction form of `round` over a TWO-participant ring with role-guarded moves:
-// `bid` is guarded to the speaker, `yes` to the responder, `pass` open — the
+// The hand runs fully on the kernel. The Reizen call-and-response is a
+// `turns` ring over a TWO-participant set with role-guarded moves: `bid` is
+// guarded to the speaker, `yes` to the responder, `pass` open — the
 // guard-filtered candidate lists alternate [bid, pass] / [yes, pass] exactly,
 // and a pass (or the exhausted 62-value ladder) flips the `until` predicate
-// (decisions.md "The auction form of `round`", the call-and-response
-// configuration). Contract declaration is a pair of `offer`s plus a one-draw
-// suit round (`declare_suit(s : Suit)`, the Suit domain in deck order). The
+// (decisions.md "The `turns` form", the call-and-response paragraph).
+// Contract declaration is a pair of `offer`s plus a single-seat suit offer
+// (`declare_suit(s : Suit)`, the Suit domain in deck order). The
 // ten tricks bypass the trick `round` — its rules-driven candidate set is
 // unordered, where the reference draws from hand-ordered legality — and run
 // as three single-actor filtered movements per trick. The contract's order is
@@ -125,17 +125,21 @@ game Skat {
       // exchange with no draw, like a pass by the speaker.
       responder := dealer offset_by left           // forehand answers first
       speaker := responder offset_by left          // middlehand speaks
-      round offering [bid, yes, pass] from speaker
+      turns bidder from speaker
             over players where player is speaker or player is responder
-            until passer is not none or skat_next_bid(working_bid) is 0
+            until passer is not none or skat_next_bid(working_bid) is 0 {
+        offer to bidder one of [bid, yes, pass]
+      }
       let w1 = if passer is none then responder
                else the player where (player is speaker or player is responder) and player is not passer
       speaker := speaker offset_by left            // rearhand speaks
       responder := w1
       passer := none
-      round offering [bid, yes, pass] from speaker
+      turns bidder from speaker
             over players where player is speaker or player is responder
-            until passer is not none or skat_next_bid(working_bid) is 0
+            until passer is not none or skat_next_bid(working_bid) is 0 {
+        offer to bidder one of [bid, yes, pass]
+      }
       declarer := if passer is none then responder
                   else the player where (player is speaker or player is responder) and player is not passer
       passer := none
@@ -150,13 +154,11 @@ game Skat {
       }
 
       // --- Contract declaration: hand or pick up the skat (discarding two),
-      // then the game type; a Suit game names its trump in a one-draw round.
+      // then the game type; a Suit game names its trump in one more offer.
       offer to declarer one of [pick_up_skat, declare_hand]
       offer to declarer one of [choose_suit_game, declare_grand, declare_null]
       if not is_grand and not is_null {
-        round offering [declare_suit] from declarer
-              over players where player is declarer
-              until trump_suit is not none
+        offer to declarer one of [declare_suit]
       }
       // Matadors (with/without the top trumps) exist only under a trump
       // structure; the count reads hand + skat BEFORE play. A `let` local, NOT

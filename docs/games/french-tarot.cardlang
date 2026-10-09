@@ -7,8 +7,9 @@
 // bouts-conditional threshold. Thirty-six hands are played; the highest score
 // wins.
 //
-// The four-level ascending bid runs on the kernel `round` (the move vocabulary
-// below, a counterclockwise single-pass ring, and `tarot_auction_outcome`). The
+// The four-level ascending bid is a `turns` ring (the move vocabulary below,
+// counterclockwise, each seat dropping out once it has spoken) whose result the
+// auction phase `produce`s: the taker at the level reached, or a thrown-in hand. The
 // chien handling, the eighteen atout-trump tricks, and the scoring all run on
 // the kernel too: the chien discard is a filtered movement into the taker's
 // HIDDEN `discard[player]` (six chosen plain non-Kings, genuinely concealed
@@ -81,11 +82,6 @@ game FrenchTarot {
   // also promises what the resolver then checks — an entry reading
   // `in hand_sequence` is called only where that phase is running, which here
   // is its descendant `phase play`.
-  //
-  // The auction's own outcome query is not here and cannot be: an outcome is
-  // named on a `round auction ... outcome` slot, a Primitive namespace the
-  // block does not cover (issue #142), so `tarot_auction_outcome` keeps the
-  // `PRIMITIVE_READS` row its dispatch binds.
   primitives {
     tarot_excuse_player() : Player?
     tarot_per_opp(pb : Integer) : Integer
@@ -136,11 +132,16 @@ game FrenchTarot {
         opener        : Player? = none
       }
       opener := dealer offset_by right
-      round offering [pass, bid_petite, bid_garde, bid_garde_sans, bid_garde_contre]
-            from opener
+      turns bidder from opener
             over players where not acted[player]
-            until (number of players where not acted[player]) is 0
-            outcome tarot_auction_outcome
+            until (number of players where not acted[player]) is 0 {
+        offer to bidder one of [pass, bid_petite, bid_garde, bid_garde_sans, bid_garde_contre]
+      }
+      if lead_taker is none {
+        produce thrown_in
+      } else {
+        produce taken(lead_taker, current_level)
+      }
     }
     auction produces:
       taken(t, lvl) { taker := t  bid_level := lvl  continue to play }

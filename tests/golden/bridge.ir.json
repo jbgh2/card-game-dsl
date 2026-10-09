@@ -452,17 +452,72 @@
                     "kind": "int",
                     "value": 0
                   }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "first_clubs",
+                  "index": "team",
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "first_diamonds",
+                  "index": "team",
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "first_hearts",
+                  "index": "team",
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "first_spades",
+                  "index": "team",
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "first_notrump",
+                  "index": "team",
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
                 }
               ]
             },
             {
-              "kind": "auction_round",
-              "offering": [
-                "pass",
-                "submit_bid",
-                "double",
-                "redouble"
-              ],
+              "kind": "turns",
+              "binder": "bidder",
               "leader": {
                 "kind": "name",
                 "name": "dealer",
@@ -522,7 +577,219 @@
                   }
                 }
               },
-              "outcome_fn": "bridge_auction_outcome"
+              "again": null,
+              "body": [
+                {
+                  "kind": "offer",
+                  "player": {
+                    "kind": "name",
+                    "name": "bidder",
+                    "ref": "local"
+                  },
+                  "offering": [
+                    "pass",
+                    "submit_bid",
+                    "double",
+                    "redouble"
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "if",
+              "cond": {
+                "kind": "name",
+                "name": "made_bid",
+                "ref": "state_var"
+              },
+              "then": [
+                {
+                  "kind": "let",
+                  "name": "side",
+                  "index": null,
+                  "value": {
+                    "kind": "call",
+                    "func": "team_of",
+                    "args": [
+                      {
+                        "kind": "name",
+                        "name": "high_bidder",
+                        "ref": "state_var"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "kind": "let",
+                  "name": "d",
+                  "index": null,
+                  "value": {
+                    "kind": "if_expr",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "is",
+                      "left": {
+                        "kind": "name",
+                        "name": "cur_strain",
+                        "ref": "state_var"
+                      },
+                      "right": {
+                        "kind": "name",
+                        "name": "clubs",
+                        "ref": "enum_value"
+                      }
+                    },
+                    "then": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "first_clubs",
+                        "ref": "state_var"
+                      },
+                      "index_expr": {
+                        "kind": "name",
+                        "name": "side",
+                        "ref": "local"
+                      }
+                    },
+                    "elifs": [
+                      [
+                        {
+                          "kind": "binop",
+                          "op": "is",
+                          "left": {
+                            "kind": "name",
+                            "name": "cur_strain",
+                            "ref": "state_var"
+                          },
+                          "right": {
+                            "kind": "name",
+                            "name": "diamonds",
+                            "ref": "enum_value"
+                          }
+                        },
+                        {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "first_diamonds",
+                            "ref": "state_var"
+                          },
+                          "index_expr": {
+                            "kind": "name",
+                            "name": "side",
+                            "ref": "local"
+                          }
+                        }
+                      ],
+                      [
+                        {
+                          "kind": "binop",
+                          "op": "is",
+                          "left": {
+                            "kind": "name",
+                            "name": "cur_strain",
+                            "ref": "state_var"
+                          },
+                          "right": {
+                            "kind": "name",
+                            "name": "hearts",
+                            "ref": "enum_value"
+                          }
+                        },
+                        {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "first_hearts",
+                            "ref": "state_var"
+                          },
+                          "index_expr": {
+                            "kind": "name",
+                            "name": "side",
+                            "ref": "local"
+                          }
+                        }
+                      ],
+                      [
+                        {
+                          "kind": "binop",
+                          "op": "is",
+                          "left": {
+                            "kind": "name",
+                            "name": "cur_strain",
+                            "ref": "state_var"
+                          },
+                          "right": {
+                            "kind": "name",
+                            "name": "spades",
+                            "ref": "enum_value"
+                          }
+                        },
+                        {
+                          "kind": "subscript",
+                          "obj": {
+                            "kind": "name",
+                            "name": "first_spades",
+                            "ref": "state_var"
+                          },
+                          "index_expr": {
+                            "kind": "name",
+                            "name": "side",
+                            "ref": "local"
+                          }
+                        }
+                      ]
+                    ],
+                    "otherwise": {
+                      "kind": "subscript",
+                      "obj": {
+                        "kind": "name",
+                        "name": "first_notrump",
+                        "ref": "state_var"
+                      },
+                      "index_expr": {
+                        "kind": "name",
+                        "name": "side",
+                        "ref": "local"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "produce",
+                  "tag": "contract_finalized",
+                  "payloads": [
+                    {
+                      "kind": "name",
+                      "name": "d",
+                      "ref": "local"
+                    },
+                    {
+                      "kind": "name",
+                      "name": "cur_level",
+                      "ref": "state_var"
+                    },
+                    {
+                      "kind": "name",
+                      "name": "cur_strain",
+                      "ref": "state_var"
+                    },
+                    {
+                      "kind": "name",
+                      "name": "doubled",
+                      "ref": "state_var"
+                    }
+                  ]
+                }
+              ],
+              "else": [
+                {
+                  "kind": "produce",
+                  "tag": "all_pass",
+                  "payloads": []
+                }
+              ]
             }
           ]
         },
@@ -1835,6 +2102,297 @@
             "kind": "int",
             "value": 0
           }
+        },
+        {
+          "kind": "let",
+          "name": "side",
+          "index": null,
+          "value": {
+            "kind": "call",
+            "func": "team_of",
+            "args": [
+              {
+                "kind": "name",
+                "name": "actor",
+                "ref": "pronoun"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "if",
+          "cond": {
+            "kind": "binop",
+            "op": "and",
+            "left": {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "name",
+                "name": "strain",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "name",
+                "name": "clubs",
+                "ref": "enum_value"
+              }
+            },
+            "right": {
+              "kind": "is_check",
+              "check": "none",
+              "operand": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "first_clubs",
+                  "ref": "state_var"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "side",
+                  "ref": "local"
+                }
+              }
+            }
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "target": "first_clubs",
+              "index_expr": {
+                "kind": "name",
+                "name": "side",
+                "ref": "local"
+              },
+              "op": ":=",
+              "value": {
+                "kind": "name",
+                "name": "actor",
+                "ref": "pronoun"
+              }
+            }
+          ],
+          "else": null
+        },
+        {
+          "kind": "if",
+          "cond": {
+            "kind": "binop",
+            "op": "and",
+            "left": {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "name",
+                "name": "strain",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "name",
+                "name": "diamonds",
+                "ref": "enum_value"
+              }
+            },
+            "right": {
+              "kind": "is_check",
+              "check": "none",
+              "operand": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "first_diamonds",
+                  "ref": "state_var"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "side",
+                  "ref": "local"
+                }
+              }
+            }
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "target": "first_diamonds",
+              "index_expr": {
+                "kind": "name",
+                "name": "side",
+                "ref": "local"
+              },
+              "op": ":=",
+              "value": {
+                "kind": "name",
+                "name": "actor",
+                "ref": "pronoun"
+              }
+            }
+          ],
+          "else": null
+        },
+        {
+          "kind": "if",
+          "cond": {
+            "kind": "binop",
+            "op": "and",
+            "left": {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "name",
+                "name": "strain",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "name",
+                "name": "hearts",
+                "ref": "enum_value"
+              }
+            },
+            "right": {
+              "kind": "is_check",
+              "check": "none",
+              "operand": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "first_hearts",
+                  "ref": "state_var"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "side",
+                  "ref": "local"
+                }
+              }
+            }
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "target": "first_hearts",
+              "index_expr": {
+                "kind": "name",
+                "name": "side",
+                "ref": "local"
+              },
+              "op": ":=",
+              "value": {
+                "kind": "name",
+                "name": "actor",
+                "ref": "pronoun"
+              }
+            }
+          ],
+          "else": null
+        },
+        {
+          "kind": "if",
+          "cond": {
+            "kind": "binop",
+            "op": "and",
+            "left": {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "name",
+                "name": "strain",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "name",
+                "name": "spades",
+                "ref": "enum_value"
+              }
+            },
+            "right": {
+              "kind": "is_check",
+              "check": "none",
+              "operand": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "first_spades",
+                  "ref": "state_var"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "side",
+                  "ref": "local"
+                }
+              }
+            }
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "target": "first_spades",
+              "index_expr": {
+                "kind": "name",
+                "name": "side",
+                "ref": "local"
+              },
+              "op": ":=",
+              "value": {
+                "kind": "name",
+                "name": "actor",
+                "ref": "pronoun"
+              }
+            }
+          ],
+          "else": null
+        },
+        {
+          "kind": "if",
+          "cond": {
+            "kind": "binop",
+            "op": "and",
+            "left": {
+              "kind": "is_check",
+              "check": "none",
+              "operand": {
+                "kind": "name",
+                "name": "strain",
+                "ref": "local"
+              }
+            },
+            "right": {
+              "kind": "is_check",
+              "check": "none",
+              "operand": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "first_notrump",
+                  "ref": "state_var"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "side",
+                  "ref": "local"
+                }
+              }
+            }
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "target": "first_notrump",
+              "index_expr": {
+                "kind": "name",
+                "name": "side",
+                "ref": "local"
+              },
+              "op": ":=",
+              "value": {
+                "kind": "name",
+                "name": "actor",
+                "ref": "pronoun"
+              }
+            }
+          ],
+          "else": null
         }
       ]
     },

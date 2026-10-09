@@ -157,11 +157,17 @@ game Tichu {
         dealt += 1
         if any player where called[player] is 0 {
           if dealt < 8 {
-            round offering [call_grand_tichu, decline_grand] from dealer over all players
-                  until quiet >= 4
+            turns caller from dealer
+                  over all players
+                  until quiet >= 4 {
+              offer to caller one of [call_grand_tichu, decline_grand]
+            }
           } else {
-            round offering [call_grand_tichu, decline_grand] from dealer over all players
-                  until grand_asks >= 8
+            turns caller from dealer
+                  over all players
+                  until grand_asks >= 8 {
+              offer to caller one of [call_grand_tichu, decline_grand]
+            }
           }
           quiet := 0
           grand_asks := 0
@@ -172,9 +178,11 @@ game Tichu {
       // Small tichu before the push ("a call before the cards are pushed can
       // be useful as a request for partner to hand over his best card").
       if tichu_window_open() {
-        round offering [call_tichu, no_call] from dealer
+        turns caller from dealer
               over players where may_call(player)
-              until quiet >= (number of players where may_call(player))
+              until quiet >= (number of players where may_call(player)) {
+          offer to caller one of [call_tichu, no_call]
+        }
         quiet := 0
       }
 
@@ -189,9 +197,11 @@ game Tichu {
       // everyone may consider a call (after the push), but without
       // information about the lead" (the FAQ).
       if tichu_window_open() {
-        round offering [call_tichu, no_call] from dealer
+        turns caller from dealer
               over players where may_call(player)
-              until quiet >= (number of players where may_call(player))
+              until quiet >= (number of players where may_call(player)) {
+          offer to caller one of [call_tichu, no_call]
+        }
         quiet := 0
       }
 
@@ -218,9 +228,11 @@ game Tichu {
                     or (out_first is none and state.shed_first is not none and state.shed_second is not none and team_of(state.shed_first) is team_of(state.shed_second))
               before asking seat {
                 if tichu_window_open() and lead_made() {
-                  round offering [call_tichu, no_call] from seat
+                  turns caller from seat
                         over players where may_call(player)
-                        until quiet >= (number of players where may_call(player))
+                        until quiet >= (number of players where may_call(player)) {
+                    offer to caller one of [call_tichu, no_call]
+                  }
                   quiet := 0
                 }
               }

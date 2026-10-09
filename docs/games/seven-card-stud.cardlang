@@ -8,18 +8,18 @@
 // game with no overall winner; to give the runtime a terminal, this plays until
 // one player holds all the chips and declares that player the winner.
 //
-// The betting runs on the kernel `round`'s ring: the pointer advances past
-// whoever just acted, so the seats behind the aggressor decide before the
-// seats its bet re-opened — poker's continuation order. `until` is checked
-// before every draw, so a street closes the moment nobody is pending rather
-// than at the end of a lap.
+// The betting runs on the library's `betting_street`, a `turns` ring: the
+// turn advances past whoever just acted, so the seats behind the aggressor
+// decide before the seats its bet re-opened — poker's continuation order.
+// `until` is checked before every ask, so a street closes the moment nobody
+// is pending rather than at the end of a lap.
 //
 // THE BRING-IN POSTER DECIDES FIRST, AND KEEPS ITS LATER OPTION. Two rights,
 // at two different nodes, and only the second is this file's own choice.
 //
 // The FIRST is Pagat's, quoted: "The player who opens the betting has the
 // option to place a full small bet ($5) instead of just the compulsory minimum
-// $2." So the ring opens ON the poster. The post is already made, so the
+// $2." So the street opens ON the poster. The post is already made, so the
 // poster owes nothing and `check` stands on the minimum while `raise`
 // completes to the street's size. The order is load-bearing rather than
 // cosmetic, because the page states what the seats behind may do as a
@@ -248,11 +248,7 @@ game SevenCardStud {
         // ($2) or to fold. Only if someone completes the bet are later players
         // allowed to raise. If the opener chooses to begin with a full bet
         // ($5), subsequent players can raise."
-        round offering [check, bet, call, fold, raise] from bringer
-              over players where pending(player)
-              until (number of players where pending(player)) is 0
-                 or ((number of players where can_act(player)) <= 1
-                     and (number of players where can_act(player) and owes(player)) is 0)
+        run betting_street(bringer)
       }
 
       // 4th–7th streets: burn, deal one card, then a betting round (limits 5/10/10/10;
@@ -281,11 +277,7 @@ game SevenCardStud {
         if (number of players where can_act(player)) >= 2 {
           run open_street(5, if (number of players where shows_pair(player)) > 0 then 10 else 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
-          round offering [check, bet, bet_big, call, fold, raise, raise_big] from best_showing_seat()
-                over players where pending(player)
-                until (number of players where pending(player)) is 0
-                   or ((number of players where can_act(player)) <= 1
-                       and (number of players where can_act(player) and owes(player)) is 0)
+          run betting_street(best_showing_seat())
         }
       }
 
@@ -296,11 +288,7 @@ game SevenCardStud {
         if (number of players where can_act(player)) >= 2 {
           run open_street(10, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
-                over players where pending(player)
-                until (number of players where pending(player)) is 0
-                   or ((number of players where can_act(player)) <= 1
-                       and (number of players where can_act(player) and owes(player)) is 0)
+          run betting_street(best_showing_seat())
         }
       }
 
@@ -311,11 +299,7 @@ game SevenCardStud {
         if (number of players where can_act(player)) >= 2 {
           run open_street(10, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
-                over players where pending(player)
-                until (number of players where pending(player)) is 0
-                   or ((number of players where can_act(player)) <= 1
-                       and (number of players where can_act(player) and owes(player)) is 0)
+          run betting_street(best_showing_seat())
         }
       }
 
@@ -326,11 +310,7 @@ game SevenCardStud {
         if (number of players where can_act(player)) >= 2 {
           run open_street(10, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
-          round offering [check, bet, call, fold, raise] from best_showing_seat()
-                over players where pending(player)
-                until (number of players where pending(player)) is 0
-                   or ((number of players where can_act(player)) <= 1
-                       and (number of players where can_act(player) and owes(player)) is 0)
+          run betting_street(best_showing_seat())
         }
       }
 

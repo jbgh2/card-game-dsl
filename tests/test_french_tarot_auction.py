@@ -38,7 +38,7 @@ def _capture_contracts(game: Any, want_first_bid: str | None) -> list[dict[str, 
     """Play one game, choosing `want_first_bid` (a move name) at the very first
     auction turn and passing at every later auction turn; non-auction decisions
     (chien discard, trick cards) take the first `n` candidates. Returns the
-    `tarot_contract` events the auction traced."""
+    contracts the auctions settled, re-derived from the announcements."""
     contracts: list[dict[str, Any]] = []
     bid_done = [False]
 
@@ -53,11 +53,34 @@ def _capture_contracts(game: Any, want_first_bid: str | None) -> list[dict[str, 
             return [passit if passit is not None else candidates[0]]
         return list(candidates[:n])
 
-    def tr(event: str, data: Any) -> None:
-        if event == "tarot_contract":
-            contracts.append(data)
+    heard: list[tuple[int, str]] = []
 
-    play_game(game, random.Random(0), tr, chooser=chooser)
+    def observer(player: int, event: tuple[Any, ...]) -> None:
+        if player == 0 and event[0] == "announce":
+            heard.append((int(event[1]), str(event[2])))
+
+    play_game(game, random.Random(0), chooser=chooser, observer=observer)
+    # Each auction is a run of bid-vocabulary announcements; its contract is
+    # the last bid heard, or a thrown-in hand when nobody bid.
+    levels = {"bid_petite": 1, "bid_garde": 2, "bid_garde_sans": 3, "bid_garde_contre": 4}
+    in_auction = False
+    taker: tuple[int, int] | None = None
+    for actor, text in heard:
+        if text in levels or text == "pass":
+            in_auction = True
+            if text in levels:
+                taker = (actor, levels[text])
+        elif in_auction:
+            contracts.append(
+                {"thrown_in": True} if taker is None
+                else {"thrown_in": False, "taker": taker[0], "level": taker[1]}
+            )
+            in_auction, taker = False, None
+    if in_auction:
+        contracts.append(
+            {"thrown_in": True} if taker is None
+            else {"thrown_in": False, "taker": taker[0], "level": taker[1]}
+        )
     return contracts
 
 

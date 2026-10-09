@@ -26,11 +26,11 @@
 // — unless that meld was nothing but nines of trump (the "deece"), which save
 // themselves.
 //
-// The whole hand runs in the DSL. The ascending auction runs on the kernel
-// `round` (the move vocabulary below, a shrinking participants ring, and
-// `pinochle_auction_outcome`); the bid names a number, chosen in tens, so a
+// The whole hand runs in the DSL. The ascending auction is a `turns` ring
+// over a shrinking participants set (the move vocabulary below) whose result
+// the auction phase `produce`s; the bid names a number, chosen in tens, so a
 // bidder may raise by ten or jump by more. Trump declaration, each half of the
-// exchange, and the declarer's concession are one-draw `round offering` sites.
+// exchange, and the declarer's concession are single-seat `offer`s.
 // Meld is a forced (not chosen) per-player `pinochle_meld_value(p)` Primitive
 // query, credited to each player's team, and the cards behind it are laid face
 // up one at a time through the size/slot pair. The twelve strict tricks run on
@@ -67,11 +67,6 @@ game Pinochle {
   // in naming it promises what the resolver then checks: the meld query is
   // called only where `hand_sequence` is running, which is `phase play`, one
   // level inside it.
-  //
-  // The auction's own outcome query is not here and cannot be: an outcome is
-  // named on a `round auction ... outcome` slot, a Primitive namespace the
-  // block does not cover (issue #142), so it keeps the `PRIMITIVE_READS` row
-  // its dispatch binds.
   primitives {
     pinochle_meld_value(p : Player) : Integer
         reads hand[p], trump_suit in hand_sequence
@@ -158,17 +153,23 @@ game Pinochle {
         working_bid    : Integer = 0      // his standing bid in points
         opener         : Player? = none
         // The dealer is "under": when the other three seats leave the auction,
-        // the round ends before he is asked anything and the contract is his
-        // at the minimum. Named here so the outcome reads the rule's seat.
+        // the ring ends before he is asked anything and the contract is his
+        // at the minimum. Named here so the `produce` reads the rule's seat.
         seat_under     : Player? = none
       }
       opener := dealer offset_by left
       seat_under := dealer
-      round offering [submit_bid, pass, pass_with_help] from opener
+      turns bidder from opener
             over players where not passed[player]
                               and (lead_bidder is none or player is not lead_bidder)
-            until (number of players where not passed[player]) <= 1
-            outcome pinochle_auction_outcome
+            until (number of players where not passed[player]) <= 1 {
+        offer to bidder one of [submit_bid, pass, pass_with_help]
+      }
+      if lead_bidder is none {
+        produce bid_won(seat_under, (bid_tens + 1) * 10)
+      } else {
+        produce bid_won(lead_bidder, working_bid)
+      }
     }
     auction produces:
       bid_won(d, c) { high_bidder := d  current_bid := c  continue to play }
@@ -186,18 +187,12 @@ game Pinochle {
 
       // The high bidder names trump. Any suit: the rules put no condition on
       // the choice.
-      round offering [declare_trump_suit] from high_bidder
-            over players where player is high_bidder
-            until trump_suit is not none
+      offer to high_bidder one of [declare_trump_suit]
 
       // The exchange: the declarer's partner passes four across, then the
       // declarer passes four back, which may include cards just received.
-      round offering [pass_four] from high_bidder offset_by across
-            over players where player is (high_bidder offset_by across)
-            until passes_done >= 1
-      round offering [pass_four] from high_bidder
-            over players where player is high_bidder
-            until passes_done >= 2
+      offer to high_bidder offset_by across one of [pass_four]
+      offer to high_bidder one of [pass_four]
 
       // Meld is forced (a rational player melds everything) — a pure
       // computation per player, credited to his team — and it is laid FACE UP,
@@ -223,9 +218,7 @@ game Pinochle {
       if current_bid > meld_score[team_of(high_bidder)] + 250 {
         hand_played := false
       } else {
-        round offering [throw_in, play_on] from high_bidder
-              over players where player is high_bidder
-              until decided
+        offer to high_bidder one of [throw_in, play_on]
         if thrown_in {
           hand_played := false
         } else {

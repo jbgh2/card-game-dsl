@@ -28,16 +28,16 @@ Each hand:
    twice it — or, when overbid, twice the smallest multiple of the base that
    meets the bid. Null is a fixed value (23, or 35 played from the hand).
 
-The hand runs fully on the kernel. The Reizen is two sequential auction
-`round`s over role-guarded two-participant rings — `bid` guarded to the
-speaker, `yes` to the responder, `pass` open, so the candidate lists alternate
-[bid, pass] / [yes, pass]; a pass (or the exhausted 62-value ladder) flips the
-`until` predicate, and the survivor threads into the second contest
-([decisions.md](../decisions.md), "The auction form of `round`", the
-call-and-response bullet). The contract declaration is a pair of `offer`s
-(play-at-18/throw-in on an all-pass; hand vs picking up the skat, with the
-two-card discard in the `pick_up_skat` effect; the three-way game type) plus a
-one-draw `declare_suit(s : Suit)` round. The ten tricks are three single-actor
+The hand runs fully on the kernel. The Reizen is two sequential `turns` rings
+over role-guarded two-participant sets — `bid` guarded to the speaker, `yes`
+to the responder, `pass` open, so the candidate lists alternate [bid, pass] /
+[yes, pass]; a pass (or the exhausted 62-value ladder) flips the `until`
+predicate, and the survivor threads into the second contest
+([decisions.md](../decisions.md), "The `turns` form", the call-and-response
+paragraph). The contract declaration is a pair of `offer`s (play-at-18/throw-in
+on an all-pass; hand vs picking up the skat, with the two-card discard in the
+`pick_up_skat` effect; the three-way game type) plus a single-seat `offer` of
+`declare_suit(s : Suit)`. The ten tricks are three single-actor
 filtered movements per trick, and the contract's order is the game's Trick
 Order ([decisions.md](../decisions.md), "Trick Order"): its rows read the
 declared contract off the public state, which is what puts the four jacks and

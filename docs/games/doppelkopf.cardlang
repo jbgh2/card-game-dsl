@@ -22,8 +22,8 @@
 // Announcements (Re, Kontra, no 90/60/30/schwarz) are off-the-clock: legal
 // "at any time", bounded by the announcer's own hand size. The encoding is
 // the quiescence-lap poll (decisions.md "Off-the-clock windows"): before
-// every card decision, while the public window gate holds, an offering
-// round walks the ring from the player about to act; each player in turn
+// every card decision, while the public window gate holds, a `turns` ring
+// walks the table from the player about to act; each player in turn
 // submits an announcement or `no_announcement`; four consecutive
 // `no_announcement`s close the poll. The gate reads only public state
 // (hand counts and the announcement ladder), so skipping a closed window
@@ -142,12 +142,11 @@ game Doppelkopf {
 
         // --- Seat 1: the leader. Poll, then lead any card.
         if window_open() {
-          round offering [announce_re, announce_kontra, announce_re_no90,
-                          announce_re_no60, announce_re_no30, announce_re_schwarz,
-                          announce_kontra_no90, announce_kontra_no60,
-                          announce_kontra_no30, announce_kontra_schwarz,
-                          no_announcement]
-                from leader over all players until quiet >= 4
+          turns caller from leader
+                over all players
+                until quiet >= 4 {
+            offer to caller one of [announce_re, announce_kontra, announce_re_no90, announce_re_no60, announce_re_no30, announce_re_schwarz, announce_kontra_no90, announce_kontra_no60, announce_kontra_no30, announce_kontra_schwarz, no_announcement]
+          }
           quiet := 0
         }
         as leader { move chosen one card from hand[leader] to trick_pile }
@@ -166,12 +165,11 @@ game Doppelkopf {
 
         // --- Seat 2. Poll, then follow the led class.
         if window_open() {
-          round offering [announce_re, announce_kontra, announce_re_no90,
-                          announce_re_no60, announce_re_no30, announce_re_schwarz,
-                          announce_kontra_no90, announce_kontra_no60,
-                          announce_kontra_no30, announce_kontra_schwarz,
-                          no_announcement]
-                from s2 over all players until quiet >= 4
+          turns caller from s2
+                over all players
+                until quiet >= 4 {
+            offer to caller one of [announce_re, announce_kontra, announce_re_no90, announce_re_no60, announce_re_no30, announce_re_schwarz, announce_kontra_no90, announce_kontra_no60, announce_kontra_no30, announce_kontra_schwarz, no_announcement]
+          }
           quiet := 0
         }
         as s2 { move chosen one card from hand[s2] where follow_ok(s2, card) to trick_pile }
@@ -190,12 +188,11 @@ game Doppelkopf {
 
         // --- Seat 3.
         if window_open() {
-          round offering [announce_re, announce_kontra, announce_re_no90,
-                          announce_re_no60, announce_re_no30, announce_re_schwarz,
-                          announce_kontra_no90, announce_kontra_no60,
-                          announce_kontra_no30, announce_kontra_schwarz,
-                          no_announcement]
-                from s3 over all players until quiet >= 4
+          turns caller from s3
+                over all players
+                until quiet >= 4 {
+            offer to caller one of [announce_re, announce_kontra, announce_re_no90, announce_re_no60, announce_re_no30, announce_re_schwarz, announce_kontra_no90, announce_kontra_no60, announce_kontra_no30, announce_kontra_schwarz, no_announcement]
+          }
           quiet := 0
         }
         as s3 { move chosen one card from hand[s3] where follow_ok(s3, card) to trick_pile }
@@ -214,12 +211,11 @@ game Doppelkopf {
 
         // --- Seat 4.
         if window_open() {
-          round offering [announce_re, announce_kontra, announce_re_no90,
-                          announce_re_no60, announce_re_no30, announce_re_schwarz,
-                          announce_kontra_no90, announce_kontra_no60,
-                          announce_kontra_no30, announce_kontra_schwarz,
-                          no_announcement]
-                from s4 over all players until quiet >= 4
+          turns caller from s4
+                over all players
+                until quiet >= 4 {
+            offer to caller one of [announce_re, announce_kontra, announce_re_no90, announce_re_no60, announce_re_no30, announce_re_schwarz, announce_kontra_no90, announce_kontra_no60, announce_kontra_no30, announce_kontra_schwarz, no_announcement]
+          }
           quiet := 0
         }
         as s4 { move chosen one card from hand[s4] where follow_ok(s4, card) to trick_pile }

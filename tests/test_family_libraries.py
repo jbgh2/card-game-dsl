@@ -271,7 +271,7 @@ game Probe {{
   phase play {{ {phase_state} {run} }}
   winner: highest stack
 }}
-{extra}
+{fold}{extra}
 """
 
 
@@ -286,8 +286,16 @@ def _game(
     # error — so a probe importing the REAL library has to run it, while one
     # importing a synthetic library must not, having no such procedure to run.
     run = "run open_street(1, 0)" if "poker_betting" in uses else ""
+    # The library contracts for the game's `fold` (`requires { fold : Move }`),
+    # so a probe importing the REAL library defines one; a synthetic library
+    # asks for none, and a game-own move type nothing offers is refused.
+    fold = (
+        "move_type fold { effect { folded[actor] := true } }\n"
+        if "poker_betting" in uses
+        else ""
+    )
     text = _GAME.format(
-        extra=extra, extra_state=extra_state, phase_state=phase_state, run=run
+        extra=extra, extra_state=extra_state, phase_state=phase_state, run=run, fold=fold
     )
     text = text.replace("uses poker_betting", uses, 1)
     return parse_text(text, "probe.cardlang")

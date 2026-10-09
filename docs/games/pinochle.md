@@ -44,17 +44,20 @@ Each hand:
    a counter or the last trick. A defence that took none loses its meld, unless
    that meld was nothing but nines of trump, which save themselves.
 
-The whole hand runs in the DSL. The ascending auction runs on the kernel
-`round` (a shrinking participants ring over the `submit_bid`/`pass` vocabulary,
-settling on a declarer and his bid). Trump declaration is a second, one-draw
-`round offering [declare_trump_suit]` over all four suits. The exchange is two
-one-seat `round offering [pass_four]` draws, the partner's and then the
-declarer's, each a `move chosen 4 cards` whose count is the rule; a passer's
-log names the four cards leaving and the receiver's names them arriving, while
-the opponents see four cards cross the table and no identity at either end.
-Meld is a forced `pinochle_meld_value(p)` Primitive query per player, credited
-to his team, with a `pinochle_meld_size`/`pinochle_meld_slot` pair naming the
-cards it lays face up one at a time. The concession is a one-seat `round offering [throw_in, play_on]`.
+The whole hand runs in the DSL. The ascending auction is a `turns` ring over
+a shrinking participants set (a seat that passes, and the standing high
+bidder, are never asked again), each seat asked by `offer` to bid, pass or
+pass with help, settling on a declarer and his bid, which the phase body
+`produce`s. Trump declaration is a single `offer to high_bidder one of
+[declare_trump_suit]` over all four suits. The exchange is two single-seat
+`offer`s of `pass_four`, the partner's and then the declarer's, each a `move
+chosen 4 cards` whose count is the rule; a passer's log names the four cards
+leaving and the receiver's names them arriving, while the opponents see four
+cards cross the table and no identity at either end. Meld is a forced
+`pinochle_meld_value(p)` Primitive query per player, credited to his team,
+with a `pinochle_meld_size`/`pinochle_meld_slot` pair naming the cards it
+lays face up one at a time. The concession is a single-seat
+`offer to high_bidder one of [throw_in, play_on]`.
 The twelve strict tricks run on the trick form of `round`, legality narrowed by
 the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade —
 note that the duty to beat the trick lapses once a plain-suit lead has been

@@ -235,6 +235,7 @@ game Sizing {{
   }}
   winner: highest stack
 }}
+move_type fold {{ effect {{ folded[actor] := true }} }}
 """
 
 

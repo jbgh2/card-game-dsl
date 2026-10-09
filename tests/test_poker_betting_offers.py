@@ -393,6 +393,7 @@ game Probe {{
   }}
   winner: highest stack
 }}
+move_type fold {{ effect {{ folded[actor] := true }} }}
 """
 
 # `acted` is the library's own state, so the probe game may not write it: the
@@ -682,6 +683,7 @@ game Ratchet {{
   }}
   winner: highest stack
 }}
+move_type fold {{ effect {{ folded[actor] := true }} }}
 """
 
 
