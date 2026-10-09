@@ -19,8 +19,8 @@ stdlib_rules: rule_def+
 // reaches a library two ways: `state` PROVIDES it (the library owns the variable
 // and its initial value; the game may read it and may not write it) and
 // `requires` CONTRACTS for it (the game declares it, picks its initial value,
-// and writes it). A move touching a game-specific zone stays game-local, which
-// is why neither clause names a zone.
+// and writes it). A zone or a move type reaches it one way, contracted through
+// `requires` — the game declares the zone, or defines the move type.
 library: _LIBRARY_KW NAME "{" library_item* "}"
 
 ?library_item: requires_block
@@ -42,13 +42,12 @@ library: _LIBRARY_KW NAME "{" library_item* "}"
 // An entry names a thing the game declares, and its type says which kind: a
 // `state { }` type, a `zones { }` type, or `Move` for a move type the game
 // defines in a `move_type` block of its own. That is why the type slot carries
-// both spellings the keyed blocks use — the index-domain argument a zone type
-// takes, and the `?` a state type takes — while a move type takes neither.
-// Which reading a head takes, and why `?` suffixes a value type only, is
-// decisions.md "Typed object model"; no spelling is legal on another kind's
-// row, and every cross is refused at resolve rather than here: the grammar
-// cannot see which registry a NAME came from, and a syntax error would report
-// a shape question as a spelling one.
+// the index-domain argument a zone type takes, while a state type and a move
+// type take none; no row is optional, so no `?` is spelled here. Which reading
+// a head takes is decisions.md "Typed object model"; an argument is legal on a
+// zone row only, and the cross is refused at resolve rather than here: the
+// grammar cannot see which registry a NAME came from, and a syntax error would
+// report a shape question as a spelling one.
 requires_block: _REQUIRES_KW "{" require_decl* "}"
 require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
 

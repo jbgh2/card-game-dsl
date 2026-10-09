@@ -179,11 +179,29 @@ does not prove: four things a green over these grids leaves open.
 One deliberate NON-error, recorded here so a later reader does not mistake its
 absence from the probes for an omission: an imported definition a game never
 uses is legal (decisions.md "Family libraries", the subset-vocabulary
-paragraph). Kuhn imports `raise` and never offers it. That is the tier working
-as designed — `uses` names a family, not a manifest — and its cost at the
-OpenSpiel target is pinned to zero in
+paragraph). Kuhn's street offers the family's whole vocabulary, so `raise`,
+`bet_big` and `raise_big` mint action ids that are never legal there. That is
+the tier working as designed — `uses` names a family, not a manifest — and
+its cost at the OpenSpiel target is pinned in
 `tests/openspiel_ready/test_kuhn_poker.py`, not here: the claim is about the
 action-space derivation, so it belongs in the channel of the adapter.
+
+The MOVE-TYPE contract kind (`<name> : Move`, decisions.md "Family
+libraries"): property — a row typed `Move` is answered by exactly one move
+type the including GAME defines, is offered from the library's own
+procedures, and every other answer or shape is refused where its author can
+act; domain — who answers (the game's move type, nothing, a state variable
+or zone of that name, another library's move type, the library itself) times
+how the row is written (bare, indexed, with a type argument, the keyword
+spelling) times how many definitions the game holds {0, 1, 2}, plus whether
+the game reaches any offer of it; registry — `resolve.MOVE_CONTRACT_TYPE`,
+`resolve.is_move_contract`, and the game's `move_types`, which
+`_check_move_requirement` reads; covered — the `_street` cells below, each
+naming its answer or shape; does not prove — that a row fixes the move
+type's ARITY or stake: a parameterized `move_type fold(c : Card)` answers
+`fold : Move` and the library's offer presents one candidate per card, which
+is the contract naming a definition and not its signature (issue #178 holds
+the residual).
 """
 
 from __future__ import annotations
@@ -282,13 +300,12 @@ def _game(
     phase_state: str = "",
     uses: str = "uses poker_betting",
 ) -> n.Game:
-    # `poker_betting` holds a procedure, and an uninvoked procedure is its own
-    # error — so a probe importing the REAL library has to run it, while one
-    # importing a synthetic library must not, having no such procedure to run.
-    run = "run open_street(1, 0)" if "poker_betting" in uses else ""
-    # The library contracts for the game's `fold` (`requires { fold : Move }`),
-    # so a probe importing the REAL library defines one; a synthetic library
-    # asks for none, and a game-own move type nothing offers is refused.
+    # `poker_betting` contracts for the game's `fold` (`requires { fold :
+    # Move }`), and a game-own move type no reachable offer presents is
+    # refused — so a probe importing the REAL library defines one AND runs
+    # the street that offers it, while one importing a synthetic library
+    # does neither, having no such contract to meet.
+    run = "run open_street(1, 0)  run betting_street(0)" if "poker_betting" in uses else ""
     fold = (
         "move_type fold { effect { folded[actor] := true } }\n"
         if "poker_betting" in uses
@@ -4040,6 +4057,51 @@ library other {
         _street(monkeypatch, defs="", uses_more="uses other", other=other),
         "library 'streetlib' requires move type `fold`, which library 'other' defines",
         "the including GAME defines",
+    )
+
+
+def test_a_contracted_move_type_the_game_never_reaches_an_offer_of_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A contracted move type is the game's own, so the ordinary rule holds: a
+    game that defines `fold` and reaches no offer of it — a ring of its own
+    that forgets it, the library's street never run — is refused as never
+    offered, exactly as a game-local move type is. The control is the
+    accepting cell above, where `run ask(0)` reaches the library's offer.
+
+    red under: subtract the contracted names from `own` before
+    `resolve._check_unoffered_move_types` runs — the game checks and no seat
+    can ever fold."""
+    game = _street(monkeypatch)
+    text = _STREET_GAME.format(uses_more="", zone="", state="",
+                               defs="move_type fold { effect { acted[actor] := true } }")
+    text = text.replace(
+        "phase play { run ask(0) }",
+        "phase play { turns t from 0 over players where not acted[player]\n"
+        "      until (number of players where not acted[player]) is 0 {\n"
+        "    offer to t one of [stay] } }",
+    )
+    assert text.count("offer to t one of [stay]") == 1, "the ring did not replace the run"
+    _rejects(parse_text(text, "street.cardlang"), "move type `fold` is never offered")
+    del game
+
+
+def test_a_contracted_move_type_the_game_defines_twice_names_the_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The multiplicity-2 cell of the row, the twin of the state contract's:
+    two definitions answer nothing, and the refusal says how many it found.
+
+    red under: drop the `len(found) > 1` arm of
+    `resolve._check_move_requirement` — two definitions are accepted as one."""
+    _rejects(
+        _street(
+            monkeypatch,
+            defs="move_type fold { effect { acted[actor] := true } }\n"
+                 "move_type fold { effect { acted[actor] := false } }",
+        ),
+        "library 'streetlib' requires move type `fold`",
+        "defines 2 times",
     )
 
 

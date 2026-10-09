@@ -232,7 +232,7 @@ game StudAllIn {
 }
 
 // Stud-local betting vocabulary. Both moves of each decision are always offered
-// in `offering [check, bet, call, fold, raise]` order; the `when:` guards filter
+// in `[check, bet, call, fold, raise]` order; the `when:` guards filter
 // to the monolith's exact option list per decision: free-to-act -> [check(, bet)],
 // facing a bet -> [call, fold(, raise)]. A bet/raise is a partial all-in when the
 // actor cannot cover it (`if want < stack then want else stack`), and resets every

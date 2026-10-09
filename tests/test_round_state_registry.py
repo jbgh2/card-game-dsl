@@ -33,7 +33,11 @@
                 activated by games in context — so the checker validates against
                 the UNION of the forms' published sets, and `state.shed_first`
                 inside a trick phase type-checks. What holds at runtime is that a
-                stale or foreign frame is refused rather than served.
+                read with no frame at all is refused; a frame an earlier round
+                left survives any decision construct between (an `offer`, a
+                `turns` ring, a `repeat until`), and only the next round replaces
+                it — which constructs should end a frame's window is open
+                (open-questions/round-state-in-information-states.md).
                 Nor that the published set is the RIGHT one. Whether the members
                 games reach are the members published is the corpus's answer,
                 given by every `state.` reference in docs/games/*.cardlang and

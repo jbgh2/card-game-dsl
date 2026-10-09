@@ -40,16 +40,16 @@ reports unsatisfiable; the enclosing phase interprets that signal in
 context. The phase decides whether unsatisfiable means error, fallback,
 or a typed outcome other than success.
 
-**Rounds and mechanics produce typed outcomes the same way.** A `round`
-that resolves to a tagged value names an `outcome` callback over its bid
-history: Bridge's auction produces
+**Rings and rounds produce typed outcomes the same way.** A bidding ring
+that resolves to a tagged value `produce`s it, from the phase state its
+moves wrote, once the ring closes: Bridge's auction produces
 `contract_finalized(declarer, level, strain, doubling) | all_pass`,
 Pinochle's produces `bid_won(declarer, bid)`, Tarot's
 `taken(taker, level) | thrown_in`; the trick `round`'s `winner` function
-produces a Player. (An auction with nothing to tag — Skat's Reizen, a
-betting round — omits the callback and threads phase state instead.) The
-enclosing structure pattern-matches on the produced value the same way it
-does for phase outcomes:
+produces a Player. (A ring with nothing to tag — Skat's Reizen, a betting
+street — produces nothing and threads phase state instead.) The enclosing
+structure pattern-matches on the produced value the same way it does for
+phase outcomes:
 
 ```text
 bidding produces:
@@ -70,12 +70,13 @@ Mechanics and phases are *not* further unified at the construct
 level. The distinction stays:
 
 - A **mechanic** is a named, parameterized, reusable unit — the shape for
-  a chunk of logic that appears in multiple games. The corpus currently
-  has none: the trick, the auction, a betting round, and the climbing
-  trick are configurations of the kernel `round` construct, and every
-  formerly-Python hand engine is DSL over it. The category remains for
-  future in-DSL definitions promoted corpus-first (an ascending `auction`,
-  a `betting` round, real response windows).
+  a chunk of logic that appears in multiple games. The corpus holds one:
+  the poker street, a `poker_betting` library procedure over the `turns`
+  ring. The trick and the climbing trick are configurations of the kernel
+  `round` construct, every auction and poll is a `turns` ring with an
+  `offer` body, and every formerly-Python hand engine is DSL over them.
+  The category grows by in-DSL definitions promoted corpus-first (an
+  ascending auction, real response windows).
 - A **phase** is a positional unit in the phase tree, not parameterized
   and not reusable across games. It's the right shape when a chunk
   appears at a specific position with semantics tied to where it sits.
@@ -959,11 +960,12 @@ any future engine whose combination space explodes
 
 ## The `turns` form
 
-The turn loop beneath the round forms — for games whose turn is a *body of
-statements* rather than one flat candidate list (the dividing line from the
-round family: a single-list turn is an auction-form configuration; `turns` is
-for draw-then-discard shapes, ask-and-resolve shapes, anything with statement
-structure per turn):
+The turn loop beneath the round forms — for every ring whose turn is a
+*body of statements*: a single `offer` (an auction, a poll, a betting
+street — "Auctions, polls and betting rings are `turns` plus `offer`"
+below), draw-then-discard shapes, ask-and-resolve shapes, anything with
+statement structure per turn. The round forms, by contrast, move cards
+through a trick:
 
 ```text
 turns <binder> from <leader> over <participants>
@@ -1270,9 +1272,9 @@ kernel — closes and marriages are public declarations at the table, so
 information lives only in zones; state is public"; Coup's window results are
 public phase-state Booleans the same way.) A round's frame is short-lived;
 its state vanishes when the next round runs. (An auction's pass state or a
-betting round's `bet_to_match` is *not*
-round-internal — those forms of `round` thread their accumulator through
-ordinary **phase state**, declared in the phase's `state { }`.)
+betting street's `bet_to_match` is *not* round-internal — a `turns` ring
+has no frame, and its moves write ordinary **phase state**, declared in the
+phase's `state { }`.)
 
 **A round PUBLISHES a closed, typed set of fields, and `state.` names only
 those.** A form's frame is also its working memory — the trick form drives its
@@ -1914,8 +1916,11 @@ registry rows rather than as new syntax.
 **A move type is played only where it is offered.** A game's own move type
 that no reachable `offer` presents is refused: no seat can ever play it, so
 it is a declaration nothing reads. A game importing a library need not
-present every move type the library defines, and a move type the library
-contracts for (`requires { fold : Move }`) is the library's to present.
+present every move type the library defines. A move type the library
+contracts for (`requires { fold : Move }`) is the game's own and is held to
+the same rule: the library's offer of it reaches the game only where the
+game runs the procedure holding it, so a game that defines it and runs no
+such procedure is refused like any other.
 
 ## The operation vocabulary
 
@@ -4069,8 +4074,8 @@ decision, and draws where none is.
 
 **What the checker refuses.** Every row is readable or refused:
 
-- a row on a game's own move type that no reachable `offer` or `round
-  offering` presents — nothing reads it. An offer made inside a move
+- a row on a game's own move type that no reachable `offer` presents —
+  nothing reads it. An offer made inside a move
   type or procedure that nothing reaches presents nothing. A library
   move type's row is the library's statement for every game importing
   it, so a game that presents it nowhere is not refused;
@@ -4965,11 +4970,12 @@ so its row carries neither an index nor a type argument; the declaration
 keyword itself (`fold : move_type`) parses in the slot and is refused by
 name, with the word to write.
 
-The spellings do not cross. A zone type carries the `<owner>` argument and
-never a `?`; a state type carries the `?` and never an argument; `Move`
-carries neither. Every cross is refused against the LIBRARY ALONE, before any
-game is consulted, because it names a shape no `zones { }`, `state { }` or
-`move_type` line could answer — as are an owner argument disagreeing with the
+The spellings do not cross. A zone type carries the `<owner>` argument; a
+state type and `Move` carry none; no row is optional, so no row carries a
+`?` — the grammar has no spelling for one. An argument on a state or move row
+is refused against the LIBRARY ALONE, before any game is consulted, because
+it names a shape no `zones { }`, `state { }` or `move_type` line could
+answer — as are an owner argument disagreeing with the
 index, an owned zone type with no index, and an index that is a position
 domain rather than a seat or team. A library declares no `positions { }` and
 cannot name one, so a position-indexed zone family cannot be contracted at
@@ -5113,8 +5119,9 @@ ring predicates — all of which move chips and nothing else, over the reading o
 the one betting move that touches cards. Which cards a fold disposes of, and
 where they go, is a property of the game: Stud sends the folder's upcards to the
 muck the instant they fold, and opponents' information sets carry that
-observation. Each game defines its own `fold` and offers it alongside the
-imported four in one vocabulary list.
+observation. Each game defines its own `fold`, and the library contracts
+for it (`requires { fold : Move }`) so its street can offer it beside the
+imported moves.
 
 `smuggling` draws the same line one family over, and the measurement is what
 draws it. Across the twelve smuggling files `commit_shipment` and `wave` are

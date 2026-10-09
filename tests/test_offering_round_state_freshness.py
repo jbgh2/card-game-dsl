@@ -412,8 +412,8 @@ ROUNDS: dict[str, Rounds] = {
         # declaration, the exchange and the concession are single-seat
         # `offer`s, decisions of `phase play` with no episode of their own, so
         # their bookkeeping is persistent rather than any window's. Green as
-        # written; red under: declare `passes_done` in the auction's state
-        # block.
+        # written; red under: declare a variable in the auction's state block
+        # that no window names.
         windows=(
             Window(
                 vocabularies=(("submit_bid", "pass", "pass_with_help"),),
@@ -430,9 +430,9 @@ ROUNDS: dict[str, Rounds] = {
         ),
         persistent=frozenset(
             {
-                "current_bid", "dealer", "decided", "deece_meld",
+                "current_bid", "dealer", "deece_meld",
                 "hand_played", "high_bidder", "leader", "meld_score",
-                "passes_done", "result", "score", "show_k", "thrown_in",
+                "result", "score", "show_k", "thrown_in",
                 "trick_score", "trump_suit",
             }
         ),

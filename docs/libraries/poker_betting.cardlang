@@ -145,7 +145,8 @@ library poker_betting {
   // and a move the street cannot take is simply never legal: `bet_big` and
   // `raise_big` are guarded on `big_limit > limit`, so a one-size street
   // never presents them, and a game whose cap is one aggression never sees
-  // `raise` legal. Every consumer therefore mints the same seven action ids
+  // `raise` legal. Every consumer whose `fold` is nullary therefore mints
+  // the same seven action ids
   // (decisions.md "Declared parameter domains"): the cost of one street
   // written once, and what a seat is asked is unchanged by it. `fold` is
   // the game's own, contracted above, because folding touches the game's

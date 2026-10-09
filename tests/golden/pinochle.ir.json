@@ -905,30 +905,7 @@
               "decls": [
                 {
                   "kind": "state_decl",
-                  "name": "passes_done",
-                  "index": null,
-                  "type": "Integer",
-                  "optional": false,
-                  "default": {
-                    "kind": "int",
-                    "value": 0
-                  }
-                },
-                {
-                  "kind": "state_decl",
                   "name": "thrown_in",
-                  "index": null,
-                  "type": "Boolean",
-                  "optional": false,
-                  "default": {
-                    "kind": "name",
-                    "name": "false",
-                    "ref": "bool"
-                  }
-                },
-                {
-                  "kind": "state_decl",
-                  "name": "decided",
                   "index": null,
                   "type": "Boolean",
                   "optional": false,
@@ -2469,25 +2446,6 @@
           "dest_each": false,
           "distribution": null,
           "visibility": null
-        },
-        {
-          "kind": "assign",
-          "target": "passes_done",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "binop",
-            "op": "+",
-            "left": {
-              "kind": "name",
-              "name": "passes_done",
-              "ref": "state_var"
-            },
-            "right": {
-              "kind": "int",
-              "value": 1
-            }
-          }
         }
       ]
     },
@@ -2507,17 +2465,6 @@
             "name": "true",
             "ref": "bool"
           }
-        },
-        {
-          "kind": "assign",
-          "target": "decided",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "name",
-            "name": "true",
-            "ref": "bool"
-          }
         }
       ],
       "stake": "concession"
@@ -2527,19 +2474,7 @@
       "name": "play_on",
       "params": [],
       "when": null,
-      "effect": [
-        {
-          "kind": "assign",
-          "target": "decided",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "name",
-            "name": "true",
-            "ref": "bool"
-          }
-        }
-      ]
+      "effect": []
     }
   ],
   "functions": [

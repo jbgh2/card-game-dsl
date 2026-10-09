@@ -185,15 +185,16 @@ Key design notes:
   not a move
 - `play_card(c : Card)` / `declare_marriage(s : Suit)` / `exchange_trump_jack` /
   `close_talon` — Schnapsen's lead vocabulary, **game-defined** `move_type`s in
-  the same shape: one auction-form candidate list per leader turn. `play_card`
+  the same shape: one `offer` list per leader turn. `play_card`
   is the corpus's first Card-parameterized move ([decisions.md](decisions.md)
   "Declared parameter domains": candidates are the live hand, in hand order)
 - `bid` / `yes` / `pass` / `play_at_eighteen` / `throw_in` / `pick_up_skat` /
   `declare_hand` / `choose_suit_game` / `declare_grand` / `declare_null` /
   `declare_suit(s : Suit)` — Skat's Reizen and declaration vocabulary,
   **game-defined** `move_type`s: `bid` and `yes` are role-guarded (the
-  call-and-response configuration, [decisions.md](decisions.md) "The auction
-  form of `round`"), and `declare_suit` runs the Suit domain in a one-draw round
+  call-and-response ring, [decisions.md](decisions.md)
+  "Auctions, polls and betting rings are `turns` plus `offer`"), and
+  `declare_suit` runs the Suit domain in a single `offer`
 - `income` / `foreign_aid` / `coup` / `tax` / `assassinate` / `steal` /
   `exchange` — Coup turn actions (general and character actions)
 - `challenge` — contest a character claim during a challenge window (Coup)
@@ -398,7 +399,8 @@ in tests/test_trump_slot_class.py.
   not vary: every street offers the family's seven moves in one order, and a
   move a street cannot take is never legal there (Kuhn Poker's `raise`, a
   one-size street's big wagers), so a seat is asked exactly what the rules
-  allow while every consumer mints the same action ids.
+  allow while every consumer whose `fold` is nullary mints the same action
+  ids — the contract fixes the name, not the arity.
   Both arms are the ring's: the street closes when no seat is `pending` — the
   settled field, everyone who can act having acted and owing nothing — or when
   the seats able to act are down to one that owes nothing, the street that

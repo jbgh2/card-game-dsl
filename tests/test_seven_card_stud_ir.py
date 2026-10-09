@@ -29,6 +29,8 @@ def test_seven_card_stud_ir_matches_golden() -> None:
 
 
 def test_seven_card_stud_ir_is_well_formed() -> None:
+    """red under: write one of the five streets inline in seven-card-stud.cardlang
+    — four spliced rings, not five."""
     ir = compile_path(STUD)
     assert ir["cardlang_ir"] == 1 and ir["kind"] == "game"
     # check / bet / call / raise / fold are game-defined betting move types.

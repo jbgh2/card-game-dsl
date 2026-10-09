@@ -232,12 +232,16 @@ game Sizing {{
     turns t from 0
           over players where player is hero
           until false {{
-      offer to t one of [{vocabulary}]
+      offer to t one of [{vocabulary}, fold]
     }}
   }}
   winner: highest stack
 }}
-move_type fold {{ effect {{ folded[actor] := true }} }}
+// The library contracts for the game's `fold`, and a game-own move type no
+// reachable offer presents is refused: these probes measure the library's
+// own moves, so the game's `fold` is offered beside them and never legal (no
+// standing bet is negative).
+move_type fold {{ when: bet_to_match < 0 effect {{ folded[actor] := true }} }}
 """
 
 

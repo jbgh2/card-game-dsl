@@ -2,7 +2,7 @@
 
 **Tier 3 — medium impact, narrow scope.** Surfaced by the Seven-Card Stud betting
 migration ([games/seven-card-stud.cardlang](../games/seven-card-stud.cardlang)),
-which writes five near-identical betting `round`s. The *within-round* duplication
+whose five streets each `run` the library's `betting_street`. The *within-street* duplication
 (the ring filter named in both `over` and `until`) is now factored with named
 functions ([decisions.md](../decisions.md), "Named functions"). What remains is the
 *block-level* repetition: the five rounds themselves.

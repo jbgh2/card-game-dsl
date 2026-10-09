@@ -6,6 +6,6 @@ status: canonical
 reserved: false
 home: `mechanics.py`
 see: []
-retired_spellings: []
+retired_spellings: [AuctionForm]
 findings: []
 ---

@@ -1305,10 +1305,11 @@ class UsesDecl:
 @dataclass(frozen=True, slots=True)
 class RequireDecl:
     """One entry of a library's `requires` block: the thing the including game
-    must declare, with the shape the library's bodies read it at. A `StateDecl`
-    minus the default, which the game owns — plus the zone types' `<owner>`
-    argument, because an entry may name a `zones { }` declaration as well as a
-    `state { }` one."""
+    must declare or define, with the shape the library's bodies read it at. A
+    `StateDecl` minus the default, which the game owns — plus the zone types'
+    `<owner>` argument, because an entry may name a `zones { }` declaration as
+    well as a `state { }` one — or, typed `Move`, a move type the game defines
+    (`resolve.MOVE_CONTRACT_TYPE`)."""
 
     name: str
     index: str | None

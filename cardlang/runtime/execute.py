@@ -50,7 +50,6 @@ from cardlang.runtime.values import Card, CardSet, Player, content_noun
 from cardlang.stdlib.hosted_poll import (
     HOSTED_POLL_ALLOWED,
     HOSTED_POLL_REFUSED,
-    HOSTED_REACH_REFUSED_SLOTS,
 )
 from cardlang.stdlib.zones import zone_capacity
 
@@ -85,13 +84,6 @@ def _refuse_unhosted(stmt: n.Stmt) -> None:
             f"a Hosted Poll's body ran {HOSTED_POLL_REFUSED[kind]} while its "
             f"climbing round was live",
         )
-    for (cls, field), what in HOSTED_REACH_REFUSED_SLOTS.items():
-        if isinstance(stmt, cls) and getattr(stmt, field) is not None:
-            raise ShadowGuardError(
-                "resolve._check_hosted_polls",
-                f"a Hosted Poll's body ran {what} while its climbing round "
-                f"was live",
-            )
 
 
 def phase_name(ctx: Ctx) -> str | None:

@@ -162,6 +162,9 @@ def test_the_preferred_line_never_reaches_the_trick_pile() -> None:
     (`GameSpec.greedy_prefers`), and that line bids garde at the first ask
     and plays out, so the provenance certificate needs no opening;
     `test_provenance_openings.py` holds the spec to declaring none.
+
+    red under: empty the spec's `greedy_prefers` — the plain line bids garde
+    and reaches a trick inside the walk.
     """
     from cardlang.openspiel.replay import DecisionNode
 

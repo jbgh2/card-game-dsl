@@ -12,7 +12,7 @@ about the action space — `toss` is a `move chosen one card`, so a tossed
 card's own action id names it, and a swapped world would not replay a
 recorded toss. The greedy `legal[0]` line never tosses: at the exchange it is
 offered `[stand, toss]` and `stand` sorts first, so the whole line is
-`check, check, stand, stand, check, check` on every manifest seed. The
+`bet, call, stand, stand, bet, call` on every manifest seed. The
 default `"suit"` would not starve a five-card hole against a 42-card stock
 the way it would the siblings' two-card holes; it would simply prove a
 narrower statement than the game supports.
@@ -28,7 +28,7 @@ _discards_are_not` covers instead.
 
 `adapter_terminal_steps=12`: the greedy line reaches TerminalNode in 6 steps
 on every seed of the manifest (measured; the line is seed-independent because
-neither `check` nor `stand` consults a card), so 12 carries a 6-step margin.
+neither a bet, a call nor `stand` consults a card), so 12 carries a 6-step margin.
 
 `conformance_steps` is deliberately UNSET, so this game plays a full
 `pyspiel.random_sim_test`. The sim re-simulates the whole (seed, history)

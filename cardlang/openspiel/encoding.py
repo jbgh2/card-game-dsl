@@ -180,7 +180,7 @@ def _decides_a_content_item(game: n.Game, mt_index: dict[str, n.MoveTypeDef]) ->
     chooser call sites, reconciled against an AST scrape by
     tests/test_delegated_play.py) is either an arm below or named at the
     bottom as offering something the other blocks number. Arms and sites are
-    not one-to-one: the three round forms share one site, and the two
+    not one-to-one: the round forms share one site, and the two
     non-joint movement sites share one arm. Each site is crossed against the
     answers it admits in tests/test_card_block_derivation.py.
 

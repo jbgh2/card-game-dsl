@@ -67,13 +67,14 @@ nothing else in common. Three things about that sharing are visible here:
   goes is a property of the game: Stud mucks the folder's *upcards*, which
   opponents were watching; Kuhn mucks a card nobody ever saw. The library
   holds the zone-free core and stops there.
-- **A member offers a subset of the family vocabulary.** Kuhn's `offering`
-  list is `[check, bet, call, fold]`: `raise` arrives with the import and is
-  never offered — Kuhn has no raise. The parameterization that says so is
-  ordinary required state, `raise_cap := 1`, so the imported move is
-  guard-false as well as unoffered. Nothing about it reaches OpenSpiel: the
-  action space is derived from the `offering` lists, not from the game's
-  move-type table, so a whole-library import costs no action ids.
+- **A member plays a subset of the family vocabulary.** The library's
+  street offers every family move — `raise`, `bet_big` and `raise_big`
+  included — and Kuhn has no raise: the parameterization that says so is
+  ordinary required state, `raise_cap := 1`, so those moves are never
+  legal at any Kuhn decision. What reaches OpenSpiel is the offered list,
+  so the three never-legal moves mint action ids (7 in all, 3 never legal,
+  pinned in tests/openspiel_ready/test_kuhn_poker.py): the cost of one
+  street written once, and what a seat may play is unchanged by it.
 - **A library owns some of its state, and contracts for the rest.** Kuhn
   declares seven of `poker_betting`'s variables and never mentions `acted`
   or `limit`: those the library *provides*, with its own defaults, and Kuhn

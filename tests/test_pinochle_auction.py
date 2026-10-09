@@ -1,13 +1,14 @@
-"""Pinochle's ascending auction on the kernel `round`, both outcome arms and the
+"""Pinochle's ascending auction as a `turns` ring, both `produce` arms and the
 ladder's two ends pinned independently of RNG luck.
 
-The byte-identical characterization golden exercises both outcome arms, but that
+The byte-identical characterization golden exercises both arms, but that
 coverage rests on the seed set. These drive the arms deterministically with an
-injected chooser so the contract `pinochle_auction_outcome` settles is fixed by
+injected chooser so the contract the ring's `produce` settles is fixed by
 construction:
 
-- every seat leaves the auction -> the dealer is under and takes the contract at
-  the minimum opening, which is the rules' seat and the rules' number;
+- every seat leaves the auction -> the dealer is under and takes the contract,
+  the rules' seat (the rules' number, the minimum opening, has no observation
+  of its own: the per-seed scores golden is its witness);
 - every seat bids the smallest legal raise -> the bid climbs the ladder in tens
   to the declared ceiling and the standing high bidder wins;
 - `pass_with_help` is a third option that leaves the auction exactly as `pass`
@@ -153,7 +154,10 @@ def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
     decision); when
     nobody bids, the ring closed before one seat was asked at all, and the
     contract is that seat's — the dealer, under the rules — at the minimum
-    opening, a number no observation carries.
+    opening, a number no observation carries. Beside each contract stands
+    the seat the GAME then had name trump (`declare_trump_suit`, the first
+    decision the `produce`d outcome hands to the declarer), so the contract
+    re-derived from the bids is held against what the game did with it.
 
     A chooser this degenerate is not a way anyone plays, and at the game's own
     1500 target it runs past the declared length before a side gets there. That
@@ -181,9 +185,11 @@ def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
         if last_bid is None:
             # Three seats were asked and the fourth never was: the dealer.
             (declarer,) = set(range(4)) - asked
-            contracts.append({"all_pass": True, "declarer": declarer})
+            contracts.append({"all_pass": True, "declarer": declarer, "trump_namer": None})
         else:
-            contracts.append({"all_pass": False, "declarer": last_bid[0], "bid": last_bid[1]})
+            contracts.append(
+                {"all_pass": False, "declarer": last_bid[0], "bid": last_bid[1], "trump_namer": None}
+            )
 
     for player, event in seen:
         kind = event[0]
@@ -197,6 +203,13 @@ def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
                 in_auction = False
         elif in_auction and kind == "announce" and event[2] == "submit_bid":
             last_bid = (int(event[1]), None)
+        elif (
+            kind == "announce"
+            and str(event[2]).startswith("declare_trump_suit")
+            and contracts
+            and contracts[-1]["trump_namer"] is None
+        ):
+            contracts[-1]["trump_namer"] = int(event[1])
         elif in_auction and kind == "chose" and last_bid is not None and last_bid[1] is None:
             if player == last_bid[0] and isinstance(event[1], int):
                 # The number is chosen in tens, the ladder's own unit.
@@ -219,19 +232,23 @@ def _picking(name: str) -> Any:
 
 
 @pytest.mark.parametrize("leaving", ["pass", "pass_with_help"])
-def test_every_seat_leaving_gives_the_dealer_the_minimum_contract(leaving: str) -> None:
-    """The dealer is under: when the other three seats leave, the round ends
-    before he is asked anything and the contract is his at the minimum opening.
+def test_every_seat_leaving_gives_the_dealer_the_contract(leaving: str) -> None:
+    """The dealer is under: when the other three seats leave, the ring ends
+    before he is asked anything, the contract is his, and he is the seat the
+    game then has name trump.
 
     Both ways of leaving the auction are driven, because `pass_with_help` is a
     signalling action that no rule reads — a table that plays it must reach the
     same contract as one that does not, and that is a claim, not a restatement
-    of the effect block."""
+    of the effect block.
+
+    red under: `produce bid_won(seat_under offset_by left, (bid_tens + 1) * 10)`
+    on the all-pass arm — the trump namer is no longer the dealer."""
     game = check_dsl(PINOCHLE, "pinochle.cardlang")
     contracts = _capture_contracts(game, _picking(leaving))
 
     assert contracts, "no auction ran"
-    assert contracts[0] == {"all_pass": True, "declarer": FIRST_DEALER}
+    assert contracts[0] == {"all_pass": True, "declarer": FIRST_DEALER, "trump_namer": FIRST_DEALER}
 
 
 def test_full_bidding_climbs_the_ladder_to_the_ceiling() -> None:
@@ -244,12 +261,15 @@ def test_full_bidding_climbs_the_ladder_to_the_ceiling() -> None:
     on, so it moves with the ladder's length and is measured, not reasoned;
     pinning the bid at the ceiling guards the `when:` that stops `submit_bid` at
     the top rung, since without it the last raise would ask for a number out of
-    an empty range."""
+    an empty range.
+
+    red under: `produce bid_won(lead_bidder offset_by left, working_bid)` —
+    the trump namer is not the standing high bidder."""
     game = check_dsl(PINOCHLE, "pinochle.cardlang")
     contracts = _capture_contracts(game, _picking("submit_bid"))
 
     assert contracts, "no auction ran"
-    assert contracts[0] == {"all_pass": False, "declarer": 1, "bid": CEILING}
+    assert contracts[0] == {"all_pass": False, "declarer": 1, "bid": CEILING, "trump_namer": 1}
 
 
 def test_the_top_rung_offers_no_bid_at_all() -> None:

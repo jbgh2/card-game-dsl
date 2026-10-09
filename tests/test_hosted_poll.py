@@ -72,9 +72,8 @@ windows", "The climbing form of `round`", "Surface totality").
                 E. `cardlang.runtime.mechanics.CLIMB_ASK_KINDS`
                 F. `cardlang.resolve._NAMING_SLOTS_BY_TYPE` over
                    `typing.get_args(n.Stmt)` and `typing.get_args(n.Expr)`,
-                   against `resolve.HOSTED_REACH_POOLS`,
-                   `resolve.HOSTED_REACH_INERT_SLOTS`,
-                   `stdlib.hosted_poll.HOSTED_REACH_REFUSED_SLOTS`
+                   against `resolve.HOSTED_REACH_POOLS` and
+                   `resolve.HOSTED_REACH_INERT_SLOTS`
                 G. `cardlang.primitives_block.Regime`
                 H. the rows of A, C, F and G above; the runtime half's tables
                    are `cardlang/stdlib/hosted_poll.py`'s, shared with resolve
@@ -124,8 +123,7 @@ red under (each planted in the code under guard, run, and reverted):
   `run_decision_round` — the body-ends-the-round cell reddens;
 - axis F: delete the `"move_type"` row of `resolve.HOSTED_REACH_POOLS` — every
   offered-effect and offered-guard cell reddens; delete its `"function"` row —
-  the function cells redden; delete `stdlib.hosted_poll.HOSTED_REACH_REFUSED_SLOTS`
-  — the slot-class pin fails to import it;
+  the function cells redden;
   empty the Primitive set in `resolve._check_hosted_polls` — the
   `primitive_call` cells redden; skip a move type's `when` field there — the
   guard cells redden; stop `resolve._definition_closure` pushing a reached
@@ -660,9 +658,8 @@ def test_the_routes_are_every_definition_a_body_can_name() -> None:
     }
     followed = {k for k, ns in slots.items() if ns in resolve_module.HOSTED_REACH_POOLS}
     inert = set(resolve_module.HOSTED_REACH_INERT_SLOTS)
-    refused_slot = set(hosted_registry.HOSTED_REACH_REFUSED_SLOTS)
     refused_owner = {k for k in slots if k[0] in hosted_registry.HOSTED_POLL_REFUSED}
-    classified = [followed, inert, refused_slot, refused_owner]
+    classified = [followed, inert, refused_owner]
     assert set().union(*classified) == set(slots), set(slots) - set().union(*classified)
     assert sum(map(len, classified)) == len(set().union(*classified)), "a slot filed twice"
     assert {(cls.__name__, f) for cls, f in followed} == {

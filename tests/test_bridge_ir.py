@@ -2,7 +2,7 @@
 
 The full pipeline (parse -> resolve -> typecheck -> emit) on the real
 bridge.cardlang, pinned with a golden so any change to the IR shape — in
-particular the auction form of `round` (the `offering`/`until` axes) and the bid
+particular the auction's `turns` ring (its `over`/`until` clauses) and the bid
 offering — is a reviewable diff. Regenerate deliberately with
 ``UPDATE_GOLDEN=1 pytest``.
 """
@@ -31,6 +31,8 @@ def test_bridge_ir_matches_golden() -> None:
 
 
 def test_bridge_auction_ring_is_well_formed() -> None:
+    """red under: add a second statement to the ring's body in bridge.cardlang
+    — the body is no longer one `offer`."""
     ir: Any = compile_path(BRIDGE)
     # The auction phase holds a `turns` ring whose body is one `offer` of the
     # bid vocabulary, terminated by a predicate, and then `produce`s the

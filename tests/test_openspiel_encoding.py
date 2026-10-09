@@ -1,4 +1,8 @@
-"""Card ⇄ action-id round-trips over the full 52-card space."""
+"""Card ⇄ action-id round-trips over the full 52-card space.
+
+The layout pins below list each space's names block in sorted order — red
+under: build the names block in first-encounter order instead of sorted
+(`encoding.py`), and every pin that lists names reddens."""
 
 from __future__ import annotations
 

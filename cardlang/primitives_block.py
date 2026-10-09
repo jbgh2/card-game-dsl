@@ -18,9 +18,8 @@ import of a game's Python (`PRIMITIVE_IMPLEMENTATIONS` names modules and
 attributes as strings, so the compile gate learns WHICH names Python
 implements without importing any of them).
 
-Scope: the block covers the CALL-position namespace. The four other Primitive
-namespaces — climb leads, climb follows, early predicates, game-local trick
-winners — take their own declaration slots when their
+Scope: the block covers the CALL-position namespace. The walled Primitive
+namespaces (`WALLED_NAMESPACES`) take their own declaration slots when their
 mechanic-driven signatures are spellable (issue #142, the co-location stage);
 until then `WALLED_NAMESPACES` refuses their names in the block by name, so a
 designer meets a diagnostic rather than a declaration that resolves and then

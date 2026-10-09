@@ -6,7 +6,7 @@ status: canonical
 reserved: true
 home: `n.Phase`
 see: []
-retired_spellings: []
+retired_spellings: [outcome_fn]
 findings: []
 ---
 

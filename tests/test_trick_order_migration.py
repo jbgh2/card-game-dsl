@@ -136,7 +136,15 @@ example.
 Born red: each row is committed with its hash file captured on that game's
 pre-migration tree, so every row is GREEN at its own commit by construction;
 capacity to fail is proven per row by the planted mutations recorded below.
-Nothing here was ever re-blessed.
+Each file was re-captured once, 2026-10-08, when the bidding rings moved
+from the retired auction form of `round` to `turns` plus `offer`: every
+observer's stream is unchanged except the decider's own `asked` construct word
+(`auction` to `offer`) and the auction form's `decision` trace, which a ring
+does not emit. Measured on every pinned seed by replaying the pre-move digests
+with those two deltas applied — 200 of 200 equal the re-captured file for each
+of the four games, and the relabel alone matches none (2026-10-09) — and the
+`decision` retirement is a `Migration` row below, so
+`test_retired_traces_are_actually_gone` executes it.
 
 The two trace-claim tests are born green for every row -- each asserts what
 the tree already does -- so their reddening mutations are recorded here
@@ -280,10 +288,13 @@ MIGRATIONS: tuple[Migration, ...] = (
     # `doko_trick_winner` was the only emitter of `play` and `trick`: the
     # tricks are hand-rolled movements, and the kernel's call form emits
     # neither.
+    # `decision` was the auction form's trace; a `turns` ring emits none, and
+    # the three games whose only decision round was a bidding ring now emit
+    # no `decision` at all. Belote's trick `round` still emits it.
     Migration(
         "doppelkopf.cardlang",
         "doppelkopf_stream_hashes.json",
-        retired_traces=_HAND_ROLLED_TRICK,
+        retired_traces=_HAND_ROLLED_TRICK | {"decision"},
     ),
     # `skat_trick_winner` emitted `trick_end` carrying the declared contract
     # ({game_type, trump}) as well, and was Skat's only emitter of it -- the
@@ -292,16 +303,16 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(
         "skat.cardlang",
         "skat_stream_hashes.json",
-        retired_traces=_HAND_ROLLED_TRICK | {"trick_end"},
+        retired_traces=_HAND_ROLLED_TRICK | {"trick_end", "decision"},
     ),
     # `five_hundred_trick_winner` likewise emitted `trick_end` carrying the
     # declared contract ({trump, misere, joker_suit}): the ten tricks are
-    # hand-rolled movements and the game's one `round` is the auction, which
+    # hand-rolled movements and the game's auction is a `turns` ring, which
     # emits no trick.
     Migration(
         "five-hundred.cardlang",
         "five_hundred_stream_hashes.json",
-        retired_traces=_HAND_ROLLED_TRICK | {"trick_end"},
+        retired_traces=_HAND_ROLLED_TRICK | {"trick_end", "decision"},
     ),
     # Belote retires NOTHING: its tricks are a `round`, so `play`, `trick` and
     # `trick_end` all come from `runtime/mechanics.py` and outlive

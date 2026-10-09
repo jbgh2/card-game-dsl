@@ -17,7 +17,7 @@
 // The two constants the family varies over are ordinary required state, not
 // arguments on the import: `limit` is the street's bet size (2, then 4), and
 // `raise_cap` the aggressive actions allowed per street. Leduc sets
-// `raise_cap := 2` where Stud sets 3, and neither the library nor the import
+// `raise_cap := 2` where Stud sets 4, and neither the library nor the import
 // line mentions the difference.
 //
 // Chips are plain integers (the Stud convention). `net[player]` is the

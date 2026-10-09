@@ -21,7 +21,10 @@ does not prove:  that a body statement of any given kind behaves under
             through the same execute dispatch `if`/`as` use, and the form
             adds rotation rather than per-statement logic, so what a green
             establishes is the rotation around a body, never the body's own
-            dispatch.
+            dispatch. The ring cells (an `offer` body, a leader the
+            predicate excludes, a `produce` from the body, a single seat
+            re-asked through `repeat until`, a ring spliced through a
+            procedure) are that sample, each naming its reddening mutation.
 """
 
 from __future__ import annotations
@@ -411,8 +414,13 @@ def test_an_offer_body_asks_the_turn_holder_and_the_ring_shrinks_per_turn() -> N
     passes leaves the ring the moment the predicate stops holding for it, and
     the decider's own `asked` event names the construct that asked — `offer`.
 
+    The line runs past the passed seat's place in the ring: seat 2 passes on
+    the first lap and the ring comes round to it again on the second, where
+    it is skipped and seat 0 is asked in its stead.
+
     red under: in `execute._turns`, evaluate the participants once before the
-    first turn instead of at every pick — the passed seat is asked again."""
+    first turn instead of at every pick — seat 2 is asked again on the
+    second lap."""
     game = check_dsl(
         _game(
             "  phase p { turns b from 1 over players where not passed[player]\n"
@@ -425,8 +433,29 @@ def test_an_offer_body_asks_the_turn_holder_and_the_ring_shrinks_per_turn() -> N
         + "move_type pass { effect { passed[actor] := true } }\n",
         "test.cardlang",
     )
-    asked = _asked_seats(game, _scripted("bid", "pass", "bid", "pass"))
-    assert asked == [(1, "offer"), (2, "offer"), (0, "offer"), (1, "offer")]
+    asked = _asked_seats(game, _scripted("bid", "pass", "bid", "bid", "bid", "pass"))
+    assert asked == [
+        (1, "offer"), (2, "offer"), (0, "offer"), (1, "offer"), (0, "offer"), (1, "offer"),
+    ]
+
+
+def test_offset_by_from_a_non_seat_is_a_loud_typed_error() -> None:
+    """`offset_by` reads a seat, and a `Player?` still `none` is not one: the
+    read fails as a typed Owner Guard naming the value, never as a bare
+    `TypeError` out of the modular arithmetic.
+
+    red under: delete the `is_seat` guard at the head of
+    `values.Seating.offset_by`."""
+    game = check_dsl(
+        _game(
+            "  phase p { let w = absent offset_by left\n"
+            "    score[w] += 1 }",
+            extra_state="absent : Player? = none",
+        ),
+        "test.cardlang",
+    )
+    with pytest.raises(OwnerGuardError, match="cannot offset from None: not a seat"):
+        play_game(game, random.Random(0))
 
 
 def test_a_typed_outcome_is_produced_from_the_body() -> None:

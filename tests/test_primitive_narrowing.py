@@ -1447,5 +1447,3 @@ def test_every_engine_facts_field_is_deeply_immutable() -> None:
         offenders += _reachable_mutable(getattr(facts, name), f"facts.{name}")
     assert not offenders, "mutable containers in EngineFacts:\n" + "\n".join(offenders)
 
-
-# --- the game knowledge that stays in engine core ---------------------------

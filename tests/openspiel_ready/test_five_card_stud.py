@@ -182,7 +182,8 @@ def test_showdown_reveals_contenders_holes_and_leaks_no_folded_one() -> None:
     proofs above never reach it: they pause at depth 11, still inside the
     betting. This drives a hand past the showdown and reads the emitted events.
 
-    The policy is `legal[0]` — check or call, the betting vocabulary's low ids —
+    The policy is `legal[0]` — bet when free to act, call when facing one, the
+    names block's order —
     which alone reaches a fully contested showdown, since nobody folds under it
     (call and fold share a guard and call's id sorts lower). `fold` is taken the
     first time it is offered, once, so the hand also carries a folded entrant

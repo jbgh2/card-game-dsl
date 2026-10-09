@@ -42,7 +42,10 @@ trick phase type-checks.
 
 The runtime is guarded: a read with no live or just-completed frame fails
 loudly (the `state` pronoun's refusal in `evaluate.py`, pinned in
-`tests/test_round_execute.py`). So this is a static
+`tests/test_round_execute.py`). A `turns` ring between a round and a read
+leaves the frame as it is, so a read after the ring is the just-completed
+round's — whether a ring of decisions should instead end the frame's window
+is the open half of this question. So this is a static
 imprecision with a loud runtime Shadow Guard, not a silent miss — but the
 diagnostic a designer wants ("this phase runs a trick, and `shed_first` is a
 climb field") is not available, and giving it means attaching references to

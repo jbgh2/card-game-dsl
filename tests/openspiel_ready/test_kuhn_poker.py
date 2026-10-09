@@ -5,11 +5,11 @@ Harness configuration rationale:
 - `depth=0`: Kuhn's whole tree is at most three decisions, and the harness's
   2-player swap branch needs the pause to coincide with the first decider
   (`p == d0`, so the swap never mutates a decider whose candidates were
-  already computed). The greedy `legal[0]` line is `check, check` — two
+  already computed). The greedy `legal[0]` line is `bet, call` — two
   actions to TerminalNode — and P0's *second* decision sits only on the line
-  `check, bet`, which greedy never takes (both players face the identical
-  option set `[check, bet]`, so a global action-id order cannot make P0
-  check and P1 bet). Every non-zero depth therefore pauses on P1. Depth 0 is
+  `check, bet`, which greedy never takes (`bet` sorts before `check` in the
+  names block, so the first decider bets). Every non-zero depth therefore
+  pauses on P1. Depth 0 is
   the honest setting, not a convenience: it is the only pause the shared
   2-player branch can use.
 
@@ -149,7 +149,10 @@ def test_the_family_street_mints_ids_kuhn_never_offers() -> None:
     second size (docs/libraries/poker_betting.cardlang). The whole tree is
     walked, every deal and every line, and no node offers one of them —
     which is what makes the extra ids inert for every algorithm over the
-    legal set, and what the conformance pin records as unreached."""
+    legal set, and what the conformance pin records as unreached.
+
+    red under: set Kuhn's `raise_cap` to 2 in kuhn-poker.cardlang — `raise`
+    is legal after the opening bet."""
     game_ast, space = load(PATH)
     assert NEVER_LEGAL <= {m.name for m in game_ast.move_types}
     strings = {space.to_string(a) for a in range(space.num_distinct_actions)}

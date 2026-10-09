@@ -19,9 +19,10 @@ from cardlang.ast import nodes as n
 
 # The statement kinds a Hosted Poll's body may hold: decisions and state
 # writes, and the scoping and control that arrange them. `Turns` is the ring a
-# poll runs over the seats that may still call — one decision per seat,
-# bounded by its participants and the game's `max_length` exactly as the
-# poll's own lap is. `Block` is what a `run` expands into, so it arrives only
+# poll runs over the seats that may still call — a turn per seat per lap,
+# asking whatever its body asks, bounded by its participants and the game's
+# `max_length` exactly as the poll's own lap is. `Block` is what a `run`
+# expands into, so it arrives only
 # after resolve and is admitted for the same reason `run` is.
 HOSTED_POLL_ALLOWED: frozenset[type] = frozenset(
     {
@@ -32,10 +33,11 @@ HOSTED_POLL_ALLOWED: frozenset[type] = frozenset(
 
 # Every other statement kind, with the words its refusal names it by. A card
 # movement would change the hands and the pile the round is reading, a nested
-# trick or climbing round would start a second trick inside the first, a loop
-# over no seat ring (`repeat`, `each … simultaneously`) has no bound the poll's
-# lap does not already give, and non-local control would unwind out of the
-# round mid-trick. The two sets partition the `Stmt` union
+# trick or climbing round would start a second trick inside the first, a
+# `repeat until` loops over no seat ring and so has no bound the poll's lap
+# does not already give, `each … simultaneously` asks every seat at once
+# outside any ring, and non-local control would unwind out of the round
+# mid-trick. The two sets partition the `Stmt` union
 # (tests/test_hosted_poll.py pins it).
 HOSTED_POLL_REFUSED: dict[type, str] = {
     n.Transfer: "a card movement",
@@ -50,9 +52,3 @@ HOSTED_POLL_REFUSED: dict[type, str] = {
     n.ContinueTo: "`continue to`",
     n.SkipToNextHand: "`skip to next hand`",
 }
-
-# Admitted statements whose optional clause the body may not use. Empty: no
-# admitted statement carries a clause that unwinds past the live round (a
-# `produce` is a refused statement of its own), and the table stays so the
-# reach grid's slot axis keeps its third class.
-HOSTED_REACH_REFUSED_SLOTS: dict[tuple[type, str], str] = {}

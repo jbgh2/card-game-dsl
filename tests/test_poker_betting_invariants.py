@@ -87,7 +87,7 @@ game Invariants {{
 {stacks}    turns t from 0
           over players where pending(player)
           until (number of players where pending(player)) is 0 {{
-      offer to t one of [check, bet, call, raise]
+      offer to t one of [check, bet, call, raise, fold]
     }}
     repeat until snapped {{
       offer to 0 one of [snapshot]
@@ -95,7 +95,11 @@ game Invariants {{
   }}
   winner: highest stack
 }}
-move_type fold {{ effect {{ folded[actor] := true }} }}
+// The library contracts for the game's `fold`, and a game-own move type no
+// reachable offer presents is refused: these probes measure the library's
+// own moves, so the game's `fold` is offered beside them and never legal (no
+// standing bet is negative).
+move_type fold {{ when: bet_to_match < 0 effect {{ folded[actor] := true }} }}
 
 move_type snapshot {{
   when: not snapped

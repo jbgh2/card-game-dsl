@@ -168,71 +168,73 @@ def _announces(log: list[tuple[Any, ...]], prefixes: tuple[str, ...]) -> list[tu
 
 def test_declaration_line_derives_announced_content_and_showing() -> None:
     """The declaration poll's information flow, end to end, on the pinned
-    seed-1 line (two declarers, one per team, a quarte over a tierce):
+    seed-11 line (two declarers, one per team, a tierce to the king over a
+    tierce to the jack):
 
     - every observer's log carries the SAME four poll announcements, each
       naming its content (kind + trump status in the move name, the top
       card as the parameter) — the announced facts are common knowledge;
-    - the entitled side's declared cards (both partners': the trump tierce
-      to the ace wins the comparison for its team) are publicly revealed,
-      card by card, and match the announced combinations exactly;
+    - the entitled declarer's cards (the tierce to the king wins the
+      comparison for its team) are publicly revealed, card by card, and
+      match the announced combination exactly;
     - the LOSING declarer's announcement is public but their cards are
       not: no reveal touches their hand, which still renders count-only —
-      the info sets hold exactly what was announced and nothing more."""
+      the info sets hold exactly what was announced and nothing more.
+
+    red under: in belote.cardlang's showing, drop the team test on the
+    reveal (`if team_of(p) is team_of(best_holder) and decl_points[p] > 0`
+    to `if decl_points[p] > 0`) — the losing declarer's tierce is revealed
+    too."""
     poll_names = ("declare_", "no_declaration")
     r = _drive(
-        1,
+        11,
         stop=lambda log: len(_announces(log, poll_names)) >= 4,
         cap=80,
     )
 
     # The pinned line, in poll order from the trick-1 leader (p3, counter-
-    # clockwise): p3's trump quarte to the ace beats p1's plain tierce to
-    # the ace; p0 and p2 declined. Entitled: team 1 = {1, 3}, both partners
-    # show.
+    # clockwise): p0's tierce to the king beats p1's tierce to the jack; p3
+    # and p2 declined. Entitled: team 0 = {0, 2}; p0 alone holds a
+    # combination, so p0 alone shows.
     expected_polls = [
-        (3, "declare_quarte_trump(A)"),
+        (3, "no_declaration"),
         (2, "no_declaration"),
-        (1, "declare_tierce(A)"),
-        (0, "no_declaration"),
+        (1, "declare_tierce(J)"),
+        (0, "declare_tierce(K)"),
     ]
     polls0 = [(e[1], e[2]) for e in _announces(r.obs_logs[0], poll_names)]
     assert polls0 == expected_polls, (
-        f"the pinned seed-1 declaration line changed: {polls0} — re-pin"
+        f"the pinned seed-11 declaration line changed: {polls0} — re-pin"
     )
     expected_reveals = [
-        ("reveal", "hand[1]", "A♣"),
-        ("reveal", "hand[1]", "K♣"),
-        ("reveal", "hand[1]", "Q♣"),
-        ("reveal", "hand[3]", "A♥"),
-        ("reveal", "hand[3]", "K♥"),
-        ("reveal", "hand[3]", "Q♥"),
-        ("reveal", "hand[3]", "J♥"),
+        ("reveal", "hand[0]", "K♥"),
+        ("reveal", "hand[0]", "Q♥"),
+        ("reveal", "hand[0]", "J♥"),
     ]
     for q, log in r.obs_logs.items():
         # Announced content: identical in every observer's log.
         assert [(e[1], e[2]) for e in _announces(log, poll_names)] == expected_polls, (
             f"player {q} heard different announcements"
         )
-        # The showing: both entitled partners' tierces, revealed to everyone,
-        # matching the announced kind and height (a natural run to the ace in
-        # one suit each — the trump one from hand[3]).
+        # The showing: the entitled declarer's tierce, revealed to everyone,
+        # matching the announced kind and height (a natural run to the king
+        # in hearts, from hand[0]).
         assert [e for e in log if e[0] == "reveal"] == expected_reveals, (
             f"player {q} saw different reveals"
         )
-        # Nothing more: the losing declarer's (p0) and the silent player's
-        # (p2) cards are in no reveal — checked by the exact lists above.
+        # Nothing more: the losing declarer's (p1) and the silent players'
+        # (p2, p3) cards are in no reveal — checked by the exact list above.
 
     # The losing declarer's hand renders count-only to every OTHER observer:
     # their announcement is public, their cards are not.
-    n0 = len(r.rs.zones.instance("hand", 0).cards)
-    for q in (1, 2, 3):
+    n1 = len(r.rs.zones.instance("hand", 1).cards)
+    for q in (0, 2, 3):
         info = information_state(q, r.rs, r.obs_logs[q])
-        assert f"hand[0]=#{n0}" in info, (
+        assert f"hand[1]=#{n1}" in info, (
             f"player {q} sees more of the losing declarer's hand than a count"
         )
     # ... while their own recall of their own decision is intact.
-    assert any(e[0] == "chose" for e in r.obs_logs[0])
+    assert any(e[0] == "chose" for e in r.obs_logs[1])
 
 
 def test_belote_rebelote_reveals_exactly_the_partner_card() -> None:

@@ -10,7 +10,8 @@
 // guarded to the speaker, `yes` to the responder, `pass` open — the
 // guard-filtered candidate lists alternate [bid, pass] / [yes, pass] exactly,
 // and a pass (or the exhausted 62-value ladder) flips the `until` predicate
-// (decisions.md "The `turns` form", the call-and-response paragraph).
+// (decisions.md "Auctions, polls and betting rings are `turns` plus
+// `offer`", the call-and-response paragraph).
 // Contract declaration is a pair of `offer`s plus a single-seat suit offer
 // (`declare_suit(s : Suit)`, the Suit domain in deck order). The
 // ten tricks bypass the trick `round` — its rules-driven candidate set is

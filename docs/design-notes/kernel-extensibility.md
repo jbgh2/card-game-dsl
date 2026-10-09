@@ -108,8 +108,9 @@ be a DSL `move_type` effect the way a bet is" ([decisions.md](../decisions.md)),
 seven-stage edit; **Skat Reizen call-and-response** — filed then as a new
 *order axis* with three reasons a ring cannot express it (role-dependent
 vocabularies, conditional participation, seat reorder), since resolved as a
-ring *configuration* with no new axis ([decisions.md](../decisions.md), "The
-auction form of `round`", the call-and-response bullet); **Dog `ends_trick` lead** — "a
+ring *configuration* with no new axis ([decisions.md](../decisions.md),
+"Auctions, polls and betting rings are `turns` plus `offer`", the
+call-and-response paragraph); **Dog `ends_trick` lead** — "a
 genuine new axis to surface and sign off" ([kernel-migration.md](../kernel-migration.md), WS3);
 **out-of-turn bombs** — a *mechanism* that *inverts* the model's "rules
 constrain" framing, permitting rather than restricting, which is the climb

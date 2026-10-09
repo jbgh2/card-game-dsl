@@ -158,7 +158,7 @@ game Holdem {
       // Each pass still starts at SEAT 0, where the rules start it left of the
       // button. That half is not expressible: `for each player` walks the seat
       // domain in registry order and no movement form takes a starting seat, so
-      // the `round`'s `from <seat>` has no counterpart here. Issue #196; Stud
+      // the ring's `from <seat>` has no counterpart here. Issue #196; Stud
       // deals seat-0-first for the same reason. Distributionally identical on a
       // shuffled deck, so nothing but the rulebook can tell.
       for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }

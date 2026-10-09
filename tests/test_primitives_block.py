@@ -2638,6 +2638,24 @@ def test_reconciliation_reddens_on_a_dual_definition_site() -> None:
         _reconcile(_checked_games(), dict(PRIMITIVE_IMPLEMENTATIONS), planted)
 
 
+def test_a_call_implementation_in_the_shared_module_reddens_the_exemption() -> None:
+    """The exemption states the shared dispatch module's rows per MODULE, which
+    is sound only while nothing there is a call Primitive. A call
+    implementation landing in that module would make one of those rows a row a
+    block replaces, and the module-grain half would exempt it silently — so the
+    condition is asserted rather than assumed, and this is the plant that says
+    the assert can speak."""
+    planted = dict(PRIMITIVE_IMPLEMENTATIONS)
+    planted["pinochle_meld_value"] = Implementation(
+        "cardlang.runtime.primitives",
+        "call_declared",
+        InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    )
+    with pytest.raises(AssertionError, match=_SHARED_DISPATCH_MODULE):
+        _reconcile(_checked_games(), planted, PRIMITIVE_READS)
+
+
 @pytest.mark.slow
 def test_the_narrowing_exempts_the_climb_row_its_binder_binds(
     monkeypatch: pytest.MonkeyPatch,

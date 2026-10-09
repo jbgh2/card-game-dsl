@@ -93,9 +93,9 @@ chips and names that player the winner.
 
 Chips are an integer `stack` per player, not a resource-zone subsystem; the
 total is invariant. The whole hand runs in the DSL — antes, the deal, the
-bring-in post, the four streets on the kernel `round`'s **ring** (the pointer
-advances past whoever just acted, so the seats behind an aggressor decide before
-the seats its bet re-opened), and the showdown as plain statements: a contested
+bring-in post, the four streets as the library's street — a `turns` **ring**
+that advances past whoever just acted, so the seats behind an aggressor decide
+before the seats its bet re-opened — and the showdown as plain statements: a contested
 hand turns the hole cards face up, each entrant collects its side-pot share via
 `pot_share(p)`, and the hands leave play to the muck.
 

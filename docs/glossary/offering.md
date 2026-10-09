@@ -6,6 +6,6 @@ status: canonical
 reserved: false
 home: `n.Offer`
 see: []
-retired_spellings: [vocab block, auction vocabulary]
+retired_spellings: [vocab block, auction vocabulary, round offering]
 findings: []
 ---

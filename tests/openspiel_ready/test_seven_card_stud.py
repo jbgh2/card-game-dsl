@@ -60,8 +60,8 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
     still-hidden hole cards muck count-only, with no identity leak to anyone
     else.
 
-    The policy is `legal[0]` (check/call, the betting vocabulary's id order
-    52..56) throughout, which alone reaches a contested 4-entrant showdown —
+    The policy is `legal[0]` (bet when free to act, call when facing one —
+    the names block's order) throughout, which alone reaches a contested 4-entrant showdown —
     nobody ever folds under it, since call and fold share a guard
     (`bet_to_match > bet_by[actor]`) and call's id sorts lower — except the
     first time `fold` itself is offered, where it is taken once, on purpose,

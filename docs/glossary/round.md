@@ -6,7 +6,7 @@ status: canonical
 reserved: true
 home: `mechanics.py`
 see: []
-retired_spellings: [Trick mechanic]
+retired_spellings: [Trick mechanic, AuctionRound]
 findings: []
 ---
 

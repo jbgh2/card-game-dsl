@@ -196,7 +196,7 @@ a new game reddens them rather than going quietly uncovered.
   Its membership check is a bare set comparison too.
 - **`ROUNDS`, `NO_DECISION_OUTSIDE`, `NO_BOOKKEEPING`**
   (`tests/test_offering_round_state_freshness.py`) — for a game running an
-  offering round (a `turns` ring or a `repeat until` whose turn is one
+  ring (a `turns` ring or a `repeat until` whose turn is one
   `offer`): its windows, each with the sites' vocabularies and the
   round-scoped variables with their idle values, and the complementary
   persistent set — or its membership in one of the two executed boundaries.

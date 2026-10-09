@@ -2,7 +2,8 @@
 
 A library is a file of the definition forms a game already holds — move_types,
 rules, functions, procedures — plus a ``requires`` block naming
-what its including game must declare: state variables, and zones. A game names
+what its including game must declare or define: state variables, zones, and
+move types. A game names
 one with ``uses <library>`` and resolution is flat and two-level: game, then the
 named libraries, then the stdlib. See decisions.md "Family libraries".
 

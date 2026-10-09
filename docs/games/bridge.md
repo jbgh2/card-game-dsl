@@ -27,7 +27,7 @@ Each hand:
 
 The thirteen tricks run on the trick form of the kernel `round` construct; the
 auction is a `turns` ring over the four seats, each asked by `offer` to pass,
-bid, double or redouble, until three passes follow a bid (four with none),
+bid, double or redouble, until three passes follow a call (four with none),
 with the standing contract threaded through the phase's own state. The
 auction phase declares a typed outcome — `contract_finalized(declarer, level,
 strain, doubling)` or `all_pass` — which the phase body `produce`s when the

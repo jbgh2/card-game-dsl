@@ -782,6 +782,9 @@ def test_first_answers_as_a_person_picking_the_first_item(short_name: str, tmp_p
 
 # Each line on seed 5 with the person answering 1 six times and a uniform draw
 # at every other seat, as the saved history holds it.
+# Each line is the uniform draw at the named seat under the action ids the
+# space mints today: a nullary offer move sits in the sorted names block, so
+# the ids a draw lands on are the block's, and a layout change re-pins them.
 _UNIFORM_LINES: dict[tuple[str, int], list[int]] = {
     ("cardlang_hearts", 0): [
         9, 11, 18, 20, 21, 12, 7, 0, 30, 10, 46, 47, 0, 10, 9, 5, 25, 14, 24, 16, 40,
@@ -822,7 +825,8 @@ def test_all_random_plays_the_line_a_uniform_draw_at_every_other_seat_plays(
 def test_all_first_plays_another_line(short_name: str, seat: int, tmp_path: Path, sit: _Sit) -> None:
     """The control for the lines above, on each line long enough for a draw to
     differ from the first item: a table that seated `random` whatever it was
-    told would pass them.
+    told would pass them. (Kuhn's two-decision line is one `first` also plays
+    at that seat, so the length filter leaves it to the random pin alone.)
 
     red under: read every `--vs` opponent as `random`."""
     assert _line_against("first", short_name, seat, tmp_path, sit) != _UNIFORM_LINES[(short_name, seat)]

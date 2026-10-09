@@ -33,8 +33,9 @@ over role-guarded two-participant sets — `bid` guarded to the speaker, `yes`
 to the responder, `pass` open, so the candidate lists alternate [bid, pass] /
 [yes, pass]; a pass (or the exhausted 62-value ladder) flips the `until`
 predicate, and the survivor threads into the second contest
-([decisions.md](../decisions.md), "The `turns` form", the call-and-response
-paragraph). The contract declaration is a pair of `offer`s (play-at-18/throw-in
+([decisions.md](../decisions.md), "Auctions, polls and betting rings are
+`turns` plus `offer`", the call-and-response paragraph). The contract
+declaration is a pair of `offer`s (play-at-18/throw-in
 on an all-pass; hand vs picking up the skat, with the two-card discard in the
 `pick_up_skat` effect; the three-way game type) plus a single-seat `offer` of
 `declare_suit(s : Suit)`. The ten tricks are three single-actor

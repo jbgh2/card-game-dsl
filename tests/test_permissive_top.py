@@ -521,7 +521,7 @@ procedure bump(p : Player) { score[p] := 1 }
 #     read); the element of `_UNKEYED_COLLECTION`, what a member-reading
 #     position (a card source, `is empty`, `if_impossible:`) wants — any
 #     element and no key, the element being judged by the position's own
-#     check. A bare trick-winner or auction-outcome name never reaches the
+#     check. A bare trick-winner name never reaches the
 #     type layer: resolve refuses it outside the round slot that reads it.
 #   gradual propagation, downstream of a guard that already fired — 6:
 #     `type_from_name`'s unknown name (every declared-type-name position is
@@ -553,7 +553,7 @@ procedure bump(p : Player) { score[p] := 1 }
 #   is `ARRIVAL_RECORD_CALLS`, and resolve now decides each statically, so the
 #   top here is a value-shape looseness the checker no longer has to carry
 #   alone. Plus `error()`'s return (it diverges, so it must type in any
-#   context), the trick-winner and auction-outcome callbacks whose real type
+#   context), the trick-winner callbacks whose real type
 #   the `Sig` model cannot express — `highest_by_trick_order`'s VALUE_SIGS row
 #   among them — and the `ChipStack` resource zone's element.
 AUDITED_TOP_SITES: dict[str, int] = {

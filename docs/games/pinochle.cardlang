@@ -179,9 +179,7 @@ game Pinochle {
       legal_moves:  [declare_trump_suit, play_to_trick]
 
       state {
-        passes_done : Integer = 0
         thrown_in   : Boolean = false
-        decided     : Boolean = false
         show_k      : Integer = 0
       }
 
@@ -358,7 +356,6 @@ move_type declare_trump_suit(s : Suit) {
 move_type pass_four {
   effect {
     move chosen 4 cards from hand[actor] to hand[actor offset_by across]
-    passes_done := passes_done + 1
   }
 }
 
@@ -368,11 +365,11 @@ move_type pass_four {
 // tricks.
 move_type throw_in {
   concession
-  effect { thrown_in := true  decided := true }
+  effect { thrown_in := true }
 }
 
 move_type play_on {
-  effect { decided := true }
+  effect { }
 }
 
 // === Pinochle strict-trick legality (rule DSL) ===

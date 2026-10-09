@@ -44,7 +44,6 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from cardlang.runtime import narrowing, reads, winners
-from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 

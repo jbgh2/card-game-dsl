@@ -278,7 +278,6 @@ from cardlang.stdlib.enums import (
 from cardlang.stdlib.hosted_poll import (
     HOSTED_POLL_ALLOWED,
     HOSTED_POLL_REFUSED,
-    HOSTED_REACH_REFUSED_SLOTS,
 )
 from cardlang.stdlib.moves import (
     CLIMB_DECISION_MOVE_TYPE,
@@ -607,7 +606,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # game defines (`_check_offering_moves` against `defined_move_types`),
     # while `constrains:`, `legal_moves:`, a transition event and a trick/climb
     # round's move type name the kernel registry (`LIBRARY_MOVE_TYPES`). Only
-    # the first pair is a channel an importing game can feed.
+    # the first row is a channel an importing game can feed.
     (n.Offer, "offering"): "move_type",
     (n.TrickRound, "move_type"): "kernel_move_type",
     (n.ClimbRound, "move_type"): "kernel_move_type",
@@ -1274,8 +1273,10 @@ def _check_state_claims(
 
     provided: dict[str, str] = {}
     contested: set[str] = set()
+    # A move-type row (`fold : Move`) claims no state name: `_check_move_claims`
+    # owns its collisions, so the state sweep reads past it.
     for use, library in libraries:
-        required = {r.name for r in library.requires}
+        required = {r.name for r in library.requires if not _is_move_contract_row(r)}
         for decl in library.state.decls if library.state is not None else ():
             if decl.name in required:
                 contested.add(decl.name)
@@ -1311,6 +1312,8 @@ def _check_state_claims(
 
     for use, library in libraries:
         for want in library.requires:
+            if _is_move_contract_row(want):
+                continue
             owner = provided.get(want.name)
             if owner is not None and owner != library.name:
                 contested.add(want.name)
@@ -1722,12 +1725,14 @@ def _slot_leaks(
             if field_name == "type_name" and id(node) in collection_contracts:
                 continue
             # A move-type contract's type slot names a KIND, not a type, and
-            # `_check_contract_shapes` is its one speaker — for the word itself
-            # and for the keyword spelling it refuses by name.
+            # `_check_contract_shapes` is its one speaker — for the word itself,
+            # for the keyword spelling it refuses by name, and for a type
+            # argument on the row, which is a shape question before it is a
+            # zone-owner one.
             if (
-                field_name == "type_name"
+                field_name in ("type_name", "type_args")
                 and isinstance(node, n.RequireDecl)
-                and node.type_name in (MOVE_CONTRACT_TYPE, _MOVE_CONTRACT_KEYWORD)
+                and _is_move_contract_row(node)
             ):
                 continue
             namespace = slot_namespace(node, field_name)
@@ -1781,9 +1786,9 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     state is the contract and which has nothing else — deliberately narrower
     than any real game's:
 
-    - `zones` is empty because a library declares no zones (decisions.md
-      "Family libraries": a move touching a game-specific zone stays
-      game-local, which is why the contract is state-only);
+    - `zones` is empty because a library declares no zones of its own; the
+      zones it reaches are the game's, contracted through `requires`
+      (decisions.md "Family libraries");
     - `ranks`/`suits`/`enums` are what the unknown-deck branch of `_categories`
       leaves, because a library is deck-agnostic. `hearts` means nothing until
       an including game names a deck, and Kuhn's has none.
@@ -1915,7 +1920,8 @@ _NAMESPACE_ADVICE: dict[str, str] = {
     ),
     "type": (
         "use a built-in type, or keep this definition in the game (a `requires` "
-        "entry's type is a state type or a kernel zone type)"
+        "entry's type is a state type, a kernel zone type, or `Move` for a "
+        "move type the game defines)"
     ),
     "move_type": (
         "define the move type in the library, contract for it with "
@@ -2123,8 +2129,9 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 f"library '{library.name}' requires `{spelled}`, and a "
                 f"collection type (`Collection<Card>`) is spellable in a "
                 f"`primitives {{ }}` entry only — a contract names a "
-                f"`state {{ }}` or a `zones {{ }}` declaration, and a library "
-                f"declares no Primitives",
+                f"`state {{ }}` or a `zones {{ }}` declaration, or a move type "
+                f"as `<name> : {MOVE_CONTRACT_TYPE}`, and a library declares no "
+                f"Primitives",
                 want.span,
             )
             continue
@@ -2209,14 +2216,14 @@ def _check_move_requirement(
             f"library '{library.name}' requires move type `{want.name}`, which "
             f"game '{game.name}' declares as {kind} — `{MOVE_CONTRACT_TYPE}` "
             f"names a move type, so the definition belongs in a "
-            f"`move_type {want.name} {{ }}` block",
+            f"`move_type {want.name} {{ effect {{ ... }} }}` block",
             use.span,
         )
         return
     bag.error(
         f"library '{library.name}' requires move type `{want.name}`, which game "
-        f"'{game.name}' does not define — add a `move_type {want.name} {{ }}` "
-        f"block with the effect the game wants",
+        f"'{game.name}' does not define — add a `move_type {want.name} "
+        f"{{ effect {{ ... }} }}` block with the effect the game wants",
         use.span,
     )
 
@@ -2381,7 +2388,7 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
     # A move-type contract's index is `_check_contract_shapes`' to refuse: a
     # move type has no index at all, so a role question would be the wrong one.
     for decl, verb in [
-        (w, "requires") for w in library.requires if not is_move_contract(w)
+        (w, "requires") for w in library.requires if not _is_move_contract_row(w)
     ] + [(d, "provides") for d in provided]:
         if decl.index is None or role_of(decl.index) in ZONE_INDEX_ROLES:
             continue
@@ -2558,22 +2565,16 @@ def resolve(game: n.Game) -> n.Game:
     # The game's own move types and procedures, before the splice adds a
     # library's: a game importing a library need not present every move type
     # it brings, nor run every procedure. A move type the library contracts
-    # for (`requires { fold : Move }`) is the game's to define and the
-    # library's to present — its encapsulation ledger proves a library
-    # offering names it — so it is the library's for this purpose too.
+    # for (`requires { fold : Move }`) is the game's own: the library's
+    # offer of it is reachable only where the game runs the procedure that
+    # holds it, so the ordinary rule applies and a game defining it with no
+    # reachable offer is refused like any game-local move type.
     own_procedures = frozenset(p.name for p in game.procedures)
     uses_names = [u.name for u in game.uses]
     game = _apply_uses(game, bag)
     _raise_if_errors(bag)
-    required_move_types = frozenset(
-        r.name
-        for name in uses_names
-        for r in load_library(name).requires
-        if is_move_contract(r)
-    )
-    own_move_types = frozenset(mt.name for mt in game.move_types) - (
-        frozenset(m.name for name in uses_names for m in load_library(name).move_types)
-        | required_move_types
+    own_move_types = frozenset(mt.name for mt in game.move_types) - frozenset(
+        m.name for name in uses_names for m in load_library(name).move_types
     )
     _resolve_component_set(game, bag)
     _reject_card_content_clauses(game, bag)
@@ -3932,9 +3933,11 @@ def _check_unoffered_move_types(
     Reachable is `_reachable_definitions`' fixpoint from the phases, so an
     offer inside a move type or procedure nothing reaches presents nothing. A
     library's move types are its own to define: a game that imports one and
-    presents it nowhere has not made an error — and a move type a library
-    CONTRACTS for (`requires { fold : Move }`) is the library's to present,
-    so a game defining it for a street it never runs has made none either."""
+    presents it nowhere has not made an error. A move type a library CONTRACTS
+    for (`requires { fold : Move }`) is the game's own, and the library's
+    offer of it is reachable only where the game runs the procedure holding
+    it — so a game that defines it and reaches no offer of it is refused like
+    any other game-local move type."""
     offered = {name for ns, name in _reachable_definitions(game) if ns == "move_type"}
     for mt in game.move_types:
         if mt.name not in own or mt.name in offered:
@@ -7605,9 +7608,7 @@ _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
 # position-sensitive passes — `deckcheck.check_capacity` and the OpenSpiel action
 # space — both run AFTER expansion and so see the real, spliced tree.
 _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
-# All three forms, not only the two that bind a winner: the Owner Guard enforces
-# more than its name and message say (issue #290), and narrowing it here
-# would relax it as a side effect of a refactor.
+# The round forms, each of which binds `winner` for the statements after it.
 _WINNER_BINDING_STMTS = (n.TrickRound, n.ClimbRound)
 
 
@@ -7719,7 +7720,7 @@ def _check_hosted_binder(poll: n.HostedPoll, cats: _Categories, bag: DiagnosticB
 # type it offers — by `offer`, guard and effect alike —
 # and a function it calls, each followed transitively. Pinned against every
 # naming slot on a statement or expression node by tests/test_hosted_poll.py,
-# with `HOSTED_REACH_INERT_SLOTS` and `HOSTED_REACH_REFUSED_SLOTS` beside it.
+# with `HOSTED_REACH_INERT_SLOTS` beside it.
 HOSTED_REACH_POOLS: dict[str, str] = {
     "procedure": "procedures",
     "move_type": "move_types",
@@ -7760,9 +7761,9 @@ def _check_hosted_polls(game: n.Game, bag: DiagnosticBag) -> None:
     "Off-the-clock windows"), judged over the closure of the body: its own
     statements and every definition reachable from them by name
     (`HOSTED_REACH_POOLS`, followed by `_definition_closure`). Across all of
-    it, every statement is one `HOSTED_POLL_ALLOWED` names; no `round
-    offering` carries an `outcome` clause; the `state` pronoun stands
-    nowhere, since it evaluates to the live round frame wherever it stands
+    it, every statement is one `HOSTED_POLL_ALLOWED` names; the `state`
+    pronoun stands nowhere, since it evaluates to the live round frame
+    wherever it stands
     (a `let` or an argument carries the frame on to a later read); and
     nothing calls a Primitive, whose game module reads the live round frame
     through `EngineFacts.round_state`. Those two are every route from an
@@ -7818,13 +7819,6 @@ def _check_hosted_node(
             cast(n.Stmt, nd).span,
         )
         return
-    for (cls, field_name), what in HOSTED_REACH_REFUSED_SLOTS.items():
-        if isinstance(nd, cls) and getattr(nd, field_name) is not None:
-            bag.error(
-                f"{clause} may not hold {what}{via}: its outcome unwinds out of "
-                f"the live climbing trick",
-                getattr(nd, "span", None),
-            )
     if isinstance(nd, n.NameRef) and nd.name == "state" and nd.ref_kind == "pronoun":
         bag.error(
             f"{clause} may not read `state`{via}: the round's state is "
@@ -8180,10 +8174,9 @@ def _check_offering_moves(
     defined_move_types: set[str],
     bag: DiagnosticBag,
     span: Span | None,
-    unknown_msg: str,
 ) -> None:
     """The body of an offering's per-name loop: every named move type must
-    be defined. `unknown_msg` is the caller's wording for an unknown name.
+    be defined.
 
     Parameter DOMAINS are deliberately not checked here. They are a property
     of the move type's DECLARATION, so `_validate_refs` gates every declared
@@ -8192,7 +8185,7 @@ def _check_offering_moves(
     offerings from reporting the same defect once per mention."""
     for name in names:
         if name not in defined_move_types:
-            bag.error(f"{unknown_msg} '{name}'", span)
+            bag.error(f"offer names unknown move type '{name}'", span)
 
 
 # The collection quantifier nouns admitted at rung 1 (decisions.md "Boards and
@@ -8799,13 +8792,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.span,
                 )
             case n.Offer():
-                _check_offering_moves(
-                    nd.offering,
-                    defined_move_types,
-                    bag,
-                    nd.span,
-                    "offer names unknown move type",
-                )
+                _check_offering_moves(nd.offering, defined_move_types, bag, nd.span)
                 _check_card_offering(nd.offering, move_type_defs, game, bag, nd.span)
             case n.ClimbRound():
                 # Trick zones plus the two combination-engine queries

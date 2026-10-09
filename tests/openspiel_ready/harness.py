@@ -299,17 +299,16 @@ class GameSpec:
     # game whose greedy line provably never reaches the zone at all — not
     # merely late (that is `provenance_depth` below), but never.
     #
-    # French Tarot is the case and the reason this field exists: `pass` sorts
-    # below every bid, so `legal[0]` throws every one of the 36 hands in at
-    # four actions and no card is ever played (measured: 144 steps to
-    # terminal, zero arrivals in `trick_pile`, on every manifest seed). No
-    # depth reaches a node the line does not contain. One `bid_petite` at the
-    # opener's turn puts the same line into a contract, after which greedy
-    # takes it through the chien discard and into the tricks.
+    # Belote is the case and the reason this field exists: `pass` sorts
+    # below `take` and `take_suit`, so `legal[0]` throws every hand in at
+    # eight actions and no card is ever played — no depth reaches a node the
+    # line does not contain. One `take` at the first bidder's turn puts the
+    # same line into a contract, after which greedy takes it through the
+    # declarations and into the tricks.
     #
     # Scoped to the provenance walk ALONE, deliberately: the swap and rng
     # proofs pause at `depth`, whose per-game value is reasoned about the
-    # greedy line as it stands (Tarot's depth-3 sits inside the still-open
+    # greedy line as it stands (Belote's depth-7 sits inside the still-open
     # first auction, before the thrown-in hand's reshuffle), and an opening
     # would silently move that pause. Every other spec leaves this empty.
     #
@@ -507,7 +506,7 @@ def greedy_pick(space: Any, ids: list[int], prefers: tuple[str, ...]) -> int:
     `verb_of` is the action space's own name for a candidate, not a second
     parse of the rendered string.
 
-    red under: drop the `prefers` arm — pinochle's adapter proof fails with the
+    red under: drop the `prefers` arm — Belote's adapter proof fails with the
     greedy line no longer reaching TerminalNode within its declared cap."""
     if prefers:
         preferred = [aid for aid in ids if space.verb_of(aid) in prefers]

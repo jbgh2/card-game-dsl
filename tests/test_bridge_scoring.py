@@ -5,8 +5,13 @@ every hand's score from the contract and the trick winners, mirroring the
 scoring rules in Python, then asserts the recomputed running totals match the
 traced `hand_end` totals after every hand. The contract is itself recomputed,
 from the auction's announcements as every seat hears them: the standing bid,
-its strain, the doubling and the closing passes are re-derived here from the
-bids, so the game's own bidding bookkeeping is held to the rules too. This
+its strain, the doubling, the closing passes and the declarer — the first
+seat of the declaring side to name the final strain — are re-derived here from
+the bids, and the declarer is held against the seat the game then exposes as
+dummy (the declarer's partner), so the game's own bidding bookkeeping is held
+to the rules too (red under: drop `and first_<strain>[side] is none` from
+`submit_bid`'s effect — the last bidder becomes declarer and the wrong hand
+is laid down). This
 pins the whole scoring system — in particular the redoubled-undertrick tier
 (x4 -> 400/200), which random play exercises heavily — so a regression in any
 branch makes the recompute diverge and the test fail.
@@ -45,6 +50,7 @@ class _Auction:
         self.doubled = 1
         self.passes = 0
         self.made_bid = False
+        self.first_namer: dict[tuple[int, str | None], int] = {}
 
     def hear(self, actor: int, text: str) -> None:
         m = re.fullmatch(r"submit_bid(?:\((\w+)\))?", text)
@@ -58,6 +64,7 @@ class _Auction:
                 level = self.level + 1
             self.level, self.strain, self.high = level, strain, actor
             self.doubled, self.made_bid, self.passes = 1, True, 0
+            self.first_namer.setdefault((TEAM[actor], strain), actor)
         elif text == "double":
             self.doubled, self.passes = 2, 0
         elif text == "redouble":
@@ -76,6 +83,7 @@ class _Auction:
         return {
             "all_pass": False,
             "declarer_team": TEAM[self.high],
+            "declarer": self.first_namer[(TEAM[self.high], self.strain)],
             "level": self.level,
             "strain": self.strain,
             "doubled_mult": self.doubled,
@@ -95,10 +103,18 @@ def test_bridge_scoring_matches_independent_recompute() -> None:
         def observer(player: int, event: tuple[Any, ...]) -> None:
             # Seat 0 hears every announcement; the auction's are the ones in
             # its vocabulary (a card play announces a card, never a bid word).
-            if player == 0 and event[0] == "announce":
+            if player != 0:
+                return
+            if event[0] == "announce":
                 text = str(event[2])
                 if text.split("(")[0] in AUCTION_WORDS:
                     events.append(("bid", (int(event[1]), text)))  # noqa: B023
+            elif event[0] == "move" and str(event[3]).startswith("dummy_hand["):
+                # The dummy lays their hand down: the game's own statement of
+                # who declares, since dummy is the declarer's partner.
+                laid = re.fullmatch(r"hand\[(\d)\]", str(event[1]))
+                assert laid is not None, event
+                events.append(("dummy", int(laid.group(1))))  # noqa: B023
 
         play_game(game, random.Random(seed), tracer, observer=observer)
 
@@ -118,6 +134,13 @@ def test_bridge_scoring_matches_independent_recompute() -> None:
                 if auction.closed:
                     contract = auction.contract()
                     tricks = {0: 0, 1: 0}
+            elif kind == "dummy":
+                assert contract is not None and not contract["all_pass"]
+                assert (data + 2) % 4 == contract["declarer"], (
+                    f"seed {seed}: dummy is seat {data}, so the game's declarer is "
+                    f"{(data + 2) % 4}, but the first seat of the declaring side "
+                    f"to name {contract['strain']} was {contract['declarer']}"
+                )
             elif kind == "trick":
                 tricks[TEAM[data[0]]] += 1
             elif kind == "hand_end":

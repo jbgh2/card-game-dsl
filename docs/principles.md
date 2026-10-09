@@ -239,11 +239,12 @@ phase carries its state with it. Mutation within a phase body is
 sequential; the simultaneous block is the one batched-write context. (See [decisions.md](decisions.md), "State scoping (lexical)" and
 "Mutation semantics".)
 
-**Round forms own their internal state.** The trick, auction, betting, and
-climbing forms of the kernel `round` thread their accumulator through the
-round's own state frame (readable as `state.x` during and just after the
-round); games don't redeclare what a form tracks. No Python mechanic
-remains — every game is DSL over the kernel. (See
+**Round forms own their internal state.** The trick and climbing forms of
+the kernel `round` thread their accumulator through the round's own state
+frame (readable as `state.x` during and just after the round); games don't
+redeclare what a form tracks. A `turns` ring — an auction, a betting
+street, a poll — has no frame: its moves write phase state. No Python
+mechanic remains — every game is DSL over the kernel. (See
 [library.md](library.md), "Mechanics".)
 
 **Typed phase outcomes route control flow at the phase boundary.**
@@ -266,7 +267,7 @@ are built in. (See [library.md](library.md), "Types" and
 [decisions.md](decisions.md), "Typed object model".)
 
 **Vocabulary in the syntax.** Domain words from rulebooks — the `round`
-construct (its trick / auction / climb forms), `Hand`, `Deck`, `Discard`,
+construct (its trick / climb forms), the `turns` ring, `Hand`, `Deck`, `Discard`,
 `Muck`, `ChipStack`, `ChallengeWindow`, `MustFollowSuit` — are first-class names
 in the library rather than abstractions the user has to invent. (See "Domain
 vocabulary in the syntax" above and [library.md](library.md).)

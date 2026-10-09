@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from cardlang.types import TBoolean, TEnum, TOptional, TPlayer, Type
 
-# `round <move> from <leader> over <players> source <zone> into <zone> outcome <fn>`
+# `round <move> from <leader> over <players> source <zone> into <zone> winner <fn>`
 TRICK_PUBLISHED: dict[str, Type] = {
     "led_suit": TOptional(TEnum("Suit")),  # none while leading
     "trick_terminated_early": TBoolean(),

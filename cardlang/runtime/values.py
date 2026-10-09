@@ -482,6 +482,16 @@ class Seating:
         return type(value) is int and 0 <= value < self.count
 
     def offset_by(self, player: Player, direction: str) -> Player:
+        """The seat `direction` from `player`. `player` is a game value — a
+        `Player?` still `none`, an unrefined pronoun — so this is its Owner
+        Guard, the twin of `turn_order_from`'s: the modular arithmetic below
+        would otherwise die on a bare `TypeError`."""
+        if not self.is_seat(player):
+            raise OwnerGuardError(
+                f"cannot offset from {player!r}: not a seat of this "
+                f"{self.count}-player game — `offset_by` reads a seat, and the "
+                f"expression bound a non-player value"
+            )
         delta = {
             "hold": 0,
             "left": 1,
