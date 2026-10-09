@@ -994,6 +994,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     _check_library_collisions(game, libraries, bag)
     claims = _check_state_claims(game, libraries, bag)
+    move_claims = _check_move_claims(game, libraries, bag)
     _check_library_shadows_game(game, libraries, bag)
     _check_provided_readonly(game, claims.provided, bag)
     _check_provided_shadowed_by_binder(game, claims.provided, bag)
@@ -1002,7 +1003,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
         _check_library_encapsulation(library, bag)
         _check_contract_shapes(library, bag)
         _check_require_indexes(library, bag)
-        _check_requires(game, use, library, bag, skip)
+        _check_requires(game, use, library, bag, skip, move_claims)
 
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
     # import is the base a game extends, which is the order the game file itself
@@ -1532,11 +1533,42 @@ def is_zone_contract(want: n.RequireDecl) -> bool:
     return want.type_name in LIBRARY_ZONE_TYPES
 
 
+# A `requires` entry typed by this word contracts for a MOVE TYPE the including
+# game defines — `poker_betting`'s `fold`, which touches the game's own zones —
+# rather than for a state variable or a zone. The row's type slot names the
+# KIND of declaration that answers it, and this is the kind whose answer is a
+# `move_type` block (decisions.md "Family libraries"). The word is the glossary's
+# for the player-action family, not a type a value can carry: `_slot_leaks`
+# admits it on a `RequireDecl` alone, so a `state { x : Move }` stays a leak.
+MOVE_CONTRACT_TYPE = "Move"
+# The spelling a designer reaches for first is the declaration keyword, which
+# parses in a type slot; `_check_contract_shapes` refuses it by name with the
+# word to write, so the sweep steps over it rather than calling it a type the
+# library lacks.
+_MOVE_CONTRACT_KEYWORD = "move_type"
+
+
+def is_move_contract(want: n.RequireDecl) -> bool:
+    """Whether a `requires` entry names a move type the including game must
+    define, rather than a `state { }` or `zones { }` declaration."""
+    return want.type_name == MOVE_CONTRACT_TYPE
+
+
+def _is_move_contract_row(want: n.RequireDecl) -> bool:
+    """A move-type row as the author MEANT it, the keyword misspelling
+    included: the slot sweeps read this one so the misspelled row's offering
+    is not also reported as a leak, leaving `_check_contract_shapes` as the
+    row's one speaker."""
+    return want.type_name in (MOVE_CONTRACT_TYPE, _MOVE_CONTRACT_KEYWORD)
+
+
 def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
     provided = library.state.decls if library.state is not None else ()
     return {
         "state": frozenset(
-            r.name for r in library.requires if not is_zone_contract(r)
+            r.name
+            for r in library.requires
+            if not is_zone_contract(r) and not _is_move_contract_row(r)
         )
         | frozenset(d.name for d in provided),
         # A contract's type slot may name either registry, so the sweep admits
@@ -1544,7 +1576,11 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         # zone type, an `<owner>` on a state type), which is a shape question
         # rather than a spelling one.
         "type": KNOWN_TYPE_NAMES | frozenset(LIBRARY_ZONE_TYPES),
-        "move_type": frozenset(m.name for m in library.move_types),
+        # A library presents the move types it defines and the ones it contracts
+        # for: a required move type is the game's to define and the library's
+        # to offer, which is the whole of why the contract kind exists.
+        "move_type": frozenset(m.name for m in library.move_types)
+        | frozenset(r.name for r in library.requires if _is_move_contract_row(r)),
         "procedure": frozenset(p.name for p in library.procedures),
         # BUILTIN_CALL_FUNCS, not CALL_FUNCS: a library body may call the
         # generic native functions the language ships, and may not call a
@@ -1649,7 +1685,7 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
 
 def _slot_leaks(
     library: n.Library,
-) -> tuple[tuple[_SlotLeak, ...], frozenset[str], frozenset[str]]:
+) -> tuple[tuple[_SlotLeak, ...], frozenset[str], frozenset[str], frozenset[str]]:
     """Every bare-string reference in `library` that names something outside it,
     and the state names its bare-string slots successfully READ.
 
@@ -1683,11 +1719,21 @@ def _slot_leaks(
     leaks: list[_SlotLeak] = []
     reads: set[str] = set()
     zone_reads: set[str] = set()
+    move_reads: set[str] = set()
     for node in _walk(library):
         if id(node) in collection_elements:
             continue
         for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
             if field_name == "type_name" and id(node) in collection_contracts:
+                continue
+            # A move-type contract's type slot names a KIND, not a type, and
+            # `_check_contract_shapes` is its one speaker — for the word itself
+            # and for the keyword spelling it refuses by name.
+            if (
+                field_name == "type_name"
+                and isinstance(node, n.RequireDecl)
+                and node.type_name in (MOVE_CONTRACT_TYPE, _MOVE_CONTRACT_KEYWORD)
+            ):
                 continue
             namespace = slot_namespace(node, field_name)
             if namespace is None:
@@ -1709,7 +1755,11 @@ def _slot_leaks(
                     # reason it needs `turns … again <var>`: a contract entry
                     # reached only through a bare-string slot would look dead.
                     zone_reads.add(bare)
-    return tuple(leaks), frozenset(reads), frozenset(zone_reads)
+                elif namespace == "move_type":
+                    # An offering names its move types as bare strings, so a
+                    # move-type contract is reached only here.
+                    move_reads.add(bare)
+    return tuple(leaks), frozenset(reads), frozenset(zone_reads), frozenset(move_reads)
 
 
 @dataclass(frozen=True)
@@ -1726,6 +1776,7 @@ class _LibraryReach:
     slot_leaks: tuple[_SlotLeak, ...]
     state_reads: frozenset[str]
     zone_reads: frozenset[str]
+    move_type_reads: frozenset[str]
 
 
 def _library_reach(library: n.Library) -> _LibraryReach:
@@ -1759,7 +1810,9 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         # sufficient for the library's own variables trivially, since it declares
         # them itself.
         state_vars=frozenset(
-            r.name for r in library.requires if not is_zone_contract(r)
+            r.name
+            for r in library.requires
+            if not is_zone_contract(r) and not _is_move_contract_row(r)
         )
         | frozenset(d.name for d in provided_state),
         # The OTHER of the two name sets a library is checked against. It is
@@ -1802,7 +1855,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     # definitions: `requires` has no expression to classify but its type names
     # are references like any other, so a contract can name a type only the
     # importing game defines.
-    leaks, slot_reads, slot_zone_reads = _slot_leaks(library)
+    leaks, slot_reads, slot_zone_reads, slot_move_reads = _slot_leaks(library)
     # Two namespaces keep a message of their own, so they are lifted out of the
     # generic list rather than reported twice: a card literal says why a family
     # library is deck-agnostic, and an unknown call says a library may not reach
@@ -1826,6 +1879,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         slot_leaks=rest,
         state_reads=frozenset(state_reads) | slot_reads,
         zone_reads=frozenset(zone_reads) | slot_zone_reads,
+        move_type_reads=slot_move_reads,
     )
 
 
@@ -1868,7 +1922,11 @@ _NAMESPACE_ADVICE: dict[str, str] = {
         "use a built-in type, or keep this definition in the game (a `requires` "
         "entry's type is a state type or a kernel zone type)"
     ),
-    "move_type": "define the move type in the library, or keep this definition in the game",
+    "move_type": (
+        "define the move type in the library, contract for it with "
+        "`<name> : Move` in `requires { }` so the including game defines it, "
+        "or keep this definition in the game"
+    ),
     "procedure": "define the procedure in the library, or keep this definition in the game",
     "position": (
         "a library declares no position domains — keep the definition that needs it "
@@ -2029,6 +2087,34 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
     case does not arise here."""
     for want in library.requires:
         spelled = _spelled_contract(want)
+        if want.type_name == _MOVE_CONTRACT_KEYWORD:
+            bag.error(
+                f"library '{library.name}' requires `{spelled}`, but "
+                f"`move_type` is the declaration keyword, not a type — a move "
+                f"type the game must define is contracted as "
+                f"`{want.name} : {MOVE_CONTRACT_TYPE}`",
+                want.span,
+            )
+            continue
+        if is_move_contract(want):
+            # A move type is a definition, not a keyed value: it carries
+            # neither an index nor an owner, and either spelling is the
+            # library author's to fix, before any game is consulted.
+            if want.index is not None:
+                bag.error(
+                    f"library '{library.name}' requires move type `{spelled}`, "
+                    f"but a move type has no index — write "
+                    f"`{want.name} : {MOVE_CONTRACT_TYPE}`",
+                    want.span,
+                )
+            if want.type_args:
+                bag.error(
+                    f"library '{library.name}' requires move type `{spelled}`, "
+                    f"but a move type contract takes no type argument — write "
+                    f"`{want.name} : {MOVE_CONTRACT_TYPE}`",
+                    want.span,
+                )
+            continue
         if want.type_name == COLLECTION_TYPE_CONSTRUCTOR:
             # A collection is neither a zone type nor a state type, so the
             # split below would answer a placement question with a shape one.
@@ -2087,6 +2173,104 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"write `{want.type_name}<{want.index}>`",
                     want.span,
                 )
+
+
+def _check_move_requirement(
+    game: n.Game,
+    use: n.UsesDecl,
+    library: n.Library,
+    want: n.RequireDecl,
+    bag: DiagnosticBag,
+) -> None:
+    """The move-type leg of the contract: the game defines this move type, in
+    a `move_type` block of its own. Reported on the game's `uses` line, to the
+    game's author; the shapes the LIBRARY could get wrong are
+    `_check_contract_shapes`', and ran before any game was consulted.
+
+    The two near-misses worth naming: a game that declared the name as state
+    or as a zone has not forgotten it, and telling it to add a move type
+    without saying why would read as the checker missing the declaration in
+    front of it."""
+    found = [m for m in game.move_types if m.name == want.name]
+    if found:
+        if len(found) > 1:
+            bag.error(
+                f"library '{library.name}' requires move type `{want.name}`, "
+                f"which game '{game.name}' defines {len(found)} times — a "
+                f"requirement must name ONE definition",
+                use.span,
+            )
+        return
+    as_state = any(
+        decl.name == want.name
+        for node in _walk(game)
+        if isinstance(node, n.StateBlock)
+        for decl in node.decls
+    )
+    as_zone = any(zone.name == want.name for zone in game.zones)
+    if as_state or as_zone:
+        kind = "state" if as_state else "a zone"
+        bag.error(
+            f"library '{library.name}' requires move type `{want.name}`, which "
+            f"game '{game.name}' declares as {kind} — `{MOVE_CONTRACT_TYPE}` "
+            f"names a move type, so the definition belongs in a "
+            f"`move_type {want.name} {{ }}` block",
+            use.span,
+        )
+        return
+    bag.error(
+        f"library '{library.name}' requires move type `{want.name}`, which game "
+        f"'{game.name}' does not define — add a `move_type {want.name} {{ }}` "
+        f"block with the effect the game wants",
+        use.span,
+    )
+
+
+def _check_move_claims(
+    game: n.Game,
+    libraries: list[tuple[n.UsesDecl, n.Library]],
+    bag: DiagnosticBag,
+) -> frozenset[str]:
+    """Refuse the two ways a move-type contract can be claimed from the wrong
+    side, and report which names were ruled on.
+
+    The state-claim rules one kind over (`_check_state_claims`), for the same
+    reasons: a library that both defines and requires a move type points two
+    ways at once, and a requirement answered by ANOTHER library's definition
+    couples two libraries through a name neither mentions the other in. The
+    game's own definition is the one answer, and `_check_move_requirement`
+    checks for it."""
+    contested: set[str] = set()
+    defined_by: dict[str, str] = {}
+    for _, library in libraries:
+        for mt in library.move_types:
+            defined_by.setdefault(mt.name, library.name)
+    for use, library in libraries:
+        own = {m.name: m for m in library.move_types}
+        for want in library.requires:
+            if not is_move_contract(want):
+                continue
+            if want.name in own:
+                contested.add(want.name)
+                bag.error(
+                    f"library '{library.name}' both defines and requires move "
+                    f"type '{want.name}' — `move_type` makes it the library's "
+                    f"and `requires` leaves it to the including game, so a name "
+                    f"can be one or the other: drop it from whichever clause is "
+                    f"wrong",
+                    own[want.name].span,
+                )
+            elif want.name in defined_by:
+                contested.add(want.name)
+                bag.error(
+                    f"library '{library.name}' requires move type `{want.name}`, "
+                    f"which library '{defined_by[want.name]}' defines — a "
+                    f"requirement names a move type the including GAME defines, "
+                    f"and is not answered by another library's definition; "
+                    f"define it in the game and rename one of the two",
+                    use.span,
+                )
+    return frozenset(contested)
 
 
 def _check_zone_requirement(
@@ -2199,9 +2383,11 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
     resolve, the index is the library's, and silencing one because of the
     other would leave the library author with nothing to act on."""
     provided = library.state.decls if library.state is not None else ()
-    for decl, verb in [(w, "requires") for w in library.requires] + [
-        (d, "provides") for d in provided
-    ]:
+    # A move-type contract's index is `_check_contract_shapes`' to refuse: a
+    # move type has no index at all, so a role question would be the wrong one.
+    for decl, verb in [
+        (w, "requires") for w in library.requires if not is_move_contract(w)
+    ] + [(d, "provides") for d in provided]:
         if decl.index is None or role_of(decl.index) in ZONE_INDEX_ROLES:
             continue
         roles = ", ".join(role_names(ZONE_INDEX_ROLES))
@@ -2220,11 +2406,15 @@ def _check_requires(
     library: n.Library,
     bag: DiagnosticBag,
     skip: frozenset[str] = frozenset(),
+    skip_moves: frozenset[str] = frozenset(),
 ) -> None:
     """Check a library's `requires` contract against the game's declarations.
 
-    An entry names state or a zone, and its type says which (`is_zone_contract`).
-    The zone leg is `_check_zone_requirement`; what follows is the state one.
+    An entry names state, a zone or a move type, and its type says which
+    (`is_zone_contract`, `is_move_contract`). The zone leg is
+    `_check_zone_requirement`, the move leg `_check_move_requirement`; what
+    follows is the state one. `skip_moves` is the move-type twin of `skip`:
+    the names `_check_move_claims` has already ruled on.
 
     `skip` names the state `_check_state_claims` has already ruled on — provided
     names and contested ones. Without it a name claimed both ways would fail
@@ -2302,6 +2492,10 @@ def _check_requires(
         # in the library AND a mismatch pinned on the game, which is the second
         # report this suppression exists to prevent.
         if want.span is not None and want.span in malformed:
+            continue
+        if is_move_contract(want):
+            if want.name not in skip_moves:
+                _check_move_requirement(game, use, library, want, bag)
             continue
         if is_zone_contract(want):
             # `skip` is the STATE-claim set (`_check_state_claims`), so it never
@@ -7539,6 +7733,9 @@ HOSTED_REACH_INERT_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Quantifier, "role"),
         (n.Member, "field"),
         (n.DomainQuery, "binder"),
+        # The go-again flag a `turns` ring consumes: a declared state variable,
+        # read and reset by the form itself, running no text of the game's.
+        (n.Turns, "again"),
     }
 )
 

@@ -39,13 +39,14 @@ library: _LIBRARY_KW NAME "{" library_item* "}"
 // `state_block` unchanged to say so — a provided variable's initial value is
 // the library's precisely because the variable is.
 //
-// An entry names a thing from EITHER of the two blocks a game declares keyed
-// names in, and its type says which: a `state { }` type or a `zones { }` one.
-// That is why the type slot carries both spellings the two blocks use — the
-// index-domain argument a zone type takes, and the `?` a state type takes.
+// An entry names a thing the game declares, and its type says which kind: a
+// `state { }` type, a `zones { }` type, or `Move` for a move type the game
+// defines in a `move_type` block of its own. That is why the type slot carries
+// both spellings the keyed blocks use — the index-domain argument a zone type
+// takes, and the `?` a state type takes — while a move type takes neither.
 // Which reading a head takes, and why `?` suffixes a value type only, is
-// decisions.md "Typed object model"; neither spelling is legal on the other
-// side, and both crosses are refused at resolve rather than here: the grammar
+// decisions.md "Typed object model"; no spelling is legal on another kind's
+// row, and every cross is refused at resolve rather than here: the grammar
 // cannot see which registry a NAME came from, and a syntax error would report
 // a shape question as a spelling one.
 requires_block: _REQUIRES_KW "{" require_decl* "}"

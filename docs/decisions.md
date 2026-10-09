@@ -3974,18 +3974,20 @@ where eligibility is private the poll walks every seat instead, as
 Doppelkopf's does.
 
 The body holds decisions and state writes only: `if`, `let`, assignment,
-`offer`, `round offering` without an `outcome` clause, `as`, `for each`,
-and `run`. The rule binds everything the body can execute, not only its
-own text: the body's statements and, transitively, every procedure it
-runs, every move type it offers — its `when:` guard and its effect alike,
+`offer`, `turns` (the ring a poll runs over the seats that may still
+call, bounded by its participants and `max_length` as the poll's own lap
+is), `round offering` without an `outcome` clause, `as`, `for each`, and
+`run`. The rule binds everything the body can execute, not only its own
+text: the body's statements and, transitively, every procedure it runs,
+every move type it offers — its `when:` guard and its effect alike,
 whether offered by `offer` or by `round offering` — and every function it
 calls. Resolve refuses, anywhere in that closure, every other statement —
 a card movement changes the hands and pile the live trick reads, a nested
 trick or climbing round starts a second trick inside the first, a loop
-(`repeat until`, `turns`, `each … simultaneously`) has no bound the
-poll's lap does not already give, non-local control unwinds out of the
-trick mid-play — and an auction's `outcome` clause, whose typed outcome
-unwinds out of the trick the same way. It refuses the `state` pronoun
+over no seat ring (`repeat until`, `each … simultaneously`) has no bound
+the poll's lap does not already give, non-local control unwinds out of
+the trick mid-play — and an auction's `outcome` clause, whose typed
+outcome unwinds out of the trick the same way. It refuses the `state` pronoun
 wherever it stands — not only as a `state.` read, since a `let` or an
 argument carries the live frame on to a later one — and a call of a
 Primitive the game's own namespace holds, since a round's state is
@@ -4936,10 +4938,11 @@ author needs. Post-splice a required name is just a variable declared later,
 and "declare it earlier" is advice a library author cannot take. Give the
 provided variable a literal default and set it from the contract in a phase.
 
-**A contract names state or zones, and the type says which.** A `requires`
-entry's type is read against two registries — the state types, and the stdlib
-zone types — and they are disjoint, so which of the game's declaring blocks
-answers an entry is derived rather than declared:
+**A contract names state, a zone or a move type, and the type says
+which.** A `requires` entry's type is read against two registries — the
+state types, and the stdlib zone types — plus the one word `Move`, and the
+three are disjoint, so which of the game's declaring blocks answers an entry
+is derived rather than declared:
 
 ```text
 requires {
@@ -4947,17 +4950,30 @@ requires {
   shipment[player]  : HiddenPile<player>
   merchant          : Player              // answered from its `state { }`
   raise_cap         : Integer
+  fold              : Move                // answered by its `move_type fold { }`
 }
 ```
 
-The two spellings do not cross. A zone type carries the `<owner>` argument and
-never a `?`; a state type carries the `?` and never an argument. Both crosses
-are refused against the LIBRARY ALONE, before any game is consulted, because
-they name a shape no `zones { }` or `state { }` line could answer — as are an
-owner argument disagreeing with the index, an owned zone type with no index, and
-an index that is a position domain rather than a seat or team. A library
-declares no `positions { }` and cannot name one, so a position-indexed zone
-family cannot be contracted at all.
+A move-type contract is how a library presents a move the family leaves to
+the game: `poker_betting`'s street offers `fold` beside the four betting
+moves it defines, and folding touches the game's own zones, so the game
+defines it and the contract says the library will offer it. The game's own
+definition is the one answer — a library may not both define and require a
+move type, and one library's definition does not answer another's contract,
+exactly as for state. A move type is a definition rather than a keyed value,
+so its row carries neither an index nor a type argument; the declaration
+keyword itself (`fold : move_type`) parses in the slot and is refused by
+name, with the word to write.
+
+The spellings do not cross. A zone type carries the `<owner>` argument and
+never a `?`; a state type carries the `?` and never an argument; `Move`
+carries neither. Every cross is refused against the LIBRARY ALONE, before any
+game is consulted, because it names a shape no `zones { }`, `state { }` or
+`move_type` line could answer — as are an owner argument disagreeing with the
+index, an owned zone type with no index, and an index that is a position
+domain rather than a seat or team. A library declares no `positions { }` and
+cannot name one, so a position-indexed zone family cannot be contracted at
+all.
 
 That the derivation IS a derivation rests on a guard: a declared `type` and a
 per-game `positions { }` name may not take a kernel zone type's spelling. Without

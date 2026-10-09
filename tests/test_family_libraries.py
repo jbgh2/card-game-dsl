@@ -195,6 +195,8 @@ from collections.abc import Iterator
 from dataclasses import fields, is_dataclass, replace
 from pathlib import Path
 
+from typing import Any
+
 import pytest
 from lark import Tree
 from lark.exceptions import VisitError
@@ -3374,11 +3376,17 @@ def test_every_library_contracts_for_exactly_what_it_reaches(name: str) -> None:
         f"library '{name}' calls "
         f"{sorted({c.func for c in reach.unknown_calls})} past its contract"
     )
-    # Both halves of the contract: a state entry is answered by a state read, a
-    # zone entry by a zone read. Reading only the first would call every zone
-    # contract dead — the same trap `turns … again <var>` sprang on the
-    # bare-string half, one namespace over.
-    dead = {r.name for r in library.requires} - reach.state_reads - reach.zone_reads
+    # Every kind of the contract: a state entry is answered by a state read, a
+    # zone entry by a zone read, a move-type entry by an offering that names
+    # it. Reading only the first would call every zone and move contract dead —
+    # the same trap `turns … again <var>` sprang on the bare-string half, one
+    # namespace over.
+    dead = (
+        {r.name for r in library.requires}
+        - reach.state_reads
+        - reach.zone_reads
+        - reach.move_type_reads
+    )
     assert not dead, (
         f"library '{name}' requires {sorted(dead)}, which no definition in it "
         f"reads — drop them from the contract"

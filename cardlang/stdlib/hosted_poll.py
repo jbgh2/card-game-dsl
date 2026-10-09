@@ -18,12 +18,14 @@ from __future__ import annotations
 from cardlang.ast import nodes as n
 
 # The statement kinds a Hosted Poll's body may hold: decisions and state
-# writes, and the scoping and control that arrange them. `Block` is what a
-# `run` expands into, so it arrives only after resolve and is admitted for the
-# same reason `run` is.
+# writes, and the scoping and control that arrange them. `Turns` is the ring a
+# poll runs over the seats that may still call — one decision per seat,
+# bounded by its participants and the game's `max_length` exactly as the
+# poll's own lap is. `Block` is what a `run` expands into, so it arrives only
+# after resolve and is admitted for the same reason `run` is.
 HOSTED_POLL_ALLOWED: frozenset[type] = frozenset(
     {
-        n.IfStmt, n.LetStmt, n.AssignStmt, n.Offer, n.AuctionRound,
+        n.IfStmt, n.LetStmt, n.AssignStmt, n.Offer, n.AuctionRound, n.Turns,
         n.AsBlock, n.ForEach, n.RunStmt, n.Block,
     }
 )
@@ -31,9 +33,9 @@ HOSTED_POLL_ALLOWED: frozenset[type] = frozenset(
 # Every other statement kind, with the words its refusal names it by. A card
 # movement would change the hands and the pile the round is reading, a nested
 # trick or climbing round would start a second trick inside the first, a loop
-# (`repeat`, `turns`, `each … simultaneously`) has no bound the poll's lap does
-# not already give, and non-local control would unwind out of the round
-# mid-trick. The two sets partition the `Stmt` union
+# over no seat ring (`repeat`, `each … simultaneously`) has no bound the poll's
+# lap does not already give, and non-local control would unwind out of the
+# round mid-trick. The two sets partition the `Stmt` union
 # (tests/test_hosted_poll.py pins it).
 HOSTED_POLL_REFUSED: dict[type, str] = {
     n.Transfer: "a card movement",
@@ -41,7 +43,6 @@ HOSTED_POLL_REFUSED: dict[type, str] = {
     n.RotateStmt: "`rotate`",
     n.EachSimultaneous: "`each … simultaneously`",
     n.RepeatUntil: "`repeat until`",
-    n.Turns: "`turns`",
     n.TrickRound: "a trick `round`",
     n.ClimbRound: "a `round climb`",
     n.Produce: "`produce`",

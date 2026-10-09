@@ -371,6 +371,7 @@ CONTAINERS = {
     "IfStmt": "if runs > 0 {{ {stmt} }}",
     "AsBlock": "as p {{ {stmt} }}",
     "ForEach": "for each player q: {stmt}",
+    "Turns": "turns w from p over all players until runs > 100 {{ {stmt} }}",
 }
 
 # The refused kinds a procedure body admits of its own accord; the others are
