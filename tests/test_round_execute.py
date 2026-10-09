@@ -156,6 +156,38 @@ game G {
 """
 
 
+RING_AFTER_ROUND_SRC = STATE_SRC.replace(
+    "  state { tricks_won[player] : Integer = 0  leader : Player? = none }",
+    "  state { tricks_won[player] : Integer = 0  leader : Player? = none  seen : Boolean = false }",
+).replace(
+    """      // Read the just-finished round's terminal state in the surrounding body.
+      if state.trick_terminated_early { tricks_won[winner] += 1 }
+""",
+    """      // A ring is not "directly after" the round: its window ends when the
+      // ring opens, so the same read inside it is the loud no-frame refusal.
+      turns t from leader over all players until seen {
+        if state.trick_terminated_early { tricks_won[t] += 1 }
+        seen := true
+      }
+""",
+)
+
+
+def test_a_ring_ends_the_just_completed_rounds_window() -> None:
+    """The retired auction form cleared the frame on entry; the `turns` ring
+    every auction now sits on does the same, so a bidding move reading the
+    previous trick's `state.` fails as it did, never silently reading that
+    trick. The read directly after the round (the test below) still sees it.
+
+    red under: delete the `last_round_state = None` clear at the head of
+    `execute._turns` — the read inside the ring serves the trick's frame and
+    the game plays through."""
+    game = check_dsl(RING_AFTER_ROUND_SRC, "g.cardlang")
+    assert "turns t from leader" in RING_AFTER_ROUND_SRC
+    with pytest.raises(OwnerGuardError, match="no active or just-completed round"):
+        play_game(game, random.Random(0))
+
+
 def test_round_terminated_state_readable_in_body() -> None:
     # After a `round` returns, the surrounding body must see the round's terminal
     # state (`state.trick_terminated_early`) — the Getaway conditional-routing

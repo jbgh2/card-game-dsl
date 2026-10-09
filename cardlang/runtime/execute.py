@@ -761,6 +761,17 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     infinite spin."""
     order = ctx.rs.seating.players
     step = 1 if ctx.rs.seating.clockwise else -1
+    # A ring is a run of decisions, not a round: entering one ends the
+    # just-completed round's window, so a `state.` read inside it fails
+    # loudly (`evaluate._pronoun`'s "no active or just-completed round")
+    # instead of serving that round's frame — which round ran last is
+    # runtime data, so this is the window's Owner Guard, at the one site
+    # every ring converges on. A live round's frame (`mech_state`) is
+    # untouched: a ring hosted inside a poll reads the live trick. A lone
+    # `offer` or a `repeat until` leaves the frame as it is
+    # (open-questions/round-state-in-information-states.md).
+    if not ctx.rs.mech_state:
+        ctx.rs.last_round_state = None
     current: Player | None = None
     guard = 0
     while not bool(evaluate(stmt.until, ctx)):
