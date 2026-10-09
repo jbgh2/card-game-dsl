@@ -136,8 +136,8 @@ def test_auction_masks_are_the_ladder_rules() -> None:
     r = run(PATH, 3, ())
     assert isinstance(r, DecisionNode)
     legal = {space.decode(a) for a in r.legal}
-    assert ("bid_misere", None) not in legal, "misère before any seven bid"
-    assert ("bid_open_misere", None) in legal
+    assert "bid_misere" not in legal, "misère before any seven bid"
+    assert "bid_open_misere" in legal
     assert ("submit_bid", "joker") not in legal, "the joker pseudo-strain"
     for strain in ("spades", "clubs", "diamonds", "hearts", None):
         assert ("submit_bid", strain) in legal
@@ -147,17 +147,17 @@ def test_auction_masks_are_the_ladder_rules() -> None:
     r = run(PATH, 3, (bid_s, bid_s))
     assert isinstance(r, DecisionNode)
     legal = {space.decode(a) for a in r.legal}
-    assert ("bid_misere", None) in legal
+    assert "bid_misere" in legal
 
     # Once the standing bid passes the misère rung it closes again.
     r = run(PATH, 3, (bid_s, bid_s, space.encode(("submit_bid", None))))  # 7NT? no: NT>7♠ -> 7NT
     assert isinstance(r, DecisionNode)
     legal = {space.decode(a) for a in r.legal}
-    assert ("bid_misere", None) in legal  # 7NT stands: still a seven bid
+    assert "bid_misere" in legal  # 7NT stands: still a seven bid
     r = run(PATH, 3, (bid_s, bid_s, space.encode(("submit_bid", None)), space.encode(("submit_bid", "spades"))))
     assert isinstance(r, DecisionNode)
     legal = {space.decode(a) for a in r.legal}
-    assert ("bid_misere", None) not in legal  # 8♠ stands: misère closed
+    assert "bid_misere" not in legal  # 8♠ stands: misère closed
 
 
 def test_open_misere_reveal_reaches_every_observer_and_only_then() -> None:
@@ -355,16 +355,24 @@ def test_published_contract_facts_derive_from_each_observers_log() -> None:
     each rendered value is a function of what that observer already heard, so
     publishing it merges and splits nothing.
 
-    The DRIVING is load-bearing and pinned as such. The greedy line reaches
-    real trump strains but never a nomination — every seat declines — so the
-    `joker_suit` half would be None-against-None on the manifest seeds alone.
-    The driven line below bids open misère, takes the kitty and NOMINATES, and
-    the two `assert ... > 0` guards are what stop either half from passing on
-    a constant."""
+    The DRIVING is load-bearing and pinned as such. The greedy line bids open
+    misère at every opening ask (it sorts first) and never a strain or a
+    nomination, so both halves would be None-against-None on the manifest
+    seeds alone. The two driven lines below open with a spade bid, and with
+    open misère followed by the kitty and a NOMINATION, and the two
+    `assert ... > 0` guards are what stop either half from passing on a
+    constant."""
     checked = t_seen = j_seen = 0
     failures: list[str] = []
     for seed in (3, 5, 14, 15, 18):
         c, t, j, f = _walk(seed, (), 400)
+        checked, t_seen, j_seen = checked + c, t_seen + t, j_seen + j
+        failures += f
+
+    # The driven trump line: a spade bid from the opener, then greedy.
+    _game, space = load(PATH)
+    for seed in (3, 5):
+        c, t, j, f = _walk(seed, (space.encode(("submit_bid", "spades")),), 60)
         checked, t_seen, j_seen = checked + c, t_seen + t, j_seen + j
         failures += f
 

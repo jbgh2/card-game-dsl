@@ -1,7 +1,8 @@
 """500's game-local runtime [[primitive]]s: the bid ladder.
 
 The hand runs fully on the kernel (five-hundred.cardlang): the ascending
-auction is the drop-out ring [[form]] of `round` (the Pinochle shape), the kitty
+auction is a `turns` ring over a shrinking participants set (the Pinochle
+shape), the kitty
 pickup and discard are plain [[transfer]]s, the joker nomination an `offer`, and
 the ten tricks single-actor filtered movements (the Skat/Doppelkopf shape). The
 contract's order is the game's declared [[trick-order]] — the joker and both

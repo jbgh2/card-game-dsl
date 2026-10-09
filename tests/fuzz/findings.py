@@ -152,6 +152,47 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         ),
     ),
     Finding(
+        slug="pinochle_missing_pass_back_no_legal_play",
+        classification="accepted-then-crashes-at-playout",
+        stage="playout",
+        exception_type_name="OwnerGuardError",
+        message_substring="has no legal play in the trick",
+        note=(
+            "docs/games/pinochle.cardlang, `delete_line` seed 0, deleting "
+            "the declarer's return pass `offer to high_bidder one of "
+            "[pass_four]` (line 195 at discovery time). The partner's four "
+            "cards cross to the declarer and nothing comes back, so the "
+            "declarer plays the tricks holding sixteen cards against the "
+            "partner's eight, and 41 decisions in the trick-following "
+            "constraint has no card left to offer the emptied seat — the "
+            "`getaway_no_legal_play_no_if_impossible` channel reached by an "
+            "unbalanced exchange rather than a missing elimination. Frozen "
+            "as the whole corpus mutant, not shrunk: the crash needs the "
+            "exchange and the trick play both."
+        ),
+    ),
+    Finding(
+        slug="pinochle_meld_slot_reads_outside_bundle",
+        classification="accepted-then-crashes-at-playout",
+        stage="playout",
+        exception_type_name="PrimitiveReadError",
+        message_substring="read the state variable 'trump_suit', which its bundle does not carry",
+        note=(
+            "docs/games/pinochle.cardlang, `delete_line` seed 2, deleting "
+            "`pinochle_meld_slot`'s `reads hand[p], trump_suit in "
+            "hand_sequence` clause (line 81 at discovery time). A Primitive "
+            "declared without a `reads` clause is grammatical and "
+            "checker-green — the front end cannot know what the Python "
+            "implementation reads — so the first meld-laying decision, 8 "
+            "decisions in, meets the read bundle's own refusal when the "
+            "Primitive reaches for `trump_suit` through an empty bundle. "
+            "The runtime's typed refusal is the Owner Guard here, and this "
+            "ledger entry is what proves it fires. Frozen as the whole "
+            "corpus mutant, not shrunk: the Primitive is walled to the "
+            "Pinochle game module."
+        ),
+    ),
+    Finding(
         slug="cheat_empty_count_range",
         classification="accepted-then-crashes-at-playout",
         stage="playout",

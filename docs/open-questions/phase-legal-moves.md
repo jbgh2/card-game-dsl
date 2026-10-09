@@ -3,8 +3,8 @@
 **Tier 4 — low impact, defer until forced.**
 
 A phase declares `active_rules`, and its body offers moves through the kernel
-`round` (`play_to_trick`), `offer to … one of [...]`, and the auction form `round
-offering [...]`. The legal move types are largely derivable from these. So what is
+`round` (`play_to_trick`) and `offer to … one of [...]`, alone or as a `turns`
+ring's turn. The legal move types are largely derivable from these. So what is
 the `legal_moves:` clause *for*, and how does it relate to the body? Two coupled
 sub-questions:
 
@@ -20,9 +20,8 @@ should resolve/typecheck verify that `legal_moves:` matches what the phase body
 actually offers — flagging a move type listed in `legal_moves` that the body never
 offers, or a move the body offers that `legal_moves` omits?
 
-This sharpened when the auction form introduced `offering [...]`, which *also*
-declares a move vocabulary: Bridge's auction phase lists its bid moves in
-`offering` and dropped `legal_moves:` entirely, so the two clauses now overlap with
+This sharpened when Bridge's auction phase listed its bid moves in its ring's
+`offer` and dropped `legal_moves:` entirely, so the two clauses now overlap with
 no defined relationship. The static check is only meaningful once (1) settles which
 clause is authoritative: if `legal_moves` is derived, there is nothing to
 cross-check; if it is explicit, a body-consistency check is worth having (it would

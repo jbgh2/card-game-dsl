@@ -10,8 +10,8 @@ windows", "The climbing form of `round`", "Surface totality").
                 end the round is followed by no ask. Every sentence the clause
                 accepts is either run so, or refused at resolve: anywhere in
                 what the body can execute — its text and every definition it
-                reaches by name — a statement outside the allow-list, an
-                auction's `outcome` clause, the `state` pronoun wherever it
+                reaches by name — a statement outside the allow-list, the
+                `state` pronoun wherever it
                 stands, and a call of a Primitive the game's own namespace
                 holds; and a binder spelled like a name already classifiable
                 where the clause is written.
@@ -40,11 +40,11 @@ windows", "The climbing form of `round`", "Surface totality").
                      on the miniature fixture below and reached by playout;
                   F. reached through — every route by which a body names a
                      definition whose text then runs (its own text, a `run`,
-                     an offered move type's effect and guard by `offer` and by
-                     `round offering`, a function call, a function's call,
+                     an offered move type's effect and guard by `offer`, alone
+                     and in a `turns` ring, a function call, a function's call,
                      and a `run` that offers), crossed with every payload the
-                     route can hold: the refused statement kinds and the
-                     `outcome` clause where it holds statements, the `state`
+                     route can hold: the refused statement kinds where it
+                     holds statements, the `state`
                      read and the Primitive call everywhere. The routes are
                      the naming slots on statement and expression nodes whose
                      namespace is in `HOSTED_REACH_POOLS`, and every other
@@ -60,8 +60,8 @@ windows", "The climbing form of `round`", "Surface totality").
                      executes, a row it admits plays through, and a refused
                      row no game can run (`_refused_elsewhere`, authored by
                      rule) is still refused by another check.
-                The clause is written on `round climb` only: the trick and
-                auction forms carry no Hosted Poll by grammar
+                The clause is written on `round climb` only: the trick
+                form carries no Hosted Poll by grammar
                 (`test_the_clause_is_a_climb_clause_only`).
 
     registry:   A, B. `typing.get_args(cardlang.ast.nodes.Stmt)` against
@@ -124,8 +124,8 @@ red under (each planted in the code under guard, run, and reverted):
   `run_decision_round` — the body-ends-the-round cell reddens;
 - axis F: delete the `"move_type"` row of `resolve.HOSTED_REACH_POOLS` — every
   offered-effect and offered-guard cell reddens; delete its `"function"` row —
-  the function cells redden; delete the `outcome_fn` row of
-  `stdlib.hosted_poll.HOSTED_REACH_REFUSED_SLOTS` — the `outcome_clause` cells redden;
+  the function cells redden; delete `stdlib.hosted_poll.HOSTED_REACH_REFUSED_SLOTS`
+  — the slot-class pin fails to import it;
   empty the Primitive set in `resolve._check_hosted_polls` — the
   `primitive_call` cells redden; skip a move type's `when` field there — the
   guard cells redden; stop `resolve._definition_closure` pushing a reached
@@ -302,7 +302,6 @@ SNIPPETS: dict[str, tuple[str, dict[str, str]]] = {
         "winner highest_of_led_suit",
         {},
     ),
-    "AuctionRound": ("round offering [nop] from p over all players until nops > 0", {}),
     "ClimbRound": (
         "round climb play_combination from p over all players source hand into trick_pile "
         "combinations tichu_lead_options follows tichu_follows until runs > 0",
@@ -331,7 +330,7 @@ REFUSED = {t.__name__ for t in hosted_registry.HOSTED_POLL_REFUSED}
 # The expected column, authored as the operator's ruling on issue #776 reads
 # it, never read off the implementation's sets above.
 EXPECTED_ADMITTED = {
-    "IfStmt", "LetStmt", "AssignStmt", "Offer", "AuctionRound", "AsBlock",
+    "IfStmt", "LetStmt", "AssignStmt", "Offer", "AsBlock",
     "ForEach", "RunStmt", "Turns",
 }
 
@@ -385,8 +384,8 @@ PROC_OWN_REFUSALS = {
 def test_the_containers_are_every_admitted_statement_holder() -> None:
     """Axis B's container list is every admitted kind that holds statements
     in a body a designer writes: `RunStmt` is the procedure cell below, and
-    the rest hold none (`AuctionRound`'s decisions are move types, whose
-    effects the clause does not reach into)."""
+    the rest hold none (`Offer`'s decision is a move type, whose effect the
+    clause does not reach into)."""
     holders = {
         k for k in EXPECTED_ADMITTED
         if any(
@@ -564,21 +563,21 @@ def test_a_fresh_binder_is_admitted() -> None:
 
 # How a payload reaches the body, one row per way a body names a definition
 # that then runs: its own text, a procedure it runs, the effect and the guard
-# of a move type it offers (by `offer` and by `round offering`), a function it
+# of a move type it offers (by `offer`, alone or in a `turns` ring), a function it
 # calls, and a function that function calls. `{x}` is the payload. Each route
 # is (body, extra top-level text, whether it holds statements).
 ROUTES: dict[str, tuple[str, str, bool]] = {
     "direct": ("{x}", "", True),
     "run": ("run via(p)", "procedure via(who : Player) {{\n{x}\n}}", True),
     "offer_effect": ("offer to p one of [via]", "move_type via {{ effect {{\n{x}\n}} }}", True),
-    "round_offering_effect": (
-        "nops := 0\nround offering [via, nop] from p over all players until nops > 0",
+    "ring_offer_effect": (
+        "nops := 0\nturns w from p over all players until nops > 0 {{ offer to w one of [via, nop] }}",
         "move_type via {{ effect {{\n{x}\n}} }}",
         True,
     ),
     "offer_guard": ("offer to p one of [via, nop]", "move_type via {{ when: {e} effect {{ }} }}", False),
-    "round_offering_guard": (
-        "nops := 0\nround offering [via, nop] from p over all players until nops > 0",
+    "ring_offer_guard": (
+        "nops := 0\nturns w from p over all players until nops > 0 {{ offer to w one of [via, nop] }}",
         "move_type via {{ when: {e} effect {{ }} }}",
         False,
     ),
@@ -606,10 +605,6 @@ STMT_PAYLOADS: dict[str, tuple[str, str]] = {
         kind: (SNIPPETS[kind][0], "may not hold")
         for kind in sorted(REFUSED - {"Produces", "RunStmt"})
     },
-    "outcome_clause": (
-        "round offering [nop] from 0 over all players until runs > 0 outcome bridge_auction_outcome",
-        "may not hold a `round offering` with an `outcome` clause",
-    ),
 }
 
 
@@ -620,7 +615,7 @@ STMT_PAYLOADS: dict[str, tuple[str, str]] = {
 SEAT_IN_ROUTE = {
     "run": "who",
     "offer_effect": "actor",
-    "round_offering_effect": "actor",
+    "ring_offer_effect": "actor",
     "run_then_offer": "actor",
 }
 
@@ -671,7 +666,7 @@ def test_the_routes_are_every_definition_a_body_can_name() -> None:
     assert set().union(*classified) == set(slots), set(slots) - set().union(*classified)
     assert sum(map(len, classified)) == len(set().union(*classified)), "a slot filed twice"
     assert {(cls.__name__, f) for cls, f in followed} == {
-        ("RunStmt", "name"), ("Offer", "offering"), ("AuctionRound", "offering"), ("Call", "func"),
+        ("RunStmt", "name"), ("Offer", "offering"), ("Call", "func"),
     }
 
 
@@ -755,10 +750,6 @@ def test_a_call_in_the_body_by_regime_and_name(regime: str, name: str) -> None:
         return
     message = refusal(body=indent(body), extra=extra, clauses=clauses)
     assert words in message, message
-
-
-def test_the_outcome_free_round_offering_is_admitted() -> None:
-    check(body=indent("round offering [nop] from p over all players until runs > 0"))
 
 
 def test_a_move_type_offered_outside_the_poll_is_not_judged_by_it() -> None:
@@ -933,7 +924,8 @@ def test_before_and_asking_stay_ordinary_names() -> None:
 @pytest.mark.parametrize(
     "form",
     [
-        "round offering [nop] from 0 over all players until runs > 0 before asking p { runs += 1 }",
+        "turns t from 0 over all players until runs > 0 before asking p { runs += 1 } "
+        "{ offer to t one of [nop] }",
         "round play_combination from 0 over all players source hand into trick_pile "
         "winner highest_by_trick_order before asking p { runs += 1 }",
     ],
@@ -944,12 +936,12 @@ def test_the_clause_is_a_climb_clause_only(form: str) -> None:
 
 
 def test_the_asked_seat_is_the_binder_not_the_actor() -> None:
-    """The plausible misreading `round offering … from actor` inside the body:
-    the body is no seat's action, so `actor` there is what it is at the round
+    """The plausible misreading `turns w from actor …` inside the body:
+    the body is no seat's action, so `actor` there is what it is at the ring
     statement — at a phase's top level, no seat — and never the asked seat.
     The checker refuses it there, exactly as it refuses the same sentence
-    written just before the round."""
-    poll = "runs += 1\nround offering [nop] from actor over all players until runs > 0"
+    written just before the ring."""
+    poll = "runs += 1\nturns w from actor over all players until runs > 0 { offer to w one of [nop] }"
     for kw in ({"body": indent(poll)}, {"body": COUNTING, "prelude": "    " + poll}):
         message = refusal(**kw)
         assert "no player is acting" in message, message

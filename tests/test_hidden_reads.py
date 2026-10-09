@@ -1097,11 +1097,6 @@ _IMPLICIT_POOLS: dict[str, tuple[str, str, str]] = {
     "trick-source": ("TrickRound", "phase play { " + _TRICK + " }", ""),
     "climb-source": ("ClimbRound", "phase play { " + _CLIMB + " }", ""),
     "card-parameter-offered": ("execute._offer", _OFFER_TAKE.replace("take", "pick"), _PICK),
-    "card-parameter-in-an-auction": (
-        "AuctionRound",
-        "phase play { round offering [pick] from 0 over all players until flag }",
-        _PICK,
-    ),
 }
 
 _OWN_POOL = "does not show its owner the cards in it"
@@ -1111,7 +1106,7 @@ def test_the_implicit_pools_are_the_declared_zone_rows() -> None:
     """The implicit-pool members are exactly the decision points whose pool is
     a declared zone.
 
-    red under: move the `AuctionRound` row of `DECISION_POOLS` to `POOL_NONE`."""
+    red under: move the `execute._offer` row of `DECISION_POOLS` to `POOL_NONE`."""
     implicit = {
         row
         for row, kind in R.DECISION_POOLS.items()

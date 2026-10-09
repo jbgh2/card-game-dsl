@@ -2,8 +2,8 @@
 
 property:   Each grammar form of `round` builds its OWN AST node, and that node
             carries only the fields its form can use. Two consequences, and the
-            second is the one worth the machinery: an impossible combination (an
-            auction's `offering` beside a trick's `play_zone`) is unrepresentable
+            second is the one worth the machinery: an impossible combination (a
+            climb's engine slots beside a trick's `winner_fn`) is unrepresentable
             rather than merely unchecked, and no pass can select a form by
             sniffing a nullable field -- which is what made a form's arm silently
             reachable from another form's node.
@@ -33,30 +33,12 @@ registry:   form    -- `round_axes.round_productions` (grammar productions
                        and no pairing raises rather than dropping out.
             The `state.` fields each form publishes:
             cardlang/stdlib/round_state.py.
-does not prove:  three things.
+does not prove:  one thing.
 
-            (1) That a cell setting an `outcome` clause EXECUTES. Such a cell
-            raises its tagged result for an enclosing `produces:` arm to
-            catch, which this minimal game deliberately does not have, so
-            `test_round_cell_executes` excludes them -- written as the
-            excluded setting (`_RAISES_TAGGED_OUTCOME`) rather than the
-            included list, so the exclusion cannot quietly widen. Their front
-            end is crossed here; their runtime rests on the corpus games that
-            write one -- tests/openspiel_ready/test_bridge.py,
-            tests/openspiel_ready/test_french_tarot.py,
-            tests/openspiel_ready/test_pinochle.py, and those games' per-seed
-            goldens in tests/test_migration_characterization.py.
-
-            (2) That a clause with a closed value set would be crossed over
+            That a clause with a closed value set would be crossed over
             that set. `round_axes.clause_settings` crosses every optional
             clause absent/present, so a clause whose value is one of a closed
             set of words would have its values go uncrossed.
-
-            (3) Anything about what `AuctionForm` publishes to `state.`.
-            stdlib/round_state.py enumerates the forms as data, and its own
-            pin is asymmetric: the surface-rejection half spans every form,
-            but the auction form publishes nothing, so the half that would
-            observe its writes runs over an empty set.
 """
 
 from __future__ import annotations
@@ -111,25 +93,6 @@ game G {{
 }}
 """
 
-_AUCTION = """
-game G {{
-  players: 3
-  max_length: 1000
-  direction: clockwise
-  cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones {{ deck : Deck }}
-  state {{ acted[player] : Boolean = false  bumps[player] : Integer = 0 }}
-  phase run {{
-    round offering [bump, stop] from 0 over players where not acted[player]
-          until (number of players where not acted[player]) is 0{outcome}
-  }}
-  winner: highest bumps
-}}
-move_type bump {{ effect {{ bumps[actor] := bumps[actor] + 1  acted[actor] := true }} }}
-move_type stop {{ effect {{ acted[actor] := true }} }}
-"""
-
 _CLIMB = """
 game G {{
   players: 3
@@ -156,7 +119,7 @@ game G {{
 }}
 """
 
-_TEMPLATES = {"round_stmt": _TRICK, "auction_stmt": _AUCTION, "climb_stmt": _CLIMB}
+_TEMPLATES = {"round_stmt": _TRICK, "climb_stmt": _CLIMB}
 
 # How each clause setting is spelled in source. Keyed by (clause, setting) so a
 # setting with no spelling is a missing key rather than a silently skipped cell.
@@ -165,19 +128,10 @@ _SPELLINGS = {
     ("trump", "present"): " trump trump_suit",
     ("early", "absent"): "",
     ("early", "present"): " early on_play_off_led_suit",
-    ("outcome", "absent"): "",
-    ("outcome", "present"): " outcome bridge_auction_outcome",
     ("before", "absent"): "",
     ("before", "present"): " before asking p { taken[p] += 0 }",
 }
 
-# The one clause setting that stops a cell from being executable: an auction
-# with an `outcome` raises its tagged result for an enclosing `produces:` arm.
-# Stated as the excluded setting rather than as the included set, because the
-# included set is the thing that silently shrinks — a filter listing what runs
-# drops a whole form the day a clause is added, and reports full coverage while
-# doing it.
-_RAISES_TAGGED_OUTCOME = ("outcome", "present")
 
 
 def _cells() -> list[tuple[str, tuple[tuple[str, str], ...]]]:
@@ -262,7 +216,7 @@ def test_clause_axis_is_the_grammar() -> None:
     number of members -- pinning the count would just be this module
     asserting its own parametrization back to itself.
 
-    red under: hand-list `optional_clauses` to return `()` for `auction_stmt`.
+    red under: hand-list `optional_clauses` to return `()` for `round_stmt`.
     """
     settings = {p: axes.clause_settings(p) for p in axes.round_productions()}
     for production, cells in settings.items():
@@ -283,14 +237,12 @@ def test_round_cell_builds_its_own_node(
 ) -> None:
     """Each cell's game parses to the node class ITS production declares.
 
-    Born green, and stays green through the split — the count pin above is the
-    one that fails before it. This cell guards a different hazard, and only
-    after the nodes are distinct: a builder wired to the WRONG one of the three
-    (an optional clause moved between forms, a copied method body). Until then
-    there is one node and every cell trivially lands on it.
+    Born green — the count pin above is the one that fails first. This cell
+    guards a different hazard: a builder wired to the WRONG one of the two
+    nodes (an optional clause moved between forms, a copied method body).
 
-    red under: make `parse._Builder.climb_stmt` return an `AuctionRound` (after
-    the split) or annotate it as returning one (before).
+    red under: make `parse._Builder.climb_stmt` return a `TrickRound`, or
+    annotate it as returning one.
     """
     game = check_dsl(_source(production, setting), "cell.cardlang")
     expected = axes.round_node_by_production()[production]
@@ -330,7 +282,7 @@ def test_no_ir_key_is_null_across_a_whole_form(production: str) -> None:
     Separate from the field pin because the emitter writes its own key set, and
     a per-node emitter arm that kept the shared key list would serialise nulls
     from a form's node that no longer has the fields. The corpus goldens cover
-    the trick and auction forms; NO golden game has a climb round, so this is
+    the trick form; NO golden game has a climb round, so this is
     the only place the climbing form's IR shape is pinned at all.
     """
     settings = axes.clause_settings(production)
@@ -377,14 +329,14 @@ def _ir_round(ir: Any) -> dict[str, Any]:
     return found[0]
 
 
-def test_the_three_forms_emit_three_distinct_ir_kinds() -> None:
+def test_the_two_forms_emit_two_distinct_ir_kinds() -> None:
     """One kind per form, and no two forms sharing one.
 
     `test_no_ir_key_is_null_across_a_whole_form` pins one kind per form; that
-    alone would be satisfied by all three emitting `"round"`, which is exactly
+    alone would be satisfied by both emitting `"round"`, which is exactly
     the state this change left.
 
-    red under: give `ir._stmt`'s climb arm the auction arm's kind string.
+    red under: give `ir._stmt`'s climb arm the trick arm's kind string.
     """
     kinds = set()
     for production in _TEMPLATES:
@@ -394,11 +346,7 @@ def test_the_three_forms_emit_three_distinct_ir_kinds() -> None:
     assert len(kinds) == len(_TEMPLATES), f"forms share an IR kind: {sorted(kinds)}"
 
 
-EXECUTABLE_CELLS = [
-    pytest.param(p, s, id=_label(p, s))
-    for p, s in _cells()
-    if _RAISES_TAGGED_OUTCOME not in s
-]
+EXECUTABLE_CELLS = [pytest.param(p, s, id=_label(p, s)) for p, s in _cells()]
 
 
 @pytest.mark.parametrize(("node", "runnable"), axes.move_type_forms())
@@ -443,13 +391,10 @@ def test_only_the_runnable_move_type_is_accepted(node: type, runnable: str) -> N
 def test_round_cell_executes(
     production: str, setting: tuple[tuple[str, str], ...]
 ) -> None:
-    """Every cell that closes without a tagged outcome plays to completion.
+    """Every cell plays to completion.
 
     The execution half of the reach property: a form whose runtime arm stopped
-    matching would raise here rather than quietly select a neighbour's. Cells
-    with an `outcome` clause are excluded for the reason in the ledger's
-    `does not prove:` row -- they raise their result for a `produces:` arm this
-    minimal game deliberately does not have.
+    matching would raise here rather than quietly select a neighbour's.
 
     red under: in `mechanics.build_form`, return the trick form's bundle for
     every node.

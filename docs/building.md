@@ -76,8 +76,8 @@ pass's contract, per [decisions.md](decisions.md), "Closed-domain completeness"
 ## The AST↔IR seam
 
 The IR is the **resolved AST — not desugared**. Library
-constructs (`Hand<player>`, the `round` construct — including its betting form —
-and `ChallengeWindow`) are preserved as first-class IR nodes carrying their
+constructs (`Hand<player>`, the `round` construct, the `turns` ring and
+`ChallengeWindow`) are preserved as first-class IR nodes carrying their
 resolved bindings. They are not lowered to primitives: `round`
 and the challenge mechanic are control-flow units whose semantics live in the
 runtime's interpreters (`cardlang/runtime/mechanics.py`) — lowering them in the

@@ -167,14 +167,9 @@ def _dispatch(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
-        case n.TrickRound() | n.AuctionRound() | n.ClimbRound():
-            # One interpreter over all three forms, dispatched
-            # on the returned Outcome union: a winning Player (trick/climb) binds
-            # `winner`; a typed `(tag, payloads)` outcome (auction) raises a
-            # produce signal, caught by the enclosing outcome-declaring phase;
-            # `None` (betting) mutated the shared chip/fold state and just closes.
-            # The tagged arm never reaches the pronoun — which is why `winner` is
-            # the only value a round binds.
+        case n.TrickRound() | n.ClimbRound():
+            # One interpreter over both forms, dispatched on the returned
+            # Outcome union: a winning Player (trick/climb) binds `winner`.
             result = mechanics.run_decision_round(
                 mechanics.build_form(stmt, ctx), {}, ctx
             )
@@ -828,7 +823,7 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     pctx = ctx.acting_as(player)
     # Presents an offering to one player: every named move type's guard-filtered
     # cross product (`concrete_moves`), concatenated in the offering's declared
-    # order — one flat candidate list, exactly like the auction form. A nullary
+    # order — one flat candidate list. A nullary
     # move contributes at most one `(name, None)` candidate, so the index the
     # chooser draws is that move type's position in the offering; `render()`
     # turns `(name, None)` back into the bare name for observation, so the

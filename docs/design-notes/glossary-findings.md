@@ -36,8 +36,8 @@ keyword), so grammar-rule names and keywords have drifted apart across the whole
 statement layer (also `epistemic_op` for `shuffle`/`reveal`, `agg_order` for
 `highest`/`lowest`, `phase_repeats` for `repeat until`).
 
-The AST half of this finding is closed: the three grammar rules build three nodes
-(`TrickRound` / `AuctionRound` / `ClimbRound`), each carrying only its own clauses.
+The AST half of this finding is closed: the two grammar rules build two nodes
+(`TrickRound` / `ClimbRound`), each carrying only its own clauses.
 What is left is the naming, which waits on the second family.
 
 **F-3 · `state` carries at least seven referents.** The module `runtime/state.py`; the
@@ -180,8 +180,7 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
 - `types.join` was `unify`, which named a mechanism (type variables, substitution) it never had; `coercible` was `assignable`, which promised a directed subtype relation its callers use symmetrically
   used symmetrically by its own callers (typecheck.py:1524), not a subtype relation.
 - `DecisionForm.next_actor` reads as a query but mutates the cursor — calling it
-  twice skips a player (mechanics.py:154, 372, 539). `AuctionForm.init` clears
-  another form's residue (`last_round_state = None`, :339).
+  twice skips a player (mechanics.py:154, 372, 539).
 - `GameResult.scores` is keyed by the `winner:` target's own index domain, team
   ids included; it is typed `dict[int, int]` and the per-seat reading is
   `GameResult.seat_scores`.

@@ -18,9 +18,9 @@ import of a game's Python (`PRIMITIVE_IMPLEMENTATIONS` names modules and
 attributes as strings, so the compile gate learns WHICH names Python
 implements without importing any of them).
 
-Scope: the block covers the CALL-position namespace. The five other Primitive
-namespaces — auction outcomes, climb leads, climb follows, early predicates,
-game-local trick winners — take their own declaration slots when their
+Scope: the block covers the CALL-position namespace. The four other Primitive
+namespaces — climb leads, climb follows, early predicates, game-local trick
+winners — take their own declaration slots when their
 mechanic-driven signatures are spellable (issue #142, the co-location stage);
 until then `WALLED_NAMESPACES` refuses their names in the block by name, so a
 designer meets a diagnostic rather than a declaration that resolves and then
@@ -91,7 +91,6 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
-    PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_CALL_FUNCS,
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
@@ -415,7 +414,6 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
 # is out of scope — a mechanic-driven signature a typed parameter list cannot
 # spell — and the label is that reason's short form.
 WALLED_NAMESPACES: dict[str, frozenset[str]] = {
-    "an auction outcome (a `round auction ... outcome` slot)": PRIMITIVE_AUCTION_OUTCOMES,
     "a climb lead query (a `round climb ... combinations` slot)": PRIMITIVE_CLIMB_LEADS,
     "a climb follows query (a `round climb ... follows` slot)": PRIMITIVE_CLIMB_FOLLOWS,
     "an early-termination predicate (a `round ... early` slot)": PRIMITIVE_EARLY_PREDICATES,

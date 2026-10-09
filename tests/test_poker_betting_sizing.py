@@ -229,9 +229,11 @@ game Sizing {{
     bet_to_match := {standing}
     for each player p: bet_by[p] := {bet_by}
     for each player p: stack[p] := {stack}
-    round offering [{vocabulary}] from 0
+    turns t from 0
           over players where player is hero
-          until false
+          until false {{
+      offer to t one of [{vocabulary}]
+    }}
   }}
   winner: highest stack
 }}

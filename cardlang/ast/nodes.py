@@ -667,11 +667,11 @@ class TrickRound:
     predicate ends the pass before every participant has played (Getaway's
     tochoo).
 
-    One of the three forms of the kernel decision round — see `AuctionRound` and
-    `ClimbRound`. They are separate nodes rather than one node with nullable
-    fields so that a form's own clauses are the only ones it can carry: an
-    auction's `offering` beside this form's `play_zone` is unrepresentable, not
-    merely unchecked, and no pass can select a form by sniffing a field.
+    One of the two forms of the kernel decision round — see `ClimbRound`. They
+    are separate nodes rather than one node with nullable fields so that a
+    form's own clauses are the only ones it can carry: a climb's engine slots
+    beside this form's `winner_fn` are unrepresentable, not merely unchecked,
+    and no pass can select a form by sniffing a field.
     """
 
     move_type: str
@@ -682,34 +682,6 @@ class TrickRound:
     winner_fn: str
     trump: Expr | None = None
     early_termination: str | None = None
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class AuctionRound:
-    """`round offering [<move_type>, …] from <leader> over <participants>
-    until <pred> [outcome <fn>]`.
-
-    A continuous ring over a heterogeneous offering (bids/passes/bets), looping
-    until the termination predicate holds. No card source/into zones — these
-    moves do not move cards (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the same
-    kernel round along the offering/termination axes).
-
-    `outcome_fn` is the one genuinely optional clause here, and it is what makes
-    this form serve betting as well as auction: an auction supplies a function
-    and it produces the typed outcome when the ring closes; a betting round omits
-    it, each action having mutated shared chip/fold state directly, so the closed
-    ring simply returns and play moves to the next street. Betting is a variant
-    of this form, not a fourth one (docs/glossary.md, Round) — the grammar has a
-    single auction production, and this clause is optional within it exactly as
-    `TrickRound.trump` is optional within the trick.
-    """
-
-    offering: tuple[str, ...]
-    leader: Expr
-    participants: Expr
-    until: Expr
-    outcome_fn: str | None = None
     span: Span | None = None
 
 
@@ -803,7 +775,6 @@ Stmt = (
     | AssignStmt
     | Offer
     | TrickRound
-    | AuctionRound
     | ClimbRound
     | Produce
     | Produces
@@ -1507,7 +1478,6 @@ Node = (
     | AssignStmt
     | Offer
     | TrickRound
-    | AuctionRound
     | ClimbRound
     | HostedPoll
     | Produce

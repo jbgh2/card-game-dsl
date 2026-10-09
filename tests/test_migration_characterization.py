@@ -831,9 +831,10 @@ def test_the_betting_games_per_hand_stacks_are_pinned(name: str) -> None:
     Two seats cannot see it either — their orders coincide — which is why Kuhn,
     Leduc and heads-up Hold'em are absent rather than merely unpinned.
 
-    red under: in `AuctionForm.next_actor`, replace the pointer read
-    `player = order[pointer % len(order)]` with a scan from the leader,
-    `player = next(p for p in order if p in participants)`. RUN, not predicted:
+    red under: in `execute._turns`, make the plain-turn arm lap from the
+    leader — `candidate_seq = [leader, *_next_seats(order, leader, step)]`,
+    the first turn's own sequence — instead of from the seat just asked.
+    RUN, not predicted:
     both games' vectors move on every swept seed.
     """
     (golden,) = CAPTURE_GOLDENS[name]

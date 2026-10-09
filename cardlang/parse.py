@@ -1274,24 +1274,6 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def auction_moves(self, meta: Meta, c: list[object]) -> tuple[str, ...]:
-        return tuple(str(x) for x in c)
-
-    def auction_stmt(self, meta: Meta, c: list[object]) -> n.AuctionRound:
-        # c: [tuple(move_types), expr(leader), expr(participants),
-        #     expr(termination), NAME(outcome)?]. `outcome` (c[4], betting
-        #     omits it) is a None placeholder when absent.
-        offering = c[0]
-        assert isinstance(offering, tuple)
-        return n.AuctionRound(
-            offering=offering,
-            leader=_as_expr(c[1]),
-            participants=_as_expr(c[2]),
-            until=_as_expr(c[3]),
-            outcome_fn=str(c[4]) if c[4] is not None else None,
-            span=self._span(meta),
-        )
-
     def climb_stmt(self, meta: Meta, c: list[object]) -> n.ClimbRound:
         # c: [NAME(move_type), expr(leader), expr(participants), NAME(source),
         #     NAME(into), NAME(combinations), NAME(follows), expr(termination),

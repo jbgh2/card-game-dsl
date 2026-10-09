@@ -18,13 +18,8 @@ domain:     every game-local primitive (derived from all THREE routes to a
             x every forbidden engine handle (derived: `Ctx`'s own field set
             plus the engine types, NOT the handles modules happen to use
             today) x every `EngineFacts` field (derived: the dataclass).
-            Two things sit outside, and neither is a gap. The three auction
-            outcomes (`bridge_`/`pinochle_`/`tarot_auction_outcome`) are
-            implemented INSIDE `cardlang/runtime/primitives.py`, which is
-            engine core, so they are game knowledge the module axis does not
-            reach by that axis's own definition; they are named and pinned as
-            a set instead, and co-locating them is issue #142's stage 4. And
-            the two bundles are MODULE-granular by ratified stage-2 scope: a
+            One thing sits outside, and it is not a gap: the two bundles
+            are MODULE-granular by ratified stage-2 scope: a
             primitive receives its module's whole row rather than a
             per-primitive `reads` clause, so what is quantified over is the
             module's declared surface, not the primitive's (issue #142).
@@ -45,8 +40,6 @@ registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             name of every kind, so the shape claim is the fixture's own
             rather than a reading of whichever kinds the live registry
             happens to carry while the corpus migrates off it.
-            The engine-core game knowledge, named as a set:
-            `test_engine_core_game_knowledge_is_named`.
 does not prove:  that a migrated game still computes what it computed. This
             module reads SHAPE — which handles a site names, which names a
             bundle carries, what is reachable through one and at what depth —
@@ -95,7 +88,6 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import (
     CALL_FUNCS,
-    PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
@@ -245,7 +237,6 @@ def _arm_names(pattern: ast.pattern) -> list[str]:
 _ALL_REGISTERED: frozenset[str] = (
     CALL_FUNCS
     | TRICK_WINNER_NAMES
-    | PRIMITIVE_AUCTION_OUTCOMES
     | PRIMITIVE_EARLY_PREDICATES
     | PRIMITIVE_CLIMB_LEADS
     | PRIMITIVE_CLIMB_FOLLOWS
@@ -1458,49 +1449,3 @@ def test_every_engine_facts_field_is_deeply_immutable() -> None:
 
 
 # --- the game knowledge that stays in engine core ---------------------------
-
-_ENGINE_CORE_GAME_KNOWLEDGE: frozenset[str] = PRIMITIVE_AUCTION_OUTCOMES
-"""The Primitive namespace whose implementations live INSIDE
-`cardlang/runtime/primitives.py`. Derived from the registry rather than
-re-typed, so a fourth auction outcome joins the set by being registered."""
-
-
-def _games_with_an_auction_outcome() -> frozenset[str]:
-    """The corpus game files whose `round auction` names one of these
-    Primitives — the games engine core therefore reads state on behalf of."""
-    found: set[str] = set()
-    for path in sorted(GAMES_DIR.glob("*.cardlang")):
-        game = check_source(path)
-        if any(
-            isinstance(node, n.AuctionRound)
-            and node.outcome_fn in _ENGINE_CORE_GAME_KNOWLEDGE
-            for node in _walk(game)
-        ):
-            found.add(path.name)
-    return frozenset(found)
-
-
-def test_engine_core_game_knowledge_is_named() -> None:
-    """The set, pinned so it cannot grow quietly. These primitives are
-    implemented inside primitives.py — engine core — so the game-module
-    guard does not reach them; co-locating them is issue #142's stage 4.
-
-    Both sides derive, and from DIFFERENT registries: the rows engine core
-    actually holds, against the games whose own text names one of these
-    Primitives. Comparing rows with rows would be the vacuous shape — it would
-    hold whatever the table said. A new per-game function in primitives.py
-    fails here, and so does a row engine core keeps for a game that has
-    stopped asking it for anything."""
-    rows = {r.game_file for r in PRIMITIVE_READS if r.module == "cardlang/runtime/primitives.py"}
-    assert rows == _games_with_an_auction_outcome(), (
-        f"primitives.py's per-game declared-reads rows are {sorted(rows)}, "
-        f"while the corpus games naming a residual Primitive are "
-        f"{sorted(_games_with_an_auction_outcome())} — engine core is holding "
-        f"game knowledge for a different set of games than this ledger's "
-        f"engine-core set records"
-    )
-    dispatched = {i.primitive for i in _implementations()}
-    assert not (_ENGINE_CORE_GAME_KNOWLEDGE & dispatched), (
-        "an engine-core primitive is dispatched to a game module — move it "
-        "out of this table and into the grid proper"
-    )

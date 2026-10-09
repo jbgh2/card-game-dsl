@@ -25,7 +25,7 @@ from cardlang.ast import nodes as n
 # after resolve and is admitted for the same reason `run` is.
 HOSTED_POLL_ALLOWED: frozenset[type] = frozenset(
     {
-        n.IfStmt, n.LetStmt, n.AssignStmt, n.Offer, n.AuctionRound, n.Turns,
+        n.IfStmt, n.LetStmt, n.AssignStmt, n.Offer, n.Turns,
         n.AsBlock, n.ForEach, n.RunStmt, n.Block,
     }
 )
@@ -51,9 +51,8 @@ HOSTED_POLL_REFUSED: dict[type, str] = {
     n.SkipToNextHand: "`skip to next hand`",
 }
 
-# The one admitted statement whose optional clause the body may not use: an
-# auction's `outcome` produces a typed outcome, which unwinds to the enclosing
-# outcome phase — out of the live climbing round, past the frame it publishes.
-HOSTED_REACH_REFUSED_SLOTS: dict[tuple[type, str], str] = {
-    (n.AuctionRound, "outcome_fn"): "a `round offering` with an `outcome` clause",
-}
+# Admitted statements whose optional clause the body may not use. Empty: no
+# admitted statement carries a clause that unwinds past the live round (a
+# `produce` is a refused statement of its own), and the table stays so the
+# reach grid's slot axis keeps its third class.
+HOSTED_REACH_REFUSED_SLOTS: dict[tuple[type, str], str] = {}

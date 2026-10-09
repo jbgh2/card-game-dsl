@@ -22,8 +22,8 @@
                 open-questions/round-state-in-information-states.md.
 
     registry:   `cardlang.stdlib.round_state` — TRICK_PUBLISHED / TRICK_INTERNAL,
-                CLIMB_PUBLISHED / CLIMB_INTERNAL, AUCTION_PUBLISHED /
-                AUCTION_INTERNAL, and their union ROUND_STATE_FIELDS.
+                CLIMB_PUBLISHED / CLIMB_INTERNAL, and their union
+                ROUND_STATE_FIELDS.
                 Consumers: `typecheck` (types the member, rejects the rest) and
                 `runtime/mechanics` (the forms pinned against it here).
 
@@ -33,9 +33,7 @@
                 activated by games in context — so the checker validates against
                 the UNION of the forms' published sets, and `state.shed_first`
                 inside a trick phase type-checks. What holds at runtime is that a
-                stale or foreign frame is refused rather than served (the
-                AuctionForm `last_round_state` clear,
-                `test_auction_does_not_leave_a_stale_trick_frame`).
+                stale or foreign frame is refused rather than served.
                 Nor that the published set is the RIGHT one. Whether the members
                 games reach are the members published is the corpus's answer,
                 given by every `state.` reference in docs/games/*.cardlang and
@@ -51,8 +49,6 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.stdlib.round_state import (
-    AUCTION_INTERNAL,
-    AUCTION_PUBLISHED,
     CLIMB_INTERNAL,
     CLIMB_PUBLISHED,
     ROUND_STATE_FIELDS,
@@ -112,7 +108,7 @@ def test_rejects_an_unknown_field() -> None:
 
 
 @pytest.mark.parametrize(
-    "field", sorted(TRICK_INTERNAL | CLIMB_INTERNAL | AUCTION_INTERNAL)
+    "field", sorted(TRICK_INTERNAL | CLIMB_INTERNAL)
 )
 def test_rejects_every_internal_field(field: str) -> None:
     """The severe cell, swept over every internal of every form — derived from the
@@ -150,9 +146,6 @@ def test_published_fields_carry_their_declared_types() -> None:
         "shed_first": TOptional(TPlayer()),
         "shed_second": TOptional(TPlayer()),
     }
-    # Deliberately empty, and load-bearing: it makes "the auction form has no
-    # `state.`" a checkable fact rather than something you learn from a stale read.
-    assert AUCTION_PUBLISHED == {}
 
 
 def test_a_typed_member_reaches_the_enum_guard() -> None:
@@ -292,16 +285,3 @@ def test_outcome_hook_leaves_the_frame_stack_alone() -> None:
             f"{len(moved)} time(s) (before, after): {moved[:3]} — ending the "
             f"frame is `run_decision_round`'s job, not the hook's"
         )
-
-
-def test_auction_does_not_leave_a_stale_trick_frame() -> None:
-    """The frame axis, guarded as far as it can be. Without this, a `state.` read
-    during or after an auction would find `mech_state` empty, fall through to the
-    fallback, and silently return the state of whatever trick ran LAST — a live
-    frame from a different form. The auction clears it, so the read fails loudly
-    instead."""
-    import inspect
-
-    from cardlang.runtime import mechanics
-
-    assert "last_round_state = None" in inspect.getsource(mechanics.AuctionForm.init)

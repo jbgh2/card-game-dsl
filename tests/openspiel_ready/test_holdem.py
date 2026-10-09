@@ -61,6 +61,17 @@ class TestReadiness(ReadinessProofs):
         hidden_zone="hole",
         depth=11,
         conformance_steps=120,
+        # The family library's street offers its whole vocabulary on every
+        # street, and this game opens no street at two sizes, so the two big
+        # wagers are never legal at any node: inert ids the bound cannot
+        # reach. The two-size street is exercised where it exists —
+        # seven-card-stud's open-pair street, and tests/test_poker_betting_
+        # sizing.py, test_poker_betting_reopening.py and
+        # test_poker_betting_offers.py drive both wagers directly.
+        conformance_verbs_unreached=(
+            ("bet_big", "no street here carries a second size; the big wager is never legal"),
+            ("raise_big", "same: never legal in a one-size game"),
+        ),
         swap_axis="any",
     )
 

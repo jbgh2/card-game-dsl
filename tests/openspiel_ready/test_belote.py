@@ -85,7 +85,7 @@ from typing import Any
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs, greedy_pick
 
 PATH = str(GAMES_DIR / "belote.cardlang")
 
@@ -96,21 +96,33 @@ class TestReadiness(ReadinessProofs):
         "belote.cardlang",
         conformance_steps=150,
         adapter_terminal_steps=500,
-        # The seed-7 conformance line takes the turn-up in the auction's first
-        # round and declares nothing all game, so it never applies:
+        # The plain `legal[0]` line passes at every trump-making ask — `pass`
+        # sorts below `take` and `take_suit` — so every hand is thrown in and
+        # the line neither plays a card nor ends; taking the turn-up is what
+        # settles it (measured: 380 steps to a result with the preference,
+        # none within 500 without).
+        greedy_prefers=("take",),
+        # The swap and rng proofs pause on the plain line, which the
+        # preference does not steer: the first auction's two laps are the
+        # eight passes before the throw-in, and the pause sits on the last
+        # of them, where every hand is still the first deal's five cards
+        # and every seed offers a swappable pair (measured 2026-10-08:
+        # 8, 3, 8, 8 and 7 candidates over the manifest).
+        depth=7,
+        # The provenance walk is the plain line too, so it opens with the
+        # take that the preference supplies elsewhere; from there the
+        # declarations and the first trick follow within the walk's nodes.
+        provenance_opening=(("take", None),),
+        # The seed-7 conformance line declares little, so it never applies:
         conformance_verbs_unreached=(
-            ("pass", "the auction's second round: no one passes on this line"),
-            ("take_suit", "same — the turn-up suit was taken in round 1"),
             ("say_belote", ("driven deliberately by test_belote_rebelote_"
                            "reveals_exactly_the_partner_card below")),
-            ("declare_carre", ("the declaration poll declines throughout this "
-                              "line; the poll's announce arms are driven by "
-                              "test_declaration_line_derives_announced_content"
-                              "_and_showing below")),
+            ("declare_carre", ("the declaration poll's announce arms are "
+                              "driven by test_declaration_line_derives_"
+                              "announced_content_and_showing below")),
             ("declare_quarte_trump", "as declare_carre"),
             ("declare_quinte", "as declare_carre"),
             ("declare_quinte_trump", "as declare_carre"),
-            ("declare_tierce", "as declare_carre"),
             ("declare_tierce_trump", "as declare_carre"),
         ),
     )
@@ -156,7 +168,7 @@ def _announces(log: list[tuple[Any, ...]], prefixes: tuple[str, ...]) -> list[tu
 
 def test_declaration_line_derives_announced_content_and_showing() -> None:
     """The declaration poll's information flow, end to end, on the pinned
-    seed-1 line (three declarers, both teams, a trump/plain tie at the top):
+    seed-1 line (two declarers, one per team, a quarte over a tierce):
 
     - every observer's log carries the SAME four poll announcements, each
       naming its content (kind + trump status in the move name, the top
@@ -175,14 +187,14 @@ def test_declaration_line_derives_announced_content_and_showing() -> None:
     )
 
     # The pinned line, in poll order from the trick-1 leader (p3, counter-
-    # clockwise): p3's trump tierce to the ace beats p1's plain tierce to
-    # the ace (the trump bit breaks the tie) and p0's tierce to the 9; p2
-    # declined. Entitled: team 1 = {1, 3}, both partners show.
+    # clockwise): p3's trump quarte to the ace beats p1's plain tierce to
+    # the ace; p0 and p2 declined. Entitled: team 1 = {1, 3}, both partners
+    # show.
     expected_polls = [
-        (3, "declare_tierce_trump(A)"),
+        (3, "declare_quarte_trump(A)"),
         (2, "no_declaration"),
         (1, "declare_tierce(A)"),
-        (0, "declare_tierce(9)"),
+        (0, "no_declaration"),
     ]
     polls0 = [(e[1], e[2]) for e in _announces(r.obs_logs[0], poll_names)]
     assert polls0 == expected_polls, (
@@ -195,6 +207,7 @@ def test_declaration_line_derives_announced_content_and_showing() -> None:
         ("reveal", "hand[3]", "A♥"),
         ("reveal", "hand[3]", "K♥"),
         ("reveal", "hand[3]", "Q♥"),
+        ("reveal", "hand[3]", "J♥"),
     ]
     for q, log in r.obs_logs.items():
         # Announced content: identical in every observer's log.
@@ -224,14 +237,14 @@ def test_declaration_line_derives_announced_content_and_showing() -> None:
 
 def test_belote_rebelote_reveals_exactly_the_partner_card() -> None:
     """The Belote-Rebelote announcement's information flow on the pinned
-    seed-0 line: the sayer (p2) plays the first trump royal (the K♦) into
+    seed-14 line: the sayer (p3) plays the first trump royal (the K♣) into
     the public trick, says belote at the window, and the partner card
-    (the Q♦, still in hand) is publicly revealed — so after the
-    announcement every observer holds exactly 'p2 had the K and Q of
+    (the Q♣, still in hand) is publicly revealed — so after the
+    announcement every observer holds exactly 'p3 had the K and Q of
     trumps': the played royal via the trick's move event, the held one via
-    the reveal, and nothing else of p2's hand (still count-only)."""
+    the reveal, and nothing else of p3's hand (still count-only)."""
     r = _drive(
-        0,
+        14,
         stop=lambda log: any(
             e[0] == "announce" and e[2] == "say_belote" for e in log
         ),
@@ -243,14 +256,14 @@ def test_belote_rebelote_reveals_exactly_the_partner_card() -> None:
             if e[0] == "announce" and e[2] == "say_belote"
         )
         sayer = log[idx][1]
-        assert sayer == 2, "the pinned seed-0 belote line changed — re-pin"
+        assert sayer == 3, "the pinned seed-14 belote line changed — re-pin"
         # No reveal from the sayer's hand before the announcement.
         assert not any(
-            e[0] == "reveal" and e[1] == "hand[2]" for e in log[:idx]
+            e[0] == "reveal" and e[1] == "hand[3]" for e in log[:idx]
         ), f"player {q}: a reveal preceded the announcement"
         # The reveal right after it names the partner royal, in hand.
         reveal = next(e for e in log[idx:] if e[0] == "reveal")
-        assert reveal == ("reveal", "hand[2]", "Q♦"), (
+        assert reveal == ("reveal", "hand[3]", "Q♣"), (
             f"player {q}: expected the partner royal, got {reveal}"
         )
         # The played royal reached the public trick before the window: the
@@ -259,32 +272,33 @@ def test_belote_rebelote_reveals_exactly_the_partner_card() -> None:
             e
             for e in log[:idx]
             if e[0] == "move"
-            and e[1] == "hand[2]"
+            and e[1] == "hand[3]"
             and e[3] == "trick_pile"
             and isinstance(e[4], tuple)
-            and "K♦" in e[4]
+            and "K♣" in e[4]
         ]
-        assert played_royals, f"player {q} never saw the K♦ played by the sayer"
+        assert played_royals, f"player {q} never saw the K♣ played by the sayer"
 
     # Beyond the pair, the sayer's hand is still just a count to others.
-    n2 = len(r.rs.zones.instance("hand", 2).cards)
-    for q in (0, 1, 3):
+    n3 = len(r.rs.zones.instance("hand", 3).cards)
+    for q in (0, 1, 2):
         info = information_state(q, r.rs, r.obs_logs[q])
-        assert f"hand[2]=#{n2}" in info
+        assert f"hand[3]=#{n3}" in info
 
 
 def test_declined_window_reveals_nothing() -> None:
-    """The window's decline arm: on the seed-5 greedy line trick 1 contains
+    """The window's decline arm: on the seed-3 greedy line trick 1 contains
     both trump royals, played by DIFFERENT seats — the offered player holds
     no partner card, so the only legal move is `no_belote`. The decline is
     a public announcement in every log (chosen and forced declines are the
     same observable fact), and no reveal ever fires."""
+    _game, space = load(PATH)
     hist: list[int] = []
-    r = run(PATH, 5, ())
+    r = run(PATH, 3, ())
     for _ in range(12):
         assert isinstance(r, DecisionNode)
-        hist.append(r.legal[0])
-        r = run(PATH, 5, tuple(hist))
+        hist.append(greedy_pick(space, list(r.legal), TestReadiness.spec.greedy_prefers))
+        r = run(PATH, 3, tuple(hist))
     assert isinstance(r, DecisionNode)
     for q, log in r.obs_logs.items():
         assert any(
@@ -415,7 +429,7 @@ def _drive_to_the_second_auction(seed: int, cap: int = 80) -> tuple[int, ...]:
                     break
                 r = nxt
             return tuple(hist)
-        hist.append(r.legal[0])
+        hist.append(greedy_pick(space, list(r.legal), TestReadiness.spec.greedy_prefers))
         r = run(PATH, seed, tuple(hist))
     raise AssertionError(
         f"seed {seed}: no second hand within {cap} steps — re-pin the seed"
@@ -429,8 +443,9 @@ def test_the_published_trump_derives_from_each_observers_log() -> None:
     publishing it merges and splits nothing.
 
     Both naming arms are asserted reached, and that guard is load-bearing in
-    one direction: the greedy line takes the turn-up in round one on every
-    manifest seed, so `take_suit` would be zero without the driven line below
+    one direction: the greedy line (preferring `take`) takes the turn-up in
+    round one on every manifest seed, so `take_suit` would be zero without
+    the driven line below
     -- and a `take_suit` whose suit the log could not name would be exactly
     the leak this test exists to refuse. The `none` arm is the auction before
     anyone takes, which is where a stale trump from the previous hand would
@@ -439,7 +454,7 @@ def test_the_published_trump_derives_from_each_observers_log() -> None:
     arms: dict[str, int] = {}
     failures: list[str] = []
     for seed in (3, 5, 14, 15, 18):
-        c, a, f = _check_line(seed, (), 40)
+        c, a, f = _check_line(seed, (), 40, prefer="take")
         checked += c
         for k, v in a.items():
             arms[k] = arms.get(k, 0) + v

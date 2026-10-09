@@ -138,29 +138,39 @@ def test_adapter_agrees_over_the_whole_kuhn_tree() -> None:
     assert (nodes, terminals) == (24, 30), (nodes, terminals)
 
 
-def test_the_imported_raise_is_absent_from_the_action_space() -> None:
-    """Whole-library import does NOT inflate the action space (the family-
-    library tier's first anchor edge, issue #143). `raise` arrives with `uses
-    poker_betting` and lands in the game's move-type table, but Kuhn's
-    `offering` list omits it — and the OpenSpiel action space is derived from
-    the `offering`/`offer` lists, never from the move-type table
-    (`encoding.ActionSpace.for_game`). So the imported-but-unoffered move
-    contributes no id, and it is never legal at any node either (the whole
-    tree is walked above; here the space itself is checked)."""
+NEVER_LEGAL = frozenset({"raise", "bet_big", "raise_big"})
+
+
+def test_the_family_street_mints_ids_kuhn_never_offers() -> None:
+    """The library's street offers the family's whole vocabulary, so the
+    action space carries seven names — and three of them are never legal at
+    any node of this game: `raise` because `raise_cap` is 1 and the opening
+    bet spends it, the two big wagers because no street here carries a
+    second size (docs/libraries/poker_betting.cardlang). The whole tree is
+    walked, every deal and every line, and no node offers one of them —
+    which is what makes the extra ids inert for every algorithm over the
+    legal set, and what the conformance pin records as unreached."""
     game_ast, space = load(PATH)
-    assert "raise" in {m.name for m in game_ast.move_types}, (
-        "the library's `raise` should be spliced into the game's move types"
-    )
+    assert NEVER_LEGAL <= {m.name for m in game_ast.move_types}
     strings = {space.to_string(a) for a in range(space.num_distinct_actions)}
-    assert "raise" not in strings, (
-        "an imported-but-unoffered move type minted an action id — whole-library "
-        "import is inflating the action space"
-    )
-    # The four offered move types, and nothing else. Kuhn deals a card and
-    # bets on it — no decision is card-valued — so no card block is reserved
-    # and the vocabulary starts at 0.
-    assert space.num_distinct_actions == 4
-    assert {space.to_string(a) for a in range(0, 4)} == {"check", "bet", "call", "fold"}
+    assert strings == {"bet", "bet_big", "call", "check", "fold", "raise", "raise_big"}
+    # Kuhn deals a card and bets on it — no decision is card-valued — so no
+    # card block is reserved and the names start at 0.
+    assert space.num_distinct_actions == 7
+    offered: set[str] = set()
+
+    def walk(seed: int, history: list[int]) -> None:
+        r = run(PATH, seed, tuple(history))
+        if not isinstance(r, DecisionNode):
+            return
+        offered.update(space.to_string(a) for a in r.legal)
+        for a in r.legal:
+            walk(seed, history + [a])
+
+    for _deal, seed in sorted(_one_seed_per_deal().items()):
+        walk(seed, [])
+    assert offered == {"bet", "call", "check", "fold"}, offered
+    assert not offered & NEVER_LEGAL
 
 
 def test_a_fold_never_reveals_the_folded_card_but_a_showdown_does() -> None:

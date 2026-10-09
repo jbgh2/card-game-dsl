@@ -98,7 +98,7 @@ def _may_rename(block: n.AsBlock) -> bool:
     if not isinstance(block.player, n.NameRef):
         return False
     for node in _nodes(block.body):
-        if isinstance(node, (n.Offer, n.AuctionRound, n.TrickRound, n.ClimbRound, n.RunStmt)):
+        if isinstance(node, (n.Offer, n.TrickRound, n.ClimbRound, n.RunStmt)):
             return True
         if isinstance(node, (n.AssignStmt, n.RotateStmt)) and node.target.name == block.player.name:
             return True

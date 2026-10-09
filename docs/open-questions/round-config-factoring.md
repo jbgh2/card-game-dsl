@@ -46,6 +46,6 @@ cosmetic, and a list-loop is a real new construct best justified by a second
 instance. Revisit alongside Hold'em.
 
 Related: [decisions.md](../decisions.md) "Named functions" (the resolved
-within-round factoring) and "The auction form of `round`" (the betting form and
-the ring it runs on), [games/_candidates.md](../games/_candidates.md) (Hold'em,
+within-round factoring) and "Auctions, polls and betting rings are `turns`
+plus `offer`" (the betting street and the ring it runs on), [games/_candidates.md](../games/_candidates.md) (Hold'em,
 the second-instance data point).

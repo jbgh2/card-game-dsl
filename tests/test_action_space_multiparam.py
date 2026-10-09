@@ -56,8 +56,8 @@ def test_single_card_param_via_plain_offer_encodes_to_the_card_block() -> None:
     PLAIN `offer` (its rejection cases live in
     test_resolve_param_domains.py's `test_offer_of_a_card_param_without_a_hand_zone_rejected`
     and `test_offer_of_two_card_parameterized_moves_rejected`, and the
-    accept+encode path is otherwise exercised only via a `round offering`
-    vocabulary, Schnapsen's `play_card` in test_openspiel_encoding.py).
+    accept+encode path is otherwise exercised only via a ring's offer,
+    Schnapsen's `play_card` in test_openspiel_encoding.py).
     `check_dsl` (not
     bare `parse_text`) proves the game is actually ACCEPTED — a `hand[player]`
     zone is declared, so `_check_card_offering` (resolve.py) has nothing to

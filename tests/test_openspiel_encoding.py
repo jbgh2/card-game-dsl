@@ -98,14 +98,18 @@ def test_spades_space_adds_the_integer_block() -> None:
     assert space.to_string(space.encode(7)) == "7"
 
 
-def test_bridge_space_adds_the_auction_vocabulary() -> None:
+def test_bridge_space_adds_the_bidding_vocabulary() -> None:
     space = _space("bridge.cardlang")
-    # pass, submit_bid over Suit? (clubs, diamonds, hearts, spades, none), double, redouble
+    # The nullary calls (double, pass, redouble) in the sorted names block,
+    # then submit_bid over Suit? (clubs, diamonds, hearts, spades, none) in
+    # the offering block.
     assert space.num_distinct_actions == 52 + 8
     aid = space.encode(("submit_bid", "hearts"))
     assert space.decode(aid) == ("submit_bid", "hearts")
     assert space.to_string(aid) == "submit_bid(hearts)"
-    assert space.decode(space.encode(("pass", None))) == ("pass", None)
+    # A nullary offer move is a bare name in the space, whichever shape the
+    # live candidate takes.
+    assert space.decode(space.encode(("pass", None))) == "pass"
 
 
 def test_bigtwo_space_adds_pass_and_the_combo_universe() -> None:
@@ -120,49 +124,48 @@ def test_bigtwo_space_adds_pass_and_the_combo_universe() -> None:
 
 def test_stud_space_adds_the_betting_vocabulary() -> None:
     space = _space("seven-card-stud.cardlang")
-    # The nullary betting vocabulary in offering order, and nothing else: Stud
-    # deals cards and bets on them, so no decision is card-valued and no card
-    # block is reserved — the vocabulary starts at 0. No bare names, no integer
-    # block, no combos.
-    #
-    # The two big wagers come LAST because the order is first encounter over
-    # the walk: third street names the five small moves, and fourth street —
-    # the open-pair street, the only one offered two sizes — is where
-    # `bet_big` and `raise_big` are first seen.
+    # The nullary betting vocabulary — the family library's whole street,
+    # offered by every `betting_street` — in the sorted names block, and
+    # nothing else: Stud deals cards and bets on them, so no decision is
+    # card-valued and no card block is reserved — the names start at 0. No
+    # integer block, no combos.
     assert space.num_distinct_actions == 7
     assert [space.to_string(a) for a in range(0, 7)] == [
-        "check",
         "bet",
+        "bet_big",
         "call",
+        "check",
         "fold",
         "raise",
-        "bet_big",
         "raise_big",
     ]
 
 
 def test_pinochle_space_adds_the_bid_and_trump_vocabulary() -> None:
     space = _space("pinochle.cardlang")
-    # 52 cards, then the integer block the bid ladder declares — 0..400, the
-    # bid in TENS up to the declared 4000 ceiling — then the move names in
-    # the order the game file's rounds are walked (the auction, then the play
-    # phase's declaration, exchange and concession). No bare names, no combos.
+    # 52 cards, then the six nullary offer moves in the sorted names block,
+    # then the integer block the bid ladder declares — 0..400, the bid in
+    # TENS up to the declared 4000 ceiling — then the one parameterized move
+    # (the trump declaration over the four suits) in the offering block. No
+    # combos.
     #
     # The ceiling is what sizes the block: it is a static width the action
     # space reserves, not a count of bids any auction makes.
-    assert space.num_distinct_actions == 52 + 401 + 10
-    assert [space.to_string(a) for a in (52, 452)] == ["0", "400"]
-    assert [space.to_string(a) for a in range(453, 463)] == [
-        "submit_bid",
+    assert space.num_distinct_actions == 52 + 6 + 401 + 4
+    assert [space.to_string(a) for a in range(52, 58)] == [
         "pass",
+        "pass_four",
         "pass_with_help",
+        "play_on",
+        "submit_bid",
+        "throw_in",
+    ]
+    assert [space.to_string(a) for a in (58, 458)] == ["0", "400"]
+    assert [space.to_string(a) for a in range(459, 463)] == [
         "declare_trump_suit(clubs)",
         "declare_trump_suit(diamonds)",
         "declare_trump_suit(hearts)",
         "declare_trump_suit(spades)",
-        "pass_four",
-        "throw_in",
-        "play_on",
     ]
 
 
@@ -173,18 +176,18 @@ def test_french_tarot_space_derives_its_own_78_card_block() -> None:
     # the space derives its OWN 78-card block (deck-declaration order: clubs
     # K..1, diamonds K..1, hearts K..1, spades K..1, atouts 1..21, Excuse) —
     # rather than the module's standard 52-card mapping — plus the auction's
-    # five nullary bid-level moves in game-file declaration order.
+    # five nullary bid-level moves in the sorted names block.
     assert space.num_distinct_actions == 78 + 5
     assert space.encode(Card("K", "clubs")) == 0
     assert space.encode(Card("1", "atouts")) == 56
     assert space.encode(Card("21", "atouts")) == 76
     assert space.encode(Card("Excuse", "excuse")) == 77
     assert [space.to_string(a) for a in range(78, 83)] == [
-        "pass",
-        "bid_petite",
         "bid_garde",
-        "bid_garde_sans",
         "bid_garde_contre",
+        "bid_garde_sans",
+        "bid_petite",
+        "pass",
     ]
 
 
@@ -214,16 +217,16 @@ def test_schnapsen_space_folds_play_card_into_the_card_block() -> None:
     # 52 cards (schnapsen20 is a standard-catalogue subset, so the standard
     # block applies with unused slots) + the lead vocabulary WITHOUT play_card:
     # a Card-parameterized move's actions ARE the card block (Option B), so it
-    # mints no vocab ids — declare_marriage over the four suits, then the
-    # nullary exchange/close, in vocabulary order.
+    # mints no vocab ids — the nullary exchange/close in the sorted names
+    # block, then declare_marriage over the four suits in the offering block.
     assert space.num_distinct_actions == 58
     assert [space.to_string(a) for a in range(52, 58)] == [
+        "close_talon",
+        "exchange_trump_jack",
         "declare_marriage(clubs)",
         "declare_marriage(diamonds)",
         "declare_marriage(hearts)",
         "declare_marriage(spades)",
-        "exchange_trump_jack",
-        "close_talon",
     ]
     # A leader's play_card candidate encodes as the card itself — the same id
     # as the follower playing that card as a bare movement pick.
@@ -241,20 +244,20 @@ def test_schnapsen_space_folds_play_card_into_the_card_block() -> None:
 def test_skat_space_names_offers_and_reizen_vocabulary() -> None:
     space = _space("skat.cardlang")
     # 52 cards (skat32 is a standard-catalogue subset, unused slots) + the
-    # seven offer names (sorted) + the auction vocabulary in walk order: the
-    # Reizen's [bid, yes, pass], then declare_suit over the four suits.
+    # ten nullary offer names (sorted) — the Reizen's bid/yes/pass among
+    # them — then declare_suit over the four suits in the offering block.
     assert space.num_distinct_actions == 66
     assert [space.to_string(a) for a in range(52, 66)] == [
+        "bid",
         "choose_suit_game",
         "declare_grand",
         "declare_hand",
         "declare_null",
+        "pass",
         "pick_up_skat",
         "play_at_eighteen",
         "throw_in",
-        "bid",
         "yes",
-        "pass",
         "declare_suit(clubs)",
         "declare_suit(diamonds)",
         "declare_suit(hearts)",
@@ -263,12 +266,10 @@ def test_skat_space_names_offers_and_reizen_vocabulary() -> None:
 
 
 def test_skat_offer_move_encodes_the_same_as_its_runtime_tuple_shape() -> None:
-    """The runtime represents EVERY nullary candidate — whether offered via a
-    plain `offer` (`pick_up_skat`) or a round vocabulary (`pass`) — as a
-    `(name, None)` tuple (mechanics.concrete_moves's empty-product case). This
-    game's action space still names offer moves as bare strings (they were
-    never round-vocabulary members, so no `(name, None)` vocab id was minted
-    for them) — `encode`/`match` must treat the two shapes as the same action,
+    """The runtime represents EVERY nullary candidate as a `(name, None)`
+    tuple (mechanics.concrete_moves's empty-product case), while the action
+    space names a nullary offer move as a bare string — `encode`/`match` must
+    treat the two shapes as the same action,
     or the OpenSpiel adapter can't encode what `execute._offer` actually
     offers (this exact gap broke `test_openspiel_replay.py`'s Skat replay and
     every Coup/Skat `openspiel_ready` proof until `encode`/`match` learned it)."""
@@ -279,7 +280,7 @@ def test_skat_offer_move_encodes_the_same_as_its_runtime_tuple_shape() -> None:
 
 
 def test_cribbage_space_is_pure_cards() -> None:
-    # No offers, no `choose`, no auction vocabulary, no climb engine — just the
+    # No offers, no `choose`, no climb engine — just the
     # standard 52-card block (the first 2-player registered game).
     space = _space("cribbage.cardlang")
     assert space.num_distinct_actions == 52

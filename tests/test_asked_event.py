@@ -92,7 +92,6 @@ DESTINATION_KNOWABILITY: dict[str, str] = {
     "offer": ABSENT,
     "choose": ABSENT,
     "trick": BEFORE,
-    "auction": ABSENT,
     "climb": ABSENT,
 }
 

@@ -296,7 +296,6 @@ _BODY_REJECTED = {
     # the trick and climb forms bind a `winner`, which is the reason the
     # guard gives — see issue #290; the guard itself rejects all three.
     "TrickRound",
-    "AuctionRound",
     "ClimbRound",
 }
 

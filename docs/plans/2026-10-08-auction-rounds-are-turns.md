@@ -237,8 +237,10 @@ vocabulary, naming the id cost in the PR. The operator rules.
      `xfail(strict=True)` until step 1a.
    - tests/test_family_libraries.py gains the move-type contract rows,
      red until step 1b; the misuse probes above.
-   - tests/test_turns_identity.py: the identity probe as a test over the
-     converted games' goldens' own seeds (the regeneration's evidence).
+   - the identity probe, run against the engine before the form retires
+     and quoted in the PR body as a dated measurement: once the production
+     is gone, the engine that retired it cannot parse the originals, so
+     the comparison cannot live in-tree.
 1. Capabilities (Lane B), each with its grid green and its decision line.
    - 1a. `n.Turns` admitted in stdlib/hosted_poll.py; the hosted-poll pin's
      expected column moves; decisions.md "Off-the-clock windows" and
@@ -261,6 +263,6 @@ vocabulary, naming the id cost in the PR. The operator rules.
 4. Docs: decisions.md ("The auction form of `round`" retired; "The
    `turns` form" carries the ring rulings); library.md; model.md;
    kernel-migration.md; glossary entries and the regenerated index; the
-   four twins; roadmap.md if it names the form.
+   four twins.
 5. Gate: bare `mypy`; `pytest -q -n 8`; the rigs; the full-width golden
    sweep; `tools/lane-of.sh`; the PR with this counsel, Headnote first.

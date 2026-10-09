@@ -271,7 +271,7 @@ def _far_row(ctx: Ctx, player: int) -> tuple[str, ...]:
 def _strain_index(strain: str | None) -> int:
     """The bidding rank of a strain: clubs<diamonds<hearts<spades<no-trump. A
     suit's ordinal in the deck's suit order; `none` (no-trump) ranks above every
-    suit. Used by an ascending contract auction to compare bid strains."""
+    suit. Used by an ascending contract auction's bids to compare strains."""
     return len(SUITS) if strain is None else SUITS.index(strain)
 
 

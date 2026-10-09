@@ -181,9 +181,8 @@ _RUNNABLE_MOVE_TYPE = {
 def move_type_forms() -> tuple[tuple[type, str], ...]:
     """Each round node carrying a `move_type`, with the name its site runs.
 
-    The auction form is absent because it has no `move_type` at all — its
-    moves come from the `offering` — and that absence is derived from the
-    node's fields, not decided here.
+    Both forms carry one; a form without a `move_type` would be absent by
+    derivation from the node's fields, not by decision here.
     """
     out = []
     for node in round_nodes():

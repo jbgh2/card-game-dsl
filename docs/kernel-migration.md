@@ -141,17 +141,17 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
 *values along the axes*:
 
 - **Bridge** — *done.* A two-dimensional bid space (level × strain) plus
-  doubling/redoubling, on the auction form of `round`; the typed
-  `contract_finalized | all_pass` outcome computes the declarer over the bid
-  history. `run_bridge_auction` and its `instantiate` branch are deleted.
-- **Pinochle** — *done — fully kernel.* The ascending bid runs on the auction
-  form of `round` over a **shrinking participants ring** (`over players where
+  doubling/redoubling, a `turns` ring of offers; the typed
+  `contract_finalized | all_pass` outcome is `produce`d from the phase body,
+  the declarer read from each side's recorded first bidder of the final
+  strain. `run_bridge_auction` and its `instantiate` branch are deleted.
+- **Pinochle** — *done — fully kernel.* The ascending bid is a `turns` ring
+  over a **shrinking participants set** (`over players where
   not passed[player] and (lead_bidder is none or player is not lead_bidder)`), the
   nullary `submit_bid`/`pass` vocabulary, and the single-case
-  `bid_won(declarer, bid)` outcome (opener-at-50 fallback when all pass). Trump
-  declaration is a second, one-draw round on the same form (`round offering
-  [declare_trump_suit] from high_bidder over players where player is
-  high_bidder until trump_suit is not none`), guarded by a `has_marriage`
+  `bid_won(declarer, bid)` outcome `produce`d after the ring (opener-at-50
+  fallback when all pass). Trump declaration is a single-seat `offer`
+  (`offer to high_bidder one of [declare_trump_suit]`), guarded by a `has_marriage`
   function checked over the four suits; no marriage anywhere is a
   statement-level `if`/`else` with no decision offered at all (abandoning the
   bid) — reproducing the monolith's no-draw abandon path exactly. Meld is a
@@ -168,7 +168,7 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   Pinochle is fully kernel: registered in `cardlang/openspiel/game.py:GAMES`
   with derived info sets proven in the readiness harness.
 - **Tarot** — *done — fully kernel.* The four-level ascending bid (Petite <
-  Garde < Garde sans < Garde contre) runs on the auction form of `round`: a
+  Garde < Garde sans < Garde contre) is a `turns` ring of offers: a
   **counterclockwise single-pass ring** (each seat drops out of the
   participants ring after acting, one bid each), five nullary level moves
   guarded by the standing bid, and a two-case `taken(taker, level) |
@@ -208,12 +208,13 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   value: it is a role-guarded two-participant ring — `bid` guarded to the
   speaker, `yes` to the responder, `pass` open, `until` carrying
   pass-or-exhausted-ladder (the reference's zero-draw auto-pass), two
-  sequential `round`s threading the survivor ([decisions.md](decisions.md),
-  "The auction form of `round`", the call-and-response bullet). The three
+  sequential rings threading the survivor ([decisions.md](decisions.md),
+  "Auctions, polls and betting rings are `turns` plus `offer`", the
+  call-and-response paragraph). The three
   once-filed objections (role vocabularies, conditional participation, the
   seat reorder) each mapped to an existing axis — guards, the `until`
   predicate, `from <speaker>`. The contract choice is a pair of `offer`s plus
-  a one-draw `declare_suit(s : Suit)` round; the ten tricks run
+  a single-seat `declare_suit(s : Suit)` offer; the ten tricks run
   Schnapsen-style (three single-actor filtered movements over the game's
   `follow_ok`, which asks `follows_lead` of the hand first and admits any
   card when the player is void in the led class, both read off the game's
@@ -228,22 +229,24 @@ filed as a language gap, then probed against the unmodified kernel at
 migration time: a scripted-chooser fixture reproduced the reference
 `exchange()`'s draw sequence draw-for-draw on the plain ring with role-guarded
 moves. The open question resolved into
-[decisions.md](decisions.md) ("The auction form of `round`") with the order
-axis unchanged — the discipline's happy path: the gap was surfaced, held, and
-closed by configuration rather than an engine hook.
+[decisions.md](decisions.md) ("Auctions, polls and betting rings are `turns`
+plus `offer`") with the order axis unchanged — the discipline's happy path:
+the gap was surfaced, held, and closed by configuration rather than an engine
+hook.
 
-**Dependency surfaced by Bridge — built.** The auction form does not silently skip
-a participant with no legal move — the ring is stated by the participants clause and
-"all but one passed" by `until` ([decisions.md](decisions.md), "The auction form
-of `round`"). Bridge keeps every seat in with an always-legal `pass`, but the
-ascending auctions drop players who pass for good (and skip the standing high
-bidder) with no decision — a *shrinking ring*. Reproducing that byte-identically
-needs the participant predicate re-evaluated each turn — the **participant-filtering
-axis**, which the auction form (`AuctionForm.next_actor`) now does (it re-evaluates
-`over … where …` per turn, a no-draw skip for a dropped player; a static ring like
-Bridge's `all players` is the invariant case). Built with Pinochle; reused by Workstream 2 (Stud's non-folded
-ring). An always-legal `pass` would instead offer passed players and consume RNG
-the monolith does not.
+**Dependency surfaced by Bridge — built.** A ring does not silently skip a
+participant with no legal move — the ring is stated by the participants clause
+and "all but one passed" by `until` ([decisions.md](decisions.md), "Auctions,
+polls and betting rings are `turns` plus `offer`"). Bridge keeps every seat in
+with an always-legal `pass`, but the ascending auctions drop players who pass
+for good (and skip the standing high bidder) with no decision — a *shrinking
+ring*. Reproducing that byte-identically needs the participant predicate
+re-evaluated each turn — the **participant-filtering axis**, which `turns`
+does (it re-evaluates `over … where …` per pick, a no-draw skip for a dropped
+player; a static ring like Bridge's `all players` is the invariant case).
+Built with Pinochle; reused by Workstream 2 (Stud's non-folded ring). An
+always-legal `pass` would instead offer passed players and consume RNG the
+monolith does not.
 
 **Scope note.** A monolith lands whole: Pinochle, Tarot, and Skat each fused
 auction, play, and scoring in one Python function until the whole hand moved
@@ -258,9 +261,10 @@ The corpus's only betting game and first real chip economy (Coup already settled
 resource amount + transfer-failure — [decisions.md](decisions.md), "Resource
 amount syntax" / "Resource transfer failure").
 
-- **The betting runs on the kernel `round` — done.** Antes, the deal, the bring-in
-  post, and the five streets (3rd–7th) are DSL statements; each street's betting is
-  a `round offering [check, bet, call, fold, raise]` over the non-folded, non-allin
+- **The betting is the family library's street — done.** Antes, the deal, the
+  bring-in post, and the five streets (3rd–7th) are DSL statements; each
+  street's betting is `poker_betting`'s `betting_street`, a `turns` ring of
+  offers over the non-folded, non-allin
   ring (`over players where not folded[player] and stack[player] > 0 and (not
   acted[player] or bet_by[player] < bet_to_match)`) on the default ring. The
   accumulator (bet-to-match, raises, per-player bet_by/acted) is ordinary phase
@@ -272,8 +276,9 @@ amount syntax" / "Resource transfer failure").
   ("after a raise re-opens earlier seats, the action continues round the table
   from the aggressor") is what the continuous ring already produces: the
   re-marking of seats as pending is the library's, and `until` is checked before
-  each draw, so the street closes mid-lap ([decisions.md](decisions.md), "The
-  auction form of `round`"). The order axis needed no value of its own.
+  each draw, so the street closes mid-lap ([decisions.md](decisions.md),
+  "Auctions, polls and betting rings are `turns` plus `offer`"). The order
+  axis needed no value of its own.
 - **Seat selectors as Primitives.** The bring-in (lowest door card) and the
   street's opener (best hand showing) are argmin/argmax over players keyed on
   card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `best_showing_seat()`
@@ -359,7 +364,7 @@ The design the construct settled:
   the pile — and the movement vocabulary moves cards *by count* (`all` / `one` /
   `N cards`), never a named set. So the play cannot be a DSL `move_type` effect the
   way a bet is. `climb` is a **kernel `round` construct** (the `ClimbForm` bundle,
-  beside `TrickForm` / `AuctionForm` over the shared interpreter): it enumerates
+  beside `TrickForm` over the shared interpreter): it enumerates
   candidates from the engine, runs one climbing trick (lead → beat-or-pass; the
   trick ends when action returns to the last player, or the `until` predicate
   holds), and performs the card movement itself. There is *no* DSL-visible `Combination` value and no runtime-query move
@@ -433,9 +438,9 @@ alternative in
   game's own functions.
 - **Schnapsen** — *done.* Not `offer`s: the leader's whole mixed turn (lead a
   card / declare a marriage / exchange the trump jack / close the talon) is ONE
-  flat candidate list, so it landed as the **auction form over a
-  single-participant ring** (`until trick_pile is not empty`; the free actions
-  leave the predicate false and the ring re-offers the leader), with
+  flat candidate list, so it landed as **one `offer` inside `repeat until
+  trick_pile is not empty`** (the free actions leave the condition false and
+  the leader is asked again), with
   `play_card(c : Card)` the corpus's first state-dependent move-parameter
   domain ([decisions.md](decisions.md), "Declared parameter domains"). The
   two-phase follow legality is the in-file `follow_ok` predicate filtering the
@@ -567,8 +572,9 @@ breadth. Step 0 and Coup-last hold either way.
   --strict` clean; conservation invariants and the recompute nets green.
 - The `language-gap` list is zero or every entry is a named, deferred open
   question.
-- The shipped configurations (`trick`, the auction/betting forms, `climb`)
-  are documented in [library.md](library.md) with every axis decision in
+- The shipped configurations (`trick`, `climb`, and the `turns` ring of
+  offers every auction and betting street is) are documented in
+  [library.md](library.md) with every axis decision in
   [decisions.md](decisions.md); the shared `auction` / `betting` /
   `challenge` / `block` *named definitions* stay corpus-first promotions at
   their third instances (the interactive-windows scope, Workstream 5, is the

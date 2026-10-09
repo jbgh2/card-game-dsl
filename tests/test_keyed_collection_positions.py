@@ -195,7 +195,7 @@ POSITIONS: dict[str, Position] = {
         "turns t from 0 over {x} until flag {{ flag := true }}", "player"
     ),
     "round participants": Position(
-        "round offering [raise, pass] from 0 over {x} until flag",
+        "turns t from 0 over {x} until flag {{ offer to t one of [raise, pass] }}",
         "player",
         rules="move_type raise { effect { flag := true } }\n"
         "move_type pass { effect { flag := true } }\n",

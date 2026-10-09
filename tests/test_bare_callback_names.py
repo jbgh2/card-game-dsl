@@ -1,17 +1,16 @@
 """A callback name is read only in the slot that takes it.
 
-property:   a trick-winner or auction-outcome name written anywhere an
+property:   a trick-winner name written anywhere an
             expression stands is refused at check time, located at the name,
             naming the slot that takes it -- never classified as a value, so
             no function object reaches a state variable or a playout
-domain:     callback name (`VALUE_NAMES`, partitioned by `TRICK_WINNER_NAMES`
-            and `PRIMITIVE_AUCTION_OUTCOMES`) x expression position {an
+domain:     callback name (`VALUE_NAMES`, exactly `TRICK_WINNER_NAMES`) x
+            expression position {an
             assignment's value, a state default, a `let`, an `if` condition,
             a function body, `loser:`}
-registry:   `cardlang.builtins.functions.VALUE_NAMES`; the slots are the
-            `str`-typed fields `TrickRound.winner_fn` and
-            `AuctionRound.outcome_fn`, which a bare name never reaches through
-            an expression
+registry:   `cardlang.builtins.functions.VALUE_NAMES`; the slot is the
+            `str`-typed field `TrickRound.winner_fn`, which a bare name never
+            reaches through an expression
 does not prove:  anything about the slots themselves: a name in its own slot
             is the round resolver's (`tests/test_round_resolve.py`).
 """
@@ -22,7 +21,6 @@ import pytest
 
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
-    PRIMITIVE_AUCTION_OUTCOMES,
     TRICK_WINNER_NAMES,
     VALUE_NAMES,
 )
@@ -71,19 +69,16 @@ def _game(position: str, name: str) -> str:
 
 
 def _slot(name: str) -> str:
-    if name in TRICK_WINNER_NAMES:
-        return "trick round's `winner`"
-    assert name in PRIMITIVE_AUCTION_OUTCOMES, name
-    return "auction round's `outcome`"
+    assert name in TRICK_WINNER_NAMES, name
+    return "trick round's `winner`"
 
 
 def test_the_names_partition_into_the_two_slots() -> None:
     """Every callback name has exactly one slot the refusal can name.
 
     red under: add a name to `VALUE_NAMES` in cardlang/builtins/functions.py
-    outside both `TRICK_WINNER_NAMES` and `PRIMITIVE_AUCTION_OUTCOMES`."""
-    assert VALUE_NAMES == TRICK_WINNER_NAMES | PRIMITIVE_AUCTION_OUTCOMES
-    assert not TRICK_WINNER_NAMES & PRIMITIVE_AUCTION_OUTCOMES
+    outside `TRICK_WINNER_NAMES`."""
+    assert VALUE_NAMES == TRICK_WINNER_NAMES
     assert VALUE_NAMES
 
 

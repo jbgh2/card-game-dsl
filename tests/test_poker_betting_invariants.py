@@ -84,12 +84,14 @@ game Invariants {{
   }}
   phase play {{
     run open_street({limit}, 0)
-{stacks}    round offering [check, bet, call, raise] from 0
+{stacks}    turns t from 0
           over players where pending(player)
-          until (number of players where pending(player)) is 0
-    round offering [snapshot] from 0
-          over players where player is 0 and not snapped
-          until snapped
+          until (number of players where pending(player)) is 0 {{
+      offer to t one of [check, bet, call, raise]
+    }}
+    repeat until snapped {{
+      offer to 0 one of [snapshot]
+    }}
   }}
   winner: highest stack
 }}

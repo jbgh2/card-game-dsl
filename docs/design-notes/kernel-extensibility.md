@@ -5,8 +5,8 @@
 *Implementation status: §9 steps 1–4 are done and delivered for the whole
 corpus (the projection substrate + general adapter cover every corpus game;
 no `instantiate` game remains — the construct is deleted). The runtime is the single
-`run_decision_round` interpreter with the trick, auction/betting, and climb forms
-as six-slot hook bundles (`TrickForm` / `AuctionForm` / `ClimbForm` in
+`run_decision_round` interpreter with the trick and climb forms
+as six-slot hook bundles (`TrickForm` / `ClimbForm` in
 `cardlang/runtime/mechanics.py`), selected by `build_form` and dispatched once in
 `execute.py`. §§1–8 are the rationale that produced it — where they speak of "the
 three `run_*` loops," read the discovery basis, not the current structure. The
@@ -327,7 +327,7 @@ AST, parser, resolve, and typecheck. A construct that introduces *any*
 new surface syntax — a new keyword, clause, or outcome shape — still
 requires work at those stages, because we have **not** adopted Ludii's
 derived front end. The grammar has distinct productions per form today
-(`auction_stmt` alongside the trick/climb round forms), and a new
+(the trick and climb round forms), and a new
 surface form adds another. So the honest tally is: the interpreter move
 removes the *runtime* stage smear and the `execute.py` dispatch (2 of
 the 7 stages, plus the cross-cutting field-dispatch), and leaves the
@@ -547,8 +547,8 @@ parts are proven on paper *before* any code depends on them.
 
 2. **Hygiene: unify the sequential forms behind the goldens — *done*.**
    The shared skeleton (§4) is extracted as `run_decision_round` in
-   `mechanics.py`; `run_trick` / `run_auction` / `run_climb` are migrated
-   onto the six-slot `DecisionForm` bundles (`TrickForm`, `AuctionForm`,
+   `mechanics.py`; `run_trick` / `run_climb` are migrated
+   onto the six-slot `DecisionForm` bundles (`TrickForm`,
    `ClimbForm`); `build_form` selects the bundle by field-presence and
    `execute.py`'s `Round` cascade is collapsed into one `Outcome`-union
    dispatch (`Player` ⇒ bind `outcome`; `(tag, payloads)` ⇒ raise the

@@ -154,7 +154,7 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               deciding seat sees every card they offer from its own
               instance.
               And one of the game's own move types that no reachable
-              ``offer`` or ``round offering`` presents, with or without a
+              ``offer`` presents, with or without a
               Stake row on it (``_check_unoffered_move_types``; a library's
               move types are exempt, since a game importing a library need
               not present every move type it offers); every game move type after this
@@ -173,8 +173,7 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               name (``HOSTED_REACH_POOLS``: a procedure it runs, a move type
               it offers, guard and effect, a function it calls, each
               transitively, by ``_definition_closure``) — a statement kind
-              outside ``HOSTED_POLL_ALLOWED``, a ``round offering`` with an
-              ``outcome`` clause, the ``state`` pronoun, or a call of a
+              outside ``HOSTED_POLL_ALLOWED``, the ``state`` pronoun, or a call of a
               Primitive the game's namespace holds; and a Hosted Poll binder spelled like a name
               already classifiable where the clause is written
               (``_check_hosted_polls``, ``_check_hosted_binder``).
@@ -206,7 +205,6 @@ from cardlang.builtins.functions import (
     CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
-    PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_CALL_FUNCS,
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
@@ -383,10 +381,10 @@ _PRONOUNS = frozenset({"state", "action", "winner", "active_rules", "actor"})
 _CALL_SITE_PRONOUNS = frozenset({"actor", "action", "winner"})
 
 # Reserved because the language spells them as CLAUSE KEYWORDS, not because a
-# pronoun namespace claims them. `outcome` opens a phase's `-> outcome { }` and
-# names an auction's outcome function, but nothing binds it as a value (an
-# auction's tagged result reaches its consumer through the produce path —
-# `execute.py`'s `_ProduceSignal` — never a context slot). Keeping it reserved
+# pronoun namespace claims them. `outcome` opens a phase's `-> outcome { }`,
+# but nothing binds it as a value (a phase's tagged result reaches its consumer
+# through the produce path — `execute.py`'s `_ProduceSignal` — never a context
+# slot). Keeping it reserved
 # is what makes the pre-#205 spelling of a trick winner (`leader := outcome`)
 # fail loudly rather than bind to whatever state variable a game happens to
 # declare. Un-reserving it would widen the accepted surface, so it waits for its
@@ -424,7 +422,7 @@ _RESERVED_WHY: dict[str, str] = {
     "state": "it is the phase/game state pronoun (`state.foo`)",
     "action": "it is the call-site action pronoun",
     "winner": "it is the call-site winner pronoun",
-    "outcome": "it is a clause keyword (a phase's `-> outcome`, an auction's `outcome`)",
+    "outcome": "it is a clause keyword (a phase's `-> outcome`)",
     **{stake: "it is a clause keyword (a move type's Stake row)" for stake in n.STAKES},
     "active_rules": "it is the active-rules pronoun",
     "actor": "it is the call-site actor pronoun",
@@ -575,8 +573,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # twin `resolve`'s own comment has documented since before this table.
     (n.Turns, "again"): "state",
     (n.Winner, "state_var"): "state",
-    # Zones. The two card-moving round forms name both of their zones as bare
-    # strings; the auction form moves no cards and so has neither.
+    # Zones. Both round forms name their two zones as bare strings.
     (n.TrickRound, "source_zone"): "zone",
     (n.TrickRound, "play_zone"): "zone",
     (n.ClimbRound, "source_zone"): "zone",
@@ -612,7 +609,6 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # round's move type name the kernel registry (`LIBRARY_MOVE_TYPES`). Only
     # the first pair is a channel an importing game can feed.
     (n.Offer, "offering"): "move_type",
-    (n.AuctionRound, "offering"): "move_type",
     (n.TrickRound, "move_type"): "kernel_move_type",
     (n.ClimbRound, "move_type"): "kernel_move_type",
     (n.LegalMoves, "move_types"): "kernel_move_type",
@@ -627,7 +623,6 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # why they are references and yet not a channel a game can feed.
     (n.TrickRound, "winner_fn"): "primitive_query",
     (n.TrickRound, "early_termination"): "primitive_query",
-    (n.AuctionRound, "outcome_fn"): "primitive_query",
     (n.ClimbRound, "combos_fn"): "primitive_query",
     (n.ClimbRound, "follows_fn"): "primitive_query",
     # Deck-derived values, held as strings rather than classified names.
@@ -2817,7 +2812,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
         # no name into scope; its body is an ordinary block (see `_BINDER_SCOPE_FIELDS`).
         case (
             n.RotateStmt() | n.RepeatUntil() | n.IfStmt() | n.AsBlock() | n.AssignStmt()
-            | n.Offer() | n.TrickRound() | n.AuctionRound() | n.ClimbRound()
+            | n.Offer() | n.TrickRound() | n.ClimbRound()
             | n.Produce() | n.Produces()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
         ):
@@ -3915,14 +3910,14 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
 
 
 def _offered_move_types(node: object) -> frozenset[str]:
-    """Every move type an `offer` or a `round offering` under `node` presents —
-    the two `move_type`-namespace slots of `_REFERENCE_SLOTS`, the only
+    """Every move type an `offer` under `node` presents —
+    the `move_type`-namespace slot of `_REFERENCE_SLOTS`, the only
     constructs that present a game's own move type to a deciding seat. A
     procedure body and a move type's effect are under the game, so an offer
     made from either counts."""
     offered: set[str] = set()
     for nd in _walk(node):
-        if isinstance(nd, (n.Offer, n.AuctionRound)):
+        if isinstance(nd, n.Offer):
             offered.update(nd.offering)
     return frozenset(offered)
 
@@ -3931,7 +3926,7 @@ def _check_unoffered_move_types(
     game: n.Game, own: frozenset[str], bag: DiagnosticBag
 ) -> None:
     """One of the game's `own` move types (those it declares, not a library's)
-    that no reachable `offer` or `round offering` presents is a declaration
+    that no reachable `offer` presents is a declaration
     nothing reads (the `_resolve_trump` precedent): no seat can ever play it,
     so it is refused, and a Stake row on it is named as the row nothing reads.
     Reachable is `_reachable_definitions`' fixpoint from the phases, so an
@@ -3947,14 +3942,14 @@ def _check_unoffered_move_types(
         if mt.stake is not None:
             bag.error(
                 f"`{mt.stake}` on move type `{mt.name}`, which no reachable "
-                f"`offer` or `round offering` presents: nothing reads the row. "
+                f"`offer` presents: nothing reads the row. "
                 f"Delete it, or present the move at an offering the game reaches",
                 mt.span,
             )
             continue
         bag.error(
-            f"move type `{mt.name}` is never offered: no reachable `offer` or "
-            f"`round offering` presents it, so no seat can ever play it. "
+            f"move type `{mt.name}` is never offered: no reachable `offer` "
+            f"presents it, so no seat can ever play it. "
             f"Present it at an offering the game reaches, or delete it",
             mt.span,
         )
@@ -6067,7 +6062,6 @@ _SUBTREE_PHASE_ITEMS: dict[str, str] = {
 # narrowing the containment relation.
 _MOVE_TYPE_SLOT_OFFERS: dict[tuple[type, str], bool] = {
     (n.Offer, "offering"): True,
-    (n.AuctionRound, "offering"): True,
     (n.TrickRound, "move_type"): True,
     (n.ClimbRound, "move_type"): True,
     (n.LegalMoves, "move_types"): True,
@@ -7245,18 +7239,13 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
 
 
 def _callback_outside_slot(name: str) -> str:
-    """A trick winner or an auction outcome named where an expression stands.
-    Its one reading is the round slot that takes it (`TrickRound.winner_fn`,
-    `AuctionRound.outcome_fn`), a name the round calls, never a value, so no
-    expression position classifies it."""
-    if name in TRICK_WINNER_NAMES:
-        kind, slot = "a trick winner", "a trick round's `winner` slot (`... winner " + name + "`)"
-    else:
-        # `VALUE_NAMES` is the two registries' union, pinned partitioned by
-        # tests/test_bare_callback_names.py.
-        kind, slot = "an auction outcome", "an auction round's `outcome` slot (`... outcome " + name + "`)"
+    """A trick winner named where an expression stands. Its one reading is the
+    round slot that takes it (`TrickRound.winner_fn`), a name the round calls,
+    never a value, so no expression position classifies it. `VALUE_NAMES` is
+    exactly the trick winners, pinned by tests/test_bare_callback_names.py."""
+    slot = "a trick round's `winner` slot (`... winner " + name + "`)"
     return (
-        f"`{name}` is {kind}, read only in {slot}; it is not a value an "
+        f"`{name}` is a trick winner, read only in {slot}; it is not a value an "
         f"expression can hold — name it in its round"
     )
 
@@ -7619,7 +7608,7 @@ _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
 # All three forms, not only the two that bind a winner: the Owner Guard enforces
 # more than its name and message say (issue #290), and narrowing it here
 # would relax it as a side effect of a refactor.
-_WINNER_BINDING_STMTS = (n.TrickRound, n.AuctionRound, n.ClimbRound)
+_WINNER_BINDING_STMTS = (n.TrickRound, n.ClimbRound)
 
 
 # What a write target may be. `:=`, `+=`, `-=` and `rotate` all write persistent
@@ -7727,7 +7716,7 @@ def _check_hosted_binder(poll: n.HostedPoll, cats: _Categories, bag: DiagnosticB
 # What a Hosted Poll's body can EXECUTE, beyond its own text: the definitions
 # it names whose bodies then run, by the reference namespace that names them
 # (namespace -> the `n.Game` field holding them). A procedure it runs, a move
-# type it offers — by `offer` or by `round offering`, guard and effect alike —
+# type it offers — by `offer`, guard and effect alike —
 # and a function it calls, each followed transitively. Pinned against every
 # naming slot on a statement or expression node by tests/test_hosted_poll.py,
 # with `HOSTED_REACH_INERT_SLOTS` and `HOSTED_REACH_REFUSED_SLOTS` beside it.
@@ -8043,7 +8032,7 @@ def _check_move_params(
     deck: str,
 ) -> None:
     """Totality gate for a parameterized move offered/enumerated in a decision
-    (an `offer` statement or a `round offering`). Fixed-from-type
+    (an `offer` statement). Fixed-from-type
     domains (`Suit`/`Suit?`/`Rank`/`Player`) and a single `Card` parameter are
     allowed; a `Card` parameter combined with any other parameter, a
     bounded-`Integer` parameter (deferred), two parameters sharing a name, and
@@ -8147,14 +8136,13 @@ def _check_card_offering(
     bag: DiagnosticBag,
     span: Span | None,
 ) -> None:
-    """The Card domain's constraints on an offering of move types, wherever
-    one is enumerated (a plain `offer` or the auction `round offering` — both
-    fold a Card-parameterized move through the same `param_domain`/
-    `card_to_action` machinery, decisions.md "Declared parameter
-    domains"): at most one Card-parameterized move (its OpenSpiel action id
-    is the card itself, so a second would be indistinguishable by id — both
-    `offer` and `round offering` would otherwise collapse two card plays onto
-    one action, cardlang/openspiel/encoding.py), and the actor's
+    """The Card domain's constraints on an offering of move types (an
+    `offer`, which folds a Card-parameterized move through the
+    `param_domain`/`card_to_action` machinery, decisions.md "Declared
+    parameter domains"): at most one Card-parameterized move (its OpenSpiel
+    action id is the card itself, so a second would be indistinguishable by
+    id — the offer would otherwise collapse two card plays onto one action,
+    cardlang/openspiel/encoding.py), and the actor's
     `hand[player]` zone must exist (`param_domain`'s Card branch enumerates
     it; without one the decision crashes mid-playout). Unknown move names are
     skipped — the caller's own loop already reports those."""
@@ -8194,13 +8182,8 @@ def _check_offering_moves(
     span: Span | None,
     unknown_msg: str,
 ) -> None:
-    """The shared body of an offering's per-name loop, wherever one is
-    enumerated (a plain `offer` or the auction `round offering` —
-    `_check_card_offering`'s docstring has the same "wherever one is
-    enumerated" rationale): every named move type must be defined.
-    `unknown_msg` is the caller-specific wording for an unknown name (the two
-    call sites differ only in this message, "offer ..." vs "round offering
-    ...").
+    """The body of an offering's per-name loop: every named move type must
+    be defined. `unknown_msg` is the caller's wording for an unknown name.
 
     Parameter DOMAINS are deliberately not checked here. They are a property
     of the move type's DECLARATION, so `_validate_refs` gates every declared
@@ -8369,7 +8352,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     }
     # Every DECLARED move type's parameter domains, gated exactly once. The
     # gate itself is unchanged; its REACH was the hole. It used to run from the
-    # offering call sites, so a move type no `offer`/`round offering` names
+    # offering call sites, so a move type no `offer` names
     # had its parameter domains unchecked entirely — and an unchecked domain
     # name falls through `typecheck.type_from_name` to the permissive top,
     # which silently exempts the parameter from every downstream guard
@@ -8824,35 +8807,6 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     "offer names unknown move type",
                 )
                 _check_card_offering(nd.offering, move_type_defs, game, bag, nd.span)
-            case n.AuctionRound():
-                # An offering of game-defined move types, no card zones. The
-                # termination predicate's names are checked by the generic
-                # NameRef pass.
-                #
-                # Parameter domains are a closed set (decisions.md "Surface
-                # totality"): the runtime enumerates `Suit`/`Suit?`/`Rank`/
-                # `Player` statically and `Card` over the actor's live hand —
-                # any other type, or a domain combination `_check_move_params`
-                # rejects, would crash `enumerate_domain`/produce an
-                # indistinguishable action id mid-playout. That gate now runs
-                # over every DECLARED move type (above), which covers these and
-                # the ones no offering names.
-                _check_offering_moves(
-                    nd.offering,
-                    defined_move_types,
-                    bag,
-                    nd.span,
-                    "round offering names unknown move type",
-                )
-                _check_card_offering(nd.offering, move_type_defs, game, bag, nd.span)
-                # The betting form omits `outcome` (it mutates state directly and
-                # produces no outcome); only an auction's outcome fn is validated.
-                if nd.outcome_fn is not None and nd.outcome_fn not in PRIMITIVE_AUCTION_OUTCOMES:
-                    bag.error(
-                        f"auction round outcome '{nd.outcome_fn}' is not an auction "
-                        f"outcome function",
-                        nd.span,
-                    )
             case n.ClimbRound():
                 # Trick zones plus the two combination-engine queries
                 # (`combinations` lead, `follows` legal-follows). The termination
@@ -9054,9 +9008,6 @@ HIDDEN_READ_POSITIONS: dict[tuple[type, str], tuple[str, str]] = {
         READ_POSITION_OUTSIDE,
         "configures the round for every seat before any decides (issue #755)",
     ),
-    (n.AuctionRound, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
-    (n.AuctionRound, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
-    (n.AuctionRound, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
     (n.ClimbRound, "leader"): (READ_POSITION_OUTSIDE, _CONTROL),
     (n.ClimbRound, "participants"): (READ_POSITION_OUTSIDE, _CONTROL),
     (n.ClimbRound, "until"): (READ_POSITION_OUTSIDE, _CONTROL),
@@ -9079,7 +9030,6 @@ POOL_KINDS: frozenset[str] = frozenset(
 DECISION_POOLS: dict[str, str] = {
     "TrickRound": POOL_FROM_ROUND_SOURCE,
     "ClimbRound": POOL_FROM_ROUND_SOURCE,
-    "AuctionRound": POOL_FROM_CARD_PARAMETERS,
     "execute._select_from": POOL_FROM_EXPRESSION,
     "execute._select_filtered": POOL_FROM_EXPRESSION,
     "execute._select_joint": POOL_FROM_EXPRESSION,
@@ -9979,8 +9929,6 @@ class _HiddenReads:
             match nd:
                 case n.Offer():
                     offered = nd.offering
-                case n.AuctionRound():
-                    offered = nd.offering
                 case n.TrickRound() | n.ClimbRound():
                     offered = (nd.move_type,)
                 case n.RunStmt() if nd.name in self.procedures and nd.name not in visiting:
@@ -10092,10 +10040,10 @@ class _HiddenReads:
                 self._outside(stmt.leader, scope, seat)
                 self._outside(stmt.participants, scope, seat)
                 self._outside(stmt.trump, scope, seat)
-            case n.AuctionRound() | n.ClimbRound():
+            case n.ClimbRound():
                 for outer in (stmt.leader, stmt.participants, stmt.until):
                     self._outside(outer, scope, seat)
-                if isinstance(stmt, n.ClimbRound) and stmt.hosted is not None:
+                if stmt.hosted is not None:
                     # The Hosted Poll runs before every ask in the round's
                     # own context: the acting seat stands, the binder names
                     # a seat that is not proven to be it, and the body runs

@@ -1777,13 +1777,6 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "game_move",
         "lib_move",
     ),
-    "AuctionRound.offering": (
-        "move_type lib_move {{ effect {{ declared_thing := 1 }} }} "
-        "move_type m {{ effect {{ round offering [{read}] from actor "
-        "over all players until true }} }}",
-        "game_move",
-        "lib_move",
-    ),
     "Produces.phase": (
         "move_type m {{ effect {{ {read} produces: a {{ }} b {{ }} }} }}",
         "play",

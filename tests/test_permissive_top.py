@@ -543,7 +543,7 @@ procedure bump(p : Player) { score[p] := 1 }
 # types.py (2)
 #   `join`'s top absorption, and the sticky-key merge — both ARE the top
 #   semantics, not lookups.
-# builtins/signatures.py (13)
+# builtins/signatures.py (10)
 #   the audited dynamic-signature set: `suit_of`'s polymorphic argument, the
 #   ZONE argument of all three Arrival-Record calls — `highest_trump_or_led_suit`
 #   (issue #256), and `highest_by_trick_order` / `follows_lead` (issue #250) —
@@ -559,7 +559,7 @@ procedure bump(p : Player) { score[p] := 1 }
 AUDITED_TOP_SITES: dict[str, int] = {
     "typecheck.py": 15,
     "types.py": 2,
-    "builtins/signatures.py": 13,
+    "builtins/signatures.py": 10,
 }
 
 

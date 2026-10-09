@@ -144,15 +144,6 @@ CORPUS: dict[tuple[str, str], tuple[str, str, str]] = {
         "when play_to_trick where action.card.suit is hearts",
         "when play_to_trick where {W}",
     ),
-    # The whole `until` expression, not its first operand: replacing only
-    # `taker is not none` would leave the `or (...)` behind, and `TAny or
-    # Boolean` types Boolean -- the probe would pass while testing nothing.
-    ("AuctionRound", "until"): (
-        "belote.cardlang",
-        "until taker is not none\n"
-        "                  or (number of players where not acted[player]) is 0",
-        "until {W}",
-    ),
     ("ClimbRound", "until"): (
         "big-two.cardlang",
         "until (any player where hand[player] is empty)\n        opened := true",

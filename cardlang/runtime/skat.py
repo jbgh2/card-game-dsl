@@ -1,8 +1,8 @@
 """Skat's game-local runtime [[primitive]]s.
 
 The hand runs fully on the kernel (skat.cardlang): the Reizen call-and-response
-is the auction [[form]] of `round` over a role-guarded two-participant ring, the
-contract declaration a pair of `offer`s plus a one-draw suit round, the ten
+is a `turns` ring over a role-guarded two-participant set, the contract
+declaration a pair of `offer`s plus a single-seat suit offer, the ten
 tricks three single-actor filtered [[transfer]]s per trick, and the scoring plain
 statements. Follow legality and trick resolution are the game's declared
 [[trick-order]], so what stays game-local is only what the expression language

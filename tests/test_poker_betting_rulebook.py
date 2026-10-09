@@ -160,9 +160,11 @@ game Rulebook {{
   }}
   phase play {{
     run open_street({limit}, 0)
-{stacks}{post}    round offering [check, bet, call, raise] from {first}
+{stacks}{post}    turns t from {first}
           over players where pending(player)
-          until false
+          until false {{
+      offer to t one of [check, bet, call, raise]
+    }}
   }}
   winner: highest stack
 }}

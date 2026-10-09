@@ -12,12 +12,12 @@ domain:     acting path x leader/participants relationship x game direction.
             property with its own owner rather than a gap in this one:
             participants-CONTENT validity (a non-seat member, duplicates, a
             `Zone`-valued `over`), and the evaluation-TIMING axis -- trick
-            and climb read `participants` once at construction while auction
-            re-reads it every step and `turns` every pick, so a set that
-            shrinks mid-round is seen by two members and not the other two.
+            and climb read `participants` once at construction while `turns`
+            re-reads it every pick, so a set that shrinks mid-round is seen by
+            one member and not the other two.
 registry:   acting path -- the AST constructs carrying BOTH `leader` and
                           `participants` (`n.Round` and `n.Turns`), with
-                          `n.Round` split into its three forms by
+                          `n.Round` split into its two forms by
                           `mechanics.build_form`'s field cascade. `turns` is a
                           member of this class though it is NOT a `round`
                           form and does not go through `build_form` — the
@@ -30,13 +30,13 @@ registry:   acting path -- the AST constructs carrying BOTH `leader` and
                           leader in the set, leader outside a non-empty set,
                           set empty, leader not a seat at all. Its pin:
                           `test_relationship_axis_is_total`.
-            the auction ring's termination/participants-disagreement
-            message -- tests/test_ring_order.py.
+            the `turns` ring's no-eligible-participant message --
+            tests/test_ring_order.py.
 does not prove:  that the acting paths fail an empty participant set
             the same way. The `participants_empty` column is CAPTURED per
             path, not unified: the trick path finds no actor and its outcome
-            function then meets zero plays, the auction ring raises its
-            termination/participants-disagreement error, and climb raises
+            function then meets zero plays, `turns` raises its
+            no-eligible-participant error, and climb raises
             the empty-ring error. What the grid holds is that each path is
             LOUD, which is the property that matters; no cell pins one
             shared message, and the expected column admits the currency each
@@ -60,13 +60,11 @@ author's changed the grid twice, and both changes are load-bearing:
 Its remaining reports (participants-content, evaluation timing) are the
 boundary `domain:` states above.
 
-red under: the four born-green `leader_out` paths claim the sibling
+red under: the three born-green `leader_out` paths claim the sibling
 constructs already advance past a shed-out leader. Each has its OWN
 participant filter, so each needs its own mutation — RUN, not reasoned:
   - trick: `TrickForm.next_actor`, `if player in self.participants` -> `if
     True` (mechanics.py). Reddens both `trick-leader_out` rows.
-  - auction: `AuctionForm.next_actor`, `if player in participants` ->
-    `if True` (mechanics.py). Reddens both `auction-leader_out` rows.
   - turns: `_turns`, `next((p for p in candidate_seq if p in participants),
     None)` -> drop the `if` clause (execute.py). Reddens both
     `turns-leader_out` rows.
@@ -101,7 +99,6 @@ from cardlang.runtime.values import GAME_DIRECTIONS
 # defined by.
 ACTING_PATHS: tuple[str, ...] = (
     "trick",
-    "auction",
     "climb",
     "turns",
 )
@@ -149,7 +146,7 @@ def test_acting_path_axis_is_derived_from_the_registries() -> None:
     the half a registry mutation alone would not prove."""
     fields_of = {
         node.__name__: {f.name for f in dataclasses.fields(node)}
-        for node in (n.TrickRound, n.AuctionRound, n.ClimbRound, n.Turns)
+        for node in (n.TrickRound, n.ClimbRound, n.Turns)
     }
     for name, names in fields_of.items():
         assert {"leader", "participants"} <= names, (
@@ -164,11 +161,11 @@ def test_acting_path_axis_is_derived_from_the_registries() -> None:
         and {"leader", "participants"}
         <= {f.name for f in dataclasses.fields(obj)}
     }
-    assert carriers == {"TrickRound", "AuctionRound", "ClimbRound", "Turns"}, (
+    assert carriers == {"TrickRound", "ClimbRound", "Turns"}, (
         f"a new leader/participants construct appeared: {carriers}"
     )
 
-    forms = {mechanics.TrickForm, mechanics.AuctionForm, mechanics.ClimbForm}
+    forms = {mechanics.TrickForm, mechanics.ClimbForm}
     source = inspect.getsource(mechanics.build_form)
     for form in forms:
         assert form.__name__ in source, (
@@ -239,23 +236,6 @@ game G {{
 }}
 """
 
-AUCTION = """
-game G {{
-  players: 4
-  direction: {dir}
-  max_length: 1000
-  cards: standard52
-  zones {{ deck : Deck }}
-  state {{ x[player] : Integer = 0 }}
-  phase run {{
-    round offering [step] from {leader} over players where {pred}
-          until false
-  }}
-  winner: highest x
-}}
-move_type step {{ effect {{ x[actor] := x[actor] + 1 }} }}
-"""
-
 CLIMB = """
 game G {{
   players: 4
@@ -305,8 +285,6 @@ def _source(path: str, relationship: str, direction: str) -> str:
         return CLIMB.format(dir=direction, leader=leader, pred=pred)
     if path == "turns":
         return TURNS.format(dir=direction, leader=leader, pred=pred)
-    if path == "auction":
-        return AUCTION.format(dir=direction, leader=leader, pred=pred)
     raise AssertionError(f"acting path '{path}' has no fixture")
 
 

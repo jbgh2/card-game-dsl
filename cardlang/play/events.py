@@ -66,7 +66,6 @@ _ASK_PHRASES: dict[str, tuple[str, str, str]] = {
     "joint": ("pick", "set that goes together", "sets that go together"),
     "offer": ("take", "of the moves offered", "of the moves offered"),
     "choose": ("choose", "number", "numbers"),
-    "auction": ("make", "bid", "bids"),
     "climb": ("play", "combination (or pass)", "combinations (or pass)"),
 }
 

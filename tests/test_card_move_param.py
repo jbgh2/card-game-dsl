@@ -1,6 +1,6 @@
 """The `Card` move-parameter domain (the first state-dependent domain).
 
-A Card-parameterized move in an auction `round offering` enumerates the ACTING
+A Card-parameterized move an `offer` presents enumerates the ACTING
 player's live hand, in hand order — not a static deck-order enumeration
 filtered to the hand, which would reorder the candidate list and shift the
 chooser draw (card plays are offered in hand order, like every other card-play
@@ -39,9 +39,9 @@ game G {
   }
   phase root {
     deal 5 cards from deck to each hand
-    round offering [play_one, stop] from 0
-          over players where player is 0
-          until done
+    repeat until done {
+      offer to 0 one of [play_one, stop]
+    }
   }
   winner: highest marker
 }
@@ -143,7 +143,7 @@ def test_rejects_an_optional_card_param_domain() -> None:
 
 def test_rejects_two_card_parameterized_moves_in_one_vocabulary() -> None:
     src = CARD_PARAM_SRC.replace(
-        "round offering [play_one, stop]", "round offering [play_one, play_two, stop]"
+        "one of [play_one, stop]", "one of [play_one, play_two, stop]"
     ).replace(
         "move_type stop { effect { done := true } }",
         "move_type stop { effect { done := true } }\n"

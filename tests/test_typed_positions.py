@@ -95,7 +95,6 @@ def derive_positions() -> dict[tuple[str, str], str]:
 TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     # -- Boolean: consumed by `bool(...)`, so a wrong value is silent ----------
     ("AppliesWhen", "pred"): (TOTAL, "Boolean"),
-    ("AuctionRound", "until"): (TOTAL, "Boolean"),
     ("CardQuery", "where"): (TOTAL, "Boolean"),
     ("ClimbRound", "until"): (TOTAL, "Boolean"),
     ("Comprehension", "where"): (TOTAL, "Boolean"),
@@ -146,12 +145,10 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     ("Loser", "selection"): (GRADUAL, "Player"),
     ("Turns", "leader"): (GRADUAL, "Player"),
     ("TrickRound", "leader"): (GRADUAL, "Player"),
-    ("AuctionRound", "leader"): (GRADUAL, "Player"),
     ("ClimbRound", "leader"): (GRADUAL, "Player"),
     ("PlayerQuery", "start"): (GRADUAL, "Player"),
     ("Turns", "participants"): (GRADUAL, "Collection<Player>"),
     ("TrickRound", "participants"): (GRADUAL, "Collection<Player>"),
-    ("AuctionRound", "participants"): (GRADUAL, "Collection<Player>"),
     ("ClimbRound", "participants"): (GRADUAL, "Collection<Player>"),
     ("Demands", "expr"): (GRADUAL, "Collection<Card>"),
     ("RuleDef", "exempts"): (GRADUAL, "Collection<Card>"),

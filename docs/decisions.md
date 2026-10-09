@@ -486,121 +486,115 @@ into such a zone. A winner is named from who played what, so the pile it reads
 must be one whose arrivals every observer can derive from their own
 observation stream ("The Arrival Record").
 
-## The auction form of `round`
+## Auctions, polls and betting rings are `turns` plus `offer`
 
-A trick is one pass over the participants; an auction is a *continuous ring* —
-the turn order cycles repeatedly until the bidding closes. Both are the same
-kernel `round`, configured along different axes ("Interactive decisions: a kernel
-and an in-DSL standard library"). The continuous ring, its accumulator, and its
-termination are axes **on the `round`**, not a `repeat until` loop wrapped around
-a single-pass round: the loop, the turn-cycling, and the close condition live in
-the kernel so the per-game file supplies only *values* (the move vocabulary, the
-termination predicate, the outcome). Even Skat's Reizen call-and-response is a
-*configuration* of this form — role-guarded moves over a two-participant ring
-(the call-and-response bullet below) — not bespoke loop code in the game's
-body.
-
-The surface:
+A bidding ring, a betting street, a quiescence-lap poll and a declaration
+round are one loop: walk the seats from a start seat, over a participants
+predicate re-evaluated each turn, until a predicate holds, asking each seat
+one flat offering. That loop is the `turns` form with an `offer` body ("The
+`turns` form", below), and no form of `round` exists for it: a mechanic
+enters as a definition over the kernel, never as a production ("Interactive
+decisions: a kernel and an in-DSL standard library"). The surface, in
+Bridge:
 
 ```text
-round offering [<move_type>, …] from <seat> over <ring>
-      until <predicate> [outcome <fn>]
+turns bidder from dealer over all players
+      until (made_bid and passes >= 3) or (not made_bid and passes >= 4) {
+  offer to bidder one of [pass, submit_bid, double, redouble]
+}
 ```
 
-The `outcome <fn>`, like a trick round's `winner <fn>`, names a function the
-round calls. Neither name is a value: written where an expression stands, it
-is refused, naming the slot that takes it.
-
-- **Move vocabulary (`offering`).** Each turn presents the acting player **one
-  flat candidate list** of the legal concrete moves — every parameterized
-  `move_type` expanded over its value-domain and guard-filtered, plus the nullary
-  moves, in the order the vocabulary lists them (`offering [...]`) — resolved by a
+- **Move vocabulary.** Each turn presents the acting seat **one flat
+  candidate list** of the legal concrete moves — every parameterized
+  `move_type` expanded over its value-domain and guard-filtered, plus the
+  nullary moves, in the order the offering lists them — resolved by a
   **single** decision (one chooser draw). This is not stylistic: the target
-  runtime (OpenSpiel) mandates one
-  finite, enumerable action set per decision node, so a turn is one node over a
-  flat set, never an outer move-type choice followed by an inner parameter choice.
-  Bridge's `submit_bid(strain : Suit?)` expands to one bid per strain whose
-  cheapest beating level is still legal; `pass`/`double`/`redouble` are nullary.
-  The declared domain set each parameter draws from, the cross-product rule
-  for a multi-parameter move type, and the plain `offer` statement's
-  identical enumeration are "Declared parameter domains," below.
-- **The ring's bookkeeping is the round's own.** The pass count, the acted
-  flags, the roles that steer a call-and-response ring belong to the
-  auction's Decision Episode
-  ([glossary/decision-episode.md](glossary/decision-episode.md)): the game
-  clears them where the ring closes, or declares them in a sub-phase that
-  ends with it, so the information state during play names no auction
-  already closed (pinned at `tests/test_offering_round_state_freshness.py`).
-  The ring's result — the contract, the taker, the trump — is read all
-  through play and stays.
-- **The ring (`over`) is explicit; there is no silent skip.** A participant
-  offered a turn always has at least one legal move — the finite-action invariant
-  of a decision node. The game states *who is still in the ring* through the
-  participants clause (`over <players> [where <predicate>]`, the same participants
-  axis the trick uses — Getaway's `over players where not eliminated[player]`) and
-  *when the bidding closes* through `until`. A player who has dropped out (passed
-  for good, folded) is excluded by the participants predicate, and "all but one has
-  passed" is a termination predicate — neither is an engine default. So a
-  participant with no legal move is a **malformed game** (a missing always-legal
-  move, or a participants filter that should have dropped the player), reported as
-  an error, not a silently-skipped turn. Bridge keeps every seat in the ring with
-  an always-legal `pass`. The participants predicate is **re-evaluated each turn**
-  — the participant-filter axis: a ring that *shrinks* as players drop out
-  (Pinochle's passed bidders and the standing high bidder, Stud's folders) drops a
-  player the moment the predicate stops holding for it, so it is never offered
-  another turn and consumes no draw. A static ring (Bridge's `all players`) is the
-  invariant case. The trick form evaluates its ring once per pass, which — a trick
-  being a single pass per participant — is observationally identical; this is one
-  participants axis, with the continuous auction ring the case where per-turn
-  re-evaluation is visible.
-- **Order.** The ring is traversed one way: the pointer advances each turn, so
-  after a player acts the next *seat* is offered, wrapping. That is poker's order
-  as much as an auction's, and each half of the claim is a neighboring bullet's:
-  the pointer advances, so the seats *behind* the aggressor are the next ones
-  reached; the participants filter is re-evaluated each turn, so the seats a bet
-  re-opened come back when the ring returns to them; and `until` is checked
-  before each draw, so the ring closes mid-lap the moment nobody is pending. Bridge's, Pinochle's
-  and Tarot's auctions and every poker game's betting all run on it. The form
-  writes no order clause: a traversal no game plays is not kept as a docking
-  point, so a second one arrives with the game that forces it and mints its own
-  surface then.
-- **Call-and-response is a configuration, not an order value.** Skat's Reizen —
-  a speaker naming successive ladder values against a responder who holds or
-  passes, twice in sequence with the survivor advancing — runs on the plain
-  ring: `round offering [bid, yes, pass] from <speaker> over players where
-  player is <speaker> or player is <responder> until <someone passed, or the
-  ladder is exhausted>`, with `bid` guarded to the speaker and `yes` to the
-  responder. The seemingly new requirements each map to an existing axis:
-  role-dependent vocabularies are move guards (the speaker's candidates filter
-  to `[bid, pass]`, the responder's to `[yes, pass]`); conditional
-  participation is the `until` predicate, checked before each draw (a pass —
-  or the exhausted bid ladder, the reference's zero-draw auto-pass — ends the
-  contest before the responder is offered a turn); the speaks-before-his-seat
-  reorder is `from <speaker>` (the ring starts at the speaker regardless of
-  seating); and the two sequential contests are two `round` statements
-  threading the survivor through phase state. The order axis stays `ring` alone.
-- **Accumulator.** The decision-relevant running state (Bridge's standing level,
-  strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
-  written by the move-type effects and read by the termination predicate. No
-  separate accumulator construct.
-- **Termination (`until`).** A predicate over that state, checked before each
-  draw (Bridge: three passes after a bid, four with no bid).
-- **Outcome (optional).** A named function over the threaded **bid history** plus
-  the terminal state — the same status as a trick's `winner` callback (a
-  runtime-primitive, no decisions of its own) — that produces the phase's typed
-  outcome. Bridge's `bridge_auction_outcome` finds the declarer (the first player
-  of the high side to have named the final strain) and produces
-  `contract_finalized(declarer, level, strain, doubling) | all_pass`. The `outcome`
-  clause is **omitted** when the ring produces no outcome: a betting round mutates
-  shared chip/fold state directly through its move effects, so when the ring closes
-  it simply returns and the surrounding body deals the next street or settles — no
-  typed outcome, no `produces:` arm.
+  runtime (OpenSpiel) mandates one finite, enumerable action set per
+  decision node, so a turn is one node over a flat set, never an outer
+  move-type choice followed by an inner parameter choice. Bridge's
+  `submit_bid(strain : Suit?)` expands to one bid per strain whose cheapest
+  beating level is still legal; `pass`/`double`/`redouble` are nullary. The
+  declared domain set each parameter draws from, and the cross-product rule
+  for a multi-parameter move type, are "Declared parameter domains," below.
+- **The ring's bookkeeping is the game's own.** The pass count, the acted
+  flags, the roles that steer a call-and-response ring belong to the ring's
+  Decision Episode ([glossary/decision-episode.md](glossary/decision-episode.md)):
+  the game clears them where the ring closes, or declares them in a
+  sub-phase that ends with it, so the information state during play names
+  no ring already closed (pinned at
+  `tests/test_offering_round_state_freshness.py`). The ring's result — the
+  contract, the taker, the trump — is read all through play and stays.
+- **The ring (`over`) is explicit; there is no silent skip.** A seat
+  offered a turn always has at least one legal move — the finite-action
+  invariant of a decision node. The game states *who is still in the ring*
+  through the participants clause (`over <players> [where <predicate>]`)
+  and *when the bidding closes* through `until`. A seat that has dropped out
+  (passed for good, folded) is excluded by the participants predicate, and
+  "all but one has passed" is a termination predicate — neither is an
+  engine default. So a seat with no legal move is a **malformed game** (a
+  missing always-legal move, or a participants filter that should have
+  dropped the seat), reported as an error, never a silently skipped turn.
+  Bridge keeps every seat in the ring with an always-legal `pass`. The
+  participants predicate is **re-evaluated each turn**: a ring that
+  *shrinks* as seats drop out (Pinochle's passed bidders and the standing
+  high bidder, Stud's folders) drops a seat the moment the predicate stops
+  holding for it, so it is never offered another turn and consumes no draw;
+  a start seat the predicate excludes takes no turn, and the ring opens at
+  the first eligible seat after it. A static ring (Bridge's `all players`)
+  is the invariant case.
+- **Order.** The ring is traversed one way: the turn advances past the seat
+  that acted, so the next *seat* is offered, wrapping. That is poker's
+  order as much as an auction's: the seats *behind* the aggressor are the
+  next ones reached; the participants filter is re-evaluated each turn, so
+  the seats a bet re-opened come back when the ring returns to them; and
+  `until` is checked before each ask, so the ring closes mid-lap the moment
+  nobody is pending. A ring runs in the game's `direction` (Tarot's is
+  counterclockwise).
+- **Call-and-response is a configuration, not an order value.** Skat's
+  Reizen — a speaker naming successive ladder values against a responder
+  who holds or passes, twice in sequence with the survivor advancing — runs
+  on the plain ring: `turns bidder from speaker over players where player is
+  speaker or player is responder until <someone passed, or the ladder is
+  exhausted>`, with `bid` guarded to the speaker and `yes` to the
+  responder. Role-dependent vocabularies are move guards (the speaker's
+  candidates filter to `[bid, pass]`, the responder's to `[yes, pass]`);
+  conditional participation is the `until` predicate, checked before each
+  ask (a pass — or the exhausted bid ladder, the reference's zero-draw
+  auto-pass — ends the contest before the responder is offered a turn); the
+  speaks-before-his-seat reorder is `from speaker`; and the two sequential
+  contests are two rings threading the survivor through phase state.
+- **Accumulator.** The decision-relevant running state (Bridge's standing
+  level, strain, doubling, high bidder, pass count) is ordinary **phase
+  state**, read and written by the move-type effects and read by the
+  termination predicate. No separate accumulator construct, and no hidden
+  history: a result the rules state over the bids' history is state the
+  bids write as they are made — Bridge's declarer is the first player of
+  the high side to have bid the final strain, so each side's first bidder
+  of each strain is recorded in `submit_bid`'s effect, and the contract is a
+  read of it when the ring closes.
+- **Termination (`until`).** A predicate over that state, checked before
+  each ask (Bridge: three passes after a bid, four with no bid).
+- **Result.** The ring yields nothing of its own. The statements after it
+  read the terminal state: in an outcome phase they `produce` the typed
+  outcome ("Typed phase outcomes" — Bridge's `contract_finalized(...) |
+  all_pass`, Pinochle's `bid_won(...)`, Tarot's `taken(...) | thrown_in`);
+  elsewhere they assign (Skat's survivor). A betting street produces
+  nothing: each move mutates the shared chip and fold state, so when the
+  ring closes the surrounding body deals the next street or settles.
+- **One seat.** A single seat asked until it acts is `repeat until <pred>
+  { offer to <seat> one of [...] }` — Schnapsen's leader, whose free actions
+  leave the pile empty; a seat asked once is a plain `offer` (Pinochle's
+  trump declaration, each half of its exchange, its concession).
+- **A betting street is the family library's.** `poker_betting`'s
+  `betting_street(first)` is the ring written once, with the family's whole
+  vocabulary, and every poker game runs it; `fold` is the game's own by
+  contract ("Family libraries"), because folding touches the game's zones.
 
-An auction's only decision points are these per-turn candidate draws; the outcome
-callback consumes no randomness. So two auctions that present the same per-turn
-candidate lists (same length and order) play identically under a random playout —
-the property that lets a hand-written engine be re-expressed in this form without
-changing behaviour.
+A ring's only decision points are these per-turn draws, and the statements
+after it consume no randomness. So two rings that present the same per-turn
+candidate lists (same length and order) play identically under a random
+playout — the property that lets a mechanic be re-expressed in this form
+without changing behaviour.
 
 ## The `ranking:` declaration: enumeration or convention
 
@@ -686,9 +680,9 @@ integer `choose` domain," below.
   Card parameter combined with another parameter, and a Card parameter in a
   game with no `hand[player]` zone are each rejected with a message.
 
-**Enumeration surfaces.** A plain `offer` statement enumerates a
-parameterized move type the same way the auction `round offering` vocabulary
-does ("The auction form of `round`," above): every combination of its
+**Enumeration surfaces.** An `offer` statement — on its own or as a ring's
+turn ("Auctions, polls and betting rings are `turns` plus `offer`," above)
+— enumerates a parameterized move type the same way: every combination of its
 declared domain(s), guard-filtered, folded into **one flat candidate list**
 resolved by a single decision — one chooser draw, one public announce —
 never an outer move-type choice followed by an inner parameter choice. Go
@@ -913,7 +907,7 @@ first two players who played their last cards this trick, in play order, from
 which a finishing-order game (Tichu: double victory, first-out routing, call
 payouts) folds its global out-order without any extra chooser draw.
 
-Two decisions distinguish it from the trick and auction forms:
+Two decisions distinguish it from the trick form and the `turns` ring:
 
 - **The combination engine is a named query, not a DSL value.** A combination play
   moves a *specific computed card-set* — the cards of the chosen combination — and
@@ -937,7 +931,7 @@ Two decisions distinguish it from the trick and auction forms:
   whoever played the standing combination when everyone else passed — returned
   directly. There is no `outcome` callback.
 
-As with the auction form, the round's only decision points are the per-turn
+As with a `turns` ring, the round's only decision points are the per-turn
 candidate draws (the lead query, then `[follows…, pass]`); the scoring and routing
 in the surrounding body consume no randomness — where a game's *rules* are random
 (Tichu's Dragon trick going to a random opponent, its random-rate call gates at
@@ -1007,8 +1001,11 @@ turns t from 0 over players where not eliminated[player]
 
 Gin Rummy's draw-discard cycle is the strict-alternation anchor; Go Fish is
 the go-again anchor (its move effect writes `went_again` instead of mutating
-a cursor). Schnapsen's leader loop stays on the auction form — its turn IS
-one flat candidate list. A `direction` override clause is deliberately not
+a cursor). A ring whose every turn IS one flat candidate list — an auction,
+a poll, a betting street — is this form with an `offer` body ("Auctions,
+polls and betting rings are `turns` plus `offer`"), and Schnapsen's leader,
+one seat asked until it leads, is an `offer` inside `repeat until`. A
+`direction` override clause is deliberately not
 grammar: no corpus user ([roadmap.md](roadmap.md), "Grammar surface deferred
 by the checker"). The form emits no observations of its own — the body's
 decisions emit through their own sites, and rotation is derivable from
@@ -1283,10 +1280,9 @@ turn order off a ring cursor and a materialized order list — and the two are n
 the same thing. The published fields are declared once, with their types
 (`cardlang/stdlib/round_state.py`): the trick form publishes `led_suit : Suit?`
 and `trick_terminated_early : Boolean`; the climb form publishes
-`lead_ended_trick : Boolean`, `shed_first : Player?` and `shed_second : Player?`;
-the auction and betting forms publish **nothing** (their accumulator is ordinary
-phase state, above — and that empty row is load-bearing, not an omission: it is
-what makes "the auction form has no `state.`" a checkable fact). Naming anything
+`lead_ended_trick : Boolean`, `shed_first : Player?` and `shed_second : Player?`.
+A `turns` ring publishes nothing: its accumulator is ordinary phase state
+("Auctions, polls and betting rings are `turns` plus `offer`"). Naming anything
 else — a misspelling, or one of the form's internals — is a compile error that
 lists what *is* published. The guard is what keeps a form's working memory out of
 the language: without it, a round's private ring cursor is nameable, type-checks,
@@ -1306,7 +1302,7 @@ to imperative code in the phase body. Examples in the corpus:
 - Hearts' `MustFollowSuit` reads `state.led_suit`, which lives
   inside the trick `round`.
 
-(The auction and betting forms of `round` express their legality differently —
+(A bidding or betting ring expresses its legality differently —
 not as `active_rules:` reading round state, but as the move types' own `when:`
 guards over phase state: Pinochle's ascending bid guards `submit_bid` on the
 standing bid; Stud's `check`/`bet`/`call`/`raise`/`fold` guard on `bet_to_match`,
@@ -1916,9 +1912,10 @@ primitive, and a future board family mints its own (`place`, `capture`) as
 registry rows rather than as new syntax.
 
 **A move type is played only where it is offered.** A game's own move type
-that no reachable `offer` or `round offering` presents is refused: no seat
-can ever play it, so it is a declaration nothing reads. A game importing a library
-need not present every move type the library defines.
+that no reachable `offer` presents is refused: no seat can ever play it, so
+it is a declaration nothing reads. A game importing a library need not
+present every move type the library defines, and a move type the library
+contracts for (`requires { fold : Move }`) is the library's to present.
 
 ## The operation vocabulary
 
@@ -2209,7 +2206,7 @@ asks about the set as a whole, which is the sentence no per-card form can say:
 
 The Subset Source is one zone, or two or more listed in brackets —
 `[played[p], starter]`, the shape the language already uses for "these,
-listed" (`teams:`, `offering [...]`, `x in [a, b]`), and read the same way: a
+listed" (`teams:`, `one of [...]`, `x in [a, b]`), and read the same way: a
 subset is drawn from any of them. The list is a phrase of the subset forms,
 never a value — it cannot be bound or passed, and no other source slot takes
 it, because a subset that straddles two zones cannot be built from subsets of
@@ -3473,11 +3470,12 @@ of the surrounding decision.
 `choose` covers integer decisions only. The other decisions a game
 elicits are not `choose`. Selecting which move to make is
 `offer to <player> one of [move, …]`; the structured interactive forms
-(an auction, a poll, trick play) are the `round` construct — see
-"Interactive decisions: a kernel and an in-DSL standard library". A
-decision that routes cards to a chosen recipient runs as one of those
-move selections and reads its result through an ordinary function:
-Pinochle's trump declaration is `round offering [declare_trump_suit]`,
+(an auction, a poll, trick play) are the kernel's decision forms — `offer`,
+a `turns` ring of offers, the `round` — see "Interactive decisions: a
+kernel and an in-DSL standard library". A decision that routes cards to a
+chosen recipient runs as one of those move selections and reads its result
+through an ordinary function: Pinochle's trump declaration is
+`offer to high_bidder one of [declare_trump_suit]`,
 and Tichu's Dragon gift is
 `offer to outcome one of [dragon_to_left, dragon_to_right]`, not an
 inline "chooses" subexpression.
@@ -3538,9 +3536,9 @@ if team_score_in_hand(t) >= current_bid {
 The shared *bidding mechanic* possibilities — an ascending-bid `auction`
 definition, an inline per-player pattern — are extracted only when
 multiple games clearly share them. Bridge's auction (doubling, redoubling, and
-the structured contract outcome) runs on the auction form of the kernel `round`
-(see "The auction form of `round`" above), game-local until the shared `auction`
-definition is promoted corpus-first.
+the structured contract outcome) is a `turns` ring of offers (see "Auctions,
+polls and betting rings are `turns` plus `offer`" above), game-local until the
+shared `auction` definition is promoted corpus-first.
 Spades and Oh Hell both use inline per-player bidding; a
 `PerPlayerBidding` mechanic could be extracted, deferred until a
 third per-player-bid game (Wizard, Boerenbridge variant, 7-Truf)
@@ -3883,8 +3881,10 @@ construct:
 
 ```text
 if <public window gate> {
-  round offering [<window moves>, decline] from <player about to act>
-        over all players until quiet >= <player count>
+  turns caller from <player about to act> over all players
+        until quiet >= <player count> {
+    offer to caller one of [<window moves>, decline]
+  }
   quiet := 0
 }
 ```
@@ -3950,9 +3950,11 @@ round climb play_combination from leader over …
       until …
       before asking seat {
         if tichu_window_open() and lead_made() {
-          round offering [call_tichu, no_call] from seat
+          turns caller from seat
                 over players where may_call(player)
-                until quiet >= (number of players where may_call(player))
+                until quiet >= (number of players where may_call(player)) {
+            offer to caller one of [call_tichu, no_call]
+          }
           quiet := 0
         }
       }
@@ -3976,18 +3978,15 @@ Doppelkopf's does.
 The body holds decisions and state writes only: `if`, `let`, assignment,
 `offer`, `turns` (the ring a poll runs over the seats that may still
 call, bounded by its participants and `max_length` as the poll's own lap
-is), `round offering` without an `outcome` clause, `as`, `for each`, and
-`run`. The rule binds everything the body can execute, not only its own
-text: the body's statements and, transitively, every procedure it runs,
-every move type it offers — its `when:` guard and its effect alike,
-whether offered by `offer` or by `round offering` — and every function it
-calls. Resolve refuses, anywhere in that closure, every other statement —
+is), `as`, `for each`, and `run`. The rule binds everything the body can
+execute, not only its own text: the body's statements and, transitively,
+every procedure it runs, every move type it offers — its `when:` guard and
+its effect alike — and every function it calls. Resolve refuses, anywhere in that closure, every other statement —
 a card movement changes the hands and pile the live trick reads, a nested
 trick or climbing round starts a second trick inside the first, a loop
 over no seat ring (`repeat until`, `each … simultaneously`) has no bound
 the poll's lap does not already give, non-local control unwinds out of
-the trick mid-play — and an auction's `outcome` clause, whose typed
-outcome unwinds out of the trick the same way. It refuses the `state` pronoun
+the trick mid-play. It refuses the `state` pronoun
 wherever it stands — not only as a `state.` read, since a `let` or an
 argument carries the live frame on to a later one — and a call of a
 Primitive the game's own namespace holds, since a round's state is
@@ -4124,11 +4123,15 @@ outcome. Plus chance nodes for shuffles/deals. Everything below lowers to this.
 - `offer` — a single decision: an acting player chooses one of a set of
   `move_type`s (each a guard plus an effect), and the chosen move's effect runs
   with `actor` bound to that player.
-- `round` — a sequence of decisions over participants, varying only along a
-  *closed* set of axes: participants (actor / others / ring / list), order, an
-  accumulator threaded across steps, a termination predicate, and a typed
-  outcome. Auctions, betting,
-  climbing, response windows, and the trick are all `round` configurations.
+- `turns` — a ring of seats, each taking one turn: a participants predicate
+  re-evaluated per turn, a termination predicate checked at every boundary,
+  and a body. A ring whose turn is one `offer` is every auction, betting
+  street and response window ("Auctions, polls and betting rings are `turns`
+  plus `offer`").
+- `round` — a sequence of card plays over participants, varying only along a
+  *closed* set of axes: participants, order, an accumulator threaded across
+  steps, and a termination predicate. The trick and the climb are its two
+  forms.
 
 **Richer vocabulary is a standard library written in the DSL, not engine
 presets.** `challenge`, `block`, `auction`, `climb`, and `trick` are *definitions*
@@ -4158,18 +4161,15 @@ The kernel's atom (`offer`, parameterized `move_type` definitions, the `actor`
 pronoun) and the `round` construct are built. Every trick game (Hearts, Spades,
 Getaway, Bridge, Oh Hell) plays on the trick form of the kernel `round`, the
 built-in `Trick` mechanic has been retired, and `round` carries the termination
-axis (an `early` predicate — Getaway's tochoo) plus round-state exposure. The
-**auction form** is built too (see "The auction form of `round`"): a continuous
-ring over a heterogeneous move vocabulary, with the accumulator as phase state, a
-termination predicate, and a typed outcome over the bid history — Bridge's,
-Pinochle's, and Tarot's auctions run on it (Tarot as a counterclockwise
-single-pass ring, the ring honouring the game's `direction`), the poker family's
-betting runs on the plain ring, and Skat's Reizen call-and-response runs as a
-role-guarded two-participant ring (see the call-and-response bullet under "The
-auction form of `round`"). The
-participant-filter axis is built — the ring is re-evaluated each turn, so it
-shrinks as players drop out (Pinochle's passed bidders and standing high bidder,
-Tarot's seats dropping after one bid). The remaining work (the challenge /
+axis (an `early` predicate — Getaway's tochoo) plus round-state exposure. Every
+auction, poll and betting ring is `turns` with an `offer` body (see "Auctions,
+polls and betting rings are `turns` plus `offer`"): Bridge's, Pinochle's and
+Tarot's auctions (Tarot counterclockwise, the ring honouring the game's
+`direction`), the poker family's streets through the family library's
+`betting_street`, and Skat's Reizen call-and-response as a role-guarded
+two-participant ring. The participants predicate is re-evaluated each turn, so
+a ring shrinks as players drop out (Pinochle's passed bidders and standing high
+bidder, Tarot's seats dropping after one bid). The remaining work (the challenge /
 block vocabulary; promoting the shared `auction` definition
 at its third instance) is the in-flight build (see issue #140 and
 [kernel-migration.md](kernel-migration.md)).

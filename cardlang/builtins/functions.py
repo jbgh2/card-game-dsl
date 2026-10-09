@@ -15,11 +15,7 @@ Nothing here is the **[[stdlib]]**, which is the layer written in the language
 
 from __future__ import annotations
 
-# Value callbacks referenced by bare name (a `round`'s `winner` or `outcome`
-# callback). The two round forms yield different things and are validated
-# against separate namespaces (a trick winner function named on an auction round, or
-# vice versa, is rejected at resolve time, not left to crash the dispatcher at
-# runtime):
+# Value callbacks referenced by bare name (a `round`'s `winner` callback):
 #
 # - a *trick* winner function, under one of TWO contracts keyed by
 #   `TRICK_ORDER_GATED_WINNERS` below and dispatched by the one
@@ -35,9 +31,6 @@ from __future__ import annotations
 #   Two contracts rather than a fifth argument on one: handing a live Ctx to
 #   every game-local winner would widen what a Primitive may read, against the
 #   narrowing contract (issue #200).
-# - an *auction* outcome function: (history, ctx) -> (tag, payloads), producing the
-#   phase's typed outcome.
-#
 # A name has ONE home, and the home is its CLASSIFICATION — generic
 # (Builtin) or game-local (Primitive) — never its syntactic position: the
 # registry's own first line draws the Builtin/Primitive split by genericity,
@@ -84,20 +77,13 @@ TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WIN
 # than co-reporting on it.
 TRUMP_READING_WINNERS: frozenset[str] = frozenset({"highest_trump_or_led_suit"})
 
-PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
-    {
-        "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass
-        "pinochle_auction_outcome",  # Pinochle ascending auction -> bid_won
-        "tarot_auction_outcome",  # French Tarot four-level bid -> taken | thrown_in
-    }
-)
 # The union is the bare-name function namespace (for NameRef classification)
 # and the surface the signature tables must cover — every slot callback of
 # EITHER home, which is why it carries neither home's prefix (it was
 # `PRIMITIVE_VALUE_NAMES` while every member was a Primitive; a Builtin
 # member under that prefix would mislabel by name — the CALL_FUNCS pattern,
 # the neutral union of the two homes' call sets, is the precedent).
-VALUE_NAMES: frozenset[str] = TRICK_WINNER_NAMES | PRIMITIVE_AUCTION_OUTCOMES
+VALUE_NAMES: frozenset[str] = TRICK_WINNER_NAMES
 
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
 # the callbacks above — a different signature, (card, led_suit) -> Boolean —

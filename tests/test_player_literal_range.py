@@ -345,8 +345,8 @@ def _variant_game(seat: int) -> str:
 
 
 def _round_game(*, leader: str = "0", participants: str = "all players") -> str:
-    """The kernel `round` (auction form): its `from <leader>` and
-    `over <participants>` seats, unchecked before the choke point."""
+    """A `turns` ring of offers: its `from <leader>` and `over <participants>`
+    seats, unchecked before the choke point."""
     return (
         "game Mini {\n"
         "  players: 2\n"
@@ -355,8 +355,8 @@ def _round_game(*, leader: str = "0", participants: str = "all players") -> str:
         "  zones { deck : Deck  hand[player] : Hand<player> }\n"
         "  state { high : Integer = 0  passes : Integer = 0  score[player] : Integer = 0 }\n"
         "  phase bid {\n"
-        f"    round offering [raise, pass] from {leader} over {participants}\n"
-        "          until (passes >= 2) outcome bridge_auction_outcome\n"
+        f"    turns t from {leader} over {participants}\n"
+        "          until (passes >= 2) { offer to t one of [raise, pass] }\n"
         "  }\n"
         "  winner: highest score\n"
         "}\n"

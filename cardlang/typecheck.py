@@ -172,8 +172,8 @@ def item_field_table(game: Game) -> dict[str, Type]:
 # `Move` payload (cardlang/runtime/state.py) carries exactly `card: Card` and
 # `actor: Player`, always both present, for every move type. This is the
 # sound subset of `action`'s shape — full move-type-aware typing (the
-# per-move-type params reachable only as `action.<param name>`, e.g. an
-# auction bid's `action.amount`) is out of scope; a field not in this
+# per-move-type params reachable only as `action.<param name>`, e.g. a
+# bid's `action.amount`) is out of scope; a field not in this
 # registry stays `TAny` (the boundary tests/test_zone_family_typing.py's
 # ledger states).
 ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
@@ -209,7 +209,7 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #     president_follows (president.py reads facts.rank_index). NON-members:
 #     the bigtwo_* and tichu_* engines, which carry their own orders.
 #   NON-members elsewhere: peg_pair_points (rank equality only),
-#     on_play_off_led_suit (suit only), and every auction outcome. The Rank
+#     on_play_off_led_suit (suit only). The Rank
 #     move-parameter domain is resolve's gate; `card_points` is gated by its
 #     own clause-required guard, and a Trick Order's OMITTED `card_strength:`
 #     row by `_check_trick_order`'s own ranking gate (the default is
@@ -1061,7 +1061,7 @@ def _stmt_tree_scoped(
             pass
         case (
             n.Transfer() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
-            | n.AssignStmt() | n.Offer() | n.TrickRound() | n.AuctionRound()
+            | n.AssignStmt() | n.Offer() | n.TrickRound()
             | n.ClimbRound() | n.Produce()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt()
         ):
@@ -2245,13 +2245,13 @@ def _check_operand(
 
 
 def _check_round_actors(
-    stmt: n.TrickRound | n.AuctionRound | n.ClimbRound,
+    stmt: n.TrickRound | n.ClimbRound,
     env: TypeEnv,
     bag: DiagnosticBag,
 ) -> None:
     """The `from <leader> over <participants>` pair every round form carries.
 
-    Shared across the three forms because it is the same contract in each, the
+    Shared across both forms because it is the same contract in each, the
     one `turns` carries too: before the operand choke point neither half was
     type- or range-checked (only `until` was), so `round … from 5` on a
     two-seat game passed.
@@ -2271,7 +2271,7 @@ def _check_round_actors(
 
 
 def _check_round_ranking(
-    stmt: n.TrickRound | n.AuctionRound | n.ClimbRound,
+    stmt: n.TrickRound | n.ClimbRound,
     env: TypeEnv,
     bag: DiagnosticBag,
 ) -> None:
@@ -2280,10 +2280,7 @@ def _check_round_ranking(
     winner or climb query that indexes `rank_index` is named bare in its
     slot, never called, so the Call-site gate cannot see it; without this, a
     no-`ranking:` game naming one checks clean and crashes bare at the first
-    trick's resolution. The auction form names no ranking-reading callback
-    (its outcomes read the bid history), so it contributes no members —
-    included in the signature because the dispatch calls this for every
-    round form and a future member would join a set, not a new branch."""
+    trick's resolution."""
     demanded: list[str] = []
     if isinstance(stmt, n.TrickRound) and stmt.winner_fn in RANKING_GATED_WINNERS:
         demanded.append(f"round winner {stmt.winner_fn}")
@@ -2854,7 +2851,7 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
             if s.trump is not None:  # the form's one optional expression clause
                 exprs.append(s.trump)
             return exprs
-        case n.AuctionRound() | n.ClimbRound():
+        case n.ClimbRound():
             return [s.leader, s.participants, s.until]
         case n.IfStmt():
             return [s.cond]
@@ -3062,10 +3059,10 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             _check_round_actors(stmt, env, bag)
             _check_round_ranking(stmt, env, bag)
             _check_round_trump(stmt, env, bag)
-        case n.AuctionRound() | n.ClimbRound():
-            # `until` is mandatory on exactly the two forms that loop, so it is
-            # checked without asking whether it is there — which is the split's
-            # point: the form that has no termination predicate cannot reach here.
+        case n.ClimbRound():
+            # `until` is mandatory on the one form that loops, so it is checked
+            # without asking whether it is there — which is the split's point:
+            # the form that has no termination predicate cannot reach here.
             _check_round_actors(stmt, env, bag)
             _check_round_ranking(stmt, env, bag)
             _check_bool(stmt.until, env, bag, "round `until` condition")
@@ -3471,7 +3468,7 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
                 yield from _control_flow_nodes(s)
         case (
             n.Transfer() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
-            | n.AssignStmt() | n.Offer() | n.TrickRound() | n.AuctionRound()
+            | n.AssignStmt() | n.Offer() | n.TrickRound()
             | n.ClimbRound() | n.Produce() | n.RunStmt()
         ):
             pass  # no jumps, no child statements to hold any

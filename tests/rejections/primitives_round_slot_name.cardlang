@@ -9,7 +9,7 @@ game PrimitivesRoundSlotName {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   primitives {
-    bridge_auction_outcome() : Integer
+    on_play_off_led_suit() : Integer
   }
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0 }

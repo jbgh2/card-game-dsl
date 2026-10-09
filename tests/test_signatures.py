@@ -79,7 +79,6 @@ from cardlang.builtins.functions import (
     DECK_ONLY_CALL_FUNCS,
     ANY_FLAVOR_CALL_FUNCS,
     BUILTIN_TRICK_WINNERS,
-    PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_EARLY_PREDICATES,
     PRIMITIVE_TRICK_WINNERS,
     TRICK_WINNER_NAMES,
@@ -118,8 +117,7 @@ def test_tables_reconcile_with_name_sets() -> None:
     # validates each round form against its own; the union is the bare-name
     # space), and the winner namespace is itself the disjoint union of its
     # two homes (the Builtin standard comparisons and the game-local ones).
-    assert TRICK_WINNER_NAMES | PRIMITIVE_AUCTION_OUTCOMES == VALUE_NAMES
-    assert TRICK_WINNER_NAMES.isdisjoint(PRIMITIVE_AUCTION_OUTCOMES)
+    assert TRICK_WINNER_NAMES == VALUE_NAMES
     assert BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS == TRICK_WINNER_NAMES
     # The disjointness reads an EMPTY right operand since issue #250 PR 5
     # retired the last game-local winner, so it can no longer fail on the
@@ -137,12 +135,10 @@ def test_outcome_names_are_dispatchable() -> None:
     # Each declared outcome name must resolve to a runtime callback — guards the
     # resolve namespace from drifting out of sync with the runtime dispatchers
     # (else a name passes resolve and then Assertion-fails mid-playout).
-    from cardlang.runtime.primitives import auction_outcome_function, value_function
+    from cardlang.runtime.primitives import value_function
 
     for name in TRICK_WINNER_NAMES:
         assert callable(value_function(name))
-    for name in PRIMITIVE_AUCTION_OUTCOMES:
-        assert callable(auction_outcome_function(name))
 
 
 def test_climb_queries_are_dispatchable() -> None:

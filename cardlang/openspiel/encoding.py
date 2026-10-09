@@ -220,7 +220,7 @@ def _decides_a_content_item(game: n.Game, mt_index: dict[str, n.MoveTypeDef]) ->
             # block numbers; every other chosen movement draws bare cards.
             if node.selection_mode == "chosen" and not node.joint:
                 return True
-        if isinstance(node, (n.Offer, n.AuctionRound)):
+        if isinstance(node, n.Offer):
             for mt_name in node.offering:
                 mt = mt_index.get(mt_name)
                 if mt is None or any(p.type_name == "Card" for p in mt.params):
@@ -365,7 +365,7 @@ class ActionSpace:
                 assert ceiling is not None
                 int_ceiling = ceiling if int_ceiling is None else max(int_ceiling, ceiling)
             elif isinstance(node, n.Offer):
-                # Routed by arity, same rule the round offering below uses:
+                # Routed by arity:
                 # a nullary offer keeps the bare-name representation in
                 # `names`; a parameterized, non-Card move type contributes its
                 # cross-product to `offering` instead of a stray, never-used bare
@@ -397,17 +397,6 @@ class ActionSpace:
                 fn = root.func if isinstance(root, n.Call) else None
                 if fn not in joint_engines:
                     joint_engines.append(fn)
-            elif isinstance(node, n.AuctionRound):
-                for mt_name in node.offering:
-                    mt = mt_index[mt_name]
-                    if any(p.type_name == "Card" for p in mt.params):
-                        # A Card-parameterized move's concrete actions ARE the
-                        # card block (see the module docstring) — minting
-                        # per-card offering ids would give a card play two
-                        # representations and inflate num_distinct_actions.
-                        continue
-                    entries = _offering_entries(mt, sources)
-                    offering.extend(e for e in entries if e not in offering)
         combo_codec: ComboCodec | None = None
         engine_names: frozenset[str] = frozenset()
         if climb_engines:
@@ -530,7 +519,7 @@ class ActionSpace:
                 # round-offering move uses), but this game's action space
                 # names it as a bare string. Same action either way — but only
                 # where the bare name IS a move type's: a climb engine's own
-                # action may share the spelling of a move type a round offering
+                # action may share the spelling of a move type an offer
                 # presents, or of a nullable parameter's `none`, and those
                 # candidates keep their own offering ids.
                 return self._name_base + self._name_ids[name]
@@ -588,7 +577,7 @@ class ActionSpace:
         elif isinstance(value, Card):
             # A card id denotes a bare card in a movement/trick pool, or a
             # Card-parameterized offering move — a `(name, card)` candidate —
-            # in an auction pool (never both in one pool; resolve rejects a
+            # in an offer's pool (never both in one pool; resolve rejects a
             # second Card-parameterized move per offering).
             found = next(
                 (
