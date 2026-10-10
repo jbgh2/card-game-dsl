@@ -19,7 +19,10 @@ domain:          two axes. The games: every registered game resamples at each
                  pick of `SWEEP_AT` along one seeded uniform line, for the seat
                  to move and for the seat after it, unless `REFUSALS` pins its
                  refusal with the issue that removes it; an unpinned refusal
-                 and a pinned game that resamples both fail. The picks: every action block in `BLOCKS`, crossed
+                 and a pinned game that resamples both fail, and so does a
+                 game whose text — a repeated card, a random selection —
+                 commits it to a refusal its entry does not name, wherever in
+                 the game that construct sits. The picks: every action block in `BLOCKS`, crossed
                  with whether the asking seat saw another seat's pick. Each cell
                  a swept line meets has a named witness game. Every non-card
                  decision announces its value, so the unseen non-card cells
@@ -63,6 +66,8 @@ from cardlang.openspiel.encoding import BLOCKS
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.registry import _GAMES_DIR
 from cardlang.openspiel.replay import DecisionNode, chance_free, load, run
+from cardlang.runtime.chance import chance_sites
+from cardlang.runtime.values import build_deck
 
 from .harness import REGISTERED_GAMES
 
@@ -167,6 +172,20 @@ REFUSALS: dict[str, tuple[str, int]] = {
 }
 
 
+def _refusal_in_the_text(path: str) -> str | None:
+    """The refusal a game's own text commits it to, read off its deck and its
+    chance sites rather than a run: a repeated card refuses at any position,
+    and a random selection wherever a line reaches it — which a swept line
+    need not, so the text is the only reading that sees every such site."""
+    game, _ = load(path)
+    deck = build_deck(game.deck)
+    if len({str(c) for c in deck}) != len(deck):
+        return "repeated cards"
+    if any(" random " in site for site in chance_sites(game)):
+        return "random selection"
+    return None
+
+
 def test_every_refusal_names_a_registered_game() -> None:
     """An entry naming no game could never leave the table, and would read as
     a refusal still standing."""
@@ -196,7 +215,16 @@ def test_every_game_resamples_or_is_a_pinned_refusal(short_name: str, filename: 
     """red under: drop `cardlang_canasta` from `REFUSALS` — its sweep raises
     `ResampleRefusal` and this fails naming the game and the table; or add
     `cardlang_hearts` to it — the refusal is never raised and this fails
-    naming the entry to drop (executed 2026-10-10)."""
+    naming the entry to drop; or plant a `move random` past pick 16 in a game
+    absent from it — the sweep never reaches it, and the reading of the text
+    fails here (executed 2026-10-10)."""
+    committed = _refusal_in_the_text(_path(filename))
+    if committed is not None:
+        assert REFUSALS.get(short_name, ("", 0))[0] == committed, (
+            f"{short_name}'s text commits it to a refusal ({committed}) that no "
+            f"swept line need reach: pin it in REFUSALS with the issue that "
+            f"removes it."
+        )
     if short_name in REFUSALS:
         refusal, issue = REFUSALS[short_name]
         node = run(_path(filename), 0, ())
@@ -259,6 +287,7 @@ def test_each_pick_cell_has_a_witness(block: str, seen: bool) -> None:
 
 def test_a_random_selection_is_refused() -> None:
     path = str(_FIXTURES / "random_selection.cardlang")
+    assert _refusal_in_the_text(path) == "random selection"
     node = run(path, 3, ())
     assert isinstance(node, DecisionNode)
     with pytest.raises(R.ResampleRefusal, match="random selection"):
