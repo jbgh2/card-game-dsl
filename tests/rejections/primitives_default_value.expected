@@ -1,0 +1,1 @@
+primitives_default_value.cardlang:8:16: error: a `primitives` entry declares a signature, never a value — `f(...) : Integer = ...` gives it a default the implementation would never see; drop the `=`

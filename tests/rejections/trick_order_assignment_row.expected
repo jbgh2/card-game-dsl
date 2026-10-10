@@ -1,0 +1,1 @@
+trick_order_assignment_row.cardlang:9:45: error: a `trick_order` row is `follow_class: <expr>`, not `follow_class = <expr>` — write `follow_class: ...`

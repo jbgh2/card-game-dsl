@@ -26,7 +26,7 @@ the property over the WHOLE terminal table instead, so a keyword added to a new
 production cannot land unanchored.
 
 Anchoring and NAME-exclusion are separate halves. NAME-exclusion (the
-`always|all|one|some|jointly|not|is|number` list) exists where a bare-NAME
+`all|one|some|jointly|not|is|number` list) exists where a bare-NAME
 reading would be a genuine SECOND parse, and stays exactly as it was; this
 module is the anchoring half only.
 
@@ -37,9 +37,11 @@ property:   no terminal of the shipped grammar can match a string ending in a
             also a word character. Equivalently: every lexeme boundary the
             grammar can produce inside a run of word characters is refused, so
             a fused spelling is a syntax error rather than a silent re-reading.
-domain:     `_parser().terminals` — Lark's own compiled terminal table for
-            `cardlang/grammar/cardlang.lark`, crossed with the sample words
-            each terminal matches. That table holds BOTH halves of the class:
+domain:     `_diagnostic_diagnostic_parser().terminals` — Lark's own compiled terminal
+            table for `cardlang/grammar/cardlang.lark` composed with
+            `diagnostics.lark`, a superset of the main parser's, crossed with
+            the sample words each terminal matches. That table holds BOTH
+            halves of the class:
             the anonymous terminals Lark mints for inline string literals in
             productions (`"where"` -> `WHERE`), and the named terminals whose
             pattern is word-shaped (`MOVE_VERB`, `RANK_DIR`, `INT`).
@@ -94,7 +96,7 @@ from lark.exceptions import UnexpectedInput, UnexpectedToken
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import _parser, parse_text
+from cardlang.parse import _diagnostic_parser, parse_text
 
 WORD_CHAR = re.compile(r"[A-Za-z0-9_]")
 # Candidate word runs inside a terminal's own regex source. Hyphens are
@@ -125,7 +127,7 @@ def _samples(pattern: str, value: str | None) -> list[str]:
 
 def _grid() -> Iterator[tuple[str, str, str]]:
     """(terminal name, regex, sample word) for every word-final cell."""
-    for term in _parser().terminals:
+    for term in _diagnostic_parser().terminals:
         pattern = term.pattern.to_regexp()
         # A string pattern samples itself; a regex pattern samples the words
         # its own source admits.
@@ -205,7 +207,7 @@ def test_hyphen_prefix_literals_also_exclude_the_hyphen() -> None:
     red under: drop the `-` from `_AS_KW`'s lookahead in cardlang.lark."""
     words = {word for _, _, word in GRID} | {
         word
-        for term in _parser().terminals
+        for term in _diagnostic_parser().terminals
         for word in _samples(
             term.pattern.to_regexp(),
             term.pattern.value if term.pattern.type == "str" else None,
@@ -228,7 +230,7 @@ def test_hyphen_prefix_literals_also_exclude_the_hyphen() -> None:
     # rather than None, so an earlier `value is None` test here visited no
     # terminal at all and the assertion below never ran.
     probed = 0
-    for term in _parser().terminals:
+    for term in _diagnostic_parser().terminals:
         pattern = re.compile(term.pattern.to_regexp())
         identifier_shaped = pattern.fullmatch("foo") is not None
         if identifier_shaped:

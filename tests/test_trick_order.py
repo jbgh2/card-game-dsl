@@ -112,14 +112,14 @@ does not prove:  five things, and the first two are about the VOICE of a
             family-library function is not spelled at all, since there is no
             library fixture; the guard runs over the resolved game after the
             splice, and the direct cells stand for it.
-            (5) That `TRICK_ORDER_EQ: ":=" | "="` is safe under a different
-            parser. Its alternatives overlap `ASSIGN_OP`'s `:=` and every
-            anonymous `"="` in the grammar (`state_decl`, `let_stmt`,
-            `function_def`, `vis_clause`, `primitive_default_decl`). Under Earley with the dynamic lexer this resolves
-            by position, and the `eq-row-*` cells plus the ambiguity budget
-            exercise it clean THERE; a named terminal overlapping anonymous
-            literals is precisely what breaks under the LALR tightening the
-            grammar header announces.
+            (5) That `TRICK_ORDER_EQ: ":=" | "="` (diagnostics.lark) is safe
+            under a different parser. Its alternatives overlap `ASSIGN_OP`'s
+            `:=` and every anonymous `"="` in the grammar (`state_decl`,
+            `let_stmt`, `function_def`, `vis_clause`). Under Earley with the
+            dynamic lexer the composed parse resolves this by position, and
+            the `eq-row-*` cells exercise it clean THERE; a named terminal
+            overlapping anonymous literals is precisely what breaks under
+            the LALR tightening the grammar header announces.
 
 Every cut-level point this grid's cells rest on is ruled (issue #250, the
 operator's PR-1 ruling 5321676867), and each was ruled as the cells were

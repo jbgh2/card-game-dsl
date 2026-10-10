@@ -1,0 +1,1 @@
+operator_bang_equals.cardlang:15:8: error: `!=` is not an operator in this language — equality is the word form: write `is not`

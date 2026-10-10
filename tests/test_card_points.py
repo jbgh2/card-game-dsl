@@ -57,7 +57,8 @@ registry:  the clause axis derives from the grammar's `?game_item`
            record is the per-PR counsel comment there.
            Clause absorption over every game clause, this one included:
            tests/test_game_clause_guards.py. Keyword anchoring for
-           `_CARD_POINTS_KW` / `_CARD_VALUES_KW`: the derived grid in
+           `_CARD_POINTS_KW` and the twin's `_CARD_VALUES_KW`
+           (diagnostics.lark): the derived grid in
            tests/test_keyword_anchoring.py.
 does not prove:  the Builtin in every expression host — aggregation bodies,
            movement filters, move-type `when:` guards, let values. One Call
@@ -364,7 +365,7 @@ def test_card_values_after_a_ranking_enumeration_still_teaches() -> None:
     fires, never a silent absorption into the enumeration.
 
     red under: delete the `card_values_reject` alternative from
-    `card_points_table` in cardlang.lark — this cell and the two canonical
+    `card_points_table` in diagnostics.lark — this cell and the two canonical
     card_values probes then fail with a bare syntax error in place of the
     teaching message."""
     src = _game("card_values { A: 1 }").replace("ranking: aces low", "ranking: A K Q")

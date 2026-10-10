@@ -1,0 +1,20 @@
+// Guard: parse.py's `card_values_reject` (diagnostics.lark). The pre-rename
+// name of the `card_points` block is refused naming the one spelling.
+game CardValuesSpelling {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  card_values { A: 1 }
+  zones {
+    deck : Deck
+    table : Discard
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    score[0] := 1
+  }
+  winner: highest score
+}

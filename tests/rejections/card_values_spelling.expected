@@ -1,0 +1,1 @@
+card_values_spelling.cardlang:8:3: error: `card_values` is not a clause — the card-point table is declared `card_points { A: 1 ... }`, and the Builtin reading it is `card_points(card)`

@@ -12,6 +12,12 @@
 // (tests/test_diagnostic_grammar.py).
 
 // --- the primitives block: the colon habit, the arrow, a default ------------
+// The arrow is the spelling the design note sketched before the block had a
+// surface, so it is the first thing a reader of that note writes; a `= <expr>`
+// default is the state-row habit, where an entry declares a signature and
+// never a body. Each arm's tail admits the well-formed spelling too, so ONE
+// wrong entry among right ones reaches the designer-voice rejection rather
+// than the lexer's.
 %extend primitives_block: _PRIMITIVES_KW ":" "{" primitive_decl* "}"  -> primitives_colon_reject
                         | _PRIMITIVES_KW "{" primitive_decl* primitive_arrow_decl (primitive_decl | primitive_arrow_decl)* "}"     -> primitives_arrow_reject
                         | _PRIMITIVES_KW "{" primitive_decl* primitive_default_decl (primitive_decl | primitive_default_decl)* "}" -> primitives_default_reject
@@ -19,6 +25,8 @@ primitive_arrow_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" "->"
 primitive_default_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" ":" primitive_type [primitive_reads] "=" expr
 
 // --- an entry's collection slot: phrase, optional, arity, nested, optional element
+// Each is a sentence a designer writes on purpose, refused naming the ruled
+// form in the designer's words.
 %extend primitive_type: NAME _OF_KW NAME               -> collection_phrase_reject
                       | NAME "<" NAME ">" "?"          -> collection_optional_reject
                       | NAME "<" NAME ("," NAME)+ ">"  -> collection_arity_reject
@@ -38,6 +46,10 @@ nested_collection: NAME "<" NAME ">"
 _CARD_VALUES_KW: "card_values" /(?![A-Za-z0-9_])/
 
 // --- the trick order: the colon habit, comma rows, the assignment habit -----
+// The assignment arm takes one wrong row anywhere among colon rows. The comma
+// arm's tail is `row*`, not `row+`, so a TRAILING comma (`{ trump: X, }` --
+// the likeliest single slip, and the one a list habit produces) reaches the
+// same designer-voice rejection instead of the lexer's.
 %extend trick_order: _TRICK_ORDER_KW ":" "{" trick_order_row* "}"                             -> trick_order_colon_reject
                    | _TRICK_ORDER_KW "{" trick_order_row+ ("," trick_order_row*)+ "}"         -> trick_order_comma_reject
                    | _TRICK_ORDER_KW "{" trick_order_row* trick_order_eq_row (trick_order_row | trick_order_eq_row)* "}" -> trick_order_eq_reject
@@ -49,17 +61,40 @@ TRICK_ORDER_EQ: ":=" | "="
              | _TRUMP_KW ":" STRING  -> trump_string_reject
 
 // --- a collection type outside a primitives entry ---------------------------
+// The spelling is real and the mistake is placement, so the twin carries the
+// trailing `?` too: a designer who thinks a state row may hold an optional
+// collection has made ONE mistake, and meeting the lexer on the suffix would
+// answer the other one. The entry slot's other three malformed shapes get no
+// twin here -- at a non-entry position the sentence worth teaching is the
+// well-formed one, and a malformed collection in a slot that has none is loud
+// either way (issue #560). `require_decl` and the zone `type_ref` get no twin:
+// both already derive `<...>` through `type_args`, so a twin there would give
+// one string two derivations, and their refusals are the zone registry's.
 %extend type_name: NAME "<" NAME ">"     -> collection_type_reject
                  | NAME "<" NAME ">" "?" -> collection_type_reject
 %extend payload_type: NAME "<" NAME ">" -> collection_type_reject
                     | NAME "<" NAME ">" "?" -> collection_type_reject
 
 // --- a move's stake as a flag, or after `when:` ----------------------------
+// The flag habit (`wager: true`, or `wager:` with the value left off), and a
+// row written after `when:` -- as a flag or not, and whether or not a row
+// already stands under the name. Each derives only strings the well-formed
+// arm cannot, so no sentence has two readings under the composed grammar.
 %extend move_type_def: _MOVE_TYPE_KW NAME [move_params] "{" move_stake STAKE_FLAG_COLON [expr] [move_when] move_effect "}" -> move_stake_flag_reject
                      | _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] move_when move_stake [STAKE_FLAG_COLON [expr]] move_effect "}" -> move_stake_after_when_reject
 STAKE_FLAG_COLON: /:/
 
 // --- a bracket list where one zone belongs, and a subset source misjoined ---
+// The list closes itself, so no operator chain can compete for it at any of
+// the per-card sites, the open-ended `sum` fold included. The bare joiners
+// ride ONLY `subset_of_guarded`, where a mandatory clause follows the source
+// and the twin is the sentence's sole derivation. Behind the `sum` fold's
+// open end they are withheld, for two measured reasons: the comma twin has a
+// second derivation wherever a list or call comma can follow a fold (`1 in
+// [sum of 1 over subsets of 2 cards in a, b]`), which the parser resolves
+// silently; and `+`/`and` there are far more often a fold missing its
+// parentheses (a fold is an `expr`, never an operand) than a source missing
+// its brackets, so a twin would name the wrong fix.
 %extend card_source: "[" zone_expr ("," zone_expr)* "]" -> card_source_list_reject
 %extend subset_source: "[" zone_expr "]" -> subset_source_single_reject
 %extend subset_of_guarded: _OF_KW subset_size _CARDS_KW _IN_KW zone_expr "," zone_expr     -> subset_comma_reject
@@ -67,6 +102,8 @@ STAKE_FLAG_COLON: /:/
                          | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr _AND_KW zone_expr -> subset_and_reject
 
 // --- the retired operator spellings: `==` / `!=`, `/` / `%` ----------------
+// The comparison's refusal is the `compare` builder's, by symbol; `//` is
+// absent on purpose, being the comment introducer (cardlang.lark, `factor`).
 %extend COMP_OP: "==" | "!="
 %extend factor: factor DIV_OP postfix -> div_symbol
 DIV_OP: "/" | "%"

@@ -1,0 +1,1 @@
+move_stake_as_flag.cardlang:21:3: error: `wager` is a row, not a flag — write `wager` alone under the move's name; a move that stakes nothing is written by leaving the row out

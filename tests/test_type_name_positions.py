@@ -403,7 +403,7 @@ def test_the_collection_column_reaches_the_message_its_position_owns(
     expectation with it rather than being re-authored by hand.
 
     red under: delete the `collection_type_reject` alternative from
-    `payload_type` in cardlang.lark — the four `parameter` hosts and the
+    `payload_type` in diagnostics.lark — the four `parameter` hosts and the
     outcome payloads then answer `syntax` against a `collection-elsewhere`
     expectation.
     """
@@ -657,13 +657,7 @@ def test_the_position_axis_is_the_grammar_s() -> None:
     # diagnostic lands on the game's `uses` line, not the library's `requires`),
     # recorded in issue #128; the coverage lives in test_family_libraries.py.
     library_only = {"require_decl"}
-    # The `primitives` block's two reject arms carry a type name only so their
-    # rejection can QUOTE it (`... : Integer`, naming the colon form). The
-    # builder raises before any type-name gate runs, so there is no gate at
-    # these productions to grid — their own cells are the rejection tests in
-    # tests/test_primitives_block.py.
-    reject_arms = {"primitive_arrow_decl", "primitive_default_decl"}
-    missing = carriers - expanded - library_only - reject_arms
+    missing = carriers - expanded - library_only
     assert not missing, (
         f"grammar productions carrying a type name with no grid row: {sorted(missing)}"
     )

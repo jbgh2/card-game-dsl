@@ -1,0 +1,1 @@
+operator_percent.cardlang:15:17: error: `%` is not an operator in this language — there is no remainder form; write `a - (a divided by b rounded down) * b`

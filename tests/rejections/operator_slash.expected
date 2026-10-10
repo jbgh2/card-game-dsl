@@ -1,0 +1,1 @@
+operator_slash.cardlang:15:17: error: `/` is not an operator in this language — division names its rounding: write `a divided by b rounded down` (floor) or `a divided by b rounded up` (ceiling)

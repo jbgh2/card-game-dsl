@@ -121,58 +121,29 @@ uses_decl: _USES_KW NAME
 // by a silent pick, and the phase the designer names is also what carries the
 // call-position constraint to the reader of the block.
 //
-// One transposition earns a reject-with-replacement twin, because it is the
-// one a designer plausibly writes: the binder rides the VARIABLE, never the
-// phase.
-//
-// Two reject-with-replacement twins (the `card_points_table` mechanism): the
-// colon habit, and the ARROW — the spelling the design note sketched before
-// the block had a surface, so it is the first thing a reader of that note
-// writes. A `= <expr>` default is the third: an entry declares a signature,
-// never a body, and the state-row habit is what puts one there. Each reject
-// arm's tail admits the well-formed spelling too, so ONE wrong entry among
-// right ones reaches the designer-voice rejection rather than the lexer's.
+// The transposition a designer plausibly writes — the binder riding the
+// phase rather than the VARIABLE — and the block's three habits (a colon, the
+// arrow, a `= <expr>` default) are refused with the fix by the teaching twins
+// of diagnostics.lark.
 primitives_block: _PRIMITIVES_KW "{" primitive_decl* "}"
-                | _PRIMITIVES_KW ":" "{" primitive_decl* "}"  -> primitives_colon_reject
-                | _PRIMITIVES_KW "{" primitive_decl* primitive_arrow_decl (primitive_decl | primitive_arrow_decl)* "}"     -> primitives_arrow_reject
-                | _PRIMITIVES_KW "{" primitive_decl* primitive_default_decl (primitive_decl | primitive_default_decl)* "}" -> primitives_default_reject
 //
 // The entry's two type slots take their OWN production family, written out
-// rather than derived from `payload_type`: the teaching twin below lands ON
-// the shared productions, so a shared derivation would give the entry's own
-// spelling two derivations of one string. All three entry forms take it, so a
-// mis-spelled entry with a collection parameter reaches its own reject arm's
-// message instead of dying at the `<`.
+// rather than derived from `payload_type`: the teaching twins land ON the
+// shared productions, so a shared derivation would give the entry's own
+// spelling two derivations of one string under the composed grammar.
 //
 // The element slot holds ONE bare NAME (decisions.md "Typed object model": a
-// value-constructor head takes an element type), and the four shapes that
-// would put something else there are sentences a designer writes on purpose —
-// an optional collection, a second argument, a nested bracket, an optional
-// element. Each is its own reject-with-replacement arm rather than a place the
-// lexer stops, because the ruling is that a refusal names the ruled form in
-// the designer's words. The arms are COMPLETE productions for the string they
-// name, never prefixes: a prefix arm would give one sentence two derivations
-// in the entry's own slot, which is the ambiguity this family exists to avoid.
-// WHICH element is the resolver's, from the block's own allow-list.
+// value-constructor head takes an element type); WHICH element is the
+// resolver's, from the block's own allow-list. The four shapes that would put
+// something else there — an optional collection, a second argument, a nested
+// bracket, an optional element — are refused with the fix (diagnostics.lark).
 primitive_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" ":" primitive_type [primitive_reads]
-primitive_arrow_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" "->" primitive_type [primitive_reads]
-primitive_default_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" ":" primitive_type [primitive_reads] "=" expr
 primitive_param: NAME ":" primitive_type
 primitive_type: NAME "?"                       -> primitive_optional_type
               | NAME                           -> primitive_plain_type
               | NAME "<" NAME ">"              -> primitive_collection_type
-              | NAME _OF_KW NAME               -> collection_phrase_reject
-              | NAME "<" NAME ">" "?"          -> collection_optional_reject
-              | NAME "<" NAME ("," NAME)+ ">"  -> collection_arity_reject
-              | NAME "<" nested_collection ">" -> collection_nested_reject
-              | NAME "<" NAME "?" ">"          -> collection_optional_element_reject
-// Any depth of nesting, so the arm names the shape rather than the one level
-// someone thought to write.
-nested_collection: NAME "<" NAME ">"
-                 | NAME "<" nested_collection ">"
 primitive_reads: _READS_KW primitive_read ("," primitive_read)*
 primitive_read: NAME [index] [_IN_KW NAME]
-              | NAME _IN_KW NAME index -> primitive_read_transposed_reject
 
 players: _PLAYERS_KW ":" players_spec
 players_spec: INT            -> players_fixed
@@ -218,14 +189,10 @@ RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
 // `q_any_player`-vs-`q_any_domain` class. The value is deliberately NOT
 // `expr`: a static table is the contract (the `up to N` literal discipline),
 // and an expression slot would also make adjacent rows ambiguous
-// (`A: 1 10: 10` — the `1 10` would need a reading). The two aliased
-// alternatives are reject-with-replacement spellings (the `==`/`!=`
-// mechanism): the colon habit and the pre-rename `card_values` name each get
-// a builder rejection naming the one block spelling instead of a bare syntax
-// error.
+// (`A: 1 10: 10` — the `1 10` would need a reading). The colon habit and
+// the pre-rename `card_values` name are refused naming the one block spelling
+// (diagnostics.lark).
 card_points_table: _CARD_POINTS_KW "{" card_points_entry+ [card_points_else] "}"
-                 | _CARD_POINTS_KW ":" "{" card_points_entry* [card_points_else] "}"   -> card_points_colon_reject
-                 | _CARD_VALUES_KW [":"] "{" card_points_entry* [card_points_else] "}" -> card_values_reject
 card_points_entry: card_points_key ":" card_points_value
 card_points_else: _ELSE_KW ":" card_points_value
 card_points_key: CARD_POINTS_KEY | INT
@@ -247,31 +214,19 @@ card_points_value: INT       -> cp_value
 // wrong key gets a rejection naming the rows rather than a bare syntax error.
 // Each row at most once, in any order; the reference order BETWEEN rows is the
 // language's (trump, follow_class, card_strength), never the textual one. Rows
-// are whitespace-separated like every block clause. Three
-// reject-with-replacement twins (the `card_points_table` mechanism): the colon
-// habit, comma-separated rows, and the assignment habit `trump = ...` /
-// `trump := ...` anywhere in the block, including one wrong row among colon
-// rows. The comma arm's tail is `row*`, not `row+`, so a TRAILING comma
-// (`{ trump: X, }` -- the likeliest single slip, and the one a list habit
-// produces) reaches the same designer-voice rejection instead of the lexer's.
+// are whitespace-separated like every block clause; the colon habit, comma
+// rows and the assignment habit `trump = ...` / `trump := ...` are refused
+// with the fix (diagnostics.lark).
 trick_order: _TRICK_ORDER_KW "{" trick_order_row+ "}"
-           | _TRICK_ORDER_KW ":" "{" trick_order_row* "}"                             -> trick_order_colon_reject
-           | _TRICK_ORDER_KW "{" trick_order_row+ ("," trick_order_row*)+ "}"         -> trick_order_comma_reject
-           | _TRICK_ORDER_KW "{" trick_order_row* trick_order_eq_row (trick_order_row | trick_order_eq_row)* "}" -> trick_order_eq_reject
 trick_order_row: TRICK_ORDER_KEY ":" expr
-trick_order_eq_row: TRICK_ORDER_KEY TRICK_ORDER_EQ expr
-TRICK_ORDER_EQ: ":=" | "="
 
 // The game-level trump clause: the suit that beats all others in a trick,
 // named bare (`trump: spades`) — a suit of the declared deck (resolve,
 // `_resolve_trump`), read by a trick round whose winner reads a trump and
 // writes no `trump` clause of its own. Refused beside a `trick_order` block
 // (the block's `trump:` row is then the trump). A number or a quoted string
-// where the bare name belongs gets a builder rejection naming the spelling,
-// not the lexer's voice.
+// where the bare name belongs is refused naming the spelling (diagnostics.lark).
 trump: _TRUMP_KW ":" NAME
-     | _TRUMP_KW ":" INT     -> trump_int_reject
-     | _TRUMP_KW ":" STRING  -> trump_string_reject
 
 // Fixed teams, each a bracketed list of seat indices (0-based, clockwise).
 // `teams: [[0, 2], [1, 3]]` — partners sit across in a four-hand game. The
@@ -304,23 +259,11 @@ type_arg: NAME
 state_block: _STATE_KW "{" state_decl* "}"
 state_decl: NAME [index] ":" type_name "=" expr
 // The two type productions every declaration outside a `primitives { }` entry
-// spells its types with. Each carries the entry-only collection form as a
-// reject-with-replacement twin: the spelling is real and the designer's
-// mistake is placement, so a bare syntax error would report a placement
-// question as a shape one. The twin carries the trailing `?` too — a designer
-// who thinks a state row may hold an optional collection has made ONE mistake,
-// the placement, and meeting the lexer on the suffix would answer the other
-// one. The entry-slot family's other three malformed shapes get no twin here:
-// at a non-entry position the sentence worth teaching is the well-formed one,
-// and a malformed collection in a slot that has none is loud either way
-// (issue #560, which carries that class).
-// `require_decl` and the zone `type_ref` get no twin — both already derive
-// `<…>` through `type_args`, so a twin there would give one string two
-// derivations, and their refusals are the zone registry's.
+// spells its types with (`payload_type` below is the other). The entry-only
+// collection form written at either is a placement mistake, refused naming
+// the entry (diagnostics.lark).
 type_name: NAME "?"              -> optional_type
          | NAME                  -> plain_type
-         | NAME "<" NAME ">"     -> collection_type_reject
-         | NAME "<" NAME ">" "?" -> collection_type_reject
 
 winner: _WINNER_KW ":" rank_dir NAME
 rank_dir: RANK_DIR
@@ -558,20 +501,13 @@ lvalue: NAME [index_expr]
 // The optional first row is the move's [[stake]] (decisions.md "A move type's
 // stake"): one bare word saying the move is a wager or a concession, standing
 // with the name because it says what the move IS, not when it is legal. No row
-// is the plain move. Two reject-with-replacement twins (the `card_points_table`
-// mechanism): the flag habit (`wager: true`, or `wager:` with the value left
-// off), and a row written after `when:` — as a flag or not, and whether or not
-// a row already stands under the name. Each derives only strings the
-// well-formed arm cannot, so no sentence has two readings; two rows under the
-// name are the parser's own refusal at the second word. The flag's colon is a
-// terminal of its own, spelled only in the two refusals, so no hint offers it.
+// is the plain move; two rows under the name are the parser's own refusal at
+// the second word, and the flag habit (`wager: true`) or a row written after
+// `when:` is refused with the fix (diagnostics.lark).
 move_type_def: _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] [move_when] move_effect "}"
-             | _MOVE_TYPE_KW NAME [move_params] "{" move_stake STAKE_FLAG_COLON [expr] [move_when] move_effect "}" -> move_stake_flag_reject
-             | _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] move_when move_stake [STAKE_FLAG_COLON [expr]] move_effect "}" -> move_stake_after_when_reject
 move_params: "(" parameter ("," parameter)* ")"
 move_stake: _WAGER_KW       -> stake_wager
           | _CONCESSION_KW  -> stake_concession
-STAKE_FLAG_COLON: /:/
 // An optional, comma-separated parameter list; each parameter is drawn from an
 // enumerable domain (Suit/Suit?, Rank, Player) or the state-dependent Card
 // domain. Their value-domains flatten into one per-turn candidate list.
@@ -590,19 +526,15 @@ function_def: _FUNCTION_KW NAME "(" [parameter ("," parameter)*] ")" "=" expr
 // a procedure can never create an information-set gap. Parameter domains are the
 // enumerable payload types; the resolver gates which are supported.
 procedure_def: _PROCEDURE_KW NAME "(" [parameter ("," parameter)*] ")" "{" statement* "}"
-move_when: _WHEN_KW ":" applies_pred
+move_when: _WHEN_KW ":" expr
 move_effect: _EFFECT_KW "{" statement* "}"
 
 outcome_set: "{" outcome_case ("|" outcome_case)* "}"
 outcome_case: NAME ["(" payload_type ("," payload_type)* ")"]
 // A payload type, optionally nullable (`Suit?` — Bridge's no-trump strain).
-// The collection twin rides here too, so a move type's, a procedure's, a
-// rule's, a function's and an outcome case's type slots all teach the same
-// placement rather than each meeting the lexer.
+// A collection spelled here is refused naming the entry slot (diagnostics.lark).
 payload_type: NAME      -> payload_plain
             | NAME "?"   -> payload_optional
-            | NAME "<" NAME ">" -> collection_type_reject
-            | NAME "<" NAME ">" "?" -> collection_type_reject
 
 // A rule may declare parameters (`rule NoLeadingSuitUntilBroken(suit: Suit)`),
 // making it a template: an `active_rules` reference instantiates it by
@@ -616,11 +548,7 @@ rule_params: "(" parameter ("," parameter)* ")"
             | if_impossible
             | exempts
 constrains: _CONSTRAINS_KW ":" NAME
-applies_when: _APPLIES_WHEN_KW ":" applies_pred
-// `always` is refused with the fix: a clause that holds unconditionally is
-// written by leaving the clause out.
-?applies_pred: _ALWAYS_KW  -> always_reject
-             | expr
+applies_when: _APPLIES_WHEN_KW ":" expr
 demands: _DEMANDS_KW ":" expr
 // Cards exempt from this rule: never subject to its obligation, never able to
 // satisfy it, and — when the rule constrains a move — offered as candidates
@@ -667,12 +595,10 @@ card_query: _CARDS_KW _IN_KW card_source _WHERE_KW expr                     -> c
           | _ANY_KW _CARD_KW _IN_KW card_source _WHERE_KW expr              -> cq_any
           | _ALL_KW _CARDS_KW _IN_KW card_source _WHERE_KW expr             -> cq_all
 // A per-card query or fold ranges over ONE zone; the bracket list is the
-// Subset Source's alone (`subset_source`). A list here is refused naming that
-// boundary rather than dying at a token the file taught two lines earlier.
-// The list closes itself, so no operator chain can compete for it at any of
-// the six sites, the open-ended `sum` fold included.
+// Subset Source's alone (`subset_source`), and a list here is refused naming
+// that boundary (diagnostics.lark). The level is a rule of its own so the
+// twin has a production to extend.
 ?card_source: zone_expr
-            | "[" zone_expr ("," zone_expr)* "]" -> card_source_list_reject
 
 // Queries over a zone's SUBSETS, binder implicitly `subset` — the domain noun's
 // singular, as `card` is the card queries'. The binder is a card collection, so
@@ -706,26 +632,14 @@ subset_query: _ANY_KW _SUBSET_KW subset_of_guarded _WHERE_KW expr               
 // two zones is a count or a quantifier over each.
 subset_of: _OF_KW subset_size _CARDS_KW _IN_KW subset_source
 // One zone in brackets is a second spelling of the bare zone (principles.md
-// "One spelling per concept"), refused naming the bare one.
+// "One spelling per concept"), refused naming the bare one (diagnostics.lark).
 subset_source: zone_expr
              | "[" zone_expr ("," zone_expr)+ "]"
-             | "[" zone_expr "]"                  -> subset_source_single_reject
-// Reject-with-replacement twins for the bare joiners a designer reaches for
-// first. They ride ONLY where a mandatory clause follows the source (the
-// three query forms' `where`, the ordering fold's `or`): there the sentence
-// can only have been a source, and the twin is its sole derivation. Behind
-// the `sum` fold's open end they are withheld, for two measured reasons: the
-// comma twin has a second derivation wherever a list or call comma can
-// follow a fold (`1 in [sum of 1 over subsets of 2 cards in a, b]`), which
-// the parser resolves silently; and `+`/`and` there are far more often a
-// fold missing its parentheses (a fold is an `expr`, never an operand) than
-// a source missing its brackets, so a twin would name the wrong fix. The
-// `sum` fold takes the bare `subset_of` and its misjoins stay the parser's
-// own refusal.
+// The source where a mandatory clause follows it (the three query forms'
+// `where`, the ordering fold's `or`): a level of its own so the twins for the
+// bare joiners (diagnostics.lark) extend it and never the `sum` fold's open
+// end, which takes the bare `subset_of`.
 ?subset_of_guarded: subset_of
-                  | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr "," zone_expr     -> subset_comma_reject
-                  | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr "+" zone_expr     -> subset_plus_reject
-                  | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr _AND_KW zone_expr -> subset_and_reject
 subset_size: sum _OR_KW _MORE_KW -> subset_floor
            | sum                 -> subset_exact
 
@@ -786,15 +700,15 @@ elif_clause: _ELIF_KW expr _THEN_KW expr
 // parses as `a is (not b)`, since `not` sits above the sum level). The
 // right-hand keywords `none` and `empty` stay a closed set, dispatched by
 // the builder to the absence/emptiness checks; any other operand is plain
-// equality. `==`/`!=` are retired: the builder rejects them with the
-// replacement spelling.
+// equality. `==`/`!=` are retired, refused with the replacement spelling
+// (diagnostics.lark).
 ?comparison: sum _IS_KW _NOT_KW sum -> compare_is_not
            | sum _IS_KW sum         -> compare_is
            | sum comp_op sum        -> compare
            | sum _IN_KW sum         -> membership
            | sum
 comp_op: COMP_OP
-COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
+COMP_OP: ">=" | "<=" | ">" | "<"
 
 ?sum: sum "+" term   -> add
     | sum "-" term   -> sub
@@ -810,18 +724,14 @@ COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
      | term _DIVIDED_KW _BY_KW factor _ROUNDED_KW _DOWN_KW -> divided_by_rounded_down
      | factor
 
-// `/` and `%` are retired spellings, the `==`/`!=` mechanism (comparison
-// above): the lexer owns the tokens so the builder can reject them with the
-// replacement spelling instead of a bare syntax error. `//` is deliberately
-// ABSENT: it introduces a comment (LINE_COMMENT below), so under the dynamic
-// lexer an operator claim on it either never wins the ambiguity resolution or
-// steals genuine comments — `a // b` reads as `a` with the line tail
-// commented out, stated in decisions.md and characterized in
-// tests/test_divided_by.py.
+// `/` and `%` are retired spellings, refused with the replacement spelling
+// (diagnostics.lark). `//` is deliberately absent there too: it introduces a
+// comment (LINE_COMMENT below), so under the dynamic lexer an operator claim
+// on it either never wins the ambiguity resolution or steals genuine comments
+// — `a // b` reads as `a` with the line tail commented out, stated in
+// decisions.md and characterized in tests/test_divided_by.py.
 ?factor: factor "*" postfix -> mul
-       | factor DIV_OP postfix -> div_symbol
        | postfix
-DIV_OP: "/" | "%"
 
 ?postfix: postfix "." NAME                     -> member
         | postfix index_expr                   -> subscript
@@ -854,7 +764,7 @@ card_literal: card_rank _OF_KW NAME
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
-CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The card-point table's rank-key terminal: `ranking:`'s key position (a NAME
 // or a bare INT — the INT arm is on `card_points_key`), carrying NAME's base
@@ -865,7 +775,7 @@ CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|di
 // CARD_RANK_NAME carries are deliberately absent: the table is brace-bounded,
 // so a following clause can never be absorbed into it the way `card_rank+`
 // absorbs one.
-CARD_POINTS_KEY: /(?!(?:else|always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_POINTS_KEY: /(?!(?:else|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The Trick Order row-key terminal: NAME's own base reserved-word exclusions
 // and nothing else. CARD_POINTS_KEY carries one more -- `else`, because the
@@ -877,7 +787,7 @@ CARD_POINTS_KEY: /(?!(?:else|always|all|one|some|jointly|not|is|number)\b)[a-zA-
 // terminal's question: it matches any identifier and the builder validates
 // against `TRICK_ORDER_ROWS`, so the row set is stated once, in the registry,
 // and a wrong key gets a rejection that names the rows.
-TRICK_ORDER_KEY: /(?!(?:always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+TRICK_ORDER_KEY: /(?!(?:all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 all_players: _ALL_KW _PLAYERS_KW
 call: NAME "(" [arg_list] ")"
@@ -946,7 +856,6 @@ _AFTER_EACH_KW: "after_each" /(?![A-Za-z0-9_])/
 _AGAIN_KW: "again" /(?![A-Za-z0-9_])/
 _ASKING_KW: "asking" /(?![A-Za-z0-9_])/
 _ALL_KW: "all" /(?![A-Za-z0-9_])/
-_ALWAYS_KW: "always" /(?![A-Za-z0-9_])/
 _AND_KW: "and" /(?![A-Za-z0-9_])/
 _ANY_KW: "any" /(?![A-Za-z0-9_])/
 _APPLIES_WHEN_KW: "applies_when" /(?![A-Za-z0-9_])/
@@ -966,10 +875,6 @@ _CARD_KW: "card" /(?![A-Za-z0-9_])/
 // deliberately (one name for one concept); the dynamic lexer disambiguates by
 // position, the `cards` precedent — so no NAME exclusion, anchoring only.
 _CARD_POINTS_KW: "card_points" /(?![A-Za-z0-9_])/
-// A retired spelling: exists only for the reject-with-replacement alternative
-// of `card_points_table` (never a clause), so the wrong name gets a diagnostic
-// naming the fix instead of a bare syntax error.
-_CARD_VALUES_KW: "card_values" /(?![A-Za-z0-9_])/
 _CARDS_KW: "cards" /(?![A-Za-z0-9_])/
 _CHOOSE_KW: "choose" /(?![A-Za-z0-9_])/
 _CHOSEN_KW: "chosen" /(?![A-Za-z0-9_])/
@@ -1082,8 +987,7 @@ _ZONES_KW: "zones" /(?![A-Za-z0-9_])/
 
 // Keywords that sit where a NAME is also grammatical, and never name a value,
 // are ALSO excluded from NAME — the second half, and a smaller set than the
-// keywords above. `always` (refused wherever a clause could be written to
-// hold unconditionally), the quantity words
+// keywords above: the quantity words
 // `all` / `one` / `some`, `jointly`, and `not` / `is` / `number` (the equality
 // and card-query keywords): without the exclusion, `number of cards in <zone>`
 // is also derivable as the card literal `number of cards` followed by
@@ -1104,8 +1008,8 @@ _ZONES_KW: "zones" /(?![A-Za-z0-9_])/
 // position domain can never be named `all`/`number`/… — those cannot be
 // declared) and the same identifier shape, so anywhere the grammar expects a
 // plain NAME the QNOUN token is simply not an accepted terminal.
-QNOUN: /(?!(?:always|all|one|some|jointly|not|is|number|players?|teams?|suits?|ranks?|cards?)\b)[a-zA-Z_][a-zA-Z0-9_]*/
-NAME: /(?!(?:always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+QNOUN: /(?!(?:all|one|some|jointly|not|is|number|players?|teams?|suits?|ranks?|cards?)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+NAME: /(?!(?:all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 STRING: /"[^"]*"/
 
 // The mirror of keyword anchoring, and the one member of the class a keyword's

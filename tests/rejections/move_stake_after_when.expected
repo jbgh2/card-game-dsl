@@ -1,0 +1,1 @@
+move_stake_after_when.cardlang:23:3: error: `wager` stands with the move's name, before `when:` — it says what the move is, not when it is legal

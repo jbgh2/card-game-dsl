@@ -65,6 +65,7 @@ from tools import dead_surface as ds
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GRAMMAR = (ROOT / "cardlang" / "grammar" / "cardlang.lark").read_text()
+DIAGNOSTICS = (ROOT / "cardlang" / "grammar" / "diagnostics.lark").read_text()
 
 
 def game(body: str) -> str:
@@ -115,16 +116,23 @@ def test_a_dead_row_whose_only_consumer_is_a_rejection_fixture_is_a_placeholder(
 
 
 def test_a_keyword_only_a_reject_twin_uses_is_a_reject_arm() -> None:
-    rep = ds.report(GRAMMAR, [src("a.cardlang", game("    score[0] := 1"))])
-    assert rep.keyword_classes()["CARD_VALUES"] == ("reject", "card_values_reject")
+    """Planted, composed the way diagnostics.lark composes onto the main
+    grammar: the main grammar carries no twin of its own."""
+    planted = GRAMMAR + (
+        '\n%extend card_points_table: _ZZVALUES_KW "{" "}" -> planted_values_reject'
+        '\n_ZZVALUES_KW: "zzvalues" /(?![A-Za-z0-9_])/\n'
+    )
+    rep = ds.report(planted, [src("a.cardlang", game("    score[0] := 1"))])
+    assert rep.keyword_classes()["ZZVALUES"] == ("reject", "planted_values_reject")
 
 
 def test_a_keyword_an_accepted_node_shares_with_a_twin_is_not_a_reject_arm() -> None:
-    """`primitives` opens the accepted `primitives_block` and three reject
-    twins of it: with no file writing it, it is accepted surface nobody
+    """`primitives` opens the accepted `primitives_block` and, planted, a
+    reject twin of it: with no file writing it, it is accepted surface nobody
     writes -- dead, never a reject arm. Red under: classing on ANY refused
     node naming the terminal instead of ALL of them."""
-    rep = ds.report(GRAMMAR, [src("a.cardlang", game("    score[0] := 1"))])
+    planted = GRAMMAR + '\n%extend primitives_block: _PRIMITIVES_KW ":" "{" "}" -> planted_colon_reject\n'
+    rep = ds.report(planted, [src("a.cardlang", game("    score[0] := 1"))])
     assert rep.keyword_classes()["PRIMITIVES"] == ("dead", "")
 
 
@@ -176,10 +184,15 @@ def test_a_planted_production_nothing_produces_is_reported() -> None:
     assert {"planted_dead_form", "planted_orphan"} <= set(rep.dead_rules())
 
 
-def test_a_reject_twin_is_not_surface() -> None:
-    """Red under: walking reject twins in `rule_axis`."""
-    assert "subset_comma_reject" not in ds.rule_axis(GRAMMAR)
-    assert "collection_type_reject" not in ds.rule_axis(GRAMMAR)
+def test_the_diagnostic_grammar_adds_no_surface() -> None:
+    """Composed as the parser's failure path composes it, diagnostics.lark
+    puts nothing on the axis: every node it builds is a twin, and every rule
+    only a twin reaches is off the axis with it. Red under: walking reject
+    twins in `rule_axis`, or an alias in diagnostics.lark the builder
+    accepts."""
+    composed = ds.rule_axis(GRAMMAR + "\n" + DIAGNOSTICS)
+    assert composed == ds.rule_axis(GRAMMAR)
+    assert "subset_comma_reject" not in composed and "nested_collection" not in composed
 
 
 def test_a_rule_only_a_reject_twin_reaches_is_not_surface() -> None:
@@ -236,10 +249,10 @@ def test_a_node_its_builder_only_refuses_is_not_surface() -> None:
 
 
 def test_the_default_builder_is_the_parsers() -> None:
-    """`div_symbol` refuses the retired `/` and `%` on every path without the
-    `_reject` spelling. Red under: defaulting `builder` to anything but
-    `cardlang.parse._Builder`."""
-    assert "div_symbol" not in ds.rule_axis(GRAMMAR)
+    """`div_symbol` (diagnostics.lark) refuses the retired `/` and `%` on
+    every path without the `_reject` spelling. Red under: defaulting
+    `builder` to anything but `cardlang.parse._Builder`."""
+    assert "div_symbol" not in ds.rule_axis(GRAMMAR + "\n" + DIAGNOSTICS)
 
 
 def test_every_node_an_accepted_tree_carries_is_on_the_axis() -> None:

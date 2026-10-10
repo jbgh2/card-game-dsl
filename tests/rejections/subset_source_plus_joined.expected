@@ -1,0 +1,1 @@
+subset_source_plus_joined.cardlang:16:35: error: a subset source that names several zones lists them in brackets — write `... cards in [table, hand[p]] where ...`, not `table + hand[p]`

@@ -7253,7 +7253,34 @@ def _callback_outside_slot(name: str) -> str:
     )
 
 
+#: The clauses whose whole predicate a designer writes as `always`, each with
+#: the holder its refusal names. A clause that holds unconditionally is
+#: written by leaving the clause out, so the wildcard is a second spelling of
+#: an omission and is refused with that fix. Everywhere else `always` is an
+#: ordinary name: declared, a condition like any other; undeclared as an
+#: operand, an unresolved name.
+ALWAYS_HOLDERS: dict[str, str] = {
+    "applies_when:": "a rule that applies every time",
+    "when:": "a move type that is always legal",
+}
+
+
+def _refuse_bare_always(pred: object, clause: str, cats: _Categories, bag: DiagnosticBag) -> bool:
+    """Record the refusal for an undeclared `always` standing as the whole
+    predicate of `clause`; True when it fired, so the caller leaves the
+    predicate unrewritten rather than reporting it unresolved as well."""
+    if not (isinstance(pred, n.NameRef) and pred.name == "always" and _classify(pred.name, cats) is None):
+        return False
+    bag.error(
+        f"`always` is not a condition — {ALWAYS_HOLDERS[clause]} has no `{clause}` line; leave it out",
+        pred.span,
+    )
+    return True
+
+
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
+    if isinstance(node, n.AppliesWhen) and _refuse_bare_always(node.pred, "applies_when:", cats, bag):
+        return node
     if isinstance(node, n.NameRef):
         kind = _classify(node.name, cats)
         if kind is None:
@@ -7292,7 +7319,11 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             if node.params
             else cats
         )
-        when_pred = _rewrite_value(node.when, scoped, bag) if node.when is not None else None
+        when_pred = (
+            node.when
+            if node.when is None or _refuse_bare_always(node.when, "when:", scoped, bag)
+            else _rewrite_value(node.when, scoped, bag)
+        )
         # `_rewrite_value` (not a bare per-item `_rewrite` map): a `let` in a
         # move's effect scopes to the statements after it, like everywhere else.
         effect = _rewrite_value(node.effect, scoped, bag)

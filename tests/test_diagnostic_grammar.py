@@ -23,6 +23,7 @@ domain:     the compiled main grammar's rules and terminals (the first two
             {declared, undeclared} x {whole predicate, operand}.
 registry:   `cardlang.parse._parser()` (main), `cardlang.parse._diagnostic_parser()`
             (composed), `cardlang.parse.DIAGNOSTIC_GRAMMAR` (the file),
+            `tools.dead_surface.refusing_methods` over `cardlang.parse._Builder`,
             `cardlang.resolve.ALWAYS_HOLDERS`; the goldens by glob.
 does not prove:  that a twin fires for a file holding a twin's slip AND a
             later genuine error -- the composed parse fails on the later
@@ -30,7 +31,10 @@ does not prove:  that a twin fires for a file holding a twin's slip AND a
             slip only after fixing the other mistake. Nor that the messages
             themselves are right: `tests/test_rejections.py` pins each
             against its wrong sentence, byte for byte, and this module only
-            proves every twin has one.
+            proves every twin has one. Nor the terminal the file extends
+            rather than aliases (`COMP_OP`'s `==` / `!=`): its refusal is
+            the `compare` builder's, pinned by its own goldens and never
+            a twin node.
 """
 
 from __future__ import annotations
@@ -42,9 +46,9 @@ import pytest
 
 from cardlang import parse as parse_module
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import _parser, parse_text
+from cardlang.parse import _Builder, _parser, parse_text
 from cardlang.pipeline import check_dsl
-from tools.dead_surface import default_sources
+from tools.dead_surface import default_sources, refusing_methods
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 REJECTIONS = ROOT / "tests" / "rejections"
@@ -60,7 +64,7 @@ def test_the_main_grammar_has_no_terminal_only_a_refused_rule_names() -> None:
     """Every terminal is named by a rule the builder accepts, so no word exists
     in the lexer only to be refused. Red under: a twin-only terminal
     (`_CARD_VALUES_KW`, `STAKE_FLAG_COLON`) left in cardlang.lark."""
-    refusing = parse_module._refusing_builder_methods()
+    refusing = refusing_methods(_Builder)
     homes: dict[str, set[bool]] = {}
     for rule in _parser().rules:
         node = str(rule.alias or rule.origin.name)
@@ -72,11 +76,13 @@ def test_the_main_grammar_has_no_terminal_only_a_refused_rule_names() -> None:
 
 
 def _diagnostic_twins() -> set[str]:
+    """Every node the diagnostic file's productions build."""
     text = parse_module.DIAGNOSTIC_GRAMMAR.read_text()
-    return set(re.findall(r"->\s*([a-z_]+_reject)\b", text))
+    return set(re.findall(r"->\s*([a-z_]+)\b", text))
 
 
 def _twins_the_goldens_exercise() -> set[str]:
+    twins = _diagnostic_twins()
     exercised: set[str] = set()
     for fixture in sorted(REJECTIONS.glob("*.cardlang")):
         start = "library" if fixture.read_text().lstrip().startswith("library") else "start"
@@ -84,17 +90,24 @@ def _twins_the_goldens_exercise() -> set[str]:
             tree = parse_module._diagnostic_parser().parse(fixture.read_text(), start=start)
         except Exception:  # noqa: BLE001 -- a golden that fails both grammars is not a twin's
             continue
-        exercised |= {str(sub.data) for sub in tree.iter_subtrees() if str(sub.data).endswith("_reject")}
+        exercised |= {str(sub.data) for sub in tree.iter_subtrees()} & twins
     return exercised
+
+
+def test_every_diagnostic_twin_is_a_node_the_builder_only_refuses() -> None:
+    """A twin exists to refuse, so its builder method raises on every path;
+    the composed parse can never hand back a tree the builder accepts. Red
+    under: an alias in diagnostics.lark naming a builder method that returns."""
+    twins = _diagnostic_twins()
+    assert twins, "the diagnostic grammar holds no twin"
+    assert twins <= refusing_methods(_Builder)
 
 
 def test_every_diagnostic_twin_is_exercised_by_a_rejection_golden() -> None:
     """Derived both ways: the twins from the diagnostic file, the exercised set
     from parsing every golden under the composed grammar. Red under: a twin
     added to diagnostics.lark with no golden, or a golden deleted."""
-    twins = _diagnostic_twins()
-    assert twins, "the diagnostic grammar holds no twin"
-    assert twins == _twins_the_goldens_exercise()
+    assert _diagnostic_twins() == _twins_the_goldens_exercise()
 
 
 def test_the_corpus_never_reaches_the_diagnostic_parser(monkeypatch: pytest.MonkeyPatch) -> None:
