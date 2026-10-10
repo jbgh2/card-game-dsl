@@ -1,0 +1,72 @@
+// The teaching refusals: every wrong spelling the language refuses WITH THE
+// RIGHT ONE, composed onto the main grammar only inside the parser's failure
+// path (`parse.py`, `_diagnostic_parser`). A main parse that fails is parsed
+// once more under this composition; a twin that derives the text hands the
+// builder its node, and the builder's `*_reject` method raises the message.
+// The main grammar accepts only the language; nothing here is reachable
+// while a file parses there, and no terminal here is a word the main
+// lexer knows. Each twin is a COMPLETE production for the string it names,
+// never a prefix, so no sentence of the language gains a second derivation.
+// Every twin is exercised by a rejection golden under tests/rejections/, and
+// the set of twins here equals the set the goldens exercise
+// (tests/test_diagnostic_grammar.py).
+
+// --- the primitives block: the colon habit, the arrow, a default ------------
+%extend primitives_block: _PRIMITIVES_KW ":" "{" primitive_decl* "}"  -> primitives_colon_reject
+                        | _PRIMITIVES_KW "{" primitive_decl* primitive_arrow_decl (primitive_decl | primitive_arrow_decl)* "}"     -> primitives_arrow_reject
+                        | _PRIMITIVES_KW "{" primitive_decl* primitive_default_decl (primitive_decl | primitive_default_decl)* "}" -> primitives_default_reject
+primitive_arrow_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" "->" primitive_type [primitive_reads]
+primitive_default_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" ":" primitive_type [primitive_reads] "=" expr
+
+// --- an entry's collection slot: phrase, optional, arity, nested, optional element
+%extend primitive_type: NAME _OF_KW NAME               -> collection_phrase_reject
+                      | NAME "<" NAME ">" "?"          -> collection_optional_reject
+                      | NAME "<" NAME ("," NAME)+ ">"  -> collection_arity_reject
+                      | NAME "<" nested_collection ">" -> collection_nested_reject
+                      | NAME "<" NAME "?" ">"          -> collection_optional_element_reject
+// Any depth of nesting, so the arm names the shape rather than the one level
+// someone thought to write.
+nested_collection: NAME "<" NAME ">"
+                 | NAME "<" nested_collection ">"
+
+// --- a reads binder riding the phase instead of the variable ---------------
+%extend primitive_read: NAME _IN_KW NAME index -> primitive_read_transposed_reject
+
+// --- the card-point table: the colon habit, the pre-rename name -------------
+%extend card_points_table: _CARD_POINTS_KW ":" "{" card_points_entry* [card_points_else] "}"   -> card_points_colon_reject
+                         | _CARD_VALUES_KW [":"] "{" card_points_entry* [card_points_else] "}" -> card_values_reject
+_CARD_VALUES_KW: "card_values" /(?![A-Za-z0-9_])/
+
+// --- the trick order: the colon habit, comma rows, the assignment habit -----
+%extend trick_order: _TRICK_ORDER_KW ":" "{" trick_order_row* "}"                             -> trick_order_colon_reject
+                   | _TRICK_ORDER_KW "{" trick_order_row+ ("," trick_order_row*)+ "}"         -> trick_order_comma_reject
+                   | _TRICK_ORDER_KW "{" trick_order_row* trick_order_eq_row (trick_order_row | trick_order_eq_row)* "}" -> trick_order_eq_reject
+trick_order_eq_row: TRICK_ORDER_KEY TRICK_ORDER_EQ expr
+TRICK_ORDER_EQ: ":=" | "="
+
+// --- the trump clause: a number or a quoted string where the bare name belongs
+%extend trump: _TRUMP_KW ":" INT     -> trump_int_reject
+             | _TRUMP_KW ":" STRING  -> trump_string_reject
+
+// --- a collection type outside a primitives entry ---------------------------
+%extend type_name: NAME "<" NAME ">"     -> collection_type_reject
+                 | NAME "<" NAME ">" "?" -> collection_type_reject
+%extend payload_type: NAME "<" NAME ">" -> collection_type_reject
+                    | NAME "<" NAME ">" "?" -> collection_type_reject
+
+// --- a move's stake as a flag, or after `when:` ----------------------------
+%extend move_type_def: _MOVE_TYPE_KW NAME [move_params] "{" move_stake STAKE_FLAG_COLON [expr] [move_when] move_effect "}" -> move_stake_flag_reject
+                     | _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] move_when move_stake [STAKE_FLAG_COLON [expr]] move_effect "}" -> move_stake_after_when_reject
+STAKE_FLAG_COLON: /:/
+
+// --- a bracket list where one zone belongs, and a subset source misjoined ---
+%extend card_source: "[" zone_expr ("," zone_expr)* "]" -> card_source_list_reject
+%extend subset_source: "[" zone_expr "]" -> subset_source_single_reject
+%extend subset_of_guarded: _OF_KW subset_size _CARDS_KW _IN_KW zone_expr "," zone_expr     -> subset_comma_reject
+                         | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr "+" zone_expr     -> subset_plus_reject
+                         | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr _AND_KW zone_expr -> subset_and_reject
+
+// --- the retired operator spellings: `==` / `!=`, `/` / `%` ----------------
+%extend COMP_OP: "==" | "!="
+%extend factor: factor DIV_OP postfix -> div_symbol
+DIV_OP: "/" | "%"
