@@ -176,7 +176,9 @@ def _refusal_in_the_text(path: str) -> str | None:
     """The refusal a game's own text commits it to, read off its deck and its
     chance sites rather than a run: a repeated card refuses at any position,
     and a random selection wherever a line reaches it — which a swept line
-    need not, so the text is the only reading that sees every such site."""
+    need not, so the text is the only reading that sees every such site.
+    Mirrors the two refusals `cardlang.openspiel.resample` raises before a
+    proposal is drawn, and loses an arm when the construction gains it."""
     game, _ = load(path)
     deck = build_deck(game.deck)
     if len({str(c) for c in deck}) != len(deck):
@@ -215,9 +217,10 @@ def test_every_game_resamples_or_is_a_pinned_refusal(short_name: str, filename: 
     """red under: drop `cardlang_canasta` from `REFUSALS` — its sweep raises
     `ResampleRefusal` and this fails naming the game and the table; or add
     `cardlang_hearts` to it — the refusal is never raised and this fails
-    naming the entry to drop; or plant a `move random` past pick 16 in a game
-    absent from it — the sweep never reaches it, and the reading of the text
-    fails here (executed 2026-10-10)."""
+    naming the entry to drop; or plant a `move random` past every decision in
+    a game absent from it — the sweep never reaches it, and the reading of the
+    text fails here, while the same game pinned for it passes (executed
+    2026-10-10)."""
     committed = _refusal_in_the_text(_path(filename))
     if committed is not None:
         assert REFUSALS.get(short_name, ("", 0))[0] == committed, (
@@ -234,7 +237,13 @@ def test_every_game_resamples_or_is_a_pinned_refusal(short_name: str, filename: 
         except R.ResampleRefusal as refused:
             assert refusal in str(refused), f"{short_name} refuses for another reason: {refused}"
         else:
-            pytest.fail(f"{short_name} resamples now: drop its REFUSALS entry (issue #{issue})")
+            # A refusal the text commits the game to can sit past the first
+            # decision, where a resample there has not reached it; the text
+            # is then the evidence the entry stands, until the construction
+            # stops refusing that construct and `_refusal_in_the_text` with
+            # it. Only an entry the text does not commit to is stale here.
+            if committed is None:
+                pytest.fail(f"{short_name} resamples now: drop its REFUSALS entry (issue #{issue})")
         return
     try:
         met, _ = _sweep(short_name, filename)
