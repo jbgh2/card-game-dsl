@@ -76,6 +76,8 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any, cast
 
+from cardlang.domains import Role, role_of
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.state import RuntimeState, Zone, elements
 from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import identity_to_all
@@ -640,6 +642,16 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     name — a different family). The cast localizes that invariant here, where
     the rule is known, so `player_holding` returns a `Player` without a
     per-caller narrowing."""
+    index = rs.zones.zone_index.get("hand")
+    if "hand" in rs.zones.zone_index and (index is None or role_of(index) is not Role.PLAYER):
+        # Shadow Guard behind resolve's `_check_bare_family_refs`: a `hand`
+        # kept per team or as one zone has no seat keys to hand back.
+        raise ShadowGuardError(
+            "resolve._check_bare_family_refs",
+            "player_holding: `hand` is "
+            + (f"one zone per {index}" if index else "a single zone")
+            + ", not kept per player",
+        )
     fam = rs.zones.families.get("hand")
     if fam is None:
         raise PrimitiveReadError(

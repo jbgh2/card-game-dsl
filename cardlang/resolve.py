@@ -181,6 +181,15 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               assume a hosted body, and all it runs, moves no card, starts no
               round of the trick or climbing form, raises no outcome or jump
               out of the round, and reads no live Round State.
+              And, wherever the engine keys a zone family by the acting seat
+              -- a bare zone ``NameRef``, a round's ``source``, a Builtin in
+              ``BUILTIN_IMPLICIT_READS`` -- a family not indexed by player;
+              and a round's ``into`` naming a family
+              (``_check_bare_family_refs``). ``runtime/evaluate``'s ``_name``,
+              ``runtime/mechanics``' round forms and ``runtime/reads``'
+              ``magic_hand`` may therefore assume a seat is a key of every
+              family they resolve that way, and ``_check_hidden_reads`` may
+              credit a bare read as the acting seat's own instance.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -2653,7 +2662,7 @@ def resolve(game: n.Game) -> n.Game:
     cats = _categories(game)
     game = _classify_names(game, cats, bag)
     _validate_refs(game, cats, bag)
-    _check_position_family_refs(game, bag, position_names)
+    _check_bare_family_refs(game, bag)
     _check_declared_type_names(game, bag)
     _check_state_default_scope(game, bag)
     _check_state_scope(game, bag)
@@ -4558,37 +4567,102 @@ def _resolve_zone(
             )
 
 
-def _check_position_family_refs(
-    game: n.Game, bag: DiagnosticBag, positions: frozenset[str]
-) -> None:
-    """A position-indexed family must always be subscripted: the bare-family
-    actor sugar (`hand` = the acting player's hand) keys the family by the
-    acting SEAT, and a position family has no seat keys — the runtime read
-    would land outside the key set. Refused here, after classification (so a
-    local binder shadowing the family name is exempt: only `ref_kind ==
-    "zone"` references are family reads). The runtime's phantom-key error in
-    `evaluate._name` is the Shadow Guard behind this Owner Guard."""
-    pos_families = {z.name for z in game.zones if z.index in positions}
-    if not pos_families:
-        return
-    subscript_objs = {
-        id(nd.obj) for nd in _walk(game) if isinstance(nd, n.Subscript)
+# The zone reference slots, by what the slot's name must denote: a source is
+# the family each acting seat plays from (keyed by that seat), a play slot the
+# one pile every play lands on.
+_SOURCE_SLOT_FIELD = "source_zone"
+_PLAY_SLOT_FIELD = "play_zone"
+_ZONE_SLOTS: tuple[tuple[type, str], ...] = tuple(
+    k for k, v in _REFERENCE_SLOTS.items() if v == "zone"
+)
+assert {f for _, f in _ZONE_SLOTS} == {_SOURCE_SLOT_FIELD, _PLAY_SLOT_FIELD}, (
+    "a new zone reference slot: decide which zones its name may denote"
+)
+
+
+def _family_shape(index: str | None) -> str:
+    return "a single zone" if index is None else f"one zone per {index}"
+
+
+def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
+    """Wherever the engine resolves a zone family by the acting SEAT, the family
+    must be indexed by player: a bare family name (`hand`) is the acting
+    player's own instance, and that reading exists only for the role whose
+    members are seats. Three kinds of site key a family so: a bare zone
+    `NameRef` (classified, so a binder shadowing the family name is exempt), a
+    round's `source` slot, and a Builtin that reads a family by name and hands
+    its keys back as seats (`BUILTIN_IMPLICIT_READS`). A round's `into` slot
+    names one pile, so it must be a single zone. `to each <family>` names the
+    family whole and keeps its own Owner Guard (`_validate_refs`).
+
+    The runtime refusals in `evaluate._name`, `mechanics` (round sources and
+    play piles) and `reads.magic_hand` are the Shadow Guards behind this Owner
+    Guard."""
+    index_of = {z.name: z.index for z in game.zones}
+
+    def seat_keyed(name: str) -> bool:
+        index = index_of[name]
+        return index is not None and role_of(index) is Role.PLAYER
+
+    whole = {
+        id(nd.dest)
+        for nd in _walk(game)
+        if isinstance(nd, n.Transfer) and nd.dest_each
     }
+    subscripted = {id(nd.obj) for nd in _walk(game) if isinstance(nd, n.Subscript)}
     for nd in _walk(game):
+        index = index_of.get(nd.name) if isinstance(nd, n.NameRef) else None
         if (
             isinstance(nd, n.NameRef)
             and nd.ref_kind == "zone"
-            and nd.name in pos_families
-            and id(nd) not in subscript_objs
+            and index is not None
+            and role_of(index) is not Role.PLAYER
+            and id(nd) not in subscripted
+            and id(nd) not in whole
         ):
-            index = next(z.index for z in game.zones if z.name == nd.name)
+            team = (
+                " (`team_of(<player>)` is a player's team)"
+                if role_of(index) is Role.TEAM
+                else ""
+            )
             bag.error(
-                f"'{nd.name}' is a position-indexed zone family and must be "
-                f"subscripted (`{nd.name}[<{index}>]`) — the bare-family "
-                f"actor sugar reads the acting player's instance, and a "
-                f"position family has no per-player instances",
+                f"`{nd.name}` is one zone per {index}, so a bare `{nd.name}` "
+                f"names none of them: say which {index}'s, "
+                f"`{nd.name}[<{index}>]`{team}",
                 nd.span,
             )
+        for cls, field in _ZONE_SLOTS:
+            if not isinstance(nd, cls):
+                continue
+            name = getattr(nd, field)
+            span: Span | None = getattr(nd, "span")
+            if name not in index_of:
+                continue  # unknown zone: `_validate_refs` reports it
+            if field == _SOURCE_SLOT_FIELD and not seat_keyed(name):
+                bag.error(
+                    f"a round's `source` names the zone each player plays "
+                    f"from, so it must be a zone kept per player, like "
+                    f"`hand[player]` -- `{name}` is "
+                    f"{_family_shape(index_of[name])}",
+                    span,
+                )
+            elif field == _PLAY_SLOT_FIELD and index_of[name] is not None:
+                bag.error(
+                    f"a round's `into` names the one pile every play lands "
+                    f"on, so it must be a single zone, like `trick_pile` -- "
+                    f"`{name}` is {_family_shape(index_of[name])}",
+                    span,
+                )
+        if isinstance(nd, n.Call) and nd.func in BUILTIN_IMPLICIT_READS:
+            family, _need = BUILTIN_IMPLICIT_READS[nd.func]
+            if family in index_of and not seat_keyed(family):
+                bag.error(
+                    f"`{nd.func}` finds the player holding a card by searching "
+                    f"`{family}[player]`, so `{family}` must be a zone kept per "
+                    f"player -- this game declares it as "
+                    f"{_family_shape(index_of[family])}",
+                    nd.span,
+                )
 
 
 def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
@@ -6855,7 +6929,12 @@ def _check_row_zone_read(
             "zones",
             nd.span or row.span,
         )
-    elif decl.index is not None and not is_subscripted:
+    elif (
+        decl.index is not None
+        and role_of(decl.index) is Role.PLAYER
+        and not is_subscripted
+    ):
+        # Any other role read bare is `_check_bare_family_refs`'s, everywhere.
         # A bare per-player family read sugars to the ACTING player's instance
         # — and a row has no acting player, by construction (the runtime
         # clears it, `evaluate.row_context`). Named here rather than left to
@@ -9487,6 +9566,11 @@ class _HiddenReads:
         if role is None:
             return None
         if read.index is None:
+            if role is not Role.PLAYER:
+                # Bare sugar names the acting seat's instance only in a family
+                # keyed by seat; `_check_bare_family_refs` refuses the rest,
+                # and this shadows it.
+                return None
             routed = read.index_scope.routed
             if routed is not None:
                 # The routed pool: its visibility to the decider is the runtime

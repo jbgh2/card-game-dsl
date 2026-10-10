@@ -1,0 +1,1 @@
+team_bare_family_reference.cardlang:20:59: error: `won` is one zone per team, so a bare `won` names none of them: say which team's, `won[<team>]` (`team_of(<player>)` is a player's team)

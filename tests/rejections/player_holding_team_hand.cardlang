@@ -1,0 +1,23 @@
+// Guard: resolve.py `_check_bare_family_refs`. `player_holding` finds the
+// player holding a card by searching `hand[player]`, and hands back the key
+// it found as a seat, so `hand` must be kept per player. The runtime refusal
+// in `reads.magic_hand` is the Shadow Guard.
+game PlayerHoldingTeamHand {
+  players: 4
+  teams: [[0, 1], [2, 3]]
+  direction: clockwise
+  max_length: 200
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck : Deck
+    hand[team] : Hand<team>
+  }
+  state { score[player] : Integer = 0  lead : Player = 0 }
+  phase play {
+    move all cards from deck to hand[1]
+    lead := player_holding(2 of clubs)
+    score[lead] := 1
+  }
+  winner: highest score
+}

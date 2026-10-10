@@ -12,7 +12,7 @@ from typing import Any, assert_never, cast
 
 from cardlang.ast import nodes as n
 from cardlang.builtins.signatures import CALL_SIGS
-from cardlang.domains import require_role, role_members
+from cardlang.domains import Role, require_role, role_members, role_of
 from cardlang.runtime import builtins, observe, primitives, reads, subsets
 from cardlang.runtime.chooser import decide
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
@@ -239,16 +239,16 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
             if ctx.round_source is not None and e.name in ("hand", ctx.round_source[0]):
                 return ctx.round_source[1]
             if ctx.rs.zones.is_family(e.name):
-                # Shadow Guard behind resolve's `_check_position_family_refs`
-                # Owner Guard: a bare position-family read has no per-player
-                # instance to sugar to, and `instance(name, seat)` would
-                # key-error far from the cause.
-                if ctx.rs.zones.zone_index[e.name] in ctx.rs.position_domains:
+                # Shadow Guard behind resolve's `_check_bare_family_refs`
+                # Owner Guard: only a family indexed by player has an instance
+                # the acting seat's number keys; any other would be read under
+                # the wrong key, or key-error far from the cause.
+                index = ctx.rs.zones.zone_index[e.name]
+                if index is None or role_of(index) is not Role.PLAYER:
                     raise ShadowGuardError(
-                        "resolve._check_position_family_refs",
-                        f"'{e.name}' is a position-indexed zone family and "
-                        f"must be subscripted — it has no per-player "
-                        f"instances",
+                        "resolve._check_bare_family_refs",
+                        f"'{e.name}' is one zone per {index} and must be "
+                        f"subscripted — it has no per-player instances",
                     )
                 if ctx.current_player is None:
                     # The bare-family actor sugar (`hand` = the acting

@@ -24,17 +24,17 @@ domain:     {index role} x {position the name is written at}. The roles are
             each team subscript it writes removed in turn. Two whole-family
             positions keep their own guards and are crossed here for the
             one-diagnostic count only: `to each <family>` and a Trick Order
-            row. A Primitive's `reads <family>` names the family whole and
-            is admitted for every role.
+            row. A Primitive's `reads <family>` names the family whole, not
+            the acting seat's instance, so it lies outside the domain.
 registry:   roles: `cardlang.domains.ZONE_INDEX_ROLES`; string slots:
             `cardlang.resolve._REFERENCE_SLOTS` rows in the "zone" namespace;
             implicit reads: `cardlang.builtins.functions.BUILTIN_IMPLICIT_READS`;
             all derived in `tests/bare_family_axes.py`.
-            corpus checks clean: `tests/test_corpus_harness.py`.
+            corpus checks clean: `tests/test_typecheck_corpus.py::test_corpus_game_type_checks`.
 does not prove:  that every expression position is walked. The guard is one
             walk over every name the resolver classifies as a zone; the grid
-            samples eleven positions, and the corpus sweep covers every
-            position the partnership games write.
+            samples the positions in `EXPR_ROWS`, and the corpus sweep
+            covers every position the partnership games write.
 """
 
 from __future__ import annotations
@@ -44,6 +44,7 @@ import re
 from pathlib import Path
 
 import pytest
+from _pytest.mark.structures import ParameterSet
 
 from cardlang import resolve as resolve_mod
 from cardlang.ast import nodes as n
@@ -73,8 +74,6 @@ GAMES = REPO / "docs" / "games"
 
 # The resolve function owning the refusal, named by the Shadow Guards.
 OWNER = "resolve._check_bare_family_refs"
-
-_FIXED = "fixed: the bare-family Owner Guard (issue #802)"
 
 TEMPLATE = """game G {{
   players: 4
@@ -126,8 +125,7 @@ def diagnostics(text: str) -> list[str]:
 
 def _static_off(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove the check-time Owner Guards, leaving the runtime to answer."""
-    for name in ("_check_bare_family_refs", "_check_position_family_refs"):
-        monkeypatch.setattr(resolve_mod, name, lambda *a, **k: None, raising=False)
+    monkeypatch.setattr(resolve_mod, "_check_bare_family_refs", lambda *a, **k: None)
 
 
 def unguarded_play_failure(text: str) -> BaseException | None:
@@ -144,10 +142,6 @@ def unguarded_play_failure(text: str) -> BaseException | None:
 
 def _refusal_names(name: str, index: str) -> str:
     return f"`{name}` is one zone per {index}"
-
-
-def _xfail_until_fixed(cond: bool) -> list[pytest.MarkDecorator]:
-    return [pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FIXED)] if cond else []
 
 
 # --- each expression row places `won` where it says -------------------------
@@ -183,13 +177,12 @@ def test_each_expression_row_sits_where_it_says(row: ExprRow) -> None:
 # --- axis E: index role x expression position --------------------------------
 
 
-def _expr_cells() -> list[object]:
+def _expr_cells() -> list[ParameterSet]:
     out = []
     for role in ROLES:
         for row in EXPR_ROWS:
             refused = role not in (ADMITTED_ROLE, SINGLE)
-            marks = _xfail_until_fixed(refused)
-            out.append(pytest.param(role, row, refused, id=f"{role}-{row.key}", marks=marks))
+            out.append(pytest.param(role, row, refused, id=f"{role}-{row.key}"))
     return out
 
 
@@ -229,16 +222,13 @@ def applied_hint(message: str, name: str) -> str:
     return spelling
 
 
-def _hint_cells() -> list[object]:
-    out = []
-    for role in ("team", POSITION_ROLE):
-        for row in EXPR_ROWS:
-            # The position refusal names its shape already; a gather into a
-            # subscripted zone is the one place that shape failed to play.
-            flips = role == "team" or row.key == "gather_dest"
-            out.append(pytest.param(role, row, id=f"{role}-{row.key}",
-                                    marks=_xfail_until_fixed(flips)))
-    return out
+def _hint_cells() -> list[ParameterSet]:
+    return [
+        pytest.param(role, row, id=f"{role}-{row.key}")
+        for role in ROLES
+        if role not in (ADMITTED_ROLE, SINGLE)
+        for row in EXPR_ROWS
+    ]
 
 
 @pytest.mark.parametrize("role,row", _hint_cells())
@@ -247,7 +237,10 @@ def test_hint_spelling_checks_and_plays(role: str, row: ExprRow) -> None:
     `won[<column>]` (resolve's bare-family Owner Guard)."""
     found = diagnostics(expr_source(row, role_decl(role)))
     assert len(found) == sites(row.stmt), found
-    fixed = re.sub(r"\bwon\b", applied_hint(found[0], "won"), row.stmt)
+    hint = applied_hint(found[0], "won")
+    if row.function:  # a function is hermetic: it names a seat, not `actor`
+        hint = hint.replace("actor", "0")
+    fixed = re.sub(r"\bwon\b", hint, row.stmt)
     try:
         game = check_dsl(expr_source(row, role_decl(role), fixed), "g")
         play_game(game, random.Random(0))
@@ -258,7 +251,7 @@ def test_hint_spelling_checks_and_plays(role: str, row: ExprRow) -> None:
 # --- static guard off: every refused expression cell fails typed at play -----
 
 
-def _unguarded_expr_cells() -> list[object]:
+def _unguarded_expr_cells() -> list[ParameterSet]:
     return [
         pytest.param(role, row, id=f"{role}-{row.key}")
         for role in ROLES
@@ -268,7 +261,6 @@ def _unguarded_expr_cells() -> list[object]:
 
 
 @pytest.mark.expects_shadow_guard
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FIXED)
 @pytest.mark.parametrize("role,row", _unguarded_expr_cells())
 def test_unguarded_expression_cell_fails_typed(
     role: str, row: ExprRow, monkeypatch: pytest.MonkeyPatch
@@ -282,7 +274,6 @@ def test_unguarded_expression_cell_fails_typed(
 # --- information sets: a concealed team zone named bare is not "own" ---------
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FIXED)
 def test_concealed_team_zone_read_bare_is_not_credited_own(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -321,11 +312,10 @@ def _slot_admitted(field: str) -> str:
     return ADMITTED_ROLE if field == SOURCE_SLOT_FIELD else SINGLE
 
 
-def _slot_cells() -> list[object]:
+def _slot_cells() -> list[ParameterSet]:
     return [
         pytest.param(
             slot, role, id=f"{slot[0].__name__}.{slot[1]}-{role}",
-            marks=_xfail_until_fixed(role != _slot_admitted(slot[1])),
         )
         for slot in ZONE_SLOTS
         for role in ROLES
@@ -348,7 +338,6 @@ def test_zone_slot(slot: tuple[type, str], role: str) -> None:
 
 
 @pytest.mark.expects_shadow_guard
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FIXED)
 @pytest.mark.parametrize(
     "slot,role",
     [
@@ -397,11 +386,10 @@ def _implicit_source(fn: str, family: str, role: str) -> str:
     return _IMPLICIT_TEMPLATE.format(decl=decl, target=target, call=fn)
 
 
-def _implicit_cells() -> list[object]:
+def _implicit_cells() -> list[ParameterSet]:
     return [
         pytest.param(
             fn, fam, role, id=f"{fn}-{role}",
-            marks=_xfail_until_fixed(role != ADMITTED_ROLE),
         )
         for fn, fam in IMPLICIT_READS
         for role in ROLES
@@ -419,7 +407,6 @@ def test_implicit_read(fn: str, family: str, role: str) -> None:
 
 
 @pytest.mark.expects_shadow_guard
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FIXED)
 @pytest.mark.parametrize(
     "fn,family,role",
     [
@@ -457,7 +444,6 @@ def _belote_row_reading(read: str) -> str:
     return text.replace(old, f"trump:         card.suit is trump_suit and {read}\n", 1)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FIXED)
 def test_trick_order_row_team_family_reports_once() -> None:
     """A row has no acting player, so the hint's shape is filled with a team
     literal there; the hint names no pronoun that a row could not read."""
@@ -474,42 +460,39 @@ def test_trick_order_row_team_family_reports_once() -> None:
 # --- corpus sweep: each team subscript a partnership game writes, removed ----
 
 
-def _team_families(text: str) -> list[str]:
-    return re.findall(r"^\s*(\w+)\[team\]\s*:\s*\w+<team>", text, re.M)
+def _team_subscripts(name: str) -> list[tuple[int, int]]:
+    """(start, end) of the bracketed index of every subscript the game writes
+    on a team-indexed family, read off the checked tree's spans."""
+    game = check_dsl((GAMES / name).read_text(), name)
+    teamed = {z.name for z in game.zones if z.index == "team"}
+    return sorted(
+        {
+            (nd.obj.span.start + len(nd.obj.name), nd.span.end)
+            for nd in _walk(game)
+            if isinstance(nd, n.Subscript)
+            and isinstance(nd.obj, n.NameRef)
+            and nd.obj.ref_kind == "zone"
+            and nd.obj.name in teamed
+            and nd.span is not None
+            and nd.obj.span is not None
+            and nd.span.source_name == name
+        }
+    )
 
 
-def _subscript_sites(text: str, families: list[str]) -> list[tuple[int, int]]:
-    """(start, end) of every `<family>[...]` subscript, brackets balanced."""
-    sites = []
-    for m in re.finditer(r"\b(" + "|".join(map(re.escape, families)) + r")\[", text):
-        depth, i = 1, m.end()
-        while depth:
-            depth += {"[": 1, "]": -1}.get(text[i], 0)
-            i += 1
-        line_start = text.rfind("\n", 0, m.start()) + 1
-        if re.match(r"\s*\w+\[team\]\s*:", text[line_start:]):
-            continue  # the declaration itself
-        if text[line_start:m.start()].lstrip().startswith("//"):
-            continue
-        if re.search(r"\breads\b", text[line_start:m.start()]):
-            continue  # a Primitive `reads x[b]`: its own binder rule
-        sites.append((m.end() - 1, i))
-    return sites
+def _declares_team_family(path: Path) -> bool:
+    return any(z.index == "team" for z in check_dsl(path.read_text(), path.name).zones)
 
 
-def _corpus_cells() -> list[object]:
+def _corpus_cells() -> list[ParameterSet]:
     out = []
     for path in sorted(GAMES.glob("*.cardlang")):
-        text = path.read_text()
-        fams = _team_families(text)
-        if not fams:
+        if not _declares_team_family(path):
             continue
-        for start, end in _subscript_sites(text, fams):
+        text = path.read_text()
+        for start, end in _team_subscripts(path.name):
             line = text.count("\n", 0, start) + 1
-            out.append(pytest.param(
-                path.name, start, end, line, id=f"{path.stem}:{line}:{start}",
-                marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FIXED),
-            ))
+            out.append(pytest.param(path.name, start, end, line, id=f"{path.stem}:{line}:{start}"))
     return out
 
 
@@ -517,8 +500,8 @@ _CORPUS = _corpus_cells()
 
 
 def test_corpus_sweep_reaches_every_team_game() -> None:
-    swept = {p.values[0] for p in _CORPUS}  # type: ignore[attr-defined]
-    declaring = {p.name for p in GAMES.glob("*.cardlang") if _team_families(p.read_text())}
+    swept = {p.values[0] for p in _CORPUS}
+    declaring = {p.name for p in GAMES.glob("*.cardlang") if _declares_team_family(p)}
     assert swept == declaring and swept, (swept, declaring)
 
 
@@ -531,3 +514,31 @@ def test_corpus_team_subscript_removed_is_refused(
     hits = [d for d in found if "is one zone per team" in d and f":{line}:" in d]
     assert len(hits) == 1, found
 
+
+
+# --- misuse probes: what a designer writes for "my side's pile" --------------
+
+_PROBES: dict[str, tuple[str, str]] = {
+    "seat_as_team": (
+        "for each player p: as p { move all cards from hand to won[actor] }",
+        "keyed by Team",
+    ),
+    "binder_as_team": (
+        "for each player p: as p { move all cards from hand to won[p] }",
+        "keyed by Team",
+    ),
+    "bare_in_for_each_team": (
+        "for each team t: move all cards from won to deck",
+        _refusal_names("won", "team"),
+    ),
+    "bare_where_nobody_acts": (
+        "move all cards from won to deck",
+        _refusal_names("won", "team"),
+    ),
+}
+
+
+@pytest.mark.parametrize("body,expected", list(_PROBES.values()), ids=list(_PROBES))
+def test_misuse_probe_is_refused_once(body: str, expected: str) -> None:
+    found = diagnostics(TEMPLATE.format(decl=role_decl("team"), body=body, extra=""))
+    assert len(found) == 1 and expected in found[0], found

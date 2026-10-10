@@ -332,6 +332,11 @@ _WITNESSES: dict[tuple[str, str, str], str] = {
         "ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}",
     ): "test_widening_zone_index_roles_fails_resolve_at_import",
     (
+        "resolve.py",
+        "<module>",
+        "{f for _, f in _ZONE_SLOTS} == {_SOURCE_SLOT_FIELD, _PLAY_SLOT_FIELD}",
+    ): "test_a_new_zone_reference_slot_fails_resolve_at_import",
+    (
         "runtime/execute.py",
         "_each_simultaneous",
         "SIMULTANEOUS_ROLES == {Role.PLAYER}",
@@ -517,6 +522,40 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
     )
     assert "empty-domain Owner Guards" in proc.stdout, proc.stdout
 
+
+
+def test_a_new_zone_reference_slot_fails_resolve_at_import() -> None:
+    """`_REFERENCE_SLOTS` is resolve's own table, so the witness widens it in
+    resolve's source and executes that, in a subprocess for the same reason as
+    the witness above.
+
+    red under: delete the `assert {f for _, f in _ZONE_SLOTS} == {...}` from
+    `resolve.py` -- the new slot then matches neither branch of
+    `_check_bare_family_refs`, and any zone it names goes unguarded."""
+    script = (
+        "import pathlib, sys, types\n"
+        "src = pathlib.Path('cardlang/resolve.py').read_text()\n"
+        "row = '    (n.ClimbRound, \"play_zone\"): \"zone\",\\n'\n"
+        "assert row in src\n"
+        "src = src.replace(row, row + '    (n.ClimbRound, \"spare_zone\"): \"zone\",\\n', 1)\n"
+        "mod = types.ModuleType('cardlang.resolve')\n"
+        "sys.modules['cardlang.resolve'] = mod\n"
+        "try:\n"
+        "    exec(compile(src, 'cardlang/resolve.py', 'exec'), mod.__dict__)\n"
+        "except AssertionError as exc:\n"
+        "    print('GUARD-FIRED', exc)\n"
+        "else:\n"
+        "    print('NO-GUARD')\n"
+    )
+    proc = subprocess.run(  # noqa: PLW1510 -- the stdout assert below carries proc.stderr
+        [sys.executable, "-c", script],
+        cwd=_PACKAGE.parent,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.startswith("GUARD-FIRED"), proc.stdout + proc.stderr
+    assert "a new zone reference slot" in proc.stdout, proc.stdout
 
 # The registry-referencing guards the literal-collection predicate excludes.
 # Authorized one by one: each validates a value AGAINST the registry (widening

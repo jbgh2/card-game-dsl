@@ -354,9 +354,8 @@ def _deal_round_robin(
 
 def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
     """`move all cards to <zone>`: collect every card from all other zones."""
-    # typecheck admits no other source-less movement combination, and
-    # resolve's `to each` Owner Guard keeps a gather destination a bare name.
-    assert stmt.amount == "all" and isinstance(stmt.dest, n.NameRef)
+    # typecheck admits no other source-less movement combination.
+    assert stmt.amount == "all"
     dest = evaluate(stmt.dest, ctx)
     if not isinstance(dest, Zone):
         raise OwnerGuardError(
