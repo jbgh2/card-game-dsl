@@ -664,13 +664,18 @@ sugar over a small set of primitives; this is the catalogue.
 statement; trick routing is ordinary body transfers after a `round` returns.
 
 - `deal` — cards from a source (usually a deck) to recipients, per-recipient visibility; emits a semi-private observation to non-recipients (they see something moved)
-- `transfer` — cards or resource units between zones; the amount is an expression and the item names the unit (`transfer 5 chips from stack[A] to pot`, `transfer chosen 3 cards from hand[p] to ...`). See [decisions.md](decisions.md) "Resource amount syntax".
-- `move` — the generic relocation (`move all cards from X to Y`). The
+- `move` — the generic relocation (`move all cards from X to Y`); the amount
+  is an expression and the item names the unit, cards or resource units
+  (`move chosen 3 cards from hand[p] to ...`, `move 5 chips from stack[A] to
+  pot` — see [decisions.md](decisions.md) "Resource amount syntax"). The
   destination-only form `move all cards to <zone>` is a **gather**: it collects
   every card from all other zones into that zone (per-hand cleanup; see
   [decisions.md](decisions.md) "Loop lifecycle: `before_each` and `after_each`")
-- `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
 - `draw` — take from a pile into a hand
+
+A burn or a muck is a `move` to the `Burn` or `Muck` zone: the zone's
+projection, not a verb, is what makes the cards leave sight (mucked cards
+land in a trivial-projection zone, prior observations persisting).
 
 The `from <zone> … to <zone>` form additionally takes an optional `where
 <lambda>` clause, narrowing the source pool to matching cards (in source
@@ -709,7 +714,7 @@ Card games use `peek` / `reveal` / `shuffle` / `deal` predominantly.
 Stud Poker (see [games/seven-card-stud.md](games/seven-card-stud.md))
 is the first game to exercise the full vocabulary in non-trivial ways.
 Resource-using games (Catan and similar, when they enter scope) use
-the `transfer` verb as their primary one.
+`move` with a resource noun as their primary verb.
 
 ## Built-in component sets
 

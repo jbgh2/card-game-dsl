@@ -259,7 +259,7 @@ than accepting surface it would silently drop ("Surface totality"):
   legal however its `applies_when:` reads.
 
 **State the constraint where the move is made instead.** A transfer's
-`chosen N` binds a count (Hearts' pass is `transfer chosen 3 cards` — the
+`chosen N` binds a count (Hearts' pass is `move chosen 3 cards` — the
 `3` *is* the "pass exactly three" law); a move type's `when:` guard binds
 its parameters (Stud's bring-in amount). These are the enforcing forms
 today, which is why no corpus game loses a constraint to the guards above.
@@ -1832,19 +1832,19 @@ as an Owner Guard (see "Closed-domain completeness", write-time triage).
 
 ## Resource amount syntax
 
-A resource quantity in a `transfer` is written `<count> <type>` — the
+A resource quantity in a transfer is written `<count> <type>` — the
 count (an integer expression, or `all`) followed by the resource type
 name:
 
 ```text
-transfer 1 coin       from treasury to coins[player]
-transfer 7 coins      from coins[actor] to treasury
-transfer amount coins from coins[target] to coins[actor]
-transfer all coins    from coins[p] to treasury
+move 1 coin       from treasury to coins[player]
+move 7 coins      from coins[actor] to treasury
+move amount coins from coins[target] to coins[actor]
+move all coins    from coins[p] to treasury
 ```
 
-Stud (`transfer 5 chips`, `transfer ante_amount chips`) and Coup
-(`transfer 2 coins`, `transfer min(2, …) coins`) — the two
+Stud (`move 5 chips`, `move ante_amount chips`) and Coup
+(`move 2 coins`, `move min(2, …) coins`) — the two
 resource-using games in the corpus — both read this way, and both move
 a single resource type per transfer. The `<count> <type>` form is the
 canonical surface for that case.
@@ -1853,7 +1853,7 @@ For a transfer that moves *several* resource types at once, the
 generalization is a map literal `{ type: count, … }`:
 
 ```text
-transfer { wood: 2, brick: 1 } from bank to hand[player]
+move { wood: 2, brick: 1 } from bank to hand[player]
 ```
 
 No corpus game moves multiple types in one transfer yet, but the map
@@ -1872,13 +1872,13 @@ with `min` or a conditional amount:
 ```text
 // Coup steal — take 2, or 1 if that's all the target has:
 let amount = min(2, coins[target].amount_of(coin))
-transfer amount coins from coins[target] to coins[actor]
+move amount coins from coins[target] to coins[actor]
 ```
 
 ```text
 // Stud all-in call — match the bet, or commit the whole stack:
 let amount = min(bet_to_match - bet_by[actor], stack[actor].count)
-transfer amount chips from stack[actor] to pots[0].contents
+move amount chips from stack[actor] to pots[0].contents
 ```
 
 The two resource-using games converge on the same shape: compute the
@@ -1909,9 +1909,9 @@ pronoun for the candidate Move under consideration.
 The surface verb `move` also stays, and is deliberately not the engine word for
 a Transfer: in solitaire the verb and the Move genuinely coincide, and the
 surface reads like the rulebook. The engine word is Transfer; its verbs
-(`deal`/`draw`/`move`/`burn`/`muck`/`transfer`) are sugar over the one
-primitive, and a future board family mints its own (`place`, `capture`) as
-registry rows rather than as new syntax.
+(`deal`/`draw`/`move`) are sugar over the one primitive, and a future board
+family mints its own (`place`, `capture`) as registry rows rather than as new
+syntax.
 
 **A move type is played only where it is offered.** A game's own move type
 that no reachable `offer` presents is refused: no seat can ever play it, so
@@ -1932,8 +1932,9 @@ small-core/rich-library split that makes the trick a `round` configuration
 rather than syntax ([principles.md](principles.md)).
 
 **Transfer** — relocating items between two places. One primitive underlies
-every transfer verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
-are sugar that differ only in defaults, not in kind. A transfer carries a
+every transfer verb: `deal`, `move` and `draw` are sugar that differ only in
+defaults, not in kind — one word per meaning, so a second word for the same
+node (a `burn`, a `muck`, a `transfer`) does not exist. A transfer carries a
 selection (`all`, a count, or a `chosen`/`random` amount), an item noun, a
 source place, and a destination (a single zone or `to each` recipient). A
 count is an Integer, never a comparison or a flag: a count that does not
@@ -3752,7 +3753,7 @@ phase passing when pass_direction is not hold {
   legal_moves:  [transfer_between_hands]
 
   each player simultaneously:
-    transfer chosen 3 cards
+    move chosen 3 cards
       from hand[player]
       to   hand[player offset_by pass_direction]
 }
@@ -3778,8 +3779,8 @@ phase trade_negotiation → outcome { agreed(Trade) | declined } {
 trade_negotiation produces:
   agreed(t) {
     simultaneously: {
-      transfer t.alice_gives from hand[alice] to hand[bob]
-      transfer t.bob_gives   from hand[bob]   to hand[alice]
+      move t.alice_gives from hand[alice] to hand[bob]
+      move t.bob_gives   from hand[bob]   to hand[alice]
     }
   }
   declined {
@@ -4242,6 +4243,23 @@ gather), the `where` filter, the item noun, and the deferred clauses (the `in
 cell is implemented (`tests/test_movement_filter_execute.py`) or statically
 rejected (`tests/test_movement_combination_validity.py`) — see "The operation
 vocabulary" for the enforced combinations.
+
+**Minimal and complete.** The language carries one spelling per meaning and
+no family with a missing member. A synonym — a second word the parser reads
+as the same node — is dead surface the moment it lands, and leaves. A member
+of a closed family — the alternatives of one rule or the words of one
+terminal: `any` / `all` / `number of`, `sum` / `highest` / `lowest`, `rounded
+up` / `rounded down`, `chosen` / `random` — ships whole with its family,
+with or without a corpus writer, because a language with `highest` and not
+`lowest` has a hole a designer meets and the language cannot explain. Such a
+member carries a sunset: the direction review retires a member still written
+by no corpus file ten corpus games after the review first lists it, and
+re-reads the family's symmetry with it. The dead-surface report (`python -m
+tools.dead_surface`) is the instrument: it classes every row it lists as a
+sibling kept whole, a placeholder kept for the located message a rejection
+fixture pins, a reject arm, or dead — and the dead class is pinned empty
+(`tests/test_dead_surface_report.py`), so surface with no writer and no
+reason cannot land.
 
 ## Closed-domain completeness
 

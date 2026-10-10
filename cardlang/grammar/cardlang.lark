@@ -446,7 +446,7 @@ transfer: TRANSFER_VERB selection _FROM_KW zone_expr [where_clause] [dist_clause
 // A word set spelled as a named terminal rather than as inline literals, so it
 // carries its whole-word anchoring itself (`moveall …` must not read as `move
 // all …`); same for RANK_DIR above.
-TRANSFER_VERB: /(?:deal|transfer|move|burn|muck|draw)(?![A-Za-z0-9_])/
+TRANSFER_VERB: /(?:deal|move|draw)(?![A-Za-z0-9_])/
 // How a `to each` deal distributes: by default each destination takes the
 // stated amount; `as-equally-as-possible` deals the source round-robin so the
 // remainder is spread (Getaway deals the whole deck across 3–8 hands).

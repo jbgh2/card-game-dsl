@@ -243,7 +243,9 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
             "own contract at the first decision. The same T3 invariant as "
             "`gops_empty_legal_set`, reached through a movement's `chosen` "
             "count rather than a trick's candidates, and the same "
-            "missing-deal shape as `getaway_missing_deal_no_hand_holder`."
+            "missing-deal shape as `getaway_missing_deal_no_hand_holder`. "
+            "The pass is spelled `move chosen 3 cards`, the one verb the "
+            "language keeps: the finding is the empty hand, not the word."
         ),
     ),
     Finding(

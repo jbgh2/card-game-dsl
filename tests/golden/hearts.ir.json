@@ -241,7 +241,7 @@
               "role": "player",
               "body": {
                 "kind": "transfer",
-                "verb": "transfer",
+                "verb": "move",
                 "selection_mode": "chosen",
                 "amount": {
                   "kind": "int",

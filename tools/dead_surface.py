@@ -24,8 +24,20 @@ Two sections, each derived:
   when no CORPUS or SHARED file produces it; OTHER consumers (experiment
   games, test fixtures) are named beside the row so the review sees "only a
   fixture uses it".
-- Keywords no live file writes: every `_X_KW` terminal's word, sought as a
-  whole token in each file with comments and string literals stripped.
+- Keywords no live file writes: every `_X_KW` terminal's word, and every
+  alphabetic word of an alternation terminal (`TRANSFER_VERB`'s verbs,
+  `RANK_DIR`'s directions), sought as a whole token in each file with
+  comments and string literals stripped.
+
+Every dead row carries a class, derived like the row (decisions.md "Surface
+totality", minimal and complete): SIBLING -- a dead alternative of a rule, or
+word of a terminal, with a live alternative beside it, kept whole with its
+family under the direction review's sunset; PLACEHOLDER -- a row whose only
+consumers are rejection fixtures, kept for the located message they pin;
+REJECT -- a keyword only a reject-with-replacement twin uses; DEAD -- none of
+these, surface with no writer and no reason. tests/test_dead_surface_report.py
+pins the DEAD class empty on the real tree; the other three are rows for the
+review, never failures.
 
 Whether a live construct's consumers are only scoring sentences is a
 semantic question this report does not ask; it belongs on the checked game,
@@ -111,6 +123,10 @@ def default_sources(root: pathlib.Path = ROOT) -> list[Source]:
 # --- the grammar axes ---------------------------------------------------------
 
 _KEYWORD = re.compile(r'^_([A-Z0-9_]+)_KW:\s*"([^"]+)"', re.M)
+# An alternation terminal of alphabetic words: `NAME: /(?:a|b|c)(?![A-Za-z0-9_])/`.
+_ALTERNATION = re.compile(
+    r"^([A-Z][A-Z0-9_]*):\s*/\(\?:([a-z_]+(?:\|[a-z_]+)+)\)\(\?!\[A-Za-z0-9_\]\)/", re.M
+)
 
 
 def refusing_methods(builder: type) -> frozenset[str]:
@@ -195,6 +211,61 @@ def keyword_axis(grammar: str) -> dict[str, str]:
     return {name: word for name, word in _KEYWORD.findall(grammar)}
 
 
+def word_axis(grammar: str) -> dict[str, str]:
+    """`TERMINAL:word` -> the word, for every alphabetic word of an alternation
+    terminal: a designer's word with no `_X_KW` terminal of its own, sought
+    and classed like one, its siblings the terminal's other words."""
+    return {
+        f"{name}:{word}": word
+        for name, body in _ALTERNATION.findall(grammar)
+        for word in body.split("|")
+    }
+
+
+@dataclasses.dataclass(frozen=True)
+class Structure:
+    """What the compiled grammar says about each node's neighbours."""
+
+    siblings: dict[str, frozenset[str]]  # node -> the other producible nodes of its rule
+    terminal_nodes: dict[str, frozenset[str]]  # terminal -> every node whose expansion names it
+    refused: frozenset[str]  # reject twins and nodes the builder only refuses
+
+
+def structure(grammar: str, builder: type = _Builder) -> Structure:
+    """The sibling and terminal relations over the compiled grammar, named as
+    `rule_axis` names nodes; a precedence level's own name is no sibling of
+    its aliases, since it names the level and not a construct."""
+    start = list(_parser().options.start)
+    compiled = Lark(grammar, parser=None, lexer="basic", start=start)
+    refusing = refusing_methods(builder)
+    by_origin: dict[str, list[Rule]] = defaultdict(list)
+    for rule in compiled.rules:
+        by_origin[rule.origin.name].append(rule)
+
+    def node(rule: Rule) -> str:
+        return str(rule.alias or rule.options.template_source or rule.origin.name)
+
+    def refused(rule: Rule) -> bool:
+        name = node(rule)
+        return name.endswith("_reject") or name in refusing
+
+    siblings: dict[str, frozenset[str]] = {}
+    for origin, rules in by_origin.items():
+        names = {node(r) for r in rules if not refused(r)} - {origin}
+        for name in names:
+            siblings[name] = frozenset(names - {name})
+    terminal_nodes: dict[str, set[str]] = defaultdict(set)
+    for rule in compiled.rules:
+        for symbol in rule.expansion:
+            if symbol.is_term:
+                terminal_nodes[str(symbol.name)].add(node(rule))
+    return Structure(
+        siblings=siblings,
+        terminal_nodes={t: frozenset(n) for t, n in terminal_nodes.items()},
+        refused=frozenset(node(r) for r in compiled.rules if refused(r)),
+    )
+
+
 # --- reading consumers ---------------------------------------------------------
 
 
@@ -233,6 +304,7 @@ class Report:
     keywords: dict[str, str]
     rule_consumers: dict[str, dict[str, tuple[str, ...]]]  # rule -> tier -> files
     keyword_consumers: dict[str, dict[str, tuple[str, ...]]]
+    shape: Structure
 
     def dead_rules(self) -> list[str]:
         return sorted(r for r in self.rules if not self._live(self.rule_consumers.get(r, {})))
@@ -246,6 +318,63 @@ class Report:
     def _live(consumers: dict[str, tuple[str, ...]]) -> bool:
         return any(consumers.get(t) for t in LIVE_TIERS)
 
+    def rule_classes(self) -> dict[str, tuple[str, str]]:
+        """Each dead rule's class and the reason it names: a live sibling, the
+        fixture that pins its message, or nothing."""
+        out: dict[str, tuple[str, str]] = {}
+        for rule in self.dead_rules():
+            live = sorted(
+                s for s in self.shape.siblings.get(rule, ()) if self._live(self.rule_consumers.get(s, {}))
+            )
+            if live:
+                out[rule] = ("sibling", live[0])
+                continue
+            others = self.rule_consumers.get(rule, {}).get("other", ())
+            fixtures = [f for f in others if f.startswith("tests/rejections/")]
+            if fixtures and len(fixtures) == len(others):
+                out[rule] = ("placeholder", fixtures[0])
+                continue
+            out[rule] = ("dead", "")
+        return out
+
+    def keyword_classes(self) -> dict[str, tuple[str, str]]:
+        """Each dead keyword's class: a word takes the class of the live word
+        beside it in its terminal, and a keyword the class of the rules that
+        name it -- a sibling row first, then a reject twin, then a
+        placeholder, else dead."""
+        rules = self.rule_classes()
+        out: dict[str, tuple[str, str]] = {}
+        for key in self.dead_keywords():
+            # A `_X_KW` keyword is keyed by its bare name; a word by `TERMINAL:word`.
+            terminal, _, word = key.partition(":")
+            if not word:
+                terminal = f"_{key}_KW"
+            if word:
+                live_words = sorted(
+                    self.keywords[k]
+                    for k in self.keywords
+                    if k.startswith(terminal + ":") and k != key and self._live(self.keyword_consumers.get(k, {}))
+                )
+                if live_words:
+                    out[key] = ("sibling", live_words[0])
+                    continue
+            nodes = sorted(self.shape.terminal_nodes.get(terminal, ()))
+            classed = [rules[n] for n in nodes if n in rules]
+            sibling = next((c for c in classed if c[0] == "sibling"), None)
+            twin = next((n for n in nodes if n in self.shape.refused), None)
+            placeholder = next((c for c in classed if c[0] == "placeholder"), None)
+            out[key] = sibling or (("reject", twin) if twin else None) or placeholder or ("dead", "")
+        return out
+
+    @staticmethod
+    def _note(cls: str, why: str) -> str:
+        return {
+            "sibling": f"[sibling of {why}]",
+            "placeholder": f"[placeholder, message pinned by {why}]",
+            "reject": f"[reject arm: {why}]",
+            "dead": "[dead]",
+        }[cls]
+
     def render(self) -> str:
         lines = [
             "# Dead surface -- derived, never maintained (issue #653)",
@@ -254,25 +383,27 @@ class Report:
             f"## Rules and aliases no corpus, library or stdlib file produces "
             f"({len(self.dead_rules())} of {len(self.rules)})",
         ]
+        rule_classes = self.rule_classes()
         for rule in self.dead_rules():
             others = self.rule_consumers.get(rule, {}).get("other", ())
             suffix = f"  (only in: {', '.join(others)})" if others else ""
-            lines.append(f"- {rule}{suffix}")
+            lines.append(f"- {rule}  {self._note(*rule_classes[rule])}{suffix}")
         lines += [
             "",
             f"## Keywords no corpus, library or stdlib file writes "
             f"({len(self.dead_keywords())} of {len(self.keywords)})",
         ]
+        keyword_classes = self.keyword_classes()
         for name in self.dead_keywords():
             others = self.keyword_consumers.get(name, {}).get("other", ())
             suffix = f"  (only in: {', '.join(others)})" if others else ""
-            lines.append(f"- `{self.keywords[name]}`{suffix}")
+            lines.append(f"- `{self.keywords[name]}`  {self._note(*keyword_classes[name])}{suffix}")
         return "\n".join(lines) + "\n"
 
 
 def report(grammar: str, sources: Iterable[Source]) -> Report:
     rules = rule_axis(grammar)
-    keywords = keyword_axis(grammar)
+    keywords = keyword_axis(grammar) | word_axis(grammar)
     parsed: list[str] = []
     unparsed: list[str] = []
     rule_consumers: dict[str, dict[str, list[str]]] = {}
@@ -296,6 +427,7 @@ def report(grammar: str, sources: Iterable[Source]) -> Report:
         keywords=keywords,
         rule_consumers={r: {t: tuple(sorted(f)) for t, f in by.items()} for r, by in rule_consumers.items()},
         keyword_consumers={k: {t: tuple(sorted(f)) for t, f in by.items()} for k, by in keyword_consumers.items()},
+        shape=structure(grammar),
     )
 
 
