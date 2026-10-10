@@ -340,8 +340,8 @@ class Report:
     def keyword_classes(self) -> dict[str, tuple[str, str]]:
         """Each dead keyword's class: a word takes the class of the live word
         beside it in its terminal, and a keyword the class of the rules that
-        name it -- a sibling row first, then a reject twin, then a
-        placeholder, else dead."""
+        name it -- a sibling row first, then a reject arm (every node naming
+        the terminal is a refused one), then a placeholder, else dead."""
         rules = self.rule_classes()
         out: dict[str, tuple[str, str]] = {}
         for key in self.dead_keywords():
@@ -361,7 +361,9 @@ class Report:
             nodes = sorted(self.shape.terminal_nodes.get(terminal, ()))
             classed = [rules[n] for n in nodes if n in rules]
             sibling = next((c for c in classed if c[0] == "sibling"), None)
-            twin = next((n for n in nodes if n in self.shape.refused), None)
+            # A reject arm is a keyword ONLY refused nodes name: one accepted
+            # node beside the twins makes it accepted surface nobody writes.
+            twin = nodes[0] if nodes and all(n in self.shape.refused for n in nodes) else None
             placeholder = next((c for c in classed if c[0] == "placeholder"), None)
             out[key] = sibling or (("reject", twin) if twin else None) or placeholder or ("dead", "")
         return out

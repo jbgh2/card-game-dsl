@@ -119,6 +119,15 @@ def test_a_keyword_only_a_reject_twin_uses_is_a_reject_arm() -> None:
     assert rep.keyword_classes()["CARD_VALUES"] == ("reject", "card_values_reject")
 
 
+def test_a_keyword_an_accepted_node_shares_with_a_twin_is_not_a_reject_arm() -> None:
+    """`primitives` opens the accepted `primitives_block` and three reject
+    twins of it: with no file writing it, it is accepted surface nobody
+    writes -- dead, never a reject arm. Red under: classing on ANY refused
+    node naming the terminal instead of ALL of them."""
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game("    score[0] := 1"))])
+    assert rep.keyword_classes()["PRIMITIVES"] == ("dead", "")
+
+
 def test_a_dead_keyword_of_a_sibling_row_takes_the_rows_class() -> None:
     """`random` is dead and `chosen` live, so `sel_random` is a sibling row and
     its one keyword inherits the class and the reason."""
