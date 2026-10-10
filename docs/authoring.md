@@ -469,6 +469,15 @@ no proof module covers a game outside it (issue #25). The adapter's derivation
 is the same either way; the standing evidence that it holds for *your* game is
 what is absent.
 
+Determinizing solvers work on it too. OpenSpiel's `ISMCTSBot` asks a state for
+a world the deciding seat cannot tell apart from the real one
+(`resample_from_infostate`), and the adapter builds that world from the seat's
+derived information state: a [Constructed World](glossary/constructed-world.md).
+Two shapes refuse it loudly rather than answer wrongly: a deck holding
+repeated cards (issue #830), and a deal by `random` selection (issue #831). A
+game whose public play pins hidden hands tightly can take seconds per world
+(issue #832).
+
 A cash game has no terminal of its own, and which one the file supplies decides
 what the adapter is usable for. The corpus writes both shapes. Kuhn Poker,
 Leduc Poker and heads-up Hold'em play **one hand** and return the chip delta —

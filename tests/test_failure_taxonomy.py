@@ -157,6 +157,14 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # `GameDescriptionError` report a gap in the grammar as the designer's
     # game being illegal.
     "UnrenderableTerminal": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: the engine maintainer, at the determinization seam --------
+    # The game is legal and the solver asked what OpenSpiel solvers ask; the
+    # world it wants is one the construction cannot yet build. A harness
+    # reporting illegal games must not swallow a capability gap.
+    "ResampleRefusal": {"in_game_description_tree": False, "is_runtime_error": False},
+    # A proposal leaving the observer's information set: the construction's
+    # own control flow, caught where it is raised.
+    "_Rejected": {"in_game_description_tree": False, "is_runtime_error": False},
 }
 
 

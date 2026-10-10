@@ -229,12 +229,11 @@ Every exploitability figure is reported beside that floor.
 
 ## What is *not* established
 
-- **No IS-MCTS baseline.** OpenSpiel's `ISMCTSBot` needs `resample_from_infostate`,
-  which this adapter cannot implement: its state is `(seed, history)` and the deal
-  is a pure function of the seed, so the observer's hand cannot be held fixed
-  while opponents' are permuted. Rule-based and equilibrium baselines are
-  substituted, and the limitation is recorded as an executable check that fails
-  the day the adapter gains that method.
+- **No IS-MCTS baseline.** OpenSpiel's `ISMCTSBot` runs through the adapter
+  (`tests/openspiel_ready/test_ismcts.py`), but the adapter re-simulates from the
+  root on every query, so a tree search at baseline strength costs far more
+  than this harness's budget. Rule-based and equilibrium baselines are
+  substituted.
 - **Sample sizes differ by an order of magnitude between games**, because episode
   costs do. Cheat is N=10 per matchup — enough for a paired sign test on a
   per-decision endpoint, not for win rates, which are 0/10 everywhere. Kuhn is

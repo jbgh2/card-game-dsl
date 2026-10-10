@@ -1,13 +1,15 @@
 """Generalized re-simulation engine: drive ANY fully-kernel game
 action-by-action by replaying a recorded action history through ``play_game``.
 
-The OpenSpiel ``State`` is just ``(seed, history)``, that seed being the
-[[shuffle-seed]]. Every query re-runs the game with a :class:`ReplayChooser`
+The OpenSpiel ``State`` is just ``(seed, script, history)``, that seed being
+the [[shuffle-seed]] and the Draw Script the outcomes of the first draws where a
+resampled world gives them rather than the seed (`generator_for`). Every
+query re-runs the game with a :class:`ReplayChooser`
 that decodes and returns the recorded actions in order and raises
 ``ChooserAbort`` at the first decision beyond the history — surfacing the
 current decision point with the live [[world]] and the per-player
 [[observation-log]]s attached. The chooser makes no RNG calls, so a run is a
-pure function of ``seed``.
+pure function of ``seed`` and ``script``.
 
 For a Chance-Free Game the seed reaches nothing: its generator refuses every
 draw (`cardlang.runtime.chance`), so a run is a pure function of ``history``
@@ -285,16 +287,16 @@ def generator_for(
     empty script, deals exactly as `random.Random(seed)` does. The choice lives
     here because every route that plays a ``(path, seed, script)`` must make it
     the same way, or one triple would name two deals: `run` reads it, and so
-    does every `LiveLine`. `construct` answers the draws past the script as
-    they happen (`cardlang.openspiel.resample` building a world), and
+    does every `LiveLine`. `construct` answers the draws past the Draw Script as
+    they happen (`cardlang.openspiel.resample` building a Constructed World), and
     `on_draw` hears each draw made. A refusing generator belongs where no chooser draws
     either — the default `random_chooser`'s draws are a policy's, not the
     game's, and would make the refusal fire on a playout that is behaving
-    correctly. A script for a game that never draws would name outcomes no
+    correctly. A Draw Script for a game that never draws would name outcomes no
     draw takes, so it is refused rather than ignored."""
     if chance_free(path_str):
         if script or construct is not None:
-            raise ValueError(
+            raise HistoryMismatch(
                 f"{path_str} draws nothing, so a scripted or constructed draw "
                 f"outcome has no draw to give it to"
             )
@@ -304,10 +306,12 @@ def generator_for(
 
 class HistoryMismatch(ValueError):
     """A recorded history that does not replay in the game it is replayed in:
-    a pick that is not an action id, a pick its position does not offer, or
-    picks left over when the game ends.
+    a pick that is not an action id, a pick its position does not offer,
+    picks left over when the game ends, or a Draw Script for a game that draws
+    nothing.
 
-    Addressed to whoever supplied the history (a saved session, a harness), not
+    Addressed to whoever supplied the history (a saved session, a harness, a
+    Constructed World), not
     to the game author: the game is sound, and the record is not its own."""
 
 
@@ -425,7 +429,7 @@ def run(
 
     ``picks`` receives what each recorded pick was offered (`ReplayChooser`);
     ``listen`` hears every `Moment` of the run as it happens; ``construct``
-    answers the draws past the script (`generator_for`); ``beyond``, when
+    answers the draws past the Draw Script (`generator_for`); ``beyond``, when
     given, is asked for each pick past the history instead of pausing there,
     and pauses the run itself by raising `ChooserAbort`."""
     game, space = load(path_str)

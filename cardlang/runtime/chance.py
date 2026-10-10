@@ -23,9 +23,13 @@ Contract
 Assumes: a CHECKED game — `_apply_uses` has spliced every library definition
 into the tree and `expand` has spliced every procedure body at its call site,
 so a walk of this tree reads all the text that can run. Establishes: whether
-the game draws, and at which sites. Illegal after this: reading a game's
-chance-freeness by scanning its source for `shuffle`, or handling an
-`EpistemicOp` or `Transfer` selection mode this module's tables do not name —
+the game draws, and at which sites; and, for a game that draws, a generator
+whose draws are exactly the `DRAW_KINDS` its drawing constructs reach, each
+scriptable, and which under an empty Draw Script deals as `random.Random(seed)`.
+Illegal after this: reading a game's chance-freeness by scanning its source
+for `shuffle`; drawing from a drawing game's generator through any method
+but its draw kinds; or handling an `EpistemicOp` or `Transfer` selection
+mode this module's tables do not name —
 the tables are reconciled against the grammar productions that define them by
 `tests/test_chance_free.py::test_construct_axis_is_pinned_by_grammar`, so a new
 arm reddens there rather than reading here as drawing nothing.
@@ -163,7 +167,7 @@ _UNSCRIPTED = (
     "a game drew from its generator outside `shuffle` and `sample`, the two "
     "methods its drawing constructs reach — the enumeration in "
     "cardlang/runtime/chance.py is missing the construct that drew, and a "
-    "constructed world could not script it"
+    "Constructed World could not script it"
 )
 
 
@@ -185,13 +189,13 @@ class ScriptedRandom(random.Random):
     outcome from `outcome_for(i, kind, items)`, which answers from `script`
     while it lasts; past it, and wherever `outcome_for` answers None, the draw
     is `random.Random(seed)`'s own, consuming that stream exactly as the plain
-    generator would. An empty script is therefore the plain generator: same
+    generator would. An empty Draw Script is therefore the plain generator: same
     seed, same outcomes.
 
-    The script is what lets a world exist that no seed deals — the one
+    The Draw Script is what lets a world exist that no seed deals — the one
     `cardlang.openspiel.resample` constructs, holding what an observer has seen
     in place while redealing the rest. A scripted draw consumes no randomness,
-    so the draws after the script are the seed's from its first bit.
+    so the draws after the Draw Script are the seed's from its first bit.
 
     Drawing anywhere but `shuffle` and `sample` is refused, which makes
     `chance_sites`'s enumeration falsifiable here as `RefusingRandom` makes the

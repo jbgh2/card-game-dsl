@@ -1,5 +1,5 @@
-"""Worlds a seat cannot tell from the one being played: the construction
-behind `CardlangState.resample_from_infostate`.
+"""Constructed Worlds — worlds a seat cannot tell from the one being played:
+the construction behind `CardlangState.resample_from_infostate`.
 
 A determinizing solver (OpenSpiel's `ISMCTSBot` and its family) asks, at a
 seat's decision, for a [[world]] drawn from that seat's information set. The
@@ -9,8 +9,8 @@ state and the seat to move exactly as they were — and the legal actions too,
 when the seat is the one to move — while every card the seat has not seen
 may lie elsewhere.
 
-The construction is by rejection over a proposal that is a function of the
-seat's information state and the sampler's randomness alone:
+A proposal is a function of the seat's information state and the sampler's
+randomness alone:
 
 - **What the seat has identified.** Every card its observation log names, and
   every card its Seat View shows at the pause (a zone it sees at identity, a
@@ -19,26 +19,37 @@ seat's information state and the sampler's randomness alone:
   about where the reshuffle put it.
 - **Draws.** Draw `i` of the new world keeps each card identified in epoch
   `i` at the position the true draw gave it, and permutes the rest of its
-  items uniformly over the remaining positions.
+  items over the remaining positions.
 - **Picks.** The seat's own picks replay as recorded; so does another seat's
-  pick of an identified card, and another seat's non-card pick that the seat
-  heard announced (an `announce` event spelling it). Every other pick is one
-  the seat did not see, and is re-chosen uniformly among the legal actions
-  that move no identified card.
+  pick that moves an identified card, and another seat's non-card pick that
+  the seat heard announced (an `announce` event spelling it). Every other pick
+  is one the seat did not see, and is re-chosen among the legal actions that
+  move no identified card.
 - **Acceptance.** The proposal is run forward, its observation stream
   compared with the seat's log event by event, and accepted only when the
   pause it reaches renders the same information state, asks the same seat,
-  and — when the observer is that seat — offers it the same actions. The run that accepts it is `replay.run` under the
-  script and picks it returns, so the adapter's own replay of the returned
-  triple arrives at that same pause (pinned in tests/openspiel_ready/test_ismcts.py).
+  and — when the observer is that seat — offers it the same actions. The
+  accepting run is `replay.run` under the Draw Script and picks it returns,
+  so the adapter's own replay of the returned triple arrives at that same
+  pause (pinned in tests/openspiel_ready/test_ismcts.py).
 
-So a constructed world is the posterior of the observer's information state
-under uniform chance and uniform play at the picks it did not see, with one
-designed residual: an identified card keeps its true trajectory within its
-epoch — the position it was dealt from and the picks that moved it — even
-where the seat saw only where it ended up (a card passed between two
-opponents and later played). The cards still in play that the seat has not
-identified are the ones a solver's search reads, and those are redrawn.
+The first `FRESH` proposals are independent and uniform, so a world accepted
+among them is drawn from the posterior of the observer's information state
+under uniform chance and uniform play at the picks it did not see. Where
+public play constrains hidden hands tightly — a void shown, an ask announced —
+those proposals can all fail, and the search turns to repair: from the
+proposal that got furthest, it trades free cards held by the seat whose pick
+failed, keeping each step that gets no less far. A repaired world is in the
+information set and built from the observer's view alone, but it is not
+posterior-weighted.
+
+One residual is designed: an identified card keeps its true trajectory
+within its epoch — the position it was dealt from and the picks that moved
+it — even where the seat saw only where it ended up (a card passed between
+two opponents and later played); and a pick that moves it replays whole, so
+an unidentified card moved in the same pick keeps its true place too. The
+cards still in play that the seat has not identified are the ones a solver's
+search reads, and those are redrawn.
 
 Contract
 --------
@@ -46,10 +57,10 @@ Assumes: a game `ActionSpace.for_game` derives, at a decision node, whose
 draws are all reached through `ScriptedRandom` (`replay.generator_for`).
 Establishes: a returned world replays, under `replay.run`, to a decision of
 the same seat — with the same legal actions when the observer is that seat —
-and the observer's information state byte-identical; the proposal reads the true line only through what
-the observer has identified, its own picks, and the announcements it heard,
-so two worlds the observer cannot tell apart yield the same proposal from
-the same sampler randomness. A game this construction does not cover —
+and the observer's information state byte-identical; the search reads the
+true line only through what the observer has identified, its own picks, and
+the announcements it heard, so two worlds the observer cannot tell apart
+yield the same Constructed World from the same sampler randomness. A game this construction does not cover —
 a deck with repeated cards, a random selection — is refused before any
 proposal is drawn, and a budget spent without an acceptance is refused too,
 each as `ResampleRefusal`. Illegal after this: handing a solver a world this
@@ -79,7 +90,7 @@ from cardlang.openspiel.replay import (
 )
 from cardlang.runtime.chance import Draw, Outcome
 from cardlang.runtime.observe import render
-from cardlang.runtime.state import ChooserAbort
+from cardlang.runtime.state import ChooserAbort, RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
 # How many proposals `resample` judges before refusing; a refusal names it.
@@ -106,7 +117,7 @@ class ResampleRefusal(Exception):
 
 @dataclass(frozen=True)
 class Constructed:
-    """A world `resample` accepted: the adapter state's three parts."""
+    """A Constructed World `resample` accepted: the adapter state's three parts."""
 
     seed: int
     script: tuple[Outcome, ...]
@@ -154,7 +165,7 @@ def _moves(value: Any) -> tuple[Card, ...]:
     cards among its parameters. A bare name or an integer moves none."""
     if isinstance(value, ComboAction):
         return tuple(value.cards)
-    return tuple(card for card in _cards_named(value, {}) if isinstance(card, Card))
+    return tuple(_cards_named(value, {}))
 
 
 def _renderings(path: str) -> dict[str, Card]:
@@ -247,8 +258,8 @@ def entitlement(
 
 
 class _Rejected(Exception):
-    """A proposal left the observer's information set. The argument says
-    where."""
+    """A proposal left the observer's information set. The first argument says
+    where; a second names the seat whose pick failed."""
 
 
 @dataclass(frozen=True)
@@ -266,11 +277,13 @@ class _Proposal:
 class _Verdict:
     """How far a proposal got: its world if accepted, else where it left the
     observer's information set; `progress` counts the observations matched
-    and picks made before it did."""
+    and picks made before it did. `blame` holds the (draw, free item) pairs
+    held by the seat whose pick failed, read off the proposal's own world."""
 
     world: tuple[tuple[Outcome, ...], tuple[int, ...]] | None
     reason: str
     progress: int
+    blame: tuple[tuple[int, int], ...] = ()
 
 
 def _free_slots(owed: Entitlement) -> tuple[int, ...]:
@@ -287,15 +300,22 @@ def _fresh(owed: Entitlement, history: tuple[int, ...], rnd: random.Random) -> _
     )
 
 
-def _neighbour(proposal: _Proposal, owed: Entitlement, rnd: random.Random) -> _Proposal:
-    """One step from `proposal`: two free items of one draw trade places, or
-    one unseen pick takes a new key."""
+def _neighbour(
+    proposal: _Proposal, verdict: _Verdict, owed: Entitlement, rnd: random.Random
+) -> _Proposal:
+    """One step from `proposal`: two free items of one draw trade places — one
+    of them held by the seat whose pick failed, where the verdict names any —
+    or one unseen pick takes a new key."""
     swappable = [i for i, keys in enumerate(proposal.draws) if len(keys) >= 2]
     unseen = [j for j, replayed in enumerate(owed.replayed) if not replayed]
     if swappable and (not unseen or rnd.random() < 0.75):
-        i = rnd.choices(swappable, weights=[len(proposal.draws[i]) for i in swappable])[0]
+        if verdict.blame:
+            i, a = rnd.choice(verdict.blame)
+            b = rnd.choice([k for k in range(len(proposal.draws[i])) if k != a])
+        else:
+            i = rnd.choices(swappable, weights=[len(proposal.draws[i]) for i in swappable])[0]
+            a, b = rnd.sample(range(len(proposal.draws[i])), 2)
         keys = list(proposal.draws[i])
-        a, b = rnd.sample(range(len(keys)), 2)
         keys[a], keys[b] = keys[b], keys[a]
         return _Proposal(proposal.draws[:i] + (tuple(keys),) + proposal.draws[i + 1 :], proposal.picks)
     if unseen:
@@ -313,7 +333,28 @@ def _evaluate(
     script: list[Outcome] = []
     taken: list[int] = []
     epoch: dict[Card, int] = {}
+    free: dict[Card, tuple[int, int]] = {}  # free item -> (draw, its key's index)
+    world: list[RuntimeState] = []
     heard = 0
+
+    def blame(seat: int) -> tuple[tuple[int, int], ...]:
+        """The free items of their latest draw that `seat`'s zones hold."""
+        if not world:
+            return ()
+        zones = world[0].zones
+        held = [
+            card
+            for name, keyed in zones.families.items()
+            if seat in keyed
+            for card in zones.instance(name, seat).cards
+        ]
+        return tuple(
+            free[card]
+            for card in held
+            if card in free
+            and free[card][0] == epoch.get(card)
+            and len(proposal.draws[free[card][0]]) >= 2
+        )
 
     def construct(index: int, kind: str, items: list[Any]) -> Outcome:
         if index >= len(owed.draws):
@@ -324,6 +365,8 @@ def _evaluate(
         rest = [card for card in items if card not in known]
         if kind != true.kind or len(items) != len(true.before) or len(rest) != len(keys):
             raise _Rejected(f"draw {index} over different items")
+        for position, card in enumerate(rest):
+            free[card] = (index, position)
         order = sorted(range(len(rest)), key=keys.__getitem__)
         fill = iter(rest[k] for k in order)
         dealt = [card if card in known else next(fill) for card in true.after]
@@ -358,11 +401,13 @@ def _evaluate(
         if owed.replayed[index]:
             aid = history[index]
             if aid not in legal:
-                raise _Rejected(f"pick {index}: the recorded action is not legal")
+                raise _Rejected(f"pick {index}: the recorded action is not legal", decider)
         else:
             options = [aid for aid in legal if not moves_identified(aid)]
             if not options:
-                raise _Rejected(f"pick {index}: every legal action moves an identified card")
+                raise _Rejected(
+                    f"pick {index}: every legal action moves an identified card", decider
+                )
             aid = options[int(proposal.picks[index] * len(options))]
         taken.append(aid)
         return aid
@@ -372,12 +417,14 @@ def _evaluate(
             path,
             0,
             (),
+            on_first_decision=world.append,
             listen=listen,
             construct=None if chance_free(path) else construct,
             beyond=pick,
         )
     except _Rejected as rejected:
-        return _Verdict(None, str(rejected), heard + len(taken))
+        reason, *seat = rejected.args
+        return _Verdict(None, reason, heard + len(taken), blame(seat[0]) if seat else ())
     progress = heard + len(taken)
     if not isinstance(node, DecisionNode) or len(taken) != len(history):
         return _Verdict(None, "the line ends before the pause", progress)
@@ -409,7 +456,7 @@ def resample(
     with `rnd`; its seed, which deals every draw past the pause, is drawn from
     ``range(seeds)``.
 
-    The first `FRESH` proposals are independent, so a world accepted among
+    The first `FRESH` proposals are independent, so a Constructed World accepted among
     them is drawn from the posterior exactly. Past them, the search repairs
     the proposal that got furthest, one `_neighbour` step at a time, keeping a
     step that gets no less far: the world it reaches is in the information set
@@ -417,18 +464,18 @@ def resample(
     """
     owed = entitlement(path, seed, script, history, observer)
     where: Counter[str] = Counter()
-    best: tuple[_Proposal, int] | None = None
+    best: tuple[_Proposal, _Verdict] | None = None
     for attempt in range(attempts):
         if attempt < FRESH or best is None:
             proposal = _fresh(owed, history, rnd)
         else:
-            proposal = _neighbour(best[0], owed, rnd)
+            proposal = _neighbour(*best, owed, rnd)
         verdict = _evaluate(path, history, owed, proposal)
         if verdict.world is not None:
             return Constructed(rnd.randrange(seeds), *verdict.world)
         where[verdict.reason] += 1
-        if best is None or verdict.progress >= best[1]:
-            best = (proposal, verdict.progress)
+        if best is None or verdict.progress >= best[1].progress:
+            best = (proposal, verdict)
     commonest = ", ".join(f"{reason} ({count})" for reason, count in where.most_common(3))
     raise ResampleRefusal(
         f"{path}: no world consistent with seat {observer}'s information state "

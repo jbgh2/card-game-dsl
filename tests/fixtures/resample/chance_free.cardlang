@@ -1,0 +1,26 @@
+// A probe, not a corpus game: nothing is shuffled, so the deal is fixed and
+// the game draws nothing. Seat 1 discards unseen into the muck, then seat 0
+// decides — the one place a world seat 0 cannot tell apart may differ.
+game ChanceFree {
+  players: 2
+  max_length: 4
+  cards: standard52
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    muck : Muck
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase deal {
+    deal 3 cards from deck to each hand
+  }
+  phase seat_one_discards {
+    as 1 { move chosen 1 card from hand[1] to muck }
+  }
+  phase seat_zero_discards {
+    as 0 { move chosen 1 card from hand[0] to muck }
+  }
+  winner: highest score
+}

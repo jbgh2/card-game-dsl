@@ -350,6 +350,21 @@ the standing coverage for every game but Cheat, and the generator's
 assert-backed shape is the safety net: a game outside its sufficiency
 condition fails the equality assert loudly, never certifies a wrong world.
 
+The adapter carries a second constructive sampler, and it does not close this
+question. `CardlangState.resample_from_infostate` builds a
+[Constructed World](../glossary/constructed-world.md)
+(`cardlang/openspiel/resample.py`) for OpenSpiel's determinizing solvers. Its
+identification is line-dependent like the generator's, keyed by the draw that
+last placed each card, so a reshuffle frees what an earlier hand revealed. It
+replaces the sufficiency condition with acceptance: a candidate world is
+replayed and kept only if the observer's information state renders
+byte-identically. That lets it reach Go Fish's worlds, slowly (issue #832),
+and it is pinned over every registered game by
+`tests/openspiel_ready/test_ismcts.py`. But acceptance by equality is a
+consumer of the partition, not a proof of it. A leak would make two worlds
+render differently, and the sampler would discard the world rather than
+report the leak, so the swap axes stay the coverage this question is about.
+
 Related: the readiness harness (`tests/openspiel_ready/harness.py`);
 [decisions.md](../decisions.md) "Knowledge, visibility, and the projection
 model" and "Hidden information lives only in zones; state is public"; the

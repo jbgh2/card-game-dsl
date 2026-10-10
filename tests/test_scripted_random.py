@@ -33,6 +33,7 @@ from typing import Any
 import pytest
 
 from cardlang.openspiel import replay
+from cardlang.openspiel.registry import _GAMES_DIR
 from cardlang.runtime.chance import (
     DRAW_KINDS,
     EPISTEMIC_OP_DRAWS,
@@ -41,7 +42,6 @@ from cardlang.runtime.chance import (
     ScriptedRandom,
 )
 from cardlang.runtime.errors import ShadowGuardError
-from cardlang.openspiel.registry import _GAMES_DIR
 
 # Each drawing arm of the chance tables, mapped to the generator method its
 # construct reaches (`execute._epistemic` shuffles; a random selection samples).

@@ -114,8 +114,8 @@ class _Observer:
 
 class CardlangState(pyspiel.State):
     """A world as ``(seed, script, history)``: the root chance outcome, the
-    outcomes of the first draws where they are given rather than dealt by the
-    seed, and the picks.
+    Draw Script — the outcomes of the first draws where they are given rather
+    than dealt by the seed — and the picks.
 
     ``_seed is None`` exactly while a root chance node is pending. A
     Chance-Free Game has no such node, so its seed is fixed at construction
@@ -123,9 +123,9 @@ class CardlangState(pyspiel.State):
     meaning: `current_player` never reports CHANCE for it, and the root is its
     first decision.
 
-    The script is empty for every state reached through the tree from its
+    The Draw Script is empty for every state reached through the tree from its
     root, where the seed deals every draw. `resample_from_infostate` returns
-    the one kind of state that carries a script: a world no seed deals, which
+    the one kind of state that carries a Draw Script: a Constructed World, which
     holds what a seat has seen in place and redraws the rest
     (`cardlang.openspiel.resample`). Such a state is not reached from the
     root, so its pyspiel `history()` is empty, as a `clone`'s is (issue #833).
@@ -224,14 +224,15 @@ class CardlangState(pyspiel.State):
     def resample_from_infostate(
         self, player_id: int, probability_sampler: Callable[[], float]
     ) -> CardlangState:
-        """A world `player_id` cannot tell from this one, drawn with
+        """A Constructed World `player_id` cannot tell from this one, drawn with
         `probability_sampler` (OpenSpiel's uniform sampler on [0, 1)).
 
-        The seat to move, its legal actions and `player_id`'s information
-        state are this state's; the cards `player_id` has not seen are
+        The seat to move and `player_id`'s information state are this
+        state's, and so are the legal actions when `player_id` is the seat to
+        move; the cards `player_id` has not seen are
         redrawn, and so are the picks it did not see
         (`cardlang.openspiel.resample`). At the root chance node every world
-        is this one. A world that cannot be constructed raises
+        is this one. A Constructed World that cannot be built raises
         `ResampleRefusal`.
         """
         if self._seed is None:
