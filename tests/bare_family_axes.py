@@ -21,8 +21,8 @@ from cardlang.resolve import _REFERENCE_SLOTS
 # --- axis: the index role of the named family -------------------------------
 # DERIVED: the registry's zone-indexable roles (`ZONE_INDEX_ROLES`), plus the
 # game-declared position domain and the unindexed single zone. The board's
-# `cell` domain is a position domain in a piece game; it is swept through the
-# corpus board games rather than this card template.
+# `cell` domain is a position domain in a piece game; the grid's corpus sweep
+# reaches it through the board games rather than this card template.
 POSITION_ROLE = "position"
 SINGLE = "single"
 

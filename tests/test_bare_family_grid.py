@@ -11,8 +11,11 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   wherever the engine resolves a family name by the acting seat, the
             name must denote a family indexed by player; any other index role
-            is a check-time diagnostic at the name's span, exactly one per
-            site, and with the static guard removed every such cell fails
+            is a check-time diagnostic at the name's span, exactly one
+            bare-family refusal per site (a concealed zone read at a decision
+            position also draws the hidden-read refusal, and the bare-family
+            refusal's spelling clears both), and with the static guard removed
+            every such cell fails
             typed at play (a `ShadowGuardError`), never reading another
             team's or column's zone.
 domain:     {index role} x {position the name is written at}. The roles are
@@ -20,8 +23,10 @@ domain:     {index role} x {position the name is written at}. The roles are
             zone. The positions are the expression positions a bare family
             name is resolved at (sampled), the string slots naming a zone (all
             of them), and the Builtins that read a family by name (all of
-            them). Every corpus game declaring a team family is swept with
-            each team subscript it writes removed in turn. Two whole-family
+            them), in game text, a procedure body and a family library's body.
+            Every corpus game declaring a family not kept per player (team,
+            position, board cell) is swept with each subscript it writes on one
+            removed in turn. Two whole-family
             positions keep their own guards and are crossed here for the
             one-diagnostic count only: `to each <family>` and a Trick Order
             row. A Primitive's `reads <family>` names the family whole, not
@@ -34,7 +39,7 @@ registry:   roles: `cardlang.domains.ZONE_INDEX_ROLES`; string slots:
 does not prove:  that every expression position is walked. The guard is one
             walk over every name the resolver classifies as a zone; the grid
             samples the positions in `EXPR_ROWS`, and the corpus sweep
-            covers every position the partnership games write.
+            covers every position the corpus writes such a family at.
 """
 
 from __future__ import annotations
@@ -49,7 +54,8 @@ from _pytest.mark.structures import ParameterSet
 from cardlang import resolve as resolve_mod
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import parse_text
+from cardlang.domains import Role, role_of
+from cardlang.parse import parse_library, parse_text
 from cardlang.pipeline import _check, check_dsl
 from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
@@ -115,11 +121,16 @@ def expr_source(row: ExprRow, decl: str, stmt: str | None = None) -> str:
 
 
 def diagnostics(text: str) -> list[str]:
-    """Every diagnostic `check_dsl` reports for `text`; empty when it checks."""
+    """Every diagnostic `check_dsl` reports for `text`, one line each; empty
+    when it checks. A stage reporting several attaches its whole bag as a
+    note, the first diagnostic included."""
     try:
         check_dsl(text, "g")
     except DiagnosticError as exc:
-        return [exc.diagnostic.format(), *(getattr(exc, "__notes__", None) or [])]
+        notes = getattr(exc, "__notes__", None) or []
+        if not notes:
+            return [exc.diagnostic.format()]
+        return [line for note in notes for line in note.splitlines()]
     return []
 
 
@@ -457,22 +468,31 @@ def test_trick_order_row_team_family_reports_once() -> None:
     assert diagnostics(_belote_row_reading(f"{filled} is empty")) == []
 
 
-# --- corpus sweep: each team subscript a partnership game writes, removed ----
+# --- corpus sweep: each subscript on a family not kept per player, removed ---
 
 
-def _team_subscripts(name: str) -> list[tuple[int, int]]:
-    """(start, end) of the bracketed index of every subscript the game writes
-    on a team-indexed family, read off the checked tree's spans."""
+def _swept_families(game: n.Game) -> dict[str, str]:
+    """The game's families whose index is not the player role, by index."""
+    return {
+        z.name: z.index
+        for z in game.zones
+        if z.index is not None and role_of(z.index) is not Role.PLAYER
+    }
+
+
+def _subscripts_on(name: str) -> list[tuple[int, int, str]]:
+    """(start, end, index) of the bracketed index of every subscript the game
+    writes on a family `_swept_families` names, read off the checked tree."""
     game = check_dsl((GAMES / name).read_text(), name)
-    teamed = {z.name for z in game.zones if z.index == "team"}
+    swept = _swept_families(game)
     return sorted(
         {
-            (nd.obj.span.start + len(nd.obj.name), nd.span.end)
+            (nd.obj.span.start + len(nd.obj.name), nd.span.end, swept[nd.obj.name])
             for nd in _walk(game)
             if isinstance(nd, n.Subscript)
             and isinstance(nd.obj, n.NameRef)
             and nd.obj.ref_kind == "zone"
-            and nd.obj.name in teamed
+            and nd.obj.name in swept
             and nd.span is not None
             and nd.obj.span is not None
             and nd.span.source_name == name
@@ -480,40 +500,87 @@ def _team_subscripts(name: str) -> list[tuple[int, int]]:
     )
 
 
-def _declares_team_family(path: Path) -> bool:
-    return any(z.index == "team" for z in check_dsl(path.read_text(), path.name).zones)
+def _sweeps(path: Path) -> bool:
+    return bool(_swept_families(check_dsl(path.read_text(), path.name)))
 
 
 def _corpus_cells() -> list[ParameterSet]:
     out = []
     for path in sorted(GAMES.glob("*.cardlang")):
-        if not _declares_team_family(path):
+        if not _sweeps(path):
             continue
         text = path.read_text()
-        for start, end in _team_subscripts(path.name):
+        for start, end, index in _subscripts_on(path.name):
             line = text.count("\n", 0, start) + 1
-            out.append(pytest.param(path.name, start, end, line, id=f"{path.stem}:{line}:{start}"))
+            out.append(pytest.param(
+                path.name, start, end, line, index, id=f"{path.stem}:{line}:{start}"
+            ))
     return out
 
 
 _CORPUS = _corpus_cells()
 
 
-def test_corpus_sweep_reaches_every_team_game() -> None:
+def test_corpus_sweep_reaches_every_game_it_should() -> None:
     swept = {p.values[0] for p in _CORPUS}
-    declaring = {p.name for p in GAMES.glob("*.cardlang") if _declares_team_family(p)}
+    declaring = {p.name for p in GAMES.glob("*.cardlang") if _sweeps(p)}
     assert swept == declaring and swept, (swept, declaring)
 
 
-@pytest.mark.parametrize("name,start,end,line", _CORPUS)
-def test_corpus_team_subscript_removed_is_refused(
-    name: str, start: int, end: int, line: int
+@pytest.mark.parametrize("name,start,end,line,index", _CORPUS)
+def test_corpus_subscript_removed_is_refused(
+    name: str, start: int, end: int, line: int, index: str
 ) -> None:
     text = (GAMES / name).read_text()
     found = diagnostics(text[:start] + text[end:])
-    hits = [d for d in found if "is one zone per team" in d and f":{line}:" in d]
+    hits = [d for d in found if f"is one zone per {index}," in d and f":{line}:" in d]
     assert len(hits) == 1, found
 
+
+# --- bodies spliced in before the check: a procedure, a family library ------
+
+
+_STASH = "procedure stash() { move all cards from hand to won }"
+_TEAM_LIBRARY = """library teamlib {
+  requires {
+    hand[player] : Hand<player>
+    won[team] : TeamPile<team>
+  }
+  %s
+}
+""" % _STASH
+
+
+def test_procedure_body_bare_team_family_is_refused() -> None:
+    found = diagnostics(TEMPLATE.format(
+        decl=role_decl("team"), body="for each player p: as p { run stash() }", extra=_STASH
+    ))
+    assert len(found) == 1 and _refusal_names("won", "team") in found[0], found
+
+
+def test_library_body_bare_team_family_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The refusal locates the library's own line: the library's author wrote it."""
+    library = parse_library(_TEAM_LIBRARY, "teamlib")
+    monkeypatch.setattr(resolve_mod, "library_names", lambda: frozenset({"teamlib"}))
+    monkeypatch.setattr(resolve_mod, "load_library", lambda name: library)
+    text = TEMPLATE.format(
+        decl=role_decl("team"), body="for each player p: as p { run stash() }", extra=""
+    ).replace("  positions {", "  uses teamlib\n  positions {", 1)
+    found = diagnostics(text)
+    assert len(found) == 1 and found[0].startswith("teamlib:"), found
+    assert _refusal_names("won", "team") in found[0], found
+
+
+def test_concealed_team_zone_named_bare_is_refused_and_its_fix_clears() -> None:
+    """A concealed team zone read bare at a decision position draws the
+    bare-family refusal once, and the hidden-read refusal beside it: no seat
+    owns what a bare team name reads. The refusal's spelling clears both."""
+    row = next(r for r in EXPR_ROWS if r.move_when)
+    read = "any card in won where card.suit is hearts"
+    found = diagnostics(expr_source(row, CONCEALED_TEAM_DECL, read))
+    (refusal,) = [d for d in found if _refusal_names("won", "team") in d]
+    fixed = read.replace("won", applied_hint(refusal, "won"))
+    assert diagnostics(expr_source(row, CONCEALED_TEAM_DECL, fixed)) == []
 
 
 # --- misuse probes: what a designer writes for "my side's pile" --------------
