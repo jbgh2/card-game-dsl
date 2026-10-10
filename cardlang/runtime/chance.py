@@ -171,6 +171,20 @@ _UNSCRIPTED = (
 )
 
 
+def _restore(
+    cls: type[ScriptedRandom],
+    stream: Any,
+    script: tuple[Outcome, ...],
+    draws: int,
+    on_draw: Callable[[Draw], None] | None,
+    construct: Callable[[int, str, list[Any]], Outcome | None] | None,
+) -> ScriptedRandom:
+    rng = cls(0, script, on_draw, construct)
+    rng.setstate(stream)
+    rng.draws = draws
+    return rng
+
+
 @dataclasses.dataclass(frozen=True)
 class Draw:
     """One draw as it happened: its index among the run's draws, its kind, the
@@ -218,6 +232,16 @@ class ScriptedRandom(random.Random):
         self.on_draw = on_draw
         self.construct = construct
         self.draws = 0
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        """Copy and pickle as the generator it is, mid-run: its stream, its
+        script, its hooks and how many draws it has made. `random.Random`'s
+        own reduction rebuilds the class with no arguments and keeps only the
+        stream, which would drop the script and restart the draw count."""
+        return (
+            _restore,
+            (type(self), self.getstate(), self.script, self.draws, self.on_draw, self.construct),
+        )
 
     def outcome_for(self, index: int, kind: str, items: list[Any]) -> Outcome | None:
         """The outcome draw `index` takes, or None to draw from the seed:

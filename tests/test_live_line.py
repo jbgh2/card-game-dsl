@@ -65,7 +65,7 @@ from cardlang.openspiel.replay import (
     run,
 )
 from cardlang.openspiel.seat_policy import SeatPolicy, UniformSeatPolicy
-from cardlang.runtime.chance import RefusingRandom
+from cardlang.runtime.chance import RefusingRandom, ScriptedRandom
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError
@@ -188,8 +188,11 @@ def test_a_game_runs_under_the_generator_its_chance_classification_names(short_n
     if chance_free(path):
         assert isinstance(generator, RefusingRandom)
     else:
-        assert not isinstance(generator, RefusingRandom)
-        assert generator.random() == random.Random(11).random()
+        assert isinstance(generator, ScriptedRandom)
+        dealt, seeded = list(range(52)), list(range(52))
+        generator.shuffle(dealt)
+        random.Random(11).shuffle(seeded)
+        assert dealt == seeded
 
 
 def test_the_replay_and_a_live_line_read_one_generator_rule(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -199,7 +202,7 @@ def test_the_replay_and_a_live_line_read_one_generator_rule(monkeypatch: pytest.
     class _Asked(Exception):
         pass
 
-    def asked(_path: str, _seed: int) -> random.Random:
+    def asked(*_args: object) -> random.Random:
         raise _Asked
 
     monkeypatch.setattr(replay, "generator_for", asked)
@@ -500,14 +503,16 @@ def test_the_pin_catches_policies_that_draw_from_the_game_generator(monkeypatch:
     shared: list[random.Random] = []
     generator = replay.generator_for
 
-    def sharing(path: str, seed: int) -> random.Random:
-        shared[:] = [generator(path, seed)]
+    def sharing(path: str, seed: int, *rest: Any) -> random.Random:
+        shared[:] = [generator(path, seed, *rest)]
         return shared[0]
 
     policy = UniformSeatPolicy.__call__
 
     def drawing(self: UniformSeatPolicy, view: SeatView, legal: Sequence[int]) -> int:
-        shared[0].random()
+        # A shuffle: a drawing game's generator answers its draw kinds only,
+        # and refuses any other draw where it is made.
+        shared[0].shuffle([0, 1, 2])
         return policy(self, view, legal)
 
     monkeypatch.setattr(replay, "generator_for", sharing)

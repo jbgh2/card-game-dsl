@@ -155,3 +155,20 @@ def test_a_script_for_a_game_that_draws_nothing_is_refused() -> None:
     assert replay.chance_free(path)
     with pytest.raises(ValueError, match="draws nothing"):
         replay.generator_for(path, 0, ((0,),))
+
+
+@pytest.mark.parametrize("kind", DRAW_KINDS)
+def test_a_copy_mid_run_draws_on_as_the_original(kind: str) -> None:
+    """A world is deep-copied mid-run by the proofs' probes, its generator
+    with it. red under: drop `ScriptedRandom.__reduce__` — `random.Random`'s
+    own rebuilds the class with no seed and the copy raises."""
+    import copy
+    import pickle
+
+    outcome = tuple(range(10)) if kind == "shuffle" else (0, 1, 2, 3)
+    rng = ScriptedRandom(7, (outcome, outcome))
+    _draw(rng, kind)
+    for twin in (copy.copy(rng), copy.deepcopy(rng), pickle.loads(pickle.dumps(rng))):
+        assert twin.draws == rng.draws == 1
+        assert _draw(twin, kind) == _draw(copy.deepcopy(rng), kind)
+        assert _draw(twin, kind) == _draw(random.Random(7), kind)
