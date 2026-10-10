@@ -259,28 +259,17 @@ from the game seed, so a matchup is bit-reproducible.
 
 ### Deviation from the spec: no IS-MCTS baseline
 
-The spec's baseline was OpenSpiel's IS-MCTS. **It is not buildable against this
-adapter**, and the substitution is the one material deviation in this
-deliverable.
+The spec's baseline was OpenSpiel's IS-MCTS, and rule-based and equilibrium
+baselines stand in for it — the one material deviation in this deliverable.
 
-`ISMCTSBot` determinizes by calling `state.resample_from_infostate` — it must
-construct a sibling world consistent with the observer's information set.
-`CardlangState` does not implement it and cannot within its own representation:
-the state is `(seed, history)` and the deal is a pure function of the seed, so
-there is no way to hold the observer's hand fixed while permuting the
-opponents'. `tests/openspiel_ready/worlds.py` performs exactly that permutation,
-but only by mutating a `RuntimeState` through `replay.run`'s
-`on_first_decision` hook, which is not reachable through the pyspiel `State` API
-and does not yield a `State` a bot could be handed. The blockage is not specific
-to Cheat, so retreating to a shorter game does not recover the baseline.
+The baseline is buildable: `CardlangState.resample_from_infostate` constructs a
+world the deciding seat cannot tell from the one being played, and OpenSpiel's
+own `ISMCTSBot` plays Kuhn poker and Hearts to terminal through the adapter
+(`tests/openspiel_ready/test_ismcts.py`). Cheat resamples too, its face-down
+plays redrawn among the plays the seat did not see. What keeps the baseline out
+of this harness is cost.
 
-This is recorded as an executable check, not a README sentence:
-`tests/test_ismcts_blocked.py` asserts the `SpielError` on Cheat, Leduc and
-Kuhn, and **reddens** the day the adapter grows a `resample_from_infostate` —
-which is the day the IS-MCTS baseline becomes buildable.
-
-A second, independent obstacle would remain even then: the adapter re-simulates
-from the root on every query, so a random playout of a median Cheat game costs
+The adapter re-simulates from the root on every query, so a random playout of a median Cheat game costs
 about 8 seconds. At 1,000 simulations per decision and ~210 decisions per seat,
 one game of tree search is several thousand CPU-hours.
 
@@ -779,7 +768,7 @@ the ordering was load-bearing for the *decisions* as well as the diagnostics.
   transcripts and figure) is outstanding. Everything it needs is in place and
   the exact commands are above; `rule_vs_random` has been run end to end and
   produces all three artifacts, so the pipeline is exercised.
-- **No IS-MCTS baseline**, for the structural reason above.
+- **No IS-MCTS baseline**, for the cost reason above.
 - **Cheat only.** Leduc poker was the spec's stretch goal, conditional on the
   primary landing early; it would need its own rules text and its own metrics,
   and is not here.

@@ -1,0 +1,22 @@
+// A probe, not a corpus game: the deal is a random selection rather than a
+// shuffle, the one drawing construct no corpus game reaches. Seat 0 then
+// discards a card, so a line pauses at a decision after the draw.
+game RandomSelection {
+  players: 2
+  max_length: 4
+  cards: standard52
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    for each player p: move random 3 cards from deck to hand[p]
+  }
+  phase discard {
+    as 0 { move chosen 1 card from hand[0] to deck }
+  }
+  winner: highest score
+}

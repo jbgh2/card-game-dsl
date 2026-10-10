@@ -94,6 +94,7 @@ _ACCOUNTED = frozenset(
         "SaveFailed",
         "PrimitiveReadError",
         "DiagnosticError",
+        "ResampleRefusal",
         # not a defect: the game author wrote `error(...)` and the refusal is
         # the rule working
         "IllegalMove",
@@ -102,6 +103,7 @@ _ACCOUNTED = frozenset(
         "_ContinueTo",
         "_SkipHand",
         "ChooserAbort",
+        "_Rejected",
         "TakeBack",
         "Leave",
         # compile-pass diagnostic factories — `error` is the bag's first
@@ -131,6 +133,23 @@ _ACCOUNTED = frozenset(
 # the migration's claim is that no game-author-facing raise is left untyped,
 # not that every raise in the engine is typed.
 _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
+    # --- whoever built a draw script or asked for a world --------------------
+    ("cardlang/runtime/chance.py", "ValueError"): (
+        2,
+        ("`ScriptedRandom` refusing a scripted outcome that is not a permutation "
+        "of the draw's positions, or not k distinct positions for a selection. "
+        "The Author is whoever built the script — `cardlang.openspiel.resample` "
+        "or a caller holding a state's script — and no game description writes "
+        "one. The runtime layer cannot name `replay.HistoryMismatch`, the "
+        "adapter's class for a record that does not replay, without importing "
+        "upward."),
+    ),
+    ("cardlang/openspiel/resample.py", "ValueError"): (
+        1,
+        ("`entitlement` asked for a world at a line that has ended. The Author "
+        "is the caller: a solver asks at a decision node, and the adapter's "
+        "`resample_from_infostate` never passes a terminal line."),
+    ),
     # --- engine maintainer: invariants over the engine's own registry data ---
     ("cardlang/stdlib/boards.py", "ValueError"): (
         20,

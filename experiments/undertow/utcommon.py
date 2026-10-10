@@ -32,9 +32,16 @@ def _run_dispatch(
     history: tuple[int, ...],
     on_first_decision: Any = None,
     picks: Any = None,
+    script: Any = (),
+    listen: Any = None,
+    construct: Any = None,
+    beyond: Any = None,
 ) -> Any:
-    if on_first_decision is not None or picks is not None:
-        return _orig_run(path_str, seed, history, on_first_decision, picks)
+    hooked = (on_first_decision, picks, listen, construct, beyond)
+    if script or any(hook is not None for hook in hooked):
+        return _orig_run(
+            path_str, seed, history, on_first_decision, picks, script, listen, construct, beyond
+        )
     return _cached_run(path_str, seed, history)
 
 
