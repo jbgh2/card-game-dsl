@@ -6,7 +6,9 @@ property:   the report names every construct the grammar defines that no live
             file uses, and nothing else: a rule or keyword leaves the dead
             list exactly when a corpus, library or stdlib file produces or
             writes it, and an experiment or test consumer is named beside the
-            row without reviving it.
+            row without reviving it; every dead row carries the class the
+            grammar and its consumers derive for it (sibling / placeholder /
+            reject / dead), and the real tree's dead class is empty.
 domain:     synthetic sources built here, parsed by the real grammar, so no
             cell depends on what the corpus happens to use today -- the
             corpus-facing pins are that the real tree renders and that every
@@ -17,7 +19,11 @@ domain:     synthetic sources built here, parsed by the real grammar, so no
             reaches without taking a node the parse builder only refuses,
             plus any rule or template no start symbol reaches) and the
             keyword axis is every `_X_KW` terminal, pinned against the
-            parser's own terminal table. Which of a live construct's
+            parser's own terminal table, plus every alphabetic word of an
+            alternation terminal (`tools.dead_surface.word_axis`); the
+            class axis is the four classes crossed with a dead row's
+            neighbours (a live sibling, a rejection fixture, a reject twin,
+            none). Which of a live construct's
             consumers are scoring sentences is outside it: that is a
             question for the checked game (issue #664).
 registry:   rule axis: `tools.dead_surface.rule_axis`, over lark's compiled
@@ -27,7 +33,8 @@ registry:   rule axis: `tools.dead_surface.rule_axis`, over lark's compiled
             `cardlang.parse._transform`; keyword axis:
             `tools.dead_surface.keyword_axis`, pinned against
             `cardlang.parse._parser().terminals`; consumer tiers:
-            `tools.dead_surface.TIERS`.
+            `tools.dead_surface.TIERS`; the sibling and terminal relations:
+            `tools.dead_surface.structure`, over lark's compiled rules.
 does not prove:  that a dead row SHOULD be retired -- the report is an input to
             the direction review, which owns that decision, and register
             symmetry keeps some rows alive on purpose. Nor that the axis is
@@ -85,6 +92,80 @@ def test_a_live_consumer_takes_a_rule_off_the_dead_list() -> None:
     dead = rep.dead_rules()
     assert "sq_count" not in dead and "subset_exact" not in dead
     assert "sq_all" in dead  # nothing synthetic writes `all subsets`
+
+
+def test_a_dead_alternative_beside_a_live_sibling_is_a_sibling_row() -> None:
+    """A dead alternative of a rule with a live alternative is kept whole with
+    its family (decisions.md "Surface totality", minimal and complete): the
+    class names the live sibling."""
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game(f"    score[0] := {COUNT}"))])
+    cls, why = rep.rule_classes()["sq_all"]
+    assert cls == "sibling" and why == "sq_count"
+
+
+def test_a_dead_row_whose_only_consumer_is_a_rejection_fixture_is_a_placeholder() -> None:
+    fixture = src(
+        "tests/rejections/vis.cardlang",
+        game("    move one card from deck to hand[0], visibility = 1"),
+        tier="other",
+    )
+    rep = ds.report(GRAMMAR, [fixture])
+    assert rep.rule_classes()["vis_clause"] == ("placeholder", "tests/rejections/vis.cardlang")
+    assert rep.keyword_classes()["VISIBILITY"] == ("placeholder", "tests/rejections/vis.cardlang")
+
+
+def test_a_keyword_only_a_reject_twin_uses_is_a_reject_arm() -> None:
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game("    score[0] := 1"))])
+    assert rep.keyword_classes()["CARD_VALUES"] == ("reject", "card_values_reject")
+
+
+def test_a_keyword_an_accepted_node_shares_with_a_twin_is_not_a_reject_arm() -> None:
+    """`primitives` opens the accepted `primitives_block` and three reject
+    twins of it: with no file writing it, it is accepted surface nobody
+    writes -- dead, never a reject arm. Red under: classing on ANY refused
+    node naming the terminal instead of ALL of them."""
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game("    score[0] := 1"))])
+    assert rep.keyword_classes()["PRIMITIVES"] == ("dead", "")
+
+
+def test_a_dead_keyword_of_a_sibling_row_takes_the_rows_class() -> None:
+    """`random` is dead and `chosen` live, so `sel_random` is a sibling row and
+    its one keyword inherits the class and the reason."""
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game("    move chosen 1 card from deck to hand[0]"))])
+    assert rep.rule_classes()["sel_random"] == ("sibling", "sel_chosen")
+    assert rep.keyword_classes()["RANDOM"] == ("sibling", "sel_chosen")
+
+
+def test_a_word_of_an_alternation_terminal_is_on_the_keyword_axis() -> None:
+    """A designer's word inside an alternation terminal (`RANK_DIR`'s `lowest`)
+    is a keyword like any other: written or dead, and classed beside its
+    siblings in the same terminal."""
+    axis = ds.word_axis(GRAMMAR)
+    assert axis["RANK_DIR:lowest"] == "lowest" and axis["RANK_DIR:highest"] == "highest"
+    assert not set(axis) & set(ds.keyword_axis(GRAMMAR))
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game("    score[0] := highest card.rank over cards in hand[0] or 0"))])
+    assert "RANK_DIR:highest" not in rep.dead_keywords()
+    assert rep.keyword_classes()["RANK_DIR:lowest"] == ("sibling", "highest")
+
+
+def test_a_dead_row_with_no_sibling_fixture_or_twin_is_dead() -> None:
+    planted = GRAMMAR + "\nplanted_orphan: NAME\n"
+    rep = ds.report(planted, [src("a.cardlang", game("    score[0] := 1"))])
+    assert rep.rule_classes()["planted_orphan"] == ("dead", "")
+
+
+def test_the_real_tree_has_no_dead_row_outside_the_ruled_classes() -> None:
+    """The pin the operator's ruling leaves (decisions.md "Surface totality",
+    minimal and complete): every row the real tree's report lists is a
+    sibling kept whole with its family, a placeholder whose message a
+    rejection fixture pins, or a reject arm — never surface with no writer and
+    no reason. Born green; red under: the planted orphan of the cell above
+    run on the real sources, or a `_X_KW` terminal no rule uses."""
+    rep = ds.report(GRAMMAR, ds.default_sources())
+    dead = {r for r, (cls, _) in rep.rule_classes().items() if cls == "dead"} | {
+        k for k, (cls, _) in rep.keyword_classes().items() if cls == "dead"
+    }
+    assert not dead, sorted(dead)
 
 
 def test_a_planted_production_nothing_produces_is_reported() -> None:
@@ -204,7 +285,7 @@ def test_an_experiment_or_fixture_consumer_is_named_but_does_not_revive() -> Non
     rep = ds.report(GRAMMAR, [src("tests/fixtures/x.cardlang", game(f"    score[0] := {COUNT}"), "other")])
     assert "sq_count" in rep.dead_rules()
     assert rep.rule_consumers["sq_count"] == {"other": ("tests/fixtures/x.cardlang",)}
-    assert "- sq_count  (only in: tests/fixtures/x.cardlang)" in rep.render()
+    assert "- sq_count  [dead]  (only in: tests/fixtures/x.cardlang)" in rep.render()
 
 
 def test_strings_and_comments_are_read_as_the_grammar_defines_them() -> None:
@@ -237,6 +318,23 @@ def test_the_keyword_axis_is_every_keyword_terminal() -> None:
     scraped = set(ds.keyword_axis(GRAMMAR))
     terminals = {t.name[1:-3] for t in _parser().terminals if t.name.endswith("_KW")}
     assert scraped == terminals
+
+
+def test_the_word_axis_is_every_alphabetic_alternation_terminal() -> None:
+    """Derived twice: the grammar scrape against the parser's own terminal
+    patterns -- every regex terminal that is an alternation of alphabetic
+    words, each word keyed by its terminal. Red under: narrowing the scrape's
+    pattern, or a new alternation terminal the scrape does not match."""
+    from_parser = {
+        f"{t.name}:{word}": word
+        for t in _parser().terminals
+        if t.pattern.type == "re"
+        for body in [re.sub(r"\(\?!\[A-Za-z0-9_\]\)$", "", t.pattern.value)]
+        if re.fullmatch(r"\(\?:[a-z_]+(?:\|[a-z_]+)+\)", body)
+        for word in body[3:-1].split("|")
+    }
+    assert ds.word_axis(GRAMMAR) == from_parser
+    assert {"TRANSFER_VERB", "RANK_DIR"} <= {k.split(":")[0] for k in from_parser}
 
 
 # The denominator, derived a second time here rather than read off `TIERS`, so
@@ -276,7 +374,7 @@ def test_the_report_is_sorted_in_every_section() -> None:
     sections = rep.render().split("\n## ")[1:]
     assert len(sections) == 2
     for section in sections:
-        keys = [re.split(r"\s{2,}|`$", line[2:].lstrip("`"))[0] for line in section.splitlines() if line.startswith("- ")]
+        keys = [re.split(r"\s{2,}", line[2:])[0].strip("`") for line in section.splitlines() if line.startswith("- ")]
         assert keys == sorted(keys), section.splitlines()[0]
 
 

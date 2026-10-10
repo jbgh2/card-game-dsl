@@ -20,7 +20,7 @@ per-iteration binding) and `for each <type> <var>` (a loop over the player/team
 
 ```
 for each street (limit, face_up) in [(5, up), (10, up), (10, up), (10, down)] {
-  burn one card
+  move one card from deck to burn
   deal one card from deck to each non-folded player's (face_up ? upcards : hole)
   … the betting round, reading `limit` …
 }

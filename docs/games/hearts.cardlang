@@ -62,7 +62,7 @@ game Hearts {
       // consulted only at the trick round's card decision, never here
       // (open-questions/rule-scope-beyond-trick-play.md).
       each player simultaneously:
-        transfer chosen 3 cards
+        move chosen 3 cards
           from hand[player]
           to   hand[player offset_by pass_direction]
     }

@@ -47,9 +47,14 @@ Each check names its query so the answer is derived, not vibed:
    lapse.
 6. **Surface nobody uses.** `python -m tools.dead_surface` prints every
    grammar rule and keyword that no corpus game, library or stdlib rule
-   uses. Each row is a retire-or-keep decision under the orphaned-surface
-   ruling, decided here and recorded in the verdict — never a gate, since
-   surface may land ahead of its first game. The report is derived on
+   uses, each with its class. A `sibling` row is a member of a closed
+   family kept whole (decisions.md "Surface totality", minimal and
+   complete) and carries the sunset: record in the verdict the corpus
+   count at which the review first listed it, and retire it — re-reading
+   the family's symmetry — once ten corpus games have landed since with no
+   writer. A `placeholder` or `reject` row is Step 2 of the grammar pass's
+   (its message is the point). The `dead` class is pinned empty, so a row
+   there is a failing test, not a decision. The report is derived on
    demand and is never checked in.
 7. **Distance to each Destination.** `python -m tools.destinations
    --tracker` prints, per Destination (docs/roadmap.md, "Destinations"),

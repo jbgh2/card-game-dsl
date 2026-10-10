@@ -3,8 +3,10 @@
 The operator's orphaned-surface ruling (direction review 2026-09-06: a
 surface whose last consumer has left is deleted with its guards and proof
 rows) retires the rows of direction-review verdict 7's dead-surface table
-that issue #693 lists, and the auction form of `round` that issue #819
-rewrites as `turns` plus `offer`. The one word kept is `always`, and only to
+that issue #693 lists, the auction form of `round` that issue #819
+rewrites as `turns` plus `offer`, and the `burn`, `muck` and `transfer`
+synonyms of `move` that issue #835 cuts (the language is minimal: one word
+per meaning). The one word kept is `always`, and only to
 refuse it: a designer who writes the wildcard is told to leave the clause
 out.
 
@@ -15,8 +17,8 @@ property:   no retired row is a rule or alias of the compiled grammar, no
             refused at parse with a located diagnostic, and `always` in
             every position that once took it is refused with a message
             naming the clause to leave out.
-domain:     the retired set is the operator's rulings on issues #693 and
-            #819, listed
+domain:     the retired set is the operator's rulings on issues #693, #819
+            and #835, listed
             once below as `RETIRED_ROWS`, `RETIRED_KEYWORDS` and
             `RETIRED_SENTENCES`; the `always` positions are every compiled
             rule whose expansion reaches the `always` refusal, derived from
@@ -98,7 +100,12 @@ RETIRED_SENTENCES: dict[str, str] = {
             "  demands: actions where action.card_count > 0\n}"
         )
     ),
-    "transfer in, no source": _game(statement="burn 1 card in deck"),
+    "transfer in, no source": _game(statement="move 1 card in deck"),
+    # The verb synonyms (issue #835): one terminal carried all three, so one
+    # refusal covers them; a sentence per word is the record of each.
+    "burn verb": _game(statement="burn 1 card from deck to trick_pile"),
+    "muck verb": _game(statement="muck 1 card from deck to trick_pile"),
+    "transfer verb": _game(statement="transfer 1 card from deck to trick_pile"),
     "named call argument": _game(statement="score[0] := max(a = 1, 2)"),
     "auction round": _game(
         statement=(

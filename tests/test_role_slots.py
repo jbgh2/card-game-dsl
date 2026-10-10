@@ -222,7 +222,7 @@ def _run_each_simultaneous(value: str, _mp: pytest.MonkeyPatch) -> None:
         else ("cards", "hand", "pile[0]")
     )
     check_dsl(
-        base(stmt=f"each {value} simultaneously: transfer chosen 1 {item} from {src} to {dst}"),
+        base(stmt=f"each {value} simultaneously: move chosen 1 {item} from {src} to {dst}"),
         "probe.cardlang",
     )
 

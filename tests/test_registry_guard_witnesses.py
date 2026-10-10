@@ -412,7 +412,7 @@ game Mini {
   state { score[player] : Integer = 0 }
   phase p {
     each player simultaneously:
-      transfer chosen 1 cards
+      move chosen 1 cards
         from hand[player]
         to   hand[player offset_by left]
   }
