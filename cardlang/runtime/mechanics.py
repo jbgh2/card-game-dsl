@@ -18,7 +18,7 @@ from typing import Any, Final, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS
-from cardlang.domains import DomainSources, enumerate_domain
+from cardlang.domains import DomainSources, Role, enumerate_domain, role_of
 from cardlang.runtime import active_rules, delegation, narrowing, observe, primitives, reads, rules
 from cardlang.runtime.chooser import decide
 from cardlang.runtime.delegation import FORM_CONSTRUCTS
@@ -200,6 +200,23 @@ def _run_hosted_poll(hosted: n.HostedPoll, asked: Player, ctx: Ctx) -> None:
         ctx.rs.hosting = outer
 
 
+def _check_round_zones(stmt: n.TrickRound | n.ClimbRound, ctx: Ctx) -> None:
+    """A round draws from a family keyed by the acting seat and plays into one
+    pile. Shadow Guard behind resolve's `_check_bare_family_refs`."""
+    index = ctx.rs.zones.zone_index
+    source = index.get(stmt.source_zone)
+    if source is None or role_of(source) is not Role.PLAYER:
+        raise ShadowGuardError(
+            "resolve._check_bare_family_refs",
+            f"round source '{stmt.source_zone}' is not a zone family indexed by player",
+        )
+    if index.get(stmt.play_zone) is not None:
+        raise ShadowGuardError(
+            "resolve._check_bare_family_refs",
+            f"round play zone '{stmt.play_zone}' is a zone family, not one pile",
+        )
+
+
 class TrickForm:
     """The [[trick]] form: one turn-order pass from the leader, each participant
     playing one legal card, until every participant has played (`next_actor` ⇒
@@ -211,6 +228,7 @@ class TrickForm:
     `state.trick_terminated_early` afterward."""
 
     def __init__(self, stmt: n.TrickRound, ctx: Ctx) -> None:
+        _check_round_zones(stmt, ctx)
         self.construct = FORM_CONSTRUCTS[type(stmt).__name__]
         self.play_label: str | None = stmt.play_zone
         from cardlang.runtime import primitives
@@ -525,6 +543,7 @@ class ClimbForm:
     """
 
     def __init__(self, stmt: n.ClimbRound, ctx: Ctx) -> None:
+        _check_round_zones(stmt, ctx)
         self.construct = FORM_CONSTRUCTS[type(stmt).__name__]
         # No zone, because a climb turn offers `pass` beside its plays and a
         # pass moves nothing — and the ask is made BEFORE the seat says which

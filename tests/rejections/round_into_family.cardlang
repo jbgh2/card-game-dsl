@@ -1,0 +1,23 @@
+// Guard: resolve.py `_check_bare_family_refs`. A round's `into` is the one
+// pile every play lands on, so it names a single zone, never a family. The
+// runtime refusal in `mechanics` is the Shadow Guard.
+game RoundIntoFamily {
+  players: 4
+  direction: clockwise
+  max_length: 200
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    played[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase deal_out { shuffle deck  deal 13 cards from deck to each hand }
+  phase play {
+    legal_moves: [play_to_trick]
+    round play_to_trick from 0 over all players source hand into played
+          winner highest_trump_or_led_suit
+  }
+  winner: highest score
+}

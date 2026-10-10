@@ -596,7 +596,7 @@ def test_positions_are_unowned_for_every_observer() -> None:
 
 @pytest.mark.expects_shadow_guard
 def test_bare_position_family_read_is_a_typed_runtime_error() -> None:
-    """`resolve._check_position_family_refs` is the Owner Guard for the DSL
+    """`resolve._check_bare_family_refs` is the Owner Guard for the DSL
     spelling (rejection corpus); this Shadow Guard must fail typed — never a
     phantom-key KeyError — if a construction path ever bypasses it.
 
@@ -621,7 +621,7 @@ def test_bare_position_family_read_is_a_typed_runtime_error() -> None:
     ref = n.NameRef("pile", ref_kind="zone")
     with pytest.raises(ShadowGuardError, match="must be subscripted") as caught:
         evaluate(ref, ctx)
-    assert caught.value.leaked == "resolve._check_position_family_refs"
+    assert caught.value.leaked == "resolve._check_bare_family_refs"
 
 
 # --- `to each` over a position family (the existing guard owns the class) -----

@@ -1,0 +1,1 @@
+player_holding_team_hand.cardlang:19:13: error: `player_holding` finds the player holding a card by searching `hand[player]`, so `hand` must be a zone kept per player -- this game declares it as one zone per team

@@ -1,0 +1,23 @@
+// Guard: resolve.py `_check_bare_family_refs`. A family named bare is the
+// acting player's own instance, which only a family kept per player has; a
+// team pile named bare is refused with the subscript to write. The runtime
+// refusal in `evaluate._name` is the Shadow Guard.
+game TeamBareFamilyReference {
+  players: 4
+  teams: [[0, 1], [2, 3]]
+  direction: clockwise
+  max_length: 200
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    won[team] : TeamPile<team>
+  }
+  state { score[team] : Integer = 0 }
+  phase deal_out { shuffle deck  deal 2 cards from deck to each hand }
+  phase play {
+    for each player p: as p { move all cards from hand to won }
+  }
+  winner: highest score
+}

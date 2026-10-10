@@ -2571,6 +2571,23 @@ type in its `zones {}` block, and the type carries the projection
 (`hand[player] : Hand<player>`). Adding a projection profile is a
 kernel-table addition, not a surface a game reaches.
 
+**A family named bare is the acting player's own.** A zone family written
+without its index (`hand`) means the acting player's instance, and that
+reading exists only for a family indexed by player, whose members are
+seats. A family indexed by team or by a position is always subscripted
+(`captured[team_of(actor)]`, `pile[c]`); named bare, it is refused at
+check time. So the instance a bare name reads is always one the acting
+seat owns under its zone type's projection, and the information state
+derives from that ownership. The rule holds wherever the engine keys a
+family by the acting seat: a round's `source` names a family indexed by
+player, and `player_holding` searches `hand[player]`. A round's `into`
+names the one pile every play lands on, so it is a single zone.
+A bare team family is not read as the acting player's side's instance,
+though the ownership the projection uses could key it so: no game asks
+for that reading, and a refusal can grow into it by addition, where a
+reading once given cannot be withdrawn without changing what existing
+files mean.
+
 ### Per-observer visibility on moves
 
 Visibility derives from the declared zone types: a move is observed
@@ -2927,9 +2944,9 @@ domain — `any column where …`, `all columns where …`, `number of columns
 where …`; for a board's `cell` domain the register adds two collection
 forms over lines and cells, detailed with `lines(k)` in "Boards and
 cells" below (tests/test_cell_queries.py). A position-indexed family
-must always be subscripted — the bare-family
-actor sugar (`hand` = the acting player's hand) is meaningless for an
-unowned family and is rejected.
+is always subscripted: no seat owns one of its instances, so a bare name
+has nothing to mean ("Per-observer visibility on zones", "A family named
+bare is the acting player's own").
 
 **Mixed-facing piles are two zones.** Per-position visibility inside one
 physical pile (Klondike's columns: face-down below, face-up above) is

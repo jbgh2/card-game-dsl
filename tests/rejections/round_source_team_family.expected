@@ -1,0 +1,1 @@
+round_source_team_family.cardlang:21:5: error: a round's `source` names the zone each player plays from, so it must be a zone kept per player, like `hand[player]` -- `shared` is one zone per team
