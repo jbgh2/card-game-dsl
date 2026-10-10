@@ -311,6 +311,23 @@ def test_the_keyword_axis_is_every_keyword_terminal() -> None:
     assert scraped == terminals
 
 
+def test_the_word_axis_is_every_alphabetic_alternation_terminal() -> None:
+    """Derived twice: the grammar scrape against the parser's own terminal
+    patterns -- every regex terminal that is an alternation of alphabetic
+    words, each word keyed by its terminal. Red under: narrowing the scrape's
+    pattern, or a new alternation terminal the scrape does not match."""
+    from_parser = {
+        f"{t.name}:{word}": word
+        for t in _parser().terminals
+        if t.pattern.type == "re"
+        for body in [re.sub(r"\(\?!\[A-Za-z0-9_\]\)$", "", t.pattern.value)]
+        if re.fullmatch(r"\(\?:[a-z_]+(?:\|[a-z_]+)+\)", body)
+        for word in body[3:-1].split("|")
+    }
+    assert ds.word_axis(GRAMMAR) == from_parser
+    assert {"TRANSFER_VERB", "RANK_DIR"} <= {k.split(":")[0] for k in from_parser}
+
+
 # The denominator, derived a second time here rather than read off `TIERS`, so
 # a tier dropped from the tool is a tier this pin still expects.
 _EXPECTED_TIERS = {
