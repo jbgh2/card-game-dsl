@@ -157,11 +157,25 @@ class RefusingRandom(random.Random):
 # random selection, the positions picked, in the order they are taken.
 Outcome = tuple[int, ...]
 
-# The generator method each drawing construct reaches, keyed as `Draw.kind`.
-# The drawing arms of `EPISTEMIC_OP_DRAWS` and `SELECTION_MODE_DRAWS`, spelled
-# as `ScriptedRandom` overrides them; tests/test_scripted_random.py derives the
-# drawing arms from those two tables and holds this tuple to them.
-DRAW_KINDS: tuple[str, ...] = ("shuffle", "sample")
+# Each drawing arm of `EPISTEMIC_OP_DRAWS` and `SELECTION_MODE_DRAWS`, mapped
+# to the generator method its construct reaches — the draw kind, as
+# `ScriptedRandom` overrides it and `Draw.kind` records it. The one mapping
+# between the two: tests/test_scripted_random.py holds its keys to the tables'
+# drawing arms.
+DRAW_KIND_OF: dict[str | None, str] = {"shuffle": "shuffle", "random": "sample"}
+DRAW_KINDS: tuple[str, ...] = tuple(DRAW_KIND_OF.values())
+
+
+def draw_kinds(game: n.Game) -> frozenset[str]:
+    """The draw kinds anything in `game`'s text can reach, wherever it sits —
+    the static reading `chance_sites` makes, keyed by draw kind."""
+    kinds: set[str] = set()
+    for node in _walk(game):
+        if isinstance(node, n.EpistemicOp) and EPISTEMIC_OP_DRAWS.get(node.op):
+            kinds.add(DRAW_KIND_OF[node.op])
+        elif isinstance(node, n.Transfer) and SELECTION_MODE_DRAWS.get(node.selection_mode):
+            kinds.add(DRAW_KIND_OF[node.selection_mode])
+    return frozenset(kinds)
 
 _UNSCRIPTED = (
     "a game drew from its generator outside `shuffle` and `sample`, the two "
