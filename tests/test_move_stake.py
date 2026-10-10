@@ -46,7 +46,7 @@ domain:          definition site (`?top_item` and `?library_item`, the
                  The dispositions: every non-empty subset of
                  {plain} + `nodes.STAKES` presented at one decision, in the name
                  block (a nullary `offer`) and the offering block (a
-                 `round offering`, and a parameterized `offer`).
+                 parameterized `offer`).
 registry:        definition sites: the grammar's productions naming
                  `move_type_def` (scraped below); the row: `nodes.STAKES` and
                  the grammar's `move_stake` production (reconciled below);
@@ -140,7 +140,7 @@ def test_the_axes_are_pinned_by_the_grammar_and_the_registries() -> None:
     for stake in n.STAKES:
         assert stake in words
     assert "[move_stake] [move_when] move_effect" in GRAMMAR
-    assert PRESENTERS == ("AuctionRound.offering", "Offer.offering")
+    assert PRESENTERS == ("Offer.offering",)
 
 
 # ---------------------------------------------------------------------------
@@ -179,9 +179,8 @@ def _game(site: str, move: str, presenter: str, board: bool = False) -> str:
     """A two-seat game whose one phase presents `m` beside the plain `stay`."""
     present = {
         "Offer.offering": "for each player p: offer to p one of [m, stay]",
-        "AuctionRound.offering": "round offering [m, stay] from 0 over all players until done >= 2",
         "both": "for each player p: offer to p one of [m, stay]\n"
-        "    round offering [m, stay] from 0 over all players until done >= 4",
+        "    turns t from 0 over all players until done >= 4 { offer to t one of [m, stay] }",
         "effect": "for each player p: offer to p one of [opener]",
         "procedure": "run present_m()",
         "none": "for each player p: offer to p one of [stay]",
@@ -293,7 +292,7 @@ def test_a_row_nothing_can_read_is_refused(
         # and is reported beside `m`; the pass's whole report is the evidence.
         report = "\n".join([str(ei.value), *(getattr(ei.value, "__notes__", []) or [])])
         if row is not None:
-            assert f"`{row}` on move type `m`, which no reachable `offer` or `round offering` presents" in report
+            assert f"`{row}` on move type `m`, which no reachable `offer` presents" in report
         else:
             assert "move type `m` is never offered" in report
         if presenter == "unreached":
@@ -473,11 +472,11 @@ _TOKEN_PRESENTERS = (
     "offer",
     "offer-parameterized",
     "offer-nullable",
-    "round offering",
-    "round offering-nullable",
+    "ring",
+    "ring-nullable",
     "library, unpresented",
 )
-_TOKEN_PARAMS = {"offer-parameterized": "(s : Suit)", "offer-nullable": "(s : Suit?)", "round offering-nullable": "(s : Suit?)"}
+_TOKEN_PARAMS = {"offer-parameterized": "(s : Suit)", "offer-nullable": "(s : Suit?)", "ring-nullable": "(s : Suit?)"}
 TOKEN_CELLS = list(itertools.product(("pass",), _TOKEN_PRESENTERS, ROWS))
 
 
@@ -502,11 +501,11 @@ def test_a_move_type_spelled_like_a_climb_token_is_refused(
     assert dragon in text and "game Tichu {" in text, "the witness's anchors moved"
     if presenter.startswith("offer"):
         text = text.replace(dragon, f"offer to winner one of [dragon_to_left, dragon_to_right, {token}]") + move
-    elif presenter.startswith("round offering"):
+    elif presenter.startswith("ring"):
         text = text.replace(
             dragon,
-            f"round offering [dragon_to_left, dragon_to_right, {token}] from winner "
-            f"over players where player is winner until trick_pile is empty",
+            f"turns w from winner over players where player is winner "
+            f"until trick_pile is empty {{ offer to w one of [dragon_to_left, dragon_to_right, {token}] }}",
         ) + move
     else:
         name = _library_name(move + token)
@@ -684,7 +683,7 @@ _KINDS: tuple[str | None, ...] = (None, *n.STAKES)
 COMPOSITIONS = [c for k in range(1, len(_KINDS) + 1) for c in itertools.combinations(_KINDS, k)]
 _BLOCK_SITES = {
     "name": "for each player p: offer to p one of [{moves}]",
-    "offering": "round offering [{moves}] from 0 over all players until done >= 6",
+    "ring": "turns t from 0 over all players until done >= 6 {{ offer to t one of [{moves}] }}",
     "offering-parameterized": "for each player p: offer to p one of [{moves}]",
 }
 
@@ -744,7 +743,7 @@ def test_ranked_answers_a_plain_move_wherever_one_is_offered(
     assert asked, "no decision was reached"
 
 
-_SITE_BLOCK = {"name": "name", "offering": "offering", "offering-parameterized": "offering"}
+_SITE_BLOCK = {"name": "name", "ring": "name", "offering-parameterized": "offering"}
 
 
 def test_the_blocks_that_name_a_move_type_are_the_blocks_that_decline_stakes() -> None:

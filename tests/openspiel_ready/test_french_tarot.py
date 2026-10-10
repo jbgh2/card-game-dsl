@@ -17,7 +17,7 @@ game length) — far past the ~60s keep-it threshold.
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs, greedy_pick
 
 
 class TestReadiness(ReadinessProofs):
@@ -25,19 +25,21 @@ class TestReadiness(ReadinessProofs):
         "cardlang_french_tarot",
         "french-tarot.cardlang",
         depth=3,
-        # The greedy line passes every hand into the throw-in, so the
-        # provenance walk needs one bid to reach a trick at all (see
-        # `GameSpec.provenance_opening`); the opener's `bid_petite` is legal
-        # at the very first decision on every manifest seed. After it, greedy
-        # takes three passes and the six discard picks and then leads.
-        provenance_opening=(("bid_petite", None),),
-        conformance_steps=120,
+        # The plain `legal[0]` line bids garde at the first ask (`bid_garde`
+        # sorts first) and the next seat garde contre, so every hand is
+        # played out: 2,736 steps on every manifest seed, past any affordable
+        # cap. Preferring `pass` throws every hand in — 144 auction actions
+        # and no card played — which is the line the adapter walk affords.
+        # The provenance walk is the plain line, which the preference does
+        # not steer, and that line plays out, so it needs no opening.
+        greedy_prefers=("pass",),
+        conformance_steps=240,  # bid_petite, the last new verb, at step 153
         conformance_verbs_unreached=(
-            ("bid_garde", ("the auction's higher levels are legal only over a "
-                          "standing lower bid, which the seed-7 line never "
-                          "produces; the 40-seed sweep in "
-                          "tests/test_playout_french_tarot.py bids the ladder")),
-            ("bid_garde_sans", "as bid_garde"),
+            ("bid_garde_sans", ("the auction's third level is legal only over "
+                               "a standing garde, which the seed-7 line never "
+                               "holds when a seat would bid it; the 40-seed "
+                               "sweep in tests/test_playout_french_tarot.py "
+                               "bids the ladder")),
         ),
         adapter_terminal_steps=200,  # greedy line measured at 144 steps
     )
@@ -79,11 +81,11 @@ def test_discard_derives_hidden_observations() -> None:
     r = run(path, seed, tuple(history))
     assert isinstance(r, DecisionNode)
 
-    # Three remaining auction passes, then the six discard picks — nine more
-    # `legal[0]` steps (verified by direct probe: `pass` has no guard and
-    # always sorts first among the candidates, so every later seat passes).
-    for _ in range(9):
-        history.append(r.legal[0])
+    # Three remaining auction passes (driven: a higher bid sorts first among
+    # the later seats' candidates), then the six discard picks as `legal[0]`.
+    passing = space.encode(("pass", None))
+    for step in range(9):
+        history.append(passing if step < 3 else r.legal[0])
         nxt = run(path, seed, tuple(history))
         assert isinstance(nxt, DecisionNode), "the hand ended before the discard completed"
         r = nxt
@@ -149,41 +151,34 @@ def test_discard_derives_hidden_observations() -> None:
     assert f"discard[{taker}]=[" in taker_info
 
 
-def test_the_greedy_line_alone_never_reaches_the_trick_pile() -> None:
-    """The measurement `GameSpec.provenance_opening` exists for, executed here
+def test_the_preferred_line_never_reaches_the_trick_pile() -> None:
+    """The measurement behind the spec's `greedy_prefers`, executed here
     rather than asserted in a comment.
 
-    `pass` (action id 78) sorts below every bid (79-82), so `legal[0]` throws
-    every hand in and the whole 36-hand match is 144 auction actions with no
-    card ever played. The provenance proof's own vacuity guard
-    (`entries_compared > 0`) is what reddens without the opening -- "the greedy
-    line never put a card in ('trick_pile',) within 40 steps" (executed
-    2026-08-19, with `provenance_opening` emptied) -- and this says WHY, so the
-    next reader does not try to fix it by deepening the walk.
+    The declared preference is `pass`, so the preferred line throws every
+    hand in and the whole 36-hand match is 144 auction actions with no card
+    ever played -- the line the adapter walk affords. The provenance walk is
+    the plain `legal[0]` line, which the preference does not steer
+    (`GameSpec.greedy_prefers`), and that line bids garde at the first ask
+    and plays out, so the provenance certificate needs no opening;
+    `test_provenance_openings.py` holds the spec to declaring none.
 
-    Completeness of the knob (decisions.md "Closed-domain completeness"):
-    property -- a declared opening is legal at every one of its turns and its
-    line reaches the zone; domain -- the registered games x {opening, none};
-    covered -- `harness._opening`'s two assertions run on every provenance run
-    of a spec that declares one, `entries_compared > 0` runs on every spec with
-    a provenance domain, and this test covers the one game that declares one;
-    residual -- an opening declared where the greedy line already reached would
-    change WHICH line is certified without weakening the certificate, since the
-    walk certifies every node of whatever line it takes. R4, this ledger owns
-    the record.
+    red under: empty the spec's `greedy_prefers` — the plain line bids garde
+    and reaches a trick inside the walk.
     """
     from cardlang.openspiel.replay import DecisionNode
 
     path = str(GAMES_DIR / "french-tarot.cardlang")
+    _game, space = load(path)
     history: list[int] = []
     r = run(path, 3, ())
     steps = 0
     while isinstance(r, DecisionNode) and steps < 400:
         assert not r.rs.zones.single("trick_pile").arrivals, (
-            f"step {steps}: the greedy line reached a trick after all -- "
-            f"`provenance_opening` is no longer needed for this game"
+            f"step {steps}: the preferred line reached a trick after all -- "
+            f"the spec's account of `greedy_prefers` is stale"
         )
-        history.append(r.legal[0])
+        history.append(greedy_pick(space, list(r.legal), TestReadiness.spec.greedy_prefers))
         r = run(path, 3, tuple(history))
         steps += 1
-    assert steps == 144, f"the greedy line is {steps} actions, not 144"
+    assert steps == 144, f"the preferred line is {steps} actions, not 144"

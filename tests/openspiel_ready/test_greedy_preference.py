@@ -239,8 +239,10 @@ def test_no_declared_verb_is_a_passenger(spec: GameSpec) -> None:
 
     The cell above proves the tuple as a whole is needed, which a tuple with a
     passenger passes — the passenger rides on its neighbour's necessity and
-    nothing ever reads it. Pinochle declares two, so this arm runs on a
-    registered game rather than a synthetic one.
+    nothing ever reads it. Belote and French Tarot declare one verb each, so
+    this arm runs on registered games; a two-verb declaration has no
+    registered witness today, and its passenger case is the executed
+    red-under below.
 
     red under (executed 2026-09-21 and reverted): pinochle's `greedy_prefers`
     set to `("submit_bid",)` — "dropping 'submit_bid' ... leaves the line no
@@ -275,7 +277,10 @@ def test_an_uncapped_declaration_buys_reach(spec: GameSpec) -> None:
     """
     assert spec.adapter_terminal_steps is None  # the parametrization's own gate
     if not spec.greedy_prefers:
-        return  # nothing declared, nothing to hold to account — ledger item (e)
+        # Nothing declared, nothing to hold to account — ledger item (e). A
+        # skip, not a pass: no uncapped game declares a preference today, so
+        # a green here would otherwise read as a cell that ran.
+        pytest.skip(f"{spec.short_name} declares no preference — nothing to hold to account")
     gained = _reaches(spec, spec.greedy_prefers) - _reaches(spec, ())
     assert gained, (
         f"{spec.short_name} declares `greedy_prefers={spec.greedy_prefers!r}` "

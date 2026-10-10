@@ -334,11 +334,12 @@ from what is being decided:
 
 - **Which move** — `offer to <player> one of [move_a, move_b]`, a declared
   Offering of Move Types, each with its own `when:` guard and effect.
-- **A structured interaction** — trick play, an auction, a betting street, a
-  poll: the `round` forms, which are the kernel construct these all configure
-  ([decisions.md](decisions.md),
-  "Interactive decisions: a kernel and an in-DSL standard library"). The turn
-  loop beneath them is [decisions.md](decisions.md), "The `turns` form".
+- **A structured interaction** — trick play is a `round` form, the kernel
+  construct ([decisions.md](decisions.md),
+  "Interactive decisions: a kernel and an in-DSL standard library"); an
+  auction, a betting street or a poll is a `turns` ring whose body is an
+  `offer` ([decisions.md](decisions.md), "The `turns` form" and
+  "Auctions, polls and betting rings are `turns` plus `offer`").
 - **An integer** — `choose integer in 0 .. 13`, optionally capped or excluding
   one value ([decisions.md](decisions.md), "`choose` as expression"). Integer
   decisions only; the section is explicit that the others are not `choose`.
@@ -393,9 +394,13 @@ as an undeclared name somewhere inside the library. The libraries live in
 write the `zones { }` and `state { }` entries it demands — each `requires` row
 is annotated with what it holds and why the library cannot own it.
 
-For poker, `uses poker_betting` brings check, bet, call, raise and the ring
-predicates; `fold` stays game-local, because where a folded card goes is a
-fact about your zones. The showdown is a Primitive your game *declares*
+For poker, `uses poker_betting` brings check, bet, call, raise, the ring
+predicates and the street itself — `run open_street(limit, big)` then
+`run betting_street(first)` per street; `fold` stays game-local, because
+where a folded card goes is a fact about your zones, and the library
+contracts for it (`requires { fold : Move }`), so your game defines
+`move_type fold` and the street offers it. The showdown is a Primitive your
+game *declares*
 rather than implements, and which one follows from where the holding sits —
 `pot_share` ranks each entrant's own cards and so reads the zone families
 `hole` and `upcards` **by name**, while `holdem_pot_share` ranks private cards

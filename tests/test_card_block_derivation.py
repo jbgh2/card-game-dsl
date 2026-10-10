@@ -197,7 +197,7 @@ class Arm:
 
 
 ARMS: list[Arm] = [
-    # --- mechanics.run_decision_round: the three round forms ---------------
+    # --- mechanics.run_decision_round: the two round forms -----------------
     Arm(
         "trick",
         "mechanics.run_decision_round",
@@ -208,22 +208,15 @@ ARMS: list[Arm] = [
     move all cards from trick_pile to pile[winner]""",
     ),
     Arm(
-        "auction_nullary",
+        "climb",
         "mechanics.run_decision_round",
         False,
-        """    round offering [yield_bid] from 0 over all players until done""",
-        move_types="""move_type yield_bid {
-  effect { done := true }
-}""",
-    ),
-    Arm(
-        "auction_card_param",
-        "mechanics.run_decision_round",
-        True,
-        """    round offering [toss] from 0 over all players until done""",
-        move_types="""move_type toss(c : Card) {
-  effect { done := true }
-}""",
+        """    legal_moves: [play_combination]
+    round climb play_combination from 0 over players where hand[player] is not empty
+          source hand into trick_pile
+          combinations president_lead_options follows president_follows
+          until (any player where hand[player] is empty)
+    move all cards from trick_pile to pile[winner]""",
     ),
     # --- execute._select_from / _select_filtered / _select_joint ------------
     Arm(
@@ -326,14 +319,14 @@ ARMS: list[Arm] = [
 # rather than reading it off `ARMS` is the point — otherwise the cross below
 # would be the arm list compared against itself.
 SITE_POLARITIES: dict[str, frozenset[bool]] = {
-    # trick offers cards, climb offers combinations, and an auction offers
-    # cards only through a Card-parameterized member — one site, both answers.
+    # trick offers cards, climb offers combinations, which the combo block
+    # numbers — one site, both answers.
     "mechanics.run_decision_round": frozenset({True, False}),
     "execute._select_from": frozenset({True}),
     "execute._select_filtered": frozenset({True}),
     # candidates are card SUBSETS, which the combo block numbers.
     "execute._select_joint": frozenset({False}),
-    # like the auction: bare only through a Card-parameterized member.
+    # bare only through a Card-parameterized member.
     "execute._offer": frozenset({True, False}),
     # draws from `source.cards` whatever the body's clauses say.
     "execute._pass_selection": frozenset({True}),
@@ -363,9 +356,8 @@ def test_every_decision_point_has_an_isolating_arm_per_answer() -> None:
     point (or a new polarity at an existing one) would land with no cell — the
     hand-listed-axis defect (issue #380) one construct over.
 
-    red under: delete the `auction_nullary` arm — its site still has the
-    `auction_card_param` and `trick` arms, so site coverage stays complete and
-    only the missing polarity fails (executed at authoring).
+    red under: delete the `climb` arm — its site still has the `trick` arm,
+    so site coverage stays complete and only the missing polarity fails.
     """
     want = {
         (site, polarity)
@@ -411,9 +403,9 @@ def test_the_arms_played_line_agrees_with_its_declared_column(arm: Arm) -> None:
     block would number. Nothing here consults the derivation, so the column and
     the code under guard cannot agree by construction.
 
-    red under: give `auction_nullary` a `move chosen 1 card` body without
+    red under: give the `climb` arm a `move chosen 1 card` body without
     flipping its column — the line then offers a `Card` its column denies, and
-    the cell fails (executed at authoring).
+    the cell fails.
     """
     offered = _content_candidates_offered(arm.game())
     assert bool(offered) is arm.present, (

@@ -443,15 +443,6 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "trump": _expr(s.trump) if s.trump is not None else None,
                 "early_termination": s.early_termination,
             }
-        case n.AuctionRound():
-            return {
-                "kind": "auction_round",
-                "offering": list(s.offering),
-                "leader": _expr(s.leader),
-                "participants": _expr(s.participants),
-                "until": _expr(s.until),
-                "outcome_fn": s.outcome_fn,
-            }
         case n.ClimbRound():
             return {
                 "kind": "climb_round",

@@ -21,6 +21,13 @@ class TestReadiness(ReadinessProofs):
         "cardlang_skat",
         "skat.cardlang",
         conformance_steps=120,
+        # The swap pauses on the first decider: the deck is empty once the
+        # ten-card hands and the skat are dealt, so the single-opponent
+        # branch has no stock to swap against, and only a pause whose seat
+        # is the first decider leaves two other hands to pair. The greedy
+        # line lands there at step 8 on every manifest seed, with swappable
+        # pairs to spare; the default pause lands on a bidder's answer.
+        depth=8,
         # provenance zones derive from the checked AST's Arrival-Record calls
         # (`follows_lead` / `highest_by_trick_order` over `trick_pile`)
         provenance_depth=126,  # the greedy line first plays to the trick at 127
@@ -33,6 +40,12 @@ class TestReadiness(ReadinessProofs):
                 "reliable — the outcome is a property of the deal, not of "
                 "depth); the 50-seed sweep in tests/test_playout_skat.py plays "
                 "enough deals to hit it"),
+            ),
+            (
+                "play_at_eighteen",
+                ("the other arm of the same all-pass hand, first applied on the "
+                "seed-7 line at step 415, past any bound this walk affords; "
+                "the same sweep plays it"),
             ),
         ),
     )

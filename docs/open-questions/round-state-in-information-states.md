@@ -40,10 +40,13 @@ form's published set, and cannot prove that the round actually running
 publishes the field being read. `state.shed_first` (a climb field) inside a
 trick phase type-checks.
 
-The runtime is guarded: a read with no live or just-completed frame now fails
-loudly rather than returning a stale one from a different form (the
-`AuctionForm` `last_round_state` clear, pinned by
-`test_auction_does_not_leave_a_stale_trick_frame`). So this is a static
+The runtime is guarded: a read with no live or just-completed frame fails
+loudly (the `state` pronoun's refusal in `evaluate.py`, pinned in
+`tests/test_round_execute.py`), and a `turns` ring ends the just-completed
+round's window when it opens, so a read inside or after the ring is the same
+loud refusal. A lone `offer` or a `repeat until` leaves the frame as it is —
+whether every decision construct should end the window is the open half of
+this question. So this is a static
 imprecision with a loud runtime Shadow Guard, not a silent miss — but the
 diagnostic a designer wants ("this phase runs a trick, and `shed_first` is a
 climb field") is not available, and giving it means attaching references to

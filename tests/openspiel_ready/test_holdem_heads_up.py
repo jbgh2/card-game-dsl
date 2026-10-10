@@ -12,7 +12,7 @@ the harness's default same-suit filter would starve the pool.
 
 `depth=7`. The 2-player swap branch pauses on the FIRST decider, so the depth
 must land on a P0 decision; the greedy `legal[0]` line
-(`call, check, check, check, check, check, check, check`) puts P0 at depths 0,
+(`call, check, bet, call, bet, call, bet, call`) puts P0 at depths 0,
 3, 5 and 7. 7 is the deepest and the strongest: all five community cards are
 out, so the swap is checked with the public board COMPLETE — the configuration
 the community-board games exist to exercise — and 39 cards still sit undealt in
@@ -25,7 +25,7 @@ buys the harness here.
 
 `adapter_terminal_steps=12`: the greedy line reaches TerminalNode in 8 steps on
 every seed of the manifest (measured, not estimated — the line is
-seed-independent because a check-heavy line never consults a card), so 12
+seed-independent because neither a bet nor a call consults a card), so 12
 carries a 4-step margin.
 
 `conformance_steps` is deliberately UNSET, so this game plays a full

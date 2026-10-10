@@ -29,8 +29,8 @@ property:        in a game that runs a flag-gated decision window, every
                  the decision that opens the next Decision Episode
 domain:          the corpus games that declare a flag window — an
                  offer-bearing `repeat until` gated on a declared Boolean
-                 state variable. A window written as `round offering ...
-                 until <state>` is a different construct and belongs to
+                 state variable. A window written as a `turns` ring of
+                 offers is a different construct and belongs to
                  tests/test_offering_round_state_freshness.py, whose property quantifies
                  over every decision outside the round: a round opens idle,
                  so the entry anchor below is satisfied there, and the
@@ -142,7 +142,7 @@ def _flag_windows(game: n.Game) -> frozenset[str]:
             continue
         named = {x.name for x in _subnodes(node.until) if isinstance(x, n.NameRef)}
         flags |= named & booleans
-    # `RepeatUntil` only: a `round offering ... until` window is the same
+    # `RepeatUntil` only: a `turns` ring of offers is the same
     # defect in another construct, and reaching it needs a stronger property
     # than this module's entry anchor, not a wider predicate — the one
     # tests/test_offering_round_state_freshness.py quantifies over.

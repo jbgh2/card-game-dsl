@@ -19,8 +19,8 @@ stdlib_rules: rule_def+
 // reaches a library two ways: `state` PROVIDES it (the library owns the variable
 // and its initial value; the game may read it and may not write it) and
 // `requires` CONTRACTS for it (the game declares it, picks its initial value,
-// and writes it). A move touching a game-specific zone stays game-local, which
-// is why neither clause names a zone.
+// and writes it). A zone or a move type reaches it one way, contracted through
+// `requires` — the game declares the zone, or defines the move type.
 library: _LIBRARY_KW NAME "{" library_item* "}"
 
 ?library_item: requires_block
@@ -39,15 +39,15 @@ library: _LIBRARY_KW NAME "{" library_item* "}"
 // `state_block` unchanged to say so — a provided variable's initial value is
 // the library's precisely because the variable is.
 //
-// An entry names a thing from EITHER of the two blocks a game declares keyed
-// names in, and its type says which: a `state { }` type or a `zones { }` one.
-// That is why the type slot carries both spellings the two blocks use — the
-// index-domain argument a zone type takes, and the `?` a state type takes.
-// Which reading a head takes, and why `?` suffixes a value type only, is
-// decisions.md "Typed object model"; neither spelling is legal on the other
-// side, and both crosses are refused at resolve rather than here: the grammar
-// cannot see which registry a NAME came from, and a syntax error would report
-// a shape question as a spelling one.
+// An entry names a thing the game declares, and its type says which kind: a
+// `state { }` type, a `zones { }` type, or `Move` for a move type the game
+// defines in a `move_type` block of its own. That is why the type slot carries
+// the index-domain argument a zone type takes, while a state type and a move
+// type take none; no row is optional, so no `?` is spelled here. Which reading
+// a head takes is decisions.md "Typed object model"; an argument is legal on a
+// zone row only, and the cross is refused at resolve rather than here: the
+// grammar cannot see which registry a NAME came from, and a syntax error would
+// report a shape question as a spelling one.
 requires_block: _REQUIRES_KW "{" require_decl* "}"
 require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
 
@@ -404,7 +404,6 @@ move_event: NAME [_WHERE_KW expr]
           | assign_stmt
           | offer
           | round_stmt
-          | auction_stmt
           | climb_stmt
           | produce_stmt
           | produces_stmt
@@ -524,23 +523,10 @@ turns_stmt: _TURNS_KW NAME _FROM_KW expr _OVER_KW expr _UNTIL_KW expr [_AGAIN_KW
 offer: _OFFER_KW _TO_KW expr _ONE_KW _OF_KW "[" NAME ("," NAME)* "]"
 // The [[trick]] [[form]] of `round`: one trick. The `winner` clause names the
 // [[winner]] function that picks the player the trick yields, bound as `winner`
-// for the statements after it. Distinct from the auction form's `outcome`
-// clause below, which names a function producing a tagged `(tag, payloads)`
-// [[outcome]] — two senses the glossary keeps apart.
+// for the statements after it. A player a round yields is a winner, never an
+// [[outcome]] — a phase's tagged `(tag, payloads)` result — two senses the
+// glossary keeps apart.
 round_stmt: _ROUND_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _WINNER_KW NAME [_TRUMP_KW expr] [_EARLY_KW NAME]   -> round_stmt
-// The auction/betting form of `round`: a continuous ring over an [[offering]]
-// that loops until the termination predicate holds (`until`). The
-// `outcome` clause is optional: an auction supplies one and the function produces
-// the typed outcome when the ring closes; a betting round omits it — each action
-// mutates shared chip/fold state directly, so the closed ring just returns and
-// play moves to the next street. No card source/into zones — these moves
-// (bids/passes/bets) don't move cards. (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the
-// same `round` kernel, configured along the offering, accumulator, and
-// termination axes.)
-// The ring is traversed one way, continuously, each turn advancing the pointer
-// (decisions.md, "The auction form of `round`", under Order).
-auction_stmt: _ROUND_KW auction_moves _FROM_KW expr _OVER_KW expr _UNTIL_KW expr [_OUTCOME_KW NAME]   -> auction_stmt
-auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // The climbing form of `round`: one combination-climbing trick (Big Two, Tichu).
 // The leader leads a combination from the engine, then each participant in turn
 // beats the standing play or passes; the trick ends when action returns to the
@@ -551,7 +537,7 @@ auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // `winner` for the surrounding body, which routes the pile and the next lead;
 // there is no winner *function* — the winner is the loop's last player, not a
 // function of the cards. (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the same `round`
-// kernel along the offering / order / termination axes.)
+// kernel along the participants / order / termination axes.)
 // The optional trailing `before asking <binder> { … }` is the round's Hosted
 // Poll (decisions.md "Off-the-clock windows"): statements run before each turn
 // and Interrupt Window ask, the binder bound to the seat about to be asked.
@@ -709,7 +695,7 @@ subset_query: _ANY_KW _SUBSET_KW subset_of_guarded _WHERE_KW expr               
             | _NUMBER_KW _OF_KW _SUBSETS_KW subset_of_guarded _WHERE_KW expr      -> sq_count
 
 // The source is one zone, or several listed in brackets -- the language's one
-// shape for "these, listed" (`teams:`, `offering [...]`, `one of [...]`, and
+// shape for "these, listed" (`teams:`, `one of [...]`, and
 // `x in [a, b]`, whose reading "in one of these" this shares). The list is a
 // phrase on the node, never a value: the language has no value that joins zones
 // anywhere, so it cannot be bound or passed, and it exists at this slot
@@ -1032,7 +1018,6 @@ _NOT_KW: "not" /(?![A-Za-z0-9_])/
 _NUMBER_KW: "number" /(?![A-Za-z0-9_])/
 _OF_KW: "of" /(?![A-Za-z0-9_])/
 _OFFER_KW: "offer" /(?![A-Za-z0-9_])/
-_OFFERING_KW: "offering" /(?![A-Za-z0-9_])/
 _OFFSET_BY_KW: "offset_by" /(?![A-Za-z0-9_])/
 _ONE_KW: "one" /(?![A-Za-z0-9_])/
 _OR_KW: "or" /(?![A-Za-z0-9_])/

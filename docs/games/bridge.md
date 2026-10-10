@@ -26,12 +26,16 @@ Each hand:
    second game ends the rubber (bonus 500/700).
 
 The thirteen tricks run on the trick form of the kernel `round` construct; the
-auction runs on its auction form — a continuous ring over the bid vocabulary
-(`offering [pass, submit_bid, double, redouble] … until …`), threading the
-standing contract through the phase's accumulator state. The auction phase
-declares a typed outcome — `contract_finalized(declarer, level, strain, doubling)`
-or `all_pass` — and the `produces:` consumer either routes on into play or skips
-the passed-out hand (see [decisions.md](../decisions.md) "Typed phase outcomes").
+auction is a `turns` ring over the four seats, each asked by `offer` to pass,
+bid, double or redouble, until three passes follow a call (four with none),
+with the standing contract threaded through the phase's own state. The
+auction phase declares a typed outcome — `contract_finalized(declarer, level,
+strain, doubling)` or `all_pass` — which the phase body `produce`s when the
+ring closes, naming as declarer the first player of the high side to have
+bid the final strain (each side's first bidder of each strain is recorded as
+the bids are made); the `produces:` consumer either routes on into play or
+skips the passed-out hand (see [decisions.md](../decisions.md) "Typed phase
+outcomes").
 Random bids are capped at level 3 so rubbers stay
 a realistic dozen-odd hands — game-level and slam contracts are unreachable under
 random play (their scoring is implemented but unexercised; issue #415 holds the

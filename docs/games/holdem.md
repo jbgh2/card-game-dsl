@@ -40,9 +40,9 @@ The `.md` source is a cash game with no overall winner; to give the runtime a
 terminal, the executable plays until one player holds **all** the chips and names
 that player the winner. Chips are modelled as an integer `stack` per player (not
 a resource-zone subsystem); the total is invariant. The whole hand runs in the
-DSL: the betting on the kernel `round`'s **ring** (the pointer advances past
-whoever just acted, so the seats behind the aggressor decide before the seats its
-bet re-opened — poker's continuation order), and the showdown as plain
+DSL: the betting as the library's street — a `turns` **ring** that advances
+past whoever just acted, so the seats behind the aggressor decide before the
+seats its bet re-opened (poker's continuation order) — and the showdown as plain
 statements — a contested hand reveals the contenders' hole cards, each entrant
 collects its side-pot share via `holdem_pot_share(p)`,
 and the hands leave play to the muck.
@@ -75,7 +75,7 @@ ring predicates — from the family library shared with Kuhn, Leduc and Stud
 [decisions.md](../decisions.md) "Family libraries"). Hold'em's own contribution
 is `fold`, which mucks the folder's hole cards unseen — as in Kuhn and Leduc, and
 unlike Stud, whose fold mucks upcards opponents were already watching — and the
-`raise_cap` it declares as required state, where Stud declares 3 and Leduc 2.
+`raise_cap` it declares as required state, where Stud declares 4 and Leduc 2.
 `raise_cap` counts aggressive actions *including* the opening bet, so 4 is Pagat's
 "one bet plus three raises" — and Hold'em sets it **per street** rather than once,
 because Pagat caps a street only when it opens with more than two active players

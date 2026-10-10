@@ -29,6 +29,8 @@ def test_seven_card_stud_ir_matches_golden() -> None:
 
 
 def test_seven_card_stud_ir_is_well_formed() -> None:
+    """red under: write one of the five streets inline in seven-card-stud.cardlang
+    — four spliced rings, not five."""
     ir = compile_path(STUD)
     assert ir["cardlang_ir"] == 1 and ir["kind"] == "game"
     # check / bet / call / raise / fold are game-defined betting move types.
@@ -36,6 +38,8 @@ def test_seven_card_stud_ir_is_well_formed() -> None:
     assert isinstance(move_types, list)
     names = {m["name"] for m in move_types if isinstance(m, dict)}
     assert {"check", "bet", "call", "raise", "fold"} <= names
-    # The betting rounds are the betting form: no outcome function.
+    # The five streets are the library's `betting_street`, spliced at each
+    # `run`: five `turns` rings, each offering the family's vocabulary.
     blob = json.dumps(ir)
-    assert '"outcome_fn": null' in blob
+    assert "auction_round" not in blob
+    assert blob.count('"kind": "turns"') == 5

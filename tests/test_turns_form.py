@@ -21,12 +21,16 @@ does not prove:  that a body statement of any given kind behaves under
             through the same execute dispatch `if`/`as` use, and the form
             adds rotation rather than per-statement logic, so what a green
             establishes is the rotation around a body, never the body's own
-            dispatch.
+            dispatch. The ring cells (an `offer` body, a leader the
+            predicate excludes, a `produce` from the body, a single seat
+            re-asked through `repeat until`, a ring spliced through a
+            procedure) are that sample, each naming its reddening mutation.
 """
 
 from __future__ import annotations
 
 import random
+from typing import Any
 
 import pytest
 
@@ -347,3 +351,169 @@ def test_decisionless_nontermination_hits_the_iteration_backstop() -> None:
     )
     with pytest.raises(OwnerGuardError, match="max_length"):
         play_game(game, random.Random(0))
+
+
+# --- the ring cells the auction form carried (issue #819) ---
+#
+# Every bidding and betting ring in the corpus is this form with an `offer`
+# body, so the ring semantics the auction form pinned are pinned here on the
+# construct that now carries them: a leader the predicate excludes is skipped
+# with no turn; the participants predicate shrinks the ring per turn; the
+# decider's own `asked` event names `offer`; a typed outcome is `produce`d
+# from the body; a single seat is re-asked through `repeat until`; and the
+# loop splices through a procedure. Each born-green cell names the mutation
+# that reddens it.
+
+
+def _asked_seats(game: n.Game, chooser: Any) -> list[tuple[int, str]]:
+    """Every (seat, construct) the decider's own `asked` event carries."""
+    seen: list[tuple[int, str]] = []
+
+    def observer(player: int, event: tuple[Any, ...]) -> None:
+        if event[0] == "asked":
+            seen.append((player, event[2]))
+
+    play_game(game, random.Random(0), chooser=chooser, observer=observer)
+    return seen
+
+
+def _scripted(*names: str) -> Any:
+    """A chooser that takes the named moves in order, then the first candidate."""
+    script = list(names)
+
+    def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
+        if script:
+            want = script.pop(0)
+            picked = [c for c in candidates if c[0] == want]
+            assert picked, f"{want} not offered: {candidates}"
+            return picked[:count]
+        return candidates[:count]
+
+    return choose
+
+
+def test_a_leader_the_predicate_excludes_is_skipped_without_a_turn() -> None:
+    """The ring opens at the first ELIGIBLE seat from the leader, and the
+    excluded leader takes no turn and makes no decision — the shape of a
+    standing high bidder named as `from` (Pinochle's `opener`).
+
+    red under: in `execute._turns`, open the first turn at `leader`
+    unconditionally instead of at the first candidate the predicate admits."""
+    game = check_dsl(
+        _game(
+            "  phase p { turns t from 0 over players where player is not 0\n"
+            "            until score[1] > 0 { score[t] += 1 } }"
+        ),
+        "test.cardlang",
+    )
+    assert play_game(game, random.Random(0)).scores == {0: 0, 1: 1, 2: 0}
+
+
+def test_an_offer_body_asks_the_turn_holder_and_the_ring_shrinks_per_turn() -> None:
+    """The ascending-auction shape: each seat is asked by `offer`, a seat that
+    passes leaves the ring the moment the predicate stops holding for it, and
+    the decider's own `asked` event names the construct that asked — `offer`.
+
+    The line runs past the passed seat's place in the ring: seat 2 passes on
+    the first lap and the ring comes round to it again on the second, where
+    it is skipped and seat 0 is asked in its stead.
+
+    red under: in `execute._turns`, evaluate the participants once before the
+    first turn instead of at every pick — seat 2 is asked again on the
+    second lap."""
+    game = check_dsl(
+        _game(
+            "  phase p { turns b from 1 over players where not passed[player]\n"
+            "            until (number of players where not passed[player]) <= 1 {\n"
+            "    offer to b one of [bid, pass]\n"
+            "  } }",
+            extra_state="passed[player] : Boolean = false  bids : Integer = 0",
+        )
+        + "move_type bid { effect { bids += 1 } }\n"
+        + "move_type pass { effect { passed[actor] := true } }\n",
+        "test.cardlang",
+    )
+    asked = _asked_seats(game, _scripted("bid", "pass", "bid", "bid", "bid", "pass"))
+    assert asked == [
+        (1, "offer"), (2, "offer"), (0, "offer"), (1, "offer"), (0, "offer"), (1, "offer"),
+    ]
+
+
+def test_offset_by_from_a_non_seat_is_a_loud_typed_error() -> None:
+    """`offset_by` reads a seat, and a `Player?` still `none` is not one: the
+    read fails as a typed Owner Guard naming the value, never as a bare
+    `TypeError` out of the modular arithmetic.
+
+    red under: delete the `is_seat` guard at the head of
+    `values.Seating.offset_by`."""
+    game = check_dsl(
+        _game(
+            "  phase p { let w = absent offset_by left\n"
+            "    score[w] += 1 }",
+            extra_state="absent : Player? = none",
+        ),
+        "test.cardlang",
+    )
+    with pytest.raises(OwnerGuardError, match="cannot offset from None: not a seat"):
+        play_game(game, random.Random(0))
+
+
+def test_a_typed_outcome_is_produced_from_the_body() -> None:
+    """A ring in an outcome phase ends the phase from inside a turn — the
+    auction's result is a `produce`, written where the ring closes.
+
+    red under: catch `_ProduceSignal` inside `execute._turns`."""
+    game = check_dsl(
+        _game(
+            "  phase hand {\n"
+            "    phase decide -> outcome { won(Player) | nobody } {\n"
+            "      turns t from 0 over all players until stop {\n"
+            "        if t is 2 { produce won(t) }\n"
+            "        score[t] += 1\n"
+            "      }\n"
+            "      produce nobody\n"
+            "    }\n"
+            "    decide produces:\n"
+            "      won(w) { score[w] += 10 }\n"
+            "      nobody { stop := true }\n"
+            "  }"
+        ),
+        "test.cardlang",
+    )
+    assert play_game(game, random.Random(0)).scores == {0: 1, 1: 1, 2: 10}
+
+
+def test_a_single_seat_is_re_asked_through_repeat_until() -> None:
+    """One seat whose free actions leave the loop's condition false is asked
+    again until it acts — Schnapsen's leader. `repeat until` + `offer` is the
+    whole of a single-seat ring.
+
+    red under: in `execute._repeat_until`, evaluate the condition once."""
+    game = check_dsl(
+        _game(
+            "  phase p { repeat until led { offer to 1 one of [free, lead] } }",
+            extra_state="led : Boolean = false  frees : Integer = 0",
+        )
+        + "move_type free { when: frees < 2  effect { frees += 1 } }\n"
+        + "move_type lead { effect { led := true } }\n",
+        "test.cardlang",
+    )
+    asked = _asked_seats(game, _scripted("free", "free", "lead"))
+    assert asked == [(1, "offer")] * 3
+
+
+def test_the_ring_splices_through_a_procedure() -> None:
+    """A procedure body may hold the loop, binding its own turn-holder, and a
+    `run` of it rotates exactly as the inline text does.
+
+    red under: add `n.Turns` to `resolve._WINNER_BINDING_STMTS`."""
+    game = check_dsl(
+        _game(
+            "  phase p { run ring(1) }"
+        )
+        + "procedure ring(first : Player) {\n"
+        + "  turns t from first over all players until score[0] > 0 { score[t] += 10 }\n"
+        + "}\n",
+        "test.cardlang",
+    )
+    assert play_game(game, random.Random(0)).scores == {0: 10, 1: 10, 2: 10}

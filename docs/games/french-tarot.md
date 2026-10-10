@@ -32,9 +32,9 @@ Each hand:
    (1/2/4/6), each opponent pays `(25 + pt + pb) × mu` and the taker collects
    three times that (zero-sum).
 
-The whole hand runs in the DSL. The four-level bid runs on the kernel `round`
-(a counterclockwise single-pass ring over the move vocabulary, settling
-on a taker via `tarot_auction_outcome`). The chien discard is a filtered
+The whole hand runs in the DSL. The four-level bid is a `turns` ring
+(a counterclockwise single lap over the bid vocabulary), and the taker is
+`produce`d from the ring's own state once it closes. The chien discard is a filtered
 movement (`move chosen 6 cards from hand[p] where is_pref_discard(card) to
 discard[p]`) into a genuinely hidden `discard[player]` zone — a deliberate
 departure from the printed rules' physical table layout, where the discard

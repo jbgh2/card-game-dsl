@@ -203,7 +203,7 @@ def render(value: Any) -> Any:
     if isinstance(value, Card):
         return str(value)
     if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str):
-        name, param = value  # a (move_type, param) auction/betting candidate
+        name, param = value  # a (move_type, param) offering candidate
         return render_candidate(name, param)
     cards = getattr(value, "cards", None)
     if cards is not None:  # a combination play (climb engines)

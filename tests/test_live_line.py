@@ -247,8 +247,11 @@ def _answer_none(view: SeatView, legal: Sequence[int]) -> int:
 
 
 def _answer_flag(view: SeatView, legal: Sequence[int]) -> int:
-    assert 1 in legal
-    return True
+    # Whichever flag compares equal to a legal id (0 or 1 is always one of
+    # the first decision's ids, whichever way the names block sorts).
+    flag = True if 1 in legal else False
+    assert int(flag) in legal
+    return flag
 
 
 # The answers a policy author most plausibly gives in place of an action id:

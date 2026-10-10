@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from cardlang.types import TBoolean, TEnum, TOptional, TPlayer, Type
 
-# `round <move> from <leader> over <players> source <zone> into <zone> outcome <fn>`
+# `round <move> from <leader> over <players> source <zone> into <zone> winner <fn>`
 TRICK_PUBLISHED: dict[str, Type] = {
     "led_suit": TOptional(TEnum("Suit")),  # none while leading
     "trick_terminated_early": TBoolean(),
@@ -50,14 +50,6 @@ CLIMB_INTERNAL: frozenset[str] = frozenset(
     {"current", "last", "idx", "guard", "events", "pending", "window"}
 )
 
-# `round offering […] … until …` — the auction and betting forms. They publish
-# NOTHING: the auction's result is routed by its own outcome mechanism, and the
-# betting form is outcome-less. This empty row is deliberate and load-bearing, not
-# an omission — it is what makes "the auction form has no `state.`" a checkable
-# fact rather than a thing you learn from a stale read.
-AUCTION_PUBLISHED: dict[str, Type] = {}
-AUCTION_INTERNAL: frozenset[str] = frozenset({"i", "guard", "history"})
-
 # The union the checker validates against. It is a union, not a per-form lookup,
 # because a reference is not statically attached to a form: `MustFollowSuit` lives
 # once in stdlib/rules.cardlang and is activated by games in context, so the
@@ -68,5 +60,4 @@ AUCTION_INTERNAL: frozenset[str] = frozenset({"i", "guard", "history"})
 ROUND_STATE_FIELDS: dict[str, Type] = {
     **TRICK_PUBLISHED,
     **CLIMB_PUBLISHED,
-    **AUCTION_PUBLISHED,
 }

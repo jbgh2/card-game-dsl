@@ -1,14 +1,14 @@
-"""The auction round's ring, and the one traversal it walks.
+"""A bidding ring's traversal: `turns` with an `offer` body.
 
-The auction form walks a *continuous ring* — `order[i % n]`, the pointer advancing
-each turn (`docs/decisions.md`, "The auction form of `round`", under Order).
+The ring walks the seats one way, the turn advancing past whoever acted
+(`docs/decisions.md`, "Auctions, polls and betting rings are `turns` plus
+`offer`", under Order).
 
 What is pinned here divides by who meets it. The ring's own stepping and poker's
 continuation order are what a designer sees; the refusal — a ring that empties
 while `until` is still false — is what a designer meets when the game
-description is wrong. The form's grid cells (parse, resolve, IR, execution,
-crossed against its optional clauses) live in tests/test_round_forms.py; this
-module holds the behaviour that grid cannot state.
+description is wrong. The form's grid cells live in tests/test_turns_form.py;
+this module holds the behaviour that grid cannot state.
 """
 
 from __future__ import annotations
@@ -38,8 +38,10 @@ game G {
   zones { deck : Deck }
   state { acted_count[player] : Integer = 0 }
   phase run {
-    round offering [step] from 0 over players where acted_count[player] < 2
-          until (number of players where acted_count[player] < 2) is 0
+    turns t from 0 over players where acted_count[player] < 2
+          until (number of players where acted_count[player] < 2) is 0 {
+      offer to t one of [step]
+    }
   }
   winner: highest acted_count
 }
@@ -73,8 +75,10 @@ game G {
   zones { deck : Deck }
   state { acted_count[player] : Integer = 0 }
   phase run {
-    round offering [step] from 0 over players where acted_count[player] < 0
-          until false
+    turns t from 0 over players where acted_count[player] < 0
+          until false {
+      offer to t one of [step]
+    }
   }
   winner: highest acted_count
 }
@@ -92,17 +96,17 @@ def test_an_empty_ring_with_until_unsatisfied_names_the_disagreement() -> None:
     guard exists to displace: a runaway-loop message for a game that is not
     looping but disagreeing with itself.
 
-    red under: delete the `if not participants` raise from
-    `AuctionForm.next_actor` — the round then spins to the 1000-step limit and
-    reports a termination problem instead.
+    red under: delete the `if player is None` raise from `execute._turns` —
+    the ring then spins to the `max_length` backstop and reports a
+    termination problem instead.
     """
     game = check_dsl(EMPTY_RING, "empty.cardlang")
     with pytest.raises(OwnerGuardError) as excinfo:
         play_game(game, random.Random(0))
     message = str(excinfo.value)
-    assert "auction: no participant is pending" in message, message
-    assert "termination and participants clauses disagree" in message, message
-    assert "1000" not in message, message
+    assert "no eligible participant" in message, message
+    assert "make the `until` condition cover this state" in message, message
+    assert "max_length" not in message, message
 
 
 # --- the corpus witness: poker's continuation order --------------------------
@@ -255,9 +259,10 @@ def test_a_folded_seat_leaves_the_ring_and_the_chain_walks_past_it() -> None:
     way, so conservation, the side-pot known-value tests and Stud's hand vectors
     are all blind to it.
 
-    red under: in `AuctionForm.next_actor`, replace the pointer read
-    `player = order[pointer % len(order)]` with a scan from the leader,
-    `player = next(p for p in order if p in participants)`. RUN, not predicted:
+    red under: in `execute._turns`, make the plain-turn arm lap from the
+    leader — `candidate_seq = [leader, *_next_seats(order, leader, step)]`,
+    the first turn's own sequence — instead of from the seat just asked.
+    RUN, not predicted:
     the first lap ends on the opener where the ring ends it on the seat that
     has not yet spoken — the re-raise sends the turn back to the opener.
     """

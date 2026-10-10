@@ -213,20 +213,29 @@ game Reopening {{
   }}
   phase play {{
     run open_street({limit}, {big})
-    round offering [check] from 1
+    turns t from 1
           over players where player is witness and not acted[player]
-          until (number of players where acted[player]) is 1
+          until (number of players where acted[player]) is 1 {{
+      offer to t one of [check]
+    }}
     bet_to_match := {standing}
     level := {level}
     raises := {raises}
     for each player p: bet_by[p] := 0
     for each player p: if p is hero {{ stack[p] := {hero_stack} }}
-    round offering [{vocabulary}] from 0
+    turns t from 0
           over players where player is hero
-          until false
+          until false {{
+      offer to t one of [{vocabulary}, fold]
+    }}
   }}
   winner: highest stack
 }}
+// The library contracts for the game's `fold`, and a game-own move type no
+// reachable offer presents is refused: these probes measure the library's
+// own moves, so the game's `fold` is offered beside them and never legal (no
+// standing bet is negative).
+move_type fold {{ when: bet_to_match < 0 effect {{ folded[actor] := true }} }}
 """
 
 

@@ -2,7 +2,7 @@
 
 The full pipeline (parse -> resolve -> typecheck -> emit) on the real
 bridge.cardlang, pinned with a golden so any change to the IR shape — in
-particular the auction form of `round` (the `offering`/`until` axes) and the bid
+particular the auction's `turns` ring (its `over`/`until` clauses) and the bid
 offering — is a reviewable diff. Regenerate deliberately with
 ``UPDATE_GOLDEN=1 pytest``.
 """
@@ -30,17 +30,20 @@ def test_bridge_ir_matches_golden() -> None:
     assert rendered == GOLDEN.read_text()
 
 
-def test_bridge_auction_round_is_well_formed() -> None:
+def test_bridge_auction_ring_is_well_formed() -> None:
+    """red under: add a second statement to the ring's body in bridge.cardlang
+    — the body is no longer one `offer`."""
     ir: Any = compile_path(BRIDGE)
-    # The auction phase holds a round in its auction form: a move vocabulary and a
-    # termination predicate, with the trick-only card zones absent.
+    # The auction phase holds a `turns` ring whose body is one `offer` of the
+    # bid vocabulary, terminated by a predicate, and then `produce`s the
+    # contract from the phase body.
     rubber = ir["phases"][0]
     auction = next(
         p for p in rubber["items"] if p.get("kind") == "phase" and p["name"] == "auction"
     )
-    rnd = next(i for i in auction["items"] if i["kind"] == "auction_round")
-    assert rnd["offering"] == ["pass", "submit_bid", "double", "redouble"]
-    assert rnd["until"] is not None
-    # The trick-only keys are not present-and-null: the auction form's IR does
-    # not carry them at all.
-    assert not {"move_type", "source_zone", "play_zone"} & rnd.keys()
+    ring = next(i for i in auction["items"] if i["kind"] == "turns")
+    assert ring["until"] is not None
+    assert [s["kind"] for s in ring["body"]] == ["offer"]
+    assert ring["body"][0]["offering"] == ["pass", "submit_bid", "double", "redouble"]
+    assert any(i["kind"] == "if" for i in auction["items"] if isinstance(i, dict))
+    assert "auction_round" not in json.dumps(ir)

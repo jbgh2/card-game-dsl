@@ -14,14 +14,14 @@
 // that card goes is a fact about Kuhn's zones, not about betting: here it
 // mucks unseen, so a fold never reveals what was folded.
 //
-// The library also carries `raise`, which Kuhn never offers: the vocabulary
-// list is [check, bet, call, fold]. `raise_cap` is nonetheless declared and
-// set to 1, so the imported move type is *doubly* dead — unoffered, and
-// guard-false even if it were offered. That is the point of a whole-library
-// import: the family's vocabulary comes in entire, and a member selects its
-// own subset in the `offering` list. Nothing about the unoffered move
-// reaches the OpenSpiel action space, which is derived from the `offering`
-// lists rather than from the game's move-type table.
+// The library's street offers the family's whole vocabulary, `raise` and the
+// two big wagers included, and Kuhn never sees any of them legal: `raise_cap`
+// is 1, so the opening bet spends the street's one aggression, and no street
+// here carries a second size. That is the point of a whole-library import:
+// the family's vocabulary comes in entire, and a game's own constants say
+// which of it a seat can ever take. The OpenSpiel action space is derived
+// from the offering, so Kuhn carries the family's seven action ids, three of
+// them never legal.
 //
 // Chips are plain integers (the Stud convention). `net[player]` is the
 // terminal score — the hand's chip delta against the starting stack, which
@@ -86,15 +86,9 @@ game KuhnPoker {
     // Leduc and Stud open each of their streets with.
     run open_street(1, 0)
 
-    // The ring's `over` filter and its `until` terminator name the same set
-    // (`pending`), so the ring closes exactly when it empties; the
-    // second arm is the all-but-one-can-act case, which Kuhn reaches when a
-    // player folds.
-    round offering [check, bet, call, fold] from first_actor
-          over players where pending(player)
-          until (number of players where pending(player)) is 0
-             or ((number of players where can_act(player)) <= 1
-                 and (number of players where can_act(player) and owes(player)) is 0)
+    // The street is the library's: every pending seat is asked from the
+    // opener until nobody is pending, or a fold leaves one contender.
+    run betting_street(first_actor)
   }
 
   phase showdown {

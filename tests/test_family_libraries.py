@@ -179,11 +179,29 @@ does not prove: four things a green over these grids leaves open.
 One deliberate NON-error, recorded here so a later reader does not mistake its
 absence from the probes for an omission: an imported definition a game never
 uses is legal (decisions.md "Family libraries", the subset-vocabulary
-paragraph). Kuhn imports `raise` and never offers it. That is the tier working
-as designed — `uses` names a family, not a manifest — and its cost at the
-OpenSpiel target is pinned to zero in
+paragraph). Kuhn's street offers the family's whole vocabulary, so `raise`,
+`bet_big` and `raise_big` mint action ids that are never legal there. That is
+the tier working as designed — `uses` names a family, not a manifest — and
+its cost at the OpenSpiel target is pinned in
 `tests/openspiel_ready/test_kuhn_poker.py`, not here: the claim is about the
 action-space derivation, so it belongs in the channel of the adapter.
+
+The MOVE-TYPE contract kind (`<name> : Move`, decisions.md "Family
+libraries"): property — a row typed `Move` is answered by exactly one move
+type the including GAME defines, is offered from the library's own
+procedures, and every other answer or shape is refused where its author can
+act; domain — who answers (the game's move type, nothing, a state variable
+or zone of that name, another library's move type, the library itself) times
+how the row is written (bare, indexed, with a type argument, the keyword
+spelling) times how many definitions the game holds {0, 1, 2}, plus whether
+the game reaches any offer of it; registry — `resolve.MOVE_CONTRACT_TYPE`,
+`resolve.is_move_contract`, and the game's `move_types`, which
+`_check_move_requirement` reads; covered — the `_street` cells below, each
+naming its answer or shape; does not prove — that a row fixes the move
+type's ARITY or stake: a parameterized `move_type fold(c : Card)` answers
+`fold : Move` and the library's offer presents one candidate per card, which
+is the contract naming a definition and not its signature (issue #178 holds
+the residual).
 """
 
 from __future__ import annotations
@@ -194,6 +212,8 @@ import typing
 from collections.abc import Iterator
 from dataclasses import fields, is_dataclass, replace
 from pathlib import Path
+
+from typing import Any
 
 import pytest
 from lark import Tree
@@ -212,6 +232,7 @@ from cardlang.parse import (
     parse_text,
     parse_to_tree,
 )
+import cardlang.parse
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import (
     _AUTHOR_CHOSEN_BINDERS,
@@ -268,7 +289,7 @@ game Probe {{
   phase play {{ {phase_state} {run} }}
   winner: highest stack
 }}
-{extra}
+{fold}{extra}
 """
 
 
@@ -279,12 +300,19 @@ def _game(
     phase_state: str = "",
     uses: str = "uses poker_betting",
 ) -> n.Game:
-    # `poker_betting` holds a procedure, and an uninvoked procedure is its own
-    # error — so a probe importing the REAL library has to run it, while one
-    # importing a synthetic library must not, having no such procedure to run.
-    run = "run open_street(1, 0)" if "poker_betting" in uses else ""
+    # `poker_betting` contracts for the game's `fold` (`requires { fold :
+    # Move }`), and a game-own move type no reachable offer presents is
+    # refused — so a probe importing the REAL library defines one AND runs
+    # the street that offers it, while one importing a synthetic library
+    # does neither, having no such contract to meet.
+    run = "run open_street(1, 0)  run betting_street(0)" if "poker_betting" in uses else ""
+    fold = (
+        "move_type fold { effect { folded[actor] := true } }\n"
+        if "poker_betting" in uses
+        else ""
+    )
     text = _GAME.format(
-        extra=extra, extra_state=extra_state, phase_state=phase_state, run=run
+        extra=extra, extra_state=extra_state, phase_state=phase_state, run=run, fold=fold
     )
     text = text.replace("uses poker_betting", uses, 1)
     return parse_text(text, "probe.cardlang")
@@ -1763,13 +1791,6 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
     "Offer.offering": (
         "move_type lib_move {{ effect {{ declared_thing := 1 }} }} "
         "move_type m {{ effect {{ offer to actor one of [{read}] }} }}",
-        "game_move",
-        "lib_move",
-    ),
-    "AuctionRound.offering": (
-        "move_type lib_move {{ effect {{ declared_thing := 1 }} }} "
-        "move_type m {{ effect {{ round offering [{read}] from actor "
-        "over all players until true }} }}",
         "game_move",
         "lib_move",
     ),
@@ -3373,11 +3394,17 @@ def test_every_library_contracts_for_exactly_what_it_reaches(name: str) -> None:
         f"library '{name}' calls "
         f"{sorted({c.func for c in reach.unknown_calls})} past its contract"
     )
-    # Both halves of the contract: a state entry is answered by a state read, a
-    # zone entry by a zone read. Reading only the first would call every zone
-    # contract dead — the same trap `turns … again <var>` sprang on the
-    # bare-string half, one namespace over.
-    dead = {r.name for r in library.requires} - reach.state_reads - reach.zone_reads
+    # Every kind of the contract: a state entry is answered by a state read, a
+    # zone entry by a zone read, a move-type entry by an offering that names
+    # it. Reading only the first would call every zone and move contract dead —
+    # the same trap `turns … again <var>` sprang on the bare-string half, one
+    # namespace over.
+    dead = (
+        {r.name for r in library.requires}
+        - reach.state_reads
+        - reach.zone_reads
+        - reach.move_type_reads
+    )
     assert not dead, (
         f"library '{name}' requires {sorted(dead)}, which no definition in it "
         f"reads — drop them from the contract"
@@ -3849,3 +3876,243 @@ def test_a_contract_cannot_require_a_collection(
             f"the collection contract also met {wrong!r}, which sends the "
             f"library's author somewhere that does not fix it:\n{message}"
         )
+
+
+# --- the MOVE-TYPE contract (issue #819) ---------------------------------------
+#
+# A `requires` row typed `Move` contracts for a move type the including GAME
+# defines, so a library procedure can present a move the family leaves to the
+# game — `poker_betting`'s `fold`, which touches the game's own zones. The row
+# shares the contract's shape with state and zone rows, and the kind is read
+# off the type slot exactly as a zone contract's is (`is_move_contract`). The
+# grid: who answers the row, crossed with how the library wrote it. Every cell
+# reads the message, so a refusal for the wrong reason (today's type-slot leak)
+# is red, never green by accident.
+
+_STREET_LIBRARY = """
+library streetlib {{
+  requires {{
+    {contract}
+    acted[player] : Boolean
+  }}
+  procedure ask(first : Player) {{
+    turns t from first over players where not acted[player]
+          until (number of players where not acted[player]) is 0 {{
+      offer to t one of [fold, stay]
+    }}
+  }}
+  move_type stay {{ effect {{ acted[actor] := true }} }}
+  {extra}
+}}
+"""
+
+_STREET_GAME = """
+game Street {{
+  uses streetlib
+  {uses_more}
+  players: 2
+  cards: kuhn3
+  max_length: 100
+  zones {{ deck : Deck {zone} }}
+  state {{ acted[player] : Boolean = false {state} }}
+  phase play {{ run ask(0) }}
+  winner: highest acted
+}}
+{defs}
+"""
+
+
+def _street(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    contract: str = "fold : Move",
+    extra: str = "",
+    defs: str = "move_type fold { effect { acted[actor] := true } }",
+    state: str = "",
+    zone: str = "",
+    uses_more: str = "",
+    other: str | None = None,
+) -> n.Game:
+    libraries = {
+        "streetlib": cardlang.parse.parse_library(
+            _STREET_LIBRARY.format(contract=contract, extra=extra),
+            "docs/libraries/streetlib.cardlang",
+        )
+    }
+    if other is not None:
+        libraries["other"] = cardlang.parse.parse_library(
+            other, "docs/libraries/other.cardlang"
+        )
+    _patch_libraries(monkeypatch, libraries)
+    return parse_text(
+        _STREET_GAME.format(uses_more=uses_more, zone=zone, state=state, defs=defs),
+        "street.cardlang",
+    )
+
+
+def test_a_required_move_type_the_game_defines_is_offered_from_the_library(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The accepting cell: the game's own `fold` answers the row, the library's
+    procedure presents it, and the seat is asked by `offer` with both moves
+    on the table.
+
+    red under: drop the `Move` arm from `resolve._check_requires` — the row is
+    answered by nothing and the `uses` line is refused."""
+    game = resolve(_street(monkeypatch))
+    offered: list[list[str]] = []
+
+    def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+        offered.append(sorted(c[0] for c in candidates))
+        return candidates[:count]
+
+    play_game(_checked(game), random.Random(0), chooser=chooser)
+    assert offered and offered[0] == ["fold", "stay"]
+
+
+def _checked(game: n.Game) -> n.Game:
+    """Resolve is the pass under test; the rest of the pipeline is needed only
+    to play the accepting cell."""
+    from cardlang.expand import expand
+    from cardlang.typecheck import typecheck
+
+    return expand(typecheck(game))
+
+
+def test_a_required_move_type_the_game_does_not_define_is_refused_at_uses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _rejects(
+        _street(monkeypatch, defs=""),
+        "library 'streetlib' requires move type `fold`",
+        "game 'Street' does not define",
+    )
+
+
+def test_a_required_move_type_declared_as_state_names_the_kind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _rejects(
+        _street(monkeypatch, defs="", state="fold : Boolean = false"),
+        "library 'streetlib' requires move type `fold`",
+        "declares as state",
+    )
+
+
+def test_a_required_move_type_declared_as_a_zone_names_the_kind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _rejects(
+        _street(monkeypatch, defs="", zone="fold : Discard"),
+        "library 'streetlib' requires move type `fold`",
+        "declares as a zone",
+    )
+
+
+def test_an_indexed_move_type_contract_is_the_library_authors_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A move type has no index. Reported at the row, in the library's file."""
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(_street(monkeypatch, contract="fold[player] : Move"))
+    message = str(exc.value)
+    assert "docs/libraries/streetlib.cardlang" in message
+    assert "a move type has no index" in message
+
+
+def test_a_move_type_contract_with_type_arguments_is_the_library_authors_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(_street(monkeypatch, contract="fold : Move<player>"))
+    message = str(exc.value)
+    assert "docs/libraries/streetlib.cardlang" in message
+    assert "takes no type argument" in message
+
+
+def test_a_library_may_not_both_define_and_require_a_move_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(_street(
+            monkeypatch,
+            extra="move_type fold { effect { acted[actor] := true } }",
+            defs="",
+        ))
+    message = str(exc.value)
+    assert "docs/libraries/streetlib.cardlang" in message
+    assert "both defines and requires move type 'fold'" in message
+
+
+def test_a_move_type_contract_is_not_answered_by_another_library(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other = """
+library other {
+  requires { acted[player] : Boolean }
+  move_type fold { effect { acted[actor] := true } }
+}
+"""
+    _rejects(
+        _street(monkeypatch, defs="", uses_more="uses other", other=other),
+        "library 'streetlib' requires move type `fold`, which library 'other' defines",
+        "the including GAME defines",
+    )
+
+
+def test_a_contracted_move_type_the_game_never_reaches_an_offer_of_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A contracted move type is the game's own, so the ordinary rule holds: a
+    game that defines `fold` and reaches no offer of it — a ring of its own
+    that forgets it, the library's street never run — is refused as never
+    offered, exactly as a game-local move type is. The control is the
+    accepting cell above, where `run ask(0)` reaches the library's offer.
+
+    red under: subtract the contracted names from `own` before
+    `resolve._check_unoffered_move_types` runs — the game checks and no seat
+    can ever fold."""
+    game = _street(monkeypatch)
+    text = _STREET_GAME.format(uses_more="", zone="", state="",
+                               defs="move_type fold { effect { acted[actor] := true } }")
+    text = text.replace(
+        "phase play { run ask(0) }",
+        "phase play { turns t from 0 over players where not acted[player]\n"
+        "      until (number of players where not acted[player]) is 0 {\n"
+        "    offer to t one of [stay] } }",
+    )
+    assert text.count("offer to t one of [stay]") == 1, "the ring did not replace the run"
+    _rejects(parse_text(text, "street.cardlang"), "move type `fold` is never offered")
+    del game
+
+
+def test_a_contracted_move_type_the_game_defines_twice_names_the_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The multiplicity-2 cell of the row, the twin of the state contract's:
+    two definitions answer nothing, and the refusal says how many it found.
+
+    red under: drop the `len(found) > 1` arm of
+    `resolve._check_move_requirement` — two definitions are accepted as one."""
+    _rejects(
+        _street(
+            monkeypatch,
+            defs="move_type fold { effect { acted[actor] := true } }\n"
+                 "move_type fold { effect { acted[actor] := false } }",
+        ),
+        "library 'streetlib' requires move type `fold`",
+        "defines 2 times",
+    )
+
+
+def test_the_keyword_spelling_of_a_move_contract_names_the_type_to_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`fold : move_type` is the sentence a designer reaches for first. The
+    keyword parses in a type slot, so the refusal is resolve's, against the
+    library alone, and it says what to write instead."""
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(_street(monkeypatch, contract="fold : move_type"))
+    message = str(exc.value)
+    assert "docs/libraries/streetlib.cardlang" in message
+    assert "`fold : Move`" in message

@@ -1,7 +1,7 @@
 """French Tarot's runtime support (pure Primitives).
 
-The whole hand — the four-level bid (the auction [[form]] of the kernel
-[[round]]), the chien handling by bid level, the eighteen atout-trump
+The whole hand — the four-level bid (a `turns` ring whose turn is one
+`offer`), the chien handling by bid level, the eighteen atout-trump
 [[trick]]s with the Excuse's special routing and the
 must-follow/must-trump/must-over-trump obligations (the
 `ExcuseIsExempt`/`MustFollowEffectiveSuit`/`MustTrumpIfVoid`/`MustOverTrump`

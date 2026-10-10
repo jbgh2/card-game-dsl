@@ -18,21 +18,25 @@ from __future__ import annotations
 from cardlang.ast import nodes as n
 
 # The statement kinds a Hosted Poll's body may hold: decisions and state
-# writes, and the scoping and control that arrange them. `Block` is what a
-# `run` expands into, so it arrives only after resolve and is admitted for the
-# same reason `run` is.
+# writes, and the scoping and control that arrange them. `Turns` is the ring a
+# poll runs over the seats that may still call — a turn per seat per lap,
+# asking whatever its body asks, bounded by its participants and the game's
+# `max_length` exactly as the poll's own lap is. `Block` is what a `run`
+# expands into, so it arrives only
+# after resolve and is admitted for the same reason `run` is.
 HOSTED_POLL_ALLOWED: frozenset[type] = frozenset(
     {
-        n.IfStmt, n.LetStmt, n.AssignStmt, n.Offer, n.AuctionRound,
+        n.IfStmt, n.LetStmt, n.AssignStmt, n.Offer, n.Turns,
         n.AsBlock, n.ForEach, n.RunStmt, n.Block,
     }
 )
 
 # Every other statement kind, with the words its refusal names it by. A card
 # movement would change the hands and the pile the round is reading, a nested
-# trick or climbing round would start a second trick inside the first, a loop
-# (`repeat`, `turns`, `each … simultaneously`) has no bound the poll's lap does
-# not already give, and non-local control would unwind out of the round
+# trick or climbing round would start a second trick inside the first, a
+# `repeat until` loops over no seat ring and so has no bound the poll's lap
+# does not already give, `each … simultaneously` asks every seat at once
+# outside any ring, and non-local control would unwind out of the round
 # mid-trick. The two sets partition the `Stmt` union
 # (tests/test_hosted_poll.py pins it).
 HOSTED_POLL_REFUSED: dict[type, str] = {
@@ -41,18 +45,10 @@ HOSTED_POLL_REFUSED: dict[type, str] = {
     n.RotateStmt: "`rotate`",
     n.EachSimultaneous: "`each … simultaneously`",
     n.RepeatUntil: "`repeat until`",
-    n.Turns: "`turns`",
     n.TrickRound: "a trick `round`",
     n.ClimbRound: "a `round climb`",
     n.Produce: "`produce`",
     n.Produces: "`produces:`",
     n.ContinueTo: "`continue to`",
     n.SkipToNextHand: "`skip to next hand`",
-}
-
-# The one admitted statement whose optional clause the body may not use: an
-# auction's `outcome` produces a typed outcome, which unwinds to the enclosing
-# outcome phase — out of the live climbing round, past the frame it publishes.
-HOSTED_REACH_REFUSED_SLOTS: dict[tuple[type, str], str] = {
-    (n.AuctionRound, "outcome_fn"): "a `round offering` with an `outcome` clause",
 }

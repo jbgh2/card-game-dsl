@@ -1682,7 +1682,6 @@ def test_the_offering_surface_is_derived_and_classified_total() -> None:
     offering = {s for s, offers in _MOVE_TYPE_SLOT_OFFERS.items() if offers}
     assert {c.__name__ + "." + f for c, f in offering} == {
         "Offer.offering",
-        "AuctionRound.offering",
         "TrickRound.move_type",
         "ClimbRound.move_type",
         "LegalMoves.move_types",
@@ -1775,8 +1774,7 @@ def test_the_move_type_index_readers_are_the_pinned_census() -> None:
     they are named here so the pin discriminates rather than merely counting:
     the constructor write in `driver.py` (which BUILDS the index) and the
     attribute's declaration in `state.py`. Everything else is a reader, and the
-    two channels are the offer interpreter (`runtime/execute.py`) and the
-    auction form (`runtime/mechanics.py`).
+    one channel is the offer interpreter (`runtime/execute.py`).
 
     red under: add a `move_type_index` mention anywhere else under
     `cardlang/runtime/` — a `.get(name)` consumer included."""
@@ -1786,9 +1784,8 @@ def test_the_move_type_index_readers_are_the_pinned_census() -> None:
         if count:
             hits[path.name] = count
     assert hits == {
-        # readers — the two execution channels the premise is about
+        # reader — the one execution channel the premise is about
         "execute.py": 2,
-        "mechanics.py": 2,
         # non-readers, admitted by the wider matcher and excluded by name
         "driver.py": 1,
         "state.py": 1,

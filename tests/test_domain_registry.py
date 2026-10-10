@@ -108,7 +108,7 @@ game G {{
   phase root {{
     deal 5 cards from deck to each hand
 {stmt}
-    round offering [{vocab}] from 0 over players where player is 0 until done
+    repeat until done {{ offer to 0 one of [{vocab}] }}
   }}
   winner: highest marker
 }}

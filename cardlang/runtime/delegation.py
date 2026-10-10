@@ -49,7 +49,7 @@ HELPER_NAMES: frozenset[str] = frozenset({CHOOSER_HELPER, SOURCE_HELPER})
 # game produces and is read aloud by the seat whose decision it names, so the
 # set is the language's, not the engine's.
 CONSTRUCTS: frozenset[str] = frozenset(
-    {"transfer", "joint", "simultaneous", "offer", "choose", "trick", "auction", "climb"}
+    {"transfer", "joint", "simultaneous", "offer", "choose", "trick", "climb"}
 )
 
 
@@ -75,7 +75,7 @@ class DecisionPoint:
 # absent from another becomes a KeyError instead of a diagnostic.
 DECISION_POINTS: dict[str, DecisionPoint] = {
     # The round site's construct is the FORM's, not this row's: one sentence
-    # shape asks a trick, an auction and a climb. `FORM_CONSTRUCTS` fans it out
+    # shape asks a trick and a climb. `FORM_CONSTRUCTS` fans it out
     # and this row names the fallback nothing reaches.
     "mechanics.run_decision_round": DecisionPoint("routable", "trick"),
     "execute._select_from": DecisionPoint("actor_only", "transfer"),
@@ -94,17 +94,16 @@ DECISION_POINTS: dict[str, DecisionPoint] = {
 # concept name for in every case.
 FORM_CONSTRUCTS: dict[str, str] = {
     "TrickRound": "trick",
-    "AuctionRound": "auction",
     "ClimbRound": "climb",
 }
 
 
 # The forms whose decisions the routable site actually routes. TrickForm is
-# the witnessed form (Bridge's dummy plays tricks); the auction and climb
-# forms share the loop but stay actor-decides until a witness lands — their
-# candidate pools have no visibility guard designed yet, so consulting the
-# helpers there would route a decider into a pool nothing checked they can
-# see. Reconciled against the DecisionForm implementations by
+# the witnessed form (Bridge's dummy plays tricks); the climb form shares
+# the loop but stays actor-decides until a witness lands — its candidate
+# pool has no visibility guard designed yet, so consulting the helpers there
+# would route a decider into a pool nothing checked they can see. Reconciled
+# against the DecisionForm implementations by
 # tests/test_delegated_play.py.
 ROUTED_FORMS: frozenset[str] = frozenset({"TrickForm"})
 

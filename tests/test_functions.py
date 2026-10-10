@@ -32,8 +32,10 @@ game G {
   zones { deck : Deck }
   state { score[player] : Integer = 0  done[player] : Boolean = false }
   phase run {
-    round offering [step, stop] from 0 over players where ready(player)
-          until (number of players where ready(player)) is 0
+    turns t from 0 over players where ready(player)
+          until (number of players where ready(player)) is 0 {
+      offer to t one of [step, stop]
+    }
   }
   winner: highest score
 }

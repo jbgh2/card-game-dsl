@@ -11,27 +11,12 @@ class TestReadiness(ReadinessProofs):
     spec = GameSpec(
         "cardlang_pinochle",
         "pinochle.cardlang",
-        # A plain `legal[0]` line plays a game nobody plays and never ends it.
-        # `submit_bid` sorts below both ways out, so every seat bids until the
-        # ladder hits its ceiling and the contract is 1500 — unmakeable, so the
-        # declaring side is set every hand; and `throw_in` sorts below
-        # `play_on`, so the hands that are played are conceded instead. Either
-        # way no side takes a trick point, and with the declarer rotating on
-        # the deal both scores fall without bound.
-        #
-        # Both preferences are needed and neither is enough (measured
-        # 2026-09-21, 30,000-step cap, all five manifest seeds): with neither,
-        # with `play_on` alone, and with a way out alone, no line terminates;
-        # with both, every line does, in 693 to 2,772 steps. The line then
-        # walks the auction, the exchange, the meld and all twelve tricks of
-        # every hand to a result.
-        greedy_prefers=("pass", "play_on"),
+        # The plain `legal[0]` line passes the auction (`pass` sorts below
+        # `submit_bid`) and plays on rather than conceding (`play_on` sorts
+        # below `throw_in`), so no preference is needed to walk a hand.
         # The greedy line's length puts Pinochle with the other multi-hand
-        # score-target games. With both preferences it DOES reach a result —
-        # 693 to 2,772 steps over the manifest, measured 2026-09-21 — but the
-        # adapter walk re-simulates per applied action, and the corpus's
-        # longest affordable line is Belote's 500. Without them it does not
-        # terminate at all within 30,000.
+        # score-target games: the adapter walk re-simulates per applied
+        # action, and the corpus's longest affordable line is Belote's 500.
         adapter_terminal_steps=None,
         # A full game under a uniform draw runs past the declared length, so
         # the API conformance proof takes the bounded walk. Every verb the

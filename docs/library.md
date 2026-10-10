@@ -163,9 +163,10 @@ Key design notes:
   repeats the same player. Go Fish's hit-or-matching-draw is the corpus
   anchor; Gin Rummy's strictly alternating draw-discard cycle is the plain
   form's.
-- **The dividing line from the auction form**: a turn that is one flat
-  candidate list stays an auction-form configuration (Schnapsen's leader
-  loop); `turns` exists for statement-structured turns.
+- **A turn that is one flat candidate list is an `offer` body**: every
+  auction, poll and betting street is this form with one `offer` as its
+  turn ([decisions.md](decisions.md) "Auctions, polls and betting rings are
+  `turns` plus `offer`"); a statement-structured turn is the general case.
 
 ## Move types
 
@@ -184,15 +185,16 @@ Key design notes:
   not a move
 - `play_card(c : Card)` / `declare_marriage(s : Suit)` / `exchange_trump_jack` /
   `close_talon` — Schnapsen's lead vocabulary, **game-defined** `move_type`s in
-  the same shape: one auction-form candidate list per leader turn. `play_card`
+  the same shape: one `offer` list per leader turn. `play_card`
   is the corpus's first Card-parameterized move ([decisions.md](decisions.md)
   "Declared parameter domains": candidates are the live hand, in hand order)
 - `bid` / `yes` / `pass` / `play_at_eighteen` / `throw_in` / `pick_up_skat` /
   `declare_hand` / `choose_suit_game` / `declare_grand` / `declare_null` /
   `declare_suit(s : Suit)` — Skat's Reizen and declaration vocabulary,
   **game-defined** `move_type`s: `bid` and `yes` are role-guarded (the
-  call-and-response configuration, [decisions.md](decisions.md) "The auction
-  form of `round`"), and `declare_suit` runs the Suit domain in a one-draw round
+  call-and-response ring, [decisions.md](decisions.md)
+  "Auctions, polls and betting rings are `turns` plus `offer`"), and
+  `declare_suit` runs the Suit domain in a single `offer`
 - `income` / `foreign_aid` / `coup` / `tax` / `assassinate` / `steal` /
   `exchange` — Coup turn actions (general and character actions)
 - `challenge` — contest a character claim during a challenge window (Coup)
@@ -338,45 +340,45 @@ in tests/test_trump_slot_class.py.
   pinochle_meld_value(p)` is what credits it to the team. Not yet the shared
   combination model floated for Workstream 3 — game-local until a second
   melding game arrives.
-- **Auctions run on the auction form of the kernel `round`** (see
-  [decisions.md](decisions.md) "The auction form of `round`") — a continuous ring
-  over a bid vocabulary (`offering [...] until <pred> outcome <fn>`) with the
-  standing bid threaded through the phase's accumulator state. Bridge's auction
-  (see [games/bridge.md](games/bridge.md)) runs on it: the vocabulary is
-  `[pass, submit_bid, double, redouble]`, and `bridge_auction_outcome` computes the
-  declarer from the bid history, producing `contract_finalized | all_pass`. So do
-  the ascending-bid auctions — Pinochle's opening-bid/increment ring naming the
-  high bidder and Tarot's four levels — and Skat's Reizen call-and-response,
-  a role-guarded two-participant ring ([decisions.md](decisions.md), the
-  call-and-response bullet under "The auction form of `round`").
-  Each configuration is game-local, and stays so deliberately: a corpus
-  comparison (Bridge, Pinochle, Tarot, Skat) found the four share only the
-  kernel form itself — the accumulator variables, ring topology (continuous /
-  shrinking / two-seat-twice), bid vocabulary, and outcome mechanism (named
-  function vs inline survivor, and Skat omits the `outcome` clause altogether)
-  all genuinely diverge — so the shared thing IS this `round` form, and a
-  promoted `auction` configuration would abstract over instances that agree
-  on nothing it could parameterize. Spades and Oh Hell use *inline per-player
-  bidding* instead —
-  every player bids exactly once in turn, no ascending constraint — so they do not
-  use the auction form. Schnapsen configures the same form differently again: a
-  single-participant ring whose free actions loop the leader until a card is led
-  (see "Mechanics" below).
-- **Betting runs on the auction form of the kernel `round`** (see
-  [decisions.md](decisions.md) "The auction form of `round`") — the one form
-  serves both, configured here on the **default ring** (a bet or raise
-  re-opens the seats it passed, and the pointer reaches the seats behind the
-  aggressor first — poker's continuation order) and with the
-  `outcome` clause omitted (a bet mutates chip/fold state directly, producing no
-  variant). Stud (see [games/seven-card-stud.md](games/seven-card-stud.md)) runs a
-  `round offering [check, bet, call, fold, raise]` per street over the
-  non-folded, non-allin ring. The accumulator is the state `poker_betting`'s
-  `requires` block makes the game declare, plus the library's own provided
-  intra-street bookkeeping; action-legality is the
+- **Auctions are `turns` rings of offers** (see [decisions.md](decisions.md)
+  "Auctions, polls and betting rings are `turns` plus `offer`") — a ring over
+  a bid vocabulary with the standing bid threaded through the phase's own
+  state, and the result `produce`d when the ring closes. Bridge's auction
+  (see [games/bridge.md](games/bridge.md)) is one: the vocabulary is
+  `[pass, submit_bid, double, redouble]`, and the phase body produces
+  `contract_finalized | all_pass`, naming as declarer the first player of the
+  high side to have bid the final strain, which each bid records as it is
+  made. So are the ascending-bid auctions — Pinochle's opening-bid/increment
+  ring over a shrinking participants set naming the high bidder, and Tarot's
+  four levels — and Skat's Reizen call-and-response, a role-guarded
+  two-participant ring ([decisions.md](decisions.md), the call-and-response
+  paragraph of that section). Each is game-local, and stays so deliberately:
+  a corpus comparison (Bridge, Pinochle, Tarot, Skat) found the four share
+  only the ring itself — the accumulator variables, ring topology
+  (continuous / shrinking / two-seat-twice), bid vocabulary and result all
+  genuinely diverge — so the shared thing IS the `turns` ring, and a promoted
+  `auction` definition would abstract over instances that agree on nothing it
+  could parameterize. Spades and Oh Hell use *inline per-player bidding*
+  instead — every player bids exactly once in turn, no ascending constraint.
+  Schnapsen's leader is one seat asked until it leads, an `offer` inside
+  `repeat until` (see "Mechanics" below).
+- **Betting runs on the family library's street** — `poker_betting`'s
+  `betting_street(first)`, a `turns` ring over the seats still pending
+  ([decisions.md](decisions.md) "The `turns` form"): a bet or raise re-opens
+  the seats it passed, and the turn reaches the seats behind the aggressor
+  first — poker's continuation order. The library owns the ring, its
+  terminator and the whole betting vocabulary; a bet mutates chip/fold state
+  directly, so the street produces nothing. Stud (see
+  [games/seven-card-stud.md](games/seven-card-stud.md)) runs one street per
+  deal over the non-folded, non-allin ring. The accumulator is the state
+  `poker_betting`'s `requires` block makes the game declare, plus the
+  library's own provided intra-street bookkeeping; action-legality is the
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in seat and the
   seat a street opens on come from the `bring_in_seat()` / `best_showing_seat()`
-  Primitive selectors.
+  Primitive selectors. `fold` is each game's own, because where a folder's
+  cards go is a fact about the game's zones, and the library contracts for
+  it (`requires { fold : Move }`) so its street can offer it.
   A whole street, verbatim from
   [games/leduc-poker.cardlang](games/leduc-poker.cardlang), whose streets open
   from a plain state variable rather than a selector:
@@ -384,22 +386,21 @@ in tests/test_trump_slot_class.py.
   ```cardlang-fragment betting_street
   phase first_street {
     run open_street(2, 0)
-    round offering [check, bet, call, fold, raise] from first_actor
-          over players where pending(player)
-          until (number of players where pending(player)) is 0
-             or ((number of players where can_act(player)) <= 1
-                 and (number of players where can_act(player) and owes(player)) is 0)
+    run betting_street(first_actor)
   }
   ```
 
-  `until` is a clause of the form, and what the family library shares is the
-  predicates the terminator is built from rather than the terminator itself —
-  so every street writes those two arms out, and the corpus's poker streets
-  all write them exactly as above. What a street varies is the bet size
-  `open_street` takes, the seat the ring starts from, whether `raise` is on
-  the offering (Kuhn Poker's is not), whether a contender count guards the
-  street at all, and whether a forced post sits between `open_street` and the
-  `round` (Stud's bring-in).
+  The ring's `over` filter and its `until` terminator are the library's, built
+  from the three ring predicates, so a street is two `run`s: the size it
+  opens at, and the seat it opens from. What a street varies is the bet size
+  `open_street` takes, the seat the ring starts from, whether a contender
+  count guards the street at all, and whether a forced post sits between
+  `open_street` and `betting_street` (Stud's bring-in). The vocabulary does
+  not vary: every street offers the family's seven moves in one order, and a
+  move a street cannot take is never legal there (Kuhn Poker's `raise`, a
+  one-size street's big wagers), so a seat is asked exactly what the rules
+  allow while every consumer whose `fold` is nullary mints the same action
+  ids — the contract fixes the name, not the arity.
   Both arms are the ring's: the street closes when no seat is `pending` — the
   settled field, everyone who can act having acted and owing nothing — or when
   the seats able to act are down to one that owes nothing, the street that
@@ -464,12 +465,11 @@ in tests/test_trump_slot_class.py.
   say about a hand.
 - **Schnapsen's hand** runs on the kernel with no mechanic: the leader's mixed
   lead decision (play a card / declare a marriage / exchange the trump jack /
-  close the talon) is the **auction form over a single-participant ring** —
-  `round offering [play_card, declare_marriage, exchange_trump_jack,
-  close_talon] from leader over players where player is leader until trick_pile
-  is not empty`. The free actions (exchange/close) leave the predicate false,
-  so the ring re-offers the leader; a lead (play or the marriage's queen) flips
-  it. `play_card(c : Card)` enumerates the live hand in hand order
+  close the talon) is one `offer` inside `repeat until trick_pile is not
+  empty` — `offer to leader one of [play_card, declare_marriage,
+  exchange_trump_jack, close_talon]`. The free actions (exchange/close) leave
+  the condition false, so the leader is asked again; a lead (play or the
+  marriage's queen) flips it. `play_card(c : Card)` enumerates the live hand in hand order
   ([decisions.md](decisions.md) "Declared parameter domains"). The
   follower's answer is a filtered chosen transfer over the in-file `follow_ok`
   cascade (strict follow-and-head once the talon is closed or exhausted,
@@ -479,11 +479,11 @@ in tests/test_trump_slot_class.py.
   Record), with three `produce` sites for the typed
   `claimed | talon_closed | open_play` outcome.
 - **Skat's hand** runs on the kernel with no mechanic: the Reizen is two
-  sequential auction `round`s over role-guarded two-participant rings (the
+  sequential `turns` rings over role-guarded two-participant sets (the
   call-and-response configuration; the 62-value ladder lives in the
   `skat_next_bid` primitive and its exhaustion in the `until` predicate), the
-  contract declaration a pair of `offer`s plus a one-draw
-  `declare_suit(s : Suit)` round, and the ten tricks three single-actor
+  contract declaration a pair of `offer`s plus a single-seat
+  `declare_suit(s : Suit)` offer, and the ten tricks three single-actor
   filtered transfers per trick over the game's own `follow_ok`, which asks
   `follows_lead` of the hand first and admits any card when the player holds
   nothing in the led class — like Schnapsen's follower, the strict-follow

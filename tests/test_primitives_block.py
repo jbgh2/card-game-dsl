@@ -2462,9 +2462,9 @@ def _walled_binder_rows(rows: tuple[PrimitiveReads, ...]) -> frozenset[tuple[str
     them — the rows a declared game's block does NOT replace, because the block
     covers the call-position namespace alone.
 
-    Two sources, both consumer-derived: the climb binder's own answers, and the
-    shared dispatch module's rows, which serve the auction outcomes. The
-    second is stated per MODULE, which is
+    Two sources, both consumer-derived: the climb binder's own answers, and any
+    rows the shared dispatch module binds for a walled namespace it implements
+    (none today). The second is stated per MODULE, which is
     only safe while that module implements no call Primitive — `_reconcile`
     asserts exactly that, so a call implementation landing there reddens the
     pin instead of silently widening the exemption."""
@@ -2561,16 +2561,18 @@ def test_the_module_spellings_meet() -> None:
 def test_the_walled_exemption_names_the_rows_the_binders_bind() -> None:
     """The exemption is derived from two consumers, and this is what says it
     landed on real rows rather than on a key shape nothing in the registry
-    uses. Both halves are asserted non-empty separately: a climb binder that
-    answered nothing and a shared module with no rows would each leave the
-    exemption silently narrower than it reads.
+    uses. The climb half is asserted non-empty: a climb binder that answered
+    nothing would leave the exemption silently narrower than it reads. The
+    shared dispatch module implements no walled namespace today, so its half
+    is asserted EMPTY — a row appearing there is a new walled implementation
+    the exemption must learn to name.
 
     red under: return `frozenset()` from `_climb_bound_rows`."""
     keys = {(r.module, r.game_file) for r in PRIMITIVE_READS}
     climb = _climb_bound_rows()
     shared = _walled_binder_rows(PRIMITIVE_READS) - climb
     assert climb and climb <= keys, sorted(climb)
-    assert shared and shared <= keys, sorted(shared)
+    assert shared == frozenset(), sorted(shared)
     assert ("cardlang/runtime/tichu.py", "tichu.cardlang") in climb
 
 
@@ -2581,9 +2583,9 @@ def test_every_authored_row_is_one_a_walled_binder_binds() -> None:
     states — a statement about the DECLARED games, which leaves a row for a
     game that writes no block outside what it can see. This says the other
     thing: there is no such row at all. Every row the table holds is one the
-    climb binder or the shared dispatch module's auction outcomes bind at
-    load, which is what makes `PRIMITIVE_READS` the declaration for the two
-    namespaces a block cannot name rather than a second route into the
+    climb binder binds at load, which is what makes `PRIMITIVE_READS` the
+    declaration for the namespace a block cannot name rather than a second
+    route into the
     call-position one.
 
     Born green, and the mutation that reddens it is a call-namespace row —
@@ -2636,29 +2638,6 @@ def test_reconciliation_reddens_on_a_dual_definition_site() -> None:
         _reconcile(_checked_games(), dict(PRIMITIVE_IMPLEMENTATIONS), planted)
 
 
-@pytest.mark.slow
-def test_the_narrowing_exempts_a_surviving_auction_row() -> None:
-    """The exemption exempts something. A game declaring a block while the
-    shared dispatch module still holds its AUCTION row is the day-one state of
-    the wave — the block covers the call-position namespace, the auction
-    outcome takes its own declaration slot later (issue #142), and the row
-    stays because the outcome's dispatch reads it.
-
-    The unnarrowed membership is asserted non-empty on the same state, so the
-    pass is the narrowing's doing and not an empty intersection. The rows table
-    is restricted to the shared module's own: the game's OTHER row — the one
-    its block replaces — is exactly what claim (3) must still refuse, and
-    leaving it in would prove the cell for the wrong reason."""
-    games = _checked_games() + (("pinochle.cardlang", check_source(WITNESS)),)
-    rows = tuple(r for r in PRIMITIVE_READS if r.module == _SHARED_DISPATCH_MODULE)
-    assert {"pinochle.cardlang"} & {r.game_file for r in rows}, (
-        "the shared module holds no pinochle row — the cell would pass by "
-        "having nothing to exempt"
-    )
-    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), rows)
-
-
-@pytest.mark.slow
 def test_a_call_implementation_in_the_shared_module_reddens_the_exemption() -> None:
     """The exemption states the shared dispatch module's rows per MODULE, which
     is sound only while nothing there is a call Primitive. A call
@@ -2669,7 +2648,7 @@ def test_a_call_implementation_in_the_shared_module_reddens_the_exemption() -> N
     planted = dict(PRIMITIVE_IMPLEMENTATIONS)
     planted["pinochle_meld_value"] = Implementation(
         "cardlang.runtime.primitives",
-        "bridge_auction_outcome",
+        "call_declared",
         InvocationContract.BUNDLED,
         Sig((TPlayer(),), TInteger()),
     )
@@ -2791,7 +2770,7 @@ def test_the_grid_is_not_empty() -> None:
     and a registry read wrong would silently shrink them to nothing."""
     assert len(DECLARABLE_BUILTIN_TYPE_NAMES) > 5
     assert len(PRIMITIVE_IMPLEMENTATIONS) > 20
-    assert len(WALLED_NAMESPACES) == 5
+    assert len(WALLED_NAMESPACES) == 4
     assert dataclasses.fields(n.PrimitiveDecl)
 
 

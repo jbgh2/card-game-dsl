@@ -1,7 +1,7 @@
 """Declared reads for the [[primitive]]s a `primitives { }` block cannot name.
 
-A game-local primitive (`cardlang/runtime/<game>.py`, plus the per-game
-auction outcomes in `primitives.py`) is sanctioned Python for pure value
+A game-local primitive (`cardlang/runtime/<game>.py`) is sanctioned Python
+for pure value
 computation (library.md "Native functions"; kernel-migration.md). It reads
 live `RuntimeState` by the zone / [[state-variable]] name the game file
 declares —
@@ -12,11 +12,10 @@ a coupling the front-end pipeline cannot see: nothing about
 (tests/metamorphic/rename.py first found it empirically).
 
 A call-position Primitive declares that coupling in its calling game's own
-`primitives { }` entry. `PRIMITIVE_READS` is the declaration for the two
-namespaces the block does not cover — the climb queries and the auction
-outcomes — whose binders bind a MODULE row at load
-(`primitives.climb_row`, and the rows `primitives.py` binds for its own
-auction outcomes): a row per (module, game file), holding every zone and
+`primitives { }` entry. `PRIMITIVE_READS` is the declaration for the
+namespace the block does not cover — the climb queries — whose binder binds
+a MODULE row at load (`primitives.climb_row`): a row per (module, game
+file), holding every zone and
 state name that module reads on that game's behalf. The accessors below serve
 both those rows and the rows a block derives, and are the only sanctioned way
 for a primitive to touch state by name.
@@ -229,8 +228,7 @@ class PrimitiveReads:
 
     `module` is the repo-relative path of the Python module doing the
     reading; `game_file` the `docs/games/` basename whose declarations the
-    names must match. A module serving several games (primitives.py's auction
-    outcomes) has one row per game.
+    names must match. A module serving several games has one row per game.
 
     `arrival_zones` declares which of the row's single zones the module also
     reads the [[arrival-record]] of — the (deciding actor, card) pairs the
@@ -279,23 +277,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
         state_vars=_fs("wish"),
-    ),
-    # primitives.py's per-game functions: the auction outcomes. One row per
-    # game served.
-    PrimitiveReads(
-        module="cardlang/runtime/primitives.py",
-        game_file="bridge.cardlang",
-        state_vars=_fs("made_bid", "high_bidder", "cur_strain", "cur_level", "doubled"),
-    ),
-    PrimitiveReads(
-        module="cardlang/runtime/primitives.py",
-        game_file="pinochle.cardlang",
-        state_vars=_fs("lead_bidder", "seat_under", "bid_tens", "working_bid"),
-    ),
-    PrimitiveReads(
-        module="cardlang/runtime/primitives.py",
-        game_file="french-tarot.cardlang",
-        state_vars=_fs("lead_taker", "current_level"),
     ),
 )
 

@@ -651,12 +651,8 @@
               }
             },
             {
-              "kind": "auction_round",
-              "offering": [
-                "submit_bid",
-                "pass",
-                "pass_with_help"
-              ],
+              "kind": "turns",
+              "binder": "bidder",
               "leader": {
                 "kind": "name",
                 "name": "opener",
@@ -741,7 +737,86 @@
                   "value": 1
                 }
               },
-              "outcome_fn": "pinochle_auction_outcome"
+              "again": null,
+              "body": [
+                {
+                  "kind": "offer",
+                  "player": {
+                    "kind": "name",
+                    "name": "bidder",
+                    "ref": "local"
+                  },
+                  "offering": [
+                    "submit_bid",
+                    "pass",
+                    "pass_with_help"
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "if",
+              "cond": {
+                "kind": "is_check",
+                "check": "none",
+                "operand": {
+                  "kind": "name",
+                  "name": "lead_bidder",
+                  "ref": "state_var"
+                }
+              },
+              "then": [
+                {
+                  "kind": "produce",
+                  "tag": "bid_won",
+                  "payloads": [
+                    {
+                      "kind": "name",
+                      "name": "seat_under",
+                      "ref": "state_var"
+                    },
+                    {
+                      "kind": "binop",
+                      "op": "*",
+                      "left": {
+                        "kind": "binop",
+                        "op": "+",
+                        "left": {
+                          "kind": "name",
+                          "name": "bid_tens",
+                          "ref": "state_var"
+                        },
+                        "right": {
+                          "kind": "int",
+                          "value": 1
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 10
+                      }
+                    }
+                  ]
+                }
+              ],
+              "else": [
+                {
+                  "kind": "produce",
+                  "tag": "bid_won",
+                  "payloads": [
+                    {
+                      "kind": "name",
+                      "name": "lead_bidder",
+                      "ref": "state_var"
+                    },
+                    {
+                      "kind": "name",
+                      "name": "working_bid",
+                      "ref": "state_var"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
@@ -830,30 +905,7 @@
               "decls": [
                 {
                   "kind": "state_decl",
-                  "name": "passes_done",
-                  "index": null,
-                  "type": "Integer",
-                  "optional": false,
-                  "default": {
-                    "kind": "int",
-                    "value": 0
-                  }
-                },
-                {
-                  "kind": "state_decl",
                   "name": "thrown_in",
-                  "index": null,
-                  "type": "Boolean",
-                  "optional": false,
-                  "default": {
-                    "kind": "name",
-                    "name": "false",
-                    "ref": "bool"
-                  }
-                },
-                {
-                  "kind": "state_decl",
-                  "name": "decided",
                   "index": null,
                   "type": "Boolean",
                   "optional": false,
@@ -877,50 +929,19 @@
               ]
             },
             {
-              "kind": "auction_round",
-              "offering": [
-                "declare_trump_suit"
-              ],
-              "leader": {
+              "kind": "offer",
+              "player": {
                 "kind": "name",
                 "name": "high_bidder",
                 "ref": "state_var"
               },
-              "participants": {
-                "kind": "player_query",
-                "query": "set",
-                "where": {
-                  "kind": "binop",
-                  "op": "is",
-                  "left": {
-                    "kind": "name",
-                    "name": "player",
-                    "ref": "local"
-                  },
-                  "right": {
-                    "kind": "name",
-                    "name": "high_bidder",
-                    "ref": "state_var"
-                  }
-                }
-              },
-              "until": {
-                "kind": "is_check",
-                "check": "not_none",
-                "operand": {
-                  "kind": "name",
-                  "name": "trump_suit",
-                  "ref": "state_var"
-                }
-              },
-              "outcome_fn": null
+              "offering": [
+                "declare_trump_suit"
+              ]
             },
             {
-              "kind": "auction_round",
-              "offering": [
-                "pass_four"
-              ],
-              "leader": {
+              "kind": "offer",
+              "player": {
                 "kind": "binop",
                 "op": "offset_by",
                 "left": {
@@ -934,90 +955,20 @@
                   "ref": "enum_value"
                 }
               },
-              "participants": {
-                "kind": "player_query",
-                "query": "set",
-                "where": {
-                  "kind": "binop",
-                  "op": "is",
-                  "left": {
-                    "kind": "name",
-                    "name": "player",
-                    "ref": "local"
-                  },
-                  "right": {
-                    "kind": "binop",
-                    "op": "offset_by",
-                    "left": {
-                      "kind": "name",
-                      "name": "high_bidder",
-                      "ref": "state_var"
-                    },
-                    "right": {
-                      "kind": "name",
-                      "name": "across",
-                      "ref": "enum_value"
-                    }
-                  }
-                }
-              },
-              "until": {
-                "kind": "binop",
-                "op": ">=",
-                "left": {
-                  "kind": "name",
-                  "name": "passes_done",
-                  "ref": "state_var"
-                },
-                "right": {
-                  "kind": "int",
-                  "value": 1
-                }
-              },
-              "outcome_fn": null
-            },
-            {
-              "kind": "auction_round",
               "offering": [
                 "pass_four"
-              ],
-              "leader": {
+              ]
+            },
+            {
+              "kind": "offer",
+              "player": {
                 "kind": "name",
                 "name": "high_bidder",
                 "ref": "state_var"
               },
-              "participants": {
-                "kind": "player_query",
-                "query": "set",
-                "where": {
-                  "kind": "binop",
-                  "op": "is",
-                  "left": {
-                    "kind": "name",
-                    "name": "player",
-                    "ref": "local"
-                  },
-                  "right": {
-                    "kind": "name",
-                    "name": "high_bidder",
-                    "ref": "state_var"
-                  }
-                }
-              },
-              "until": {
-                "kind": "binop",
-                "op": ">=",
-                "left": {
-                  "kind": "name",
-                  "name": "passes_done",
-                  "ref": "state_var"
-                },
-                "right": {
-                  "kind": "int",
-                  "value": 2
-                }
-              },
-              "outcome_fn": null
+              "offering": [
+                "pass_four"
+              ]
             },
             {
               "kind": "for_each",
@@ -1302,40 +1253,16 @@
               ],
               "else": [
                 {
-                  "kind": "auction_round",
-                  "offering": [
-                    "throw_in",
-                    "play_on"
-                  ],
-                  "leader": {
+                  "kind": "offer",
+                  "player": {
                     "kind": "name",
                     "name": "high_bidder",
                     "ref": "state_var"
                   },
-                  "participants": {
-                    "kind": "player_query",
-                    "query": "set",
-                    "where": {
-                      "kind": "binop",
-                      "op": "is",
-                      "left": {
-                        "kind": "name",
-                        "name": "player",
-                        "ref": "local"
-                      },
-                      "right": {
-                        "kind": "name",
-                        "name": "high_bidder",
-                        "ref": "state_var"
-                      }
-                    }
-                  },
-                  "until": {
-                    "kind": "name",
-                    "name": "decided",
-                    "ref": "state_var"
-                  },
-                  "outcome_fn": null
+                  "offering": [
+                    "throw_in",
+                    "play_on"
+                  ]
                 },
                 {
                   "kind": "if",
@@ -2519,25 +2446,6 @@
           "dest_each": false,
           "distribution": null,
           "visibility": null
-        },
-        {
-          "kind": "assign",
-          "target": "passes_done",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "binop",
-            "op": "+",
-            "left": {
-              "kind": "name",
-              "name": "passes_done",
-              "ref": "state_var"
-            },
-            "right": {
-              "kind": "int",
-              "value": 1
-            }
-          }
         }
       ]
     },
@@ -2557,17 +2465,6 @@
             "name": "true",
             "ref": "bool"
           }
-        },
-        {
-          "kind": "assign",
-          "target": "decided",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "name",
-            "name": "true",
-            "ref": "bool"
-          }
         }
       ],
       "stake": "concession"
@@ -2577,19 +2474,7 @@
       "name": "play_on",
       "params": [],
       "when": null,
-      "effect": [
-        {
-          "kind": "assign",
-          "target": "decided",
-          "index_expr": null,
-          "op": ":=",
-          "value": {
-            "kind": "name",
-            "name": "true",
-            "ref": "bool"
-          }
-        }
-      ]
+      "effect": []
     }
   ],
   "functions": [

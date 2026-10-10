@@ -820,27 +820,25 @@ def test_the_betting_street_block_is_leducs_own_text() -> None:
     )
 
 
-def test_every_poker_street_writes_the_documented_terminator() -> None:
-    """library.md says the corpus's poker streets all write the block's `until`.
+def test_every_poker_street_runs_the_library_street() -> None:
+    """library.md says a corpus poker street is two `run`s: the size it opens
+    at, and the seat it opens from — `open_street` and `betting_street`.
 
     Membership is derived — the games under `docs/games/` whose text carries
     `uses poker_betting` — so a poker game added tomorrow is held to the same
-    sentence without anyone remembering to add it. A street's terminator counts
-    as written when it matches the block's modulo indentation: Hold'em and Stud
-    nest deeper, and the doc's claim is about the words.
+    sentence without anyone remembering to add it. The block's own second
+    `run` must still be the sentence the games write, and every street a game
+    opens is one the library's ring then plays: the two counts agree.
 
-    red under: trimming an arm off any poker street's `until`, or editing the
-    block's terminator in library.md.
+    red under: writing a street's ring inline in any poker game, or opening a
+    street in one without running the library's ring.
     """
     want = _squash(_block_by_label("betting_street").text)
-    assert "until " in want, (
-        "the `betting_street` block no longer carries an `until` clause, so "
+    assert "run betting_street(" in want, (
+        "the `betting_street` block no longer runs the library's ring, so "
         "this pin has nothing to hold the corpus to — the block, or the "
         "sentence above it, moved."
     )
-    # To the last `)`, not to the end: the block's own trailing `}` closes its
-    # phase, and a street is free to put statements after its `round`.
-    terminator = want[want.index("until ") : want.rindex(")") + 1]
     users = sorted(
         p for p in GAMES_DIR.glob("*.cardlang") if "uses poker_betting" in p.read_text()
     )
@@ -850,13 +848,12 @@ def test_every_poker_street_writes_the_documented_terminator() -> None:
     )
     for path in users:
         text = path.read_text()
-        offerings = len(re.findall(r"\bround offering\b", text))
-        written = _squash(text).count(terminator)
-        assert written == offerings, (
-            f"{path.name}: {offerings} `round offering` statements but "
-            f"{written} carry the terminator library.md prints — either the "
-            "street diverged, or library.md's 'all write them exactly as "
-            "above' no longer holds and the sentence needs opening up."
+        opened = len(re.findall(r"\brun open_street\(", text))
+        played = len(re.findall(r"\brun betting_street\(", text))
+        assert opened == played > 0, (
+            f"{path.name}: {opened} streets opened but {played} run the "
+            "library's ring — either a street is written inline, or one is "
+            "opened and never bet."
         )
 
 

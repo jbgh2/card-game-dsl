@@ -4,7 +4,7 @@ domain set closed (docs/decisions.md "Surface totality"): a `Card` parameter
 combined with any other parameter, a bounded-`Integer` parameter (deferred),
 and any other unsupported domain string. `_check_move_params`
 (cardlang/resolve.py) is the shared gate called from both the `offer`
-statement and the auction `round offering` vocabulary.
+statement, alone or as a `turns` ring's turn.
 """
 
 from __future__ import annotations
@@ -109,12 +109,12 @@ def test_optional_player_parameter_rejected() -> None:
     assert any("Player?" in d for d in diags), diags
 
 
-def test_player_rank_round_offering_accepted() -> None:
-    # The interface requires acceptance under *either* enumeration site; the
-    # auction `round offering` vocabulary is the other one (`offer` above).
+def test_player_rank_ring_offer_accepted() -> None:
+    # The interface requires acceptance at an offer inside a ring too — the
+    # same enumeration site, reached through `turns`.
     diags = _diags(
         "move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }",
-        "round offering [ask] from 0 over all players until done is 1",
+        "turns t from 0 over all players until done is 1 { offer to t one of [ask] }",
     )
     assert not any("parameter" in d for d in diags), diags
 
@@ -166,12 +166,11 @@ def test_rank_param_without_declared_ranking_rejected() -> None:
     assert any("Rank" in d and "ranking" in d for d in diags), diags
 
 
-def test_rank_param_without_declared_ranking_rejected_in_round_offering() -> None:
-    # Mirror of the above for the auction `round offering` vocabulary — the
-    # other enumeration site `_check_offering_moves` shares with `offer`.
+def test_rank_param_without_declared_ranking_rejected_in_ring_offer() -> None:
+    # Mirror of the above for an offer inside a ring.
     diags = _diags(
         "move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }",
-        "round offering [ask] from 0 over all players until done is 1",
+        "turns t from 0 over all players until done is 1 { offer to t one of [ask] }",
         ranking="",
     )
     assert any("Rank" in d and "ranking" in d for d in diags), diags

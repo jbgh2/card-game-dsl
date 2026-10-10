@@ -3,8 +3,10 @@
 The operator's orphaned-surface ruling (direction review 2026-09-06: a
 surface whose last consumer has left is deleted with its guards and proof
 rows) retires the rows of direction-review verdict 7's dead-surface table
-that issue #693 lists. The one word kept is `always`, and only to refuse it:
-a designer who writes the wildcard is told to leave the clause out.
+that issue #693 lists, and the auction form of `round` that issue #819
+rewrites as `turns` plus `offer`. The one word kept is `always`, and only to
+refuse it: a designer who writes the wildcard is told to leave the clause
+out.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -13,7 +15,8 @@ property:   no retired row is a rule or alias of the compiled grammar, no
             refused at parse with a located diagnostic, and `always` in
             every position that once took it is refused with a message
             naming the clause to leave out.
-domain:     the retired set is the operator's ruling on issue #693, listed
+domain:     the retired set is the operator's rulings on issues #693 and
+            #819, listed
             once below as `RETIRED_ROWS`, `RETIRED_KEYWORDS` and
             `RETIRED_SENTENCES`; the `always` positions are every compiled
             rule whose expansion reaches the `always` refusal, derived from
@@ -50,9 +53,13 @@ RETIRED_ROWS = (
     "players_range",
     "require_optional",
     "always",
+    # The auction form of `round` (issue #819): every bidding, betting and
+    # polling ring is `turns` with an `offer` body.
+    "auction_stmt",
+    "auction_moves",
 )
 
-RETIRED_KEYWORDS = ("type", "derived", "define", "actions", "order")
+RETIRED_KEYWORDS = ("type", "derived", "define", "actions", "order", "offering")
 
 _BASE = """\
 game G {{
@@ -93,6 +100,12 @@ RETIRED_SENTENCES: dict[str, str] = {
     ),
     "transfer in, no source": _game(statement="burn 1 card in deck"),
     "named call argument": _game(statement="score[0] := max(a = 1, 2)"),
+    "auction round": _game(
+        statement=(
+            "round offering [play_to_trick] from 0 over all players "
+            "until score[0] > 0"
+        )
+    ),
     "player range": _game(players="2..4"),
     "auction order clause": _game(
         statement=(

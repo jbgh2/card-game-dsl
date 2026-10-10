@@ -9,8 +9,8 @@
 // taking side must total at least as many points as the defenders or go
 // "dedans" (the defenders take 162 plus every announced declaration).
 //
-// The whole hand runs on the kernel. The trump-making is two outcome-less
-// offering rounds over shrinking rings (the Skat shape). The tricks run on
+// The whole hand runs on the kernel. The trump-making is two `turns` rings
+// over shrinking participant sets (the Skat shape). The tricks run on
 // the trick form of `round`, legality narrowed by the five-rule cascade
 // below — the corpus's richest constrained-follow instance: the trump and
 // over-trump obligations are GATED team-relatively (they bind only
@@ -195,16 +195,20 @@ game Belote {
       // --- Trump-making: two take/pass rounds from the dealer's right.
       // Round one accepts the turned suit; round two names any other suit;
       // all pass twice throws the hand in (the next dealer deals).
-      round offering [take, pass] from dealer offset_by right
+      turns bidder from dealer offset_by right
             over players where not acted[player]
             until taker is not none
-                  or (number of players where not acted[player]) is 0
+                  or (number of players where not acted[player]) is 0 {
+        offer to bidder one of [take, pass]
+      }
       for each player p: acted[p] := false
       if taker is none {
-        round offering [take_suit, pass] from dealer offset_by right
+        turns bidder from dealer offset_by right
               over players where not acted[player]
               until taker is not none
-                    or (number of players where not acted[player]) is 0
+                    or (number of players where not acted[player]) is 0 {
+          offer to bidder one of [take_suit, pass]
+        }
         for each player p: acted[p] := false
       }
       // All pass twice: the hand is thrown in. The cards return to the deck
@@ -262,13 +266,11 @@ game Belote {
         // interleaves them with the trick's plays); compared; and the
         // entitled side's combinations shown before the second trick.
         if trick_no is 1 {
-          round offering [declare_tierce, declare_tierce_trump,
-                          declare_quarte, declare_quarte_trump,
-                          declare_quinte, declare_quinte_trump,
-                          declare_carre, no_declaration]
-                from leader
+          turns bidder from leader
                 over players where not decl_acted[player]
-                until (number of players where not decl_acted[player]) is 0
+                until (number of players where not decl_acted[player]) is 0 {
+            offer to bidder one of [declare_tierce, declare_tierce_trump, declare_quarte, declare_quarte_trump, declare_quinte, declare_quinte_trump, declare_carre, no_declaration]
+          }
           for each player p: decl_acted[p] := false
 
           // The comparison, in announcement order: strict `>` keeps the

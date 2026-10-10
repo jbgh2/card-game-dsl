@@ -38,9 +38,9 @@ Settlement, in game points deducted from the claimer's (or opponent's) score:
 
 The hand runs fully on the kernel. The leader's mixed turn — lead a card,
 declare a marriage, exchange the trump jack, or close the talon — is one flat
-candidate list on the **auction form of `round`** over a single-participant
-ring: the free actions (exchange/close) leave `until trick_pile is not empty`
-false, so the ring re-offers the leader until a card is led. `play_card(c :
+candidate list, an `offer` inside `repeat until trick_pile is not empty`: the
+free actions (exchange/close) leave the condition false, so the leader is
+asked again until a card is led. `play_card(c :
 Card)` enumerates the leader's live hand in hand order — the
 state-dependent Card domain ([decisions.md](../decisions.md) "Declared
 parameter domains"). The follower answers with a filtered chosen movement

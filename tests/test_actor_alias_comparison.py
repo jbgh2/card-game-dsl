@@ -190,7 +190,6 @@ _NO_ALIAS_KINDS: frozenset[str] = frozenset(
         # root.
         "Offer",
         "TrickRound",
-        "AuctionRound",
         "ClimbRound",
         "Transfer",
         "EpistemicOp",

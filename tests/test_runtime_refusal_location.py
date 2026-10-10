@@ -175,8 +175,7 @@ TRICK_ORDER_ROW = FIXTURES / "trick_order_row_unranked.cardlang"
 # Runs no embedded sentence at all: whatever refuses under one of these
 # refuses under the statement the executor dispatched, so its own span is
 # already the smallest that signifies. The trick and climbing rounds belong
-# here and the auction does not — their `apply` moves cards itself, while the
-# auction's runs the chosen move type's `effect`.
+# here — their `apply` moves cards itself.
 _LEAF_FORMS: frozenset[str] = frozenset(
     {
         "Transfer",
@@ -209,7 +208,6 @@ _REENTERING_FORMS: frozenset[str] = frozenset(
         "Produces",
         "RepeatUntil",
         "Turns",
-        "AuctionRound",
     }
 )
 

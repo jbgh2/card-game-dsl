@@ -2,7 +2,7 @@
 
 **Tier 3 — medium impact, narrow scope.** Surfaced by the Seven-Card Stud betting
 migration ([games/seven-card-stud.cardlang](../games/seven-card-stud.cardlang)),
-which writes five near-identical betting `round`s. The *within-round* duplication
+whose five streets each `run` the library's `betting_street`. The *within-street* duplication
 (the ring filter named in both `over` and `until`) is now factored with named
 functions ([decisions.md](../decisions.md), "Named functions"). What remains is the
 *block-level* repetition: the five rounds themselves.
@@ -46,6 +46,6 @@ cosmetic, and a list-loop is a real new construct best justified by a second
 instance. Revisit alongside Hold'em.
 
 Related: [decisions.md](../decisions.md) "Named functions" (the resolved
-within-round factoring) and "The auction form of `round`" (the betting form and
-the ring it runs on), [games/_candidates.md](../games/_candidates.md) (Hold'em,
+within-round factoring) and "Auctions, polls and betting rings are `turns`
+plus `offer`" (the betting street and the ring it runs on), [games/_candidates.md](../games/_candidates.md) (Hold'em,
 the second-instance data point).

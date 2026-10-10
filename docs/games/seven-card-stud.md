@@ -41,10 +41,10 @@ The `.md` source is a cash game with no overall winner; to give the runtime a
 terminal, the executable plays until one player holds **all** the chips and names
 that player the winner. Chips are modelled as an integer `stack` per player (not
 a resource-zone subsystem); the total is invariant. The whole hand runs in the
-DSL: the betting — antes, deal, the bring-in post, and the five streets — on the
-kernel `round`'s **ring** (the pointer advances past whoever just acted, so the
-seats behind the aggressor decide before the seats its bet re-opened — poker's
-continuation order), and the showdown as plain statements — a contested hand
+DSL: the betting — antes, deal, the bring-in post, and the five streets — as
+the library's street, a `turns` **ring** that advances past whoever just
+acted, so the seats behind the aggressor decide before the seats its bet
+re-opened (poker's continuation order), and the showdown as plain statements — a contested hand
 reveals the contenders' hole cards into the
 public board, each entrant collects its side-pot share via `pot_share(p)`, and
 the hands leave play to the muck. The Primitives are pure reads: the

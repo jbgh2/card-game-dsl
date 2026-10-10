@@ -16,7 +16,7 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
         # Schnapsen's lead moves (play_card / declare_marriage / exchange_trump_jack /
         # close_talon) are game-defined `move_type`s in schnapsen.cardlang, not
         # library moves — like Seven-Card Stud's betting moves below.
-        # Auction moves (handled by the auction mechanics).
+        # Bidding moves a game may define under the kernel's spelling.
         "pass",
         "declare_trump_suit",
         "double",

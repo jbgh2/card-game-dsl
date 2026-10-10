@@ -7,10 +7,12 @@
 //
 // Bridge trick play needs only follow-suit, so the thirteen tricks run on the
 // kernel `round` construct (a no-trump contract passes trump = none). The
-// auction — ascending bids over C D H S NT, with double and redouble — runs on
-// the auction form of the same `round` kernel: a continuous ring over the bid
-// vocabulary (the `move_type`s below), threading the standing contract through
-// the phase's accumulator state until the bidding closes. The dummy is
+// auction — ascending bids over C D H S NT, with double and redouble — is a
+// `turns` ring over the four seats offering the bid vocabulary (the
+// `move_type`s below), threading the standing contract through the phase's
+// own state until the bidding closes, and the phase `produce`s the contract
+// with its declarer: the first player of the high side to have bid the final
+// strain, which each bid records as it is made. The dummy is
 // modelled: declarer's partner lays their hand into a PublicHand every seat
 // sees in full, and declarer decides its plays through the Delegated Play
 // helpers below (decisions.md "Delegated play") while the tricks stay
@@ -75,7 +77,7 @@ game Bridge {
       // The standing contract, threaded across the bidding ring. Each turn a
       // player bids the cheapest level in some strain, doubles, redoubles, or
       // passes; the ring continues until three passes follow a bid (four passes
-      // with no bid). bridge_auction_outcome then reads this terminal state.
+      // with no bid). The `produce` below then reads this terminal state.
       state {
         cur_level   : Integer = 0      // 0 = no bid yet
         cur_strain  : Suit?   = none   // the high bid's strain (none = no-trump)
@@ -83,10 +85,31 @@ game Bridge {
         doubled     : Integer = 1      // 1 undoubled, 2 doubled, 4 redoubled
         made_bid    : Boolean = false
         passes      : Integer = 0      // consecutive passes since the last call
+        // The declarer rule: the first player of the high side to have named
+        // the final strain. Each side's first namer of each strain, written
+        // as the bids are made, so the contract's declarer is a read.
+        first_clubs[team]    : Player? = none
+        first_diamonds[team] : Player? = none
+        first_hearts[team]   : Player? = none
+        first_spades[team]   : Player? = none
+        first_notrump[team]  : Player? = none
       }
-      round offering [pass, submit_bid, double, redouble] from dealer over all players
-            until (made_bid and passes >= 3) or (not made_bid and passes >= 4)
-            outcome bridge_auction_outcome
+      turns bidder from dealer
+            over all players
+            until (made_bid and passes >= 3) or (not made_bid and passes >= 4) {
+        offer to bidder one of [pass, submit_bid, double, redouble]
+      }
+      if made_bid {
+        let side = team_of(high_bidder)
+        let d = if cur_strain is clubs then first_clubs[side]
+                elif cur_strain is diamonds then first_diamonds[side]
+                elif cur_strain is hearts then first_hearts[side]
+                elif cur_strain is spades then first_spades[side]
+                else first_notrump[side]
+        produce contract_finalized(d, cur_level, cur_strain, doubled)
+      } else {
+        produce all_pass
+      }
     }
     auction produces:
       contract_finalized(d, level, strain, dbl) {
@@ -190,6 +213,12 @@ move_type submit_bid(strain : Suit?) {
     doubled     := 1
     made_bid    := true
     passes      := 0
+    let side = team_of(actor)
+    if strain is clubs and first_clubs[side] is none { first_clubs[side] := actor }
+    if strain is diamonds and first_diamonds[side] is none { first_diamonds[side] := actor }
+    if strain is hearts and first_hearts[side] is none { first_hearts[side] := actor }
+    if strain is spades and first_spades[side] is none { first_spades[side] := actor }
+    if strain is none and first_notrump[side] is none { first_notrump[side] := actor }
   }
 }
 

@@ -30,10 +30,6 @@ class TestReadiness(ReadinessProofs):
         hidden_zone="hole",
         conformance_steps=120,
         swap_axis="any",
-        conformance_verbs_unreached=(
-            ("bet_big", ("the big wager is legal only on a street opened at two sizes, and the greedy legal[0] line never wagers there: an earlier candidate — `check` free, `call` facing a bet — precedes it at every node it is offered at, so no bound reaches it. Both verbs are driven directly, at every rung and from both sides: tests/test_poker_betting_sizing.py pins what each size pays, tests/test_poker_betting_reopening.py whether each re-opens, and tests/test_poker_betting_offers.py crosses the two-size street against every other axis and plays one big wager to pin the ratchet")),
-            ("raise_big", "same street, same line, same three modules"),
-        ),
     )
 
 
@@ -64,8 +60,8 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
     still-hidden hole cards muck count-only, with no identity leak to anyone
     else.
 
-    The policy is `legal[0]` (check/call, the betting vocabulary's id order
-    52..56) throughout, which alone reaches a contested 4-entrant showdown —
+    The policy is `legal[0]` (bet when free to act, call when facing one —
+    the names block's order) throughout, which alone reaches a contested 4-entrant showdown —
     nobody ever folds under it, since call and fold share a guard
     (`bet_to_match > bet_by[actor]`) and call's id sorts lower — except the
     first time `fold` itself is offered, where it is taken once, on purpose,

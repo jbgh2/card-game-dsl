@@ -1,14 +1,13 @@
-"""Mechanic runtime: the kernel [[round]] and its three [[form]]s.
+"""Mechanic runtime: the kernel [[round]] and its two [[form]]s.
 
 `run_decision_round` is the one parameterized per-step decision loop behind every
-kernel `round` form (§4 of docs/design-notes/kernel-extensibility.md). The three
-sequential forms are hook bundles over it — `TrickForm` (one turn-order pass, each
-participant plays a legal card, a [[winner]] function picks the winner),
-`AuctionForm` (a continuous ring over an [[offering]], threading a bid history,
-serving *both* the auction and betting forms), and `ClimbForm` (one
-combination-climbing trick over game-local engine queries). `build_form` selects
-the bundle by field-presence and `execute.py` dispatches on the returned Outcome
-union.
+kernel `round` form (§4 of docs/design-notes/kernel-extensibility.md). The two
+forms are hook bundles over it — `TrickForm` (one turn-order pass, each
+participant plays a legal card, a [[winner]] function picks the winner) and
+`ClimbForm` (one combination-climbing trick over game-local engine queries).
+`build_form` selects the bundle by node type and `execute.py` binds the winner
+it returns. A bidding or betting ring is no form of `round`: it is `turns`
+with an `offer` body (decisions.md "The `turns` form").
 """
 
 from __future__ import annotations
@@ -33,15 +32,12 @@ from cardlang.stdlib.moves import RULE_ENFORCED_MOVE_TYPE
 # The parameterized decision interpreter
 # ---------------------------------------------------------------------------
 #
-# `run_trick`, `run_auction` (which serves *both* the auction and betting forms),
-# and `run_climb` were the same per-step decision loop written three times. The
-# interpreter is what remains after the varying slots are lifted out: a fixed
-# loop that *calls* six pluggable hooks, with each kernel `round` form supplied
-# as a hook bundle (§4 of docs/design-notes/kernel-extensibility.md). Order and
-# participants are *functions* of the threaded `state`, never enums — the loop
-# cursors that were Python locals (the auction ring pointer, the climb index, the
-# trick's turn-order position and `led_suit`) live in `state`, so every hook is a
-# pure function of `(…, state, ctx)`.
+# The interpreter is a fixed loop that *calls* six pluggable hooks, with each
+# kernel `round` form supplied as a hook bundle (§4 of
+# docs/design-notes/kernel-extensibility.md). Order and participants are
+# *functions* of the threaded `state`, never enums — the loop cursors (the
+# climb index, the trick's turn-order position and `led_suit`) live in `state`,
+# so every hook is a pure function of `(…, state, ctx)`.
 
 # The Round State (docs/glossary.md): the accumulator a running round threads
 # through its hooks, and — for the forms that publish one — what the `state.`
@@ -98,12 +94,12 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
     loop — the sole source of nondeterminism, and what the OpenSpiel
     one-node-per-turn compilation rests on. A Hosted Poll's body runs between a
     step's choice of actor and its draw, and every decision it makes is a step
-    of the round that body holds (a `round offering`) or an `offer`'s own
+    of the ring that body holds (a `turns` of offers) or an `offer`'s own
     single draw; the step's own draw stays one.
 
     The round-state frame's lifetime is exactly this call. Whether there IS one is
-    the form's choice — `init` pushes it, and the auction form deliberately
-    publishes nothing — but ending it belongs here, so `outcome` computes a result
+    the form's choice — `init` pushes it — but ending it belongs here, so
+    `outcome` computes a result
     and does nothing else. Popping back to the depth `init` was handed keeps push
     and pop symmetric without the protocol carrying a "do I publish?" slot.
 
@@ -427,7 +423,7 @@ def concrete_moves(mt: n.MoveTypeDef, actor: Player, ctx: Ctx) -> list[tuple[str
     all parameters bound. Nullary is the empty-product case (one empty combo).
 
     `ctx` must already be bound to `actor` (`ctx.acting_as(actor)`) — a decision
-    offering several move types (`AuctionForm.candidates`, `execute._offer`)
+    offering several move types (`execute._offer`)
     hoists that binding once, outside its per-move-type loop, rather than have
     every move type in the offering redundantly recompute the same rebind."""
     domains = [param_domain(p, actor, ctx) for p in mt.params]
@@ -438,160 +434,6 @@ def concrete_moves(mt: n.MoveTypeDef, actor: Player, ctx: Ctx) -> list[tuple[str
         if mt.when is None or bool(evaluate(mt.when, vctx)):
             out.append((mt.name, value))
     return out
-
-
-class AuctionForm:
-    """The auction/betting form: a continuous ring over an [[offering]], looping
-    until the termination predicate holds.
-
-    Each turn the acting player chooses one of the legal *concrete* moves — every
-    parameterized move expanded over its value-domain and guard-filtered, plus the
-    nullary moves — as a single flat candidate list (one chooser draw, matching
-    OpenSpiel's one-decision-node-per-turn action set). The chosen move's effect
-    runs with `actor` (and the move parameter) bound, threading the bid history.
-
-    One axis varies here, as a *value* on a hook rather than a new slot; the
-    other the form carries is settled at one value, and the pair is worth reading
-    together because it is what the axes-not-slots claim rests on:
-
-    - **outcome (optional).** An auction supplies `outcome <fn>` and `outcome`
-      produces the phase's typed outcome `(tag, payloads)` from the bid history when
-      the ring closes. A betting round omits it (`outcome` returns `None`): the move
-      effects have already mutated the shared chip/fold state, so the ring just
-      closes and the surrounding body deals the next street or settles.
-    - **order.** `next_actor` is the order axis refunctionalized, and one
-      traversal stands: `ring` (equivalently, no `order` clause) advances the
-      pointer each turn, so a seat that has acted is offered again only when the
-      ring wraps. That is also poker's continuation order, three mechanisms
-      jointly: the advancing pointer reaches the seats behind the aggressor
-      next; the participants filter, re-evaluated each turn, brings the seats a
-      bet re-opened back when the ring returns to them; and `until`, checked
-      before every draw, closes the round mid-lap the moment nobody is pending. The participants clause and
-      the termination predicate must agree, so an empty ring with `until` still
-      false is malformed, raised rather than silently ended.
-    """
-
-    def __init__(self, stmt: n.AuctionRound, ctx: Ctx) -> None:
-        self.construct = FORM_CONSTRUCTS[type(stmt).__name__]
-        # A bid moves no card of its own: what an auction pick sets in
-        # motion happens inside the chosen move type's effect.
-        self.play_label: str | None = None
-        self.stmt = stmt
-        self.until: n.Expr = stmt.until
-        self.order: list[Player] = ctx.rs.seating.turn_order_from(
-            evaluate(stmt.leader, ctx)
-        )
-        self.move_defs = [ctx.rs.move_type_index[name] for name in stmt.offering]
-
-    def init(self, state: RoundState, ctx: Ctx) -> RoundState:
-        # This form publishes nothing to `state.` — it never pushes onto
-        # `mech_state` (AUCTION_PUBLISHED is empty, and deliberately so). Clearing
-        # `last_round_state` is what makes that honest: without it, `state.led_suit`
-        # read during or after an auction found `mech_state` empty, fell through to
-        # the fallback, and silently returned the state of whatever trick ran LAST
-        # — a stale frame from a different form. `_pronoun`'s "fail loudly, don't
-        # return a stale or empty frame" is only true because of this line.
-        ctx.rs.last_round_state = None
-        state["i"] = 0  # the ring pointer
-        state["guard"] = 0
-        state["history"] = []
-        return state
-
-    def terminated(self, state: RoundState, ctx: Ctx) -> bool:
-        return bool(evaluate(self.until, ctx))
-
-    def next_actor(self, state: RoundState, ctx: Ctx) -> Player | None:
-        order = self.order
-        # The participants ring is re-evaluated each step (the participant-filter
-        # axis): a player the predicate drops mid-ring — a standing high bidder, a
-        # player who has passed for good — is skipped with no chooser draw. The
-        # ascending auctions (Pinochle, Tarot, Skat) and Stud's betting state the
-        # shrinking ring this way; a static ring (Bridge's `all players`) is the
-        # invariant case (decisions.md "The auction form of `round`"). Membership
-        # is set-tested, so `order` stays the single source of sequencing.
-        while True:
-            state["guard"] += 1
-            if state["guard"] > 1000:  # ring steps, not productive turns
-                raise OwnerGuardError(
-                    "auction did not terminate within 1000 ring steps — a fixed "
-                    "engine limit, not the game's `max_length`, so raising that "
-                    "declaration will not help: the `until` predicate and the "
-                    "participants clause must between them end the ring"
-                )
-            participants = set(evaluate(self.stmt.participants, ctx))
-            if not participants:
-                # Nobody is in the ring and `until` is still false — `terminated`
-                # runs before this method, so reaching here means the predicate
-                # said the round goes on. Named for what it is rather than left
-                # to spin out the step limit above, which reports a runaway loop
-                # for what is a disagreement between two clauses.
-                raise OwnerGuardError(
-                    "auction: no participant is pending but the `until` predicate "
-                    "is unsatisfied (the termination and participants clauses "
-                    "disagree)"
-                )
-            pointer: int = state["i"]
-            state["i"] = pointer + 1
-            player = order[pointer % len(order)]
-            if player in participants:
-                return player
-            # A non-participant in ring mode is skipped with no draw; loop on (the
-            # skip mutates nothing, so the top-of-loop `terminated` cannot flip).
-
-    def candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
-        # Every move type's guard-filtered cross product (`concrete_moves`),
-        # concatenated in offering order — one flat candidate list, matching
-        # OpenSpiel's one-decision-node-per-turn action set. The Card domain
-        # (state-dependent: the actor's live hand, in hand order) and the
-        # Suit/Suit?/Rank/Player domains (deck/seating-sourced) are both handled
-        # inside `concrete_moves`/`param_domain`. `acting_as` is bound once here
-        # (not once per move type inside `concrete_moves`) since every move type
-        # in the offering shares the same actor for this decision.
-        pctx = ctx.acting_as(actor)
-        candidates: list[tuple[str, Any]] = []
-        for mt in self.move_defs:
-            candidates.extend(concrete_moves(mt, actor, pctx))
-        if not candidates:
-            # A participant offered a turn must have a legal move — the
-            # finite-action invariant of a decision node. The engine does NOT
-            # silently skip a player with nothing to do: who is still in the ring
-            # is for the game to state (the participants clause, `over … [where …]`),
-            # and "all but one has passed" is its `until` predicate — not an engine
-            # default (decisions.md "The auction form of `round`"). So an empty
-            # candidate set is a malformed game: a missing always-legal move (give
-            # `pass` no `when:`), or a participants filter that should have dropped
-            # this player.
-            raise OwnerGuardError(
-                f"auction: participant {actor} has no legal move. Give an "
-                f"always-legal move (e.g. an unguarded `pass`) or exclude "
-                f"dropped-out players from the participants clause "
-                f"(offering {list(self.stmt.offering or ())})"
-            )
-        return candidates
-
-    def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
-        from cardlang.runtime.execute import run_body
-
-        observe.announce(ctx, actor, choice)
-        name, value = choice
-        mt = ctx.rs.move_type_index[name]
-        pctx = ctx.acting_as(actor)
-        eff_ctx = bind_params(pctx, mt.params, value)
-        run_body(mt.effect, eff_ctx)
-        state["history"].append((actor, name, value))
-        return state
-
-    def hosted_poll(self, state: RoundState) -> n.HostedPoll | None:
-        return None  # the auction form's grammar carries no Hosted Poll
-
-    def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:
-        if self.stmt.outcome_fn is None:
-            return None  # betting: the shared chip/fold state is already settled
-        from cardlang.runtime import primitives
-
-        return primitives.auction_outcome_function(self.stmt.outcome_fn)(
-            state["history"], ctx
-        )
 
 
 # The kinds of ask a climbing round makes across its three regimes: the ring's
@@ -713,8 +555,8 @@ class ClimbForm:
         # trick winner can shed their last card on the winning play and still
         # be the named leader. That is a normal state, not a malformed game —
         # the ring simply starts at the first participant at or after them,
-        # which is what the trick, auction and `turns` paths already do with
-        # the same clause pair.
+        # which is what the trick and `turns` paths already do with the same
+        # clause pair.
         participants = set(evaluate(stmt.participants, ctx))
         self.ring: list[Player] = [
             p for p in ctx.rs.seating.turn_order_from(self.leader) if p in participants
@@ -911,19 +753,14 @@ class ClimbForm:
         return last
 
 
-def build_form(stmt: n.TrickRound | n.AuctionRound | n.ClimbRound, ctx: Ctx) -> DecisionForm:
+def build_form(stmt: n.TrickRound | n.ClimbRound, ctx: Ctx) -> DecisionForm:
     """Select the hook bundle for a `round` by which form it is.
 
     Dispatch on type, so the arms are disjoint and their ORDER carries no
-    meaning. It used to: this cascade tested `combos_fn` before `offering`
-    while resolve's tested `offering` before `combos_fn`, and the two agreed
-    only because the parser never set both. A node that had would have
-    validated as an auction and run as a climb."""
+    meaning: a form is its node, never a field sniffed off a shared one."""
     match stmt:
         case n.ClimbRound():
             return ClimbForm(stmt, ctx)
-        case n.AuctionRound():
-            return AuctionForm(stmt, ctx)
         case n.TrickRound():
             return TrickForm(stmt, ctx)
 

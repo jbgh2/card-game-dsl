@@ -387,20 +387,29 @@ game Probe {{
     raise_cap := {raise_cap}
     for each player p: bet_by[p] := {bet_by}
     for each player p: stack[p] := {stack}
-{fold}    round offering [{vocabulary}] from 0
+{fold}    turns t from 0
           over players where player is hero
-          until false
+          until false {{
+      offer to t one of [{vocabulary}, fold]
+    }}
   }}
   winner: highest stack
 }}
+// The library contracts for the game's `fold`, and a game-own move type no
+// reachable offer presents is refused: these probes measure the library's
+// own moves, so the game's `fold` is offered beside them and never legal (no
+// standing bet is negative).
+move_type fold {{ when: bet_to_match < 0 effect {{ folded[actor] := true }} }}
 """
 
 # `acted` is the library's own state, so the probe game may not write it: the
 # seat reaches "turn taken" by taking one, on a street `open_street` has just
 # zeroed, where `check` is legal and moves no chips.
-_PRIME = """    round offering [check] from 0
+_PRIME = """    turns t from 0
           over players where player is hero and not acted[player]
-          until (number of players where acted[player]) is 1
+          until (number of players where acted[player]) is 1 {
+      offer to t one of [check]
+    }
 """
 
 # The field axis. Folding the other seats is what empties `can_act` for them;
@@ -676,12 +685,19 @@ game Ratchet {{
   }}
   phase play {{
     run open_street(5, 10)
-    round offering [{vocabulary}] from 0
+    turns t from 0
           over players where can_act(player)
-          until false
+          until false {{
+      offer to t one of [{vocabulary}, fold]
+    }}
   }}
   winner: highest stack
 }}
+// The library contracts for the game's `fold`, and a game-own move type no
+// reachable offer presents is refused: these probes measure the library's
+// own moves, so the game's `fold` is offered beside them and never legal (no
+// standing bet is negative).
+move_type fold {{ when: bet_to_match < 0 effect {{ folded[actor] := true }} }}
 """
 
 

@@ -1022,43 +1022,29 @@
                   }
                 },
                 {
-                  "kind": "auction_round",
-                  "offering": [
-                    "check",
-                    "bet",
-                    "call",
-                    "fold",
-                    "raise"
-                  ],
-                  "leader": {
-                    "kind": "name",
-                    "name": "bringer",
-                    "ref": "local"
-                  },
-                  "participants": {
-                    "kind": "player_query",
-                    "query": "set",
-                    "where": {
-                      "kind": "call",
-                      "func": "pending",
-                      "args": [
-                        {
-                          "kind": "name",
-                          "name": "player",
-                          "ref": "local"
-                        }
-                      ]
-                    }
-                  },
-                  "until": {
-                    "kind": "binop",
-                    "op": "or",
-                    "left": {
-                      "kind": "binop",
-                      "op": "is",
-                      "left": {
+                  "kind": "block",
+                  "body": [
+                    {
+                      "kind": "let",
+                      "name": "@betting_street.first",
+                      "index": null,
+                      "value": {
+                        "kind": "name",
+                        "name": "bringer",
+                        "ref": "local"
+                      }
+                    },
+                    {
+                      "kind": "turns",
+                      "binder": "seat",
+                      "leader": {
+                        "kind": "name",
+                        "name": "@betting_street.first",
+                        "ref": "local"
+                      },
+                      "participants": {
                         "kind": "player_query",
-                        "query": "count",
+                        "query": "set",
                         "where": {
                           "kind": "call",
                           "func": "pending",
@@ -1071,60 +1057,18 @@
                           ]
                         }
                       },
-                      "right": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    "right": {
-                      "kind": "binop",
-                      "op": "and",
-                      "left": {
+                      "until": {
                         "kind": "binop",
-                        "op": "<=",
+                        "op": "or",
                         "left": {
-                          "kind": "player_query",
-                          "query": "count",
-                          "where": {
-                            "kind": "call",
-                            "func": "can_act",
-                            "args": [
-                              {
-                                "kind": "name",
-                                "name": "player",
-                                "ref": "local"
-                              }
-                            ]
-                          }
-                        },
-                        "right": {
-                          "kind": "int",
-                          "value": 1
-                        }
-                      },
-                      "right": {
-                        "kind": "binop",
-                        "op": "is",
-                        "left": {
-                          "kind": "player_query",
-                          "query": "count",
-                          "where": {
-                            "kind": "binop",
-                            "op": "and",
-                            "left": {
+                          "kind": "binop",
+                          "op": "is",
+                          "left": {
+                            "kind": "player_query",
+                            "query": "count",
+                            "where": {
                               "kind": "call",
-                              "func": "can_act",
-                              "args": [
-                                {
-                                  "kind": "name",
-                                  "name": "player",
-                                  "ref": "local"
-                                }
-                              ]
-                            },
-                            "right": {
-                              "kind": "call",
-                              "func": "owes",
+                              "func": "pending",
                               "args": [
                                 {
                                   "kind": "name",
@@ -1133,16 +1077,100 @@
                                 }
                               ]
                             }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 0
                           }
                         },
                         "right": {
-                          "kind": "int",
-                          "value": 0
+                          "kind": "binop",
+                          "op": "and",
+                          "left": {
+                            "kind": "binop",
+                            "op": "<=",
+                            "left": {
+                              "kind": "player_query",
+                              "query": "count",
+                              "where": {
+                                "kind": "call",
+                                "func": "can_act",
+                                "args": [
+                                  {
+                                    "kind": "name",
+                                    "name": "player",
+                                    "ref": "local"
+                                  }
+                                ]
+                              }
+                            },
+                            "right": {
+                              "kind": "int",
+                              "value": 1
+                            }
+                          },
+                          "right": {
+                            "kind": "binop",
+                            "op": "is",
+                            "left": {
+                              "kind": "player_query",
+                              "query": "count",
+                              "where": {
+                                "kind": "binop",
+                                "op": "and",
+                                "left": {
+                                  "kind": "call",
+                                  "func": "can_act",
+                                  "args": [
+                                    {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  ]
+                                },
+                                "right": {
+                                  "kind": "call",
+                                  "func": "owes",
+                                  "args": [
+                                    {
+                                      "kind": "name",
+                                      "name": "player",
+                                      "ref": "local"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "right": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
                         }
-                      }
+                      },
+                      "again": null,
+                      "body": [
+                        {
+                          "kind": "offer",
+                          "player": {
+                            "kind": "name",
+                            "name": "seat",
+                            "ref": "local"
+                          },
+                          "offering": [
+                            "check",
+                            "bet",
+                            "bet_big",
+                            "call",
+                            "fold",
+                            "raise",
+                            "raise_big"
+                          ]
+                        }
+                      ]
                     }
-                  },
-                  "outcome_fn": null
+                  ]
                 }
               ],
               "else": null
@@ -1517,45 +1545,29 @@
                       }
                     },
                     {
-                      "kind": "auction_round",
-                      "offering": [
-                        "check",
-                        "bet",
-                        "bet_big",
-                        "call",
-                        "fold",
-                        "raise",
-                        "raise_big"
-                      ],
-                      "leader": {
-                        "kind": "call",
-                        "func": "best_showing_seat",
-                        "args": []
-                      },
-                      "participants": {
-                        "kind": "player_query",
-                        "query": "set",
-                        "where": {
-                          "kind": "call",
-                          "func": "pending",
-                          "args": [
-                            {
-                              "kind": "name",
-                              "name": "player",
-                              "ref": "local"
-                            }
-                          ]
-                        }
-                      },
-                      "until": {
-                        "kind": "binop",
-                        "op": "or",
-                        "left": {
-                          "kind": "binop",
-                          "op": "is",
-                          "left": {
+                      "kind": "block",
+                      "body": [
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.first",
+                          "index": null,
+                          "value": {
+                            "kind": "call",
+                            "func": "best_showing_seat",
+                            "args": []
+                          }
+                        },
+                        {
+                          "kind": "turns",
+                          "binder": "seat",
+                          "leader": {
+                            "kind": "name",
+                            "name": "@betting_street.first",
+                            "ref": "local"
+                          },
+                          "participants": {
                             "kind": "player_query",
-                            "query": "count",
+                            "query": "set",
                             "where": {
                               "kind": "call",
                               "func": "pending",
@@ -1568,60 +1580,18 @@
                               ]
                             }
                           },
-                          "right": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        "right": {
-                          "kind": "binop",
-                          "op": "and",
-                          "left": {
+                          "until": {
                             "kind": "binop",
-                            "op": "<=",
+                            "op": "or",
                             "left": {
-                              "kind": "player_query",
-                              "query": "count",
-                              "where": {
-                                "kind": "call",
-                                "func": "can_act",
-                                "args": [
-                                  {
-                                    "kind": "name",
-                                    "name": "player",
-                                    "ref": "local"
-                                  }
-                                ]
-                              }
-                            },
-                            "right": {
-                              "kind": "int",
-                              "value": 1
-                            }
-                          },
-                          "right": {
-                            "kind": "binop",
-                            "op": "is",
-                            "left": {
-                              "kind": "player_query",
-                              "query": "count",
-                              "where": {
-                                "kind": "binop",
-                                "op": "and",
-                                "left": {
+                              "kind": "binop",
+                              "op": "is",
+                              "left": {
+                                "kind": "player_query",
+                                "query": "count",
+                                "where": {
                                   "kind": "call",
-                                  "func": "can_act",
-                                  "args": [
-                                    {
-                                      "kind": "name",
-                                      "name": "player",
-                                      "ref": "local"
-                                    }
-                                  ]
-                                },
-                                "right": {
-                                  "kind": "call",
-                                  "func": "owes",
+                                  "func": "pending",
                                   "args": [
                                     {
                                       "kind": "name",
@@ -1630,16 +1600,100 @@
                                     }
                                   ]
                                 }
+                              },
+                              "right": {
+                                "kind": "int",
+                                "value": 0
                               }
                             },
                             "right": {
-                              "kind": "int",
-                              "value": 0
+                              "kind": "binop",
+                              "op": "and",
+                              "left": {
+                                "kind": "binop",
+                                "op": "<=",
+                                "left": {
+                                  "kind": "player_query",
+                                  "query": "count",
+                                  "where": {
+                                    "kind": "call",
+                                    "func": "can_act",
+                                    "args": [
+                                      {
+                                        "kind": "name",
+                                        "name": "player",
+                                        "ref": "local"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "right": {
+                                  "kind": "int",
+                                  "value": 1
+                                }
+                              },
+                              "right": {
+                                "kind": "binop",
+                                "op": "is",
+                                "left": {
+                                  "kind": "player_query",
+                                  "query": "count",
+                                  "where": {
+                                    "kind": "binop",
+                                    "op": "and",
+                                    "left": {
+                                      "kind": "call",
+                                      "func": "can_act",
+                                      "args": [
+                                        {
+                                          "kind": "name",
+                                          "name": "player",
+                                          "ref": "local"
+                                        }
+                                      ]
+                                    },
+                                    "right": {
+                                      "kind": "call",
+                                      "func": "owes",
+                                      "args": [
+                                        {
+                                          "kind": "name",
+                                          "name": "player",
+                                          "ref": "local"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                "right": {
+                                  "kind": "int",
+                                  "value": 0
+                                }
+                              }
                             }
-                          }
+                          },
+                          "again": null,
+                          "body": [
+                            {
+                              "kind": "offer",
+                              "player": {
+                                "kind": "name",
+                                "name": "seat",
+                                "ref": "local"
+                              },
+                              "offering": [
+                                "check",
+                                "bet",
+                                "bet_big",
+                                "call",
+                                "fold",
+                                "raise",
+                                "raise_big"
+                              ]
+                            }
+                          ]
                         }
-                      },
-                      "outcome_fn": null
+                      ]
                     }
                   ],
                   "else": null
@@ -1986,43 +2040,29 @@
                       }
                     },
                     {
-                      "kind": "auction_round",
-                      "offering": [
-                        "check",
-                        "bet",
-                        "call",
-                        "fold",
-                        "raise"
-                      ],
-                      "leader": {
-                        "kind": "call",
-                        "func": "best_showing_seat",
-                        "args": []
-                      },
-                      "participants": {
-                        "kind": "player_query",
-                        "query": "set",
-                        "where": {
-                          "kind": "call",
-                          "func": "pending",
-                          "args": [
-                            {
-                              "kind": "name",
-                              "name": "player",
-                              "ref": "local"
-                            }
-                          ]
-                        }
-                      },
-                      "until": {
-                        "kind": "binop",
-                        "op": "or",
-                        "left": {
-                          "kind": "binop",
-                          "op": "is",
-                          "left": {
+                      "kind": "block",
+                      "body": [
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.first",
+                          "index": null,
+                          "value": {
+                            "kind": "call",
+                            "func": "best_showing_seat",
+                            "args": []
+                          }
+                        },
+                        {
+                          "kind": "turns",
+                          "binder": "seat",
+                          "leader": {
+                            "kind": "name",
+                            "name": "@betting_street.first",
+                            "ref": "local"
+                          },
+                          "participants": {
                             "kind": "player_query",
-                            "query": "count",
+                            "query": "set",
                             "where": {
                               "kind": "call",
                               "func": "pending",
@@ -2035,60 +2075,18 @@
                               ]
                             }
                           },
-                          "right": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        "right": {
-                          "kind": "binop",
-                          "op": "and",
-                          "left": {
+                          "until": {
                             "kind": "binop",
-                            "op": "<=",
+                            "op": "or",
                             "left": {
-                              "kind": "player_query",
-                              "query": "count",
-                              "where": {
-                                "kind": "call",
-                                "func": "can_act",
-                                "args": [
-                                  {
-                                    "kind": "name",
-                                    "name": "player",
-                                    "ref": "local"
-                                  }
-                                ]
-                              }
-                            },
-                            "right": {
-                              "kind": "int",
-                              "value": 1
-                            }
-                          },
-                          "right": {
-                            "kind": "binop",
-                            "op": "is",
-                            "left": {
-                              "kind": "player_query",
-                              "query": "count",
-                              "where": {
-                                "kind": "binop",
-                                "op": "and",
-                                "left": {
+                              "kind": "binop",
+                              "op": "is",
+                              "left": {
+                                "kind": "player_query",
+                                "query": "count",
+                                "where": {
                                   "kind": "call",
-                                  "func": "can_act",
-                                  "args": [
-                                    {
-                                      "kind": "name",
-                                      "name": "player",
-                                      "ref": "local"
-                                    }
-                                  ]
-                                },
-                                "right": {
-                                  "kind": "call",
-                                  "func": "owes",
+                                  "func": "pending",
                                   "args": [
                                     {
                                       "kind": "name",
@@ -2097,16 +2095,100 @@
                                     }
                                   ]
                                 }
+                              },
+                              "right": {
+                                "kind": "int",
+                                "value": 0
                               }
                             },
                             "right": {
-                              "kind": "int",
-                              "value": 0
+                              "kind": "binop",
+                              "op": "and",
+                              "left": {
+                                "kind": "binop",
+                                "op": "<=",
+                                "left": {
+                                  "kind": "player_query",
+                                  "query": "count",
+                                  "where": {
+                                    "kind": "call",
+                                    "func": "can_act",
+                                    "args": [
+                                      {
+                                        "kind": "name",
+                                        "name": "player",
+                                        "ref": "local"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "right": {
+                                  "kind": "int",
+                                  "value": 1
+                                }
+                              },
+                              "right": {
+                                "kind": "binop",
+                                "op": "is",
+                                "left": {
+                                  "kind": "player_query",
+                                  "query": "count",
+                                  "where": {
+                                    "kind": "binop",
+                                    "op": "and",
+                                    "left": {
+                                      "kind": "call",
+                                      "func": "can_act",
+                                      "args": [
+                                        {
+                                          "kind": "name",
+                                          "name": "player",
+                                          "ref": "local"
+                                        }
+                                      ]
+                                    },
+                                    "right": {
+                                      "kind": "call",
+                                      "func": "owes",
+                                      "args": [
+                                        {
+                                          "kind": "name",
+                                          "name": "player",
+                                          "ref": "local"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                "right": {
+                                  "kind": "int",
+                                  "value": 0
+                                }
+                              }
                             }
-                          }
+                          },
+                          "again": null,
+                          "body": [
+                            {
+                              "kind": "offer",
+                              "player": {
+                                "kind": "name",
+                                "name": "seat",
+                                "ref": "local"
+                              },
+                              "offering": [
+                                "check",
+                                "bet",
+                                "bet_big",
+                                "call",
+                                "fold",
+                                "raise",
+                                "raise_big"
+                              ]
+                            }
+                          ]
                         }
-                      },
-                      "outcome_fn": null
+                      ]
                     }
                   ],
                   "else": null
@@ -2453,43 +2535,29 @@
                       }
                     },
                     {
-                      "kind": "auction_round",
-                      "offering": [
-                        "check",
-                        "bet",
-                        "call",
-                        "fold",
-                        "raise"
-                      ],
-                      "leader": {
-                        "kind": "call",
-                        "func": "best_showing_seat",
-                        "args": []
-                      },
-                      "participants": {
-                        "kind": "player_query",
-                        "query": "set",
-                        "where": {
-                          "kind": "call",
-                          "func": "pending",
-                          "args": [
-                            {
-                              "kind": "name",
-                              "name": "player",
-                              "ref": "local"
-                            }
-                          ]
-                        }
-                      },
-                      "until": {
-                        "kind": "binop",
-                        "op": "or",
-                        "left": {
-                          "kind": "binop",
-                          "op": "is",
-                          "left": {
+                      "kind": "block",
+                      "body": [
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.first",
+                          "index": null,
+                          "value": {
+                            "kind": "call",
+                            "func": "best_showing_seat",
+                            "args": []
+                          }
+                        },
+                        {
+                          "kind": "turns",
+                          "binder": "seat",
+                          "leader": {
+                            "kind": "name",
+                            "name": "@betting_street.first",
+                            "ref": "local"
+                          },
+                          "participants": {
                             "kind": "player_query",
-                            "query": "count",
+                            "query": "set",
                             "where": {
                               "kind": "call",
                               "func": "pending",
@@ -2502,60 +2570,18 @@
                               ]
                             }
                           },
-                          "right": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        "right": {
-                          "kind": "binop",
-                          "op": "and",
-                          "left": {
+                          "until": {
                             "kind": "binop",
-                            "op": "<=",
+                            "op": "or",
                             "left": {
-                              "kind": "player_query",
-                              "query": "count",
-                              "where": {
-                                "kind": "call",
-                                "func": "can_act",
-                                "args": [
-                                  {
-                                    "kind": "name",
-                                    "name": "player",
-                                    "ref": "local"
-                                  }
-                                ]
-                              }
-                            },
-                            "right": {
-                              "kind": "int",
-                              "value": 1
-                            }
-                          },
-                          "right": {
-                            "kind": "binop",
-                            "op": "is",
-                            "left": {
-                              "kind": "player_query",
-                              "query": "count",
-                              "where": {
-                                "kind": "binop",
-                                "op": "and",
-                                "left": {
+                              "kind": "binop",
+                              "op": "is",
+                              "left": {
+                                "kind": "player_query",
+                                "query": "count",
+                                "where": {
                                   "kind": "call",
-                                  "func": "can_act",
-                                  "args": [
-                                    {
-                                      "kind": "name",
-                                      "name": "player",
-                                      "ref": "local"
-                                    }
-                                  ]
-                                },
-                                "right": {
-                                  "kind": "call",
-                                  "func": "owes",
+                                  "func": "pending",
                                   "args": [
                                     {
                                       "kind": "name",
@@ -2564,16 +2590,100 @@
                                     }
                                   ]
                                 }
+                              },
+                              "right": {
+                                "kind": "int",
+                                "value": 0
                               }
                             },
                             "right": {
-                              "kind": "int",
-                              "value": 0
+                              "kind": "binop",
+                              "op": "and",
+                              "left": {
+                                "kind": "binop",
+                                "op": "<=",
+                                "left": {
+                                  "kind": "player_query",
+                                  "query": "count",
+                                  "where": {
+                                    "kind": "call",
+                                    "func": "can_act",
+                                    "args": [
+                                      {
+                                        "kind": "name",
+                                        "name": "player",
+                                        "ref": "local"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "right": {
+                                  "kind": "int",
+                                  "value": 1
+                                }
+                              },
+                              "right": {
+                                "kind": "binop",
+                                "op": "is",
+                                "left": {
+                                  "kind": "player_query",
+                                  "query": "count",
+                                  "where": {
+                                    "kind": "binop",
+                                    "op": "and",
+                                    "left": {
+                                      "kind": "call",
+                                      "func": "can_act",
+                                      "args": [
+                                        {
+                                          "kind": "name",
+                                          "name": "player",
+                                          "ref": "local"
+                                        }
+                                      ]
+                                    },
+                                    "right": {
+                                      "kind": "call",
+                                      "func": "owes",
+                                      "args": [
+                                        {
+                                          "kind": "name",
+                                          "name": "player",
+                                          "ref": "local"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                "right": {
+                                  "kind": "int",
+                                  "value": 0
+                                }
+                              }
                             }
-                          }
+                          },
+                          "again": null,
+                          "body": [
+                            {
+                              "kind": "offer",
+                              "player": {
+                                "kind": "name",
+                                "name": "seat",
+                                "ref": "local"
+                              },
+                              "offering": [
+                                "check",
+                                "bet",
+                                "bet_big",
+                                "call",
+                                "fold",
+                                "raise",
+                                "raise_big"
+                              ]
+                            }
+                          ]
                         }
-                      },
-                      "outcome_fn": null
+                      ]
                     }
                   ],
                   "else": null
@@ -2920,43 +3030,29 @@
                       }
                     },
                     {
-                      "kind": "auction_round",
-                      "offering": [
-                        "check",
-                        "bet",
-                        "call",
-                        "fold",
-                        "raise"
-                      ],
-                      "leader": {
-                        "kind": "call",
-                        "func": "best_showing_seat",
-                        "args": []
-                      },
-                      "participants": {
-                        "kind": "player_query",
-                        "query": "set",
-                        "where": {
-                          "kind": "call",
-                          "func": "pending",
-                          "args": [
-                            {
-                              "kind": "name",
-                              "name": "player",
-                              "ref": "local"
-                            }
-                          ]
-                        }
-                      },
-                      "until": {
-                        "kind": "binop",
-                        "op": "or",
-                        "left": {
-                          "kind": "binop",
-                          "op": "is",
-                          "left": {
+                      "kind": "block",
+                      "body": [
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.first",
+                          "index": null,
+                          "value": {
+                            "kind": "call",
+                            "func": "best_showing_seat",
+                            "args": []
+                          }
+                        },
+                        {
+                          "kind": "turns",
+                          "binder": "seat",
+                          "leader": {
+                            "kind": "name",
+                            "name": "@betting_street.first",
+                            "ref": "local"
+                          },
+                          "participants": {
                             "kind": "player_query",
-                            "query": "count",
+                            "query": "set",
                             "where": {
                               "kind": "call",
                               "func": "pending",
@@ -2969,60 +3065,18 @@
                               ]
                             }
                           },
-                          "right": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        "right": {
-                          "kind": "binop",
-                          "op": "and",
-                          "left": {
+                          "until": {
                             "kind": "binop",
-                            "op": "<=",
+                            "op": "or",
                             "left": {
-                              "kind": "player_query",
-                              "query": "count",
-                              "where": {
-                                "kind": "call",
-                                "func": "can_act",
-                                "args": [
-                                  {
-                                    "kind": "name",
-                                    "name": "player",
-                                    "ref": "local"
-                                  }
-                                ]
-                              }
-                            },
-                            "right": {
-                              "kind": "int",
-                              "value": 1
-                            }
-                          },
-                          "right": {
-                            "kind": "binop",
-                            "op": "is",
-                            "left": {
-                              "kind": "player_query",
-                              "query": "count",
-                              "where": {
-                                "kind": "binop",
-                                "op": "and",
-                                "left": {
+                              "kind": "binop",
+                              "op": "is",
+                              "left": {
+                                "kind": "player_query",
+                                "query": "count",
+                                "where": {
                                   "kind": "call",
-                                  "func": "can_act",
-                                  "args": [
-                                    {
-                                      "kind": "name",
-                                      "name": "player",
-                                      "ref": "local"
-                                    }
-                                  ]
-                                },
-                                "right": {
-                                  "kind": "call",
-                                  "func": "owes",
+                                  "func": "pending",
                                   "args": [
                                     {
                                       "kind": "name",
@@ -3031,16 +3085,100 @@
                                     }
                                   ]
                                 }
+                              },
+                              "right": {
+                                "kind": "int",
+                                "value": 0
                               }
                             },
                             "right": {
-                              "kind": "int",
-                              "value": 0
+                              "kind": "binop",
+                              "op": "and",
+                              "left": {
+                                "kind": "binop",
+                                "op": "<=",
+                                "left": {
+                                  "kind": "player_query",
+                                  "query": "count",
+                                  "where": {
+                                    "kind": "call",
+                                    "func": "can_act",
+                                    "args": [
+                                      {
+                                        "kind": "name",
+                                        "name": "player",
+                                        "ref": "local"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "right": {
+                                  "kind": "int",
+                                  "value": 1
+                                }
+                              },
+                              "right": {
+                                "kind": "binop",
+                                "op": "is",
+                                "left": {
+                                  "kind": "player_query",
+                                  "query": "count",
+                                  "where": {
+                                    "kind": "binop",
+                                    "op": "and",
+                                    "left": {
+                                      "kind": "call",
+                                      "func": "can_act",
+                                      "args": [
+                                        {
+                                          "kind": "name",
+                                          "name": "player",
+                                          "ref": "local"
+                                        }
+                                      ]
+                                    },
+                                    "right": {
+                                      "kind": "call",
+                                      "func": "owes",
+                                      "args": [
+                                        {
+                                          "kind": "name",
+                                          "name": "player",
+                                          "ref": "local"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                "right": {
+                                  "kind": "int",
+                                  "value": 0
+                                }
+                              }
                             }
-                          }
+                          },
+                          "again": null,
+                          "body": [
+                            {
+                              "kind": "offer",
+                              "player": {
+                                "kind": "name",
+                                "name": "seat",
+                                "ref": "local"
+                              },
+                              "offering": [
+                                "check",
+                                "bet",
+                                "bet_big",
+                                "call",
+                                "fold",
+                                "raise",
+                                "raise_big"
+                              ]
+                            }
+                          ]
                         }
-                      },
-                      "outcome_fn": null
+                      ]
                     }
                   ],
                   "else": null

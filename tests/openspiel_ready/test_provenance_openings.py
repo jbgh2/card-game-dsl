@@ -2,11 +2,11 @@
 
 `GameSpec.provenance_opening` names moves the provenance walk plays before it
 goes greedy, for the game whose greedy line provably never reaches a zone whose
-[[arrival-record]] a consumer reads. French Tarot is the case that created the
-field: `pass` sorts below every bid, so `legal[0]` throws all 36 hands in and no
-card is ever played, and the migration that gave `trick_pile` an AST-visible
-consumer (issue #250 PR 5) turned that from a vacuous certificate into a RED
-one. The field converts it into a real certificate.
+[[arrival-record]] a consumer reads. Belote is the case: `pass` sorts below
+`take` and `take_suit`, so `legal[0]` throws every hand in and no card is ever
+played, which leaves `trick_pile`'s AST-visible consumer with a vacuous
+certificate — RED, by the proof's own count. The field converts it into a real
+certificate.
 
 A driving judgment can be wrong in ways the proof it serves cannot see, which
 is what this module is for. The proof asks only "did the line reach the zone";
@@ -45,9 +45,9 @@ does not prove:  seven things, each about what a green over the registered
            head. Whether an opening is needed is a property of the greedy
            line's SHAPE -- which action id sorts first at each turn -- and the
            deal moves neither the action ids nor the sort; measured rather
-           than argued, over the whole manifest French Tarot's first decider
-           is P2 with the same five legal ids and the same `legal[0]=78` on
-           every seed (2026-08-19). A game whose sort DID move with the deal
+           than argued, over the whole manifest Belote's first decider is P3
+           with `legal[0]` decoding to `pass` on every seed (2026-10-09). A
+           game whose sort DID move with the deal
            would pass here on the head seed alone.
            (a) An opening of length >= 2, and the `provenance_depth` offset it
            crosses with, are implemented and only degenerately executed on a

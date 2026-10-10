@@ -112,8 +112,8 @@ def decide(
 
     `site` is the caller's own row of `DECISION_POINTS`, so the construct word
     is the table's rather than the call's. A round passes its form's word
-    instead, because one `round` sentence asks a trick, an auction or a climb
-    and those are three decisions to a designer; a form takes that word from
+    instead, because one `round` sentence asks a trick or a climb and those
+    are two decisions to a designer; a form takes that word from
     `FORM_CONSTRUCTS` when it is built, so an unknown form has already failed
     by the time a seat is asked.
     """

@@ -7,10 +7,10 @@
 // to 0 wins).
 //
 // The hand runs fully on the kernel: the leader's heterogeneous turn (lead a
-// card, declare a marriage, exchange the trump jack, close the talon) is the
-// auction form of `round` over a single-participant ring — the free actions
-// (exchange/close) leave the termination predicate false, so the ring re-offers
-// the leader until a card is led. `play_card(c : Card)` enumerates the leader's
+// card, declare a marriage, exchange the trump jack, close the talon) is one
+// `offer` inside `repeat until trick_pile is not empty` — the free actions
+// (exchange/close) leave the condition false, so the leader is asked again
+// until a card is led. `play_card(c : Card)` enumerates the leader's
 // live hand in hand order (decisions.md "Declared parameter domains"). The
 // follower answers with a filtered chosen movement (strict follow-and-head
 // once the talon is closed or exhausted), and the trick/claim/draw
@@ -88,9 +88,9 @@ game Schnapsen {
         let endgame = closed or (talon is empty and trump_indicator is empty)
 
         // The leader takes free actions (exchange / close), then leads a card.
-        round offering [play_card, declare_marriage, exchange_trump_jack, close_talon]
-              from leader over players where player is leader
-              until trick_pile is not empty
+        repeat until trick_pile is not empty {
+          offer to leader one of [play_card, declare_marriage, exchange_trump_jack, close_talon]
+        }
 
         // The follower answers; strict follow-and-head in the endgame. The
         // `as fol` block binds the single acting player for the chosen movement
@@ -173,8 +173,8 @@ game Schnapsen {
 // The leader's single mixed decision per turn: one flat candidate list — every
 // hand card as a lead (hand order), the marriage suits (deck-suit order), then
 // the free actions. A marriage leads its queen, so both leading moves flip the
-// round's until-predicate; exchange/close leave it false and the ring re-offers
-// the leader.
+// loop's condition; exchange/close leave it false and the leader is asked
+// again.
 
 move_type play_card(c : Card) {
   effect { move one card from hand[actor] where card is c to trick_pile }

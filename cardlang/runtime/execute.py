@@ -50,7 +50,6 @@ from cardlang.runtime.values import Card, CardSet, Player, content_noun
 from cardlang.stdlib.hosted_poll import (
     HOSTED_POLL_ALLOWED,
     HOSTED_POLL_REFUSED,
-    HOSTED_REACH_REFUSED_SLOTS,
 )
 from cardlang.stdlib.zones import zone_capacity
 
@@ -85,13 +84,6 @@ def _refuse_unhosted(stmt: n.Stmt) -> None:
             f"a Hosted Poll's body ran {HOSTED_POLL_REFUSED[kind]} while its "
             f"climbing round was live",
         )
-    for (cls, field), what in HOSTED_REACH_REFUSED_SLOTS.items():
-        if isinstance(stmt, cls) and getattr(stmt, field) is not None:
-            raise ShadowGuardError(
-                "resolve._check_hosted_polls",
-                f"a Hosted Poll's body ran {what} while its climbing round "
-                f"was live",
-            )
 
 
 def phase_name(ctx: Ctx) -> str | None:
@@ -167,14 +159,9 @@ def _dispatch(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
-        case n.TrickRound() | n.AuctionRound() | n.ClimbRound():
-            # One interpreter over all three forms, dispatched
-            # on the returned Outcome union: a winning Player (trick/climb) binds
-            # `winner`; a typed `(tag, payloads)` outcome (auction) raises a
-            # produce signal, caught by the enclosing outcome-declaring phase;
-            # `None` (betting) mutated the shared chip/fold state and just closes.
-            # The tagged arm never reaches the pronoun — which is why `winner` is
-            # the only value a round binds.
+        case n.TrickRound() | n.ClimbRound():
+            # One interpreter over both forms, dispatched on the returned
+            # Outcome union: a winning Player (trick/climb) binds `winner`.
             result = mechanics.run_decision_round(
                 mechanics.build_form(stmt, ctx), {}, ctx
             )
@@ -774,6 +761,17 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     infinite spin."""
     order = ctx.rs.seating.players
     step = 1 if ctx.rs.seating.clockwise else -1
+    # A ring is a run of decisions, not a round: entering one ends the
+    # just-completed round's window, so a `state.` read inside it fails
+    # loudly (`evaluate._pronoun`'s "no active or just-completed round")
+    # instead of serving that round's frame — which round ran last is
+    # runtime data, so this is the window's Owner Guard, at the one site
+    # every ring converges on. A live round's frame (`mech_state`) is
+    # untouched: a ring hosted inside a poll reads the live trick. A lone
+    # `offer` or a `repeat until` leaves the frame as it is
+    # (open-questions/round-state-in-information-states.md).
+    if not ctx.rs.mech_state:
+        ctx.rs.last_round_state = None
     current: Player | None = None
     guard = 0
     while not bool(evaluate(stmt.until, ctx)):
@@ -828,7 +826,7 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     pctx = ctx.acting_as(player)
     # Presents an offering to one player: every named move type's guard-filtered
     # cross product (`concrete_moves`), concatenated in the offering's declared
-    # order — one flat candidate list, exactly like the auction form. A nullary
+    # order — one flat candidate list. A nullary
     # move contributes at most one `(name, None)` candidate, so the index the
     # chooser draws is that move type's position in the offering; `render()`
     # turns `(name, None)` back into the bare name for observation, so the

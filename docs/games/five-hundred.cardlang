@@ -165,10 +165,12 @@ game FiveHundred {
       // auction. It ends when a bid stands and only the bidder survives, or
       // when all four pass (the hand is thrown in).
       opener := dealer offset_by left
-      round offering [submit_bid, bid_misere, bid_open_misere, pass]
-            from opener over players where not passed[player]
+      turns bidder from opener
+            over players where not passed[player]
             until (bid_rank > 0 and (number of players where not passed[player]) <= 1)
-                  or (number of players where not passed[player]) is 0
+                  or (number of players where not passed[player]) is 0 {
+        offer to bidder one of [submit_bid, bid_misere, bid_open_misere, pass]
+      }
       for each player p: passed[p] := false
       opener := none
       if high_bidder is none { skip to next hand }

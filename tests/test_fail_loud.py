@@ -95,79 +95,6 @@ def test_card_set_demand_without_if_impossible_is_rejected() -> None:
         check_dsl(RULE_WITHOUT_IF_IMPOSSIBLE, "t.cardlang")
 
 
-TRICK_ROUND_WITH_AUCTION_OUTCOME = """
-game G {
-  players: 2
-  max_length: 1000
-  cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
-  state { leader : Player? = none  score[player] : Integer = 0 }
-  phase play {
-    leader := 0
-    round play_to_trick from leader over all players source hand into trick_pile
-          winner bridge_auction_outcome
-  }
-  winner: highest score
-}
-"""
-
-
-AUCTION_ROUND_WITH_TRICK_OUTCOME = """
-game G {
-  players: 2
-  max_length: 1000
-  cards: standard52
-  zones { deck : Deck  hand[player] : Hand<player> }
-  state { passes : Integer = 0  score[player] : Integer = 0 }
-  phase bid {
-    round offering [pass] from 0 over all players until (passes >= 2)
-          outcome highest_trump_or_led_suit
-  }
-  winner: highest score
-}
-move_type pass { effect { passes += 1 } }
-"""
-
-
-def test_trick_round_rejects_an_auction_outcome() -> None:
-    # A trick round whose `winner` clause names an auction-form callback resolves
-    # to the wrong dispatcher at runtime — reject it at compile time, by
-    # form-specific namespace, not with a late AssertionError.
-    with pytest.raises(DiagnosticError, match="not a trick winner function"):
-        check_dsl(TRICK_ROUND_WITH_AUCTION_OUTCOME, "t.cardlang")
-
-
-def test_auction_round_rejects_a_trick_outcome() -> None:
-    with pytest.raises(DiagnosticError, match="not an auction outcome function"):
-        check_dsl(AUCTION_ROUND_WITH_TRICK_OUTCOME, "t.cardlang")
-
-
-AUCTION_NON_BOOLEAN_UNTIL = """
-game G {
-  players: 2
-  max_length: 1000
-  cards: standard52
-  zones { deck : Deck  hand[player] : Hand<player> }
-  state { passes : Integer = 0  score[player] : Integer = 0 }
-  phase bid {
-    round offering [pass] from 0 over all players until 1
-          outcome bridge_auction_outcome
-  }
-  winner: highest score
-}
-move_type pass { effect { passes += 1 } }
-"""
-
-
-def test_auction_until_must_be_boolean() -> None:
-    # The `until` termination is a predicate; a non-Boolean (here Integer `1`)
-    # would silently fall back to Python truthiness at runtime, so it is a
-    # type error.
-    with pytest.raises(DiagnosticError, match="`until` condition must be Boolean"):
-        check_dsl(AUCTION_NON_BOOLEAN_UNTIL, "t.cardlang")
-
-
 PARAM_NAME_COLLIDES_WITH_STATE = """
 game G {
   players: 2
@@ -225,7 +152,7 @@ def test_move_param_scopes_to_its_move_both_directions() -> None:
     assert outside and all(r.ref_kind == "state_var" for r in outside)
 
 
-AUCTION_NO_LEGAL_MOVE = """
+RING_NO_LEGAL_MOVE = """
 game G {
   players: 2
   max_length: 1000
@@ -233,8 +160,9 @@ game G {
   zones { deck : Deck  hand[player] : Hand<player> }
   state { passes : Integer = 0  score[player] : Integer = 0 }
   phase bid {
-    round offering [never] from 0 over all players until (passes >= 99)
-          outcome bridge_auction_outcome
+    turns t from 0 over all players until (passes >= 99) {
+      offer to t one of [never]
+    }
   }
   winner: highest score
 }
@@ -242,12 +170,12 @@ move_type never { when: false  effect { passes += 1 } }
 """
 
 
-def test_auction_with_no_legal_move_raises() -> None:
-    # An auction participant offered a turn with nothing legal must raise — the
-    # same fail-loud contract as `offer`, but in run_auction's ring (no silent
-    # skip). Distinct code path from test_offer_with_no_legal_move_raises.
-    with pytest.raises(OwnerGuardError, match="has no legal move"):
-        _run(AUCTION_NO_LEGAL_MOVE)
+def test_ring_with_no_legal_move_raises() -> None:
+    # A seat a ring offers a turn with nothing legal must raise — `offer`'s
+    # fail-loud contract, reached through the ring rather than silently
+    # skipped. The ring itself never invents a move.
+    with pytest.raises(OwnerGuardError, match="none of \\['never'\\] is legal"):
+        _run(RING_NO_LEGAL_MOVE)
 
 
 OFFER_OF_PARAMETERIZED_MOVE = """
@@ -266,7 +194,7 @@ move_type pick(strain : Suit?) { effect { picked[actor] := strain } }
 
 def test_offer_of_parameterized_move_is_accepted() -> None:
     # `offer`'s runtime execution folds a parameterized move's domain through
-    # the same `concrete_moves`/`bind_params` machinery as the auction form
+    # the `concrete_moves`/`bind_params` machinery
     # (execute.py `_offer`), so a move whose parameter is a fixed-from-type
     # domain (here `Suit?`) resolves and runs cleanly rather than being
     # rejected outright — no opaque runtime KeyError on the bound param. The

@@ -113,7 +113,7 @@ are trumps). Every queen and jack is a trump, so plain suits have no Q or J.
 - **The "at any time" window is the quiescence-lap poll** settled in
   [decisions.md](../decisions.md) "Off-the-clock windows": before every
   card decision, while the public gate `window_open()` holds (hand counts
-  and the ladder — public information only), an offering round walks the
+  and the ladder — public information only), a `turns` ring walks the
   ring from the player about to act; each player submits an announcement or
   `no_announcement`, and four consecutive declines close the poll. A player
   with no legal announcement submits the same public `no_announcement` as a

@@ -100,7 +100,6 @@ def test_the_derived_universe_holds_every_home_registry() -> None:
     assert {
         "PRIMITIVE_CALL_FUNCS",
         "PRIMITIVE_TRICK_WINNERS",
-        "PRIMITIVE_AUCTION_OUTCOMES",
         "PRIMITIVE_EARLY_PREDICATES",
         "PRIMITIVE_CLIMB_LEADS",
         "PRIMITIVE_CLIMB_FOLLOWS",

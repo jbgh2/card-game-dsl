@@ -2,8 +2,8 @@
 
 Harness configuration rationale:
 
-- `depth=2`: the greedy `legal[0]` line is `check, check` (the first street
-  closes), then the board card is dealt and `check, check` again — four
+- `depth=2`: the greedy `legal[0]` line is `bet, call` (the first street
+  closes), then the board card is dealt and `bet, call` again — four
   actions to TerminalNode. Depth 2 therefore pauses on P0's SECOND-street
   decision, which is both what the 2-player swap branch needs (`p == d0`,
   P0 opening both streets) and the interesting pause: a real street has
@@ -20,8 +20,8 @@ Harness configuration rationale:
 - `adapter_terminal_steps=10`: the greedy line reaches TerminalNode in 4 steps.
 
 `test_adapter_agrees_over_two_whole_leduc_deals` below extends the harness's
-single greedy line to every node of two complete deals — the check-heavy
-line the harness walks never exercises a raise, a fold, or a paired board.
+single greedy line to every node of two complete deals — the line the
+harness walks never exercises a raise, a fold, or a paired board.
 """
 
 import random
@@ -208,7 +208,7 @@ def test_the_board_is_public_and_a_folded_card_is_not() -> None:
 
 def test_adapter_agrees_over_two_whole_leduc_deals() -> None:
     """The harness's adapter proof walks one greedy line, which in Leduc is
-    four checks: no raise, no fold, no paired board. This walks EVERY node of
+    a bet and a call on each street: no raise, no fold, no paired board. This walks EVERY node of
     two complete deals — a paired one and an unpaired one — comparing the
     registered pyspiel game and the DSL replay on the current player, the
     legal actions, both players' information-state strings, and the terminal

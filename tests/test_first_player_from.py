@@ -29,7 +29,7 @@ domain:    match position (at-start / mid-lap / wrap-to-last / composed
            emptiness, or-compound, nested card query, nested shadowing
            player query, call, non-Boolean, absorbed offset_by) x host
            (assignment, let, if-expression arm, lvalue index, turns from,
-           auction/trick round from [parse shape], transfer amount, state
+           trick round from [parse shape], transfer amount, state
            default at setup, function body, library function body, choose
            bounds, piece game, postfix composition) x consuming layer
            (parse, resolve, typecheck, IR, evaluate) — plus the misuse
@@ -52,7 +52,7 @@ registry:  the kind axis derives from the grammar's `player_query` aliases
            productions (the framing-check enumeration on issue #249, both
            runs).
            The round `from` slots end to end: docs/games/holdem.cardlang
-           (its four `round offering ... from the first player ...` sites)
+           (its four `run betting_street(the first player ...)` sites)
            and tests/test_playout_holdem.py. The gradual-operand class:
            tests/test_operator_guards.py.
 does not prove:  four things. (1) That every expression HOST reaches the
@@ -62,7 +62,7 @@ does not prove:  four things. (1) That every expression HOST reaches the
            one evaluator arm, and every host funnels through the same
            `_check_expr`/`evaluate` walk, so the hosts probed here stand for
            it — a host that stopped funnelling would not surface. (2) That
-           the auction- and trick-round `from` slots EVALUATE correctly:
+           the trick-round `from` slot EVALUATES correctly:
            this grid pins their parse shape, and what runs them end to end
            is the hold'em corpus file and its playout suite. (3) That the
            result is consumed correctly by `is`/`in`/`team_of`/a zone
@@ -73,7 +73,7 @@ does not prove:  four things. (1) That every expression HOST reaches the
            start slot is silently seat 1/0 — `turn_order_from`'s membership
            guard accepts `True == 1` — a standing gradual class owned by that
            Owner Guard, shared by every `from` clause
-           (turns/round/auction/climb), so a check in this form's arm would
+           (turns/round/climb), so a check in this form's arm would
            be a Shadow Guard. A `TAny` operand in an `or`/`and` predicate is
            refused by `_check_logical_operands`, and concrete non-Boolean
            operands are rejected by the operator guards
@@ -592,26 +592,6 @@ def test_turns_from_host_runs_end_to_end() -> None:
     assert _scores(src)[2] == 1
 
 
-def test_auction_round_from_parse_shape() -> None:
-    # The auction `from` slot fences at `over` (hold'em's four street
-    # openers are the end-to-end witnesses through the corpus suite).
-    game = parse_text(
-        _game(
-            """
-        round offering [bid_a, bid_b] from the first player from seat where mark[player]
-              over players where mark[player]
-              until true
-        """
-        ),
-        "t.dsl",
-    )
-    stmt = next(s for s in game.phases[0].items if isinstance(s, n.AuctionRound))
-    assert isinstance(stmt.leader, n.PlayerQuery)
-    assert stmt.leader.kind == "first_from"
-    assert isinstance(stmt.participants, n.PlayerQuery)
-    assert stmt.participants.kind == "set"
-
-
 def test_trick_round_from_parse_shape() -> None:
     game = parse_text(
         _game(
@@ -849,8 +829,6 @@ def test_adjacency_sentences_parse_at_zero_ambiguity() -> None:
     sentences = [
         "seat := the first player from seat offset_by left where mark[player] and hand[player] is not empty",
         "seat := the first player from seat where mark[player] or mark2[player]",
-        """round offering [bid_a, bid_b] from the first player from seat offset_by left where mark[player]
-              over players where mark[player] until true""",
         "turns t from the first player from seat where mark[player] over all players until true { seat := t }",
         "move the first player from seat where mark[player] cards from hand[0] to hand[1]",
         """round t from the first player from seat where mark[player] over players where mark[player]

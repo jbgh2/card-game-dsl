@@ -188,27 +188,3 @@ def test_probe_wrong_param_type_is_a_typecheck_error() -> None:
     text = src.replace("belote_decl_size(p)", "belote_decl_size(trump_suit)")
     assert text != src
     _expect_rejected(text, r"belote_decl_size\(\) expects Player, got Suit\?")
-
-
-def test_probe_trick_winner_fn_on_an_auction_round_is_rejected() -> None:
-    src = BELOTE.read_text()
-    anchor = "until (number of players where not decl_acted[player]) is 0"
-    text = src.replace(
-        anchor, anchor + "\n                outcome highest_by_trick_order", 1
-    )
-    assert text != src
-    _expect_rejected(
-        text,
-        "auction round outcome 'highest_by_trick_order' is not an auction outcome",
-    )
-
-
-def test_probe_auction_outcome_on_the_trick_round_is_rejected() -> None:
-    src = BELOTE.read_text()
-    text = src.replace(
-        "winner highest_by_trick_order", "winner tarot_auction_outcome"
-    )
-    assert text != src
-    _expect_rejected(
-        text, "trick round winner 'tarot_auction_outcome' is not a trick winner function"
-    )

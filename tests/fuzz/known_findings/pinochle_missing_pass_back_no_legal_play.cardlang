@@ -179,7 +179,9 @@ game Pinochle {
       legal_moves:  [declare_trump_suit, play_to_trick]
 
       state {
+        passes_done : Integer = 0
         thrown_in   : Boolean = false
+        decided     : Boolean = false
         show_k      : Integer = 0
       }
 
@@ -190,7 +192,6 @@ game Pinochle {
       // The exchange: the declarer's partner passes four across, then the
       // declarer passes four back, which may include cards just received.
       offer to high_bidder offset_by across one of [pass_four]
-      offer to high_bidder one of [pass_four]
 
       // Meld is forced (a rational player melds everything) — a pure
       // computation per player, credited to his team — and it is laid FACE UP,
@@ -356,6 +357,7 @@ move_type declare_trump_suit(s : Suit) {
 move_type pass_four {
   effect {
     move chosen 4 cards from hand[actor] to hand[actor offset_by across]
+    passes_done := passes_done + 1
   }
 }
 
@@ -365,11 +367,11 @@ move_type pass_four {
 // tricks.
 move_type throw_in {
   concession
-  effect { thrown_in := true }
+  effect { thrown_in := true  decided := true }
 }
 
 move_type play_on {
-  effect { }
+  effect { decided := true }
 }
 
 // === Pinochle strict-trick legality (rule DSL) ===
