@@ -194,6 +194,13 @@ a new game reddens them rather than going quietly uncovered.
   running a flag-gated window: its entry vocabulary, its window-scoped
   variables with their idle values, and the complementary persistent set.
   Its membership check is a bare set comparison too.
+- **`REFUSALS`** (`tests/openspiel_ready/test_ismcts.py`) — for a game
+  OpenSpiel's determinizing solvers cannot yet search: the refusal its
+  [Constructed World](glossary/constructed-world.md) raises and the issue
+  that removes it. Every other game must resample in that module's corpus
+  sweep, so a new game either searches under IS-MCTS on arrival or is
+  pinned here by decision; an unpinned refusal fails naming the game, and
+  an entry whose game resamples fails naming the entry to drop.
 - **`ROUNDS`, `NO_DECISION_OUTSIDE`, `NO_BOOKKEEPING`**
   (`tests/test_offering_round_state_freshness.py`) — for a game running an
   ring (a `turns` ring or a `repeat until` whose turn is one
