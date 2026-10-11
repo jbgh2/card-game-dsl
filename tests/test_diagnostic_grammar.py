@@ -20,7 +20,8 @@ domain:     the compiled main grammar's rules and terminals (the first two
             directions); the corpus, library and stdlib globs (the
             never-reached pin); the holders of a predicate resolve's `always`
             table names (`resolve.ALWAYS_HOLDERS`), crossed with
-            {declared, undeclared} x {whole predicate, operand}.
+            {declared, undeclared} x {whole predicate, operand} x {written in
+            the game, written in a family library}.
 registry:   `cardlang.parse._parser()` (main), `cardlang.parse._diagnostic_parser()`
             (composed), `cardlang.parse.DIAGNOSTIC_GRAMMAR` (the file),
             `tools.dead_surface.refusing_methods` over `cardlang.parse._Builder`,
@@ -39,15 +40,18 @@ does not prove:  that a twin fires for a file holding a twin's slip AND a
 
 from __future__ import annotations
 
+import dataclasses
 import pathlib
 import re
 
 import pytest
 
 from cardlang import parse as parse_module
+from cardlang import resolve as resolve_module
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import _Builder, _parser, parse_text
 from cardlang.pipeline import check_dsl
+from cardlang.resolve import ALWAYS_HOLDERS
 from tools.dead_surface import default_sources, refusing_methods
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -171,17 +175,95 @@ def test_a_declared_always_is_a_condition_like_any_other() -> None:
     assert game.move_types[0].when is not None
 
 
-def test_an_undeclared_always_standing_alone_is_told_to_leave_the_clause_out() -> None:
+# One sentence per holder clause, in the game and in a family library the game
+# uses; `{pred}` is the predicate, `{declared}` a state row declaring `always`.
+# A rule is consulted at the trick round's card decision alone, so the rule
+# holder's game and host carry one; the trick-free move-type holder stays on
+# `_ALWAYS_GAME`.
+_TRICK_GAME = """\
+game G {{
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {{ deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }}
+  state {{ score[player] : Integer = 0{declared} }}
+  phase play {{
+    deal 3 cards from deck to each hand
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_of_led_suit
+  }}
+  winner: highest score
+}}
+"""
+_GAME_HOLDERS: dict[str, str] = {
+    "when:": _ALWAYS_GAME,
+    "applies_when:": _TRICK_GAME + (
+        "rule R {{\n  constrains: play_to_trick\n  applies_when: {pred}\n"
+        "  demands: cards in hand where card.suit is hearts\n  if_impossible: hand\n}}\n"
+    ),
+}
+_LIBRARY_HOST = _TRICK_GAME.format(declared="  declared_thing : Integer = 0").replace(
+    "game G {\n", "game H {\n  uses leaky\n"
+)
+_LIBRARY_HOLDERS: dict[str, str] = {
+    "when:": "library leaky {{ requires {{ declared_thing : Integer }} state {{{declared} }}\n"
+             "  move_type m {{ when: {pred}  effect {{ declared_thing := 1 }} }} }}",
+    "applies_when:": "library leaky {{ requires {{ declared_thing : Integer  hand[player] : Hand<player> }}"
+                     " state {{{declared} }}\n"
+                     "  rule R {{ constrains: play_to_trick  applies_when: {pred}"
+                     "  demands: cards in hand where declared_thing is 0  if_impossible: hand }} }}",
+}
+
+
+def _check_with_library(library_text: str, monkeypatch: pytest.MonkeyPatch) -> object:
+    library = parse_module.parse_library(library_text, "docs/libraries/leaky.cardlang")
+    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"leaky"}))
+    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    return check_dsl(_LIBRARY_HOST, "h.cardlang")
+
+
+def test_every_holder_has_a_game_and_a_library_sentence() -> None:
+    assert set(_GAME_HOLDERS) == set(ALWAYS_HOLDERS) == set(_LIBRARY_HOLDERS)
+
+
+@pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
+def test_an_undeclared_always_standing_alone_is_told_to_leave_the_clause_out(clause: str) -> None:
     """Resolve's refusal, in the builder's words, for every holder the table
     names. Red under: dropping the `always` arm from resolve."""
-    for clause, holder, pred in (
-        ("when:", "a move type that is always legal", "always"),
-    ):
-        with pytest.raises(DiagnosticError) as exc:
-            check_dsl(_ALWAYS_GAME.format(declared="", pred=pred), "g.cardlang")
-        assert exc.value.diagnostic.message == (
-            f"`always` is not a condition — {holder} has no `{clause}` line; leave it out"
-        )
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_GAME_HOLDERS[clause].format(declared="", pred="always"), "g.cardlang")
+    assert exc.value.diagnostic.message == (
+        f"`always` is not a condition — {ALWAYS_HOLDERS[clause]} has no `{clause}` line; leave it out"
+    )
+
+
+@pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
+def test_an_undeclared_always_in_a_library_clause_is_refused_to_the_library_author(
+    clause: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same words, located in the library file: the library walk reads the
+    refusal off the classified tree instead of reporting a read past the
+    contract. Red under: dropping `always_refused` from `_library_reach`."""
+    with pytest.raises(DiagnosticError) as exc:
+        _check_with_library(_LIBRARY_HOLDERS[clause].format(declared="", pred="always"), monkeypatch)
+    diagnostic = exc.value.diagnostic
+    assert diagnostic.message == (
+        f"`always` is not a condition — {ALWAYS_HOLDERS[clause]} has no `{clause}` line; leave it out"
+    )
+    assert diagnostic.span is not None and diagnostic.span.source_name == "docs/libraries/leaky.cardlang"
+    assert "requires" not in str(exc.value)
+
+
+@pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
+def test_a_library_declaring_always_reads_it_as_a_condition(
+    clause: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Red under: the library walk refusing every bare `always` rather than
+    the unclassified one."""
+    _check_with_library(
+        _LIBRARY_HOLDERS[clause].format(declared=" always : Boolean = true", pred="always"), monkeypatch
+    )
 
 
 def test_an_undeclared_always_as_an_operand_is_an_ordinary_unresolved_name() -> None:
@@ -194,8 +276,10 @@ def test_an_undeclared_always_as_an_operand_is_an_ordinary_unresolved_name() -> 
 
 def test_every_always_holder_in_the_table_has_a_teaching_sentence() -> None:
     """The holders resolve names are exactly the clauses the orphaned-surface
-    pin drives (`tests/test_orphaned_surface_retired.py`, `_ALWAYS_SENTENCES`)."""
-    from cardlang.resolve import ALWAYS_HOLDERS
+    pin drives (`tests/test_orphaned_surface_retired.py`, `_ALWAYS_SENTENCES`),
+    and each site's field is a field of its node."""
     from tests.test_orphaned_surface_retired import _ALWAYS_SENTENCES
 
     assert set(ALWAYS_HOLDERS) == {clause for _, clause in _ALWAYS_SENTENCES.values()}
+    for node_type, site in resolve_module._ALWAYS_SITES.items():
+        assert site.field in {f.name for f in dataclasses.fields(node_type)}

@@ -193,7 +193,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import assert_never, cast, get_args
+from typing import assert_never, cast, get_args, TypeGuard
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
@@ -1776,6 +1776,9 @@ class _LibraryReach:
     slot_leaks: tuple[_SlotLeak, ...]
     state_reads: frozenset[str]
     zone_reads: frozenset[str]
+    #: An undeclared `always` standing as a whole predicate, with its clause:
+    #: refused in the clause's own words, never as a read past the contract.
+    always_refused: tuple[tuple[n.NameRef, str], ...]
     move_type_reads: frozenset[str]
 
 
@@ -1839,13 +1842,27 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     # contract into the game exactly as a move-type effect would.
     classified.append(_rewrite_value(provided_state, cats, discarded))
 
+    # `_rewrite` leaves a refused `always` unclassified and reports it to the
+    # bag thrown away above; the holder table says where it stands, and the
+    # unstamped predicate at such a site is the refusal, read back here.
+    always_refused: list[tuple[n.NameRef, str]] = []
+    for node in _child_nodes(tuple(classified)):
+        site = _ALWAYS_SITES.get(type(node))
+        if site is None:
+            continue
+        pred = getattr(node, site.field)
+        if _is_bare_always(pred) and pred.ref_kind is None:
+            always_refused.append((pred, site.clause))
+    refused_spans = {ref.span for ref, _ in always_refused}
+
     unresolved: list[n.NameRef] = []
     state_reads: set[str] = set()
     zone_reads: set[str] = set()
     for node in _child_nodes(tuple(classified)):
         if isinstance(node, n.NameRef):
             if node.ref_kind is None:
-                unresolved.append(node)
+                if node.span not in refused_spans:
+                    unresolved.append(node)
             elif node.ref_kind == "state_var":
                 state_reads.add(node.name)
             elif node.ref_kind == "zone":
@@ -1880,6 +1897,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         state_reads=frozenset(state_reads) | slot_reads,
         zone_reads=frozenset(zone_reads) | slot_zone_reads,
         move_type_reads=slot_move_reads,
+        always_refused=tuple(always_refused),
     )
 
 
@@ -1984,6 +2002,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     available "fix" — declaring the extra name — is the accident that hid the
     leak in the first place."""
     reach = _library_reach(library)
+    for ref, clause in reach.always_refused:
+        bag.error(_always_message(clause), ref.span)
     for ref in reach.unresolved:
         if ref.name in VALUE_NAMES:
             bag.error(_callback_outside_slot(ref.name), ref.span)
@@ -7253,33 +7273,55 @@ def _callback_outside_slot(name: str) -> str:
     )
 
 
-#: The clauses whose whole predicate a designer writes as `always`, each with
-#: the holder its refusal names. A clause that holds unconditionally is
-#: written by leaving the clause out, so the wildcard is a second spelling of
-#: an omission and is refused with that fix. Everywhere else `always` is an
-#: ordinary name: declared, a condition like any other; undeclared as an
-#: operand, an unresolved name.
-ALWAYS_HOLDERS: dict[str, str] = {
-    "applies_when:": "a rule that applies every time",
-    "when:": "a move type that is always legal",
+@dataclass(frozen=True)
+class _AlwaysSite:
+    """A clause whose whole predicate a designer writes as `always`: the node
+    field holding the predicate, the clause spelling, and the holder the
+    refusal names."""
+
+    field: str
+    clause: str
+    holder: str
+
+
+#: The clauses whose whole predicate a designer writes as `always`, by holder
+#: node. A clause that holds unconditionally is written by leaving the clause
+#: out, so the wildcard is a second spelling of an omission and is refused
+#: with that fix — by `_rewrite` where it classifies the predicate, and by
+#: `_library_reach`, which reads the refusal off the classified tree so a
+#: library's clause is refused in the same words rather than reported as a
+#: read past the contract. Everywhere else `always` is an ordinary name:
+#: declared, a condition like any other; undeclared as an operand, an
+#: unresolved name.
+_ALWAYS_SITES: dict[type, _AlwaysSite] = {
+    n.AppliesWhen: _AlwaysSite("pred", "applies_when:", "a rule that applies every time"),
+    n.MoveTypeDef: _AlwaysSite("when", "when:", "a move type that is always legal"),
 }
+ALWAYS_HOLDERS: dict[str, str] = {site.clause: site.holder for site in _ALWAYS_SITES.values()}
+
+
+def _always_message(clause: str) -> str:
+    return f"`always` is not a condition — {ALWAYS_HOLDERS[clause]} has no `{clause}` line; leave it out"
+
+
+def _is_bare_always(pred: object) -> TypeGuard[n.NameRef]:
+    return isinstance(pred, n.NameRef) and pred.name == "always"
 
 
 def _refuse_bare_always(pred: object, clause: str, cats: _Categories, bag: DiagnosticBag) -> bool:
     """Record the refusal for an undeclared `always` standing as the whole
     predicate of `clause`; True when it fired, so the caller leaves the
     predicate unrewritten rather than reporting it unresolved as well."""
-    if not (isinstance(pred, n.NameRef) and pred.name == "always" and _classify(pred.name, cats) is None):
+    if not (_is_bare_always(pred) and _classify("always", cats) is None):
         return False
-    bag.error(
-        f"`always` is not a condition — {ALWAYS_HOLDERS[clause]} has no `{clause}` line; leave it out",
-        pred.span,
-    )
+    bag.error(_always_message(clause), pred.span)
     return True
 
 
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
-    if isinstance(node, n.AppliesWhen) and _refuse_bare_always(node.pred, "applies_when:", cats, bag):
+    if isinstance(node, n.AppliesWhen) and _refuse_bare_always(
+        node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
+    ):
         return node
     if isinstance(node, n.NameRef):
         kind = _classify(node.name, cats)
@@ -7321,7 +7363,8 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         )
         when_pred = (
             node.when
-            if node.when is None or _refuse_bare_always(node.when, "when:", scoped, bag)
+            if node.when is None
+            or _refuse_bare_always(node.when, _ALWAYS_SITES[n.MoveTypeDef].clause, scoped, bag)
             else _rewrite_value(node.when, scoped, bag)
         )
         # `_rewrite_value` (not a bare per-item `_rewrite` map): a `let` in a
