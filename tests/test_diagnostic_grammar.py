@@ -359,6 +359,23 @@ def test_an_undeclared_always_in_a_library_clause_is_refused_to_the_library_auth
 
 
 @pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
+def test_a_library_defining_always_is_not_told_to_leave_the_clause_out(
+    clause: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A library function named `always`, read without its call, is no omission
+    there either: the library walk keeps the refusal `_rewrite` recorded and
+    never reconstructs one from an unclassified predicate. Red under: reading
+    the refusal off the classified tree instead of the walk's bag."""
+    library = _LIBRARY_HOLDERS[clause].format(declared="", pred="always").replace(
+        "library leaky {", "library leaky { function always() = true ", 1
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        _check_with_library(library, monkeypatch)
+    assert "leave it out" not in str(exc.value)
+    assert "reads 'always'" in str(exc.value)
+
+
+@pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
 def test_a_library_declaring_always_reads_it_as_a_condition(
     clause: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

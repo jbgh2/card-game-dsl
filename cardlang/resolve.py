@@ -253,7 +253,7 @@ from cardlang.primitives_block import (
     walled_namespace_of,
 )
 from cardlang import primitives_block
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
+from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import (
     CARD_AXIS_ROLES,
     CARD_PARAM_DOMAINS,
@@ -1780,9 +1780,10 @@ class _LibraryReach:
     slot_leaks: tuple[_SlotLeak, ...]
     state_reads: frozenset[str]
     zone_reads: frozenset[str]
-    #: An undeclared `always` standing as a whole predicate, with its clause:
-    #: refused in the clause's own words, never as a read past the contract.
-    always_refused: tuple[tuple[n.NameRef, str], ...]
+    #: The refusals `_rewrite` records for an undeclared `always` standing as
+    #: a whole predicate: the clause's own words, never a read past the
+    #: contract.
+    always_refused: tuple[Diagnostic, ...]
     move_type_reads: frozenset[str]
 
 
@@ -1833,32 +1834,26 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         definitions=frozenset(d.name for field, _ in _LIBRARY_DEF_KINDS for d in getattr(library, field)),
     )
     # `_rewrite` both classifies and reports, and its report ("unresolved name
-    # 'x'") is the GAME's author — the wrong one here — so the bag is thrown
-    # away and the classified TREE is read instead. Reading `ref_kind` is the
-    # sanctioned use of what this pass stamps (see the module Contract), not a
-    # re-derivation: which names a body binds, and where, stays the property of
-    # `_introduced_binders` and `_BINDER_SCOPE_FIELDS` alone.
-    discarded = DiagnosticBag()
+    # 'x'") is the GAME's author — the wrong one here — so that report is
+    # dropped and the classified TREE is read instead. Reading `ref_kind` is
+    # the sanctioned use of what this pass stamps (see the module Contract),
+    # not a re-derivation: which names a body binds, and where, stays the
+    # property of `_introduced_binders` and `_BINDER_SCOPE_FIELDS` alone. The
+    # one report that stands wherever the clause is written — the `always`
+    # refusal, whose words are the clause author's — is kept as `_rewrite`
+    # recorded it, so whether it fired is never reconstructed here.
+    collected = DiagnosticBag()
     classified: list[object] = []
     for field, _ in _LIBRARY_DEF_KINDS:
-        classified.append(_rewrite_value(getattr(library, field), cats, discarded))
+        classified.append(_rewrite_value(getattr(library, field), cats, collected))
     # A provided variable's DEFAULT is an expression like any other, so it can
     # leak like any other — `limit : Integer = house_rule` would reach past the
     # contract into the game exactly as a move-type effect would.
-    classified.append(_rewrite_value(provided_state, cats, discarded))
+    classified.append(_rewrite_value(provided_state, cats, collected))
 
-    # `_rewrite` leaves a refused `always` unclassified and reports it to the
-    # bag thrown away above; the holder table says where it stands, and the
-    # unstamped predicate at such a site is the refusal, read back here.
-    always_refused: list[tuple[n.NameRef, str]] = []
-    for node in _child_nodes(tuple(classified)):
-        site = _ALWAYS_SITES.get(type(node))
-        if site is None:
-            continue
-        pred = getattr(node, site.field)
-        if _is_bare_always(pred) and pred.ref_kind is None:
-            always_refused.append((pred, site.clause))
-    refused_spans = {ref.span for ref, _ in always_refused}
+    teaching = {_always_message(clause) for clause in ALWAYS_HOLDERS}
+    always_refused = tuple(d for d in collected.items if d.message in teaching)
+    refused_spans = {d.span for d in always_refused}
 
     unresolved: list[n.NameRef] = []
     state_reads: set[str] = set()
@@ -1902,7 +1897,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         state_reads=frozenset(state_reads) | slot_reads,
         zone_reads=frozenset(zone_reads) | slot_zone_reads,
         move_type_reads=slot_move_reads,
-        always_refused=tuple(always_refused),
+        always_refused=always_refused,
     )
 
 
@@ -2007,8 +2002,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     available "fix" — declaring the extra name — is the accident that hid the
     leak in the first place."""
     reach = _library_reach(library)
-    for ref, clause in reach.always_refused:
-        bag.error(_always_message(clause), ref.span)
+    for refusal in reach.always_refused:
+        bag.error(refusal.message, refusal.span)
     for ref in reach.unresolved:
         if ref.name in VALUE_NAMES:
             bag.error(_callback_outside_slot(ref.name), ref.span)
