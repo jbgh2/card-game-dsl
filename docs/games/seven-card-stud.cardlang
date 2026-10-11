@@ -54,12 +54,12 @@
 //
 // Antes, the deal, the bring-in post, the five streets, and the showdown (a
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
-// statements; the bring-in / best-showing seat selectors and the `pot_share`
-// side-pot query are Primitives (argmin over door cards; argmax over the
-// showing-hand order and over poker-rank tuples). The poker evaluator is
-// unit-tested. Chips are plain integers.
+// statements, and so are the seats the streets open on: the lowest door card
+// and the best hand showing come from the family library `stud`. Only the
+// `pot_share` side-pot query is a Primitive (argmax over poker-rank tuples).
+// The poker evaluator is unit-tested. Chips are plain integers.
 //
-// Both selectors are anchored on the CARDS, never on the chips: a seat left
+// Both seats are anchored on the CARDS, never on the chips: a seat left
 // with nothing by the ante still shows a door card and can be the bring-in, and
 // an all-in seat can hold the best board a later street opens on. What such a
 // seat posts is what it has, and the round's own `pending` filter walks the
@@ -99,6 +99,12 @@ game SevenCardStud {
   // folder's upcards, which is a fact about Stud's zones, not about betting.
   uses poker_betting
 
+  // Who brings in and who opens each later street is Stud's, shared with
+  // Five-Card Stud (docs/libraries/stud.cardlang): `bring_in_seat()` is the
+  // lowest door card, `best_showing_seat()` the best hand showing, and
+  // `shows_pair` the open-pair test below.
+  uses stud
+
   players: 4
   direction: clockwise
   max_length: 30000
@@ -107,23 +113,15 @@ game SevenCardStud {
   ranking: aces high
 
   // What this game borrows from outside the DSL, implemented in
-  // `cardlang/runtime/stud.py`: the door-card seat selectors and the
-  // showdown's side-pot query. Each entry declares what its own implementation
-  // consults, so the clauses differ — the bring-in is chosen before anyone can
-  // fold, and the settlement reads no stack, because what it returns is what
-  // moves one.
+  // `cardlang/runtime/stud.py`: the showdown's side-pot query. The entry
+  // declares what its implementation consults, and it reads no stack, because
+  // what it returns is what moves one.
   //
   // `committed`, `folded` and `in_hand` are declared by `phase play`, not by
-  // the game, so a read of one names that phase. The tail rides the READ, not
-  // the clause: `stack` is game-level and carries none. Naming the phase also
+  // the game, so a read of one names that phase. Naming the phase also
   // promises what the resolver then checks — an entry reading `in play` is
-  // called only where `play` is running, which here is the phase's own body
-  // and the streets' round configurations.
+  // called only where `play` is running, which here is the phase's own body.
   primitives {
-    bring_in_seat() : Player
-        reads upcards
-    best_showing_seat() : Player
-        reads folded in play, upcards
     pot_share(p : Player) : Integer
         reads committed in play, folded in play, in_hand in play, hole, upcards
   }
@@ -359,11 +357,3 @@ move_type fold {
     move all cards from upcards[actor] to muck
   }
 }
-
-// Does this seat show a pair or better among its face-up cards? Two face-up
-// cards of a rank is a pair showing; three is trips, which is "or better" and
-// the same test. A folder's up cards are already in the muck, so this cannot
-// see them. Factored as a function so the rank binder does not nest inside the
-// player binder.
-function up_rank_count(p : Player, r : Rank) = number of cards in upcards[p] where card.rank is r
-function shows_pair(p : Player) = any rank where up_rank_count(p, rank) >= 2

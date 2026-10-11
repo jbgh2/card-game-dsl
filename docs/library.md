@@ -375,8 +375,9 @@ in tests/test_trump_slot_class.py.
   library's own provided intra-street bookkeeping; action-legality is the
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in seat and the
-  seat a street opens on come from the `bring_in_seat()` / `best_showing_seat()`
-  Primitive selectors. `fold` is each game's own, because where a folder's
+  seat a street opens on come from the `stud` family library's
+  `bring_in_seat()` / `best_showing_seat()`, functions over the public
+  `upcards`. `fold` is each game's own, because where a folder's
   cards go is a fact about the game's zones, and the library contracts for
   it (`requires { fold : Move }`) so its street can offer it.
   A whole street, verbatim from

@@ -1,0 +1,105 @@
+// The Stud family — what the stud games share beyond their betting, which is
+// `poker_betting`'s: the order in which Stud reads a seat's face-up cards, and
+// the two seats that order chooses. "The player showing the lowest card brings
+// in, and the best hand showing opens every later street" is the rulebook
+// sentence a game's `uses stud` line stands in for, and this file is that
+// sentence written out.
+//
+// BOTH SEATS ARE READ OFF THE CARDS, NEVER OFF THE CHIPS. A seat the ante left
+// with nothing is still an entrant, is still dealt a door card, and can be the
+// bring-in: the rule anchors the street on "the player showing the lowest card",
+// whoever can pay, and what such a seat posts is what it has. An all-in seat
+// keeps taking exposed cards and can hold the best board on a later street:
+// the street is anchored there all the same, and the betting round's own
+// `pending` filter walks the action to the first seat clockwise that can act.
+// Filtering on chips here would anchor on a different seat and give a
+// different ring order. A seat that never entered the hand was dealt no cards
+// and a folder's up cards are in the muck, so "holds cards face up" is exactly
+// the membership both selectors need.
+//
+// Every card in the deck is distinct, so no two seats tie under either order:
+// each selector names exactly one seat, which is what `the player where` asks.
+
+library stud {
+
+  // The seats' face-up cards are what both orders read; a folder is out of
+  // the hand even before its cards reach the muck. A zone type fixes the
+  // per-observer projection, and `PublicHand` is the one these orders are
+  // written against: they read only what every seat sees, so the seat each
+  // one names is public too.
+  requires {
+    upcards[player] : PublicHand<player>
+    folded[player]  : Boolean
+  }
+
+  // How many cards of rank `r` seat `p` shows.
+  function up_rank_count(p : Player, r : Rank) = number of cards in upcards[p] where card.rank is r
+
+  // Does this seat show a pair or better among its face-up cards? Two face-up
+  // cards of a rank is a pair showing; three is trips, which is "or better" and
+  // the same test. A folder's up cards are already in the muck, so this cannot
+  // see them. Factored as a function so the rank binder does not nest inside the
+  // player binder.
+  function shows_pair(p : Player) = any rank where up_rank_count(p, rank) >= 2
+
+  // A single card's place in Stud's order: rank first, under the game's
+  // `ranking:`, then suit — clubs (low), diamonds, hearts, spades (high). That
+  // suit order is the bidding order of the strains, so `strain_index` reads it
+  // and the library names no suit of its own.
+  function card_order(c : Card) = 4 * rank_value(c) + strain_index(c.suit)
+
+  // THE BRING-IN: "a compulsory (bring-in) bet by the player showing the
+  // lowest card", ties broken by suit. The door card is the seat's first face-up
+  // card; at the bring-in it is the only one.
+  function door_order(p : Player) = card_order(bottom_of(upcards[p]))
+  function no_lower_door(door : Integer) = all players where upcards[player] is empty or door_order(player) >= door
+  function bring_in_seat() = the player where upcards[player] is not empty and no_lower_door(door_order(player))
+
+  // THE BEST HAND SHOWING, which opens every street after the bring-in's.
+  // Pagat, Five Card Stud (https://www.pagat.com/poker/variants/5stud.html):
+  // "pairs, triplets, two pairs and quads count in their normal poker order -
+  // so for example with three cards showing 3-3-3 is higher than 7-7-8, which
+  // is higher than A-K-Q. Incomplete straights and flushes do not count. If
+  // there is a tie it is resolved by comparing the suits of the highest cards
+  // in the tied hands using the ranking order clubs (low), diamonds, hearts,
+  // spades (high)."
+  //
+  // `showing_order` packs that comparison into one number, three parts in the
+  // order poker reads them, each in digits the part before it cannot reach:
+  //
+  //   1. The SHAPE alone, because the class outranks every card inside it: two
+  //      pair of sixes and fives beats a pair of sevens, whatever the kickers.
+  //      `matching` counts, for every card, the cards of its rank showing
+  //      (itself included) — a lone card adds 1, a pair 4, trips 9, quads 16.
+  //      Every board on a street holds the same number of cards, and over a
+  //      fixed number of cards up to five that sum orders the shapes exactly as
+  //      poker does: high card, pair, two pair, trips, full house, quads.
+  //   2. The RANKS, groups first: a pair's rank is read before its kickers, and
+  //      within a group the higher rank first. A card's `standing` is its
+  //      group's size and then its rank, and the cards standing above it fix
+  //      its place — four places, one per card a Stud board shows face up. Two
+  //      boards of one shape hold their groups in the same places, so the
+  //      places compare rank by rank.
+  //   3. The SUIT of the highest card. Boards that agree on shape and ranks
+  //      hold the same ranks, so the highest card's rank ties and its suit
+  //      decides.
+  //
+  // This is Stud's own order, not the five-card poker evaluator's: that one
+  // counts the straights and flushes this one does not, and takes five cards
+  // where a street may show as few as two.
+  function showing(p : Player) = not folded[p] and upcards[p] is not empty
+  function matching(p : Player) = sum of up_rank_count(p, card.rank) over cards in upcards[p]
+  function standing(p : Player, c : Card) = 16 * up_rank_count(p, c.rank) + rank_value(c)
+  function cards_above(p : Player, s : Integer) = number of cards in upcards[p] where standing(p, card) > s
+  function place(above : Integer) =
+    if above is 0 then 1000000
+    else if above is 1 then 10000
+    else if above is 2 then 100
+    else 1
+  function placed_ranks(p : Player) = sum of rank_value(card) * place(cards_above(p, standing(p, card))) over cards in upcards[p]
+  function top_card(p : Player) = highest card_order(card) over cards in upcards[p] or 0
+  function showing_order(p : Player) = matching(p) * 10000000000 + placed_ranks(p) * 100 + top_card(p)
+
+  function no_better_board(order : Integer) = all players where not showing(player) or showing_order(player) <= order
+  function best_showing_seat() = the player where showing(player) and no_better_board(showing_order(player))
+}
