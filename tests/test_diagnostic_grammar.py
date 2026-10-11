@@ -16,7 +16,8 @@ property:   no alias of the compiled main grammar ends `_reject`, no
             it derives once; and `always`, a plain name, is refused by
             resolve where it stands undeclared as the whole predicate of a
             clause the table names, accepted where a game or a library
-            declares it, and an ordinary unresolved name as an operand.
+            declares it as a value, and an ordinary unresolved name as an
+            operand or where a definition that is no value bears the name.
 domain:     the compiled main grammar's rules and terminals (the first two
             pins) and its lexer against the retired operator spellings of
             decisions.md "The expression register"; the aliases the composed
@@ -43,12 +44,7 @@ does not prove:  that the later-mistake rule picks the right error for a
             lexer pin here. Nor the optional predicate clauses the `always`
             table does not name (a phase's `when`, a movement's or a
             `transition_to`'s `where`), where an undeclared `always` is an
-            ordinary unresolved name. Nor `always` declared outside the
-            value namespaces `_classify` reads -- a function, procedure,
-            move type, phase or position named `always`, written bare as
-            the whole predicate: resolve refuses it with the teaching
-            sentence where any other such name is unresolved, a reach-R4
-            asymmetry recorded here rather than guarded.
+            ordinary unresolved name.
 """
 
 from __future__ import annotations
@@ -81,8 +77,9 @@ def test_the_main_grammar_carries_no_reject_alias() -> None:
 
 def test_the_main_grammar_has_no_terminal_only_a_refused_rule_names() -> None:
     """Every terminal is named by a rule the builder accepts, so no word exists
-    in the lexer only to be refused. Red under: a twin-only terminal
-    (`_CARD_VALUES_KW`, `STAKE_FLAG_COLON`) left in cardlang.lark."""
+    in the lexer only to be refused. Red under: a twin's arm left in
+    cardlang.lark with its terminal (`factor DIV_OP postfix -> div_symbol`
+    and `DIV_OP`); a terminal no rule names lark drops, so it is nothing's."""
     refusing = refusing_methods(_Builder)
     homes: dict[str, set[bool]] = {}
     for rule in _parser().rules:
@@ -105,9 +102,8 @@ def _twins_the_goldens_exercise() -> set[str]:
     twins = _diagnostic_twins()
     exercised: set[str] = set()
     for fixture in sorted(REJECTIONS.glob("*.cardlang")):
-        start = _start_for(fixture)
         try:
-            tree = parse_module._diagnostic_parser().parse(fixture.read_text(), start=start)
+            tree = parse_module._diagnostic_parser().parse(fixture.read_text(), start=GOLDEN_START)
         except Exception:  # noqa: BLE001 -- a golden that fails both grammars is not a twin's
             continue
         exercised |= {str(sub.data) for sub in tree.iter_subtrees()} & twins
@@ -121,6 +117,14 @@ def test_every_diagnostic_twin_is_a_node_the_builder_only_refuses() -> None:
     twins = _diagnostic_twins()
     assert twins, "the diagnostic grammar holds no twin"
     assert twins <= refusing_methods(_Builder)
+
+
+def test_every_refusing_builder_method_is_a_twin() -> None:
+    """A builder method that raises on every path builds no node, so only a
+    twin names it; one no grammar names is dead code. Red under: deleting a
+    twin's `%extend` line and its golden but not its builder method."""
+    main_nodes = {str(r.alias or r.origin.name) for r in _parser().rules}
+    assert refusing_methods(_Builder) - _diagnostic_twins() - main_nodes == set()
 
 
 def test_every_diagnostic_twin_is_exercised_by_a_rejection_golden() -> None:
@@ -175,8 +179,9 @@ WRONG = (
 )
 
 
-def _start_for(fixture: pathlib.Path) -> str:
-    return "library" if fixture.read_text().lstrip().startswith("library") else "start"
+# Every golden is a game: `tests/test_rejections.py` checks each through
+# `check_dsl`, so the start symbol is the game's.
+GOLDEN_START = "start"
 
 
 def test_every_golden_a_twin_derives_has_one_derivation() -> None:
@@ -196,14 +201,14 @@ def test_every_golden_a_twin_derives_has_one_derivation() -> None:
     ambiguous: list[str] = []
     derived = 0
     for fixture in sorted(REJECTIONS.glob("*.cardlang")):
-        text, start = fixture.read_text(), _start_for(fixture)
+        text = fixture.read_text()
         try:
-            _parser().parse(text, start=start)
+            _parser().parse(text, start=GOLDEN_START)
             continue
         except UnexpectedInput:
             pass
         try:
-            tree = explicit.parse(text, start=start)
+            tree = explicit.parse(text, start=GOLDEN_START)
         except UnexpectedInput:
             continue
         derived += 1
@@ -371,6 +376,20 @@ def test_an_undeclared_always_as_an_operand_is_an_ordinary_unresolved_name(claus
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_GAME_HOLDERS[clause].format(declared="", pred="always and score[0] is 0"), "g.cardlang")
     assert "unresolved name 'always'" in exc.value.diagnostic.message
+
+
+@pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
+@pytest.mark.parametrize("definition", ["function always() = true", "move_type always {{ effect {{ }} }}"])
+def test_an_always_naming_a_definition_is_an_ordinary_unresolved_name(clause: str, definition: str) -> None:
+    """A function named `always`, read without its call, is no condition and
+    no omission: the teaching sentence would advise deleting a clause the
+    designer meant to keep. Red under: gating the refusal on the value
+    namespaces alone."""
+    source = _GAME_HOLDERS[clause].format(declared="", pred="always") + definition.format() + "\n"
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(source, "g.cardlang")
+    assert "unresolved name 'always'" in str(exc.value)
+    assert "leave it out" not in str(exc.value)
 
 
 def test_every_always_holder_in_the_table_has_a_teaching_sentence() -> None:

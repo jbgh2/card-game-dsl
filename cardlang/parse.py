@@ -347,7 +347,9 @@ def _diagnostic_parser() -> Lark:
     second parse of a text the main grammar refuses. Its terminals are never
     spoken to a designer -- the message a twin raises is the builder's, and a
     text it refuses too reports the main parser's error -- so they need no
-    designer's word."""
+    designer's word. A refused text costs a second full parse, and a failure
+    is not memoized (`_parse_text_cached` holds results alone), so a caller
+    that re-checks a broken file pays both parses each time."""
     return Lark(
         _grammar_text() + "\n" + DIAGNOSTIC_GRAMMAR.read_text(),
         parser="earley",
@@ -817,14 +819,15 @@ class _Builder(Transformer[Token, n.Game]):
         # The first assignment-shaped row speaks, so a block mixing one wrong
         # row among colon rows is refused at the row that is wrong.
         bad = next(x for x in c if isinstance(x, _TrickOrderEqRow))
-        raise DiagnosticError(
-            Diagnostic(
-                Severity.ERROR,
-                f"a `trick_order` row is `{bad.key}: <expr>`, not "
-                f"`{bad.key} {bad.op} <expr>` — write `{bad.key}: ...`",
-                bad.span,
-            )
+        rows = ", ".join(f"`{k}:`" for k in TRICK_ORDER_ROW_KEYS)
+        message = (
+            f"a `trick_order` row is `{bad.key}: <expr>`, not "
+            f"`{bad.key} {bad.op} <expr>` — write `{bad.key}: ...`"
+            if bad.key in TRICK_ORDER_ROW_KEYS
+            else f"`{bad.key} {bad.op} <expr>` is not a row of `trick_order`, nor "
+            f"is `{bad.key}:` — the rows are {rows}, each `key: <expr>`"
         )
+        raise DiagnosticError(Diagnostic(Severity.ERROR, message, bad.span))
 
     def trump(self, meta: Meta, c: list[Token]) -> _Trump:
         return _Trump(str(c[0]), span=self._span(meta))

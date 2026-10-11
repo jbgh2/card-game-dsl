@@ -1,0 +1,20 @@
+// Guard: parse.py's `trick_order_eq_reject` (diagnostics.lark) with a key that
+// is no row: the fix names the rows, never the key as typed.
+game TrickOrderAssignmentRowUnknownKey {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  trick_order { trumps = card.suit is spades  follow_class: card.suit  card_strength: card.rank }
+  zones {
+    deck : Deck
+    table : Discard
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    score[0] := 1
+  }
+  winner: highest score
+}

@@ -1830,6 +1830,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         enums=SEAT_DIRECTION_VALUES,
         ranks=frozenset(),
         suits=frozenset(),
+        definitions=frozenset(d.name for field, _ in _LIBRARY_DEF_KINDS for d in getattr(library, field)),
     )
     # `_rewrite` both classifies and reports, and its report ("unresolved name
     # 'x'") is the GAME's author — the wrong one here — so the bag is thrown
@@ -4868,6 +4869,10 @@ class _Categories:
     enums: frozenset[str]
     ranks: frozenset[str]
     suits: frozenset[str]
+    # Every definition name that is not a value — a function, procedure, move
+    # type, rule, phase or position domain — so a bare name a definition
+    # holds is never read as a name nothing declares.
+    definitions: frozenset[str]
     # `Game.content_flavor` — the dispatch key for the flavor-aware Owner Guards
     # (decisions.md, "Component sets: cards and pieces").
     flavor: Flavor = "card"
@@ -4899,9 +4904,15 @@ def _categories(game: n.Game) -> _Categories:
     # single flat declaration namespace (`_check_duplicate_names` enforces
     # uniqueness across it), not a binder any construct introduces.
     state_vars = {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)}
+    definitions = {
+        nd.name
+        for nd in _walk(game)
+        if isinstance(nd, n.FunctionDef | n.ProcedureDef | n.MoveTypeDef | n.RuleDef | n.Phase | n.PositionDecl)
+    }
     return _Categories(
         locals=frozenset(),
         state_vars=frozenset(state_vars),
+        definitions=frozenset(definitions),
         zones=frozenset(z.name for z in game.zones),
         enums=enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES,
         # Card-literal validation asks "does this card EXIST in the deck",
@@ -7295,8 +7306,8 @@ class _AlwaysSite:
 #: `_library_reach`, which reads the refusal off the classified tree so a
 #: library's clause is refused in the same words rather than reported as a
 #: read past the contract. Everywhere else `always` is an ordinary name:
-#: declared, a condition like any other; undeclared as an operand, an
-#: unresolved name.
+#: declared as a value, a condition like any other; undeclared as an operand,
+#: or naming a definition that is no value, an unresolved name.
 _ALWAYS_SITES: dict[type, _AlwaysSite] = {
     n.AppliesWhen: _AlwaysSite("pred", "applies_when:", "a rule that applies every time"),
     n.MoveTypeDef: _AlwaysSite("when", "when:", "a move type that is always legal"),
@@ -7318,7 +7329,11 @@ def _refuse_bare_always(pred: object, clause: str, cats: _Categories, bag: Diagn
     predicate unrewritten rather than reporting it unresolved as well. The
     Owner Guard of the spelling: name classification is what decides that
     `always` names nothing, so the refusal stands where that is decided."""
-    if not (_is_bare_always(pred) and _classify("always", cats) is None):
+    if not (
+        _is_bare_always(pred)
+        and _classify("always", cats) is None
+        and "always" not in cats.definitions
+    ):
         return False
     bag.error(_always_message(clause), pred.span)
     return True

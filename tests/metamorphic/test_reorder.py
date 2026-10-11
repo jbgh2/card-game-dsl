@@ -136,6 +136,7 @@ _PARSE_LEVEL_CASES = frozenset(
         "subset_source_plus_joined",
         "subset_source_single_bracket",
         "trick_order_assignment_row",
+        "trick_order_assignment_row_unknown_key",
         "trick_order_colon",
         "trick_order_comma_rows",
         "trump_as_number",
@@ -204,6 +205,11 @@ def test_reordered_game_plays_out_identically(path: Path, seed: int) -> None:
     a, b = pairing.run_pair(path, reorder_declarations, seed)
     witness = pairing.compare_traces(a, b)  # nothing renamed: identity hook
     assert witness is None, f"{path} seed={seed}: {witness}"
+
+
+def test_every_parse_level_case_is_a_golden() -> None:
+    """Red under: deleting a golden and leaving its name in `_PARSE_LEVEL_CASES`."""
+    assert _PARSE_LEVEL_CASES <= set(REJECTION_CASES)
 
 
 @pytest.mark.parametrize("case", REJECTION_CASES)

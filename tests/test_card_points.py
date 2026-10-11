@@ -320,7 +320,7 @@ def test_card_values_rejects_naming_card_points(spelling: str) -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
     message = str(ei.value)
-    assert "card_points" in message, message
+    assert "`card_values` is not a clause" in message, message
 
 
 def test_duplicate_clause_hits_the_one_clause_wall() -> None:
@@ -371,7 +371,7 @@ def test_card_values_after_a_ranking_enumeration_still_teaches() -> None:
     src = _game("card_values { A: 1 }").replace("ranking: aces low", "ranking: A K Q")
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
-    assert "card_points" in str(ei.value), str(ei.value)
+    assert "`card_values` is not a clause" in str(ei.value), str(ei.value)
 
 
 def test_colon_form_after_an_empty_expression_slot_is_refused_at_parse() -> None:
