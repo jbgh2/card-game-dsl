@@ -6,23 +6,26 @@ rows) retires the rows of direction-review verdict 7's dead-surface table
 that issue #693 lists, the auction form of `round` that issue #819
 rewrites as `turns` plus `offer`, and the `burn`, `muck` and `transfer`
 synonyms of `move` that issue #835 cuts (the language is minimal: one word
-per meaning). The one word kept is `always`, and only to
-refuse it: a designer who writes the wildcard is told to leave the clause
-out.
+per meaning). `always` is no keyword: a designer who writes it as a whole
+predicate, undeclared, is told to leave the clause out (resolve's
+`ALWAYS_HOLDERS`).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   no retired row is a rule or alias of the compiled grammar, no
             retired keyword is a keyword terminal, every retired sentence is
-            refused at parse with a located diagnostic, and `always` in
-            every position that once took it is refused with a message
-            naming the clause to leave out.
+            refused at parse with a located diagnostic, and an undeclared
+            `always` standing as the whole predicate of every clause
+            resolve's table names is refused with a message naming the
+            clause to leave out.
 domain:     the retired set is the operator's rulings on issues #693, #819
             and #835, listed
             once below as `RETIRED_ROWS`, `RETIRED_KEYWORDS` and
-            `RETIRED_SENTENCES`; the `always` positions are every compiled
-            rule whose expansion reaches the `always` refusal, derived from
-            the parser.
+            `RETIRED_SENTENCES`; the `always` positions are the compiled
+            rules spelling a clause `cardlang.resolve.ALWAYS_HOLDERS` names
+            (a keyword, a colon, one `expr`), read from the parser -- an
+            existence check on the table's clauses, never a search for
+            clauses the table lacks.
 registry:   compiled grammar: `cardlang.parse._parser()` (its `rules` and
             `terminals`); the live report over the same grammar:
             `tools/dead_surface.py`.
@@ -30,15 +33,21 @@ does not prove:  that a designer reaching for a retired construct is told
             what to write instead. Outside `always`, a retired sentence
             meets the ordinary syntax error, which names the tokens the
             parser expected at that point and nothing about the retirement.
+            Nor `always` declared: that it is then a condition like any
+            other is tests/test_diagnostic_grammar.py's cell. Nor the
+            optional predicate clauses the table does not name (a phase's
+            `when`, a movement's or a `transition_to`'s `where`): an
+            undeclared `always` there is an ordinary unresolved name.
 """
 
 from __future__ import annotations
 
 import pytest
-from lark.grammar import NonTerminal
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import _parser, parse_library, parse_text
+from cardlang.pipeline import check_dsl
+from cardlang.resolve import ALWAYS_HOLDERS
 
 
 RETIRED_ROWS = (
@@ -170,17 +179,20 @@ def test_optional_required_variable_is_refused_at_parse() -> None:
 
 
 def _always_positions() -> set[str]:
-    """Every compiled rule one of whose expansions names the rule holding
-    the `always` refusal -- the positions a designer can write the word."""
-    holders = {
-        rule.origin.name
-        for rule in _parser().rules
-        if rule.alias == "always_reject"
+    """The compiled rules spelling a clause resolve's `always` table names --
+    a keyword, a colon, one `expr` -- so a table row whose clause leaves the
+    grammar, or changes shape, reddens the sentence table below."""
+    words = {clause[:-1] for clause in ALWAYS_HOLDERS}
+    keyword_of = {
+        term.name: term.pattern.value.split("(?!")[0]
+        for term in _parser().terminals
+        if term.name.endswith("_KW")
     }
     return {
         rule.origin.name
         for rule in _parser().rules
-        if any(isinstance(s, NonTerminal) and s.name in holders for s in rule.expansion)
+        if [s.name for s in rule.expansion[1:]] == ["COLON", "expr"]
+        and keyword_of.get(rule.expansion[0].name) in words
     }
 
 
@@ -204,10 +216,10 @@ _ALWAYS_SENTENCES: dict[str, tuple[str, str]] = {
 
 def test_always_positions_are_exactly_the_sentences_below() -> None:
     """The derived position set equals the hand-written sentence table, so a
-    production that gains `applies_pred` arrives here as a missing sentence.
+    clause added to resolve's table arrives here as a missing sentence.
 
-    red under: add `| _ALWAYS_KW -> always_reject` to a third rule in
-    cardlang.lark."""
+    red under: add a third `<keyword> ":" expr` clause to cardlang.lark and
+    its row to `ALWAYS_HOLDERS`."""
     assert _always_positions() == set(_ALWAYS_SENTENCES)
 
 
@@ -215,20 +227,7 @@ def test_always_positions_are_exactly_the_sentences_below() -> None:
 def test_always_is_refused_naming_the_clause_to_leave_out(position: str) -> None:
     source, clause = _ALWAYS_SENTENCES[position]
     with pytest.raises(DiagnosticError) as exc:
-        parse_text(source, "always.cardlang")
+        check_dsl(source, "always.cardlang")
     message = exc.value.diagnostic.message
     assert exc.value.diagnostic.span is not None
     assert "`always`" in message and f"`{clause}`" in message and "leave" in message
-
-
-def test_a_refused_word_is_never_offered_as_expected() -> None:
-    """A syntax error at a position that takes `always` lists what the grammar
-    expects there; the refused spelling is not among the suggestions.
-
-    red under: drop the `if name not in refused` filter in
-    `cardlang.parse._expected_words`."""
-    source = _game(top="rule R {\n  constrains: play_to_trick\n  applies_when: :\n}")
-    with pytest.raises(DiagnosticError) as exc:
-        parse_text(source, "expected.cardlang")
-    message = exc.value.diagnostic.message
-    assert "expected" in message and "`always`" not in message

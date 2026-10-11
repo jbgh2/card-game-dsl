@@ -132,7 +132,7 @@ def test_the_axes_are_pinned_by_the_grammar_and_the_registries() -> None:
     words are exactly `nodes.STAKES`, each an anchored keyword of the
     `move_stake` production; the presenters are the `move_type` slots."""
     assert SITES == ["library_item", "top_item"]
-    production = GRAMMAR[GRAMMAR.index("\nmove_stake:") :].split("\nSTAKE_FLAG_COLON", 1)[0]
+    production = re.search(r"\nmove_stake:.*(?:\n[ \t]+\|.*)*", GRAMMAR).group(0)  # type: ignore[union-attr]
     keywords = set(re.findall(r"_([A-Z]+)_KW", production))
     assert keywords == {stake.upper() for stake in n.STAKES}, "the row words are exactly the registry's"
     assert typing.get_args(n.Stake) == n.STAKES

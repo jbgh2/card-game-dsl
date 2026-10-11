@@ -262,6 +262,7 @@ construct.
 pyproject.toml          # package + mypy(strict) + pytest config
 cardlang/
   grammar/cardlang.lark # surface grammar; expression sublanguage as a module
+  grammar/diagnostics.lark # the Diagnostic Grammar: reject-with-replacement twins, composed only after a parse fails
   ast/nodes.py          # frozen dataclasses, closed Node union
   parse.py              # Lark + Transformer -> typed AST
   extract.py            # pull DSL from markdown fenced blocks

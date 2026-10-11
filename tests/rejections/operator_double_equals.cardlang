@@ -1,0 +1,18 @@
+// Guard: parse.py's `compare` builder, refusing `==` with the `is` spelling
+// through the diagnostic grammar's `COMP_OP` extension.
+game OperatorDoubleEquals {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    if score[0] == 1 { score[0] := 2 }
+  }
+  winner: highest score
+}

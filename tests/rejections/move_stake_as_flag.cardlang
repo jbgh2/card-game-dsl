@@ -1,0 +1,23 @@
+// Guard: parse.py's `move_stake_flag_reject` (diagnostics.lark). The stake is
+// one bare word under the move's name; the flag habit writes `wager: true`.
+game MoveStakeAsFlag {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    table : Discard
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    offer to 0 one of [bet]
+  }
+  winner: highest score
+}
+move_type bet {
+  wager: true
+  effect { score[actor] += 1 }
+}

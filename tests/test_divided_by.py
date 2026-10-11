@@ -580,10 +580,11 @@ def test_double_slash_is_a_comment_the_characterization() -> None:
     the trap loud; closing it needs new machinery (a comment-syntax change, a
     source-text lint pass) and an operator ruling — R2, issue #335.
 
-    red under: give DIV_OP a prioritized `//` alternative
-    (`DIV_OP.2: "//" | "/" | "%"`) — the operator reading then wins, the
-    builder rejection fires, and the let's value is no longer the bare
-    Subscript this pin asserts."""
+    red under: give the MAIN grammar a prioritized `//` operator terminal
+    (`DIV_OP.2: "//"` with a `factor DIV_OP postfix -> div_symbol` arm in
+    cardlang.lark) — the operator reading then wins, the builder rejection
+    fires, and the let's value is no longer the bare Subscript this pin
+    asserts."""
     game = parse_text(_game("let x = s[0] // 2"), "mini.cardlang")
 
     def find_lets(node: object) -> list[n.LetStmt]:
@@ -643,7 +644,8 @@ def test_misuse_is_a_loud_syntax_error(body: str, case_id: str) -> None:
     `term _ROUNDED_KW _UP_KW`; term-mul-needs-parens — add a term-level
     `term "*" factor` alternative; no-slash-assign — add `"/="` to
     `ASSIGN_OP`; doubled-slash-with-space — make div_symbol's right operand
-    optional (`factor DIV_OP [postfix]`). Verified by execution on the
+    optional (`factor DIV_OP [postfix]` in diagnostics.lark). Verified by
+    execution on the
     optional-direction edit (`_ROUNDED_KW [_UP_KW]`): it reddens exactly the
     missing-direction cell here plus the single-`up to` adjacency below,
     with the other eleven cells green."""

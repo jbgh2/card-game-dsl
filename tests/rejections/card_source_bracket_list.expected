@@ -1,0 +1,1 @@
+card_source_bracket_list.cardlang:16:36: error: a card query or fold ranges over one zone; only a subset query lists several (`any subset of 2 cards in [table, hand[p]] where ...`) — ask each zone on its own and combine the answers: add the counts or sums, `or` the anys, `and` the alls

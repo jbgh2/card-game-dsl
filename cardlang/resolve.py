@@ -43,7 +43,11 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
-              type layer;
+              type layer; an undeclared ``always`` standing as the whole
+              predicate of a clause ``_ALWAYS_SITES`` names, refused with
+              the fix by ``_refuse_bare_always`` (its Owner Guard) where the
+              predicate is classified, and read off the classified tree by
+              ``_library_reach`` for a library's clauses;
               the runtime hard-fails on an unclassified name
               (``runtime/evaluate.py``, ``_name``) as its Shadow Guard. Also
               a ``state { }`` default that cannot be evaluated where it
@@ -202,7 +206,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import assert_never, cast, get_args
+from typing import assert_never, cast, get_args, TypeGuard
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
@@ -258,7 +262,7 @@ from cardlang.primitives_block import (
     walled_namespace_of,
 )
 from cardlang import primitives_block
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
+from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import (
     CARD_AXIS_ROLES,
     CARD_PARAM_DOMAINS,
@@ -1785,6 +1789,10 @@ class _LibraryReach:
     slot_leaks: tuple[_SlotLeak, ...]
     state_reads: frozenset[str]
     zone_reads: frozenset[str]
+    #: The refusals `_rewrite` records for an undeclared `always` standing as
+    #: a whole predicate: the clause's own words, never a read past the
+    #: contract.
+    always_refused: tuple[Diagnostic, ...]
     move_type_reads: frozenset[str]
 
 
@@ -1832,21 +1840,29 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         enums=SEAT_DIRECTION_VALUES,
         ranks=frozenset(),
         suits=frozenset(),
+        definitions=frozenset(d.name for field, _ in _LIBRARY_DEF_KINDS for d in getattr(library, field)),
     )
     # `_rewrite` both classifies and reports, and its report ("unresolved name
-    # 'x'") is the GAME's author — the wrong one here — so the bag is thrown
-    # away and the classified TREE is read instead. Reading `ref_kind` is the
-    # sanctioned use of what this pass stamps (see the module Contract), not a
-    # re-derivation: which names a body binds, and where, stays the property of
-    # `_introduced_binders` and `_BINDER_SCOPE_FIELDS` alone.
-    discarded = DiagnosticBag()
+    # 'x'") is the GAME's author — the wrong one here — so that report is
+    # dropped and the classified TREE is read instead. Reading `ref_kind` is
+    # the sanctioned use of what this pass stamps (see the module Contract),
+    # not a re-derivation: which names a body binds, and where, stays the
+    # property of `_introduced_binders` and `_BINDER_SCOPE_FIELDS` alone. The
+    # one report that stands wherever the clause is written — the `always`
+    # refusal, whose words are the clause author's — is kept as `_rewrite`
+    # recorded it, so whether it fired is never reconstructed here.
+    collected = DiagnosticBag()
     classified: list[object] = []
     for field, _ in _LIBRARY_DEF_KINDS:
-        classified.append(_rewrite_value(getattr(library, field), cats, discarded))
+        classified.append(_rewrite_value(getattr(library, field), cats, collected))
     # A provided variable's DEFAULT is an expression like any other, so it can
     # leak like any other — `limit : Integer = house_rule` would reach past the
     # contract into the game exactly as a move-type effect would.
-    classified.append(_rewrite_value(provided_state, cats, discarded))
+    classified.append(_rewrite_value(provided_state, cats, collected))
+
+    teaching = {_always_message(clause) for clause in ALWAYS_HOLDERS}
+    always_refused = tuple(d for d in collected.items if d.message in teaching)
+    refused_spans = {d.span for d in always_refused}
 
     unresolved: list[n.NameRef] = []
     state_reads: set[str] = set()
@@ -1854,7 +1870,8 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     for node in _child_nodes(tuple(classified)):
         if isinstance(node, n.NameRef):
             if node.ref_kind is None:
-                unresolved.append(node)
+                if node.span not in refused_spans:
+                    unresolved.append(node)
             elif node.ref_kind == "state_var":
                 state_reads.add(node.name)
             elif node.ref_kind == "zone":
@@ -1889,6 +1906,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         state_reads=frozenset(state_reads) | slot_reads,
         zone_reads=frozenset(zone_reads) | slot_zone_reads,
         move_type_reads=slot_move_reads,
+        always_refused=always_refused,
     )
 
 
@@ -1993,6 +2011,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     available "fix" — declaring the extra name — is the accident that hid the
     leak in the first place."""
     reach = _library_reach(library)
+    for refusal in reach.always_refused:
+        bag.error(refusal.message, refusal.span)
     for ref in reach.unresolved:
         if ref.name in VALUE_NAMES:
             bag.error(_callback_outside_slot(ref.name), ref.span)
@@ -4918,6 +4938,10 @@ class _Categories:
     enums: frozenset[str]
     ranks: frozenset[str]
     suits: frozenset[str]
+    # Every definition name that is not a value — a function, procedure, move
+    # type, rule, phase or position domain — so a bare name a definition
+    # holds is never read as a name nothing declares.
+    definitions: frozenset[str]
     # `Game.content_flavor` — the dispatch key for the flavor-aware Owner Guards
     # (decisions.md, "Component sets: cards and pieces").
     flavor: Flavor = "card"
@@ -4949,9 +4973,15 @@ def _categories(game: n.Game) -> _Categories:
     # single flat declaration namespace (`_check_duplicate_names` enforces
     # uniqueness across it), not a binder any construct introduces.
     state_vars = {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)}
+    definitions = {
+        nd.name
+        for nd in _walk(game)
+        if isinstance(nd, n.FunctionDef | n.ProcedureDef | n.MoveTypeDef | n.RuleDef | n.Phase | n.PositionDecl)
+    }
     return _Categories(
         locals=frozenset(),
         state_vars=frozenset(state_vars),
+        definitions=frozenset(definitions),
         zones=frozenset(z.name for z in game.zones),
         enums=enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES,
         # Card-literal validation asks "does this card EXIST in the deck",
@@ -7332,7 +7362,62 @@ def _callback_outside_slot(name: str) -> str:
     )
 
 
+@dataclass(frozen=True)
+class _AlwaysSite:
+    """A clause whose whole predicate a designer writes as `always`: the node
+    field holding the predicate, the clause spelling, and the holder the
+    refusal names."""
+
+    field: str
+    clause: str
+    holder: str
+
+
+#: The clauses whose whole predicate a designer writes as `always`, by holder
+#: node. A clause that holds unconditionally is written by leaving the clause
+#: out, so the wildcard is a second spelling of an omission and is refused
+#: with that fix — by `_rewrite` where it classifies the predicate, and by
+#: `_library_reach`, which reads the refusal off the classified tree so a
+#: library's clause is refused in the same words rather than reported as a
+#: read past the contract. Everywhere else `always` is an ordinary name:
+#: declared as a value, a condition like any other; undeclared as an operand,
+#: or naming a definition that is no value, an unresolved name.
+_ALWAYS_SITES: dict[type, _AlwaysSite] = {
+    n.AppliesWhen: _AlwaysSite("pred", "applies_when:", "a rule that applies every time"),
+    n.MoveTypeDef: _AlwaysSite("when", "when:", "a move type that is always legal"),
+}
+ALWAYS_HOLDERS: dict[str, str] = {site.clause: site.holder for site in _ALWAYS_SITES.values()}
+
+
+def _always_message(clause: str) -> str:
+    return f"`always` is not a condition — {ALWAYS_HOLDERS[clause]} has no `{clause}` line; leave it out"
+
+
+def _is_bare_always(pred: object) -> TypeGuard[n.NameRef]:
+    return isinstance(pred, n.NameRef) and pred.name == "always"
+
+
+def _refuse_bare_always(pred: object, clause: str, cats: _Categories, bag: DiagnosticBag) -> bool:
+    """Record the refusal for an undeclared `always` standing as the whole
+    predicate of `clause`; True when it fired, so the caller leaves the
+    predicate unrewritten rather than reporting it unresolved as well. The
+    Owner Guard of the spelling: name classification is what decides that
+    `always` names nothing, so the refusal stands where that is decided."""
+    if not (
+        _is_bare_always(pred)
+        and _classify("always", cats) is None
+        and "always" not in cats.definitions
+    ):
+        return False
+    bag.error(_always_message(clause), pred.span)
+    return True
+
+
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
+    if isinstance(node, n.AppliesWhen) and _refuse_bare_always(
+        node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
+    ):
+        return node
     if isinstance(node, n.NameRef):
         kind = _classify(node.name, cats)
         if kind is None:
@@ -7371,7 +7456,12 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             if node.params
             else cats
         )
-        when_pred = _rewrite_value(node.when, scoped, bag) if node.when is not None else None
+        when_pred = (
+            node.when
+            if node.when is None
+            or _refuse_bare_always(node.when, _ALWAYS_SITES[n.MoveTypeDef].clause, scoped, bag)
+            else _rewrite_value(node.when, scoped, bag)
+        )
         # `_rewrite_value` (not a bare per-item `_rewrite` map): a `let` in a
         # move's effect scopes to the statements after it, like everywhere else.
         effect = _rewrite_value(node.effect, scoped, bag)

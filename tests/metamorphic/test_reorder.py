@@ -82,13 +82,10 @@ _PARSE_LEVEL_CASES = frozenset(
         "no_game_block",
         "two_game_blocks",
         # The [[phase-scoped-read]]'s transposed-binder twin: a
-        # reject-with-replacement alternative on the `primitive_read`
-        # production itself, so the wrong spelling is refused by the parse
+        # reject-with-replacement twin of the `primitive_read` production
+        # (diagnostics.lark), so the wrong spelling is refused by the parse
         # builder and no tree ever exists.
         "primitives_scoped_read_transposed_binder",
-        # `always` where a clause's condition goes: refused by the builder of
-        # the clause that holds it, so no tree ever exists.
-        "applies_when_always",
         # The collection type's two parse-level refusals. The TEACHING twin
         # rides the two shared type productions, so a collection spelled
         # anywhere but a `primitives { }` entry's slots is refused by the
@@ -120,6 +117,30 @@ _PARSE_LEVEL_CASES = frozenset(
         # the grammar — the earliest layer that can own it.
         "legal_moves_in_mode_body",
         "primitives_arrow_return",
+        # The rest of diagnostics.lark's twins: each derives its text only
+        # under the composed grammar in the parser's failure path and raises
+        # in the builder, so none leaves a tree.
+        "card_points_colon",
+        "card_source_bracket_list",
+        "card_values_spelling",
+        "move_stake_after_when",
+        "move_stake_as_flag",
+        "operator_bang_equals",
+        "operator_double_equals",
+        "operator_percent",
+        "operator_slash",
+        "primitives_colon",
+        "primitives_default_value",
+        "subset_source_and_joined",
+        "subset_source_comma_joined",
+        "subset_source_plus_joined",
+        "subset_source_single_bracket",
+        "trick_order_assignment_row",
+        "trick_order_assignment_row_unknown_key",
+        "trick_order_colon",
+        "trick_order_comma_rows",
+        "trump_as_number",
+        "trump_as_string",
     }
 )
 
@@ -184,6 +205,11 @@ def test_reordered_game_plays_out_identically(path: Path, seed: int) -> None:
     a, b = pairing.run_pair(path, reorder_declarations, seed)
     witness = pairing.compare_traces(a, b)  # nothing renamed: identity hook
     assert witness is None, f"{path} seed={seed}: {witness}"
+
+
+def test_every_parse_level_case_is_a_golden() -> None:
+    """Red under: deleting a golden and leaving its name in `_PARSE_LEVEL_CASES`."""
+    assert _PARSE_LEVEL_CASES <= set(REJECTION_CASES)
 
 
 @pytest.mark.parametrize("case", REJECTION_CASES)

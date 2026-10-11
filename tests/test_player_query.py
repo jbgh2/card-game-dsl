@@ -77,7 +77,7 @@ def test_player_query_zero_ambiguity() -> None:
       zones { hand[player] : Hand<player> }
       state { eliminated[player] : Boolean = false }
       phase p {
-        repeat until (number of players where hand[player] is not empty) == 1 {
+        repeat until (number of players where hand[player] is not empty) is 1 {
           let s = players where not eliminated[player]
         }
       }

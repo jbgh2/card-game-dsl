@@ -57,7 +57,8 @@ registry:  the clause axis derives from the grammar's `?game_item`
            record is the per-PR counsel comment there.
            Clause absorption over every game clause, this one included:
            tests/test_game_clause_guards.py. Keyword anchoring for
-           `_CARD_POINTS_KW` / `_CARD_VALUES_KW`: the derived grid in
+           `_CARD_POINTS_KW` and the twin's `_CARD_VALUES_KW`
+           (diagnostics.lark): the derived grid in
            tests/test_keyword_anchoring.py.
 does not prove:  the Builtin in every expression host — aggregation bodies,
            movement filters, move-type `when:` guards, let values. One Call
@@ -319,7 +320,7 @@ def test_card_values_rejects_naming_card_points(spelling: str) -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
     message = str(ei.value)
-    assert "card_points" in message, message
+    assert "`card_values` is not a clause" in message, message
 
 
 def test_duplicate_clause_hits_the_one_clause_wall() -> None:
@@ -364,13 +365,13 @@ def test_card_values_after_a_ranking_enumeration_still_teaches() -> None:
     fires, never a silent absorption into the enumeration.
 
     red under: delete the `card_values_reject` alternative from
-    `card_points_table` in cardlang.lark — this cell and the two canonical
+    `card_points_table` in diagnostics.lark — this cell and the two canonical
     card_values probes then fail with a bare syntax error in place of the
     teaching message."""
     src = _game("card_values { A: 1 }").replace("ranking: aces low", "ranking: A K Q")
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
-    assert "card_points" in str(ei.value), str(ei.value)
+    assert "`card_values` is not a clause" in str(ei.value), str(ei.value)
 
 
 def test_colon_form_after_an_empty_expression_slot_is_refused_at_parse() -> None:

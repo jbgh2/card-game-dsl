@@ -1,7 +1,4 @@
-import pytest
-
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_text
 
 SRC = """
@@ -32,16 +29,3 @@ def test_parses_move_types_and_offer() -> None:
     foreach = next(i for i in phase.items if isinstance(i, n.ForEach))
     assert isinstance(foreach.body, n.Offer)
     assert foreach.body.offering == ("take_one", "take_two")
-
-
-def test_when_always_is_refused_with_the_fix() -> None:
-    """A move type that is always legal has no `when:` line; `when: always`
-    is refused at parse, naming the clause to leave out.
-
-    red under: drop the `_refuse_always` call in `move_when` (parse.py)."""
-    src = SRC.replace("when: coins[actor] < 10", "when: always")
-    with pytest.raises(DiagnosticError) as excinfo:
-        parse_text(src, "g.cardlang")
-    msg = str(excinfo.value)
-    assert "`always` is not a condition" in msg
-    assert "`when:`" in msg and "leave it out" in msg

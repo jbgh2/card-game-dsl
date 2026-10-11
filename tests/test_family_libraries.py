@@ -1378,8 +1378,12 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     `_AXIS_NAMESPACE`."""
     # `flavor` joins locals/functions as a non-channel: it is the game's
     # scalar content flavor ("card"/"piece"), not a namespace of names a
-    # library reference could reach or shadow.
-    game_fed = {f.name for f in fields(_Categories)} - {"locals", "functions", "flavor"}
+    # library reference could reach or shadow. `definitions` is what a
+    # library's OWN definitions are called, fed by the library alone: no
+    # bare reference resolves against it, it gates one refusal's wording
+    # (`_refuse_bare_always`), and a game's definition reached by name is
+    # the `call` column's leak.
+    game_fed = {f.name for f in fields(_Categories)} - {"locals", "functions", "flavor", "definitions"}
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():
         covered |= reached

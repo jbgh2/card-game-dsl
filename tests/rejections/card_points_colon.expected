@@ -1,0 +1,1 @@
+card_points_colon.cardlang:8:3: error: `card_points` is a block clause and takes no colon — write `card_points { A: 1 ... }`

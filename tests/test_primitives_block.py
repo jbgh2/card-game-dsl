@@ -3021,10 +3021,10 @@ _COLLECTION_ADJACENCY: dict[str, tuple[str, str]] = {
         "is spellable in a `primitives { }` entry only",
     ),
     # No fusion here — the parameter's `>` meets `)` and the `=` follows the
-    # return type — and the cell is kept for the OTHER claim the grammar
-    # comment makes: all three entry forms take the entry type family, so a
-    # default-arm entry carrying a collection parameter reaches its own reject
-    # arm's message instead of dying at the `<`.
+    # return type — and the cell is kept for the OTHER claim diagnostics.lark
+    # makes beside the primitives twins: all three entry forms take the entry
+    # type family, so a default-arm entry carrying a collection parameter
+    # reaches its own arm's message instead of dying at the `<`.
     "default-arm-collection-param": (
         "    primitives { pinochle_meld_value(x : Collection<Card>) : Integer= 0 }\n",
         "declares a signature, never a value",

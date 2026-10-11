@@ -23,14 +23,22 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               own lexemes (``_scan``) rather than from its characters, so a
               brace inside a comment or a text value is not structure and a
               block is named for the keyword that opens it wherever its `{`
-              sits. No semantic claims —
+              sits. A text the grammar refuses is parsed once more under the
+              grammar composed with ``DIAGNOSTIC_GRAMMAR``, whose twins hand
+              the builder a ``*_reject`` node that raises the teaching message
+              in place of the syntax error; a text neither grammar derives
+              reports a syntax error rendered in the main grammar's words —
+              the main parser's, or the composed parser's where that read
+              further, past a twin's slip, before failing — so no expectation
+              it lists names a retired spelling. No semantic claims —
               names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
               nothing is typed. The `primitives { }` entry's own production
               family is the ONE carrier of a VALUE type's `<...>` spelling:
               it reaches the AST single-element, un-nested and un-optional,
               and every other type position and the phrase form meet a
-              span-carrying rejection naming the entry. The zone ``type_ref``
+              span-carrying rejection naming the entry, through the diagnostic
+              grammar. The zone ``type_ref``
               and a library's ``require_decl`` carry the OTHER reading of
               `<...>` — an index domain, derived through ``type_args`` — and
               which shapes those admit is resolve's.
@@ -252,11 +260,6 @@ class _Exempts:
 
 
 @dataclass(frozen=True, slots=True)
-class _AlwaysReject:
-    span: Span
-
-
-@dataclass(frozen=True, slots=True)
 class _SubsetOf:
     """The `of <k> [or more] cards in <zone>` phrase, shared by both subset
     registers so the size clause has one builder rather than one per fold."""
@@ -314,6 +317,12 @@ def _grammar_text() -> str:
     return resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
 
 
+#: The Diagnostic Grammar (`cardlang/grammar/diagnostics.lark`): every
+#: reject-with-replacement twin, composed onto the main grammar only inside
+#: the failure path of :func:`parse_to_tree`.
+DIAGNOSTIC_GRAMMAR = resources.files("cardlang.grammar").joinpath("diagnostics.lark")
+
+
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
     parser = Lark(
@@ -330,6 +339,24 @@ def _parser() -> Lark:
     # designer's word for it cannot wait for a syntax error to be noticed.
     _check_every_terminal_renders(parser.terminals)
     return parser
+
+
+@lru_cache(maxsize=1)
+def _diagnostic_parser() -> Lark:
+    """The main grammar with the reject-with-replacement twins composed onto it, for the
+    second parse of a text the main grammar refuses. Its terminals are never
+    spoken to a designer -- the message a twin raises is the builder's, and a
+    text it refuses too reports the main parser's error -- so they need no
+    designer's word. A refused text costs a second full parse, and a failure
+    is not memoized (`_parse_text_cached` holds results alone), so a caller
+    that re-checks a broken file pays both parses each time."""
+    return Lark(
+        _grammar_text() + "\n" + DIAGNOSTIC_GRAMMAR.read_text(),
+        parser="earley",
+        propagate_positions=True,
+        maybe_placeholders=True,
+        start=list(_parser().options.start),
+    )
 
 
 @cache
@@ -461,7 +488,7 @@ class _Builder(Transformer[Token, n.Game]):
         # A retired shape, not a clause: the block clauses take no colon, and
         # the colon habit is the most plausible wrong sentence (every scalar
         # clause a designer has met takes one). The `==`/`!=` mechanism: the
-        # grammar owns the shape so the rejection can name the fix.
+        # diagnostic grammar owns the shape so the rejection can name the fix.
         raise DiagnosticError(
             Diagnostic(
                 Severity.ERROR,
@@ -702,7 +729,8 @@ class _Builder(Transformer[Token, n.Game]):
                 Severity.ERROR,
                 f"a `primitives` entry declares a signature, never a value — "
                 f"`{bad.decl.name}(...) : {bad.decl.return_type} = ...` gives it "
-                f"a default the implementation would never see; drop the `=`",
+                f"a default the implementation would never see; delete the "
+                f"`= ...` after the signature",
                 bad.span,
             )
         )
@@ -791,14 +819,15 @@ class _Builder(Transformer[Token, n.Game]):
         # The first assignment-shaped row speaks, so a block mixing one wrong
         # row among colon rows is refused at the row that is wrong.
         bad = next(x for x in c if isinstance(x, _TrickOrderEqRow))
-        raise DiagnosticError(
-            Diagnostic(
-                Severity.ERROR,
-                f"a `trick_order` row is `{bad.key}: <expr>`, not "
-                f"`{bad.key} {bad.op} <expr>` — write `{bad.key}: ...`",
-                bad.span,
-            )
+        rows = ", ".join(f"`{k}:`" for k in TRICK_ORDER_ROW_KEYS)
+        message = (
+            f"a `trick_order` row is `{bad.key}: <expr>`, not "
+            f"`{bad.key} {bad.op} <expr>` — write `{bad.key}: ...`"
+            if bad.key in TRICK_ORDER_ROW_KEYS
+            else f"`{bad.key} {bad.op} <expr>` is not a row of `trick_order`, nor "
+            f"is `{bad.key}:` — the rows are {rows}, each `key: <expr>`"
         )
+        raise DiagnosticError(Diagnostic(Severity.ERROR, message, bad.span))
 
     def trump(self, meta: Meta, c: list[Token]) -> _Trump:
         return _Trump(str(c[0]), span=self._span(meta))
@@ -1333,25 +1362,7 @@ class _Builder(Transformer[Token, n.Game]):
     def constrains(self, meta: Meta, c: list[Token]) -> _Constrains:
         return _Constrains(str(c[0]))
 
-    def always_reject(self, meta: Meta, c: list[object]) -> _AlwaysReject:
-        # Refused by the clause that holds it, which is the one the message
-        # tells the designer to leave out.
-        return _AlwaysReject(self._span(meta))
-
-    @staticmethod
-    def _refuse_always(pred: object, clause: str, holder: str) -> None:
-        if isinstance(pred, _AlwaysReject):
-            raise DiagnosticError(
-                Diagnostic(
-                    Severity.ERROR,
-                    f"`always` is not a condition — {holder} has no `{clause}` "
-                    f"line; leave it out",
-                    pred.span,
-                )
-            )
-
     def applies_when(self, meta: Meta, c: list[object]) -> n.AppliesWhen:
-        self._refuse_always(c[0], "applies_when:", "a rule that applies every time")
         return n.AppliesWhen(pred=_as_expr(c[0]), span=self._span(meta))
 
     def demands(self, meta: Meta, c: list[object]) -> n.Demands:
@@ -1715,7 +1726,7 @@ class _Builder(Transformer[Token, n.Game]):
         op = str(c[1])
         if op in ("==", "!="):
             # Retired spellings (decisions.md "The expression register"): the
-            # lexer still owns the tokens so the rejection can name the fix.
+            # diagnostic grammar owns the tokens so the rejection can name the fix.
             word = "is" if op == "==" else "is not"
             raise DiagnosticError(
                 Diagnostic(
@@ -1762,7 +1773,7 @@ class _Builder(Transformer[Token, n.Game]):
 
     def div_symbol(self, meta: Meta, c: list[object]) -> n.BinOp:
         # Retired spellings (decisions.md "The expression register"): the
-        # lexer still owns the tokens so the rejection can name the fix.
+        # diagnostic grammar owns the tokens so the rejection can name the fix.
         # `//` is absent by necessity, not oversight — it introduces a
         # comment, so no builder can ever see it (the grammar's factor
         # comment and tests/test_divided_by.py's characterization).
@@ -2047,7 +2058,6 @@ class _Builder(Transformer[Token, n.Game]):
         )
 
     def move_when(self, meta: Meta, c: list[object]) -> _MoveWhen:
-        self._refuse_always(c[0], "when:", "a move type that is always legal")
         return _MoveWhen(c[0])
 
     def move_effect(self, meta: Meta, c: list[object]) -> _MoveEffect:
@@ -2111,7 +2121,7 @@ class _Builder(Transformer[Token, n.Game]):
 
     def move_stake_flag_reject(self, meta: Meta, c: list[object]) -> None:
         # The flag habit: every scalar clause a designer has met takes a colon.
-        # The grammar owns the shape so the rejection can name the fix.
+        # The diagnostic grammar owns the shape so the rejection can name the fix.
         row = next(x for x in c if isinstance(x, _MoveStake))
         raise DiagnosticError(
             Diagnostic(
@@ -2368,22 +2378,6 @@ def _designer_word(name: str) -> str:
     return _terminal_words().get(name, "")
 
 
-@cache
-def _refusal_only_terminals() -> frozenset[str]:
-    """The terminals every production of which is a refusal (`*_reject`).
-
-    A retired spelling keeps its keyword only so the parser can refuse it
-    with the fix, so it is never a word to suggest as what the grammar
-    expects."""
-    homes: dict[str, set[bool]] = {}
-    for rule in _parser().rules:
-        refused = bool(rule.alias) and str(rule.alias).endswith("_reject")
-        for symbol in rule.expansion:
-            if symbol.is_term:
-                homes.setdefault(symbol.name, set()).add(refused)
-    return frozenset(name for name, kinds in homes.items() if kinds == {True})
-
-
 def _spelling(word: str) -> str:
     """The literal inside a rendered word, for comparing against what was typed.
 
@@ -2443,14 +2437,9 @@ def _expected_words(exc: UnexpectedInput, typed: str) -> tuple[str, ...]:
     break on the word itself, so the order is stable and a golden can pin it.
     """
     names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
-    refused = _refusal_only_terminals()
     words = {
         word
-        for word in (
-            _designer_word(name)
-            for name in (str(getattr(t, "name", t)) for t in names)
-            if name not in refused
-        )
+        for word in (_designer_word(str(getattr(t, "name", t))) for t in names)
         if word
     }
 
@@ -2827,34 +2816,66 @@ def parse_to_tree(
     note — it addresses the engine maintainer, who has the chained exception
     and the grammar, and putting maintainer currency in a game author's channel
     is what `docs/glossary/author.md` forbids.
+
+    A refused text is parsed once more under the grammar composed with the
+    Diagnostic Grammar (``DIAGNOSTIC_GRAMMAR``, the reject-with-replacement
+    twins). A twin that derives it hands the
+    builder its ``*_reject`` node, and the builder's refusal — the fix in the
+    designer's words — is what the designer meets. A text no twin derives
+    meets a syntax error: the main parser's, or, where the composed parser
+    read past a twin's slip before failing, that later failure, since it is
+    a second mistake the slip was hiding; either is rendered in the main
+    grammar's words, so nothing it lists is a retired spelling, and the
+    slip's own teaching follows once the later mistake is fixed.
     """
     try:
         tree = _parser().parse(text, start=start)
     except UnexpectedInput as exc:
-        # End of input is not a position: lark reports line and column as -1
-        # there, so the end of the text is the honest span.
-        reported: int | None = getattr(exc, "pos_in_stream", None)
-        at_end = reported is None or reported < 0
-        pos: int = len(text) if at_end else int(reported or 0)
-        raw_line: int = (
-            _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
-        )
-        column: int = (
-            pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
-        )
-        span = Span(source_name, pos, pos, raw_line + line_offset, column)
-        lexeme = _offending_lexeme(text, pos)
-        structure = _structure(text, pos, line_offset)
-        structural, names_a_site = structure.clause, structure.names_a_site
-        # A clause naming the block to close IS the instruction; the parser's
-        # own expectation, computed under a bracket context the missing `}`
-        # already broke, would invite exactly the wrong edit beside it.
-        expected = "" if names_a_site else _expected_clause(exc, lexeme.strip("`"))
-        hint = _parse_hint(text, pos, raw_line, start)
-        message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
-        raise DiagnosticError(Diagnostic(Severity.ERROR, message, span)) from exc
+        main_error, main_pos = _syntax_error(exc, text, source_name, line_offset, start)
+        try:
+            composed = _diagnostic_parser().parse(text, start=start)
+        except UnexpectedInput as later:
+            later_error, later_pos = _syntax_error(later, text, source_name, line_offset, start)
+            raise DiagnosticError(later_error if later_pos > main_pos else main_error) from exc
+        # Every twin's builder method raises, and `compare` raises on the
+        # operators `COMP_OP` gains (tools.dead_surface.refusing_methods and
+        # the operator goldens, pinned by tests/test_diagnostic_grammar.py); a
+        # composed tree the builder accepts is a defect there, and the main
+        # error still stands.
+        _transform(_Builder(source_name, line_offset), composed)
+        raise DiagnosticError(main_error) from exc
     assert isinstance(tree, Tree)
     return tree
+
+
+def _syntax_error(
+    exc: UnexpectedInput, text: str, source_name: str, line_offset: int, start: str
+) -> tuple[Diagnostic, int]:
+    """The designer's syntax error for ``exc``, and the offset it stands at.
+
+    The expectations are rendered through the MAIN grammar's terminal table
+    whichever parser raised ``exc``: a terminal only the diagnostic grammar
+    knows has no designer's word there and so is never listed."""
+    # End of input is not a position: lark reports line and column as -1
+    # there, so the end of the text is the honest span.
+    reported: int | None = getattr(exc, "pos_in_stream", None)
+    at_end = reported is None or reported < 0
+    pos: int = len(text) if at_end else int(reported or 0)
+    raw_line: int = _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
+    column: int = (
+        pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
+    )
+    span = Span(source_name, pos, pos, raw_line + line_offset, column)
+    lexeme = _offending_lexeme(text, pos)
+    structure = _structure(text, pos, line_offset)
+    structural, names_a_site = structure.clause, structure.names_a_site
+    # A clause naming the block to close IS the instruction; the parser's
+    # own expectation, computed under a bracket context the missing `}`
+    # already broke, would invite exactly the wrong edit beside it.
+    expected = "" if names_a_site else _expected_clause(exc, lexeme.strip("`"))
+    hint = _parse_hint(text, pos, raw_line, start)
+    message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
+    return Diagnostic(Severity.ERROR, message, span), pos
 
 
 def _transform(builder: _Builder, tree: Tree[Token]) -> object:
