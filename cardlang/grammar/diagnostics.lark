@@ -1,15 +1,18 @@
-// The teaching refusals: every wrong spelling the language refuses WITH THE
-// RIGHT ONE, composed onto the main grammar only inside the parser's failure
-// path (`parse.py`, `_diagnostic_parser`). A main parse that fails is parsed
-// once more under this composition; a twin that derives the text hands the
+// The Diagnostic Grammar: every reject-with-replacement twin — a production
+// deriving one wrong spelling the language refuses WITH THE RIGHT ONE —
+// composed onto the main grammar only inside the parser's failure path
+// (`parse.py`, `_diagnostic_parser`). A main parse that fails is parsed once
+// more under this composition; a twin that derives the text hands the
 // builder its node, and the builder's `*_reject` method raises the message.
-// The main grammar accepts only the language; nothing here is reachable
-// while a file parses there, and no terminal here is a word the main
-// lexer knows. Each twin is a COMPLETE production for the string it names,
-// never a prefix, so no sentence of the language gains a second derivation.
-// Every twin is exercised by a rejection golden under tests/rejections/, and
-// the set of twins here equals the set the goldens exercise
-// (tests/test_diagnostic_grammar.py).
+// The main grammar accepts only the language, so nothing here is reachable
+// while a file parses there. No alphabetic word here is one the main lexer
+// knows; the symbol terminals (`:=` / `=`, `:`, `==` / `!=`, `/` / `%`)
+// overlap the main lexer's, and the composed Earley parse resolves them by
+// position — the hazard tests/test_trick_order.py's ledger records for any
+// other parser. Each twin is a COMPLETE production for the string it names,
+// never a prefix, so no sentence of the language gains a second derivation
+// and no golden a twin derives has two. Every twin is exercised by a
+// rejection golden under tests/rejections/ (tests/test_diagnostic_grammar.py).
 
 // --- the primitives block: the colon habit, the arrow, a default ------------
 // The arrow is the spelling the design note sketched before the block had a
@@ -17,7 +20,10 @@
 // default is the state-row habit, where an entry declares a signature and
 // never a body. Each arm's tail admits the well-formed spelling too, so ONE
 // wrong entry among right ones reaches the designer-voice rejection rather
-// than the lexer's.
+// than the lexer's. All three entry forms take the entry's own type family
+// (`primitive_param`, `primitive_type`), so a mis-spelled entry with a
+// collection parameter reaches its own arm's message instead of dying at
+// the `<`.
 %extend primitives_block: _PRIMITIVES_KW ":" "{" primitive_decl* "}"  -> primitives_colon_reject
                         | _PRIMITIVES_KW "{" primitive_decl* primitive_arrow_decl (primitive_decl | primitive_arrow_decl)* "}"     -> primitives_arrow_reject
                         | _PRIMITIVES_KW "{" primitive_decl* primitive_default_decl (primitive_decl | primitive_default_decl)* "}" -> primitives_default_reject
@@ -82,6 +88,8 @@ TRICK_ORDER_EQ: ":=" | "="
 // arm cannot, so no sentence has two readings under the composed grammar.
 %extend move_type_def: _MOVE_TYPE_KW NAME [move_params] "{" move_stake STAKE_FLAG_COLON [expr] [move_when] move_effect "}" -> move_stake_flag_reject
                      | _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] move_when move_stake [STAKE_FLAG_COLON [expr]] move_effect "}" -> move_stake_after_when_reject
+// A terminal of its own so the builder can tell the flag form from a bare
+// row (`move_stake_after_when_reject` reads its type).
 STAKE_FLAG_COLON: /:/
 
 // --- a bracket list where one zone belongs, and a subset source misjoined ---

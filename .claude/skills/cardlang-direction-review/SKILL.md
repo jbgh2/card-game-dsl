@@ -52,8 +52,11 @@ Each check names its query so the answer is derived, not vibed:
    complete) and carries the sunset: record in the verdict the corpus
    count at which the review first listed it, and retire it — re-reading
    the family's symmetry — once ten corpus games have landed since with no
-   writer. A `placeholder` or `reject` row is Step 2 of the grammar pass's
-   (its message is the point). The `dead` class is pinned empty, so a row
+   writer. A `placeholder` row is kept for the located message its
+   rejection fixture pins; a `reject` row cannot appear on the real tree,
+   whose twins live in the Diagnostic Grammar
+   (`cardlang/grammar/diagnostics.lark`), and the grid pins the main
+   grammar free of them. The `dead` class is pinned empty, so a row
    there is a failing test, not a decision. The report is derived on
    demand and is never checked in.
 7. **Distance to each Destination.** `python -m tools.destinations

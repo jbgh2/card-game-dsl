@@ -1,23 +1,28 @@
-"""The main grammar accepts only the language; the teaching refusals live in
-`cardlang/grammar/diagnostics.lark` and run only when a parse has failed.
+"""The main grammar accepts only the language; the reject-with-replacement
+twins live in the Diagnostic Grammar (`cardlang/grammar/diagnostics.lark`)
+and run only when a parse has failed.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
-property:   no alias of the compiled main grammar ends `_reject` and no
-            terminal of it is named only by a refused rule; every twin the
-            diagnostic grammar holds is exercised by a rejection golden and
-            every golden's twin is one the diagnostic grammar holds; a
-            corpus, library or stdlib file never reaches the diagnostic
-            parser; a text neither grammar derives reports the main parser's
-            own error; and `always`, the one twin that is a plain name once
-            its keyword leaves the lexer, is refused by resolve in the
-            builder's words where it stands as a whole predicate, accepted
-            where a game declares it, and an ordinary unresolved name as an
-            operand.
+property:   no alias of the compiled main grammar ends `_reject`, no
+            terminal of it is named only by a refused rule, and no retired
+            operator spelling lexes as its operator there; every twin the
+            Diagnostic Grammar holds is a node the builder only refuses and
+            is exercised by a rejection golden; a corpus, library or stdlib
+            file never reaches the diagnostic parser; a text neither grammar
+            derives reports the main parser's own error, or the composed
+            parser's where that read past a twin's slip before failing,
+            either in the main grammar's words; every golden a twin derives
+            it derives once; and `always`, a plain name, is refused by
+            resolve where it stands undeclared as the whole predicate of a
+            clause the table names, accepted where a game or a library
+            declares it, and an ordinary unresolved name as an operand.
 domain:     the compiled main grammar's rules and terminals (the first two
-            pins); the `%extend` lines of `diagnostics.lark` crossed with the
-            fixtures under `tests/rejections/` (the twin pin, derived in both
-            directions); the corpus, library and stdlib globs (the
+            pins) and its lexer against the retired operator spellings of
+            decisions.md "The expression register"; the aliases the composed
+            parser's compiled rules carry beyond the main parser's, crossed
+            with the fixtures under `tests/rejections/` (the twin pin); the
+            live tiers of `tools.dead_surface` (the
             never-reached pin); the holders of a predicate resolve's `always`
             table names (`resolve.ALWAYS_HOLDERS`), crossed with
             {declared, undeclared} x {whole predicate, operand} x {written in
@@ -26,16 +31,24 @@ registry:   `cardlang.parse._parser()` (main), `cardlang.parse._diagnostic_parse
             (composed), `cardlang.parse.DIAGNOSTIC_GRAMMAR` (the file),
             `tools.dead_surface.refusing_methods` over `cardlang.parse._Builder`,
             `cardlang.resolve.ALWAYS_HOLDERS`; the goldens by glob.
-does not prove:  that a twin fires for a file holding a twin's slip AND a
-            later genuine error -- the composed parse fails on the later
-            error and the main error is reported, so the designer meets the
-            slip only after fixing the other mistake. Nor that the messages
+does not prove:  that the later-mistake rule picks the right error for a
+            file with two slips and a mistake between them -- the composed
+            parse reads past the first slip, fails at the mistake, and the
+            second slip waits behind both. Nor that the messages
             themselves are right: `tests/test_rejections.py` pins each
             against its wrong sentence, byte for byte, and this module only
-            proves every twin has one. Nor the terminal the file extends
-            rather than aliases (`COMP_OP`'s `==` / `!=`): its refusal is
-            the `compare` builder's, pinned by its own goldens and never
-            a twin node.
+            proves every twin has one. Nor that a golden exercises the
+            `COMP_OP` extension through a twin node: that refusal is the
+            `compare` builder's, pinned by the operator goldens and by the
+            lexer pin here. Nor the optional predicate clauses the `always`
+            table does not name (a phase's `when`, a movement's or a
+            `transition_to`'s `where`), where an undeclared `always` is an
+            ordinary unresolved name. Nor `always` declared outside the
+            value namespaces `_classify` reads -- a function, procedure,
+            move type, phase or position named `always`, written bare as
+            the whole predicate: resolve refuses it with the teaching
+            sentence where any other such name is unresolved, a reach-R4
+            asymmetry recorded here rather than guarded.
 """
 
 from __future__ import annotations
@@ -45,6 +58,8 @@ import pathlib
 import re
 
 import pytest
+from lark import Lark
+from lark.exceptions import UnexpectedCharacters, UnexpectedInput
 
 from cardlang import parse as parse_module
 from cardlang import resolve as resolve_module
@@ -52,7 +67,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import _Builder, _parser, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import ALWAYS_HOLDERS
-from tools.dead_surface import default_sources, refusing_methods
+from tools.dead_surface import LIVE_TIERS, default_sources, refusing_methods
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 REJECTIONS = ROOT / "tests" / "rejections"
@@ -80,16 +95,17 @@ def test_the_main_grammar_has_no_terminal_only_a_refused_rule_names() -> None:
 
 
 def _diagnostic_twins() -> set[str]:
-    """Every node the diagnostic file's productions build."""
-    text = parse_module.DIAGNOSTIC_GRAMMAR.read_text()
-    return set(re.findall(r"->\s*([a-z_]+)\b", text))
+    """Every alias the composed parser's compiled rules carry beyond the main
+    parser's: the nodes only a twin builds."""
+    main = {str(r.alias) for r in _parser().rules if r.alias}
+    return {str(r.alias) for r in parse_module._diagnostic_parser().rules if r.alias} - main
 
 
 def _twins_the_goldens_exercise() -> set[str]:
     twins = _diagnostic_twins()
     exercised: set[str] = set()
     for fixture in sorted(REJECTIONS.glob("*.cardlang")):
-        start = "library" if fixture.read_text().lstrip().startswith("library") else "start"
+        start = _start_for(fixture)
         try:
             tree = parse_module._diagnostic_parser().parse(fixture.read_text(), start=start)
         except Exception:  # noqa: BLE001 -- a golden that fails both grammars is not a twin's
@@ -108,10 +124,34 @@ def test_every_diagnostic_twin_is_a_node_the_builder_only_refuses() -> None:
 
 
 def test_every_diagnostic_twin_is_exercised_by_a_rejection_golden() -> None:
-    """Derived both ways: the twins from the diagnostic file, the exercised set
-    from parsing every golden under the composed grammar. Red under: a twin
-    added to diagnostics.lark with no golden, or a golden deleted."""
+    """The twins from the compiled rules, the exercised set from parsing every
+    golden under the composed grammar; a golden's node is the grammar's by
+    construction, so the pin is that every twin is exercised. Red under: a
+    twin added to diagnostics.lark with no golden, or a golden deleted."""
     assert _diagnostic_twins() == _twins_the_goldens_exercise()
+
+
+_RETIRED_OPERATORS = ("==", "!=", "/", "%")
+
+
+def test_the_main_lexer_knows_no_retired_operator() -> None:
+    """The retired operator spellings (decisions.md "The expression register")
+    lex as an operator only under the composed grammar; the main grammar's
+    tokens never spell one. Red under: restoring `"==" | "!="` to `COMP_OP`
+    in cardlang.lark."""
+    composed = Lark(
+        parse_module._grammar_text() + "\n" + parse_module.DIAGNOSTIC_GRAMMAR.read_text(),
+        parser=None,
+        lexer="basic",
+        start=list(_parser().options.start),
+    )
+    for op in _RETIRED_OPERATORS:
+        assert {t.type for t in composed.lex(f"a {op} b") if t.value == op} <= {"COMP_OP", "DIV_OP"}
+        assert any(t.value == op for t in composed.lex(f"a {op} b"))
+        try:
+            assert all(t.value != op for t in parse_module._lexer().lex(f"a {op} b"))
+        except UnexpectedCharacters:
+            pass
 
 
 def test_the_corpus_never_reaches_the_diagnostic_parser(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -122,28 +162,86 @@ def test_the_corpus_never_reaches_the_diagnostic_parser(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(parse_module, "_diagnostic_parser", forbidden)
     for source in default_sources():
-        if source.tier in ("corpus", "shared"):
+        if source.tier in LIVE_TIERS:
             parse_module.parse_to_tree(source.text, source.name, start=source.start)
 
 
+# A state row's `:` where `=` belongs: both parsers stop there, and only the
+# composed one would offer the `<` a twin accepts after a type name.
 WRONG = (
-    "game G {\n  players: 2 2\n  max_length: 10\n  cards: standard52\n"
-    "  zones { deck : Deck }\n  phase p { shuffle deck }\n  winner: highest score\n}\n"
+    "game G {\n  players: 2\n  max_length: 10\n  cards: standard52\n"
+    "  zones { deck : Deck }\n  state { score[player] : Integer : 0 }\n"
+    "  phase p { shuffle deck }\n  winner: highest score\n}\n"
 )
 
 
+def _start_for(fixture: pathlib.Path) -> str:
+    return "library" if fixture.read_text().lstrip().startswith("library") else "start"
+
+
+def test_every_golden_a_twin_derives_has_one_derivation() -> None:
+    """Under the composed grammar with ambiguity explicit, no golden the main
+    grammar refuses parses to an `_ambig` node: the twin that speaks is the
+    grammar's choice, never lark's. Red under: a second twin deriving a
+    golden's slip (plant `%extend trump: _TRUMP_KW ":" INT -> planted_reject`
+    in diagnostics.lark)."""
+    explicit = Lark(
+        parse_module._grammar_text() + "\n" + parse_module.DIAGNOSTIC_GRAMMAR.read_text(),
+        parser="earley",
+        ambiguity="explicit",
+        propagate_positions=True,
+        maybe_placeholders=True,
+        start=list(_parser().options.start),
+    )
+    ambiguous: list[str] = []
+    derived = 0
+    for fixture in sorted(REJECTIONS.glob("*.cardlang")):
+        text, start = fixture.read_text(), _start_for(fixture)
+        try:
+            _parser().parse(text, start=start)
+            continue
+        except UnexpectedInput:
+            pass
+        try:
+            tree = explicit.parse(text, start=start)
+        except UnexpectedInput:
+            continue
+        derived += 1
+        if any(str(sub.data) == "_ambig" for sub in tree.iter_subtrees()):
+            ambiguous.append(fixture.name)
+    assert derived and ambiguous == []
+
+
+def test_a_slip_before_a_later_mistake_reports_the_later_mistake_first() -> None:
+    """The composed grammar reads past the slip, so the failure it meets is a
+    second mistake, reported in the main grammar's words; the slip's own
+    teaching comes once that is fixed. Red under: reporting the main error
+    whenever the composed parse fails."""
+    slip_game = _ALWAYS_GAME.format(declared="", pred="score[actor] == 1")
+    with pytest.raises(DiagnosticError) as later:
+        parse_text(slip_game + "}\n", "slip.cardlang")
+    message = later.value.diagnostic.message
+    assert message.startswith("syntax error: unexpected") and "==" not in message
+    assert later.value.diagnostic.span is not None
+    assert later.value.diagnostic.span.line == slip_game.count("\n") + 1
+    with pytest.raises(DiagnosticError) as slip:
+        parse_text(slip_game, "slip.cardlang")
+    assert slip.value.diagnostic.message.startswith("`==` is not an operator")
+
+
 def test_a_text_neither_grammar_derives_reports_the_main_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The main parser's own error, byte for byte: computed before the second
-    parse, so no expected-token list names a retired spelling. Red under:
-    reporting the composed parser's error."""
+    """Where both parsers stop at the same offset, the main parser's own error,
+    byte for byte, so the expected-token list offers nothing only a twin
+    accepts. Red under: reporting the composed parser's error on a tie -- it
+    offers the `<` of the collection twin after a type name."""
     with pytest.raises(DiagnosticError) as composed:
         parse_text(WRONG, "wrong.cardlang")
     monkeypatch.setattr(parse_module, "_diagnostic_parser", _parser)
     with pytest.raises(DiagnosticError) as main_only:
         parse_text(WRONG + " ", "wrong.cardlang")
-    assert composed.value.diagnostic.message == main_only.value.diagnostic.message
-    assert composed.value.diagnostic.message.startswith("syntax error: unexpected")
-    assert "card_values" not in composed.value.diagnostic.message
+    message = composed.value.diagnostic.message
+    assert message == main_only.value.diagnostic.message
+    assert message.startswith("syntax error: unexpected `:`") and message.endswith("expected `=` or `?`")
 
 
 _ALWAYS_GAME = """\
@@ -167,12 +265,12 @@ move_type pass {{
 """
 
 
-def test_a_declared_always_is_a_condition_like_any_other() -> None:
-    """The one sentence this unit newly accepts: `always` is a name once its
-    keyword leaves the lexer, so a game may declare it. Red under: a keyword
-    terminal for `always` in the main grammar."""
-    game = check_dsl(_ALWAYS_GAME.format(declared="  always : Boolean = true", pred="always"), "g.cardlang")
-    assert game.move_types[0].when is not None
+@pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
+def test_a_declared_always_is_a_condition_like_any_other(clause: str) -> None:
+    """`always` is a name, so a game may declare it and read it as the whole
+    predicate of any holder. Red under: a keyword terminal for `always` in the
+    main grammar."""
+    check_dsl(_GAME_HOLDERS[clause].format(declared="  always : Boolean = true", pred="always"), "g.cardlang")
 
 
 # One sentence per holder clause, in the game and in a family library the game
@@ -229,8 +327,8 @@ def test_every_holder_has_a_game_and_a_library_sentence() -> None:
 
 @pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
 def test_an_undeclared_always_standing_alone_is_told_to_leave_the_clause_out(clause: str) -> None:
-    """Resolve's refusal, in the builder's words, for every holder the table
-    names. Red under: dropping the `always` arm from resolve."""
+    """Resolve's refusal, naming the clause to leave out, for every holder the
+    table names. Red under: dropping the `always` arm from resolve."""
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_GAME_HOLDERS[clause].format(declared="", pred="always"), "g.cardlang")
     assert exc.value.diagnostic.message == (
@@ -266,11 +364,12 @@ def test_a_library_declaring_always_reads_it_as_a_condition(
     )
 
 
-def test_an_undeclared_always_as_an_operand_is_an_ordinary_unresolved_name() -> None:
+@pytest.mark.parametrize("clause", sorted(ALWAYS_HOLDERS))
+def test_an_undeclared_always_as_an_operand_is_an_ordinary_unresolved_name(clause: str) -> None:
     """Red under: the `always` arm firing on any `NameRef` named `always`
     rather than on the whole predicate."""
     with pytest.raises(DiagnosticError) as exc:
-        check_dsl(_ALWAYS_GAME.format(declared="", pred="always and score[actor] is 0"), "g.cardlang")
+        check_dsl(_GAME_HOLDERS[clause].format(declared="", pred="always and score[0] is 0"), "g.cardlang")
     assert "unresolved name 'always'" in exc.value.diagnostic.message
 
 

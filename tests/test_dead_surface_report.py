@@ -9,7 +9,8 @@ property:   the report names every construct the grammar defines that no live
             row without reviving it; every dead row carries the class the
             grammar and its consumers derive for it (sibling / placeholder /
             reject / dead), and the real tree's dead class is empty.
-domain:     synthetic sources built here, parsed by the real grammar, so no
+domain:     synthetic sources built here, parsed by the real grammar or by it
+            with a production planted, so no
             cell depends on what the corpus happens to use today -- the
             corpus-facing pins are that the real tree renders and that every
             tree its sources build is on the axis. The rule axis is
@@ -22,7 +23,8 @@ domain:     synthetic sources built here, parsed by the real grammar, so no
             parser's own terminal table, plus every alphabetic word of an
             alternation terminal (`tools.dead_surface.word_axis`); the
             class axis is the four classes crossed with a dead row's
-            neighbours (a live sibling, a rejection fixture, a reject twin,
+            neighbours (a live sibling, a rejection fixture, a
+            reject-with-replacement twin,
             none). Which of a live construct's
             consumers are scoring sentences is outside it: that is a
             question for the checked game (issue #664).
@@ -128,7 +130,7 @@ def test_a_keyword_only_a_reject_twin_uses_is_a_reject_arm() -> None:
 
 def test_a_keyword_an_accepted_node_shares_with_a_twin_is_not_a_reject_arm() -> None:
     """`primitives` opens the accepted `primitives_block` and, planted, a
-    reject twin of it: with no file writing it, it is accepted surface nobody
+    twin of it: with no file writing it, it is accepted surface nobody
     writes -- dead, never a reject arm. Red under: classing on ANY refused
     node naming the terminal instead of ALL of them."""
     planted = GRAMMAR + '\n%extend primitives_block: _PRIMITIVES_KW ":" "{" "}" -> planted_colon_reject\n'
@@ -187,9 +189,9 @@ def test_a_planted_production_nothing_produces_is_reported() -> None:
 def test_the_diagnostic_grammar_adds_no_surface() -> None:
     """Composed as the parser's failure path composes it, diagnostics.lark
     puts nothing on the axis: every node it builds is a twin, and every rule
-    only a twin reaches is off the axis with it. Red under: walking reject
-    twins in `rule_axis`, or an alias in diagnostics.lark the builder
-    accepts."""
+    only a twin reaches is off the axis with it. Red under: walking
+    `_reject` aliases in `rule_axis`, or an alias in diagnostics.lark the
+    builder accepts."""
     composed = ds.rule_axis(GRAMMAR + "\n" + DIAGNOSTICS)
     assert composed == ds.rule_axis(GRAMMAR)
     assert "subset_comma_reject" not in composed and "nested_collection" not in composed

@@ -15,14 +15,17 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 property:   no retired row is a rule or alias of the compiled grammar, no
             retired keyword is a keyword terminal, every retired sentence is
             refused at parse with a located diagnostic, and an undeclared
-            `always` in every clause that takes a whole predicate is refused
-            with a message naming the clause to leave out.
+            `always` standing as the whole predicate of every clause
+            resolve's table names is refused with a message naming the
+            clause to leave out.
 domain:     the retired set is the operator's rulings on issues #693, #819
             and #835, listed
             once below as `RETIRED_ROWS`, `RETIRED_KEYWORDS` and
-            `RETIRED_SENTENCES`; the `always` positions are every compiled
-            rule spelling a clause `cardlang.resolve.ALWAYS_HOLDERS` names
-            (a keyword, a colon, one `expr`), derived from the parser.
+            `RETIRED_SENTENCES`; the `always` positions are the compiled
+            rules spelling a clause `cardlang.resolve.ALWAYS_HOLDERS` names
+            (a keyword, a colon, one `expr`), read from the parser -- an
+            existence check on the table's clauses, never a search for
+            clauses the table lacks.
 registry:   compiled grammar: `cardlang.parse._parser()` (its `rules` and
             `terminals`); the live report over the same grammar:
             `tools/dead_surface.py`.
@@ -31,7 +34,10 @@ does not prove:  that a designer reaching for a retired construct is told
             meets the ordinary syntax error, which names the tokens the
             parser expected at that point and nothing about the retirement.
             Nor `always` declared: that it is then a condition like any
-            other is tests/test_diagnostic_grammar.py's cell.
+            other is tests/test_diagnostic_grammar.py's cell. Nor the
+            optional predicate clauses the table does not name (a phase's
+            `when`, a movement's or a `transition_to`'s `where`): an
+            undeclared `always` there is an ordinary unresolved name.
 """
 
 from __future__ import annotations
@@ -173,9 +179,9 @@ def test_optional_required_variable_is_refused_at_parse() -> None:
 
 
 def _always_positions() -> set[str]:
-    """Every compiled rule spelling a clause resolve's `always` table names --
-    a keyword, a colon, one `expr` -- the positions a designer can write the
-    word as a whole predicate."""
+    """The compiled rules spelling a clause resolve's `always` table names --
+    a keyword, a colon, one `expr` -- so a table row whose clause leaves the
+    grammar, or changes shape, reddens the sentence table below."""
     words = {clause[:-1] for clause in ALWAYS_HOLDERS}
     keyword_of = {
         term.name: term.pattern.value.split("(?!")[0]

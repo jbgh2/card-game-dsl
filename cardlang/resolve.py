@@ -43,7 +43,11 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
-              type layer;
+              type layer; an undeclared ``always`` standing as the whole
+              predicate of a clause ``_ALWAYS_SITES`` names, refused with
+              the fix by ``_refuse_bare_always`` (its Owner Guard) where the
+              predicate is classified, and read off the classified tree by
+              ``_library_reach`` for a library's clauses;
               the runtime hard-fails on an unclassified name
               (``runtime/evaluate.py``, ``_name``) as its Shadow Guard. Also
               a ``state { }`` default that cannot be evaluated where it
@@ -7311,7 +7315,9 @@ def _is_bare_always(pred: object) -> TypeGuard[n.NameRef]:
 def _refuse_bare_always(pred: object, clause: str, cats: _Categories, bag: DiagnosticBag) -> bool:
     """Record the refusal for an undeclared `always` standing as the whole
     predicate of `clause`; True when it fired, so the caller leaves the
-    predicate unrewritten rather than reporting it unresolved as well."""
+    predicate unrewritten rather than reporting it unresolved as well. The
+    Owner Guard of the spelling: name classification is what decides that
+    `always` names nothing, so the refusal stands where that is decided."""
     if not (_is_bare_always(pred) and _classify("always", cats) is None):
         return False
     bag.error(_always_message(clause), pred.span)

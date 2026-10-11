@@ -121,16 +121,15 @@ uses_decl: _USES_KW NAME
 // by a silent pick, and the phase the designer names is also what carries the
 // call-position constraint to the reader of the block.
 //
-// The transposition a designer plausibly writes — the binder riding the
-// phase rather than the VARIABLE — and the block's three habits (a colon, the
-// arrow, a `= <expr>` default) are refused with the fix by the teaching twins
-// of diagnostics.lark.
+// The wrong spellings of the block and of a read are refused with the fix
+// (diagnostics.lark).
 primitives_block: _PRIMITIVES_KW "{" primitive_decl* "}"
 //
 // The entry's two type slots take their OWN production family, written out
-// rather than derived from `payload_type`: the teaching twins land ON the
-// shared productions, so a shared derivation would give the entry's own
-// spelling two derivations of one string under the composed grammar.
+// rather than derived from `payload_type`: the reject-with-replacement twins
+// (diagnostics.lark) land ON the shared productions, so a shared derivation
+// would give the entry's own spelling two derivations of one string under
+// the composed grammar.
 //
 // The element slot holds ONE bare NAME (decisions.md "Typed object model": a
 // value-constructor head takes an element type); WHICH element is the
@@ -189,9 +188,8 @@ RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
 // `q_any_player`-vs-`q_any_domain` class. The value is deliberately NOT
 // `expr`: a static table is the contract (the `up to N` literal discipline),
 // and an expression slot would also make adjacent rows ambiguous
-// (`A: 1 10: 10` — the `1 10` would need a reading). The colon habit and
-// the pre-rename `card_values` name are refused naming the one block spelling
-// (diagnostics.lark).
+// (`A: 1 10: 10` — the `1 10` would need a reading). Its wrong spellings are
+// refused naming the block (diagnostics.lark).
 card_points_table: _CARD_POINTS_KW "{" card_points_entry+ [card_points_else] "}"
 card_points_entry: card_points_key ":" card_points_value
 card_points_else: _ELSE_KW ":" card_points_value
@@ -214,9 +212,8 @@ card_points_value: INT       -> cp_value
 // wrong key gets a rejection naming the rows rather than a bare syntax error.
 // Each row at most once, in any order; the reference order BETWEEN rows is the
 // language's (trump, follow_class, card_strength), never the textual one. Rows
-// are whitespace-separated like every block clause; the colon habit, comma
-// rows and the assignment habit `trump = ...` / `trump := ...` are refused
-// with the fix (diagnostics.lark).
+// are whitespace-separated like every block clause; its wrong spellings are
+// refused with the fix (diagnostics.lark).
 trick_order: _TRICK_ORDER_KW "{" trick_order_row+ "}"
 trick_order_row: TRICK_ORDER_KEY ":" expr
 
@@ -224,8 +221,8 @@ trick_order_row: TRICK_ORDER_KEY ":" expr
 // named bare (`trump: spades`) — a suit of the declared deck (resolve,
 // `_resolve_trump`), read by a trick round whose winner reads a trump and
 // writes no `trump` clause of its own. Refused beside a `trick_order` block
-// (the block's `trump:` row is then the trump). A number or a quoted string
-// where the bare name belongs is refused naming the spelling (diagnostics.lark).
+// (the block's `trump:` row is then the trump). Its wrong spellings are
+// refused naming the bare name (diagnostics.lark).
 trump: _TRUMP_KW ":" NAME
 
 // Fixed teams, each a bracketed list of seat indices (0-based, clockwise).
@@ -502,8 +499,8 @@ lvalue: NAME [index_expr]
 // stake"): one bare word saying the move is a wager or a concession, standing
 // with the name because it says what the move IS, not when it is legal. No row
 // is the plain move; two rows under the name are the parser's own refusal at
-// the second word, and the flag habit (`wager: true`) or a row written after
-// `when:` is refused with the fix (diagnostics.lark).
+// the second word, and the wrong spellings of one are refused with the fix
+// (diagnostics.lark).
 move_type_def: _MOVE_TYPE_KW NAME [move_params] "{" [move_stake] [move_when] move_effect "}"
 move_params: "(" parameter ("," parameter)* ")"
 move_stake: _WAGER_KW       -> stake_wager
@@ -987,8 +984,8 @@ _ZONES_KW: "zones" /(?![A-Za-z0-9_])/
 
 // Keywords that sit where a NAME is also grammatical, and never name a value,
 // are ALSO excluded from NAME — the second half, and a smaller set than the
-// keywords above: the quantity words
-// `all` / `one` / `some`, `jointly`, and `not` / `is` / `number` (the equality
+// keywords above: the quantity words `all` / `one` / `some`, `jointly`, and
+// `not` / `is` / `number` (the equality
 // and card-query keywords): without the exclusion, `number of cards in <zone>`
 // is also derivable as the card literal `number of cards` followed by
 // membership, `some` as an amount expression, and `jointly (x) >= 3` as a call

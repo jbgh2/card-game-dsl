@@ -73,8 +73,9 @@ domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             is a REFUSED container, so the offering surface has no move-type
             `demands:` member to cross.
 registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
-            production and its reject twin, read as text by the spelling
-            axis); `cardlang.ast.nodes.Game`'s field set and
+            production, read as text by the spelling axis) and
+            `diagnostics.lark` (its reject-with-replacement twin);
+            `cardlang.ast.nodes.Game`'s field set and
             `cardlang.ast.nodes.PhaseItem`'s union (the containment
             taxonomy's totality); `cardlang.resolve._REFERENCE_SLOTS` (the
             offering-surface candidates) and

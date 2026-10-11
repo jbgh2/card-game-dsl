@@ -27,8 +27,8 @@ production cannot land unanchored.
 
 Anchoring and NAME-exclusion are separate halves. NAME-exclusion (the
 `all|one|some|jointly|not|is|number` list) exists where a bare-NAME
-reading would be a genuine SECOND parse, and stays exactly as it was; this
-module is the anchoring half only.
+reading would be a genuine SECOND parse; this module is the anchoring half
+only.
 
 Completeness ledger (docs/decisions.md "Closed-domain completeness")
 -------------------------------------------------------------------
@@ -37,7 +37,7 @@ property:   no terminal of the shipped grammar can match a string ending in a
             also a word character. Equivalently: every lexeme boundary the
             grammar can produce inside a run of word characters is refused, so
             a fused spelling is a syntax error rather than a silent re-reading.
-domain:     `_diagnostic_diagnostic_parser().terminals` — Lark's own compiled terminal
+domain:     `_diagnostic_parser().terminals` — Lark's own compiled terminal
             table for `cardlang/grammar/cardlang.lark` composed with
             `diagnostics.lark`, a superset of the main parser's, crossed with
             the sample words each terminal matches. That table holds BOTH

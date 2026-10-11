@@ -27,9 +27,10 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               grammar composed with ``DIAGNOSTIC_GRAMMAR``, whose twins hand
               the builder a ``*_reject`` node that raises the teaching message
               in place of the syntax error; a text neither grammar derives
-              reports the main parser's own error, computed first, so no
-              expectation it lists names a retired spelling. No semantic
-              claims —
+              reports a syntax error rendered in the main grammar's words —
+              the main parser's, or the composed parser's where that read
+              further, past a twin's slip, before failing — so no expectation
+              it lists names a retired spelling. No semantic claims —
               names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
               nothing is typed. The `primitives { }` entry's own production
@@ -90,7 +91,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from importlib import resources
-from pathlib import Path
 from typing import Literal, cast
 
 from lark import Lark, Token, Tree
@@ -317,10 +317,10 @@ def _grammar_text() -> str:
     return resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
 
 
-#: The teaching refusals (`cardlang/grammar/diagnostics.lark`): every twin
-#: production the main grammar does not carry, composed onto it only inside
+#: The Diagnostic Grammar (`cardlang/grammar/diagnostics.lark`): every
+#: reject-with-replacement twin, composed onto the main grammar only inside
 #: the failure path of :func:`parse_to_tree`.
-DIAGNOSTIC_GRAMMAR = Path(__file__).parent / "grammar" / "diagnostics.lark"
+DIAGNOSTIC_GRAMMAR = resources.files("cardlang.grammar").joinpath("diagnostics.lark")
 
 
 @lru_cache(maxsize=1)
@@ -343,7 +343,7 @@ def _parser() -> Lark:
 
 @lru_cache(maxsize=1)
 def _diagnostic_parser() -> Lark:
-    """The main grammar with the teaching twins composed onto it, for the
+    """The main grammar with the reject-with-replacement twins composed onto it, for the
     second parse of a text the main grammar refuses. Its terminals are never
     spoken to a designer -- the message a twin raises is the builder's, and a
     text it refuses too reports the main parser's error -- so they need no
@@ -486,7 +486,7 @@ class _Builder(Transformer[Token, n.Game]):
         # A retired shape, not a clause: the block clauses take no colon, and
         # the colon habit is the most plausible wrong sentence (every scalar
         # clause a designer has met takes one). The `==`/`!=` mechanism: the
-        # grammar owns the shape so the rejection can name the fix.
+        # diagnostic grammar owns the shape so the rejection can name the fix.
         raise DiagnosticError(
             Diagnostic(
                 Severity.ERROR,
@@ -727,7 +727,8 @@ class _Builder(Transformer[Token, n.Game]):
                 Severity.ERROR,
                 f"a `primitives` entry declares a signature, never a value — "
                 f"`{bad.decl.name}(...) : {bad.decl.return_type} = ...` gives it "
-                f"a default the implementation would never see; drop the `=`",
+                f"a default the implementation would never see; delete the "
+                f"`= ...` after the signature",
                 bad.span,
             )
         )
@@ -1722,7 +1723,7 @@ class _Builder(Transformer[Token, n.Game]):
         op = str(c[1])
         if op in ("==", "!="):
             # Retired spellings (decisions.md "The expression register"): the
-            # lexer still owns the tokens so the rejection can name the fix.
+            # diagnostic grammar owns the tokens so the rejection can name the fix.
             word = "is" if op == "==" else "is not"
             raise DiagnosticError(
                 Diagnostic(
@@ -2814,48 +2815,64 @@ def parse_to_tree(
     is what `docs/glossary/author.md` forbids.
 
     A refused text is parsed once more under the grammar composed with the
-    teaching twins (``DIAGNOSTIC_GRAMMAR``). A twin that derives it hands the
+    Diagnostic Grammar (``DIAGNOSTIC_GRAMMAR``, the reject-with-replacement
+    twins). A twin that derives it hands the
     builder its ``*_reject`` node, and the builder's refusal — the fix in the
-    designer's words — is what the designer meets; a text no twin derives
-    meets the syntax error above, computed before the second parse so that
-    nothing it lists is a retired spelling.
+    designer's words — is what the designer meets. A text no twin derives
+    meets a syntax error: the main parser's, or, where the composed parser
+    read past a twin's slip before failing, that later failure, since it is
+    a second mistake the slip was hiding; either is rendered in the main
+    grammar's words, so nothing it lists is a retired spelling, and the
+    slip's own teaching follows once the later mistake is fixed.
     """
     try:
         tree = _parser().parse(text, start=start)
     except UnexpectedInput as exc:
-        # End of input is not a position: lark reports line and column as -1
-        # there, so the end of the text is the honest span.
-        reported: int | None = getattr(exc, "pos_in_stream", None)
-        at_end = reported is None or reported < 0
-        pos: int = len(text) if at_end else int(reported or 0)
-        raw_line: int = (
-            _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
-        )
-        column: int = (
-            pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
-        )
-        span = Span(source_name, pos, pos, raw_line + line_offset, column)
-        lexeme = _offending_lexeme(text, pos)
-        structure = _structure(text, pos, line_offset)
-        structural, names_a_site = structure.clause, structure.names_a_site
-        # A clause naming the block to close IS the instruction; the parser's
-        # own expectation, computed under a bracket context the missing `}`
-        # already broke, would invite exactly the wrong edit beside it.
-        expected = "" if names_a_site else _expected_clause(exc, lexeme.strip("`"))
-        hint = _parse_hint(text, pos, raw_line, start)
-        message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
-        main_error = Diagnostic(Severity.ERROR, message, span)
+        main_error, main_pos = _syntax_error(exc, text, source_name, line_offset, start)
         try:
             composed = _diagnostic_parser().parse(text, start=start)
-        except UnexpectedInput:
-            raise DiagnosticError(main_error) from exc
-        # Every twin's builder method raises (tools.dead_surface.refusing_methods,
-        # pinned by tests/test_diagnostic_grammar.py); a composed tree the
-        # builder accepts is a defect there, and the main error still stands.
+        except UnexpectedInput as later:
+            later_error, later_pos = _syntax_error(later, text, source_name, line_offset, start)
+            raise DiagnosticError(later_error if later_pos > main_pos else main_error) from exc
+        # Every twin's builder method raises, and `compare` raises on the
+        # operators `COMP_OP` gains (tools.dead_surface.refusing_methods and
+        # the operator goldens, pinned by tests/test_diagnostic_grammar.py); a
+        # composed tree the builder accepts is a defect there, and the main
+        # error still stands.
         _transform(_Builder(source_name, line_offset), composed)
         raise DiagnosticError(main_error) from exc
     assert isinstance(tree, Tree)
     return tree
+
+
+def _syntax_error(
+    exc: UnexpectedInput, text: str, source_name: str, line_offset: int, start: str
+) -> tuple[Diagnostic, int]:
+    """The designer's syntax error for ``exc``, and the offset it stands at.
+
+    The expectations are rendered through the MAIN grammar's terminal table
+    whichever parser raised ``exc``: a terminal only the diagnostic grammar
+    knows has no designer's word there and so is never listed."""
+    # End of input is not a position: lark reports line and column as -1
+    # there, so the end of the text is the honest span.
+    reported: int | None = getattr(exc, "pos_in_stream", None)
+    at_end = reported is None or reported < 0
+    pos: int = len(text) if at_end else int(reported or 0)
+    raw_line: int = _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
+    column: int = (
+        pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
+    )
+    span = Span(source_name, pos, pos, raw_line + line_offset, column)
+    lexeme = _offending_lexeme(text, pos)
+    structure = _structure(text, pos, line_offset)
+    structural, names_a_site = structure.clause, structure.names_a_site
+    # A clause naming the block to close IS the instruction; the parser's
+    # own expectation, computed under a bracket context the missing `}`
+    # already broke, would invite exactly the wrong edit beside it.
+    expected = "" if names_a_site else _expected_clause(exc, lexeme.strip("`"))
+    hint = _parse_hint(text, pos, raw_line, start)
+    message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
+    return Diagnostic(Severity.ERROR, message, span), pos
 
 
 def _transform(builder: _Builder, tree: Tree[Token]) -> object:

@@ -1,4 +1,4 @@
-// Guard: parse.py's `applies_when` builder, refusing the `always` spelling.
+// Guard: resolve.py's `_refuse_bare_always`, refusing the `always` spelling.
 // A rule applies every time exactly when it writes no `applies_when:` line, so
 // the wildcard is a second spelling of an omission; it is refused with that
 // fix rather than accepted.
