@@ -10,7 +10,10 @@ property:   each reader derives its facts from its source and nothing else:
             site, and a declaration line inside the block is not a site while
             a call line opening `word(` outside it is); the adapter facts
             are the literal tensor keyword and the presence of the
-            determinization hook on the state class; the read ledger is the
+            determinization hook on the state class; a text refusal is
+            `resample.refusal_in_text`'s verdict on the game file, for each
+            kind it reads off a text and for a game it does not refuse; the
+            read ledger is the
             generator issue's checkboxes; the ladder is the `### ` headings
             of the candidates file's Boards section; a grammar point counts
             lark's defined rules and distinct keyword spellings, taken at the
@@ -25,7 +28,9 @@ registry:   declared entries: `tools.destinations.declared_primitives`;
             game-local natives: `tools.destinations.registry_natives` over
             `cardlang.builtins.functions`; defining modules:
             `tools.destinations.defining_modules`; adapter:
-            `tools.destinations.adapter_facts`; ledger:
+            `tools.destinations.adapter_facts`; text refusals:
+            `tools.destinations.text_refusals` over
+            `cardlang.openspiel.resample.refusal_in_text`; ledger:
             `tools.destinations.read_ledger`; ladder:
             `tools.destinations.ladder`; grammar:
             `tools.destinations.grammar_point`.
@@ -114,6 +119,19 @@ def test_adapter_facts_reads_literal_and_hook() -> None:
     assert d.adapter_facts(src) == {"information_state_tensor": True, "resample_from_infostate": True}
     src2 = "class CardlangState(Base):\n    pass\nt = GameType(provides_information_state_tensor=flag)\n"
     assert d.adapter_facts(src2) == {"information_state_tensor": None, "resample_from_infostate": False}
+
+
+def test_text_refusals_reads_each_kind_and_skips_a_constructed_game(tmp_path: pathlib.Path) -> None:
+    """red under: return every stem from `text_refusals` -- the constructed
+    game appears with no kind and the equality fails."""
+    sources = {
+        "boards": d.GAMES_DIR / "tic-tac-toe.cardlang",
+        "selection": pathlib.Path(__file__).parent / "fixtures" / "resample" / "random_selection.cardlang",
+        "plain": pathlib.Path(__file__).parent / "fixtures" / "resample" / "chance_free.cardlang",
+    }
+    for stem, source in sources.items():
+        (tmp_path / f"{stem}.cardlang").write_text(source.read_text())
+    assert d.text_refusals(tmp_path) == {"boards": "repeated cards", "selection": "random selection"}
 
 
 def test_read_ledger_splits_checkboxes() -> None:
