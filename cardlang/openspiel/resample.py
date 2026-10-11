@@ -60,10 +60,12 @@ the same seat — with the same legal actions when the observer is that seat —
 and the observer's information state byte-identical; the search reads the
 true line only through what the observer has identified, its own picks, and
 the announcements it heard, so two worlds the observer cannot tell apart
-yield the same Constructed World from the same sampler randomness. A game this construction does not cover —
-a deck with repeated cards, a random selection — is refused before any
-proposal is drawn, and a budget spent without an acceptance is refused too,
-each as `ResampleRefusal`. Illegal after this: handing a solver a world this
+yield the same Constructed World from the same sampler randomness. A game
+whose text this construction does not cover — a deck with repeated cards, a
+draw kind outside `CONSTRUCTED_DRAW_KINDS` — is refused at every position,
+read off the text before any line is replayed, and a budget spent without an
+acceptance is refused too; each as `ResampleRefusal`, of one of
+`REFUSAL_KINDS`. Illegal after this: handing a solver a world this
 module did not accept; reading a true pick's action id at a pick the
 observer did not see.
 """
@@ -88,7 +90,7 @@ from cardlang.openspiel.replay import (
     load,
     run,
 )
-from cardlang.runtime.chance import Draw, Outcome
+from cardlang.runtime.chance import Draw, Outcome, draw_kinds
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import ChooserAbort, RuntimeState
 from cardlang.runtime.values import Card, build_deck
@@ -103,8 +105,27 @@ FRESH = 16
 _Unit = tuple[int | None, Card]
 
 
+# Why a Constructed World can be refused: each kind with the issue whose
+# landing removes it. `ResampleRefusal` takes one, and refuses any other.
+REFUSAL_KINDS: dict[str, int] = {
+    "repeated cards": 830,
+    "random selection": 831,
+    "budget spent": 832,
+}
+
+# The draw kinds a Constructed World is built across. Every other draw kind is
+# refused from the game's text by `_UNCONSTRUCTED`, at any position.
+CONSTRUCTED_DRAW_KINDS: frozenset[str] = frozenset({"shuffle"})
+
+# Each draw kind not constructed across, mapped to its refusal kind; with
+# `CONSTRUCTED_DRAW_KINDS` it partitions `chance.DRAW_KINDS`, which
+# tests/openspiel_ready/test_ismcts.py holds it to.
+_UNCONSTRUCTED: dict[str, str] = {"sample": "random selection"}
+
+
 class ResampleRefusal(Exception):
-    """No world can be constructed for this request.
+    """No world can be constructed for this request, for one of
+    `REFUSAL_KINDS`.
 
     Author: the engine maintainer. The game is legal and the request is the
     one OpenSpiel's solvers make; what is missing is construction this module
@@ -113,6 +134,12 @@ class ResampleRefusal(Exception):
     `GameDescriptionError` for that reason: a harness catching that base to
     report an illegal game must not swallow a capability gap.
     """
+
+    def __init__(self, kind: str, message: str) -> None:
+        if kind not in REFUSAL_KINDS:
+            raise AssertionError(f"unknown refusal kind {kind!r}: declare it in REFUSAL_KINDS")
+        super().__init__(f"{message} (issue #{REFUSAL_KINDS[kind]})")
+        self.kind = kind
 
 
 @dataclass(frozen=True)
@@ -168,16 +195,31 @@ def _moves(value: Any) -> tuple[Card, ...]:
     return tuple(_cards_named(value, {}))
 
 
-def _renderings(path: str) -> dict[str, Card]:
+def refusal_in_text(path: str) -> tuple[str, str] | None:
+    """The refusal the game's text commits it to, as its kind and message,
+    wherever the construct that causes it sits; None when the text commits it
+    to none. Read once, off the deck and the drawing constructs, so a game
+    refuses at its first decision exactly as it would at its last."""
     game, _ = load(path)
     deck = build_deck(game.deck)
-    by_render = {str(c): c for c in deck}
-    if len(by_render) != len(deck):
-        raise ResampleRefusal(
-            f"{path}: its deck holds repeated cards, and a world is constructed "
-            f"by telling every card from every other (issue #830)"
+    if len({str(c) for c in deck}) != len(deck):
+        return (
+            "repeated cards",
+            (
+                f"{path}: its deck holds repeated cards, and a world is "
+                f"constructed by telling every card from every other"
+            ),
         )
-    return by_render
+    unconstructed = sorted(draw_kinds(game) - CONSTRUCTED_DRAW_KINDS)
+    if unconstructed:
+        kind = _UNCONSTRUCTED[unconstructed[0]]
+        return kind, f"{path}: it draws by {kind}, and no world is constructed across one yet"
+    return None
+
+
+def _renderings(path: str) -> dict[str, Card]:
+    game, _ = load(path)
+    return {str(c): c for c in build_deck(game.deck)}
 
 
 def entitlement(
@@ -188,6 +230,9 @@ def entitlement(
     observer: int,
 ) -> Entitlement:
     """Replay the true line and derive what `observer` has identified."""
+    committed = refusal_in_text(path)
+    if committed is not None:
+        raise ResampleRefusal(*committed)
     by_render = _renderings(path)
     _, space = load(path)
     moments: list[Moment] = []
@@ -205,11 +250,9 @@ def entitlement(
     log: list[tuple[Any, ...]] = []
     for moment in moments:
         if isinstance(moment, Drawn):
-            if moment.draw.kind != "shuffle":
-                raise ResampleRefusal(
-                    f"{path}: a random selection draws here, and no world is "
-                    f"constructed across one yet (issue #831)"
-                )
+            # Shadow guard behind `refusal_in_text`, which refuses every game
+            # whose text reaches an unconstructed draw kind.
+            assert moment.draw.kind in CONSTRUCTED_DRAW_KINDS, moment.draw.kind
             draws.append(moment.draw)
             for card in moment.draw.after:
                 epoch[card] = moment.draw.index
@@ -478,7 +521,8 @@ def resample(
             best = (proposal, verdict)
     commonest = ", ".join(f"{reason} ({count})" for reason, count in where.most_common(3))
     raise ResampleRefusal(
+        "budget spent",
         f"{path}: no world consistent with seat {observer}'s information state "
         f"was accepted in {attempts} proposals at pick {len(history)}; they "
-        f"left it at: {commonest} (issue #832)"
+        f"left it at: {commonest}",
     )

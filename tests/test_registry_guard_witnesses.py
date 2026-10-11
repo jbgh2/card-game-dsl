@@ -614,6 +614,19 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # pin's, whose own plants are demonstrated there.
     "primitives_block.py": ["frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS"],
     "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
+    # Both validate a value against the registry that owns its row set, so
+    # widening the registry widens the guard and there is no literal to go
+    # stale. `REFUSAL_KINDS` is checked where a refusal is built; its reddening
+    # mutation is executed in test_a_refusal_of_an_undeclared_kind_is_refused
+    # (tests/openspiel_ready/test_ismcts.py). `CONSTRUCTED_DRAW_KINDS` is the
+    # Shadow Guard behind `refusal_in_text`, the Owner Guard that refuses every
+    # game whose text reaches an unconstructed draw kind before any draw runs;
+    # that Owner's witness is the `random selection` row of the refusal-kind
+    # grid in the same module.
+    "openspiel/resample.py": [
+        "kind not in REFUSAL_KINDS",
+        "moment.draw.kind in CONSTRUCTED_DRAW_KINDS",
+    ],
     # Both are the same shape: the builder validating a grammar-admitted
     # identifier against the registry that owns the row set, so the registry
     # stays the ONE place the set is stated and a wrong key gets a rejection

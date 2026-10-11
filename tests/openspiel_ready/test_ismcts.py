@@ -15,22 +15,27 @@ property:        a constructed world replays to a decision of the same seat,
                  cannot tell apart construct the same world from the same
                  sampler randomness; and an IS-MCTS search over such worlds
                  reaches terminal.
-domain:          two axes. The games: every registered game, with an expected
-                 outcome derived from its deck and its chance sites. A deck with
-                 repeated cards and a game drawing by random selection refuse;
-                 every other game resamples at each pick of `SWEEP_AT` along one
-                 seeded uniform line, for the seat to move and for the seat
-                 after it. The picks: every action block in `BLOCKS`, crossed
+domain:          three axes. The games: every registered game resamples at each
+                 pick of `SWEEP_AT` along one seeded uniform line, for the seat
+                 to move and for the seat after it, unless `REFUSALS` pins its
+                 refusal kind; an unpinned refusal, a pinned game that
+                 resamples, and a game whose text commits it to a refusal its
+                 entry does not name all fail. The refusals: every kind in
+                 `resample.REFUSAL_KINDS` raised by a named witness, and every
+                 draw kind either constructed across or refused by text. The
+                 picks: every action block in `BLOCKS`, crossed
                  with whether the asking seat saw another seat's pick. Each cell
                  a swept line meets has a named witness game. Every non-card
                  decision announces its value, so the unseen non-card cells
                  have no witness, and every sweep holds the cells it meets to
                  the witnessed set.
 registry:        games: `harness.REGISTERED_GAMES`; blocks:
-                 `cardlang.openspiel.encoding.BLOCKS`; draw kinds and their
-                 scripting: tests/test_scripted_random.py; the witnesses
-                 outside the registry: tests/fixtures/resample/random_selection.cardlang
-                 (a random selection) and tests/fixtures/resample/chance_free.cardlang
+                 `cardlang.openspiel.encoding.BLOCKS`; refusal kinds:
+                 `cardlang.openspiel.resample.REFUSAL_KINDS`; draw kinds:
+                 `cardlang.runtime.chance.DRAW_KINDS`, their scripting pinned in
+                 tests/test_scripted_random.py; the witnesses outside the
+                 registry: tests/fixtures/resample/random_selection.cardlang
+                 (a random selection between two decisions) and tests/fixtures/resample/chance_free.cardlang
                  (a game that draws nothing, with an unseen pick).
 does not prove:  that the constructed worlds follow the posterior's weights —
                  a green here places every world inside the information set and
@@ -43,6 +48,7 @@ does not prove:  that the constructed worlds follow the posterior's weights —
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -64,8 +70,7 @@ from cardlang.openspiel.encoding import BLOCKS
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.registry import _GAMES_DIR
 from cardlang.openspiel.replay import DecisionNode, chance_free, load, run
-from cardlang.runtime.chance import chance_sites
-from cardlang.runtime.values import build_deck
+from cardlang.runtime.chance import DRAW_KINDS
 
 from .harness import REGISTERED_GAMES
 
@@ -87,18 +92,6 @@ WITNESSED: dict[tuple[str, bool], str] = {
 
 def _path(filename: str) -> str:
     return str(_GAMES_DIR / filename)
-
-
-def _expected_refusal(path: str) -> str | None:
-    """What a game's resample refuses with, derived from its deck and chance
-    sites rather than from a run of the construction."""
-    game, _ = load(path)
-    deck = build_deck(game.deck)
-    if len({str(c) for c in deck}) != len(deck):
-        return "repeated cards"
-    if any(" random " in site for site in chance_sites(game)):
-        return "random selection"
-    return None
 
 
 def _check(
@@ -167,6 +160,28 @@ def _sweep(
     return frozenset(cells), frozenset(redrawn)
 
 
+# The registered games no Constructed World is built for yet, each with the
+# kind of its refusal (`resample.REFUSAL_KINDS`, which names the issue whose
+# landing removes it). A ratchet: entries leave, and a game joins only by a
+# decision recorded here. A refusal with no entry fails naming the game; an
+# entry whose game resamples fails naming the entry to drop.
+REFUSALS: dict[str, str] = {
+    "cardlang_breakthrough": "repeated cards",
+    "cardlang_canasta": "repeated cards",
+    "cardlang_coup": "repeated cards",
+    "cardlang_doppelkopf": "repeated cards",
+    "cardlang_pinochle": "repeated cards",
+    "cardlang_tic_tac_toe": "repeated cards",
+}
+
+
+def test_every_refusal_names_a_registered_game_and_a_declared_kind() -> None:
+    """An entry naming no game could never leave the table, and would read as
+    a refusal still standing."""
+    assert set(REFUSALS) <= {short for short, _ in REGISTERED_GAMES}
+    assert set(REFUSALS.values()) <= set(R.REFUSAL_KINDS)
+
+
 # The games whose sweep takes minutes rather than seconds, because their
 # public play constrains the hidden hands tightly enough that most proposals
 # are repaired rather than accepted (issue #832).
@@ -186,15 +201,41 @@ def _sweep_cases() -> list[Any]:
 
 
 @pytest.mark.parametrize(("short_name", "filename"), _sweep_cases())
-def test_every_game_resamples_or_refuses_as_derived(short_name: str, filename: str) -> None:
-    refusal = _expected_refusal(_path(filename))
-    if refusal is not None:
+def test_every_game_resamples_or_is_a_pinned_refusal(short_name: str, filename: str) -> None:
+    """red under: drop `cardlang_canasta` from `REFUSALS` — its text commits
+    it to a refusal and this fails naming the game; add `cardlang_hearts` to
+    it — the refusal is never raised and this fails naming the entry to drop;
+    plant a `move random` past every decision in a game absent from it — no
+    swept line reaches it, and the text's refusal fails here, while the same
+    game pinned for it passes (executed 2026-10-10)."""
+    committed = R.refusal_in_text(_path(filename))
+    if committed is not None:
+        assert REFUSALS.get(short_name) == committed[0], (
+            f"{short_name}'s text commits it to a refusal: {committed[1]}. Pin "
+            f"it in REFUSALS as {committed[0]!r}."
+        )
+    if short_name in REFUSALS:
+        kind = REFUSALS[short_name]
         node = run(_path(filename), 0, ())
         assert isinstance(node, DecisionNode)
-        with pytest.raises(R.ResampleRefusal, match=refusal):
+        try:
             R.resample(_path(filename), 0, (), (), node.player, random.Random(0), 4096)
+        except R.ResampleRefusal as refused:
+            assert refused.kind == kind, f"{short_name} refuses for another reason: {refused}"
+        else:
+            pytest.fail(
+                f"{short_name} resamples now: drop its REFUSALS entry "
+                f"(issue #{R.REFUSAL_KINDS[kind]})"
+            )
         return
-    unwitnessed = _sweep(short_name, filename)[0] - set(WITNESSED)
+    try:
+        met, _ = _sweep(short_name, filename)
+    except R.ResampleRefusal as refused:
+        pytest.fail(
+            f"{short_name} refuses a Constructed World and is not in REFUSALS: "
+            f"{refused}. Build it, or pin it in REFUSALS as {refused.kind!r}."
+        )
+    unwitnessed = met - set(WITNESSED)
     assert not unwitnessed, (
         f"{short_name} meets pick cells no witness covers: {sorted(unwitnessed)} — "
         f"name a witness game for each in WITNESSED"
@@ -235,13 +276,64 @@ def test_each_pick_cell_has_a_witness(block: str, seen: bool) -> None:
         assert (block, seen) in redrawn
 
 
-def test_a_random_selection_is_refused() -> None:
+def _repeated_cards() -> None:
+    path = _path(ogame.GAMES["cardlang_canasta"])
+    node = run(path, 0, ())
+    assert isinstance(node, DecisionNode)
+    R.resample(path, 0, (), (), node.player, random.Random(0), 4096)
+
+
+def _random_selection() -> None:
+    # Asked at the first discard, before the line reaches the random
+    # selection: the text refuses it there all the same.
     path = str(_FIXTURES / "random_selection.cardlang")
-    assert _expected_refusal(path) == "random selection"
     node = run(path, 3, ())
     assert isinstance(node, DecisionNode)
-    with pytest.raises(R.ResampleRefusal, match="random selection"):
-        R.resample(path, 3, (), (), node.player, random.Random(0), 4096)
+    assert len(node.rs.zones.instance("hand", 0).cards) == 3, "the selection is already behind"
+    R.resample(path, 3, (), (), node.player, random.Random(0), 4096)
+
+
+def _budget_spent() -> None:
+    path = _path(ogame.GAMES["cardlang_hearts"])
+    node = run(path, 0, ())
+    assert isinstance(node, DecisionNode)
+    R.resample(path, 0, (), (), node.player, random.Random(0), 4096, attempts=0)
+
+
+# One call per refusal kind that raises it.
+REFUSAL_WITNESSES: dict[str, Callable[[], None]] = {
+    "repeated cards": _repeated_cards,
+    "random selection": _random_selection,
+    "budget spent": _budget_spent,
+}
+
+
+@pytest.mark.parametrize("kind", sorted(R.REFUSAL_KINDS))
+def test_every_refusal_kind_is_raised_by_its_witness(kind: str) -> None:
+    assert kind in REFUSAL_WITNESSES, f"no witness raises the refusal kind {kind!r}"
+    with pytest.raises(R.ResampleRefusal) as refused:
+        REFUSAL_WITNESSES[kind]()
+    assert refused.value.kind == kind
+    assert f"issue #{R.REFUSAL_KINDS[kind]}" in str(refused.value)
+
+
+def test_the_witnesses_name_only_declared_kinds() -> None:
+    assert set(REFUSAL_WITNESSES) == set(R.REFUSAL_KINDS)
+
+
+def test_a_refusal_of_an_undeclared_kind_is_refused() -> None:
+    with pytest.raises(AssertionError, match="unknown refusal kind"):
+        R.ResampleRefusal("no such kind", "x")
+
+
+def test_every_draw_kind_is_constructed_or_refused() -> None:
+    """The draw kinds the construction builds across and those it refuses by
+    text partition `chance.DRAW_KINDS`, so a draw kind added there is a red
+    here until the construction says which it is."""
+    refused = set(R._UNCONSTRUCTED)
+    assert R.CONSTRUCTED_DRAW_KINDS.isdisjoint(refused)
+    assert R.CONSTRUCTED_DRAW_KINDS | refused == set(DRAW_KINDS)
+    assert set(R._UNCONSTRUCTED.values()) <= set(R.REFUSAL_KINDS)
 
 
 def test_a_chance_free_game_redraws_only_its_unseen_picks() -> None:
@@ -249,7 +341,7 @@ def test_a_chance_free_game_redraws_only_its_unseen_picks() -> None:
     the construction's no-draw path has its witness here: the deal is fixed,
     and seat 1's unseen discard is the one thing a world may change."""
     path = str(_FIXTURES / "chance_free.cardlang")
-    assert chance_free(path) and _expected_refusal(path) is None
+    assert chance_free(path)
     first = run(path, 0, ())
     assert isinstance(first, DecisionNode)
     history = (first.legal[0],)

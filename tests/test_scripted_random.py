@@ -10,7 +10,7 @@ property:        `ScriptedRandom` deals every draw kind exactly as
                  seed's first bit, refuses a malformed outcome, and refuses any
                  draw that is not one of its draw kinds.
 domain:          every draw kind in `DRAW_KINDS`, held equal to the drawing
-                 arms of the two chance tables through `_METHOD`, crossed with
+                 arms of the two chance tables through `DRAW_KIND_OF`, crossed with
                  the behaviours above; the unnamed draws are every public
                  drawing method of `random.Random` that is not a draw kind.
 registry:        drawing arms: `cardlang.runtime.chance.EPISTEMIC_OP_DRAWS`,
@@ -35,6 +35,7 @@ import pytest
 from cardlang.openspiel import replay
 from cardlang.openspiel.registry import _GAMES_DIR
 from cardlang.runtime.chance import (
+    DRAW_KIND_OF,
     DRAW_KINDS,
     EPISTEMIC_OP_DRAWS,
     SELECTION_MODE_DRAWS,
@@ -43,9 +44,6 @@ from cardlang.runtime.chance import (
 )
 from cardlang.runtime.errors import ShadowGuardError
 
-# Each drawing arm of the chance tables, mapped to the generator method its
-# construct reaches (`execute._epistemic` shuffles; a random selection samples).
-_METHOD: dict[str | None, str] = {"shuffle": "shuffle", "random": "sample"}
 
 _ITEMS = list(range(10))
 
@@ -64,8 +62,8 @@ def test_the_draw_kinds_are_the_drawing_arms() -> None:
     arms = {op for op, draws in EPISTEMIC_OP_DRAWS.items() if draws} | {
         mode for mode, draws in SELECTION_MODE_DRAWS.items() if draws
     }
-    assert set(_METHOD) == arms
-    assert set(_METHOD.values()) == set(DRAW_KINDS)
+    assert set(DRAW_KIND_OF) == arms
+    assert set(DRAW_KIND_OF.values()) == set(DRAW_KINDS)
 
 
 @pytest.mark.parametrize("kind", DRAW_KINDS)
