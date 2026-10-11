@@ -10,8 +10,13 @@ What it derives, and from where:
 
 * **OpenSpiel plays every game** -- the registered corpus (`docs/games/`),
   the adapter's declared information-state tensor and its determinization
-  hook (`cardlang/openspiel/game.py`, read with `ast`), and, under
-  `--tracker`, the read ledger in the generator issue's checkboxes.
+  hook (`cardlang/openspiel/game.py`, read with `ast`), the games the
+  determinization refuses from their text (`resample.refusal_in_text`, the
+  construction's own rule, grouped by kind with the issue that removes it),
+  and, under `--tracker`, the read ledger in the generator issue's
+  checkboxes. A refusal found only by running the construction (`budget
+  spent`) is not read here: the ratchet in
+  tests/openspiel_ready/test_ismcts.py pins those.
 * **Python only scores** -- every game-local native function a corpus game
   names: the entries of its `primitives { }` block, and the names in the
   `PRIMITIVE_*` registries of `cardlang/builtins/functions.py` that the
@@ -54,6 +59,7 @@ from dataclasses import dataclass
 from lark import Lark
 
 from cardlang.builtins import functions as builtin_registries
+from cardlang.openspiel import resample
 from tests.keyword_fusion_sweep import code_mask
 from tools.dead_surface import keyword_axis
 
@@ -192,6 +198,17 @@ def adapter_facts(source: str) -> dict[str, bool | None]:
     return {"information_state_tensor": tensor, "resample_from_infostate": resample}
 
 
+def text_refusals(games_dir: pathlib.Path = GAMES_DIR) -> dict[str, str]:
+    """Game stem -> refusal kind, for every corpus game whose text commits
+    the determinization to a refusal at every position."""
+    out: dict[str, str] = {}
+    for path in sorted(games_dir.glob("*.cardlang")):
+        committed = resample.refusal_in_text(str(path))
+        if committed is not None:
+            out[path.stem] = committed[0]
+    return out
+
+
 _BOX = re.compile(r"^- \[([ x])\] \*\*([a-z0-9-]+)\*\*")
 
 
@@ -326,6 +343,7 @@ def render(
     uses: Sequence[NativeUse],
     facts: dict[str, bool | None],
     registered: int,
+    refusals: dict[str, str],
     ledger: tuple[list[str], list[str]] | None,
     history: Sequence[GrammarPoint],
     rungs: Sequence[str],
@@ -337,6 +355,10 @@ def render(
     out.append(f"registered corpus games: {registered}")
     out.append(f"information-state tensor declared: {facts['information_state_tensor']}")
     out.append(f"determinization hook (resample_from_infostate) defined: {facts['resample_from_infostate']}")
+    out.append(f"games the determinization refuses from their text: {len(refusals)}")
+    for kind in sorted(set(refusals.values())):
+        games = sorted(g for g, k in refusals.items() if k == kind)
+        out.append(f"- {kind} (issue #{resample.REFUSAL_KINDS[kind]}): {', '.join(games)}")
     if ledger is None:
         out.append(f"rules-source reads: not fetched (pass --tracker to read issue #{READ_LEDGER_ISSUE})")
     else:
@@ -384,6 +406,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             uses=corpus_native_uses(),
             facts=adapter_facts(ADAPTER.read_text()),
             registered=len(list(GAMES_DIR.glob("*.cardlang"))),
+            refusals=text_refusals(),
             ledger=ledger,
             history=grammar_history(verdict_files()),
             rungs=ladder(CANDIDATES.read_text()),

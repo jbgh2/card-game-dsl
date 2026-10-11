@@ -49,12 +49,15 @@ Destination.
   states it, is a game OpenSpiel's imperfect-information algorithms run on:
   the IS-MCTS family determinizes it, tensor-based learners have an
   information-state tensor derived from zone visibility, and chance is
-  explicit. Held by [#141](https://github.com/jbgh2/card-game-dsl/issues/141),
+  explicit. Held by the refusal kinds
+  ([#830](https://github.com/jbgh2/card-game-dsl/issues/830),
+  [#831](https://github.com/jbgh2/card-game-dsl/issues/831),
+  [#832](https://github.com/jbgh2/card-game-dsl/issues/832)),
   [#139](https://github.com/jbgh2/card-game-dsl/issues/139),
   [#99](https://github.com/jbgh2/card-game-dsl/issues/99) and the reads in
   [#469](https://github.com/jbgh2/card-game-dsl/issues/469). Distance: the
-  adapter's tensor and determinization facts, and the read ledger's unread
-  games.
+  adapter's tensor fact, the games the determinization refuses, and the read
+  ledger's unread games.
 - **Python only scores.** A game is written in the DSL alone; where a
   game names native Python, the function scores a holding and decides
   nothing else — no legality, no bid ladder, no seat selection, no
