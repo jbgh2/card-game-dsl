@@ -102,7 +102,7 @@ game SevenCardStud {
   // Who brings in and who opens each later street is Stud's, shared with
   // Five-Card Stud (docs/libraries/stud.cardlang): `bring_in_seat()` is the
   // lowest door card, `best_showing_seat()` the best hand showing, and
-  // `shows_pair` the open-pair test below.
+  // `shows_pair` the open-pair test 4th street sizes itself by.
   uses stud
 
   players: 4
