@@ -21,7 +21,9 @@ domain:          each clause gate's members that are Builtins, crossed with
                  a library holds, each reaching one gated Builtin; every
                  ranking-gated name in each position it is named from (call,
                  trick winner, climbing query), each remedy its refusal offers
-                 applied. Three member groups never reach a game through a
+                 applied; and every corpus game declaring `ranking:` that uses
+                 a checked-in library reaching a ranking-gated Builtin, with
+                 its `ranking:` line deleted. Three member groups never reach a game through a
                  library, each pinned by the refusal that bars it in the
                  library's own file: a gated Primitive (a library calls
                  Builtins only), a gated round slot (a procedure body holds no
@@ -71,6 +73,7 @@ from cardlang.builtins.functions import (
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
+from cardlang.libraries import library_names, load_library
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.typecheck import (
@@ -723,6 +726,57 @@ def _with_libraries(
 
 
 _RANK_LIB = "library probe_lib { function probe_fn(c : Card) = rank_value(c) }"
+
+
+def _corpus_ranking_witnesses() -> list[tuple[str, str]]:
+    """(corpus game file, library it uses) for every corpus game that declares
+    a `ranking:` and uses a checked-in library whose definitions call a
+    ranking-gated Builtin."""
+    found: list[tuple[str, str]] = []
+    for path in sorted((_REPO / "docs" / "games").glob("*.cardlang")):
+        lines = path.read_text().splitlines()
+        if not any(line.lstrip().startswith("ranking:") for line in lines):
+            continue
+        for line in lines:
+            words = line.split()
+            if len(words) == 2 and words[0] == "uses" and words[1] in library_names():
+                calls = resolve_module._library_calls(load_library(words[1]))
+                if any(call.func in RANKING_GATED_FUNCS for call, _ in calls):
+                    found.append((path.name, words[1]))
+    return found
+
+
+def test_the_corpus_holds_a_ranking_witness() -> None:
+    """The corpus cells below are not vacuous: some checked-in library reaches
+    a ranking-gated Builtin, and some corpus game uses it."""
+    assert _corpus_ranking_witnesses()
+
+
+@pytest.mark.parametrize(
+    ("game_file", "library"),
+    [pytest.param(g, lib, id=f"{g}-{lib}") for g, lib in _corpus_ranking_witnesses()],
+)
+def test_a_corpus_game_without_its_ranking_is_told_on_its_uses_line(
+    game_file: str, library: str
+) -> None:
+    """A real game and a real library: the game stays valid as written, and with
+    its `ranking:` line deleted the refusal names the library on the game's own
+    `uses` line and nothing inside the library file."""
+    path = _REPO / "docs" / "games" / game_file
+    text = path.read_text()
+    assert _rendered(text.replace("game ", "game Witness", 1)) is None
+    stripped = "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("ranking:")
+    )
+    rendered = _rendered(stripped.replace("game ", "game Unranked", 1))
+    assert rendered is not None
+    assert f"docs/libraries/{library}.cardlang" not in rendered, rendered
+    where = f"{_GAME_FILE}:{_line_of(stripped, f'uses {library}')}:"
+    assert any(
+        line.startswith(where) and f"'{library}'" in line and "ranking:" in line
+        and any(member in line for member in RANKING_GATED_FUNCS)
+        for line in rendered.splitlines()
+    ), rendered
 
 
 def test_a_ranking_convention_meets_the_gate(monkeypatch: pytest.MonkeyPatch) -> None:
