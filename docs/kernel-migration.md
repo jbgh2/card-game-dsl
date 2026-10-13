@@ -26,8 +26,7 @@ ordinary statements, registered in `cardlang/openspiel/game.py:GAMES` with
 the readiness proofs green (`tests/openspiel_ready/`).
 
 The per-game `runtime/*.py` modules that remain hold no mechanic — only pure
-Primitives the DSL calls: Stud's poker evaluator, seat selectors, and
-`pot_share`; Big Two's combination engine; Pinochle's meld evaluator; Tarot's
+Primitives the DSL calls: Stud's poker evaluator and `pot_share`; Big Two's combination engine; Pinochle's meld evaluator; Tarot's
 completed-trick Excuse query and settlement arithmetic; Cribbage's pegging/show scorers
 and provenance decoder; Skat's bid
 ladder, matador count, and overbid arithmetic; 500's bid ladder and contract
@@ -279,12 +278,14 @@ amount syntax" / "Resource transfer failure").
   each draw, so the street closes mid-lap ([decisions.md](decisions.md),
   "Auctions, polls and betting rings are `turns` plus `offer`"). The order
   axis needed no value of its own.
-- **Seat selectors as Primitives.** The bring-in (lowest door card) and the
-  street's opener (best hand showing) are argmin/argmax over players keyed on
-  card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `best_showing_seat()`
-  are Stud-local Primitives, called from the betting phase by name exactly as
-  the Builtin `team_of` is,
-  pure reads of the dealt cards (no RNG).
+- **The seat selectors run in the DSL — done.** The bring-in (lowest door
+  card) and the street's opener (best hand showing) are `bring_in_seat()` /
+  `best_showing_seat()`, functions of the family library `stud`
+  (`docs/libraries/stud.cardlang`) that both Stud games use: a `the player
+  where` over the seats, keyed on an order the library builds from card
+  queries over the public `upcards`. Every input is a public card, so the seat
+  each names is public and derives from the deal's movement events like any
+  other read.
 - **The showdown runs in the DSL — done.** A contested hand reveals the
   contenders' hole cards into the `PublicHand` (two movements per contender —
   the board parked into `hole`, then all seven flipped into `upcards` — so the

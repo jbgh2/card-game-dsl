@@ -47,9 +47,12 @@ acted, so the seats behind the aggressor decide before the seats its bet
 re-opened (poker's continuation order), and the showdown as plain statements — a contested hand
 reveals the contenders' hole cards into the
 public board, each entrant collects its side-pot share via `pot_share(p)`, and
-the hands leave play to the muck. The Primitives are pure reads: the
-door-card seat selectors (`bring_in_seat` / `best_showing_seat`) and the
-side-pot query (`pot_share`); the poker evaluator behind them is unit-tested.
+the hands leave play to the muck. The seats the streets open on are the
+DSL's too: `uses stud` brings in the family library shared with Five-Card Stud,
+whose `bring_in_seat` (the lowest door card) and `best_showing_seat` (the best
+hand showing) are functions over the public `upcards`. The one Primitive is a
+pure read, the side-pot query (`pot_share`); the poker evaluator behind it is
+unit-tested.
 From 4th street on, a pair showing opens the **big bet** to every active
 player — as an option beside the small bet, so a player choosing to bet picks
 between the two sizes. The street opens at both: `open_street` takes a second

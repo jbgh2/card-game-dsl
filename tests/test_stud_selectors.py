@@ -1,39 +1,112 @@
-"""Stud's seat-selector Primitives (bring-in, best-showing).
+"""Stud's two seats, as the `stud` family library defines them.
 
-These are argmin/argmax over players keyed on card ranks/suits — not expressible
-in the DSL today — so they are Primitives called from the betting
-phase. The pure ranking logic is unit-tested here against known cards; their
-DSL-callability (signature wiring) is checked with a fixture that declares and
-calls each.
+`bring_in_seat()` (the lowest door card) and `best_showing_seat()` (the best
+hand showing) are DSL functions in `docs/libraries/stud.cardlang`. Each is
+evaluated here on hand-built boards, through the library exactly as a stud game
+splices it in, and answered two ways: by Pagat's own worked examples, pinned
+because an order that happened to agree on easier cases would rank them
+backwards, and by `pagat_showing_key`, an independent Python statement of the
+same rule, over seeded random boards drawn to be dense in pairs.
 
 One rule, one selector: the street's opener is the best POKER hand showing, so
 multiplicity is read ahead of card value. A lexicographic compare of card values
-would rank Pagat's own worked example backwards, which is why the example is
-pinned below rather than a case the order happens to agree on.
+would rank Pagat's own worked example backwards.
 """
 
 from __future__ import annotations
 
-from types import MappingProxyType
+import random
+from collections import Counter
+from collections.abc import Mapping, Sequence
+from functools import cache
 
+from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
-from cardlang.runtime import reads
-from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.stud import _best_showing, _lowest_door, bring_in_seat
-from cardlang.runtime.values import Card, Seating, TeamOf
+from cardlang.runtime.evaluate import evaluate
+from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+from cardlang.runtime.values import RANKS, SUITS, Card, Player, Seating
+
+_SUIT = {"C": "clubs", "D": "diamonds", "H": "hearts", "S": "spades"}
 
 
 def _c(rank: str, suit: str) -> Card:
-    return Card(rank, {"C": "clubs", "D": "diamonds", "H": "hearts", "S": "spades"}[suit])
+    return Card(rank, _SUIT[suit])
 
 
-def test_lowest_door_picks_lowest_rank_then_lowest_suit() -> None:
-    # Players 1 and 2 both show a 5; clubs (2C suit ordinal 0) beats diamonds.
-    door = {0: _c("7", "C"), 1: _c("5", "D"), 2: _c("5", "C")}
-    assert _lowest_door([0, 1, 2], door) == 2
-    # An ace door is the *highest*, never the bring-in.
-    door = {0: _c("A", "S"), 1: _c("K", "C"), 2: _c("2", "H")}
-    assert _lowest_door([0, 1, 2], door) == 2
+# The smallest game that satisfies the library's `requires` contract, asking
+# one selector. `stack` is declared and ignored by both selectors, so a
+# chip-filtered selector would RUN here and answer a funded seat rather than
+# fail for want of the name: what the chip cases below red on is the seat
+# choice, which is the whole of what they are about.
+_GAME = """
+game G {{
+  players: {players}
+  max_length: 1000
+  direction: clockwise
+  cards: standard52
+  ranking: aces high
+  uses stud
+  zones {{ deck : Deck  upcards[player] : PublicHand<player> }}
+  state {{
+    stack[player] : Integer = 100  folded[player] : Boolean = false
+    lowest_suit : Suit = clubs  second_suit : Suit = diamonds  third_suit : Suit = hearts
+  }}
+  phase p {{
+    let seat = {selector}()
+  }}
+  winner: highest stack
+}}
+"""
+
+
+@cache
+def _probe(players: int, selector: str) -> tuple[n.Game, n.Expr]:
+    game = check_dsl(_GAME.format(players=players, selector=selector), "stud-seat.cardlang")
+    stmt = game.phases[0].items[-1]
+    assert isinstance(stmt, n.LetStmt)
+    return game, stmt.value
+
+
+def _no_choice(actor: int, candidates: list[object], k: int) -> list[object]:
+    raise AssertionError("a seat selector makes no decision")
+
+
+def _seat(
+    selector: str,
+    boards: Mapping[Player, Sequence[Card]],
+    folded: frozenset[Player] = frozenset(),
+    stack: Mapping[Player, int] | None = None,
+) -> Player:
+    """The seat `selector` names over `boards` (seat -> face-up cards, in the
+    order dealt), under the same `ranking:` and function index the driver
+    loads."""
+    players = len(boards)
+    game, expr = _probe(players, selector)
+    seats = tuple(range(players))
+    rs = RuntimeState(Seating(players), ZoneStore(game.zones, seats), random.Random(0))
+    rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
+    rs.function_index = {f.name: f for f in game.functions}
+    rs.push_frame()
+    rs.declare("stack", True, {p: (stack or {}).get(p, 100) for p in seats})
+    rs.declare("folded", True, {p: p in folded for p in seats})
+    for name, suit in (("lowest_suit", "clubs"), ("second_suit", "diamonds"), ("third_suit", "hearts")):
+        rs.declare(name, False, suit)
+    for p, cards in boards.items():
+        rs.zones.instance("upcards", p).add_all(list(cards))
+    seat = evaluate(expr, Ctx(rs=rs, chooser=_no_choice))
+    assert isinstance(seat, int)
+    return seat
+
+
+def _best(boards: Mapping[Player, Sequence[Card]], folded: frozenset[Player] = frozenset()) -> Player:
+    return _seat("best_showing_seat", boards, folded)
+
+
+def _bring_in(boards: Mapping[Player, Sequence[Card]], stack: Mapping[Player, int] | None = None) -> Player:
+    return _seat("bring_in_seat", boards, stack=stack)
+
+
+# --- the best hand showing -----------------------------------------------------
 
 
 def test_best_showing_ranks_multiplicity_ahead_of_card_value() -> None:
@@ -42,8 +115,8 @@ def test_best_showing_ranks_multiplicity_ahead_of_card_value() -> None:
     trips = [_c("3", "C"), _c("3", "D"), _c("3", "H")]
     pair = [_c("7", "C"), _c("7", "D"), _c("8", "H")]
     high = [_c("A", "C"), _c("K", "D"), _c("Q", "H")]
-    assert _best_showing([0, 1, 2], {0: high, 1: pair, 2: trips}) == 2
-    assert _best_showing([0, 1], {0: high, 1: pair}) == 1
+    assert _best({0: high, 1: pair, 2: trips}) == 2
+    assert _best({0: high, 1: pair}) == 1
 
 
 def test_best_showing_orders_every_class_multiplicity_can_show() -> None:
@@ -54,11 +127,41 @@ def test_best_showing_orders_every_class_multiplicity_can_show() -> None:
     two_pair = [_c("5", "C"), _c("5", "D"), _c("6", "H"), _c("6", "S")]
     pair = [_c("7", "C"), _c("7", "D"), _c("8", "H"), _c("9", "S")]
     high = [_c("A", "C"), _c("K", "D"), _c("Q", "H"), _c("J", "S")]
-    boards = {0: high, 1: pair, 2: two_pair, 3: trips, 4: quads}
-    for better, worse in ((4, 3), (3, 2), (2, 1), (1, 0)):
-        assert _best_showing([better, worse], boards) == better
-    # Transitively, the whole field: the quads seat opens against all of them.
-    assert _best_showing(sorted(boards), boards) == 4
+    ladder = [high, pair, two_pair, trips, quads]
+    for i in range(len(ladder) - 1):
+        worse, better = ladder[i], ladder[i + 1]
+        assert _best({0: better, 1: worse}) == 0
+        assert _best({0: worse, 1: better}) == 1
+
+
+def test_two_pair_beats_a_higher_pair_whatever_the_kickers() -> None:
+    # The shape is read whole before any rank: a pair of kings with an ace
+    # kicker is still one pair.
+    two_pair = [_c("5", "C"), _c("5", "D"), _c("6", "H"), _c("6", "S")]
+    kings = [_c("K", "C"), _c("K", "D"), _c("A", "H"), _c("Q", "S")]
+    assert _best({0: kings, 1: two_pair}) == 1
+
+
+def test_within_a_shape_the_group_is_read_before_its_kickers() -> None:
+    # Same shape: the higher pair wins over the higher kicker, and on equal
+    # pairs the kickers decide, highest first.
+    sevens = [_c("7", "C"), _c("7", "D"), _c("2", "H")]
+    sixes = [_c("6", "C"), _c("6", "D"), _c("A", "H")]
+    assert _best({0: sixes, 1: sevens}) == 1
+    sevens_king = [_c("7", "H"), _c("7", "S"), _c("K", "C")]
+    assert _best({0: sevens, 1: sevens_king}) == 1
+
+
+def test_every_kicker_of_a_five_card_board_has_its_own_place() -> None:
+    """Two high-card boards that agree on 8-7-6 differ on the fourth card, so
+    the 5 kicker wins whatever suit the eight is.
+
+    red under: drop `place`'s fifth arm, so the fourth and fifth cards share a
+    place and 4+3 packs equal to 5+2 — RUN, not predicted: the spade eight then
+    opens."""
+    low_kickers = [_c("8", "S"), _c("7", "C"), _c("6", "C"), _c("4", "C"), _c("3", "C")]
+    five_kicker = [_c("8", "H"), _c("7", "D"), _c("6", "D"), _c("5", "D"), _c("2", "D")]
+    assert _best({0: low_kickers, 1: five_kicker}) == 1
 
 
 def test_best_showing_does_not_count_incomplete_straights_or_flushes() -> None:
@@ -66,82 +169,42 @@ def test_best_showing_does_not_count_incomplete_straights_or_flushes() -> None:
     # is a high-card board, and the lowest possible pair outranks it.
     straight_flush_draw = [_c("9", "H"), _c("8", "H"), _c("7", "H"), _c("6", "H")]
     lowest_pair = [_c("2", "C"), _c("2", "D"), _c("3", "H"), _c("4", "S")]
-    assert _best_showing([0, 1], {0: straight_flush_draw, 1: lowest_pair}) == 1
+    assert _best({0: straight_flush_draw, 1: lowest_pair}) == 1
 
 
 def test_best_showing_breaks_a_tie_on_the_suit_of_the_highest_card() -> None:
     # Same ranks in both hands, so the suits of the highest card decide, on
     # clubs (low), diamonds, hearts, spades (high).
-    assert _best_showing(
-        [0, 1],
-        {0: [_c("K", "C"), _c("4", "S")], 1: [_c("K", "S"), _c("4", "C")]},
-    ) == 1
+    assert _best({0: [_c("K", "C"), _c("4", "S")], 1: [_c("K", "S"), _c("4", "C")]}) == 1
     # The tie-break reads the HIGHEST card's suit, not the whole board's best
     # suit: seat 0 holds the only spade and still loses on the king.
-    assert _best_showing(
-        [0, 1],
-        {0: [_c("K", "D"), _c("4", "S")], 1: [_c("K", "H"), _c("4", "D")]},
-    ) == 1
+    assert _best({0: [_c("K", "D"), _c("4", "S")], 1: [_c("K", "H"), _c("4", "D")]}) == 1
 
 
-# Both selectors are nullary native calls returning a Player; the resolver/checker
-# must accept them in expression position (the betting phase assigns the result to
-# a `leader`/`bringer` state var). A declaration is their only route to Python, so
-# the fixture writes the block; its reads are the ones the implementations consult,
-# declared here at game level because this probe has no betting phase to declare
-# them in.
-_FIXTURE = """
-game G {
-  players: 4
-  max_length: 1000
-  direction: clockwise
-  cards: standard52
-  ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  primitives {
-    bring_in_seat() : Player reads upcards
-    best_showing_seat() : Player reads folded, upcards
-  }
-  zones { deck : Deck  upcards[player] : PublicHand<player> }
-  state { stack[player] : Integer = 100  folded[player] : Boolean = false  leader : Player? = none }
-  phase setup {
-    leader := bring_in_seat()
-    leader := best_showing_seat()
-  }
-  winner: highest stack
-}
-"""
+def test_a_folded_or_empty_board_never_opens() -> None:
+    # A folder's cards are mucked and an absent seat was dealt none, but either
+    # being read would hand it the street: seat 0 is marked folded while still
+    # holding the best board, and seat 2 holds nothing.
+    best = [_c("A", "C"), _c("A", "D")]
+    other = [_c("3", "C"), _c("4", "D")]
+    assert _best({0: best, 1: other, 2: []}, folded=frozenset({0})) == 1
 
 
-def test_selectors_are_callable_from_the_dsl() -> None:
-    game = check_dsl(_FIXTURE, "selectors.cardlang")  # resolves + typechecks the calls
-    assert game.name == "G"
+def test_an_all_in_board_still_anchors_the_street() -> None:
+    # The membership is the cards, not the chips: the seat with no chips left
+    # holds the best board and the street is anchored on it.
+    boards = {0: [_c("A", "C"), _c("A", "D")], 1: [_c("3", "C"), _c("4", "D")]}
+    assert _seat("best_showing_seat", boards, stack={0: 0, 1: 100}) == 0
 
 
-# `bring_in_seat` reads its membership off the boards, so the whole of what it
-# needs is the `upcards` family — which is also why the fixture above declares
-# no `stack` for it. The two cases below are the membership itself: a seat with
-# a board is in, a seat without one is out, and chips appear in neither.
-def _facts(n: int) -> EngineFacts:
-    return EngineFacts(
-        seating=Seating(n),
-        team_of=TeamOf({}),
-        rank_index=MappingProxyType({}),
-        round_state=None,
-        last_round_state=None,
-        actor=None,
-    )
+# --- the bring-in -----------------------------------------------------------------
 
 
-# A `stack` rides in the state bundle although the selector declares none, so
-# that a chip-filtered selector would RUN here and answer the funded seat rather
-# than fail for want of the name: what these two cases red on is the seat
-# choice, which is the whole of what they are about.
-def _boards(up: dict[int, tuple[Card, ...]], stack: dict[int, int]) -> reads.GameReads:
-    return reads.GameReads(
-        state=MappingProxyType({"stack": stack}),
-        families=MappingProxyType({"upcards": up}),
-        singles=MappingProxyType({}),
-    )
+def test_lowest_door_picks_lowest_rank_then_lowest_suit() -> None:
+    # Players 1 and 2 both show a 5; clubs beats diamonds as the lower.
+    assert _bring_in({0: [_c("7", "C")], 1: [_c("5", "D")], 2: [_c("5", "C")]}) == 2
+    # An ace door is the *highest*, never the bring-in.
+    assert _bring_in({0: [_c("A", "S")], 1: [_c("K", "C")], 2: [_c("2", "H")]}) == 2
 
 
 def test_bring_in_is_the_lowest_door_even_when_that_seat_holds_no_chips() -> None:
@@ -149,17 +212,69 @@ def test_bring_in_is_the_lowest_door_even_when_that_seat_holds_no_chips() -> Non
     # The street is anchored where the card is: chips decide who can PAY, never
     # which card the bring-in is read off. Anchoring on the lowest FUNDED door
     # would bring in seat 1.
-    up: dict[int, tuple[Card, ...]] = {
-        0: (_c("9", "C"),),
-        1: (_c("7", "D"),),
-        2: (_c("3", "S"),),
-    }
-    assert bring_in_seat(_facts(3), _boards(up, {0: 100, 1: 100, 2: 0})) == 2
+    boards = {0: [_c("9", "C")], 1: [_c("7", "D")], 2: [_c("3", "S")]}
+    assert _bring_in(boards, stack={0: 100, 1: 100, 2: 0}) == 2
 
 
 def test_bring_in_skips_a_seat_that_was_dealt_no_cards() -> None:
     # A seat that never entered the hand holds an empty board, which is not a
     # door card to compare — and comparing it would have no first card to read.
-    # Seat 1 holds chips, so chips are not what excludes it.
-    up: dict[int, tuple[Card, ...]] = {0: (_c("9", "C"),), 1: (), 2: (_c("5", "H"),)}
-    assert bring_in_seat(_facts(3), _boards(up, {0: 100, 1: 100, 2: 100})) == 2
+    assert _bring_in({0: [_c("9", "C")], 1: [], 2: [_c("5", "H")]}) == 2
+
+
+# --- against an independent statement of the rule ---------------------------------
+
+
+def pagat_showing_key(cards: Sequence[Card]) -> tuple[list[int], list[int], tuple[int, int]]:
+    """Pagat's order written directly: the shape (rank multiplicities,
+    descending), then the ranks ordered by multiplicity and then value, then
+    the highest card's (rank, suit)."""
+    counts = Counter(RANKS.index(c.rank) for c in cards)
+    by_weight = sorted(counts.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+    top = max((RANKS.index(c.rank), SUITS.index(c.suit)) for c in cards)
+    return ([k for _, k in by_weight], [v for v, _ in by_weight], top)
+
+
+def _random_table(rng: random.Random) -> tuple[dict[Player, list[Card]], frozenset[Player]]:
+    """A table of two to eight seats showing one to five cards each, drawn from
+    a handful of ranks most of the time so that pairs, two pairs and trips —
+    where the shape and the group order decide — are common rather than rare."""
+    players = rng.randint(2, 8)
+    showing = rng.randint(1, 5)
+    deck = [Card(r, s) for r in RANKS for s in SUITS]
+    ranks = rng.sample(RANKS, min(len(RANKS), rng.randint(players, 2 * players)))
+    pool = [c for c in deck if c.rank in ranks]
+    if len(pool) < players * showing or rng.random() < 0.2:
+        pool = deck
+    cards = rng.sample(pool, players * showing)
+    boards = {p: cards[p * showing : (p + 1) * showing] for p in range(players)}
+    folded = frozenset(p for p in range(1, players) if rng.random() < 0.2)
+    for p in folded:
+        boards[p] = []
+    return boards, folded
+
+
+def test_best_showing_agrees_with_pagat_on_random_tables() -> None:
+    """red under: in `showing_order`, drop the leading `matching(p) * …` term
+    (two pair then loses to a higher pair) — RUN, not predicted: this test
+    reds at the first disagreeing table."""
+    rng = random.Random(20261011)
+    for _ in range(300):
+        boards, folded = _random_table(rng)
+        live = [p for p in boards if p not in folded and boards[p]]
+        want = max(live, key=lambda p: pagat_showing_key(boards[p]))
+        assert _best(boards, folded) == want, (boards, folded)
+
+
+def test_bring_in_agrees_with_the_lowest_door_on_random_tables() -> None:
+    rng = random.Random(20261012)
+    deck = [Card(r, s) for r in RANKS for s in SUITS]
+    for _ in range(200):
+        players = rng.randint(2, 8)
+        doors = rng.sample(deck, players)
+        boards = {p: [doors[p]] if p == 0 or rng.random() > 0.15 else [] for p in range(players)}
+        want = min(
+            (p for p in boards if boards[p]),
+            key=lambda p: (RANKS.index(boards[p][0].rank), SUITS.index(boards[p][0].suit)),
+        )
+        assert _bring_in(boards) == want, boards
