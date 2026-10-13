@@ -2,15 +2,19 @@
 
 property:   every name a family library's body writes where the library
             cannot reach it is refused, located in the library file, with a
-            message whose claim about the name is true -- a Primitive is
-            called a Primitive, with the rule that keeps it out of a library
-            and a fix that checks clean; a walled Primitive gets the slot its
-            label names; a trick winner gets the round slot that takes it; a
-            suit or rank gets the reason a library names none, with a fix
-            that checks clean; the library's own definition, a contracted or
-            kernel name, a type or a direction value is named as what it is;
-            and only a name that is none of these is told it is neither
-            defined in the library nor native code.
+            message whose claim about the name is true whichever game imports
+            the library. A CALL is answered from the library and then the
+            language: the library's own definition, a contracted or kernel
+            name, a type or a direction value is named as what it is, a
+            Primitive gets the rule that keeps it out of a library and a fix
+            that checks clean, a walled Primitive gets the slot its label
+            names, and a trick winner gets the round slot that takes it. A
+            BARE READ is answered from the library alone: its own definition
+            or contracted move type is named as what it is, and every other
+            name -- a language spelling, a deck spelling, anything else --
+            keeps the missing-contract advice, because an importing game may
+            declare state under that spelling, and the end-to-end rows run
+            that fix clean for every such category.
 domain:     name category x position. The category axis: every native-name
             registry (`BUILTIN_CALL_FUNCS`, `VALUE_NAMES` split by
             callability, `PRIMITIVE_CALL_FUNCS`, each non-empty member of
@@ -25,13 +29,14 @@ domain:     name category x position. The category axis: every native-name
             position axis is the two expression positions a body names a
             thing in: a call `name(...)` and a bare name. Each category is
             probed through its alphabetically first member against the
-            encapsulation Owner Guard; the full-width sweep runs every
-            identifier-spelled member of those registries in both positions.
-            An empty walled namespace contributes no cell, having no member a
-            body could write. Four `check_dsl` rows run two cells end to
-            end through 500, the corpus game whose own text holds both
-            shapes: the Primitive refusal and the suit refusal, each beside
-            the fix it names, checking clean.
+            encapsulation Owner Guard (a deck spelling's first member outside
+            500's deck, where the end-to-end rows run); the two full-width
+            sweeps run every identifier-spelled member of those registries,
+            one per position. An empty walled namespace contributes no cell,
+            having no member a body could write. The `check_dsl` rows run
+            through 500: the Primitive refusal beside the fix it names, and
+            the contract fix for a bare read of each category that is not
+            the library's own.
 registry:   native names: `cardlang.builtins.functions` (`BUILTIN_CALL_FUNCS`,
             `PRIMITIVE_CALL_FUNCS`, `VALUE_NAMES`) and
             `cardlang.primitives_block.WALLED_NAMESPACES`; definition kinds:
@@ -45,11 +50,13 @@ registry:   native names: `cardlang.builtins.functions` (`BUILTIN_CALL_FUNCS`,
             `cardlang.resolve._callback_outside_slot`, pinned for game
             positions at tests/test_bare_callback_names.py.
 does not prove:  that each member of a registry earns its category's exact
-            sentence -- the full-width sweep asserts only the absence of
-            the false claims, and exact wording runs on one representative
-            per category. Nor anything about the bare-string slots a library
-            names (`_slot_leaks`), whose wording is `_NAMESPACE_NOUN` x
-            `_NAMESPACE_ADVICE`.
+            sentence at a call -- the call sweep asserts only the absence of
+            the unknown-name claim, and exact call wording runs on one
+            representative per category. Nor that the contract fix runs
+            clean for every member: it runs for one representative per
+            category, through one importer. Nor anything about the
+            bare-string slots a library names (`_slot_leaks`), whose wording
+            is `_NAMESPACE_NOUN` x `_NAMESPACE_ADVICE`.
 """
 
 from __future__ import annotations
@@ -105,16 +112,23 @@ _POSITIONS: dict[str, str] = {
 
 _UNKNOWN = "frobnicate"
 
+# The deck of the importing game the end-to-end rows run through: a deck
+# spelling stands for a state name only in a game whose deck does not hold it.
+_HOST_DECK = "five_hundred43"
 
-def _deck_names(of: str) -> frozenset[str]:
+
+def _deck_names(of: str, *, outside: str | None = None) -> frozenset[str]:
     names = suit_names if of == "suit" else rank_names
-    return frozenset(x for deck in DECKS for x in names(deck) if x.isidentifier())
+    held = names(outside) if outside is not None else frozenset()
+    return frozenset(
+        x for deck in DECKS for x in names(deck) if x.isidentifier() and x not in held
+    )
 
 
 _WALLED = frozenset().union(*WALLED_NAMESPACES.values())
 
-# category -> (representative, extra library source, the noun a refusal
-# names it by: None where the cell's sentence is its own).
+# category -> (representative, extra library source, the noun a refusal names
+# it by: None where the cell's sentence is its own).
 _CATEGORIES: dict[str, tuple[str, str, str | None]] = {
     **{
         f"own {field}": ("target", _DEF_SOURCE[field].format(name="target"), f"{noun} the library defines")
@@ -129,8 +143,8 @@ _CATEGORIES: dict[str, tuple[str, str, str | None]] = {
     "zone type": (min(LIBRARY_ZONE_TYPES), "", "type"),
     "kernel move type": (min(LIBRARY_MOVE_TYPES), "", "move type"),
     "stdlib rule": (min(stdlib_rules()), "", "rule"),
-    "suit": (min(_deck_names("suit")), "", None),
-    "rank": (min(_deck_names("rank") - _deck_names("suit")), "", None),
+    "suit": (min(_deck_names("suit", outside=_HOST_DECK)), "", None),
+    "rank": (min(_deck_names("rank", outside=_HOST_DECK) - _deck_names("suit")), "", None),
     "builtin call": (min(BUILTIN_CALL_FUNCS - VALUE_NAMES), "", None),
     "callable trick winner": (min(BUILTIN_CALL_FUNCS & VALUE_NAMES), "", None),
     "trick winner": (min(VALUE_NAMES - BUILTIN_CALL_FUNCS), "", None),
@@ -142,6 +156,11 @@ _CATEGORIES: dict[str, tuple[str, str, str | None]] = {
     "primitive": (min(PRIMITIVE_CALL_FUNCS), "", None),
     "unknown": (_UNKNOWN, "", None),
 }
+
+# The categories the library itself holds -- the same whichever game imports
+# it. Every other category is a spelling an importing game may also declare
+# as state, so a bare read of it may be a missing contract entry.
+_LIBRARY_OWN = frozenset(c for c in _CATEGORIES if c.startswith(("own ", "contracted ")))
 
 # The reads that resolve: a contracted state variable or zone, and a direction
 # value, are values a library body holds.
@@ -159,9 +178,9 @@ def _probe(category: str, position: str) -> list[str]:
     return _messages(f"library {_LIB} {{ {extra}\n {_POSITIONS[position].format(name=name)} }}")
 
 
-def _primitive_rule(name: str, verb: str) -> str:
+def _primitive_rule(name: str) -> str:
     return (
-        f"library '{_LIB}' {verb} '{name}', which is a Primitive — a Primitive "
+        f"library '{_LIB}' calls '{name}', which is a Primitive — a Primitive "
         f"belongs to the one game that declares it, so a library that several "
         f"games import may not call one: compute the value in the game and pass "
         f"it to the library's function as an argument, or keep the definition "
@@ -169,55 +188,43 @@ def _primitive_rule(name: str, verb: str) -> str:
     )
 
 
-def _deck_rule(name: str, noun: str) -> str:
+def _missing_contract(name: str) -> str:
     return (
-        f"library '{_LIB}' reads '{name}', which is a {noun}, but a family "
-        f"library is deck-agnostic — its members do not share a deck: take the "
-        f"{noun} as a parameter, or keep the definition that needs it in the game"
+        f"library '{_LIB}' reads '{name}', which is neither in its `requires` "
+        f"contract nor defined in the library — add it to `requires {{ }}` if "
+        f"the including game must declare it, or move the definition that "
+        f"needs it into the game"
+    )
+
+
+def _unknown_call(name: str) -> str:
+    return (
+        f"library '{_LIB}' calls '{name}', which is neither defined in the "
+        f"library nor a native function — a library's definitions may not "
+        f"reach into the game that imports them"
     )
 
 
 def _expected(category: str, position: str) -> str | None:
     """The one message each cell yields, or None for a clean cell."""
     name, _, noun = _CATEGORIES[category]
-    call = position == "call"
-    verb = "calls" if call else "reads"
-    if category in ("own functions", "builtin call", "callable trick winner") and call:
+    if position == "read":
+        if category in _READ_CLEAN:
+            return None
+        if category not in _LIBRARY_OWN:
+            return _missing_contract(name)
+        call_it = f" — call it: `{name}(...)`" if category == "own functions" else ""
+        return f"library '{_LIB}' reads '{name}', which is a {noun}, not a value{call_it}"
+    if category in ("own functions", "builtin call", "callable trick winner"):
         return None
-    if category in _READ_CLEAN and not call:
-        return None
-    if category in ("trick winner", "callable trick winner"):
+    if category == "trick winner":
         return _callback_outside_slot(name)
     if category == "primitive":
-        return _primitive_rule(name, verb)
-    if category in ("suit", "rank") and not call:
-        return _deck_rule(name, category)
-    if category == "unknown":
-        if call:
-            return (
-                f"library '{_LIB}' calls '{name}', which is neither defined in the "
-                f"library nor a native function — a library's definitions may not "
-                f"reach into the game that imports them"
-            )
-        return (
-            f"library '{_LIB}' reads '{name}', which is neither in its `requires` "
-            f"contract nor defined in the library — add it to `requires {{ }}` if "
-            f"the including game must declare it, or move the definition that "
-            f"needs it into the game"
-        )
-    if category.startswith("walled: "):
-        phrase = category.removeprefix("walled: ")
-    elif category in ("suit", "rank"):
-        phrase = f"a {category}"
-    elif category == "builtin call":
-        phrase = "a function"
-    else:
-        assert noun is not None, category
-        phrase = f"a {noun}"
-    tail = "not a function" if call else "not a value"
-    if not call and category in ("own functions", "builtin call"):
-        tail += f" — call it: `{name}(...)`"
-    return f"library '{_LIB}' {verb} '{name}', which is {phrase}, {tail}"
+        return _primitive_rule(name)
+    if category in ("unknown", "suit", "rank"):
+        return _unknown_call(name)
+    phrase = category.removeprefix("walled: ") if category.startswith("walled: ") else f"a {noun}"
+    return f"library '{_LIB}' calls '{name}', which is {phrase}, not a function"
 
 
 @pytest.mark.parametrize(
@@ -235,42 +242,52 @@ def test_the_probe_library_is_otherwise_clean() -> None:
     assert _messages(f"library {_LIB} {{ function probe(p : Player) = p }}") == []
 
 
-# Every identifier-spelled name the language holds that a library body might
-# write: the full width of each registry the category axis samples.
-_HELD_NAMES = sorted(
+# Every identifier-spelled name the language holds, at the full width of each
+# registry the category axis samples. Directions are absent: a library body
+# holds them as values.
+_LANGUAGE_NAMES = frozenset(
     CALL_FUNCS
     | VALUE_NAMES
     | _WALLED
-    | SEAT_DIRECTION_VALUES
     | KNOWN_TYPE_NAMES
     | frozenset(LIBRARY_ZONE_TYPES)
     | LIBRARY_MOVE_TYPES
     | frozenset(stdlib_rules())
-    | _deck_names("suit")
-    | _deck_names("rank")
 )
 
-# The claims the unknown-name sentences make, false of every held name.
-_FALSE_OF_A_HELD_NAME = ("nor a native function", "nor defined in the library", "add it to `requires { }`")
 
-
-@pytest.mark.parametrize("position", sorted(_POSITIONS))
-def test_no_name_the_language_holds_is_called_unknown_in_a_library(position: str) -> None:
-    """Every held name, in both positions: none is told it is neither defined
-    nor native, and none is sent to the `requires` contract."""
+def test_no_language_name_is_called_unknown_at_a_library_call() -> None:
+    """Every language name called in a library body is told what it is: none
+    is told it is neither defined nor native."""
     wrong = {
         name: message
-        for name in _HELD_NAMES
-        for message in _messages(f"library {_LIB} {{ {_POSITIONS[position].format(name=name)} }}")
-        if any(claim in message for claim in _FALSE_OF_A_HELD_NAME)
+        for name in sorted(_LANGUAGE_NAMES)
+        for message in _messages(f"library {_LIB} {{ {_POSITIONS['call'].format(name=name)} }}")
+        if "nor a native function" in message
     }
     assert not wrong, wrong
 
 
-# --- end to end through 500: each refusal, and the fix it names --------------
+def test_every_spelling_an_importer_may_declare_keeps_the_contract_advice_when_read() -> None:
+    """Every language name and every deck spelling, read bare in a library
+    body, is answered as the missing contract entry it may be, and nothing
+    else is claimed about it."""
+    spellings = _LANGUAGE_NAMES | _deck_names("suit") | _deck_names("rank")
+    wrong = {
+        name: got
+        for name in sorted(spellings)
+        if (got := _messages(f"library {_LIB} {{ {_POSITIONS['read'].format(name=name)} }}"))
+        != [_missing_contract(name)]
+    }
+    assert not wrong, wrong
+
+
+# --- end to end through 500: the refusal, and each fix it names --------------
 
 _FIVE_HUNDRED = Path(__file__).resolve().parent.parent / "docs" / "games" / "five-hundred.cardlang"
 _LIBRARY_FILE = f"docs/libraries/{_LIB}.cardlang"
+_BID_VALUE = "let value = five_hundred_bid_value(bid_rank)"
+_STATE_ANCHOR = "    trump_suit     : Suit?   = none"
 
 
 def _five_hundred_with(
@@ -286,14 +303,6 @@ def _five_hundred_with(
     check_dsl(text, "five-hundred.cardlang")
 
 
-_BID_VALUE = "let value = five_hundred_bid_value(bid_rank)"
-_SAME_COLOUR = (
-    "function same_colour(s : Suit?) =\n"
-    "  if s is spades then clubs elif s is clubs then spades\n"
-    "  elif s is hearts then diamonds elif s is diamonds then hearts else joker\n"
-)
-
-
 def test_a_library_calling_a_primitive_its_importer_declares_is_told_the_rule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -307,7 +316,7 @@ def test_a_library_calling_a_primitive_its_importer_declares_is_told_the_rule(
             monkeypatch,
         )
     diagnostic = exc.value.diagnostic
-    assert diagnostic.message == _primitive_rule("five_hundred_bid_value", "calls")
+    assert diagnostic.message == _primitive_rule("five_hundred_bid_value")
     assert diagnostic.span is not None and diagnostic.span.source_name == _LIBRARY_FILE
 
 
@@ -322,26 +331,22 @@ def test_the_fix_the_primitive_refusal_names_checks_clean(monkeypatch: pytest.Mo
     )
 
 
-def test_a_library_naming_a_suit_is_told_it_is_deck_agnostic(monkeypatch: pytest.MonkeyPatch) -> None:
-    """500's own `same_colour`, moved into a library unchanged."""
-    with pytest.raises(DiagnosticError) as exc:
-        _five_hundred_with(f"library {_LIB} {{ {_SAME_COLOUR} }}", {_SAME_COLOUR: ""}, monkeypatch)
-    diagnostic = exc.value.diagnostic
-    assert diagnostic.message == _deck_rule("spades", "suit")
-    assert diagnostic.span is not None and diagnostic.span.source_name == _LIBRARY_FILE
-
-
-def test_the_fix_the_suit_refusal_names_checks_clean(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The library takes the suits as parameters and the game passes its own.
-    red under: splicing only the game's own definitions in
-    `_apply_uses` (no `from_libraries`)."""
+@pytest.mark.parametrize(
+    "category", sorted(set(_CATEGORIES) - _LIBRARY_OWN - _READ_CLEAN - {"unknown"})
+)
+def test_a_bare_read_of_a_language_or_deck_spelling_is_fixed_by_the_contract(
+    category: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Why a bare read keeps the contract advice: the library contracts for the
+    spelling, an importer declares state under it, and the game checks clean.
+    red under: splicing only the game's own definitions in `_apply_uses`
+    (no `from_libraries`)."""
+    name, _, _ = _CATEGORIES[category]
     _five_hundred_with(
-        f"library {_LIB} {{ function colour_twin(s : Suit?, a : Suit, b : Suit, c : Suit, "
-        f"d : Suit, other : Suit) = if s is a then b elif s is b then a elif s is c "
-        f"then d elif s is d then c else other }}",
+        f"library {_LIB} {{ requires {{ {name} : Integer }} function bump() = {name} + 1 }}",
         {
-            _SAME_COLOUR: "function same_colour(s : Suit?) =\n"
-            "  colour_twin(s, spades, clubs, hearts, diamonds, joker)\n"
+            _STATE_ANCHOR: f"    {name} : Integer = 0\n{_STATE_ANCHOR}",
+            _BID_VALUE: "let value = five_hundred_bid_value(bid_rank) + bump()",
         },
         monkeypatch,
     )
