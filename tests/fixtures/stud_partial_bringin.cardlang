@@ -37,6 +37,11 @@ game StudPartialBringIn {
   state {
     // Chips as integers; total is invariant. The winner holds them all.
     stack[player] : Integer = 2
+
+    // The suit order the `stud` library breaks ties on, lowest first.
+    lowest_suit : Suit = clubs
+    second_suit : Suit = diamonds
+    third_suit  : Suit = hearts
   }
 
   phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {

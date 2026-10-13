@@ -47,7 +47,10 @@ game G {{
   ranking: aces high
   uses stud
   zones {{ deck : Deck  upcards[player] : PublicHand<player> }}
-  state {{ stack[player] : Integer = 100  folded[player] : Boolean = false }}
+  state {{
+    stack[player] : Integer = 100  folded[player] : Boolean = false
+    lowest_suit : Suit = clubs  second_suit : Suit = diamonds  third_suit : Suit = hearts
+  }}
   phase p {{
     let seat = {selector}()
   }}
@@ -86,6 +89,8 @@ def _seat(
     rs.push_frame()
     rs.declare("stack", True, {p: (stack or {}).get(p, 100) for p in seats})
     rs.declare("folded", True, {p: p in folded for p in seats})
+    for name, suit in (("lowest_suit", "clubs"), ("second_suit", "diamonds"), ("third_suit", "hearts")):
+        rs.declare(name, False, suit)
     for p, cards in boards.items():
         rs.zones.instance("upcards", p).add_all(list(cards))
     seat = evaluate(expr, Ctx(rs=rs, chooser=_no_choice))

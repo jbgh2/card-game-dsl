@@ -30,6 +30,13 @@ library stud {
   requires {
     upcards[player] : PublicHand<player>
     folded[player]  : Boolean
+
+    // Stud's suit order, lowest first; the suit none of them names is the
+    // highest. The game names the suits because a library may not: suits
+    // exist only once a game declares its deck.
+    lowest_suit : Suit
+    second_suit : Suit
+    third_suit  : Suit
   }
 
   // How many cards of rank `r` seat `p` shows.
@@ -43,14 +50,14 @@ library stud {
   function shows_pair(p : Player) = any rank where up_rank_count(p, rank) >= 2
 
   // A single card's place in Stud's order: rank first, under the game's
-  // `ranking:`, then suit — clubs (low), diamonds, hearts, spades (high).
-  //
-  // The suit half is a STAND-IN. A library may name no suit, and a game has no
-  // declaration that ranks its suits, so this borrows `strain_index` — bridge's
-  // bidding rank of a strain — whose order happens to be Stud's. It is not a
-  // Stud concept, and it hard-codes the four French suits, so the library is
-  // deck-agnostic in form only. Issue #845 holds the replacement.
-  function card_order(c : Card) = 4 * rank_value(c) + strain_index(c.suit)
+  // `ranking:`, then suit, under the order the game names in the three
+  // variables above — Pagat's clubs (low), diamonds, hearts, spades (high).
+  function suit_place(s : Suit) =
+    if s is lowest_suit then 0
+    else if s is second_suit then 1
+    else if s is third_suit then 2
+    else 3
+  function card_order(c : Card) = 4 * rank_value(c) + suit_place(c.suit)
 
   // THE BRING-IN: "a compulsory (bring-in) bet by the player showing the
   // lowest card", ties broken by suit. The door card is the seat's first face-up
