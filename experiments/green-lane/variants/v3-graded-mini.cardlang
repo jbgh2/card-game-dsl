@@ -86,16 +86,6 @@ game GreenLaneV3GradedMini {
   winner: highest score
 }
 
-// The inspector's half of a smuggling round; the commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang).
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
-}
-
 move_type inspect {
   when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
   effect {

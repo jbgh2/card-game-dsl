@@ -95,16 +95,6 @@ game GreenLaneV4ComposedMini {
   winner: highest score
 }
 
-// The inspector's half of a smuggling round; the commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang).
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
-}
-
 // Spend the token and open the crate. Contraband (7/A) is seized and scores
 // for the inspector, and the merchant is fined 5. The legal 2 is impounded:
 // it lands face up in the merchant's cleared pile where it scores NOBODY,

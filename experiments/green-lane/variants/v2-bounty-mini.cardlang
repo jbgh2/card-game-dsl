@@ -57,7 +57,9 @@ game GreenLaneV2BountyMini {
   }
 
   phase play {
-    // Six smuggling rounds, roles alternating; hands shrink in lockstep.
+    // Six smuggling rounds, roles alternating; hands shrink in lockstep. No
+    // token-based gate on the merchant's side, deliberately: with token
+    // refunds, shipping order during a disarmed window is strategically live.
     repeat until hand[0] is empty and hand[1] is empty {
       merchant := 0
       inspector := 1
@@ -88,18 +90,6 @@ game GreenLaneV2BountyMini {
   }
 
   winner: highest score
-}
-
-// The inspector's half of a smuggling round; the commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang). No
-// token-based gate on the merchant's side, deliberately: with token
-// refunds, shipping order during a disarmed window is strategically live.
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
 }
 
 // V2 delta lives here: a false alarm transfers the spent token to the

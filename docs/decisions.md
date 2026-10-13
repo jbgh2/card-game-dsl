@@ -5159,9 +5159,10 @@ for it (`requires { fold : Move }`) so its street can offer it beside the
 imported moves.
 
 `smuggling` draws the same line one family over, and the measurement is what
-draws it. Across the twelve smuggling files `commit_shipment` and `wave` are
-byte-identical and both move cards, so both are in the library; `inspect` has ten
-distinct bodies and is game-local. Those ten decompose into three orthogonal
+draws it. Across the twelve smuggling files `commit_shipment`, `respond` and
+`wave` are byte-identical and all three move cards, so all three are in the
+library, `respond` offering the game's `inspect` through a `Move` contract;
+`inspect` has ten distinct bodies and is game-local. Those ten decompose into three orthogonal
 deltas — the fine (a per-game constant), the contraband predicate (a card
 predicate), and the bounty (an added statement) — and only the first is
 something a declaration could carry. So "touches a zone" was never the criterion:
@@ -5192,9 +5193,10 @@ constant, which required state carries), a contraband predicate, and an added
 statement. The last two are not constants of any kind, so no clause on the
 import would carry them either — a `with` clause is not what that family wants.
 What it wants, if anything, is a contract over DEFINITIONS: a required function
-would let the varying predicate be the game's while the move stayed shared, and
-a required move type would let the family share the offer step that is already
-byte-identical in every member. That is issue #189, and it is a different
+would let the varying predicate be the game's while the move stayed shared. The
+offer step, byte-identical in every member, is already shared through the
+`Move` contract. The function and procedure contracts are issue #189, and that
+is a different
 question from #178's — a definition is a NAME, in a namespace `requires` does
 not reach, where #178 asks whether a contract can express a capability at all.
 Recorded here so the next reader does not re-derive a `with` clause from the
@@ -5242,11 +5244,11 @@ missing mechanism rather than a boundary — hence zone contracts — and the se
 half stands: state declarations are shared by being contracted, never by being
 held, so each member still writes its own.
 
-What the build measured, over all twelve files: `zones { }`, `commit_shipment`
-and `wave` are byte-identical everywhere; `state { }` varies in one default and
-one added variable; `phase play` varies in two lines; `phase scoring` in four;
-and `inspect` has ten bodies. The library ends up holding the commit, the wave
-and a four-entry contract — about an eighth of each file. The family shares
+What the build measured, over all twelve files: `zones { }`, `commit_shipment`,
+`respond` and `wave` are byte-identical everywhere; `state { }` varies in one
+default and one added variable; `phase play` varies in two lines; `phase
+scoring` in four; and `inspect` has ten bodies. The library ends up holding the
+commit, the respond step, the wave and the contract they reach. The family shares
 roughly nine tenths of its text, so **most of what these siblings have in common
 is material this tier cannot hold at all**: zones (contracted, not shared),
 state declarations (likewise), the phase tree, and the varying move.
