@@ -206,7 +206,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import assert_never, cast, get_args, TypeGuard
+from typing import Literal, TypeGuard, assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
@@ -1780,11 +1780,11 @@ class _LibraryReach:
     """What a library's definitions reach for, classified against the library's
     OWN namespaces — the input to both directions of the `requires` contract:
     nothing may be reached that the contract does not cover (`unresolved`,
-    `unknown_calls`, `slot_leaks`), and nothing may be in the contract that is
+    `refused_calls`, `slot_leaks`), and nothing may be in the contract that is
     never reached (`state_reads`, which the tier's ledger test reads)."""
 
     unresolved: tuple[n.NameRef, ...]
-    unknown_calls: tuple[n.Call, ...]
+    refused_calls: tuple[n.Call, ...]
     card_literals: tuple[n.CardLiteral, ...]
     slot_leaks: tuple[_SlotLeak, ...]
     state_reads: frozenset[str]
@@ -1816,7 +1816,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     A name held on a node as a plain `str` is invisible to that classification —
     `_rewrite` classifies `NameRef`s, and nothing else. Those slots are swept
     SEPARATELY and from the registry (`_slot_leaks`), never by a hand-list
-    beside it: `card_literals` and `unknown_calls` below are derived from that
+    beside it: `card_literals` and `refused_calls` below are derived from that
     sweep rather than collected alongside it, because a table that lands next to
     the list it replaces leaves the drift exactly where it was."""
     provided_state = library.state.decls if library.state is not None else ()
@@ -1884,9 +1884,9 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     leaks, slot_reads, slot_zone_reads, slot_move_reads = _slot_leaks(library)
     # Two namespaces keep a message of their own, so they are lifted out of the
     # generic list rather than reported twice: a card literal says why a family
-    # library is deck-agnostic, and an unknown call says a library may not reach
-    # into the game that imports it. Both are now FOUND by the registry — only
-    # their wording is special.
+    # library is deck-agnostic, and a refused call says what the called name
+    # is (`_library_own_name_is`, `_language_name_is`). Both are FOUND by the
+    # registry — only their wording is special.
     cards = tuple(
         dict.fromkeys(
             leak.node
@@ -1900,7 +1900,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     rest = tuple(leak for leak in leaks if leak.node not in cards and leak.node not in calls)
     return _LibraryReach(
         unresolved=tuple(unresolved),
-        unknown_calls=calls,
+        refused_calls=calls,
         card_literals=cards,
         slot_leaks=rest,
         state_reads=frozenset(state_reads) | slot_reads,
@@ -1986,6 +1986,80 @@ _NAMESPACE_ADVICE: dict[str, str] = {
 }
 
 
+@dataclass(frozen=True)
+class _LibraryNameIs:
+    """What a name a library body cannot reach actually is: the phrase that
+    says so, and which refusal it earns — `primitive` the rule that keeps
+    game-local Python out of a shared library, `function` a reminder that a
+    function is called, `other` the plain statement of what the name is."""
+
+    phrase: str
+    kind: Literal["primitive", "function", "other"]
+
+
+# The namespaces `_library_slot_names` holds that are the library's own — its
+# contract, and the direction values every body holds — in the order a name
+# held by two is reported. `function` and `procedure` are the library's own
+# definitions, answered by `_LIBRARY_DEF_KINDS` first.
+_LIBRARY_OWN_NAMESPACES: tuple[str, ...] = ("state", "zone", "move_type", "enum_value")
+
+
+def _library_own_name_is(library: n.Library, name: str) -> _LibraryNameIs | None:
+    """What `name` is in the library itself: one of its own definitions, or a
+    name its contract or the direction values hold — or None. Every answer is
+    the library's own, the same whichever game imports it, so both a call and
+    a bare read are answered from here."""
+    for field, noun in _LIBRARY_DEF_KINDS:
+        if any(d.name == name for d in getattr(library, field)):
+            kind: Literal["function", "other"] = "function" if field == "functions" else "other"
+            return _LibraryNameIs(f"a {noun} the library defines", kind)
+    legal = _library_slot_names(library)
+    for namespace in _LIBRARY_OWN_NAMESPACES:
+        if name in legal[namespace]:
+            return _LibraryNameIs(f"a {_NAMESPACE_NOUN[namespace]}", "other")
+    return None
+
+
+def _language_name_is(library: n.Library, name: str) -> _LibraryNameIs | None:
+    """What `name` is in the language — a type, a kernel move type, a stdlib
+    rule, a walled Primitive, a Primitive, or a Builtin — or None. True of the
+    spelling in every game, but it is not what a BARE read means: an importing
+    game may declare state under any of these spellings, and the library then
+    reaches it by contracting for it, so an uncontracted bare read is a
+    missing contract entry as plausibly as anything here. Only a call is
+    answered from here, since nothing an importer declares is callable from a
+    library. The trick winners are not asked: `_callback_outside_slot` is
+    their one sentence, in a game and a library alike."""
+    if name in _library_slot_names(library)["type"]:
+        return _LibraryNameIs("a type", "other")
+    if name in LIBRARY_MOVE_TYPES:
+        return _LibraryNameIs("a move type", "other")
+    if name in stdlib_rules():
+        return _LibraryNameIs("a rule", "other")
+    walled = walled_namespace_of(name)
+    if walled is not None:
+        return _LibraryNameIs(walled, "other")
+    if name in PRIMITIVE_CALL_FUNCS:
+        return _LibraryNameIs("a Primitive", "primitive")
+    if name in BUILTIN_CALL_FUNCS:
+        return _LibraryNameIs("a function", "function")
+    return None
+
+
+def _primitive_in_library(library: n.Library, verb: str, name: str) -> str:
+    """The refusal for a Primitive a library body names. The library's
+    `function` namespace is `BUILTIN_CALL_FUNCS` (`_library_slot_names`), so
+    this is that rule said to the library's author, with the fix that keeps
+    the Primitive in the one game that declares it."""
+    return (
+        f"library '{library.name}' {verb} '{name}', which is a Primitive — a "
+        f"Primitive belongs to the one game that declares it, so a library that "
+        f"several games import may not call one: compute the value in the game "
+        f"and pass it to the library's function as an argument, or keep the "
+        f"definition that needs it in the game"
+    )
+
+
 def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None:
     """Every name a library's definitions reach must be in its `requires`
     contract, its own definitions, the stdlib, or the pronouns and binders any
@@ -2013,24 +2087,48 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     reach = _library_reach(library)
     for refusal in reach.always_refused:
         bag.error(refusal.message, refusal.span)
+    # A bare read is answered only from the library itself: every language-wide
+    # spelling (`_language_name_is`, the trick winners) is one an importing
+    # game may declare as state, which the library then reaches by contract.
     for ref in reach.unresolved:
-        if ref.name in VALUE_NAMES:
-            bag.error(_callback_outside_slot(ref.name), ref.span)
+        what = _library_own_name_is(library, ref.name)
+        if what is None:
+            bag.error(
+                f"library '{library.name}' reads '{ref.name}', which is neither in "
+                f"its `requires` contract nor defined in the library — add it to "
+                f"`requires {{ }}` if the including game must declare it, or move "
+                f"the definition that needs it into the game",
+                ref.span,
+            )
+        else:
+            call_it = f" — call it: `{ref.name}(...)`" if what.kind == "function" else ""
+            bag.error(
+                f"library '{library.name}' reads '{ref.name}', which is "
+                f"{what.phrase}, not a value{call_it}",
+                ref.span,
+            )
+    for call in reach.refused_calls:
+        if call.func in VALUE_NAMES:
+            bag.error(_callback_outside_slot(call.func), call.span)
             continue
-        bag.error(
-            f"library '{library.name}' reads '{ref.name}', which is neither in "
-            f"its `requires` contract nor defined in the library — add it to "
-            f"`requires {{ }}` if the including game must declare it, or move "
-            f"the definition that needs it into the game",
-            ref.span,
+        what = _library_own_name_is(library, call.func) or _language_name_is(
+            library, call.func
         )
-    for call in reach.unknown_calls:
-        bag.error(
-            f"library '{library.name}' calls '{call.func}', which is neither "
-            f"defined in the library nor a native function — a library's "
-            f"definitions may not reach into the game that imports them",
-            call.span,
-        )
+        if what is None:
+            bag.error(
+                f"library '{library.name}' calls '{call.func}', which is neither "
+                f"defined in the library nor a native function — a library's "
+                f"definitions may not reach into the game that imports them",
+                call.span,
+            )
+        elif what.kind == "primitive":
+            bag.error(_primitive_in_library(library, "calls", call.func), call.span)
+        else:
+            bag.error(
+                f"library '{library.name}' calls '{call.func}', which is "
+                f"{what.phrase}, not a function",
+                call.span,
+            )
     for card in reach.card_literals:
         bag.error(
             f"library '{library.name}' names the card `{card.rank} of "
