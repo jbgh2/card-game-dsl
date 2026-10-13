@@ -431,7 +431,7 @@ _RESERVED_WHY: dict[str, str] = {
     "empty": "`x is empty` always reads it as the emptiness check",
     "true": "it is the boolean literal",
     "false": "it is the boolean literal",
-    "state": "it is the phase/game state pronoun (`state.foo`)",
+    "state": "it is the round state pronoun (`state.led_suit`)",
     "action": "it is the call-site action pronoun",
     "winner": "it is the call-site winner pronoun",
     "outcome": "it is a clause keyword (a phase's `-> outcome`)",
@@ -761,12 +761,13 @@ _UNION_NAMESPACES: dict[str, frozenset[str]] = {
 
 def _member_namespace(node: object) -> str | None:
     """`x.field` reads a field of whatever `x` is, so the namespace depends on
-    the object: `state.foo` names a STATE variable, while every other object's
+    the object: `state.foo` names a field a round PUBLISHES
+    (`ROUND_STATE_FIELDS`, typecheck's Owner Guard), while every other object's
     fields belong to the type that object has — a namespace reached through the
     declaration that named the type, not through this slot."""
     obj = cast(n.Member, node).obj
     if isinstance(obj, n.NameRef) and obj.name == "state":
-        return "state"
+        return "round_state"
     return "field"
 
 
@@ -799,7 +800,9 @@ class _ContextualSlot:
 # what the contextual read falls through to for every object but the `state`
 # pronoun.
 _CONTEXTUAL_SLOTS: dict[tuple[type, str], _ContextualSlot] = {
-    (n.Member, "field"): _ContextualSlot(frozenset({"state", "field"}), _member_namespace),
+    (n.Member, "field"): _ContextualSlot(
+        frozenset({"round_state", "field"}), _member_namespace
+    ),
     (n.DomainQuery, "binder"): _ContextualSlot(
         frozenset({"position"}), _domain_query_namespace
     ),
@@ -1652,6 +1655,10 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 _LIBRARY_UNSWEPT: dict[str, str] = {
     "kernel_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
     "primitive_query": "closed: the Primitive round-query registries, identical either side",
+    "round_state": (
+        "closed: `ROUND_STATE_FIELDS`, the fields a round publishes, identical for a "
+        "library and a game; typecheck refuses any other `state.` field"
+    ),
     "index_domain": (
         "guarded elsewhere, and NOT closed — the row's earlier reading claimed the "
         "namespace was closed because a game may not declare a non-role index "

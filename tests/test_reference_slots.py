@@ -224,7 +224,7 @@ def test_the_string_valued_class_is_swept_not_patched() -> None:
 # until either the witness or the declaration is fixed.
 _CONTEXTUAL_WITNESSES: dict[Slot, tuple[object, ...]] = {
     (n.Member, "field"): (
-        n.Member(obj=n.NameRef("state"), field="score"),  # the pronoun -> state
+        n.Member(obj=n.NameRef("state"), field="led_suit"),  # the pronoun -> round_state
         n.Member(obj=n.NameRef("action"), field="card"),  # any other object -> field
         n.Member(obj=n.Member(obj=n.NameRef("state"), field="a"), field="b"),
     ),

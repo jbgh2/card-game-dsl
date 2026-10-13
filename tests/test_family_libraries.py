@@ -1765,11 +1765,6 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "column",
         None,
     ),
-    "Member.field": (
-        "function f() = state.{read}",
-        "undeclared_thing",
-        "declared_thing",
-    ),
     # The type slots leak through a position domain: the one type-name source
     # a game declares (`positions { }`) and a library cannot.
     "StateDecl.type_name": (
