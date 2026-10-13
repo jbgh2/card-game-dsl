@@ -1,6 +1,55 @@
 """A game missing a clause its library needs is told so on its own `uses` line.
 
-PLACEHOLDER LEDGER
+A Builtin a game clause gates is refused against the same clauses whether the
+game writes the call or a family library it uses does. Written by the game, the
+refusal sits at the call. Reached through a library, it sits on the game's
+`uses` line and names the library, the Builtin and the clause, and nothing is
+reported inside the library file, whose author is someone else. The ranking
+gate's refusal offers only fixes that clear it, and each one it offers is
+applied here and checked.
+
+Completeness ledger
+-------------------
+property:        for every clause-gated Builtin, the library-reached verdict
+                 equals the game-written one, located on the `uses` line; and
+                 every remedy the ranking refusal offers clears it.
+domain:          each clause gate's members that are Builtins, crossed with
+                 {clause met, clause unmet} and {written in the game, reached
+                 through a library}; the unmet game is the member's home game
+                 with that one clause changed, and the probe call is built
+                 from the member's signature. Beside it: every definition kind
+                 a library holds, each reaching one gated Builtin; every
+                 ranking-gated name in each position it is named from (call,
+                 trick winner, climbing query), each remedy its refusal offers
+                 applied. Three member groups never reach a game through a
+                 library, each pinned by the refusal that bars it in the
+                 library's own file: a gated Primitive (a library calls
+                 Builtins only), a gated round slot (a procedure body holds no
+                 round), and a board verb taking a cell or a direction (a
+                 library declares no positions). The constructs a clause gates
+                 that are not Builtin calls (a `Rank` move parameter, team
+                 ranges, team-indexed provided state, card content in a piece
+                 game) are refused through a library by their own gates,
+                 inside the library file: issue #851.
+registry:        gate members: `typecheck.RANKING_GATED_FUNCS`,
+                 `RANKING_GATED_WINNERS`, `RANKING_GATED_CLIMB_QUERIES`;
+                 `builtins.functions.TRICK_ORDER_GATED_FUNCS`,
+                 `TRICK_ORDER_EXCLUDED_FUNCS`, `BOARD_ONLY_CALL_FUNCS`,
+                 `DECK_ONLY_CALL_FUNCS`; the Trick Order twins:
+                 `typecheck.RANKING_TRICK_ORDER_TWINS`;
+                 `resolve._TEAM_CALL_FUNCS`, `resolve._FRAME_CALL_FUNCS`,
+                 `resolve._CARD_POINTS_CALLS`; the `lines(k)` span gate is
+                 keyed on the Builtin's own name (`resolve._check_board_call`).
+                 The Builtin partition: `resolve._CLAUSE_GATES` and
+                 `resolve._CLAUSE_FREE_BUILTINS` over `BUILTIN_CALL_FUNCS`.
+                 Probe arguments: `builtins.signatures.CALL_SIGS`. Definition
+                 kinds: `resolve._LIBRARY_DEF_KINDS`.
+does not prove:  that a member outside the Trick Order twin set has no Trick
+                 Order remedy: the expected column reads the same set the
+                 refusal is built from, so the two agree by construction, and
+                 only the twins' remedy is executed. Nor
+                 that the game-written refusal points at the call's column: a
+                 cell matches the definition's line.
 """
 
 from __future__ import annotations
@@ -17,7 +66,6 @@ from cardlang.builtins.functions import (
     DECK_ONLY_CALL_FUNCS,
     PRIMITIVE_CLIMB_LEADS,
     TRICK_ORDER_EXCLUDED_FUNCS,
-    TRICK_ORDER_EXCLUDED_WINNERS,
     TRICK_ORDER_GATED_FUNCS,
     TRICK_ORDER_GATED_WINNERS,
 )
@@ -29,6 +77,7 @@ from cardlang.typecheck import (
     RANKING_GATED_CLIMB_QUERIES,
     RANKING_GATED_FUNCS,
     RANKING_GATED_WINNERS,
+    RANKING_TRICK_ORDER_TWINS,
 )
 from cardlang.types import (
     TAny,
@@ -208,7 +257,7 @@ GATES: tuple[Gate, ...] = (
     Gate("ranking", RANKING_GATED_FUNCS, "ranking:"),
     Gate("trick_order_needed", TRICK_ORDER_GATED_FUNCS, "trick_order"),
     Gate("trick_order_refused", TRICK_ORDER_EXCLUDED_FUNCS, "trick_order"),
-    Gate("card_points", frozenset({"card_points"}), "card_points"),
+    Gate("card_points", resolve_module._CARD_POINTS_CALLS, "card_points"),
     Gate("teams", resolve_module._TEAM_CALL_FUNCS, "teams:"),
     Gate("board", BOARD_ONLY_CALL_FUNCS, "board:"),
     Gate("two_seats", resolve_module._FRAME_CALL_FUNCS, "players"),
@@ -224,6 +273,33 @@ def _home(member: str) -> Clauses:
     if member in BOARD_ONLY_CALL_FUNCS:
         return _BOARD
     return replace(_CARD, trick_order=member in TRICK_ORDER_GATED_FUNCS)
+
+
+def test_the_uses_check_holds_a_row_for_every_presence_gate() -> None:
+    """The `uses`-line check's table holds exactly the gates this grid derives,
+    so a gate it lacks is a red here even before a cell runs it. `board_span`
+    is the argument-judged gate, held by its own leg.
+
+    red under: emptying the members of the `teams:` row of
+    `resolve._CLAUSE_GATES` (executed 2026-10-13)."""
+    table = {row.members for row in resolve_module._CLAUSE_GATES}
+    grid = {gate.members for gate in GATES if gate.name != "board_span"}
+    assert table == grid
+
+
+def test_every_builtin_is_clause_gated_or_clause_free() -> None:
+    """Every Builtin either sits in a row of the `uses`-line check's table or is
+    listed as gated by no clause, never both, so a Builtin registered with a
+    new clause gate is a red here until its row exists.
+
+    red under: adding `suit_value` to `BUILTIN_CALL_FUNCS` (executed
+    2026-10-13)."""
+    gated = frozenset[str]().union(
+        *(row.members for row in resolve_module._CLAUSE_GATES)
+    ) & BUILTIN_CALL_FUNCS
+    free = resolve_module._CLAUSE_FREE_BUILTINS
+    assert not gated & free, sorted(gated & free)
+    assert gated | free == BUILTIN_CALL_FUNCS, sorted(BUILTIN_CALL_FUNCS - gated - free)
 
 
 def _unmet(gate: Gate, member: str) -> Clauses:
@@ -304,19 +380,10 @@ def _cells() -> list[object]:
         for member in sorted(gate.members & BUILTIN_CALL_FUNCS):
             for met in (True, False):
                 for through_library in (False, True):
-                    cell = Cell(gate, member, met, through_library)
-                    marks: list[pytest.MarkDecorator] = []
                     if through_library and not _probe(member).library_spellable:
-                        marks.append(pytest.mark.skip(
-                            reason="a family library declares no positions, so it "
-                            "cannot spell this Builtin's cell or direction argument"
-                        ))
-                    elif through_library and not met:
-                        marks.append(pytest.mark.xfail(
-                            strict=True, raises=AssertionError,
-                            reason="issue #847: refused inside the library file",
-                        ))
-                    params.append(pytest.param(cell, id=cell.id, marks=marks))
+                        continue  # `test_a_library_cannot_spell_a_cell_or_direction`
+                    cell = Cell(gate, member, met, through_library)
+                    params.append(pytest.param(cell, id=cell.id))
     return params
 
 
@@ -361,13 +428,7 @@ def test_clause_gate_cell(cell: Cell, monkeypatch: pytest.MonkeyPatch) -> None:
 
 _REPO = Path(__file__).resolve().parent.parent
 
-# The ranking-gated names a Trick Order replaces: beside a `trick_order { }`
-# block each is refused in favour of the Trick Order winner, so naming that
-# winner instead, under a block with a `card_strength:` row, also clears the
-# ranking gate. For every other member, declaring `ranking:` is the one remedy.
-_TRICK_ORDER_TWINS = (
-    RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES
-) & (TRICK_ORDER_EXCLUDED_FUNCS | TRICK_ORDER_EXCLUDED_WINNERS)
+_TRICK_ORDER_TWINS = RANKING_TRICK_ORDER_TWINS
 _TRICK_ORDER_WINNER = min(TRICK_ORDER_GATED_WINNERS)
 
 
@@ -463,19 +524,7 @@ def _member_refusal(case: RankingCase, rendered: str | None) -> str:
 
 @pytest.mark.parametrize(
     "case",
-    [
-        pytest.param(
-            c, id=f"{c.position}-{c.member}",
-            marks=(
-                [] if c.member in _TRICK_ORDER_TWINS else
-                [pytest.mark.xfail(
-                    strict=True, raises=AssertionError,
-                    reason="issue #484: offers a Trick Order remedy that cannot apply",
-                )]
-            ),
-        )
-        for c in _ranking_cases()
-    ],
+    [pytest.param(c, id=f"{c.position}-{c.member}") for c in _ranking_cases()],
 )
 def test_the_ranking_refusal_offers_the_trick_order_only_where_it_applies(
     case: RankingCase,
@@ -523,16 +572,7 @@ _KIND_TEMPLATES: dict[str, str] = {
 }
 
 
-@pytest.mark.parametrize(
-    "field",
-    [
-        pytest.param(field, marks=pytest.mark.xfail(
-            strict=True, raises=AssertionError,
-            reason="issue #847: refused inside the library file",
-        ))
-        for field, _ in resolve_module._LIBRARY_DEF_KINDS
-    ],
-)
+@pytest.mark.parametrize("field", [field for field, _ in resolve_module._LIBRARY_DEF_KINDS])
 def test_every_definition_kind_is_refused_on_the_uses_line(
     field: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -584,7 +624,7 @@ def test_a_library_cannot_call_a_clause_gated_primitive(
     through one: the library is refused in its own file, to its own author.
 
     red under: widening the `function` namespace of
-    `resolve._library_slot_names` to `CALL_FUNCS`."""
+    `resolve._library_slot_names` to `CALL_FUNCS` (executed 2026-10-13)."""
     rendered = _library_alone_refusal(
         f"library {_LIB} {{ function probe_fn() = {member}() }}",
         _CARD,
@@ -594,6 +634,39 @@ def test_a_library_cannot_call_a_clause_gated_primitive(
     assert any(
         line.startswith(_LIB_FILE) and f"'{member}'" in line
         and "nor a native function" in line
+        for line in rendered.splitlines()
+    ), rendered
+
+
+_UNSPELLABLE = sorted(
+    m
+    for gate in GATES
+    for m in gate.members & BUILTIN_CALL_FUNCS
+    if not _probe(m).library_spellable
+)
+
+
+@pytest.mark.parametrize("member", sorted(set(_UNSPELLABLE)))
+def test_a_library_cannot_spell_a_cell_or_direction(
+    member: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A board verb taking a cell or a direction never reaches a game through a
+    library: a library declares no positions, so the parameter's type is
+    refused in its own file, to its own author.
+
+    red under: adding the position names `cell` and `dir` to the `type`
+    namespace of `resolve._library_slot_names` (executed 2026-10-13)."""
+    probe = _probe(member)
+    rendered = _library_alone_refusal(
+        f"library {_LIB} {{ function probe_fn({probe.params}) = {probe.call} }}",
+        _BOARD,
+        f"Pos{member.replace('_', '').title()}",
+        monkeypatch,
+    )
+    assert any(
+        line.startswith(_LIB_FILE)
+        and ("type 'cell'" in line or "type 'dir'" in line)
+        and "the library does not have" in line
         for line in rendered.splitlines()
     ), rendered
 
@@ -619,8 +692,8 @@ def test_a_library_cannot_name_a_clause_gated_round_slot(
     holds a round only in a procedure, whose body may not hold one: the library
     is refused in its own file, whatever clauses the game declares.
 
-    red under: deleting the procedure-body round refusal in
-    `resolve._check_procedures`."""
+    red under: disabling the `_WINNER_BINDING_STMTS` arm of
+    `resolve._check_procedures` (executed 2026-10-13)."""
     rendered = _library_alone_refusal(
         f"library {_LIB} {{\n"
         "  requires { pile : TrickPile  hand[player] : Hand<player> }\n"
@@ -691,7 +764,6 @@ def test_a_malformed_teams_clause_is_refused_at_the_clause(
     assert _LIB_FILE not in rendered and "probe_lib" not in rendered, rendered
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #847")
 def test_two_libraries_are_each_refused_on_their_own_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -720,7 +792,6 @@ def test_two_libraries_are_each_refused_on_their_own_line(
         ), rendered
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #847")
 def test_one_library_missing_two_clauses_is_told_both(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

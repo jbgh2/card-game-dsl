@@ -62,6 +62,8 @@ from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
 from cardlang.builtins.functions import (
     PRIMITIVE_CALL_FUNCS,
+    TRICK_ORDER_EXCLUDED_FUNCS,
+    TRICK_ORDER_EXCLUDED_WINNERS,
     TRICK_ORDER_GATED_WINNERS,
     TRICK_ORDER_ROWS,
 )
@@ -229,6 +231,29 @@ RANKING_GATED_WINNERS: frozenset[str] = frozenset(
 RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
     {"president_lead_options", "president_follows"}
 )
+
+# The ranking-gated names a Trick Order replaces. Beside a `trick_order { }`
+# block each is refused in favour of the Trick Order winner, whose strengths
+# are the block's `card_strength:` row, so naming that winner instead clears
+# this gate too. For every other member, declaring `ranking:` is the one fix,
+# and the refusal offers no other.
+RANKING_TRICK_ORDER_TWINS: frozenset[str] = (
+    RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES
+) & (TRICK_ORDER_EXCLUDED_FUNCS | TRICK_ORDER_EXCLUDED_WINNERS)
+
+
+def _ranking_refusal(subject: str, name: str) -> str:
+    """The ranking gate's refusal for `name`, offering only fixes that clear it."""
+    fix = "declare one"
+    if name in RANKING_TRICK_ORDER_TWINS:
+        fix += (
+            f", or declare a `trick_order {{ }}` with a `card_strength:` row and "
+            f"name {min(TRICK_ORDER_GATED_WINNERS)} in place of {name}"
+        )
+    return (
+        f"{subject} reads a card's rank strength from ranking:, but the game "
+        f"declares no ranking: — {fix}"
+    )
 
 
 def type_from_name(
@@ -2281,22 +2306,16 @@ def _check_round_ranking(
     slot, never called, so the Call-site gate cannot see it; without this, a
     no-`ranking:` game naming one checks clean and crashes bare at the first
     trick's resolution."""
-    demanded: list[str] = []
+    demanded: list[tuple[str, str]] = []
     if isinstance(stmt, n.TrickRound) and stmt.winner_fn in RANKING_GATED_WINNERS:
-        demanded.append(f"round winner {stmt.winner_fn}")
+        demanded.append((f"round winner {stmt.winner_fn}", stmt.winner_fn))
     if isinstance(stmt, n.ClimbRound):
         for q in (stmt.combos_fn, stmt.follows_fn):
             if q in RANKING_GATED_CLIMB_QUERIES:
-                demanded.append(f"climb query {q}")
+                demanded.append((f"climb query {q}", q))
     if demanded and not env.has_ranking:
-        for name in demanded:
-            bag.error(
-                f"{name} reads a card's rank strength from ranking:, "
-                f"but the game declares no ranking: — declare one, or declare "
-                f"a `trick_order {{ }}` with a `card_strength:` row and name "
-                f"{min(TRICK_ORDER_GATED_WINNERS)}",
-                stmt.span,
-            )
+        for subject, name in demanded:
+            bag.error(_ranking_refusal(subject, name), stmt.span)
 
 
 def _check_trick_order(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2578,18 +2597,15 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
                     )
+        # The Owner Guard for a call the game writes. A call spliced from a
+        # family library meets resolve's `_check_library_clause_gates` first,
+        # on the game's `uses` line; this is its Shadow Guard.
         if (
             e.func in RANKING_GATED_FUNCS
             and e.func not in env.functions
             and not env.has_ranking
         ):
-            bag.error(
-                f"{e.func}() reads a card's rank strength from ranking:, "
-                f"but the game declares no ranking: — declare one, or declare "
-                f"a `trick_order {{ }}` with a `card_strength:` row and name "
-                f"{min(TRICK_ORDER_GATED_WINNERS)}",
-                e.span,
-            )
+            bag.error(_ranking_refusal(f"{e.func}()", e.func), e.span)
     elif isinstance(e, n.Subscript):
         obj_ref = e.obj
         if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
