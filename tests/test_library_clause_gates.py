@@ -70,6 +70,7 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_EXCLUDED_FUNCS,
     TRICK_ORDER_GATED_FUNCS,
     TRICK_ORDER_GATED_WINNERS,
+    TRUMP_READING_WINNERS,
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
@@ -475,8 +476,11 @@ def _ranking_cases() -> list[RankingCase]:
 
 
 def _ranking_game(case: RankingCase, *, ranking: bool, twin: bool = False) -> str:
-    """A game naming `case.member` in its position. `twin` names the Trick
-    Order winner in its place, under a block with a `card_strength:` row."""
+    """A game naming `case.member` in its position, with the round's own `trump`
+    clause where the member reads one. `twin` applies the Trick Order remedy
+    as the refusal words it: a block with `trump:` and `card_strength:` rows
+    in place of the `trump` clause, and the Trick Order winner named or called
+    in the member's place."""
     tag = f"{case.position}{case.member}{ranking}{twin}".replace("_", "").title()
     clauses = replace(_CARD, ranking=ranking, trick_order=twin)
     if case.position == "call":
@@ -492,10 +496,10 @@ def _ranking_game(case: RankingCase, *, ranking: bool, twin: bool = False) -> st
             probe = _probe(_TRICK_ORDER_WINNER)
         return _game_text(clauses, uses=False, game_fn=_function(probe), tag=tag)
     if case.position == "winner":
-        winner = _TRICK_ORDER_WINNER if twin else case.member
-        return _game_text(
-            clauses, uses=False, game_fn="", tag=tag, statement=_trick_round(winner)
-        )
+        round_text = _trick_round(_TRICK_ORDER_WINNER if twin else case.member)
+        if not twin and case.member in TRUMP_READING_WINNERS:
+            round_text += " trump hearts"
+        return _game_text(clauses, uses=False, game_fn="", tag=tag, statement=round_text)
     lead, follows = (
         (case.member, "bigtwo_follows")
         if case.member in PRIMITIVE_CLIMB_LEADS
@@ -554,8 +558,15 @@ def test_declaring_a_ranking_clears_the_refusal(case: RankingCase) -> None:
     ],
 )
 def test_the_trick_order_remedy_clears_the_refusal(case: RankingCase) -> None:
+    """The remedy as the refusal words it is the remedy `twin` applies: each
+    piece of it is read off the message before the remedied game is checked."""
     refusal = _member_refusal(case, _rendered(_ranking_game(case, ranking=False)))
-    assert _TRICK_ORDER_WINNER in refusal, refusal
+    assert "`trick_order { }` block with `trump:` and `card_strength:` rows" in refusal
+    assert "in place of any `trump` clause" in refusal, refusal
+    if case.position == "call":
+        assert f"call `{_TRICK_ORDER_WINNER}(pile)` instead" in refusal, refusal
+    else:
+        assert f"name {_TRICK_ORDER_WINNER} as the winner" in refusal, refusal
     assert _rendered(_ranking_game(case, ranking=False, twin=True)) is None
 
 

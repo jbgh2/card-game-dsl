@@ -242,13 +242,17 @@ RANKING_TRICK_ORDER_TWINS: frozenset[str] = (
 ) & (TRICK_ORDER_EXCLUDED_FUNCS | TRICK_ORDER_EXCLUDED_WINNERS)
 
 
-def _ranking_refusal(subject: str, name: str) -> str:
-    """The ranking gate's refusal for `name`, offering only fixes that clear it."""
+def _ranking_refusal(subject: str, name: str, instead: str) -> str:
+    """The ranking gate's refusal for `name`, offering only fixes that clear it.
+    `instead` is how the Trick Order winner takes `name`'s place, said for the
+    position `name` is written in. A block needs its `trump:` row, and an
+    omitted `card_strength:` row reads `ranking:` after all, so the fix names
+    both; a `trump` clause is refused beside a block, so it names that too."""
     fix = "declare one"
     if name in RANKING_TRICK_ORDER_TWINS:
         fix += (
-            f", or declare a `trick_order {{ }}` with a `card_strength:` row and "
-            f"name {min(TRICK_ORDER_GATED_WINNERS)} in place of {name}"
+            f", or declare a `trick_order {{ }}` block with `trump:` and "
+            f"`card_strength:` rows in place of any `trump` clause, and {instead}"
         )
     return (
         f"{subject} reads a card's rank strength from ranking:, but the game "
@@ -2315,7 +2319,8 @@ def _check_round_ranking(
                 demanded.append((f"climb query {q}", q))
     if demanded and not env.has_ranking:
         for subject, name in demanded:
-            bag.error(_ranking_refusal(subject, name), stmt.span)
+            instead = f"name {min(TRICK_ORDER_GATED_WINNERS)} as the winner"
+            bag.error(_ranking_refusal(subject, name, instead), stmt.span)
 
 
 def _check_trick_order(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2605,7 +2610,13 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             and e.func not in env.functions
             and not env.has_ranking
         ):
-            bag.error(_ranking_refusal(f"{e.func}()", e.func), e.span)
+            winner = min(TRICK_ORDER_GATED_WINNERS)
+            instead = (
+                f"call `{winner}({e.args[0].name})` instead"
+                if e.args and isinstance(e.args[0], n.NameRef)
+                else f"call `{winner}` over the trick pile instead"
+            )
+            bag.error(_ranking_refusal(f"{e.func}()", e.func, instead), e.span)
     elif isinstance(e, n.Subscript):
         obj_ref = e.obj
         if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
