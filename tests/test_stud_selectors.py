@@ -152,6 +152,18 @@ def test_within_a_shape_the_group_is_read_before_its_kickers() -> None:
     assert _best({0: sevens, 1: sevens_king}) == 1
 
 
+def test_every_kicker_of_a_five_card_board_has_its_own_place() -> None:
+    """Two high-card boards that agree on 8-7-6 differ on the fourth card, so
+    the 5 kicker wins whatever suit the eight is.
+
+    red under: drop `place`'s fifth arm, so the fourth and fifth cards share a
+    place and 4+3 packs equal to 5+2 — RUN, not predicted: the spade eight then
+    opens."""
+    low_kickers = [_c("8", "S"), _c("7", "C"), _c("6", "C"), _c("4", "C"), _c("3", "C")]
+    five_kicker = [_c("8", "H"), _c("7", "D"), _c("6", "D"), _c("5", "D"), _c("2", "D")]
+    assert _best({0: low_kickers, 1: five_kicker}) == 1
+
+
 def test_best_showing_does_not_count_incomplete_straights_or_flushes() -> None:
     # "Incomplete straights and flushes do not count": four to a straight flush
     # is a high-card board, and the lowest possible pair outranks it.
@@ -224,11 +236,11 @@ def pagat_showing_key(cards: Sequence[Card]) -> tuple[list[int], list[int], tupl
 
 
 def _random_table(rng: random.Random) -> tuple[dict[Player, list[Card]], frozenset[Player]]:
-    """A table of two to eight seats showing one to four cards each, drawn from
+    """A table of two to eight seats showing one to five cards each, drawn from
     a handful of ranks most of the time so that pairs, two pairs and trips —
     where the shape and the group order decide — are common rather than rare."""
     players = rng.randint(2, 8)
-    showing = rng.randint(1, 4)
+    showing = rng.randint(1, 5)
     deck = [Card(r, s) for r in RANKS for s in SUITS]
     ranks = rng.sample(RANKS, min(len(RANKS), rng.randint(players, 2 * players)))
     pool = [c for c in deck if c.rank in ranks]

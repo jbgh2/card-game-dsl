@@ -88,9 +88,10 @@ library stud {
   //   2. The RANKS, groups first: a pair's rank is read before its kickers, and
   //      within a group the higher rank first. A card's `standing` is its
   //      group's size and then its rank, and the cards standing above it fix
-  //      its place — four places, one per card a Stud board shows face up. Two
-  //      boards of one shape hold their groups in the same places, so the
-  //      places compare rank by rank.
+  //      its place — five places, so a board of up to five cards gives every
+  //      card its own, the same bound part 1 holds to. Two boards of one
+  //      shape hold their groups in the same places, so the places compare
+  //      rank by rank.
   //   3. The SUIT of the highest card. Boards that agree on shape and ranks
   //      hold the same ranks, so the highest card's rank ties and its suit
   //      decides.
@@ -103,13 +104,14 @@ library stud {
   function standing(p : Player, c : Card) = 16 * up_rank_count(p, c.rank) + rank_value(c)
   function cards_above(p : Player, s : Integer) = number of cards in upcards[p] where standing(p, card) > s
   function place(above : Integer) =
-    if above is 0 then 1000000
-    else if above is 1 then 10000
-    else if above is 2 then 100
+    if above is 0 then 100000000
+    else if above is 1 then 1000000
+    else if above is 2 then 10000
+    else if above is 3 then 100
     else 1
   function placed_ranks(p : Player) = sum of rank_value(card) * place(cards_above(p, standing(p, card))) over cards in upcards[p]
   function top_card(p : Player) = highest card_order(card) over cards in upcards[p] or 0
-  function showing_order(p : Player) = matching(p) * 10000000000 + placed_ranks(p) * 100 + top_card(p)
+  function showing_order(p : Player) = matching(p) * 1000000000000 + placed_ranks(p) * 100 + top_card(p)
 
   function no_better_board(order : Integer) = all players where not showing(player) or showing_order(player) <= order
   function best_showing_seat() = the player where showing(player) and no_better_board(showing_order(player))
