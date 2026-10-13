@@ -43,9 +43,13 @@ library stud {
   function shows_pair(p : Player) = any rank where up_rank_count(p, rank) >= 2
 
   // A single card's place in Stud's order: rank first, under the game's
-  // `ranking:`, then suit — clubs (low), diamonds, hearts, spades (high). That
-  // suit order is the bidding order of the strains, so `strain_index` reads it
-  // and the library names no suit of its own.
+  // `ranking:`, then suit — clubs (low), diamonds, hearts, spades (high).
+  //
+  // The suit half is a STAND-IN. A library may name no suit, and a game has no
+  // declaration that ranks its suits, so this borrows `strain_index` — bridge's
+  // bidding rank of a strain — whose order happens to be Stud's. It is not a
+  // Stud concept, and it hard-codes the four French suits, so the library is
+  // deck-agnostic in form only. Issue #845 holds the replacement.
   function card_order(c : Card) = 4 * rank_value(c) + strain_index(c.suit)
 
   // THE BRING-IN: "a compulsory (bring-in) bet by the player showing the
