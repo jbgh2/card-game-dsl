@@ -106,6 +106,12 @@ game FiveCardStud {
   // go is a fact about these zones, not about betting.
   uses poker_betting
 
+  // Who brings in and who opens each later street is Stud's, shared with
+  // Seven-Card Stud (docs/libraries/stud.cardlang): `bring_in_seat()` is the
+  // lowest door card, `best_showing_seat()` the best hand showing, and
+  // `shows_pair` the open-pair test the second round sizes itself by.
+  uses stud
+
   players: 3
   direction: clockwise
   max_length: 30000
@@ -113,14 +119,10 @@ game FiveCardStud {
   cards: standard52
   ranking: aces high
 
-  // The two seat selectors and the side-pot settlement, declared with what each
-  // reads. `committed`, `folded` and `in_hand` are declared by `phase play`, so
-  // a read of one names that phase; `stack` is game-level and carries no tail.
+  // The side-pot settlement, declared with what it reads. `committed`,
+  // `folded` and `in_hand` are declared by `phase play`, so a read of one
+  // names that phase.
   primitives {
-    bring_in_seat() : Player
-        reads upcards
-    best_showing_seat() : Player
-        reads folded in play, upcards
     pot_share(p : Player) : Integer
         reads committed in play, folded in play, in_hand in play, hole, upcards
   }
@@ -134,6 +136,12 @@ game FiveCardStud {
 
   state {
     stack[player] : Integer = 200            // $100 at one unit = $0.50
+
+    // The suit order the `stud` library breaks ties on, lowest first:
+    // clubs (low), diamonds, hearts, spades (high). Nothing writes them.
+    lowest_suit : Suit = clubs
+    second_suit : Suit = diamonds
+    third_suit  : Suit = hearts
   }
 
   phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {
@@ -276,10 +284,3 @@ move_type fold {
     move all cards from upcards[actor] to muck
   }
 }
-
-// Does this seat show a pair or better among its face-up cards? Two face-up
-// cards of a rank is a pair showing; three is trips, which is "or better" and
-// the same test. Factored as a function so the rank binder does not nest
-// inside the player binder.
-function up_rank_count(p : Player, r : Rank) = number of cards in upcards[p] where card.rank is r
-function shows_pair(p : Player) = any rank where up_rank_count(p, rank) >= 2

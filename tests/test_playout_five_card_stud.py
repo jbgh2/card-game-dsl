@@ -22,7 +22,7 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.stud import _best_showing
+from tests.test_stud_selectors import pagat_showing_key
 
 STUD = Path(__file__).parent.parent / "docs" / "games" / "five-card-stud.cardlang"
 
@@ -210,7 +210,7 @@ def test_a_street_is_anchored_on_the_best_board_even_when_it_cannot_act() -> Non
             if later_street and not any(acted.values()) and not any(bet_by.values()):
                 if able and set(showing) != set(able):
                     openings += 1
-                    anchor = _best_showing(showing, boards)
+                    anchor = max(showing, key=lambda q: pagat_showing_key(boards[q]))
                     want = next(
                         q for q in (anchor, (anchor + 1) % 3, (anchor + 2) % 3) if q in able
                     )

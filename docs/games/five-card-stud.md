@@ -104,17 +104,18 @@ the poster's option a decision the game tree holds rather than a rule stated in
 prose. A forced post is not a turn taken within the round, so the poster arrives
 with its turn outstanding: `check` stands on the minimum and `raise` completes.
 
-Three Primitives are pure reads that the language cannot express (they are
-argmin / argmax over players keyed on card ranks and suits):
+Who opens each street is written in the DSL, in the family library both Stud
+games use (`uses stud`, [stud.cardlang](../libraries/stud.cardlang)):
 
 - `bring_in_seat` — the lowest up card;
-- `best_showing_seat` — the best hand showing, in the order described above;
-- `pot_share` — the side-pot settlement, argmax over poker-rank tuples per
-  layer.
+- `best_showing_seat` — the best hand showing, in the order described above.
 
-The poker evaluator behind the last is family-wide and unit-tested; the first
-two are unit-tested against Pagat's own worked examples in
-[test_stud_selectors.py](../../tests/test_stud_selectors.py).
+Both are functions over the public `upcards`, tested against Pagat's own worked
+examples and against an independent statement of the order in
+[test_stud_selectors.py](../../tests/test_stud_selectors.py). One Primitive
+remains, a pure read: `pot_share`, the side-pot settlement, argmax over
+poker-rank tuples per layer; the poker evaluator behind it is family-wide and
+unit-tested.
 
 The betting state splits two ways. What the game touches it declares itself
 (`bet_to_match`, `level`, `raises`, `raise_cap`, and per-player `bet_by` /

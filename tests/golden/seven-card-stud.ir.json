@@ -30,40 +30,6 @@
     "entries": [
       {
         "kind": "primitive_decl",
-        "name": "bring_in_seat",
-        "params": [],
-        "return_type": "Player",
-        "reads": [
-          {
-            "kind": "primitive_read",
-            "name": "upcards",
-            "binder": null,
-            "phase": null
-          }
-        ]
-      },
-      {
-        "kind": "primitive_decl",
-        "name": "best_showing_seat",
-        "params": [],
-        "return_type": "Player",
-        "reads": [
-          {
-            "kind": "primitive_read",
-            "name": "folded",
-            "binder": null,
-            "phase": "play"
-          },
-          {
-            "kind": "primitive_read",
-            "name": "upcards",
-            "binder": null,
-            "phase": null
-          }
-        ]
-      },
-      {
-        "kind": "primitive_decl",
         "name": "pot_share",
         "params": [
           {
@@ -224,6 +190,42 @@
         "default": {
           "kind": "int",
           "value": 100
+        }
+      },
+      {
+        "kind": "state_decl",
+        "name": "lowest_suit",
+        "index": null,
+        "type": "Suit",
+        "optional": false,
+        "default": {
+          "kind": "name",
+          "name": "clubs",
+          "ref": "enum_value"
+        }
+      },
+      {
+        "kind": "state_decl",
+        "name": "second_suit",
+        "index": null,
+        "type": "Suit",
+        "optional": false,
+        "default": {
+          "kind": "name",
+          "name": "diamonds",
+          "ref": "enum_value"
+        }
+      },
+      {
+        "kind": "state_decl",
+        "name": "third_suit",
+        "index": null,
+        "type": "Suit",
+        "optional": false,
+        "default": {
+          "kind": "name",
+          "name": "hearts",
+          "ref": "enum_value"
         }
       }
     ]
@@ -6034,6 +6036,860 @@
           "right": {
             "kind": "int",
             "value": 2
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "suit_place",
+      "params": [
+        {
+          "name": "s",
+          "type_name": "Suit"
+        }
+      ],
+      "body": {
+        "kind": "if_expr",
+        "cond": {
+          "kind": "binop",
+          "op": "is",
+          "left": {
+            "kind": "name",
+            "name": "s",
+            "ref": "local"
+          },
+          "right": {
+            "kind": "name",
+            "name": "lowest_suit",
+            "ref": "state_var"
+          }
+        },
+        "then": {
+          "kind": "int",
+          "value": 0
+        },
+        "elifs": [],
+        "otherwise": {
+          "kind": "if_expr",
+          "cond": {
+            "kind": "binop",
+            "op": "is",
+            "left": {
+              "kind": "name",
+              "name": "s",
+              "ref": "local"
+            },
+            "right": {
+              "kind": "name",
+              "name": "second_suit",
+              "ref": "state_var"
+            }
+          },
+          "then": {
+            "kind": "int",
+            "value": 1
+          },
+          "elifs": [],
+          "otherwise": {
+            "kind": "if_expr",
+            "cond": {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "name",
+                "name": "s",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "name",
+                "name": "third_suit",
+                "ref": "state_var"
+              }
+            },
+            "then": {
+              "kind": "int",
+              "value": 2
+            },
+            "elifs": [],
+            "otherwise": {
+              "kind": "int",
+              "value": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "card_order",
+      "params": [
+        {
+          "name": "c",
+          "type_name": "Card"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "+",
+        "left": {
+          "kind": "binop",
+          "op": "*",
+          "left": {
+            "kind": "int",
+            "value": 4
+          },
+          "right": {
+            "kind": "call",
+            "func": "rank_value",
+            "args": [
+              {
+                "kind": "name",
+                "name": "c",
+                "ref": "local"
+              }
+            ]
+          }
+        },
+        "right": {
+          "kind": "call",
+          "func": "suit_place",
+          "args": [
+            {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "c",
+                "ref": "local"
+              },
+              "field": "suit"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "door_order",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "call",
+        "func": "card_order",
+        "args": [
+          {
+            "kind": "call",
+            "func": "bottom_of",
+            "args": [
+              {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "upcards",
+                  "ref": "zone"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "function",
+      "name": "no_lower_door",
+      "params": [
+        {
+          "name": "door",
+          "type_name": "Integer"
+        }
+      ],
+      "body": {
+        "kind": "quantifier",
+        "quant": "all",
+        "role": "player",
+        "binder": "player",
+        "body": {
+          "kind": "binop",
+          "op": "or",
+          "left": {
+            "kind": "is_check",
+            "check": "empty",
+            "operand": {
+              "kind": "subscript",
+              "obj": {
+                "kind": "name",
+                "name": "upcards",
+                "ref": "zone"
+              },
+              "index_expr": {
+                "kind": "name",
+                "name": "player",
+                "ref": "local"
+              }
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": ">=",
+            "left": {
+              "kind": "call",
+              "func": "door_order",
+              "args": [
+                {
+                  "kind": "name",
+                  "name": "player",
+                  "ref": "local"
+                }
+              ]
+            },
+            "right": {
+              "kind": "name",
+              "name": "door",
+              "ref": "local"
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "bring_in_seat",
+      "params": [],
+      "body": {
+        "kind": "player_query",
+        "query": "pick",
+        "where": {
+          "kind": "binop",
+          "op": "and",
+          "left": {
+            "kind": "is_check",
+            "check": "not_empty",
+            "operand": {
+              "kind": "subscript",
+              "obj": {
+                "kind": "name",
+                "name": "upcards",
+                "ref": "zone"
+              },
+              "index_expr": {
+                "kind": "name",
+                "name": "player",
+                "ref": "local"
+              }
+            }
+          },
+          "right": {
+            "kind": "call",
+            "func": "no_lower_door",
+            "args": [
+              {
+                "kind": "call",
+                "func": "door_order",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "player",
+                    "ref": "local"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "showing",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "and",
+        "left": {
+          "kind": "not",
+          "operand": {
+            "kind": "subscript",
+            "obj": {
+              "kind": "name",
+              "name": "folded",
+              "ref": "state_var"
+            },
+            "index_expr": {
+              "kind": "name",
+              "name": "p",
+              "ref": "local"
+            }
+          }
+        },
+        "right": {
+          "kind": "is_check",
+          "check": "not_empty",
+          "operand": {
+            "kind": "subscript",
+            "obj": {
+              "kind": "name",
+              "name": "upcards",
+              "ref": "zone"
+            },
+            "index_expr": {
+              "kind": "name",
+              "name": "p",
+              "ref": "local"
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "matching",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "comprehension",
+        "agg": "sum",
+        "source": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "upcards",
+            "ref": "zone"
+          },
+          "index_expr": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
+          }
+        },
+        "binder": "card",
+        "body": {
+          "kind": "call",
+          "func": "up_rank_count",
+          "args": [
+            {
+              "kind": "name",
+              "name": "p",
+              "ref": "local"
+            },
+            {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "field": "rank"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "standing",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        },
+        {
+          "name": "c",
+          "type_name": "Card"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "+",
+        "left": {
+          "kind": "binop",
+          "op": "*",
+          "left": {
+            "kind": "int",
+            "value": 16
+          },
+          "right": {
+            "kind": "call",
+            "func": "up_rank_count",
+            "args": [
+              {
+                "kind": "name",
+                "name": "p",
+                "ref": "local"
+              },
+              {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              }
+            ]
+          }
+        },
+        "right": {
+          "kind": "call",
+          "func": "rank_value",
+          "args": [
+            {
+              "kind": "name",
+              "name": "c",
+              "ref": "local"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "cards_above",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        },
+        {
+          "name": "s",
+          "type_name": "Integer"
+        }
+      ],
+      "body": {
+        "kind": "card_query",
+        "query": "count",
+        "source": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "upcards",
+            "ref": "zone"
+          },
+          "index_expr": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
+          }
+        },
+        "where": {
+          "kind": "binop",
+          "op": ">",
+          "left": {
+            "kind": "call",
+            "func": "standing",
+            "args": [
+              {
+                "kind": "name",
+                "name": "p",
+                "ref": "local"
+              },
+              {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              }
+            ]
+          },
+          "right": {
+            "kind": "name",
+            "name": "s",
+            "ref": "local"
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "place",
+      "params": [
+        {
+          "name": "above",
+          "type_name": "Integer"
+        }
+      ],
+      "body": {
+        "kind": "if_expr",
+        "cond": {
+          "kind": "binop",
+          "op": "is",
+          "left": {
+            "kind": "name",
+            "name": "above",
+            "ref": "local"
+          },
+          "right": {
+            "kind": "int",
+            "value": 0
+          }
+        },
+        "then": {
+          "kind": "int",
+          "value": 100000000
+        },
+        "elifs": [],
+        "otherwise": {
+          "kind": "if_expr",
+          "cond": {
+            "kind": "binop",
+            "op": "is",
+            "left": {
+              "kind": "name",
+              "name": "above",
+              "ref": "local"
+            },
+            "right": {
+              "kind": "int",
+              "value": 1
+            }
+          },
+          "then": {
+            "kind": "int",
+            "value": 1000000
+          },
+          "elifs": [],
+          "otherwise": {
+            "kind": "if_expr",
+            "cond": {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "name",
+                "name": "above",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "int",
+                "value": 2
+              }
+            },
+            "then": {
+              "kind": "int",
+              "value": 10000
+            },
+            "elifs": [],
+            "otherwise": {
+              "kind": "if_expr",
+              "cond": {
+                "kind": "binop",
+                "op": "is",
+                "left": {
+                  "kind": "name",
+                  "name": "above",
+                  "ref": "local"
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 3
+                }
+              },
+              "then": {
+                "kind": "int",
+                "value": 100
+              },
+              "elifs": [],
+              "otherwise": {
+                "kind": "int",
+                "value": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "placed_ranks",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "comprehension",
+        "agg": "sum",
+        "source": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "upcards",
+            "ref": "zone"
+          },
+          "index_expr": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
+          }
+        },
+        "binder": "card",
+        "body": {
+          "kind": "binop",
+          "op": "*",
+          "left": {
+            "kind": "call",
+            "func": "rank_value",
+            "args": [
+              {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              }
+            ]
+          },
+          "right": {
+            "kind": "call",
+            "func": "place",
+            "args": [
+              {
+                "kind": "call",
+                "func": "cards_above",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "p",
+                    "ref": "local"
+                  },
+                  {
+                    "kind": "call",
+                    "func": "standing",
+                    "args": [
+                      {
+                        "kind": "name",
+                        "name": "p",
+                        "ref": "local"
+                      },
+                      {
+                        "kind": "name",
+                        "name": "card",
+                        "ref": "local"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "top_card",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "comprehension",
+        "agg": "highest",
+        "source": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "upcards",
+            "ref": "zone"
+          },
+          "index_expr": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
+          }
+        },
+        "binder": "card",
+        "body": {
+          "kind": "call",
+          "func": "card_order",
+          "args": [
+            {
+              "kind": "name",
+              "name": "card",
+              "ref": "local"
+            }
+          ]
+        },
+        "default": {
+          "kind": "int",
+          "value": 0
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "showing_order",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "binop",
+        "op": "+",
+        "left": {
+          "kind": "binop",
+          "op": "+",
+          "left": {
+            "kind": "binop",
+            "op": "*",
+            "left": {
+              "kind": "call",
+              "func": "matching",
+              "args": [
+                {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                }
+              ]
+            },
+            "right": {
+              "kind": "int",
+              "value": 1000000000000
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": "*",
+            "left": {
+              "kind": "call",
+              "func": "placed_ranks",
+              "args": [
+                {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                }
+              ]
+            },
+            "right": {
+              "kind": "int",
+              "value": 100
+            }
+          }
+        },
+        "right": {
+          "kind": "call",
+          "func": "top_card",
+          "args": [
+            {
+              "kind": "name",
+              "name": "p",
+              "ref": "local"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "no_better_board",
+      "params": [
+        {
+          "name": "order",
+          "type_name": "Integer"
+        }
+      ],
+      "body": {
+        "kind": "quantifier",
+        "quant": "all",
+        "role": "player",
+        "binder": "player",
+        "body": {
+          "kind": "binop",
+          "op": "or",
+          "left": {
+            "kind": "not",
+            "operand": {
+              "kind": "call",
+              "func": "showing",
+              "args": [
+                {
+                  "kind": "name",
+                  "name": "player",
+                  "ref": "local"
+                }
+              ]
+            }
+          },
+          "right": {
+            "kind": "binop",
+            "op": "<=",
+            "left": {
+              "kind": "call",
+              "func": "showing_order",
+              "args": [
+                {
+                  "kind": "name",
+                  "name": "player",
+                  "ref": "local"
+                }
+              ]
+            },
+            "right": {
+              "kind": "name",
+              "name": "order",
+              "ref": "local"
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "best_showing_seat",
+      "params": [],
+      "body": {
+        "kind": "player_query",
+        "query": "pick",
+        "where": {
+          "kind": "binop",
+          "op": "and",
+          "left": {
+            "kind": "call",
+            "func": "showing",
+            "args": [
+              {
+                "kind": "name",
+                "name": "player",
+                "ref": "local"
+              }
+            ]
+          },
+          "right": {
+            "kind": "call",
+            "func": "no_better_board",
+            "args": [
+              {
+                "kind": "call",
+                "func": "showing_order",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "player",
+                    "ref": "local"
+                  }
+                ]
+              }
+            ]
           }
         }
       }

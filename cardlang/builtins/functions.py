@@ -183,8 +183,6 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
 # declaration is its only route to Python.
 PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
     {
-        "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
-        "best_showing_seat",  # Stud: the best-hand-showing seat that opens a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query for the two-seat variant
@@ -440,8 +438,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "belote_decl_slot",
         "belote_decl_trump",
         "belote_royal_player",
-        "best_showing_seat",
-        "bring_in_seat",
         "canasta_can_start",
         "canasta_can_take_pile",
         "canasta_canasta_bonus",
