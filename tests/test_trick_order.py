@@ -973,13 +973,15 @@ def _defaults_cells() -> list[Cell]:
              _source(ranking="", clauses=_block("trump: card.suit is hearts  card_strength: if card.rank is A then 2 else 1")), ()))
     add(Cell("explicit-rank_value-without-ranking",
              _source(ranking="", clauses=_block("trump: card.suit is hearts  card_strength: rank_value(card)")), (RANKING_GATE,)))
-    # The ranking gate's remedy now names the block (the design's C13).
+    # The ranking gate names the block for a name the Trick Order winner
+    # replaces (the design's C13; `typecheck.RANKING_TRICK_ORDER_TWINS`), and
+    # for no other name, where the block would leave the refusal standing.
     add(Cell("standard-winner-without-ranking-names-the-block",
              _source(ranking="", clauses="trump: hearts", body=_ROUND.format(winner="highest_trump_or_led_suit", extra="")),
              (RANKING_GATE, RANKING_GATE_BLOCK)))
-    add(Cell("rank_value-without-ranking-names-the-block",
+    add(Cell("rank_value-without-ranking-asks-for-a-ranking-only",
              _source(ranking="", body="if any card in hand[0] where rank_value(card) > 3 { score[1] += 1 }"),
-             (RANKING_GATE, RANKING_GATE_BLOCK)))
+             (RANKING_GATE,), forbidden=(RANKING_GATE_BLOCK,)))
     return cells
 
 

@@ -4910,7 +4910,11 @@ none is coming.
 `requires` state the including GAME owns, and `state`s the state the LIBRARY
 owns. Both are checked at the `uses` line, so an unmet contract or a collision
 is reported to the game's author rather than as an undeclared name inside
-spliced library text they never typed.
+spliced library text they never typed. So is every game clause the library's
+definitions need: a library calling a Builtin a game clause gates (`ranking:`
+for `rank_value`, say; the gates are `resolve._CLAUSE_GATES`), in a game whose
+clauses refuse it, is refused on the game's `uses` line, naming the library,
+the Builtin and the clause.
 
 ```text
 requires {
