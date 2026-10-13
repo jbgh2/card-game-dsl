@@ -708,7 +708,9 @@ def test_a_library_rule_removed_in_a_mode_resolves_by_name(
     _patch_libraries(monkeypatch, {"tricks": _template_library()})
     text = game_text("remove", active="Wanted", uses="uses tricks").replace(
         "legal_moves: [play_to_trick]",
-        "legal_moves: [play_to_trick]\n    mode m { active_rules: [-Wanted] }",
+        "legal_moves: [play_to_trick]\n    mode m { active_rules: [-Wanted]  "
+        "transition_to: m2 when play_to_trick where action.card.suit is spades }\n"
+        "    mode m2 { }",
     )
     game = _resolve_text(text)
     assert [r.name for r in game.rules] == ["Wanted"]
@@ -742,3 +744,25 @@ def test_the_reserved_word_state_names_the_round_s_state() -> None:
     from cardlang.resolve import _RESERVED_WHY
 
     assert "round" in _RESERVED_WHY["state"]
+
+
+def test_bridge_s_rule_reads_are_judged_as_the_routed_play_source() -> None:
+    """The Hidden Read check judges a rule clause's `hand` as the Play Source:
+    under Bridge's Delegated Play the pool declarer plays from, credited
+    because a routed pool's visibility to its decider is the runtime
+    `delegation.check_decider_sees`'s.
+
+    red under: delete the `play_source` arm of `_HiddenReads.reads_of` -- the
+    rule's clauses then make no read at all and nothing is judged."""
+    from cardlang.resolve import hidden_read_verdicts
+
+    game = check_dsl((GAMES / "bridge.cardlang").read_text(), "bridge.cardlang")
+    verdicts = [
+        v for v in hidden_read_verdicts(game)
+        if v.position.startswith("rule `MustFollowSuit`")
+    ]
+    assert verdicts
+    assert all(v.accepted for v in verdicts)
+    assert {v.reason for v in verdicts} == {
+        "bare-family sugar reads the routed pool its decider plays from"
+    }

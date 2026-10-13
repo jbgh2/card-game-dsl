@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import parse_stdlib_rules
+from cardlang.stdlib.rules import load_stdlib
 from cardlang.pipeline import check_dsl
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import stdlib_rules
@@ -63,20 +63,22 @@ def test_stdlib_rules_parse_and_constrain_known_move_types() -> None:
             assert p.type_name == "Suit"  # the one supported template domain
 
 
-def test_parse_stdlib_rules_surfaces_a_builder_diagnostic_not_a_visit_error() -> None:
-    # A rules fragment is transformed by the same _Builder as a full game; a
+def test_loading_the_stdlib_surfaces_a_builder_diagnostic_not_a_visit_error() -> None:
+    # The stdlib is transformed by the same _Builder as a full game; a
     # builder-raised diagnostic (here, the `==`-rejection) must surface as a
     # located DiagnosticError, not leak as lark's opaque VisitError wrapper.
     src = """
-rule BadRule {
-  constrains: play_to_trick
-  applies_when: state.led_suit == none
-  demands: cards in hand where card.suit is state.led_suit
-  if_impossible: hand
+library stdlib {
+  rule BadRule {
+    constrains: play_to_trick
+    applies_when: state.led_suit == none
+    demands: cards in hand where card.suit is state.led_suit
+    if_impossible: hand
+  }
 }
 """
     with pytest.raises(DiagnosticError) as ei:
-        parse_stdlib_rules(src, "frag.cardlang")
+        load_stdlib(src, "frag.cardlang")
     message = str(ei.value)
     assert "write `is`" in message
     diag = ei.value.diagnostic

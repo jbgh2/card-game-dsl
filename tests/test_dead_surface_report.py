@@ -357,7 +357,7 @@ def test_the_word_axis_is_every_alphabetic_alternation_terminal() -> None:
 _EXPECTED_TIERS = {
     "docs/games/*.cardlang": ("corpus", "start"),
     "docs/libraries/*.cardlang": ("shared", "library"),
-    "cardlang/stdlib/*.cardlang": ("shared", "stdlib_rules"),
+    "cardlang/stdlib/*.cardlang": ("shared", "library"),
     "experiments/**/*.cardlang": ("other", "start"),
     "tests/**/*.cardlang": ("other", "start"),
 }

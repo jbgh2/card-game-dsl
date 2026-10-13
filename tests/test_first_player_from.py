@@ -124,7 +124,7 @@ from lark import Lark
 from cardlang import ir
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import parse_library, parse_text
+from cardlang.parse import _parser, parse_library, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
@@ -823,7 +823,7 @@ def test_adjacency_sentences_parse_at_zero_ambiguity() -> None:
         parser="earley",
         propagate_positions=True,
         maybe_placeholders=True,
-        start=["start", "stdlib_rules", "library"],
+        start=list(_parser().options.start),
         ambiguity="explicit",
     )
     sentences = [

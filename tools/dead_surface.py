@@ -99,13 +99,11 @@ class Source:
 
 
 def start_for(path: pathlib.Path) -> str:
-    """A file's kind is its directory's: libraries parse as `library`, the
-    stdlib as `stdlib_rules`, everything else as a game."""
+    """A file's kind is its directory's: family libraries and the stdlib parse
+    as `library`, everything else as a game."""
     parts = set(path.parts)
-    if "libraries" in parts:
+    if "libraries" in parts or "stdlib" in parts:
         return "library"
-    if "stdlib" in parts:
-        return "stdlib_rules"
     return "start"
 
 

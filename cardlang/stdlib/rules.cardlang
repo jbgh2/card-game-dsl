@@ -1,22 +1,25 @@
-// Standard-library rules (library.md "Rules"). A game activates one by name
-// in `active_rules:` without defining it; the resolver splices the body in.
-// A parameterized rule is a template: the reference passes arguments
-// (`NoLeadingSuitUntilBroken(hearts)`) and the resolver substitutes them.
+// The standard library's rules (library.md "Rules"). A game switches one on by
+// name in `active_rules:`, with no `uses` line; the resolver splices the body
+// in where it is named. A parameterized rule is a template: the reference
+// passes arguments (`NoLeadingSuitUntilBroken(hearts)`) and the resolver
+// substitutes them.
 //
-// Bodies here read the trick round's accumulator (`state.led_suit`) and the
-// actor's `hand` zone — a game that activates one must play tricks from a
-// `hand[player]` zone, which every trick-taking corpus game does.
+// Inside a rule, `hand` is the cards the player on turn plays from, and
+// `state.led_suit` is the suit the trick round publishes, so these rules read
+// nothing a game must declare: the contract is empty.
 
-rule MustFollowSuit {
-  constrains: play_to_trick
-  applies_when: state.led_suit is not none
-  demands: cards in hand where card.suit is state.led_suit
-  if_impossible: hand   // void in the led suit: play any card
-}
+library stdlib {
+  rule MustFollowSuit {
+    constrains: play_to_trick
+    applies_when: state.led_suit is not none
+    demands: cards in hand where card.suit is state.led_suit
+    if_impossible: hand   // void in the led suit: play any card
+  }
 
-rule NoLeadingSuitUntilBroken(suit: Suit) {
-  constrains: play_to_trick
-  applies_when: state.led_suit is none   // i.e., leading
-  demands: cards in hand where card.suit is not suit
-  if_impossible: hand   // only cards of that suit left: one must be led
+  rule NoLeadingSuitUntilBroken(suit: Suit) {
+    constrains: play_to_trick
+    applies_when: state.led_suit is none   // i.e., leading
+    demands: cards in hand where card.suit is not suit
+    if_impossible: hand   // only cards of that suit left: one must be led
+  }
 }

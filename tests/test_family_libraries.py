@@ -1299,7 +1299,12 @@ def parse_default(literal: str) -> n.Expr:
 # move type that runs it, because an uninvoked procedure is separately an error
 # and the cell must fail for its OWN reason.
 _LEAK_SITE: dict[str, str] = {
-    "rules": "rule r {{ applies_when: {read} is not none }}",
+    # An enforceable rule: its `demands:` reads the Play Source, which every
+    # trick round has, so the rule needs no contract to enforce something.
+    "rules": (
+        "rule r {{ constrains: play_to_trick applies_when: {read} is not none "
+        "demands: cards in hand where card.suit is state.led_suit if_impossible: hand }}"
+    ),
     "move_types": (
         "move_type m {{ effect "
         "{{ declared_thing := if {read} is not none then 1 else 2 }} }}"
@@ -1324,7 +1329,7 @@ _LEAK_SITE: dict[str, str] = {
 _LEAK_READS: dict[str, tuple[str, str | None]] = {
     "state": ("undeclared_thing", "declared_thing"),
     "call": ("undeclared_helper()", "contracted_helper()"),
-    "zone": ("hand", None),
+    "zone": ("pile", None),
     "deck_value": ("hearts", None),
     "card_literal": ("(Q of hearts)", None),
 }
@@ -1378,12 +1383,15 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     `_AXIS_NAMESPACE`."""
     # `flavor` joins locals/functions as a non-channel: it is the game's
     # scalar content flavor ("card"/"piece"), not a namespace of names a
-    # library reference could reach or shadow. `definitions` is what a
+    # library reference could reach or shadow; `rule_clause` is a scope flag
+    # in the same way, set inside a rule's clauses wherever they are written. `definitions` is what a
     # library's OWN definitions are called, fed by the library alone: no
     # bare reference resolves against it, it gates one refusal's wording
     # (`_refuse_bare_always`), and a game's definition reached by name is
     # the `call` column's leak.
-    game_fed = {f.name for f in fields(_Categories)} - {"locals", "functions", "flavor", "definitions"}
+    game_fed = {f.name for f in fields(_Categories)} - {
+        "locals", "functions", "flavor", "definitions", "rule_clause"
+    }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():
         covered |= reached
@@ -1407,7 +1415,7 @@ def _leaky(field: str, kind: str, *, leaking: bool) -> n.Library:
 
 
 # A game that satisfies `leaky`'s contract AND happens to provide everything the
-# leaks reach for — the undeclared state name, the helper function, a `hand`
+# leaks reach for — the undeclared state name, the helper function, a `pile`
 # zone, and a deck holding the queen of hearts. That second half is what makes
 # the cells meaningful: without it they would fail as ordinary unresolved names
 # and prove nothing about the contract.
@@ -1417,7 +1425,7 @@ game Host {
   players: 2
   cards: standard52
   max_length: 100
-  zones { deck : Deck  hand[player] : Hand<player> }
+  zones { deck : Deck  hand[player] : Hand<player>  pile : Discard }
   state {
     declared_thing   : Integer = 0
     undeclared_thing : Integer = 0
@@ -1502,7 +1510,6 @@ def test_the_same_site_reaching_only_its_contract_is_accepted(
     field: str,
     kind: str,
     monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
 ) -> None:
     """The control row. Each cell is its leaking twin with one name swapped —
     a contracted state variable for the undeclared one, a library-defined
@@ -1516,23 +1523,6 @@ def test_the_same_site_reaching_only_its_contract_is_accepted(
 
     red under: make `_check_library_encapsulation` reject anything it classifies
     rather than only what it fails to."""
-    if field == "rules":
-        # A library CANNOT declare a rule at all right now, so this control
-        # cell has no contract-clean form to be the twin of. A rule must carry
-        # an enforceable `demands:`/`exempts:` to reach a decision site
-        # (tests/test_rule_surface_reachability.py), an enforceable body must
-        # name a zone, and `requires { }` contracts state only — so every
-        # writable body here either enforces nothing or leaks. Marked rather
-        # than deleted: the cell is real and unreachable, and strict xfail
-        # turns it loud the day issue #177 lets a contract name a zone.
-        request.node.add_marker(
-            pytest.mark.xfail(
-                raises=DiagnosticError,
-                strict=True,
-                reason="issue #177: a library contract cannot name a zone, so "
-                "no library rule can be both enforceable and contract-clean",
-            )
-        )
     _patch_libraries(monkeypatch, {"leaky": _leaky(field, kind, leaking=False)})
     resolve(_leak_host())
 

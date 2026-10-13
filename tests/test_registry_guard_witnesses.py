@@ -576,6 +576,11 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # tests/test_permissive_top.py::test_every_role_carries_a_row.
     "domains.py": ["set(BY_ID) == set(Role)"],
     "libraries.py": ["not _LIBRARIES_DIR.is_dir()"],
+    # Pins the stdlib's declared name to the constant no `uses` line spells; a
+    # name compared against a name, with no collection to go stale. Its
+    # witness is tests/test_play_source_grid.py::
+    # test_the_stdlib_loader_refuses_a_misnamed_library.
+    "stdlib/rules.py": ["library.name != STDLIB_NAME"],
     "openspiel/encoding.py": ["not 0 <= action < NUM_DISTINCT_ACTIONS"],
     # The pattern-registry shape, and the two sites of it. Each validates a
     # short name the filesystem admitted against `SHORT_NAME_CHARS`, which owns
