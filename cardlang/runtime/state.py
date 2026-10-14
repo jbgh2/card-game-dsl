@@ -436,6 +436,8 @@ class RuntimeState:
         self.frames[-1][name] = value
 
     def _frame_of(self, name: str) -> dict[str, Any]:
+        # Declared: mypy >= 2.4 infers a `reversed()` element of this list as Any.
+        frame: dict[str, Any]
         for frame in reversed(self.frames):
             if name in frame:
                 return frame
