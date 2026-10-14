@@ -19,6 +19,8 @@ Check each of these that applies to the thread, and act on it directly. A thread
 
 **Memories.** Look back over the thread for anything that would help future sessions: user preferences and working style, corrections the user made to your approach, project decisions or constraints not visible in code, useful external references. Compare against existing memories. Save new ones and update existing ones using the memory conventions for this environment (one fact per file with frontmatter, plus an index line in MEMORY.md). Do this without asking. Being slightly generous here is fine because anything not captured now is lost with the thread, but don't save things the repo or git history already records.
 
+Auto memory is machine-local: the memory directory under `~/.claude/projects/` is not shared across machines or with cloud sessions, so a memory written from a cloud session, or from a machine the user does not work on, does not reach the next thread. In that case do not report a memory as saved. A project decision, constraint or state goes where the repo already keeps such things, as a comment on its issue or PR, and the verdict names the comment. Anything that fits only a personal memory, such as a working-style preference, goes under "Needs your input" so the user can carry it, instead of being declared saved and lost.
+
 **Your own leftovers.** These are yours to clean up without asking:
 - Scratch and temporary files you created in the scratchpad or scratch workspace.
 - Debug files you left in the project (log dumps, one-off test scripts, `.bak` files) that the user never asked for and that are not part of the delivered work.
