@@ -41,6 +41,20 @@ best score, both partners of a winning team and every tied seat
 it is read from, so a golden's winners are checkable against its own
 scores and the game's `teams:` without running anything.
 
+An ELEVENTH sanctioned regeneration covers `seven-card-stud_hands.json` on
+5 of its 50 seeds and `holdem_hands.json` on 1 of its 50: `poker_betting`
+plays Pagat's all-in rule for both of its cases (issue #828). A seat that has
+acted and faces only a short all-in may call or fold — it is no longer offered
+the completion — and the half-bet test measures the total a wager stands above
+the last full wager rather than how far it moved the standing bet. Both change
+what a seat is OFFERED and who is ASKED again wherever a short all-in stands,
+so the chooser draws move only on the seeds that reach one.
+`seven-card-stud.ir.json` moves with it through its own `UPDATE_GOLDEN=1`
+path: the `acted` disjunction in `raise`'s and `raise_big`'s guards, and the
+`moved`/`counts` bindings in their effects. The rules are pinned away from
+these vectors, by Pagat's own worked example in
+tests/test_poker_betting_rulebook.py.
+
 A TENTH sanctioned regeneration covers `tichu_scores.json` and
 `tichu_hands.json` on every seed they hold: the eighth card's grand tichu
 poll asks exactly two laps, so a call in the last lap is not answered by a
@@ -133,7 +147,7 @@ golden at all (issue #427), so its delta was measured by hand.
 A FIFTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
 seed it holds: `poker_betting`'s `raise` now admits a seat that owes nothing but
 has not taken a turn on the street, which is Stud's bring-in poster (issue
-#237). Called around, that seat is offered `raise` beside `check` where it had
+#237). That seat's decision is offered `raise` beside `check` where it had
 `check` alone, so 3rd street gains a decision node in nearly every hand — which
 moves the chooser draws, and so the deal of every later street and every later
 hand. `seven-card-stud.ir.json` moves with it through its own `UPDATE_GOLDEN=1`
