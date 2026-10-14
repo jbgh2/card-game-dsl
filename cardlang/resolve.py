@@ -26,7 +26,14 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               rule templates are instantiated into concrete rules; every
               structural reference names a real declaration. This is the
               ONLY pass that classifies names — downstream dispatches on
-              ``ref_kind``, never re-derives it. ``game.ranking`` is the
+              ``ref_kind``, never re-derives it. A rule clause's bare
+              ``hand`` (not a ``Subscript``'s object, not a binder the
+              clause introduces) is ``ref_kind == "play_source"``: the
+              trick round's Play Source, so no later pass learns it from
+              the spelling ``hand``. Every library's rules — a family
+              library's and ``library stdlib``'s — are spliced into
+              ``game.rules`` only where an ``active_rules:`` reference
+              names them, after the game's own. ``game.ranking`` is the
               operative strength order: a ``ranking:`` convention keyword
               is expanded against the deck here (``_expand_ranking``), so
               no later pass may branch on ``ranking_convention`` for
@@ -152,10 +159,20 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               at those positions is visible to the seat deciding there:
               under Delegated Play a rule's clauses are judged against
               ``chooser_for(actor)``, since every rule is asked at the trick
-              round's card decision, the one decision it routes, and bare
-              ``hand`` or a trick round's source family reads the routed
-              pool, whose visibility to that seat is the runtime Owner Guard
-              ``runtime/delegation.check_decider_sees``'s.
+              round's card decision, the one decision it routes, and the
+              Play Source, or a trick round's source family named bare,
+              reads the routed pool, whose visibility to that seat is the
+              runtime Owner Guard ``runtime/delegation.check_decider_sees``'s.
+              And, beside a rule clause reading the Play Source: a zone
+              named ``hand`` not kept per player, a state variable named
+              ``hand``, a game that runs no trick round, and a function a
+              rule clause reaches that reads bare ``hand`` or a trick
+              round's source family (``_check_play_source``); and a rule
+              parameter named ``hand`` (``_refuse_play_source_params``).
+              ``runtime/evaluate``'s ``play_source`` arm and its
+              ``_hermetic_ctx``, which keeps no Play Source in a function
+              body, are the Shadow Guards behind them. And a ``uses``
+              line naming the standard library, whose rules need none.
               And an implicit decision pool -- one the kernel builds from a
               declared zone with no expression to read, the round-source and
               ``Card``-parameter rows of ``DECISION_POOLS`` -- whose family's
@@ -2922,8 +2939,9 @@ def _check_requires(
 
 def resolve(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
-    # First: `uses` splices each named library's definitions in, so everything
-    # below sees one flat game. Errors here (unknown library, a collision, an
+    # First: `uses` splices each named library's definitions but its rules in,
+    # so everything below sees one flat game; `_instantiate_rules` splices the
+    # rules a game activates. Errors here (unknown library, a collision, an
     # unmet `requires`) make the spliced game unrepresentative, so they are
     # reported as a complete set and raised before the rest of the pass adds
     # noise derived from a half-assembled game.
@@ -5001,9 +5019,10 @@ def _check_play_source(
       round's card decision, so it would never apply. A climbing round binds
       no rule.
     - A function a rule clause reaches, transitively, reading bare `hand` or
-      a trick round's source family: a function body runs in its own scope,
-      where the Play Source does not exist. `runtime/evaluate`'s
-      `_hermetic_ctx` keeps no Play Source as the Shadow Guard behind it.
+      a trick round's source family, whether or not the clauses themselves
+      read `hand`: a function body runs in its own scope, where the Play
+      Source does not exist. `runtime/evaluate`'s `_hermetic_ctx` keeps no
+      Play Source as the Shadow Guard behind it.
 
     Runs after `_classify_names` and reads the stamp, never the spelling,
     for the clauses themselves."""
@@ -5014,51 +5033,9 @@ def _check_play_source(
             for nd in _walk(r)
         )
     ]
-    if not reading:
-        return
-    for z in game.zones:
-        if z.name == PLAY_SOURCE_NAME and not (
-            z.index is not None and role_of(z.index) is Role.PLAYER
-        ):
-            bag.error(
-                f"this game declares the zone `{z.name}` "
-                f"({_family_shape(z.index)}), but {_PLAY_SOURCE_READING}, so "
-                f"its rules could never read this zone by that name — rename "
-                f"the zone",
-                z.span,
-            )
-    for nd in _walk(game):
-        if isinstance(nd, n.StateDecl) and nd.name == PLAY_SOURCE_NAME:
-            bag.error(
-                f"this game declares the state variable `{nd.name}`, but "
-                f"{_PLAY_SOURCE_READING}, so its rules could never read this "
-                f"variable by that name — rename the variable",
-                nd.span,
-            )
     sources = {
         nd.source_zone for nd in _walk(game) if isinstance(nd, n.TrickRound)
     }
-    if not sources:
-        activated: dict[str, Span | None] = {}
-        for nd in _walk(game):
-            if isinstance(nd, n.ActiveRules):
-                for ref in nd.refs:
-                    activated.setdefault(ref.name, ref.span)
-        for rule in reading:
-            own = rule.name in own_rules
-            fix = (
-                f"play the hand with a trick round, or delete rule '{rule.name}'"
-                if own
-                else f"take '{rule.name}' out of `active_rules:`"
-            )
-            bag.error(
-                f"rule '{rule.name}' reads `{PLAY_SOURCE_NAME}`, the cards the "
-                f"player on turn plays to a trick, but this game plays no trick "
-                f"round (`round <move> from ... source ... into ...`); a rule is "
-                f"asked only when a trick round offers a card, so it would "
-                f"never apply — {fix}",
-                rule.span if own else activated.get(rule.name, rule.span),
-            )
     named = frozenset({PLAY_SOURCE_NAME}) | frozenset(sources)
     functions: dict[str, object] = {f.name: f for f in game.functions}
     reported: set[int] = set()
@@ -5083,6 +5060,48 @@ def _check_play_source(
                         f"which cards those are — {_FUNCTION_TAKES_A_CARD}",
                         nd.span,
                     )
+    if not reading:
+        return
+    for z in game.zones:
+        if z.name == PLAY_SOURCE_NAME and not (
+            z.index is not None and role_of(z.index) is Role.PLAYER
+        ):
+            bag.error(
+                f"this game declares the zone `{z.name}` "
+                f"({_family_shape(z.index)}), but {_PLAY_SOURCE_READING}, so "
+                f"its rules could never read this zone by that name — rename "
+                f"the zone",
+                z.span,
+            )
+    for nd in _walk(game):
+        if isinstance(nd, n.StateDecl) and nd.name == PLAY_SOURCE_NAME:
+            bag.error(
+                f"this game declares the state variable `{nd.name}`, but "
+                f"{_PLAY_SOURCE_READING}, so its rules could never read this "
+                f"variable by that name — rename the variable",
+                nd.span,
+            )
+    if not sources:
+        activated: dict[str, Span | None] = {}
+        for nd in _walk(game):
+            if isinstance(nd, n.ActiveRules):
+                for ref in nd.refs:
+                    activated.setdefault(ref.name, ref.span)
+        for rule in reading:
+            own = rule.name in own_rules
+            fix = (
+                f"play the hand with a trick round, or delete rule '{rule.name}'"
+                if own
+                else f"take '{rule.name}' out of `active_rules:`"
+            )
+            bag.error(
+                f"rule '{rule.name}' reads `{PLAY_SOURCE_NAME}`, the cards the "
+                f"player on turn plays to a trick, but this game plays no trick "
+                f"round (`round <move> from ... source ... into ...`); a rule is "
+                f"asked only when a trick round offers a card, so it would "
+                f"never apply — {fix}",
+                rule.span if own else activated.get(rule.name, rule.span),
+            )
 
 
 def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:

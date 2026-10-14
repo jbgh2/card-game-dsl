@@ -1419,7 +1419,8 @@ class Game:
     # block are different states, and `primitives_block.regime` is the ONE
     # site that reads the difference.
     primitives: PrimitivesBlock | None = None
-    # Emptied by `resolve`, which splices each named library's definitions in:
+    # Emptied by `resolve`, which splices each named library's definitions in
+    # (its rules where `active_rules:` names them):
     # like `procedures`, a surviving entry downstream would mean the import was
     # parsed and ignored. Order is source order, and resolution is flat and
     # two-level (game -> named libraries -> stdlib) with no library-imports-

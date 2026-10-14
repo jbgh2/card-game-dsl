@@ -874,7 +874,7 @@ def _engine_registry_member(field: str) -> str | None:
     """A real member of one of the engine's own name registries that shares a
     namespace with this definition kind, drawn FROM the registry, or None when
     no registry exists for the kind. Only one of the three is the engine leg (the
-    parsed rules fragment); the others are the native call declarations and a
+    standard library's rules); the others are the native call declarations and a
     kernel table. Derived rather than spelled: a hand-written probe name can
     silently not be a member of the registry it claims to probe, which is
     exactly how this file's first move-type cell shipped vacuous (it probed

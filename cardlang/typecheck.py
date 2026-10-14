@@ -18,10 +18,15 @@ the resolved-AST level.
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
-Assumes:      a resolved AST (every ``NameRef`` classified, declarations
-              unique, rule templates instantiated).
-Establishes:  type validity only. The inferred :class:`~cardlang.types.Type`
-              values are ephemeral — they are NOT written onto nodes.
+Assumes:      a resolved AST (every ``NameRef`` classified over
+              ``n.RefKind``, declarations unique, rule templates
+              instantiated), in which a ``play_source`` read stands only in
+              a game holding a trick round (``resolve._check_play_source``).
+Establishes:  type validity only. A ``play_source`` read types as the join
+              of the trick rounds' ``source`` families' contents, read off
+              the stamp, never off the spelling ``hand``. The inferred
+              :class:`~cardlang.types.Type` values are ephemeral — they are
+              NOT written onto nodes.
               Downstream may assume every type Owner Guard held, but may not
               read types off the tree; a downstream consumer that needs a type
               is a signal to materialize it in this pass, never to re-infer it

@@ -19,7 +19,9 @@ property:   a bare `hand` in a rule clause is the Play Source, from every rule
 domain:     the rule clauses (every expression-holding field of `RuleDef`)
             x what the game declares under the spelling `hand` (nothing; a
             zone of every index shape; a state variable at game and phase
-            level; a position domain; each definition kind) x the trick
+            level; a position domain; each definition kind -- the zones not
+            kept per player and the state variables are refused beside a
+            rule reading `hand`, the rest admitted) x the trick
             round's source family (`hand` itself or another family), for a
             game-local rule and a family-library rule. Beside it: the
             positions a `hand` can stand at around a clause (subscripted, a
@@ -421,10 +423,17 @@ def test_a_subscripted_hand_with_no_hand_family_names_the_fix() -> None:
 
 @pytest.mark.parametrize("depth", [1, 2], ids=["called", "called-through-another"])
 @pytest.mark.parametrize("name", ["hand", "held"], ids=["hand", "source-family"])
+@pytest.mark.parametrize(
+    "fallback", ["hand", "held"], ids=["clauses-read-hand", "clauses-read-no-hand"]
+)
 def test_a_function_reached_from_a_rule_may_not_read_the_play_source(
-    depth: int, name: str
+    depth: int, name: str, fallback: str
 ) -> None:
+    """Refused whether or not the rule's own clauses read the Play Source:
+    the function reads its own scope either way."""
     rule = _rule("R", "if_impossible", clauses=PLAYED).replace(
+        "if_impossible: hand", f"if_impossible: {fallback}"
+    ).replace(
         "applies_when: trick_pile is empty", "applies_when: state.led_suit is not none"
     ).replace(
         "demands: cards in trick_pile where card.suit is state.led_suit",
@@ -437,7 +446,7 @@ def test_a_function_reached_from_a_rule_may_not_read_the_play_source(
         f"function inner(s : Suit) = cards in {name} where card.suit is s"
     )
     _refused(
-        game_text(f"fn{depth}{name}", source="held", rules=rule + "\n" + fns,
+        game_text(f"fn{depth}{name}{fallback}", source="held", rules=rule + "\n" + fns,
                   decl=HAND_DECLS["zone[player] beside"]),
         FUNCTION_FIX,
         "`cards in hand where follows(card, state.led_suit)`",
@@ -479,6 +488,22 @@ def test_a_rule_parameter_named_hand_is_refused_at_the_parameter() -> None:
         game_text("param", rules=rule, active="R(spades)"),
         "a rule's parameter cannot be named `hand`",
     )
+
+
+def test_a_clause_binder_spelled_hand_binds_the_clause() -> None:
+    """A position domain named `hand` binds `hand` in its query's `where`:
+    the clause's own binder outranks the Play Source, and the clause's other
+    bare `hand` is still the Play Source."""
+    rule = _rule("R", "demands").replace(
+        "applies_when: trick_pile is empty",
+        "applies_when: (number of hands where hand >= 1) > 0",
+    )
+    game = _resolve_text(
+        game_text("binder", rules=rule, decl=HAND_DECLS["position domain"], source="held")
+    )
+    resolved = next(r for r in game.rules if r.name == "R")
+    assert {r.ref_kind for r in _hand_refs_in(resolved, "applies_when")} == {"local"}
+    assert {r.ref_kind for r in _hand_refs_in(resolved, "demands")} == {PLAY_SOURCE}
 
 
 # --- C: the round forms a game runs ----------------------------------------

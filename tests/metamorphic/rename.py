@@ -67,19 +67,20 @@ A gather reached with cards in both an excluded zone and a renamed one
 collects in a different order under the rename, so the pairing property
 fails on a correct game; issue #194 holds that false-positive class.
 
-**`hand` is a language-wide magic name, not a renamable zone.** decisions.md
-"Declared parameter domains": a `Card`-typed move parameter enumerates "the
-acting player's live hand" and "a Card parameter in a game with no
-`hand[player]` zone" is rejected with a message — `resolve.py` enforces this
-structurally (`z.name == "hand" and z.index == "player"`), and the kernel's
-legal-move engine (`runtime/rules.py::legal_cards`) and move-parameter
-enumerator (`runtime/mechanics.py::param_domain`) both look it up by that
-exact name. Renaming it produces a tree the PIPELINE rejects (or, if the game
-declares no Card-parameterized move, one the RUNTIME cannot serve
-`Card`-typed candidates for) — squarely a spec-documented exception, the same
-shape as T5 excluding an order-sensitive declaration with a citation, not a
-defect this transform papers over. `_GLOBAL_EXCLUSIONS` below excludes it
-corpus-wide.
+**`hand` is the magic name where a construct reads the zone by that spelling.**
+decisions.md "Declared parameter domains": a `Card`-typed move parameter
+enumerates "the acting player's live hand", and `resolve.py` requires a
+`hand[player]` zone for one (`_check_card_offering`), which the kernel's
+move-parameter enumerator (`runtime/mechanics.py::param_domain`) reads by that
+exact name; the Builtin `player_holding` reads it the same way
+(`BUILTIN_IMPLICIT_READS`). In a game holding either, renaming the zone
+produces a tree the pipeline rejects or the runtime cannot serve, so the name
+is excluded there (`_magic_hand_names`) — a spec-documented exception of the
+same shape as T5 excluding an order-sensitive declaration, not a defect this
+transform papers over. A rule clause's `hand` is not one of these: it is the
+trick round's Play Source, whatever the zone is called (decisions.md "Rule
+demand forms"), so a game whose only reader of `hand` is its rules renames the
+zone like any other.
 
 **Game-local runtime primitives are written against ONE game's specific
 declared spelling.** A corpus game with a bespoke mechanic ships a
@@ -121,6 +122,7 @@ from pathlib import Path
 from typing import cast
 
 from cardlang.ast import nodes as n
+from cardlang.builtins.functions import BUILTIN_IMPLICIT_READS
 from cardlang.diagnostics import Span
 from cardlang.libraries import library_names, load_library
 from cardlang.resolve import _introduced_binders
@@ -130,13 +132,24 @@ from tests.metamorphic.pairing import Event
 
 _PREFIX = "_mt_"
 
-# The zone `Card`-typed move parameters are structurally required to name
-# (decisions.md "Declared parameter domains"; resolve.py's
-# `_check_card_offering`: `z.name == "hand" and z.index == "player"`;
-# `runtime/rules.py::legal_cards`; `runtime/mechanics.py::param_domain`'s
-# Card branch). A language-wide magic name, not a per-game renamable zone —
-# see the module docstring.
-_GLOBAL_EXCLUSIONS: frozenset[str] = frozenset({"hand"})
+# The zone name `Card`-typed move parameters and `player_holding` read by
+# spelling (see the module docstring).
+_MAGIC_HAND = "hand"
+
+
+def _magic_hand_names(game: n.Game) -> frozenset[str]:
+    """`hand`, where some construct of this game reads the zone by that
+    spelling: a move type with a `Card` parameter, or a call of a Builtin that
+    reads a family by name (`BUILTIN_IMPLICIT_READS`)."""
+    for nd in _resolve_walk(game):
+        if isinstance(nd, n.MoveTypeDef) and any(p.type_name == "Card" for p in nd.params):
+            return frozenset({_MAGIC_HAND})
+        if (
+            isinstance(nd, n.Call)
+            and BUILTIN_IMPLICIT_READS.get(nd.func, ("", ""))[0] == _MAGIC_HAND
+        ):
+            return frozenset({_MAGIC_HAND})
+    return frozenset()
 
 def _coupled_names(game: n.Game, game_file: str) -> frozenset[str]:
     """Every zone/state name a game-local primitive reads, that this transform
@@ -260,10 +273,10 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
     unsafe = domain & _locally_bound_names(game)
 
     filename = Path(game.span.source_name).name if game.span is not None else ""
-    excluded_global = domain & _GLOBAL_EXCLUSIONS
-    # Subtracting the global exclusions keeps the three excluded sets a
-    # partition: `hand` is primitive-coupled too (Tichu/Skat/... rows declare
-    # it) but is already excluded corpus-wide as the magic name.
+    excluded_global = domain & _magic_hand_names(game)
+    # Subtracting the magic-name exclusion keeps the three excluded sets a
+    # partition: `hand` may be primitive-coupled too (Tichu/Skat/... rows
+    # declare it).
     excluded_coupled = (domain & _coupled_names(game, filename)) - excluded_global
     # Subtracted like the others so the excluded sets stay a partition.
     excluded_contract = (
