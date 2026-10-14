@@ -74,7 +74,14 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               libraries"). Like every other rule about provided state it is
               settled inside ``_apply_uses``, before the splice — afterwards
               the two are one flat declaration block and the distinction no
-              longer exists to check. And a named trump nobody
+              longer exists to check. And, for a game that ``uses`` a
+              library, a Builtin the library's definitions call that a game
+              clause the game lacks (or holds) gates — every gate in
+              ``_CLAUSE_GATES``, plus a literal ``lines(k)`` past the board —
+              refused on the game's ``uses`` line
+              (``_check_library_clause_gates``) before the splice, so the
+              gates downstream meet such a call only as its Shadow Guards.
+              And a named trump nobody
               reads: a game-level ``trump:`` that is not a suit of the deck
               or that no trick round inherits, and a round ``trump`` clause
               on a winner whose body reads no trump
@@ -206,7 +213,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import assert_never, cast, get_args, TypeGuard
+from typing import Literal, TypeGuard, assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
@@ -304,7 +311,7 @@ from cardlang.stdlib.zones import (
     identity_to_all,
     reveals,
 )
-from cardlang.typecheck import KNOWN_TYPE_NAMES
+from cardlang.typecheck import KNOWN_TYPE_NAMES, RANKING_GATED_FUNCS
 from cardlang.types import Flavor, TCollection, TPlayer, TTeam
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
@@ -336,6 +343,10 @@ def _mentions_team(value: object) -> bool:
 _TEAM_CALL_FUNCS = frozenset(
     fn for fn, sig in CALL_SIGS.items() if _mentions_team(sig)
 )
+
+# The Builtins that read the game's `card_points { }` table, refused in a game
+# that declares none.
+_CARD_POINTS_CALLS: frozenset[str] = frozenset({"card_points"})
 
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
 # domain table, not a hand-written local list.
@@ -1038,6 +1049,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     for use, library in libraries:
         check_library_alone(library, bag)
         _check_requires(game, use, library, bag, skip, move_claims)
+        _check_library_clause_gates(game, use, library, bag)
 
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
     # import is the base a game extends, which is the order the game file itself
@@ -1085,6 +1097,190 @@ def check_library_alone(library: n.Library, bag: DiagnosticBag) -> None:
     _check_require_indexes(library, bag)
     for rule in library.rules:
         _refuse_play_source_params(rule, bag)
+
+
+@dataclass(frozen=True)
+class _ClauseGate:
+    """A game clause some Builtins need, or are refused beside.
+
+    `members` is the owning gate's own registry, never a copy of it. `unmet`
+    reads the clause as the game WROTE it, because the `uses` check runs before
+    `_expand_ranking`: a convention keyword is a `ranking:` here. A clause that
+    is written but malformed counts as met, so its own Owner Guard speaks rather
+    than a request for a clause the game already has. `reads` completes "which
+    read ..." and `lacks` names what the game has instead."""
+
+    members: frozenset[str]
+    unmet: Callable[[n.Game], bool]
+    reads: str
+    lacks: Callable[[n.Game], str]
+    fix: str
+
+
+# Every gate on a Builtin's legality that a game clause decides, in the order
+# the gates themselves run, so a Builtin two gates refuse is reported by the
+# one that refuses it when the game writes the call. Each row's members are its
+# gate's own registry, so a Builtin joining a gate's registry joins its row,
+# and a new clause gate is a new row; `_check_library_clause_gates` reads the
+# table and names no gate. That each row agrees with its gate, member by
+# member, is executed in tests/test_library_clause_gates.py.
+_CLAUSE_GATES: tuple[_ClauseGate, ...] = (
+    _ClauseGate(
+        DECK_ONLY_CALL_FUNCS,
+        lambda g: g.content_flavor == "piece",
+        "read a card's suit, rank or points",
+        lambda g: "this game is played with pieces",
+        "a game played with pieces cannot use this library",
+    ),
+    _ClauseGate(
+        TRICK_ORDER_GATED_FUNCS,
+        lambda g: g.trick_order is None,
+        "read the game's `trick_order { }` block",
+        lambda g: "this game declares none",
+        "declare one",
+    ),
+    _ClauseGate(
+        TRICK_ORDER_EXCLUDED_FUNCS,
+        lambda g: g.trick_order is not None,
+        "read the trump and led suit a trick round names",
+        lambda g: "this game declares a `trick_order { }` block, which replaces them",
+        "a game with a Trick Order cannot use this library; drop the block or the "
+        "`uses` line",
+    ),
+    _ClauseGate(
+        _CARD_POINTS_CALLS,
+        lambda g: g.card_points is None,
+        "read the game's card-point table",
+        lambda g: "this game declares no `card_points { }` table",
+        "declare one",
+    ),
+    _ClauseGate(
+        _TEAM_CALL_FUNCS,
+        lambda g: not g.teams,
+        "ask which team a seat is on",
+        lambda g: "this game declares no `teams:`",
+        "declare the partnerships (`teams: [[0, 2], [1, 3]]`)",
+    ),
+    _ClauseGate(
+        BOARD_ONLY_CALL_FUNCS,
+        lambda g: g.board is None,
+        "read the board",
+        lambda g: "this game declares no `board:`",
+        "declare one",
+    ),
+    _ClauseGate(
+        _FRAME_CALL_FUNCS,
+        lambda g: g.board is not None and g.players.count != 2,
+        "read a grid's two-player movement frame",
+        lambda g: f"this game declares `players: {g.players.count}`",
+        "the frame is defined for two seats, so it needs `players: 2`",
+    ),
+    _ClauseGate(
+        RANKING_GATED_FUNCS,
+        lambda g: not g.ranking and g.ranking_convention is None,
+        "read a card's rank strength from `ranking:`",
+        lambda g: "this game declares no `ranking:`",
+        "declare one",
+    ),
+)
+
+# The Builtins no game clause gates. Listed, not derived by subtraction, so a
+# newly registered Builtin lands in neither this set nor a `_CLAUSE_GATES` row
+# and the partition pin names it, rather than passing silently as clause-free.
+_CLAUSE_FREE_BUILTINS: frozenset[str] = frozenset(
+    {"bottom_of", "error", "player_holding", "top_of"}
+)
+
+
+def _library_calls(library: n.Library) -> list[tuple[n.Call, str]]:
+    """Every call in `library`'s definitions, with the definition that holds
+    it, in the designer's words. Provided state is not walked: a default may
+    call nothing (`_check_state_default_scope`)."""
+    found: list[tuple[n.Call, str]] = []
+    for field, noun in _LIBRARY_DEF_KINDS:
+        for definition in getattr(library, field):
+            where = f"{noun} `{definition.name}`"
+            found.extend((nd, where) for nd in _walk(definition) if isinstance(nd, n.Call))
+    return found
+
+
+def _check_library_clause_gates(
+    game: n.Game, use: n.UsesDecl, library: n.Library, bag: DiagnosticBag
+) -> None:
+    """A library's definitions calling a Builtin that a game clause gates,
+    checked against the game's clauses and reported on its `uses` line.
+
+    The Owner Guard for every such call a library brings in: the game's author
+    wrote the `uses` line and lacks the clause, and the call sits in a file they
+    did not write. Each gate's own check stays the Owner Guard for a call the
+    game writes, and is the Shadow Guard for a spliced one, which never reaches
+    it while `resolve` raises on this pass's refusals before splicing on.
+
+    One refusal per gate, naming every gated Builtin the library calls and
+    where; a Builtin two gates refuse is reported by the first, as the gates
+    themselves do. The fix offered is the game's to make, never an edit to the
+    library, whose author is someone else."""
+    calls = _library_calls(library)
+    claimed: set[str] = set()
+    for gate in _CLAUSE_GATES:
+        if not gate.unmet(game):
+            continue
+        reached: dict[str, list[str]] = {}
+        for call, where in calls:
+            if call.func in gate.members and call.func not in claimed:
+                places = reached.setdefault(call.func, [])
+                if where not in places:
+                    places.append(where)
+        if not reached:
+            continue
+        claimed.update(reached)
+        listing = " and ".join(
+            f"`{name}` (in {', '.join(places)})" for name, places in reached.items()
+        )
+        verb, _, rest = gate.reads.partition(" ")
+        reads = f"{verb}s {rest}" if len(reached) == 1 else gate.reads
+        bag.error(
+            f"library '{library.name}' calls {listing}, which {reads}, but "
+            f"{gate.lacks(game)} — {gate.fix}",
+            use.span,
+        )
+    _check_library_lines_span(game, use, library, calls, bag)
+
+
+def _check_library_lines_span(
+    game: n.Game,
+    use: n.UsesDecl,
+    library: n.Library,
+    calls: list[tuple[n.Call, str]],
+    bag: DiagnosticBag,
+) -> None:
+    """The board's size against a literal `lines(k)` a library writes: the one
+    board gate judged on an argument, read off the same `BoardEntry.lines`
+    bound `_check_board_call` holds a game's own call to. A board the registry
+    refuses outright is the `board:` clause's refusal, by `_resolve_board`."""
+    if game.board is None:
+        return
+    try:
+        entry = board_entry(game.board.family, game.board.args)
+    except OwnerGuardError:
+        return
+    for call, where in calls:
+        if call.func != "lines" or len(call.args) != 1:
+            continue
+        arg = call.args[0]
+        if not isinstance(arg, n.IntLit):
+            continue
+        try:
+            entry.lines(arg.value)
+        except OwnerGuardError:
+            board = f"{game.board.family}({', '.join(map(str, game.board.args))})"
+            bag.error(
+                f"library '{library.name}' calls `lines({arg.value})` (in "
+                f"{where}), which reads lines of {arg.value} cells off the board, "
+                f"but this game's `board: {board}` has none — declare a board "
+                f"that does",
+                use.span,
+            )
 
 
 def _check_library_collisions(
@@ -1822,11 +2018,11 @@ class _LibraryReach:
     """What a library's definitions reach for, classified against the library's
     OWN namespaces — the input to both directions of the `requires` contract:
     nothing may be reached that the contract does not cover (`unresolved`,
-    `unknown_calls`, `slot_leaks`), and nothing may be in the contract that is
+    `refused_calls`, `slot_leaks`), and nothing may be in the contract that is
     never reached (`state_reads`, which the tier's ledger test reads)."""
 
     unresolved: tuple[n.NameRef, ...]
-    unknown_calls: tuple[n.Call, ...]
+    refused_calls: tuple[n.Call, ...]
     card_literals: tuple[n.CardLiteral, ...]
     slot_leaks: tuple[_SlotLeak, ...]
     state_reads: frozenset[str]
@@ -1858,7 +2054,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     A name held on a node as a plain `str` is invisible to that classification —
     `_rewrite` classifies `NameRef`s, and nothing else. Those slots are swept
     SEPARATELY and from the registry (`_slot_leaks`), never by a hand-list
-    beside it: `card_literals` and `unknown_calls` below are derived from that
+    beside it: `card_literals` and `refused_calls` below are derived from that
     sweep rather than collected alongside it, because a table that lands next to
     the list it replaces leaves the drift exactly where it was."""
     provided_state = library.state.decls if library.state is not None else ()
@@ -1926,9 +2122,9 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     leaks, slot_reads, slot_zone_reads, slot_move_reads = _slot_leaks(library)
     # Two namespaces keep a message of their own, so they are lifted out of the
     # generic list rather than reported twice: a card literal says why a family
-    # library is deck-agnostic, and an unknown call says a library may not reach
-    # into the game that imports it. Both are now FOUND by the registry — only
-    # their wording is special.
+    # library is deck-agnostic, and a refused call says what the called name
+    # is (`_library_own_name_is`, `_language_name_is`). Both are FOUND by the
+    # registry — only their wording is special.
     cards = tuple(
         dict.fromkeys(
             leak.node
@@ -1942,7 +2138,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     rest = tuple(leak for leak in leaks if leak.node not in cards and leak.node not in calls)
     return _LibraryReach(
         unresolved=tuple(unresolved),
-        unknown_calls=calls,
+        refused_calls=calls,
         card_literals=cards,
         slot_leaks=rest,
         state_reads=frozenset(state_reads) | slot_reads,
@@ -2028,6 +2224,80 @@ _NAMESPACE_ADVICE: dict[str, str] = {
 }
 
 
+@dataclass(frozen=True)
+class _LibraryNameIs:
+    """What a name a library body cannot reach actually is: the phrase that
+    says so, and which refusal it earns — `primitive` the rule that keeps
+    game-local Python out of a shared library, `function` a reminder that a
+    function is called, `other` the plain statement of what the name is."""
+
+    phrase: str
+    kind: Literal["primitive", "function", "other"]
+
+
+# The namespaces `_library_slot_names` holds that are the library's own — its
+# contract, and the direction values every body holds — in the order a name
+# held by two is reported. `function` and `procedure` are the library's own
+# definitions, answered by `_LIBRARY_DEF_KINDS` first.
+_LIBRARY_OWN_NAMESPACES: tuple[str, ...] = ("state", "zone", "move_type", "enum_value")
+
+
+def _library_own_name_is(library: n.Library, name: str) -> _LibraryNameIs | None:
+    """What `name` is in the library itself: one of its own definitions, or a
+    name its contract or the direction values hold — or None. Every answer is
+    the library's own, the same whichever game imports it, so both a call and
+    a bare read are answered from here."""
+    for field, noun in _LIBRARY_DEF_KINDS:
+        if any(d.name == name for d in getattr(library, field)):
+            kind: Literal["function", "other"] = "function" if field == "functions" else "other"
+            return _LibraryNameIs(f"a {noun} the library defines", kind)
+    legal = _library_slot_names(library)
+    for namespace in _LIBRARY_OWN_NAMESPACES:
+        if name in legal[namespace]:
+            return _LibraryNameIs(f"a {_NAMESPACE_NOUN[namespace]}", "other")
+    return None
+
+
+def _language_name_is(library: n.Library, name: str) -> _LibraryNameIs | None:
+    """What `name` is in the language — a type, a kernel move type, a stdlib
+    rule, a walled Primitive, a Primitive, or a Builtin — or None. True of the
+    spelling in every game, but it is not what a BARE read means: an importing
+    game may declare state under any of these spellings, and the library then
+    reaches it by contracting for it, so an uncontracted bare read is a
+    missing contract entry as plausibly as anything here. Only a call is
+    answered from here, since nothing an importer declares is callable from a
+    library. The trick winners are not asked: `_callback_outside_slot` is
+    their one sentence, in a game and a library alike."""
+    if name in _library_slot_names(library)["type"]:
+        return _LibraryNameIs("a type", "other")
+    if name in LIBRARY_MOVE_TYPES:
+        return _LibraryNameIs("a move type", "other")
+    if name in stdlib_rules():
+        return _LibraryNameIs("a rule", "other")
+    walled = walled_namespace_of(name)
+    if walled is not None:
+        return _LibraryNameIs(walled, "other")
+    if name in PRIMITIVE_CALL_FUNCS:
+        return _LibraryNameIs("a Primitive", "primitive")
+    if name in BUILTIN_CALL_FUNCS:
+        return _LibraryNameIs("a function", "function")
+    return None
+
+
+def _primitive_in_library(library: n.Library, verb: str, name: str) -> str:
+    """The refusal for a Primitive a library body names. The library's
+    `function` namespace is `BUILTIN_CALL_FUNCS` (`_library_slot_names`), so
+    this is that rule said to the library's author, with the fix that keeps
+    the Primitive in the one game that declares it."""
+    return (
+        f"library '{library.name}' {verb} '{name}', which is a Primitive — a "
+        f"Primitive belongs to the one game that declares it, so a library that "
+        f"several games import may not call one: compute the value in the game "
+        f"and pass it to the library's function as an argument, or keep the "
+        f"definition that needs it in the game"
+    )
+
+
 def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None:
     """Every name a library's definitions reach must be in its `requires`
     contract, its own definitions, the stdlib, or the pronouns and binders any
@@ -2055,24 +2325,48 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     reach = _library_reach(library)
     for refusal in reach.always_refused:
         bag.error(refusal.message, refusal.span)
+    # A bare read is answered only from the library itself: every language-wide
+    # spelling (`_language_name_is`, the trick winners) is one an importing
+    # game may declare as state, which the library then reaches by contract.
     for ref in reach.unresolved:
-        if ref.name in VALUE_NAMES:
-            bag.error(_callback_outside_slot(ref.name), ref.span)
+        what = _library_own_name_is(library, ref.name)
+        if what is None:
+            bag.error(
+                f"library '{library.name}' reads '{ref.name}', which is neither in "
+                f"its `requires` contract nor defined in the library — add it to "
+                f"`requires {{ }}` if the including game must declare it, or move "
+                f"the definition that needs it into the game",
+                ref.span,
+            )
+        else:
+            call_it = f" — call it: `{ref.name}(...)`" if what.kind == "function" else ""
+            bag.error(
+                f"library '{library.name}' reads '{ref.name}', which is "
+                f"{what.phrase}, not a value{call_it}",
+                ref.span,
+            )
+    for call in reach.refused_calls:
+        if call.func in VALUE_NAMES:
+            bag.error(_callback_outside_slot(call.func), call.span)
             continue
-        bag.error(
-            f"library '{library.name}' reads '{ref.name}', which is neither in "
-            f"its `requires` contract nor defined in the library — add it to "
-            f"`requires {{ }}` if the including game must declare it, or move "
-            f"the definition that needs it into the game",
-            ref.span,
+        what = _library_own_name_is(library, call.func) or _language_name_is(
+            library, call.func
         )
-    for call in reach.unknown_calls:
-        bag.error(
-            f"library '{library.name}' calls '{call.func}', which is neither "
-            f"defined in the library nor a native function — a library's "
-            f"definitions may not reach into the game that imports them",
-            call.span,
-        )
+        if what is None:
+            bag.error(
+                f"library '{library.name}' calls '{call.func}', which is neither "
+                f"defined in the library nor a native function — a library's "
+                f"definitions may not reach into the game that imports them",
+                call.span,
+            )
+        elif what.kind == "primitive":
+            bag.error(_primitive_in_library(library, "calls", call.func), call.span)
+        else:
+            bag.error(
+                f"library '{library.name}' calls '{call.func}', which is "
+                f"{what.phrase}, not a function",
+                call.span,
+            )
     for card in reach.card_literals:
         bag.error(
             f"library '{library.name}' names the card `{card.rank} of "
@@ -6902,6 +7196,8 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                     + f"), or name {others}",
                     rnd.span,
                 )
+        # A call spliced from a library is `_check_library_clause_gates`'s,
+        # which this loop and the excluded-call loop below shadow.
         for call in _gated_calls(game):
             reader_hint = ""
             for row_key, reader in TRICK_ORDER_ROWS:
@@ -8792,14 +9088,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # A deck-reading native call (suit_of, rank_value, a trick-
                 # winner, ...) has nothing to read in a piece game. The generic
                 # calls (top_of, team_of, ...) are absent from DECK_ONLY and
-                # stay legal.
+                # stay legal. This arm and the clause arms below it are the
+                # Shadow Guards of `_check_library_clause_gates` for a call
+                # spliced from a library.
                 bag.error(
                     f"{content_kind_clause(game.content_flavor, game.deck)} -- "
                     f"`{nd.func}` reads a card's suit/rank/points, which a piece "
                     f"set has none of",
                     nd.span,
                 )
-            case n.Call() if nd.func == "card_points" and game.card_points is None:
+            case n.Call() if nd.func in _CARD_POINTS_CALLS and game.card_points is None:
                 # The table has ONE source, the game's own clause (the deck
                 # registry carries no point table), so a clause-less call has
                 # nothing to read: without this guard it would silently price

@@ -3379,9 +3379,9 @@ def test_every_library_contracts_for_exactly_what_it_reaches(name: str) -> None:
         f"library '{name}' reads "
         f"{sorted({r.name for r in reach.unresolved})} past its contract"
     )
-    assert not reach.unknown_calls, (
+    assert not reach.refused_calls, (
         f"library '{name}' calls "
-        f"{sorted({c.func for c in reach.unknown_calls})} past its contract"
+        f"{sorted({c.func for c in reach.refused_calls})} past its contract"
     )
     # Every kind of the contract: a state entry is answered by a state read, a
     # zone entry by a zone read, a move-type entry by an offering that names
