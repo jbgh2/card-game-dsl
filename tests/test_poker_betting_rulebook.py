@@ -93,6 +93,64 @@ CASES: tuple[Case, ...] = (
         raises_after_raise=None,
     ),
     Case(
+        name="pagat-the-seat-that-checked-may-complete-over-a-short-all-in",
+        cite=PAGAT,
+        quote=(
+            "Player E has the option to fold, to call for $6 or to complete the "
+            "raise for $10 (of which $4 goes into a side pot). If E calls or "
+            "folds, A has the same options."
+        ),
+        # A checked before B's full bet, so a full bet has come since A's last
+        # action and A's turn is open again: the completion is A's as it is E's.
+        limit=5,
+        stacks=(20, 20, 20, 6, 20),
+        opening_bet=0,
+        first=0,
+        script=("check", "bet", "call", "raise", "call"),
+        offered=frozenset({"call", "raise"}),
+        standing_after_raise=10,
+        raises_after_raise=None,
+    ),
+    Case(
+        name="pagat-a-seat-that-already-acted-may-only-call-a-short-all-in",
+        cite=PAGAT,
+        quote=(
+            "If both E and A call or fold, neither B nor C can raise: their only "
+            "options are to call for $1 or fold."
+        ),
+        # B bet the full $5 and nothing in full has come since: D's $1 over it
+        # is under half a raise, so B may neither raise nor complete.
+        limit=5,
+        stacks=(20, 20, 20, 6, 20),
+        opening_bet=0,
+        first=0,
+        script=("check", "bet", "call", "raise", "call", "call"),
+        offered=frozenset({"call"}),
+        standing_after_raise=None,
+        raises_after_raise=None,
+    ),
+    Case(
+        name="pagat-a-second-short-all-in-reopens-once-the-total-is-half",
+        cite=PAGAT,
+        quote=(
+            "If E goes all-in for $8, this is enough to re-open the betting, "
+            "since the total raise since the last full bet is now $3, more than "
+            "half a full raise. So any of A, B and C are now allowed to raise a "
+            "further $5."
+        ),
+        # The half-bet yardstick runs from the LAST FULL WAGER, B's $5, and not
+        # from D's $6 that E's $8 moved by only $2. B, who bet before either
+        # all-in, is asked again with the raise; the raise is $5 over E's $8.
+        limit=5,
+        stacks=(20, 20, 20, 6, 8),
+        opening_bet=0,
+        first=0,
+        script=("check", "bet", "call", "raise", "raise", "call"),
+        offered=frozenset({"call", "raise"}),
+        standing_after_raise=13,
+        raises_after_raise=None,
+    ),
+    Case(
         name="roberts-full-raise-over-an-all-in-of-half-a-bet-or-more",
         cite=f"{ROBERTS}, Betting and Raising 5",
         quote=(

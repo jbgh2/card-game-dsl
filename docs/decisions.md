@@ -2301,12 +2301,14 @@ acts.** Hold'em's big blind and Stud's bring-in poster match the standing bet
 without having spoken, so `pending`'s `not acted[p]` arm is what keeps them in
 the ring — keyed on debt alone it would deal the hand out around a live seat.
 The same reading decides which moves are legal and not only who is asked:
-`poker_betting`'s `raise` is offered against a standing bet to a seat that
-either still owes it or has not yet taken a turn, which is Pagat's option for
-the big blind — *"The big blind player acts last, and may raise even if no one
-else has done any more than call."* Pagat is silent on the bring-in poster's
-same moment, so Seven-Card Stud's file pins that treatment as the variant's own
-rule rather than citing an authority for it.
+`poker_betting`'s `raise` is offered against a standing bet only to a seat that
+has not taken a turn since a full wager last re-opened the betting, which is
+Pagat's option for the big blind — *"The big blind player acts last, and may
+raise even if no one else has done any more than call."* Stud's bring-in poster
+holds no such later right: its post is short of a full bet, it takes the
+street's first decision, and called around nothing re-opens the betting to it —
+Pagat, *"Only if someone completes the bet are later players allowed to
+raise."*
 
 The body is **hermetic**: it reads only its parameters and game/phase state (read
 at call time), never the caller's local binders or call-site `actor` / `action` /
