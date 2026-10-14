@@ -5,12 +5,12 @@ property:        the imported move types PARTITION every betting decision the
                  by whether the actor owes the standing bet, and at most one of
                  `bet`/`raise` by whether a bet is standing at all. A raise is
                  offered to a seat with a TURN OUTSTANDING — the big blind and
-                 the bring-in poster, whose forced post is no turn taken — and
-                 to any seat facing a bet ABOVE THE LEVEL, spent turn or not —
-                 a standing bet above the last full wager is one nobody has
-                 yet made in full, and bringing it up to one is the
-                 COMPLETION Robert's Rules 5 grants the very seat it has closed
-                 the betting to.
+                 the bring-in poster, whose forced post is no turn taken, and
+                 any seat a counted wager has re-opened the betting to — and to
+                 no other: a seat that has acted and faces only a short all-in
+                 may call or fold, whether that all-in stands over a full
+                 wager or opens the street (Pagat: "The player cannot raise or
+                 complete the bet").
 domain:          every combination of the situation a `when:` in
                  `docs/libraries/poker_betting.cardlang` can read — a standing
                  bet or none, at the last full wager or above it, the actor
@@ -168,13 +168,12 @@ LIBRARY_OWNED: frozenset[str] = frozenset(
     d.name for d in (LIBRARY.state.decls if LIBRARY.state else ())
 )
 
-# The street's bet size is an AXIS, not a constant. `raise`'s guard reads it —
-# a standing bet short of a full one is a bet anybody may complete, spent turn
-# or not — so a cell that held it fixed would leave that comparison driven from
-# one side. The two values are chosen so ONE standing bet sits on either side of
-# them: 4 is short of a 10-chip street and full on a 2-chip one. A guard
-# comparing against the street size and a guard comparing against the number 4
-# agree on every cell but those, which is the whole reason to cross them.
+# The street's bet size is an AXIS, not a constant. The raises' guards read it
+# — against the floor, and against the actor's purse and the level — so a cell
+# that held it fixed would leave those comparisons driven from one side. The two values are chosen so ONE
+# standing bet sits on either side of them: 4 is short of a 10-chip street and
+# full on a 2-chip one, which is also what puts a SUB-level standing bet in the
+# domain at all — the position where a spent turn is refused the completion.
 LIMITS: tuple[int, ...] = (2, 10)
 STANDING: tuple[int, ...] = (0, 4)
 
@@ -294,33 +293,27 @@ def _expected(cell: Cell) -> frozenset[str]:
     betting to it — a cap with room left, an opponent who can answer, and chips
     that exceed the call.
 
-Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
-    who may, and it settles two things in one breath: after an all-in "of less
-    than half a bet", a seat "who has already acted and is in the pot for all
-    previous bets" may "fold, call, or complete the wager".
+Pagat's all-in rules (`pagat.com/poker/rules/betting.html`) settle
+    who may. "A player who has not acted at all in the current betting round
+    may fold, call or 'complete' the bet or raise"; "A player who has
+    previously acted may call, fold or complete the bet or raise (as above) if
+    there has been a full bet or raise since their previous action" — and a
+    full wager since is exactly what clears `acted`; "If a player has
+    previously acted and the cost to call is less than half a minimum full bet
+    or raise, the player may only call or fold. The player cannot raise or
+    complete the bet."
 
     OWING IS NOT A RIGHT TO RAISE. That seat owes the short difference and still
     may not raise over it, so `acted` and not `owes` is what carries the right.
-    The no-limit sibling names the restricted class outright — "a player who has
-    already checked or called" — and its parenthesis, that "the half-the-size
-    rule for reopening the betting is for limit poker only", is what makes the
-    two one rule at two thresholds.
 
-    COMPLETING IS STILL OPEN TO IT. The same sentence grants that same closed-out
-    seat the third option, and a standing bet short of a full wager is exactly
-    what there is to complete: nobody has yet wagered one, so bringing it up to
-    one is not the reopening the seat has been refused. `raise` is the move that
-    carries it — from such a bet its target IS the completion, which is why no
+    NEITHER IS A BET SHORT OF A FULL ONE. A standing bet above the level is
+    one nobody has yet made in full, and the seat that has acted may not bring
+    it up to one: completing it is the re-opening the seat has been refused.
+    So the `sub` cells — a standing bet above the level, the probe writing
+    `level` below it — refuse `raise` to the `acted` seat exactly as the
+    `standing` cells do. A seat with its turn outstanding completes through
+    `raise`, whose target from such a bet IS the completion, which is why no
     fifth move type appears in the offered set.
-
-    WHICH IS WHY `acted` DOES NOT APPEAR ABOVE. Every cell in this module writes
-    its standing bet rather than playing to it, and `level` — the last wager
-    made in full — is state the LIBRARY owns, which a probe game may not write.
-    So every cell sits at a level of zero, every standing bet in it is short of
-    a full wager, and the completion is open to every seat. The other half of
-    the rule, that a spent turn is REFUSED a raise once a full wager stands, can
-    only be driven by playing to that wager: it lives in
-    tests/test_poker_betting_transitions.py, whose `level` cells hold it.
 
     A BIG WAGER IS OFFERED ONLY WHERE IT IS A DIFFERENT WAGER. Both sizes pay
     what the seat can pay, so a stack that cannot exceed the small bet posts
@@ -349,7 +342,7 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
         if cell.big > cell.limit and cell.stack > cell.limit:
             offered.add("bet_big")
     elif (
-        (not cell.acted or cell.bet_to_match > cell.level)
+        not cell.acted
         and cell.raises < cell.raise_cap
         and cell.field
         and cell.stack > cell.owed

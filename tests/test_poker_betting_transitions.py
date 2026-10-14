@@ -17,22 +17,26 @@ domain:          the five positions a betting round reaches, crossed with the
                  IS a wager size and the axis needs no separate lever.
 registry:        `CELLS` below; the library under test is
                  `docs/libraries/poker_betting.cardlang`.
-does not prove:  the expected column is a READING of Robert's Rules, not a
-                 quotation of it — a misreading survives every cell here
+does not prove:  the expected column is a READING of Pagat's all-in rules
+                 (pagat.com/poker/rules/betting.html), not a quotation of
+                 them — a misreading survives every cell here
                  together. Only tests/test_poker_betting_rulebook.py, whose
                  expected values are figures printed in the books, can catch
                  that, and it covers only the positions the books happen to
                  illustrate. A green run of this module means the library
                  agrees with one reading, and no more.
 
-WHY A SEQUENCE. Four review findings landed in this construct and one of them
-was invisible to every single-decision grid the repo had, because it is not a
-property of a decision at all: it takes a forced post, THEN a short all-in over
-it, before the position exists in which a completion moves less than half a bet
-while still reaching a full wager. That position is `post-plus-short` below, and
-it is the whole reason this module drives scripts rather than states. A grid
-that writes its state directly can reach any state it can NAME; it cannot reach
-a state nobody thought to name.
+WHY A SEQUENCE. The rule measures a wager by the total it stands above the
+last full wager, and that total and the distance the wager itself moved are
+the same number until two sub-full wagers stack: a forced post, THEN a short
+all-in over it, or a short all-in over a full wager, THEN another. Only there
+does a wager move less than half a bet while standing half a bet or more above
+the level, which is Pagat's own example — "If E goes all-in for $8, this is
+enough to re-open the betting, since the total raise since the last full bet is
+now $3". Those positions are the stacked `short` cells below, and they are the
+whole reason this module drives scripts rather than states. A grid that writes
+its state directly can reach any state it can NAME; it cannot reach a state
+nobody thought to name.
 """
 
 from __future__ import annotations
@@ -199,6 +203,19 @@ CELLS: tuple[Cell, ...] = (
     ),
     Cell(
         name="post-then-all-in-under-half",
+        stacks=(30, 30, 4, 30),
+        post=True,
+        setup=("call",),
+        standing_before=POST,
+        level_before=0,
+        action="raise",
+        standing_after=4,
+        counted=False,
+        reopened=False,
+        why="four chips over the level, under half a bet: still no full wager",
+    ),
+    Cell(
+        name="post-then-all-in-half-or-more",
         stacks=(30, 30, 6, 30),
         post=True,
         setup=("call",),
@@ -206,28 +223,31 @@ CELLS: tuple[Cell, ...] = (
         level_before=0,
         action="raise",
         standing_after=6,
-        counted=False,
-        reopened=False,
-        why="four chips over the post, under half a bet: still no full wager",
+        counted=True,
+        reopened=True,
+        why=(
+            "four chips over the post but six over the level: the total since "
+            "the last full wager is what is measured, and six is half or more"
+        ),
     ),
     # --- from SHORT, reached by a post AND a short all-in over it -------------
     # The position no single-decision grid can reach. Two sub-full wagers stack,
-    # so the completion that finally reaches a full bet moves less than half of
-    # one — and a rule that measures only the last movement loses it.
+    # and the completion that finally reaches a full bet lands on the street's
+    # size measured from the level, not a size above the stacked short.
     Cell(
         name="complete-over-a-stacked-short",
-        stacks=(30, 30, 6, 30),
+        stacks=(30, 30, 4, 30),
         post=True,
         setup=("call", "raise"),
-        standing_before=6,
+        standing_before=4,
         level_before=0,
         action="raise",
         standing_after=LIMIT,
         counted=True,
         reopened=True,
         why=(
-            "reaching a full wager is what counts, however little the last "
-            "hand moved it — four chips here, under half a bet"
+            "the completion lands on the full wager, ten over the level, never "
+            "a size above the stacked short, and it counts"
         ),
     ),
     # --- from SHORT, reached by a short all-in over a full wager --------------
@@ -243,6 +263,35 @@ CELLS: tuple[Cell, ...] = (
         counted=True,
         reopened=True,
         why="the completion measures from the last full wager, not from 13",
+    ),
+    Cell(
+        name="second-short-all-in-reaches-half-over-the-level",
+        stacks=(30, 30, 13, 16, 30),
+        post=False,
+        setup=("bet", "call", "raise"),
+        standing_before=13,
+        level_before=LIMIT,
+        action="raise",
+        standing_after=16,
+        counted=True,
+        reopened=True,
+        why=(
+            "moves three chips but stands six over the last full wager — "
+            "Pagat's 'total raise since the last full bet' — so it re-opens"
+        ),
+    ),
+    Cell(
+        name="second-short-all-in-stays-under-half-over-the-level",
+        stacks=(30, 30, 11, 14, 30),
+        post=False,
+        setup=("bet", "call", "raise"),
+        standing_before=11,
+        level_before=LIMIT,
+        action="raise",
+        standing_after=14,
+        counted=False,
+        reopened=False,
+        why="two short all-ins that together stand four over the level: action only",
     ),
     Cell(
         name="call-a-short-all-in",

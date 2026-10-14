@@ -4607,36 +4607,18 @@
                 }
               },
               "right": {
-                "kind": "binop",
-                "op": "or",
-                "left": {
-                  "kind": "not",
-                  "operand": {
-                    "kind": "subscript",
-                    "obj": {
-                      "kind": "name",
-                      "name": "acted",
-                      "ref": "state_var"
-                    },
-                    "index_expr": {
-                      "kind": "name",
-                      "name": "actor",
-                      "ref": "pronoun"
-                    }
-                  }
-                },
-                "right": {
-                  "kind": "binop",
-                  "op": ">",
-                  "left": {
+                "kind": "not",
+                "operand": {
+                  "kind": "subscript",
+                  "obj": {
                     "kind": "name",
-                    "name": "bet_to_match",
+                    "name": "acted",
                     "ref": "state_var"
                   },
-                  "right": {
+                  "index_expr": {
                     "kind": "name",
-                    "name": "level",
-                    "ref": "state_var"
+                    "name": "actor",
+                    "ref": "pronoun"
                   }
                 }
               }
@@ -4857,7 +4839,7 @@
             },
             "right": {
               "kind": "name",
-              "name": "bet_to_match",
+              "name": "level",
               "ref": "state_var"
             }
           }
@@ -4868,43 +4850,25 @@
           "index": null,
           "value": {
             "kind": "binop",
-            "op": "or",
+            "op": ">=",
             "left": {
               "kind": "binop",
-              "op": ">=",
+              "op": "+",
               "left": {
                 "kind": "name",
-                "name": "now",
+                "name": "moved",
                 "ref": "local"
               },
               "right": {
                 "kind": "name",
-                "name": "target",
+                "name": "moved",
                 "ref": "local"
               }
             },
             "right": {
-              "kind": "binop",
-              "op": ">=",
-              "left": {
-                "kind": "binop",
-                "op": "+",
-                "left": {
-                  "kind": "name",
-                  "name": "moved",
-                  "ref": "local"
-                },
-                "right": {
-                  "kind": "name",
-                  "name": "moved",
-                  "ref": "local"
-                }
-              },
-              "right": {
-                "kind": "name",
-                "name": "floor",
-                "ref": "state_var"
-              }
+              "kind": "name",
+              "name": "floor",
+              "ref": "state_var"
             }
           }
         },
@@ -5218,36 +5182,18 @@
                 }
               },
               "right": {
-                "kind": "binop",
-                "op": "or",
-                "left": {
-                  "kind": "not",
-                  "operand": {
-                    "kind": "subscript",
-                    "obj": {
-                      "kind": "name",
-                      "name": "acted",
-                      "ref": "state_var"
-                    },
-                    "index_expr": {
-                      "kind": "name",
-                      "name": "actor",
-                      "ref": "pronoun"
-                    }
-                  }
-                },
-                "right": {
-                  "kind": "binop",
-                  "op": ">",
-                  "left": {
+                "kind": "not",
+                "operand": {
+                  "kind": "subscript",
+                  "obj": {
                     "kind": "name",
-                    "name": "bet_to_match",
+                    "name": "acted",
                     "ref": "state_var"
                   },
-                  "right": {
+                  "index_expr": {
                     "kind": "name",
-                    "name": "level",
-                    "ref": "state_var"
+                    "name": "actor",
+                    "ref": "pronoun"
                   }
                 }
               }
@@ -5468,7 +5414,7 @@
             },
             "right": {
               "kind": "name",
-              "name": "bet_to_match",
+              "name": "level",
               "ref": "state_var"
             }
           }
@@ -5479,43 +5425,25 @@
           "index": null,
           "value": {
             "kind": "binop",
-            "op": "or",
+            "op": ">=",
             "left": {
               "kind": "binop",
-              "op": ">=",
+              "op": "+",
               "left": {
                 "kind": "name",
-                "name": "now",
+                "name": "moved",
                 "ref": "local"
               },
               "right": {
                 "kind": "name",
-                "name": "target",
+                "name": "moved",
                 "ref": "local"
               }
             },
             "right": {
-              "kind": "binop",
-              "op": ">=",
-              "left": {
-                "kind": "binop",
-                "op": "+",
-                "left": {
-                  "kind": "name",
-                  "name": "moved",
-                  "ref": "local"
-                },
-                "right": {
-                  "kind": "name",
-                  "name": "moved",
-                  "ref": "local"
-                }
-              },
-              "right": {
-                "kind": "name",
-                "name": "floor",
-                "ref": "state_var"
-              }
+              "kind": "name",
+              "name": "floor",
+              "ref": "state_var"
             }
           }
         },

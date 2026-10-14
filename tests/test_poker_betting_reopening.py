@@ -1,23 +1,23 @@
 """Which aggressions re-open the betting, and which are action only.
 
-property:        an aggression that moves the standing bet at least half of a
-                 FULL BET — the street's size, never the distance a full raise
-                 happens to travel from here — is a raise for every purpose: it
-                 clears every other seat's turn, so they are asked again with
-                 the right to re-raise, and it spends one of the street's
-                 counted aggressions. One that moves the bet less than half and
-                 stops short of the next full wager is action only: no seat's
-                 turn is restored and no count is spent, so the seats already
-                 in answer it with call or fold alone. The rule's OTHER arm —
-                 a wager that reaches the next full wager counts however
-                 little it moved — needs two sub-full wagers stacked before it
-                 separates from this one, and its separating cell lives in
-                 tests/test_poker_betting_transitions.py.
+property:        an aggression that leaves the bet standing at least half of a
+                 FULL BET above the LAST FULL WAGER — the street's size, never
+                 the distance a full raise happens to travel from here, and
+                 measured from the level, never from the bet it answered — is
+                 a raise for every purpose: it clears every other seat's turn,
+                 so they are asked again with the right to re-raise, and it
+                 spends one of the street's counted aggressions. One that
+                 leaves the bet less than half a full bet above the level is
+                 action only: no seat's turn is restored and no count is
+                 spent, so the seats already in answer it with call or fold
+                 alone. Pagat measures from the level in its own worked
+                 example: over a $5 bet and a $6 all-in, an $8 all-in re-opens
+                 "since the total raise since the last full bet is now $3".
 domain:          every distance an aggression can move the standing bet, from
                  one chip to its target, crossed with the two moves that can
                  make one (`bet` opening a street, `raise` answering a standing
                  bet) and with where the standing bet sits against the level.
-                 The distances are chosen so that one of them is EXACTLY half
+                 The distances are chosen so that one total is EXACTLY half
                  a full bet, which is the boundary the rule's "or more"
                  decides and the only cell that separates `>=` from `>`.
 registry:        the moves that can aggress, derived in `AGGRESSIONS` from
@@ -91,11 +91,11 @@ LIMIT = 4
 # Where the standing bet sits when a `raise` answers it. ON-SIZE is the ordinary
 # case; SUB_SIZE is a forced post shorter than the street — Stud brings in for 2
 # on a street of 5 — and it is the only position that separates the yardstick
-# below from the distance a full raise happens to travel FROM HERE. Completing a
-# sub-size post moves the bet less than a full bet does, and it is a full bet the
-# rule measures against, so the two come apart exactly here.
+# below from the two it is not: the distance moved from the standing bet, and
+# the distance a full raise happens to travel FROM HERE. A post of one chip on a
+# four-chip street separates both, at a one-chip move.
 ON_SIZE = LIMIT
-SUB_SIZE = 2
+SUB_SIZE = 1
 
 # The street's SECOND size, for the two moves that wager it. Twice the small
 # bet, which is the family's own ladder (Stud runs 5 and 10). The yardstick
@@ -137,16 +137,22 @@ class Cell(NamedTuple):
         return LIMIT
 
     @property
+    def total(self) -> int:
+        """How far the bet stands above the last full wager once the cell's
+        aggression lands — Pagat's "total raise since the last full bet"."""
+        return self.standing + self.moved - self.level
+
+    @property
     def reopens(self) -> bool:
-        """Robert's Rules 5: "An all-in wager of a half a bet or more is treated
-        as a full bet". OR MORE — so exactly half re-opens, and the comparison
-        is `>=`."""
-        return self.moved * 2 >= self.full
+        """Pagat: an all-in "at least half the amount of a normal full bet or
+        raise ... is treated as a full bet or raise". AT LEAST — so exactly
+        half re-opens, and the comparison is `>=`."""
+        return self.total * 2 >= self.full
 
     @property
     def id(self) -> str:
         share = {1: "under-half", 2: "exactly-half", 3: "over-half"}.get(
-            self.moved, "full"
+            self.total, "full"
         )
         where = (
             "opening"
@@ -155,7 +161,10 @@ class Cell(NamedTuple):
             if self.standing == ON_SIZE
             else "sub-size"
         )
-        return f"{self.move}-{where}-moves-{self.moved}-of-{self.full}-{share}"
+        return (
+            f"{self.move}-{where}-moves-{self.moved}-"
+            f"to-{self.total}-over-level-of-{self.full}-{share}"
+        )
 
 
 def _cells() -> list[Cell]:
@@ -361,25 +370,29 @@ def test_only_a_half_bet_reopens_and_only_a_reopening_counts(cell: Cell) -> None
     red under, four edits to the library, each RUN rather than predicted and
     each reddening exactly one cell:
 
-    - `raise`'s `for each player p: if moved + moved >= full { … }` made
-      unconditional — the pre-change behaviour — fails `raise-moves-1-of-4`;
-    - `raise`'s `raises := if moved + moved >= full …` made `raises + 1`
-      unconditionally — same cell, which is why both consequences are asserted
-      together;
-    - either `>=` in `raise` weakened to `>` — fails
-      `raise-moves-2-of-4-exactly-half` and nothing else, which is the whole
-      reason a bet size with a whole-number half is used;
-    - `bet`'s pair made unconditional — fails `bet-moves-1-of-4`, so the
-      `bet` half of the grid is proven to bite too and not carried by its
-      sibling.
+    - `raise`'s `for each player p: if counts { … }` made unconditional —
+      fails `raise-on-size-moves-1-to-1-over-level-of-4-under-half`;
+    - `raise`'s `raises := if counts …` made `raises + 1` unconditionally —
+      same cell, which is why both consequences are asserted together;
+    - the `>=` in `raise`'s `counts` weakened to `>` — fails
+      `raise-on-size-moves-2-to-2-over-level-of-4-exactly-half`, which is the
+      whole reason a bet size with a whole-number half is used;
+    - `bet`'s pair made unconditional — fails `bet-opening-moves-1-to-1-…`, so
+      the `bet` half of the grid is proven to bite too and not carried by its
+      sibling;
+    - `raise`'s `moved` measured from `bet_to_match` rather than `level` —
+      fails `raise-sub-size-moves-1-to-2-over-level-of-4-exactly-half`, the
+      cell `test_the_domain_separates_the_three_yardsticks` keeps in the
+      domain.
     """
     got = _drive(cell)
     want = Aftermath(
         witness_turn_restored=cell.reopens, aggression_counted=cell.reopens
     )
     assert got == want, (
-        f"{cell.id}: moving the bet {cell.moved} of a full raise's {cell.full} "
-        f"{'is' if cell.reopens else 'is not'} at least half, so it "
+        f"{cell.id}: leaving the bet {cell.total} over the last full wager, of "
+        f"a full bet's {cell.full}, {'is' if cell.reopens else 'is not'} at "
+        f"least half, so it "
         f"{'re-opens and counts' if cell.reopens else 'is action only'}"
     )
 
@@ -394,42 +407,49 @@ def test_the_domain_reaches_both_sides_of_the_boundary() -> None:
     """
     assert any(c.reopens for c in CELLS), "no cell re-opens the betting"
     assert any(not c.reopens for c in CELLS), "no cell is action only"
-    boundary = [c for c in CELLS if c.moved * 2 == c.full]
+    boundary = [c for c in CELLS if c.total * 2 == c.full]
     assert boundary, (
         "no cell moves the bet by EXACTLY half a full raise, so this grid cannot "
         "tell `>=` from `>` — choose a bet size whose half is a whole number"
     )
     assert all(c.reopens for c in boundary), (
-        "a cell at exactly half is expected not to re-open; Robert's Rules 5 "
-        "says 'a half a bet OR MORE is treated as a full bet'"
+        "a cell at exactly half is expected not to re-open; Pagat says 'AT "
+        "LEAST half the amount of a normal full bet or raise' is a full one"
     )
 
 
-def test_the_domain_separates_the_street_size_from_the_completion_distance() -> None:
-    """The control: the cells must be able to tell the two yardsticks apart.
+def test_the_domain_separates_the_three_yardsticks() -> None:
+    """The control: the cells must be able to tell the rule from its misreadings.
 
-    A full BET and the distance a full RAISE travels from the standing bet are
-    the same number everywhere except from a post shorter than the street, so a
-    domain whose standing bets all sat on a size would pass under either reading
-    and prove nothing about which one the rule means. This asserts the domain
-    contains a position that separates them, and a distance at which they
-    actually disagree — the empty-input-set defect wearing a grid's clothes.
+    The rule measures the TOTAL the bet stands above the last full wager
+    against a FULL BET, the street's size. Two misreadings agree with it
+    everywhere except from a post shorter than the street: measuring the
+    distance moved from the STANDING bet, and measuring against the distance a
+    full raise travels FROM HERE. A domain whose standing bets all sat on a
+    size would pass under all three and prove nothing about which one the
+    rule means; this asserts a cell where each misreading disagrees with the
+    rule — the empty-input-set defect wearing a grid's clothes.
 
-    Written because its absence let exactly that through: the first version of
-    this module drove one standing bet, equal to the street size, and could not
-    see a threshold computed from the completion distance.
+    red under: `SUB_SIZE` set equal to `ON_SIZE`, or to 2 — at a two-chip post
+    every one-chip move reaches half the completion distance as well.
     """
-    separating = [
-        c
-        for c in CELLS
-        if c.move == "raise"
-        and c.standing < LIMIT
-        and (c.moved * 2 >= LIMIT) != (c.moved * 2 >= LIMIT - c.standing)
+    raises = [c for c in CELLS if c.move == "raise" and c.standing < LIMIT]
+    from_standing = [
+        c for c in raises if (c.moved * 2 >= LIMIT) != (c.total * 2 >= LIMIT)
     ]
-    assert separating, (
+    to_completion = [
+        c
+        for c in raises
+        if (c.moved * 2 >= LIMIT - c.standing) != (c.total * 2 >= LIMIT)
+    ]
+    assert from_standing, (
+        "no cell distinguishes a threshold measured from the last full wager "
+        "from one measured from the standing bet — Pagat's '$3 since the last "
+        "full bet' is the reading this grid must be able to see"
+    )
+    assert to_completion, (
         "no cell distinguishes a threshold measured against the street's size "
-        "from one measured against the distance left to complete a short post — "
-        "every standing bet in the domain must sit on a size"
+        "from one measured against the distance left to complete a short post"
     )
     assert {c.standing for c in CELLS if c.move == "raise"} == {ON_SIZE, SUB_SIZE}, (
         "the raise cells must answer a standing bet from BOTH positions; one of "

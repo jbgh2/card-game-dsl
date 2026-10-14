@@ -1,6 +1,6 @@
 ---
 term: option
-definition: the option (poker) — a forced poster's right to aggress when the betting comes back to it unraised, which Hold'em's big blind and Stud's bring-in poster hold. Always with its article, and only of that right · never a synonym for [[candidate]], for "legal move" or for "concrete move" (→ F-19)
+definition: the option (poker) — a forced poster's right to aggress when the betting comes back to it unraised, which Hold'em's big blind holds and Stud's bring-in poster, whose post is short of a full bet, does not. Always with its article, and only of that right · never a synonym for [[candidate]], for "legal move" or for "concrete move" (→ F-19)
 layer: card-family
 status: reserved
 reserved: true
@@ -20,5 +20,7 @@ is the rule, and a bare "option" is the retired spelling.
 The rule it names is stated in `docs/decisions.md`, "Named functions": a forced
 post placed before the round begins is not a turn taken within it, so the posting
 seat stays pending and keeps the right to raise its own post. Pagat grants it to
-the big blind in as many words; it is silent on the bring-in, so
-`docs/games/seven-card-stud.cardlang` pins that half as the variant's own rule.
+the big blind in as many words. The bring-in poster takes the street's first
+decision instead and is not asked again when the others only call, because the
+bring-in is not a full bet: "Only if someone completes the bet are later players
+allowed to raise" (`docs/games/seven-card-stud.cardlang`).
