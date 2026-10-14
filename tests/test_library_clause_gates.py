@@ -647,7 +647,7 @@ def test_a_library_cannot_call_a_clause_gated_primitive(
     )
     assert any(
         line.startswith(_LIB_FILE) and f"'{member}'" in line
-        and "nor a native function" in line
+        and "which is a Primitive" in line
         for line in rendered.splitlines()
     ), rendered
 
