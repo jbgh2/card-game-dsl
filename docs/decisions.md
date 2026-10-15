@@ -4886,12 +4886,22 @@ Every finding, uncovered cell, and tracker issue states one:
   or proven against one) meets it today.
 - **R2 — designer-reachable.** A checker-green sentence a designer could
   plausibly write meets it. The design-tool promise binds here: R2 silence
-  is how a designer ships a wrong game.
-- **R3 — witness-gated.** Reaching it requires surface the language does
-  not yet accept — a cell deferred behind a guard, lifted only when its
-  named witness lands. A construct that is accepted today but unused by
-  the corpus is R2, not R3: the corpus gates which mechanisms exist, not
+  is how a designer ships a wrong game. Plausible means a rule of some
+  real game would be written that way, or the sentence is a slip away from
+  one the corpus writes. Corpus use does not decide it: an accepted
+  construct no corpus game writes is R2 when a game's rules would be
+  written with it, because the corpus gates which mechanisms exist, not
   what a designer may write.
+- **R3 — rarely reached.** Reaching it takes one of two things, and the
+  `blocked:needs-witness` label says which:
+  - **Accepted but unwritten.** A checker-green sentence that no game's
+    rules ask for. Two shapes are typical: a member of a closed family
+    kept whole for totality ("Surface totality", minimal and complete;
+    the dead-surface report's `sibling` rows), and a combination of
+    accepted constructs that only an exercise of the surface writes.
+  - **Witness-gated.** Surface the language does not yet accept: a cell
+    deferred behind a guard, lifted only when its named witness lands.
+    These issues carry `blocked:needs-witness`.
 - **R4 — auditor-only.** Reaching it requires planting a mutation,
   widening a registry, or editing the machinery itself.
 
@@ -4908,9 +4918,13 @@ waits, so R4 is a fact about who can meet the cell, never a demotion of
 the work that closes it.
 
 Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
-kind; R3 is a marked cell with its guard and its record, per the gate
-above; R4 is recorded in the owning ledger and files an issue only when the
-guarded guarantee is rigor-critical. And effort follows it the same way:
+kind. An accepted-but-unwritten R3 is filed with a kind, ranks after R2,
+and carries no Priority Tier unless the direction review gives it a
+reason. When a game's rules turn out to write the sentence, it is
+re-tagged R2, or R1 once a corpus game writes it. A witness-gated R3 is a
+marked cell with its guard and its record, per the gate above. R4 is
+recorded in the owning ledger and files an issue only when the guarded
+guarantee is rigor-critical. And effort follows it the same way:
 a fix whose size is out of proportion to its reachability routes to
 record-and-file, not to fix-now — the proportionality call is made in
 planning, out loud, not discovered in review.
