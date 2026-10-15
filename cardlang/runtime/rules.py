@@ -23,17 +23,17 @@ from cardlang.runtime.values import Card, Player
 
 def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
     pctx = ctx.acting_as(player)
-    # The pool is the acting seat's effective trick source when the caller
-    # bound one (`ctx.round_source` — the declared family's instance, or the
-    # routed zone under Delegated Play); the magic `hand` instance otherwise.
-    # Rule bodies' bare `hand` reads the same binding (evaluate's zone sugar),
+    # The pool is the acting seat's Play Source, which the trick round binds
+    # (`ctx.round_source` — the declared family's instance, or the routed zone
+    # under Delegated Play). A rule clause's bare `hand` reads the same binding,
     # so the demands cascade and this pool cannot disagree.
-    pool = (
-        pctx.round_source[1]
-        if pctx.round_source is not None
-        else pctx.rs.zones.instance("hand", player)
-    )
-    hand = pool.cards
+    if pctx.round_source is None:
+        raise ShadowGuardError(
+            "runtime.mechanics trick form",
+            f"legal cards for '{move_type}' were asked with no trick round's "
+            f"Play Source bound",
+        )
+    hand = pctx.round_source[1].cards
 
     # A pre-pass: cards any APPLICABLE rule `exempts` sit outside the demand
     # cascade entirely — never narrowed by it, never needed to satisfy it —

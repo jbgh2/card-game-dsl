@@ -18,10 +18,15 @@ the resolved-AST level.
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
-Assumes:      a resolved AST (every ``NameRef`` classified, declarations
-              unique, rule templates instantiated).
-Establishes:  type validity only. The inferred :class:`~cardlang.types.Type`
-              values are ephemeral — they are NOT written onto nodes.
+Assumes:      a resolved AST (every ``NameRef`` classified over
+              ``n.RefKind``, declarations unique, rule templates
+              instantiated), in which a ``play_source`` read stands only in
+              a game holding a trick round (``resolve._check_play_source``).
+Establishes:  type validity only. A ``play_source`` read types as the join
+              of the trick rounds' ``source`` families' contents, read off
+              the stamp, never off the spelling ``hand``. The inferred
+              :class:`~cardlang.types.Type` values are ephemeral — they are
+              NOT written onto nodes.
               Downstream may assume every type Owner Guard held, but may not
               read types off the tree; a downstream consumer that needs a type
               is a signal to materialize it in this pass, never to re-infer it
@@ -53,7 +58,7 @@ Verified by:  the Owner Guard test modules (operator, aggregation, context,
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum
 from typing import assert_never
 
@@ -439,6 +444,11 @@ class TypeEnv:
     # `env_from_game` overrides per flavor.
     item_fields: Mapping[str, Type] = field(default_factory=lambda: dict(CARD_FIELDS))
 
+    # The content type of the Play Source a rule clause's bare `hand` reads:
+    # the join of every trick round's `source` family. None in a game that runs
+    # no trick round, where resolve's `_check_play_source` refuses the read.
+    play_source: Type | None = None
+
     def with_local(self, name: str, t: Type) -> TypeEnv:
         return replace(self, locals={**self.locals, name: t})
 
@@ -708,6 +718,14 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             return TBoolean()
         case "null":
             return TNull()  # the `none` literal — fits only optionals
+        case "play_source":
+            if env.play_source is None:
+                raise AssertionError(
+                    f"rule clause reads `{e.name}` in a game with no trick round "
+                    f"— resolve's `_check_play_source` refuses that before this "
+                    f"pass runs"
+                )
+            return env.play_source
         case "pronoun":
             # `actor` is universally the acting player at runtime
             # (evaluate._pronoun -> ctx.current_player, and the `Move`
@@ -717,19 +735,18 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             # move-type/mechanic-specific (see ACTION_FIELDS for the
             # sound subset of `action` typed via Member access).
             return TPlayer() if e.name == "actor" else TAny()
-        case _:
-            # Every `ref_kind` resolve stamps is handled above, and resolve
-            # RAISES on an unclassified name before this pass runs — so an
-            # unknown kind here is a resolver/checker divergence, not a program
-            # error. Loud, per the same rule as `_env_miss`: the old blanket
-            # `TAny` made a whole new ref kind type as the permissive top and
-            # sail through every Owner Guard.
+        case None:
+            # Resolve RAISES on an unclassified name before this pass runs, so
+            # one here is a resolver/checker divergence, not a program error.
             raise AssertionError(
-                f"name '{e.name}' has ref_kind {e.ref_kind!r}, which this pass "
-                f"does not type — resolve classifies every name (and rejects "
-                f"the unclassifiable), so a new ref kind must be given a type "
-                f"here rather than defaulting to the permissive top"
+                f"name '{e.name}' has no ref_kind, which this pass does not "
+                f"type — resolve classifies every name (and rejects the "
+                f"unclassifiable)"
             )
+        case _:
+            # Exhaustive over `n.RefKind`: a new kind is a type error here until
+            # it is given a type, never the permissive top.
+            assert_never(e.ref_kind)
 
 
 def _type_name(t: Type) -> str:
@@ -993,7 +1010,35 @@ def _ambient_env(game: Game) -> TypeEnv:
         flavor=game.content_flavor,
         deck=game.deck,
         item_fields=item_field_table(game),
+        play_source=_play_source_type(game, zones),
     )
+
+
+def _play_source_type(game: Game, zones: Mapping[str, Type]) -> Type | None:
+    """The content type of the zones a trick round offers its cards from: the
+    join of every trick round's `source` family, wherever the round is
+    written. A rule is asked at whichever trick round runs, so its bare
+    `hand` holds the cards of any of them."""
+    sources: set[str] = set()
+    stack: list[object] = [game]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, tuple):
+            stack.extend(node)
+        elif is_dataclass(node) and not isinstance(node, (type, Span)):
+            if isinstance(node, n.TrickRound):
+                sources.add(node.source_zone)
+            stack.extend(getattr(node, f.name) for f in fields(node))
+    joined: Type | None = None
+    for name in sorted(sources):
+        content = zones[name]
+        joined = content if joined is None else join(joined, content)
+        if joined is None:
+            raise AssertionError(
+                f"the trick rounds' sources hold contents with no common type "
+                f"('{name}' among {sorted(sources)})"
+            )
+    return joined
 
 
 # A statement's enclosing binders, outermost first. A parameter binder carries

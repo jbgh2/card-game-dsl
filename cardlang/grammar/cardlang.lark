@@ -7,11 +7,9 @@
 
 start: top_item+
 
-// Alternate start for the standard-library rules fragment
-// (cardlang/stdlib/rules.cardlang): rule definitions with no enclosing game.
-stdlib_rules: rule_def+
-
-// Alternate start for a family-library file (docs/libraries/<name>.cardlang):
+// Alternate start for a library file: a family library
+// (docs/libraries/<name>.cardlang) or the standard library
+// (cardlang/stdlib/rules.cardlang, `library stdlib`):
 // the definition forms a game already holds, plus the two state clauses, with no
 // enclosing game (decisions.md "Family libraries"). It holds definitions and the
 // state its own definitions own, but no other game structure — no zones, no

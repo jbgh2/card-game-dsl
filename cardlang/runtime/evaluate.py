@@ -174,6 +174,10 @@ def _hermetic_ctx(ctx: Ctx, scope: dict[str, Any], *, keep_actor: bool) -> Ctx:
     """A fresh scope holding only `scope`, over the shared game/phase state —
     the one context construction both hermetic bodies use.
 
+    Neither body sees the trick round's Play Source: a rule's clauses read it,
+    and a function they call does not — the Shadow Guard behind resolve's
+    `_check_play_source`, which refuses such a function's bare `hand`.
+
     `keep_actor` is the whole difference between the two, and the difference is
     semantic. A user FUNCTION inherits `current_player`: its body may read a
     bare per-player zone (`cards in hand where …`), whose family instance
@@ -185,9 +189,10 @@ def _hermetic_ctx(ctx: Ctx, scope: dict[str, Any], *, keep_actor: bool) -> Ctx:
     Owner Guard in `_name` below — the runtime [[shadow-guard]] behind
     resolve's R11, which owns the class statically."""
     if keep_actor:
-        return replace(ctx, locals=scope, winner=None, action=None)
+        return replace(ctx, locals=scope, winner=None, action=None, round_source=None)
     return replace(
-        ctx, locals=scope, winner=None, action=None, current_player=None
+        ctx, locals=scope, winner=None, action=None, current_player=None,
+        round_source=None,
     )
 
 
@@ -229,14 +234,19 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
             return ctx.locals[e.name]
         case "state_var":
             return ctx.rs.get(e.name)
+        case "play_source":
+            if ctx.round_source is None:
+                raise ShadowGuardError(
+                    "resolve._check_play_source",
+                    f"a rule clause read `{e.name}` with no trick round's card "
+                    f"decision bound",
+                )
+            return ctx.round_source[1]
         case "zone":
-            # Under Delegated Play, the acting seat's trick source may be
-            # routed: inside a trick round's rule and predicate bodies, the
-            # magic name `hand` and the round's declared source family both
-            # mean "the acting seat's play source", so both read the routed
-            # zone when one is bound (decisions.md "Delegated play"; the
-            # stdlib rules' contract re-anchor).
-            if ctx.round_source is not None and e.name in ("hand", ctx.round_source[0]):
+            # A rule clause naming the trick round's own source family reads
+            # the cards the round offers the acting seat, which under Delegated
+            # Play is the routed zone (decisions.md "Delegated play").
+            if ctx.round_source is not None and e.name == ctx.round_source[0]:
                 return ctx.round_source[1]
             if ctx.rs.zones.is_family(e.name):
                 # Shadow Guard behind resolve's `_check_bare_family_refs`
@@ -278,8 +288,10 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
             return e.name
         case "pronoun":
             return _pronoun(e.name, ctx)
-        case _:
+        case None:
             raise AssertionError(f"name '{e.name}' was not resolved (ref_kind=None)")
+        case _:
+            assert_never(e.ref_kind)
 
 
 def _pronoun(name: str, ctx: Ctx) -> Any:

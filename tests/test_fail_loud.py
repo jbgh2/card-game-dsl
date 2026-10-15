@@ -74,9 +74,14 @@ game G {
   players: 2
   max_length: 1000
   cards: standard52
-  zones { deck : Deck  hand[player] : Hand<player> }
+  ranking: aces high
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
   state { x[player] : Integer = 0 }
-  phase play { }
+  phase play {
+    active_rules: [FollowWithoutFallback]
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_of_led_suit
+  }
   winner: highest x
 }
 rule FollowWithoutFallback {

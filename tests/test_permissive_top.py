@@ -309,20 +309,32 @@ def test_unbound_binder_raises_rather_than_typing_as_top() -> None:
 def test_unbound_state_var_zone_and_enum_value_raise() -> None:
     """Sweep the class: every env-backed lookup in `_name_type`, not just the
     binder one that motivated the change."""
-    for kind, field in (
+    rows: tuple[tuple[n.RefKind, str], ...] = (
         ("state_var", "state_vars"),
         ("zone", "zones"),
         ("enum_value", "value_enums"),
-    ):
+    )
+    for kind, field in rows:
         with pytest.raises(AssertionError) as ei:
             infer(n.NameRef("nonesuch", ref_kind=kind), TypeEnv())
         assert f"absent from `TypeEnv.{field}`" in str(ei.value)
 
 
 def test_unknown_ref_kind_raises() -> None:
+    """A kind outside `n.RefKind` is a type error at every dispatcher; one
+    smuggled past the type checker still fails loud, never the permissive top."""
     with pytest.raises(AssertionError) as ei:
-        infer(n.NameRef("x", ref_kind="brand_new_kind"), TypeEnv())
-    assert "does not type" in str(ei.value)
+        infer(n.NameRef("x", ref_kind="brand_new_kind"), TypeEnv())  # type: ignore[arg-type]
+    assert "brand_new_kind" in str(ei.value)
+
+
+def test_a_play_source_read_types_as_the_trick_source_contents() -> None:
+    env = TypeEnv(play_source=TCollection(TCard(), zone=True))
+    assert infer(n.NameRef("hand", ref_kind="play_source"), env) == TCollection(
+        TCard(), zone=True
+    )
+    with pytest.raises(AssertionError, match="no trick round"):
+        infer(n.NameRef("hand", ref_kind="play_source"), TypeEnv())
 
 
 def test_unresolved_name_raises() -> None:

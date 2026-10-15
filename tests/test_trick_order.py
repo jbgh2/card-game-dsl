@@ -901,10 +901,12 @@ def _partition_cells() -> list[Cell]:
                      tail="function outer(p : Player) = helper(p)\n"
                           "function helper(p : Player) = any card in hand[p] where is_trump(card)"),
              ()))
+    # Subscripted: a rule clause's bare `hand` needs a trick round to read,
+    # and a round would consume the block through its winner slot as well.
     _RULE = ("rule OnlyTrumps {\n"
              "  constrains: play_to_trick\n"
-             "  demands: cards in hand where is_trump(card)\n"
-             "  if_impossible: hand\n}")
+             "  demands: cards in hand[actor] where is_trump(card)\n"
+             "  if_impossible: hand[actor]\n}")
     add(Cell("consumer-in-an-active-rule",
              _source(clauses=BLOCK,
                      body="active_rules: [OnlyTrumps]\n    score[1] += 1",

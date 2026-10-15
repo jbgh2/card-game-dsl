@@ -82,12 +82,14 @@ from tests.mode_axes import (
 # Fixtures: one minimal game, with the item under test spliced into a body.
 # --------------------------------------------------------------------------
 
+# Subscripted, so the fixture needs no trick round: a rule clause's bare
+# `hand` is the trick round's Play Source.
 _RULE = """
 rule MustFollow {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: cards in hand where card.suit is state.led_suit
-  if_impossible: hand
+  demands: cards in hand[actor] where card.suit is state.led_suit
+  if_impossible: hand[actor]
 }
 """
 

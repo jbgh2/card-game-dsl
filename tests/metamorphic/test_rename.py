@@ -10,10 +10,12 @@ domain:     corpus games (`pairing.CORPUS`) x seeds (`pairing.SEEDS`).
             same game shadows locally (rename.py, defense 2); it is empty
             across the corpus, and a game that trips it renames everything
             else and leaves that one name alone. `excluded_global` is
-            `hand`, the language-wide magic zone name decisions.md
-            "Declared parameter domains" and `resolve.py` require for
-            `Card`-typed move parameters — outside T2's domain by the spec's
-            own words. `excluded_contract` is a name a family library's
+            `hand` in a game where a `Card`-typed move parameter or a
+            Builtin reads the zone by that spelling (decisions.md "Declared
+            parameter domains", rename.py `_magic_hand_names`) — outside
+            T2's domain by the spec's own words. A rule clause's `hand` is
+            the trick round's Play Source, not the zone, so a game whose
+            only reader is its rules renames `hand` like any other zone. `excluded_contract` is a name a family library's
             `requires` block declares, where the spelling IS the interface
             (decisions.md "Family libraries"). `excluded_coupled` is the
             per-game names a game-local primitive module reads, DERIVED from

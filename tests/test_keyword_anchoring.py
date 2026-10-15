@@ -96,7 +96,7 @@ from lark.exceptions import UnexpectedInput, UnexpectedToken
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import _diagnostic_parser, parse_text
+from cardlang.parse import _diagnostic_parser, _parser, parse_text
 
 WORD_CHAR = re.compile(r"[A-Za-z0-9_]")
 # Candidate word runs inside a terminal's own regex source. Hyphens are
@@ -269,7 +269,7 @@ def test_basic_lexer_cannot_tokenize_the_grammar() -> None:
         lexer="basic",
         propagate_positions=True,
         maybe_placeholders=True,
-        start=["start", "stdlib_rules", "library"],
+        start=list(_parser().options.start),
     )
     with pytest.raises(UnexpectedInput) as exc:
         parser.parse(_game("  phase p { let y = 1 }"), start="start")

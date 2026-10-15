@@ -24,20 +24,26 @@ from cardlang.types import Flavor
 # Expressions
 # ---------------------------------------------------------------------------
 
+#: The [[ref-kind]]s the resolver stamps: ``local`` (a [[binder]]/let),
+#: ``state_var``, ``zone``, ``enum_value``, ``bool`` (`true`/`false`), ``null``
+#: (the absence literal `none`), a [[pronoun]] (``resolve._PRONOUNS`` — the
+#: context namespaces, `actor` among them), and ``play_source`` (a rule
+#: clause's bare `hand`: the [[play-source]]). Every dispatcher over it ends in
+#: ``assert_never``, so this is the dispatch's domain and not a sample of it.
+RefKind: TypeAlias = Literal[
+    "local", "state_var", "zone", "enum_value", "bool", "null", "pronoun", "play_source"
+]
+REF_KINDS: tuple[RefKind, ...] = get_args(RefKind)
+
 
 @dataclass(frozen=True, slots=True)
 class NameRef:
-    """A bare identifier. Its [[ref-kind]] is filled by the resolver,
-    classifying the name as one of: ``local`` (a [[binder]]/let), ``state_var``,
-    ``zone``, ``enum_value``, ``function``, ``bool`` (`true`/`false`), ``null``
-    (the absence literal `none`), or a [[pronoun]] (``resolve._PRONOUNS`` — the
-    context namespaces, `actor` among them). ``None`` until resolved; the eight
-    are what `runtime/evaluate.py` dispatches over, so this list is that
-    dispatch's domain and not a sample of it."""
+    """A bare identifier. Its [[ref-kind]] (`RefKind`) is filled by the
+    resolver; ``None`` until resolved."""
 
     name: str
     span: Span | None = None
-    ref_kind: str | None = None
+    ref_kind: RefKind | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1413,7 +1419,8 @@ class Game:
     # block are different states, and `primitives_block.regime` is the ONE
     # site that reads the difference.
     primitives: PrimitivesBlock | None = None
-    # Emptied by `resolve`, which splices each named library's definitions in:
+    # Emptied by `resolve`, which splices each named library's definitions in
+    # (its rules where `active_rules:` names them):
     # like `procedures`, a surviving entry downstream would mean the import was
     # parsed and ignored. Order is source order, and resolution is flat and
     # two-level (game -> named libraries -> stdlib) with no library-imports-

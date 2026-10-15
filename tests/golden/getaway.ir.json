@@ -518,7 +518,7 @@
           "source": {
             "kind": "name",
             "name": "hand",
-            "ref": "zone"
+            "ref": "play_source"
           },
           "where": {
             "kind": "binop",
@@ -575,7 +575,7 @@
           "source": {
             "kind": "name",
             "name": "hand",
-            "ref": "zone"
+            "ref": "play_source"
           },
           "where": {
             "kind": "binop",
@@ -604,7 +604,7 @@
       "if_impossible": {
         "kind": "name",
         "name": "hand",
-        "ref": "zone"
+        "ref": "play_source"
       }
     }
   ],
