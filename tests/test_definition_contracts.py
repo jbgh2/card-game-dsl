@@ -35,7 +35,10 @@ domain:          six axes. (1) The contractable kind — `_LIBRARY_DEF_KINDS`
                  parameter, a row named twice, a bare read, a call of a
                  procedure row and a run of a function row, a library procedure
                  running a procedure row; a library call disagreeing with its
-                 own row; a dead row of each kind; a row name the library
+                 own row; a call of the row from every library clause that
+                 holds an expression (`n.Library`'s fields minus those with no
+                 expression slot), against a game answering at the wrong
+                 result; a dead row of each kind; a row name the library
                  also holds as provided state or as another definition, with
                  the game answering or not. (4) Two libraries and one name:
                  contracted at two signatures, as state and as a function,
@@ -847,6 +850,76 @@ def test_a_library_call_is_typed_against_its_own_row(
         _host(defs=_KIND["functions"].answer),
     )
     _assert(bag, Reject(LIBRARY, (needle,)))
+
+
+# A call of the function row from each library clause that can hold an
+# expression, with the game answering at the wrong result. Keyed by the clause;
+# `test_every_expression_bearing_clause_calls_a_row` holds the keys to
+# `n.Library`'s fields minus the ones with no expression slot.
+_CALL_SITE: dict[str, str] = {
+    "rules": (
+        "rule watch { constrains: play_to_trick applies_when: ready(actor) "
+        "demands: cards in hand where card.suit is state.led_suit if_impossible: hand }"
+    ),
+    "move_types": "move_type pay { effect { if ready(actor) { acted[actor] := true } } }",
+    "functions": "function gate(p : Player) = ready(p)",
+    "procedures": (
+        "procedure check(p : Player) { if ready(p) { acted[p] := true } } "
+        "move_type runner { effect { run check(actor) } }"
+    ),
+    "state": "state { flag : Boolean = ready(0) }",
+}
+
+
+def test_every_expression_bearing_clause_calls_a_row() -> None:
+    """red under: add an expression-bearing field to `n.Library` without a
+    `_CALL_SITE` cell."""
+    assert set(_CALL_SITE) == {f.name for f in fields(n.Library)} - {
+        "name",
+        "requires",
+        "span",
+    }
+
+
+@pytest.mark.parametrize("site", sorted(_CALL_SITE))
+def test_a_wrong_result_is_told_once_from_every_call_site(
+    monkeypatch: pytest.MonkeyPatch, site: str
+) -> None:
+    """Every library call of a contracted function is typed against the row,
+    so a game answering at the wrong result is told once, on its `uses` line,
+    wherever the library calls it. A provided default is the exception by an
+    earlier rule: a default may call nothing (`_check_state_default_scope`),
+    so the library's author is told that instead, once, and the game's answer
+    is never consulted.
+
+    red under: leave a definition field out of
+    `resolve._stamp_contracted_calls` — that site's call is typed against the
+    game's Integer and earns a second sentence in the library's file."""
+    text = _host(defs="function ready(p : Player) = 1")
+    if site == "rules":
+        # A library rule splices only where the game activates it, so the host
+        # activates it, with the trick round a rule constrains.
+        text = _host(
+            defs="function ready(p : Player) = 1",
+            zones="hand[player] : Hand<player>  pile : TrickPile",
+        ).replace(
+            "  max_length: 100\n", "  max_length: 100\n  ranking: K Q J\n"
+        ).replace(
+            "phase play { run ask(0) }",
+            "phase play {\n    active_rules: [watch]\n"
+            "    round play_to_trick from 0 over all players source hand into pile\n"
+            "      winner highest_of_led_suit\n    run ask(0)\n  }",
+        )
+        assert "active_rules: [watch]" in text
+    bag = _outcome(
+        monkeypatch,
+        lambda: (_library("functions", use="", extra=_CALL_SITE[site]),),
+        text,
+    )
+    if site == "state":
+        _assert(bag, Reject(LIBRARY, ("cannot call 'ready'",)))
+    else:
+        _assert(bag, Reject(GAME, ("requires function `ready(p : Player) : Boolean`", "returning Integer")))
 
 
 def _unused(field: str) -> n.Library:
