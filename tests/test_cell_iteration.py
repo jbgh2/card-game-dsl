@@ -220,7 +220,7 @@ game G {
 
 
 def test_for_each_cell_in_a_boardless_game_is_rejected() -> None:
-    # No board mints no `cell` domain, so the role is unknown there.
+    # No board mints no `cell` domain, and the refusal names the clause.
     src = """
 game G {
   players: 2
@@ -236,7 +236,8 @@ game G {
 }
 """
     msg = _reject(src)
-    assert "unknown `for each` role 'cell'" in msg
+    assert "`for each cell ...` ranges over the board's cells" in msg
+    assert "declares no `board:`" in msg
 
 
 def test_cell_membership_against_a_card_collection_is_rejected() -> None:

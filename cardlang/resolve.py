@@ -82,12 +82,14 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               settled inside ``_apply_uses``, before the splice — afterwards
               the two are one flat declaration block and the distinction no
               longer exists to check. And, for a game that ``uses`` a
-              library, a Builtin the library's definitions call that a game
-              clause the game lacks (or holds) gates — every gate in
-              ``_CLAUSE_GATES``, plus a literal ``lines(k)`` past the board —
-              refused on the game's ``uses`` line
+              library, anything the library brings in that a game clause the
+              game lacks (or holds) gates — a Builtin call or a construct, by
+              every row of ``_CLAUSE_GATES``, plus a literal ``lines(k)`` past
+              the board — refused on the game's ``uses`` line
               (``_check_library_clause_gates``) before the splice, so the
-              gates downstream meet such a call only as its Shadow Guards.
+              gates downstream meet it only as its Shadow Guards. Each row's
+              test is the one its gate asks. A library rule the game does not
+              activate is not brought in, and is not judged against the game.
               And a named trump nobody
               reads: a game-level ``trump:`` that is not a suit of the deck
               or that no trick round inherits, and a round ``trump`` clause
@@ -328,7 +330,12 @@ from cardlang.stdlib.zones import (
     identity_to_all,
     reveals,
 )
-from cardlang.typecheck import KNOWN_TYPE_NAMES, RANKING_GATED_FUNCS
+from cardlang.typecheck import (
+    KNOWN_TYPE_NAMES,
+    RANKING_GATED_FUNCS,
+    card_content_forms,
+    ranking_gated_slots,
+)
 from cardlang.types import Flavor, TCollection, TPlayer, TTeam
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
@@ -1118,87 +1125,371 @@ def check_library_alone(library: n.Library, bag: DiagnosticBag) -> None:
 
 @dataclass(frozen=True)
 class _ClauseGate:
-    """A game clause some Builtins need, or are refused beside.
+    """A game clause some constructs need, or are refused beside.
 
+    `needs` is the gate's one test: what in a node the clause decides, in the
+    designer's words, or nothing. The gate asks it of the game's own text, and
+    `_check_library_clause_gates` asks it of a library's definitions before the
+    splice. A Builtin row's test is "a call whose name is in `members`", and
     `members` is the owning gate's own registry, never a copy of it. `unmet`
     reads the clause as the game WROTE it, because the `uses` check runs before
     `_expand_ranking`: a convention keyword is a `ranking:` here. A clause that
     is written but malformed counts as met, so its own Owner Guard speaks rather
-    than a request for a clause the game already has. `reads` completes "which
-    read ..." and `lacks` names what the game has instead."""
+    than a request for a clause the game already has. `verb` and `reads` say
+    what the library does with what `needs` names ("calls `x`, which reads
+    ..."), and `lacks` and `fix` say what the game has instead and what to
+    write."""
 
-    members: frozenset[str]
+    needs: Callable[[object, n.Game], tuple[str, ...]]
     unmet: Callable[[n.Game], bool]
+    verb: str
     reads: str
     lacks: Callable[[n.Game], str]
-    fix: str
+    fix: Callable[[n.Game], str]
+    members: frozenset[str] = frozenset()
 
 
-# Every gate on a Builtin's legality that a game clause decides, in the order
-# the gates themselves run, so a Builtin two gates refuse is reported by the
-# one that refuses it when the game writes the call. Each row's members are its
-# gate's own registry, so a Builtin joining a gate's registry joins its row,
-# and a new clause gate is a new row; `_check_library_clause_gates` reads the
-# table and names no gate. That each row agrees with its gate, member by
-# member, is executed in tests/test_library_clause_gates.py.
+def _builtin_gate(
+    members: frozenset[str],
+    unmet: Callable[[n.Game], bool],
+    reads: str,
+    lacks: Callable[[n.Game], str],
+    fix: Callable[[n.Game], str],
+) -> _ClauseGate:
+    """A row whose test is a call to one of the gate's Builtins."""
+    return _ClauseGate(
+        needs=lambda nd, g: (
+            (f"`{nd.func}`",) if isinstance(nd, n.Call) and nd.func in members else ()
+        ),
+        unmet=unmet,
+        verb="calls",
+        reads=reads,
+        lacks=lacks,
+        fix=fix,
+        members=members,
+    )
+
+
+def _refuses(gate: _ClauseGate, node: object, game: n.Game) -> bool:
+    """Whether `gate` refuses `node` in `game`: the test a downstream gate asks
+    of the game's own text, the same two halves the `uses` check asks of a
+    library's."""
+    return gate.unmet(game) and bool(gate.needs(node, game))
+
+
+def _teams_example(game: n.Game) -> str:
+    """A `teams:` clause that partitions this game's seats, alternating them
+    between two partnerships, for a refusal to offer as written."""
+    count = max(game.players.count, 2)
+    sides = (range(0, count, 2), range(1, count, 2))
+    return "teams: [" + ", ".join(
+        "[" + ", ".join(map(str, side)) + "]" for side in sides
+    ) + "]"
+
+
+def _declares_ranking(game: n.Game) -> bool:
+    """`ranking:` as written or as expanded: before `_expand_ranking` a
+    convention keyword is the clause, after it the expanded order is, and a
+    convention that cannot expand is refused by resolve itself."""
+    return bool(game.ranking) or game.ranking_convention is not None
+
+
+def _rank_parameters(node: object, game: n.Game) -> tuple[str, ...]:
+    """A move type's `Rank` parameter, which enumerates the declared ranking.
+    `Rank?` is no parameter domain at all (`_FIXED_DOMAINS`)."""
+    if isinstance(node, n.MoveTypeDef) and any(p.type_name == "Rank" for p in node.params):
+        return ("a `Rank` parameter",)
+    return ()
+
+
+def _team_ranges(node: object, game: n.Game) -> tuple[str, ...]:
+    """A range over the team domain: `for each team`, `any team where`, `all
+    teams where`."""
+    if isinstance(node, (n.ForEach, n.Quantifier)) and role_of(node.role) is Role.TEAM:
+        if isinstance(node, n.ForEach):
+            return ("`for each team`",)
+        return ("`any team where`",) if node.kind == "any" else ("`all teams where`",)
+    return ()
+
+
+def _team_keyed_state(node: object, game: n.Game) -> tuple[str, ...]:
+    """A state declaration keyed by team."""
+    if (
+        isinstance(node, n.StateDecl)
+        and node.index is not None
+        and role_of(node.index) is Role.TEAM
+    ):
+        return (f"`{node.name}[team]`",)
+    return ()
+
+
+def _cell_ranges(node: object, game: n.Game) -> tuple[str, ...]:
+    """A `for each` over the board's cells, the domain a `board:` mints."""
+    if isinstance(node, n.ForEach) and node.role == BOARD_DOMAIN:
+        return ("`for each cell`",)
+    return ()
+
+
+def _board_positions_past_end(node: object, game: n.Game) -> tuple[str, ...]:
+    """A literal position past the end of a board region, read off the declared
+    board (`_position_past_end`)."""
+    if not (isinstance(node, n.Subscript) and isinstance(node.obj, n.Call)):
+        return ()
+    past = _position_past_end(node, game)
+    if past is None:
+        return ()
+    index, length = past
+    return (f"`{node.obj.func}(...)[{index}]` on a region of {length}",)
+
+
+def _trick_order_reading_slots(node: object, game: n.Game) -> tuple[str, ...]:
+    """A trick round naming a winner that reads the `trick_order { }` block."""
+    if isinstance(node, n.TrickRound) and node.winner_fn in TRICK_ORDER_GATED_WINNERS:
+        return (f"round winner `{node.winner_fn}`",)
+    return ()
+
+
+def _round_trump_clauses(node: object, game: n.Game) -> tuple[str, ...]:
+    """A trick round's own `trump` clause."""
+    if isinstance(node, n.TrickRound) and node.trump is not None:
+        return ("a round `trump` clause",)
+    return ()
+
+
+def _trick_order_excluded_winners(node: object, game: n.Game) -> tuple[str, ...]:
+    """A trick round naming a winner a `trick_order { }` block replaces."""
+    if isinstance(node, n.TrickRound) and node.winner_fn in TRICK_ORDER_EXCLUDED_WINNERS:
+        return (f"round winner `{node.winner_fn}`",)
+    return ()
+
+
+# EVERY registered climbing query, not the `ranking:`-reading subset: a climb
+# query carries its own card order whether it reads `rank_index` (president's)
+# or hard-codes one (the bigtwo_* and tichu_* engines), and either way a game
+# naming one beside a Trick Order has two orders that the engine runs side by
+# side.
+_CLIMB_QUERIES = PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
+
+
+def _climb_queries(node: object, game: n.Game) -> tuple[tuple[str, str], ...]:
+    """A climbing round's queries, as (slot, name), each carrying its own card
+    order."""
+    if not isinstance(node, n.ClimbRound):
+        return ()
+    return tuple(
+        (slot, name)
+        for slot, name in (("combinations", node.combos_fn), ("follows", node.follows_fn))
+        if name in _CLIMB_QUERIES
+    )
+
+
+def _trick_order_replaced_slots(node: object, game: n.Game) -> tuple[str, ...]:
+    """Every round slot a `trick_order { }` block replaces, refused beside one
+    by `_check_trick_order_partition`. An `early` clause on the Trick Order
+    winner is not one: no clause the game writes clears it, so it is the
+    library's own to drop and is refused in its file."""
+    return (
+        _round_trump_clauses(node, game)
+        + _trick_order_excluded_winners(node, game)
+        + tuple(f"climb query `{name}`" for _, name in _climb_queries(node, game))
+    )
+
+
+def _card_contents(node: object, game: n.Game) -> tuple[str, ...]:
+    return card_content_forms(node)
+
+
+def _ranking_slots(node: object, game: n.Game) -> tuple[str, ...]:
+    return tuple(f"{slot} `{name}`" for slot, name in ranking_gated_slots(node))
+
+
+_PIECES_LACK = "this game is played with pieces"
+_PIECES_FIX = "a game played with pieces cannot use this library"
+_NO_RANKING = "this game declares no `ranking:`"
+_NO_TEAMS = "this game declares no `teams:`"
+_TRICK_ORDER_FIX = (
+    "a game with a Trick Order cannot use this library; drop the block or the "
+    "`uses` line"
+)
+
+
+def _teams_fix(game: n.Game) -> str:
+    return f"declare the partnerships (`{_teams_example(game)}`)"
+
+
+_CARD_CONTENT_GATE = _ClauseGate(
+    _card_contents,
+    lambda g: g.content_flavor == "piece",
+    "writes",
+    "read a deck card's content",
+    lambda g: _PIECES_LACK,
+    lambda g: _PIECES_FIX,
+)
+_TRICK_ORDER_READING_GATE = _ClauseGate(
+    _trick_order_reading_slots,
+    lambda g: g.content_flavor == "card" and g.trick_order is None,
+    "writes",
+    "read the game's `trick_order { }` block",
+    lambda g: "this game declares none",
+    lambda g: "declare one",
+)
+_TRICK_ORDER_REPLACED_GATE = _ClauseGate(
+    _trick_order_replaced_slots,
+    lambda g: g.content_flavor == "card" and g.trick_order is not None,
+    "writes",
+    "carry the trump and card order a `trick_order { }` block replaces",
+    lambda g: "this game declares a `trick_order { }` block",
+    lambda g: _TRICK_ORDER_FIX,
+)
+_TEAM_RANGE_GATE = _ClauseGate(
+    _team_ranges,
+    lambda g: not g.teams,
+    "writes",
+    "range over the game's teams",
+    lambda g: _NO_TEAMS,
+    _teams_fix,
+)
+_TEAM_STATE_GATE = _ClauseGate(
+    _team_keyed_state,
+    lambda g: not g.teams,
+    "provides",
+    "key state by the game's teams",
+    lambda g: _NO_TEAMS,
+    _teams_fix,
+)
+
+
+def _board_remedy(game: n.Game) -> str:
+    """What a game lacking a `board:` can do: a board lays out a piece game,
+    and is refused beside `cards:`."""
+    if game.content_flavor == "piece":
+        return "declare one"
+    return "a board is declared only in a game played with pieces"
+
+
+def _board_fix(game: n.Game) -> str:
+    remedy = _board_remedy(game)
+    if game.content_flavor == "piece":
+        return remedy
+    return f"{remedy}, so a card game cannot use this library"
+
+
+_CELL_RANGE_GATE = _ClauseGate(
+    _cell_ranges,
+    lambda g: g.board is None,
+    "writes",
+    "range over the board's cells",
+    lambda g: "this game declares no `board:`",
+    _board_fix,
+)
+_BOARD_POSITION_GATE = _ClauseGate(
+    _board_positions_past_end,
+    lambda g: g.board is not None,
+    "writes",
+    "read a position past the end of a board region",
+    lambda g: f"this game declares `board: {_board_spelling(g)}`",
+    lambda g: "declare a board that holds it",
+)
+_RANK_PARAMETER_GATE = _ClauseGate(
+    _rank_parameters,
+    lambda g: not _declares_ranking(g),
+    "declares",
+    "enumerate the game's ranking",
+    lambda g: _NO_RANKING,
+    lambda g: "declare one",
+)
+_RANKING_SLOT_GATE = _ClauseGate(
+    _ranking_slots,
+    lambda g: not _declares_ranking(g),
+    "writes",
+    "read a card's rank strength from `ranking:`",
+    lambda g: _NO_RANKING,
+    lambda g: "declare one",
+)
+
+
+def _board_spelling(game: n.Game) -> str:
+    board = game.board
+    if board is None:
+        return "none"
+    return f"{board.family}({', '.join(map(str, board.args))})"
+
+
+# Every gate on a construct's legality that a game clause decides, in the order
+# the gates themselves run, so a construct two gates refuse is reported by the
+# one that refuses it when the game writes it (the content flavor first: in a
+# piece game a `Rank` parameter's fix is not a `ranking:`, which a piece game
+# cannot declare). Each row's test is the one its gate asks, so a construct
+# joining a gate joins its row, and a new clause gate is a new row;
+# `_check_library_clause_gates` reads the table and names no gate. That each
+# row agrees with its gate, member by member, is executed in
+# tests/test_library_clause_gates.py.
 _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
-    _ClauseGate(
+    _builtin_gate(
         DECK_ONLY_CALL_FUNCS,
         lambda g: g.content_flavor == "piece",
         "read a card's suit, rank or points",
-        lambda g: "this game is played with pieces",
-        "a game played with pieces cannot use this library",
+        lambda g: _PIECES_LACK,
+        lambda g: _PIECES_FIX,
     ),
-    _ClauseGate(
+    _CARD_CONTENT_GATE,
+    _builtin_gate(
         TRICK_ORDER_GATED_FUNCS,
         lambda g: g.trick_order is None,
         "read the game's `trick_order { }` block",
         lambda g: "this game declares none",
-        "declare one",
+        lambda g: "declare one",
     ),
-    _ClauseGate(
+    _TRICK_ORDER_READING_GATE,
+    _builtin_gate(
         TRICK_ORDER_EXCLUDED_FUNCS,
         lambda g: g.trick_order is not None,
         "read the trump and led suit a trick round names",
         lambda g: "this game declares a `trick_order { }` block, which replaces them",
-        "a game with a Trick Order cannot use this library; drop the block or the "
-        "`uses` line",
+        lambda g: _TRICK_ORDER_FIX,
     ),
-    _ClauseGate(
+    _TRICK_ORDER_REPLACED_GATE,
+    _builtin_gate(
         _CARD_POINTS_CALLS,
         lambda g: g.card_points is None,
         "read the game's card-point table",
         lambda g: "this game declares no `card_points { }` table",
-        "declare one",
+        lambda g: "declare one",
     ),
-    _ClauseGate(
+    _builtin_gate(
         _TEAM_CALL_FUNCS,
         lambda g: not g.teams,
         "ask which team a seat is on",
-        lambda g: "this game declares no `teams:`",
-        "declare the partnerships (`teams: [[0, 2], [1, 3]]`)",
+        lambda g: _NO_TEAMS,
+        _teams_fix,
     ),
-    _ClauseGate(
+    _TEAM_RANGE_GATE,
+    _TEAM_STATE_GATE,
+    _builtin_gate(
         BOARD_ONLY_CALL_FUNCS,
         lambda g: g.board is None,
         "read the board",
         lambda g: "this game declares no `board:`",
-        "declare one",
+        _board_fix,
     ),
-    _ClauseGate(
+    _CELL_RANGE_GATE,
+    _BOARD_POSITION_GATE,
+    _builtin_gate(
         _FRAME_CALL_FUNCS,
         lambda g: g.board is not None and g.players.count != 2,
         "read a grid's two-player movement frame",
         lambda g: f"this game declares `players: {g.players.count}`",
-        "the frame is defined for two seats, so it needs `players: 2`",
+        lambda g: "the frame is defined for two seats, so it needs `players: 2`",
     ),
-    _ClauseGate(
+    _builtin_gate(
         RANKING_GATED_FUNCS,
-        lambda g: not g.ranking and g.ranking_convention is None,
+        lambda g: not _declares_ranking(g),
         "read a card's rank strength from `ranking:`",
-        lambda g: "this game declares no `ranking:`",
-        "declare one",
+        lambda g: _NO_RANKING,
+        lambda g: "declare one",
     ),
+    _RANK_PARAMETER_GATE,
+    _RANKING_SLOT_GATE,
 )
 
 # The Builtins no game clause gates. Listed, not derived by subtraction, so a
@@ -1209,59 +1500,90 @@ _CLAUSE_FREE_BUILTINS: frozenset[str] = frozenset(
 )
 
 
-def _library_calls(library: n.Library) -> list[tuple[n.Call, str]]:
-    """Every call in `library`'s definitions, with the definition that holds
-    it, in the designer's words. Provided state is not walked: a default may
-    call nothing (`_check_state_default_scope`)."""
-    found: list[tuple[n.Call, str]] = []
+def _activated_rule_names(game: n.Game) -> frozenset[str]:
+    """The rules the game's `active_rules:` switches on, the only library rules
+    the splice brings in (`_instantiate_rules`)."""
+    return frozenset(
+        ref.name
+        for nd in _walk(game)
+        if isinstance(nd, n.ActiveRules)
+        for ref in nd.refs
+        if ref.delta in ("plain", "add")
+    )
+
+
+def _library_nodes(library: n.Library, game: n.Game) -> list[tuple[object, str]]:
+    """Every node of what `library` brings into `game`, with the definition
+    that holds it, in the designer's words: its move types, functions and
+    procedures, its provided state, and the rules the game activates. A rule
+    no game activates is checked against its library alone (decisions.md
+    "Family libraries")."""
+    activated = _activated_rule_names(game)
+    found: list[tuple[object, str]] = []
     for field, noun in _LIBRARY_DEF_KINDS:
         for definition in getattr(library, field):
+            if field == "rules" and definition.name not in activated:
+                continue
             where = f"{noun} `{definition.name}`"
-            found.extend((nd, where) for nd in _walk(definition) if isinstance(nd, n.Call))
+            found.extend((nd, where) for nd in _walk(definition))
+    if library.state is not None:
+        found.extend((nd, "its provided state") for nd in _walk(library.state))
     return found
+
+
+def _library_calls(library: n.Library, game: n.Game) -> list[tuple[n.Call, str]]:
+    """Every call `library` brings into `game` (`_library_nodes`)."""
+    return [(nd, where) for nd, where in _library_nodes(library, game) if isinstance(nd, n.Call)]
 
 
 def _check_library_clause_gates(
     game: n.Game, use: n.UsesDecl, library: n.Library, bag: DiagnosticBag
 ) -> None:
-    """A library's definitions calling a Builtin that a game clause gates,
-    checked against the game's clauses and reported on its `uses` line.
+    """What a library brings in that a game clause gates, checked against the
+    game's clauses and reported on its `uses` line.
 
-    The Owner Guard for every such call a library brings in: the game's author
-    wrote the `uses` line and lacks the clause, and the call sits in a file they
-    did not write. Each gate's own check stays the Owner Guard for a call the
-    game writes, and is the Shadow Guard for a spliced one, which never reaches
-    it while `resolve` raises on this pass's refusals before splicing on.
+    The Owner Guard for every such construct a library brings in: the game's
+    author wrote the `uses` line and lacks the clause, and the construct sits
+    in a file they did not write. Each gate's own check stays the Owner Guard
+    for what the game writes, and is the Shadow Guard for what is spliced,
+    which never reaches it while `resolve` raises on this pass's refusals
+    before splicing on.
 
-    One refusal per gate, naming every gated Builtin the library calls and
-    where; a Builtin two gates refuse is reported by the first, as the gates
-    themselves do. The fix offered is the game's to make, never an edit to the
-    library, whose author is someone else."""
-    calls = _library_calls(library)
-    claimed: set[str] = set()
+    One refusal per gate, naming everything the library writes that the gate
+    refuses, and where; a construct two gates refuse is reported by the first,
+    as the gates themselves do. The fix offered is the game's to make, never an
+    edit to the library, whose author is someone else."""
+    nodes = _library_nodes(library, game)
+    claimed: set[object] = set()
     for gate in _CLAUSE_GATES:
         if not gate.unmet(game):
             continue
         reached: dict[str, list[str]] = {}
-        for call, where in calls:
-            if call.func in gate.members and call.func not in claimed:
-                places = reached.setdefault(call.func, [])
+        for nd, where in nodes:
+            key = nd.func if isinstance(nd, n.Call) else nd
+            if key in claimed:
+                continue
+            phrases = gate.needs(nd, game)
+            if not phrases:
+                continue
+            claimed.add(key)
+            for phrase in phrases:
+                places = reached.setdefault(phrase, [])
                 if where not in places:
                     places.append(where)
         if not reached:
             continue
-        claimed.update(reached)
         listing = " and ".join(
-            f"`{name}` (in {', '.join(places)})" for name, places in reached.items()
+            f"{phrase} (in {', '.join(places)})" for phrase, places in reached.items()
         )
         verb, _, rest = gate.reads.partition(" ")
         reads = f"{verb}s {rest}" if len(reached) == 1 else gate.reads
         bag.error(
-            f"library '{library.name}' calls {listing}, which {reads}, but "
-            f"{gate.lacks(game)} — {gate.fix}",
+            f"library '{library.name}' {gate.verb} {listing}, which {reads}, but "
+            f"{gate.lacks(game)} — {gate.fix(game)}",
             use.span,
         )
-    _check_library_lines_span(game, use, library, calls, bag)
+    _check_library_lines_span(game, use, library, _library_calls(library, game), bag)
 
 
 def _check_library_lines_span(
@@ -3847,16 +4169,31 @@ def _check_positional_index_range(game: n.Game, bag: DiagnosticBag) -> None:
     at play time instead of here. A computed position, or a collection whose
     length is runtime data, is that guard's alone."""
     for nd in _walk(game):
-        if not (isinstance(nd, n.Subscript) and isinstance(nd.index, n.IntLit)):
+        past = _position_past_end(nd, game)
+        if past is None:
             continue
-        length = _static_length(nd.obj, game)
-        if length is None or nd.index.value < length:
-            continue
+        # A board region's position is `_BOARD_POSITION_GATE`'s test; spliced
+        # from a library, `_check_library_clause_gates` has refused it first.
+        assert isinstance(nd, n.Subscript)
+        index, length = past
         bag.error(
-            f"position {nd.index.value} is past the end: this collection holds "
+            f"position {index} is past the end: this collection holds "
             f"{length}, at positions 0 .. {length - 1}",
             nd.index.span or nd.span,
         )
+
+
+def _position_past_end(node: object, game: n.Game) -> tuple[int, int] | None:
+    """(position, length) for a literal position past the end of a collection
+    whose length the sentence states (`_static_length`), else None. The one
+    test `_check_positional_index_range` asks, and, for a board region,
+    `_BOARD_POSITION_GATE`'s."""
+    if not (isinstance(node, n.Subscript) and isinstance(node.index, n.IntLit)):
+        return None
+    length = _static_length(node.obj, game)
+    if length is None or node.index.value < length:
+        return None
+    return node.index.value, length
 
 
 def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
@@ -7204,8 +7541,10 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
         return  # `_reject_card_content_clauses` already named the kind
     if game.trick_order is None:
         # --- without a block: no gated name may appear -----------------------
+        # A round spliced from a library is `_check_library_clause_gates`'s,
+        # which this loop and the round loops below shadow.
         for rnd in _trick_order_rounds(game):
-            if rnd.winner_fn in TRICK_ORDER_GATED_WINNERS:
+            if _trick_order_reading_slots(rnd, game):
                 others = ", ".join(sorted(TRICK_WINNER_NAMES - TRICK_ORDER_GATED_WINNERS))
                 bag.error(
                     f"round winner {rnd.winner_fn} reads the game's "
@@ -7245,13 +7584,13 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
             game.span,
         )
     for rnd in _trick_order_rounds(game):
-        if rnd.trump is not None:
+        if _round_trump_clauses(rnd, game):
             bag.error(
                 "round `trump` clause beside a `trick_order { }` block — the "
                 "block's `trump:` row is the trump; drop the clause",
                 rnd.span,
             )
-        if rnd.winner_fn in TRICK_ORDER_EXCLUDED_WINNERS:
+        if _trick_order_excluded_winners(rnd, game):
             gated = ", ".join(sorted(TRICK_ORDER_GATED_WINNERS))
             bag.error(
                 f"round winner {rnd.winner_fn} beside a `trick_order {{ }}` "
@@ -7271,28 +7610,18 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 f"clause",
                 rnd.span,
             )
-    # EVERY registered climbing query, not the `ranking:`-reading subset: a
-    # climb query carries its own card order whether it reads `rank_index`
-    # (president's) or hard-codes one (the bigtwo_* and tichu_* engines), and
-    # either way a game naming one beside a Trick Order has two orders that
-    # the engine runs side by side. Derived from the two registries by union
-    # so a query added to either is refused without an edit here.
-    climb_queries = PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
     for nd in _walk(game):
-        if isinstance(nd, n.ClimbRound):
-            for query_slot, fname in (
-                ("combinations", nd.combos_fn),
-                ("follows", nd.follows_fn),
-            ):
-                if fname in climb_queries:
-                    bag.error(
-                        f"climb round `{query_slot} {fname}` beside a "
-                        f"`trick_order {{ }}` block — the climbing round's "
-                        f"queries carry their own order; a game with a Trick "
-                        f"Order cannot also name {fname} (the climb family "
-                        f"reading the Trick Order is issue #251)",
-                        nd.span,
-                    )
+        if not isinstance(nd, n.ClimbRound):
+            continue
+        for query_slot, fname in _climb_queries(nd, game):
+            bag.error(
+                f"climb round `{query_slot} {fname}` beside a "
+                f"`trick_order {{ }}` block — the climbing round's "
+                f"queries carry their own order; a game with a Trick "
+                f"Order cannot also name {fname} (the climb family "
+                f"reading the Trick Order is issue #251)",
+                nd.span,
+            )
     for nd in _walk(game):
         if isinstance(nd, n.Call) and nd.func in TRICK_ORDER_EXCLUDED_FUNCS:
             arg = "pile"
@@ -8708,21 +9037,19 @@ def _check_move_params(
     mt: n.MoveTypeDef,
     bag: DiagnosticBag,
     span: Span | None,
-    has_ranking: bool,
+    game: n.Game,
     positions: frozenset[str],
     directions: frozenset[str],
-    flavor: Flavor,
-    deck: str,
 ) -> None:
     """Totality gate for a parameterized move offered/enumerated in a decision
     (an `offer` statement). Fixed-from-type
     domains (`Suit`/`Suit?`/`Rank`/`Player`) and a single `Card` parameter are
     allowed; a `Card` parameter combined with any other parameter, a
     bounded-`Integer` parameter (deferred), two parameters sharing a name, and
-    a `Rank` parameter in a game with no declared `ranking:` (`has_ranking`)
-    are rejected with a message.
+    a `Rank` parameter in a game with no declared `ranking:`
+    (`_RANK_PARAMETER_GATE`) are rejected with a message.
 
-    `has_ranking` gates only `Rank`: `Player`'s domain is the seats, always
+    The ranking gate covers only `Rank`: `Player`'s domain is the seats, always
     non-empty for a real game, and `Suit`'s is `deck_suits`, always non-empty
     for a real deck — neither can be empty the way `game.ranking` (optional,
     `()` by default) can. Without this gate, a Rank-parameterized move in a
@@ -8733,14 +9060,16 @@ def _check_move_params(
     types = [p.type_name for p in mt.params]
     # A piece game has no suit/rank/card domain to enumerate, so a move
     # parameterized by one has no candidate space. Checked before the
-    # has_ranking / unsupported-domain arms so the diagnostic names the KIND
+    # ranking / unsupported-domain arms so the diagnostic names the KIND
     # (a Rank param in a piece game is a flavor error, not a missing-ranking
-    # one); Player and position domains stay legal.
-    if flavor == "piece":
+    # one); Player and position domains stay legal. Spliced from a library,
+    # `_check_library_clause_gates` has refused both first, by the same gates.
+    if _refuses(_CARD_CONTENT_GATE, mt, game):
         offending = [t for t in types if t in CARD_PARAM_DOMAINS]
         if offending:
             bag.error(
-                f"{content_kind_clause(flavor, deck)} -- move '{mt.name}' has a "
+                f"{content_kind_clause(game.content_flavor, game.deck)} -- "
+                f"move '{mt.name}' has a "
                 f"{offending[0]} parameter, whose domain is the deck's "
                 f"suits/ranks; a piece set enumerates neither",
                 span,
@@ -8803,7 +9132,7 @@ def _check_move_params(
         # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it
         # is already rejected by the elif above and never reaches this branch
         # — only bare `Rank` needs the non-empty-`ranking:` gate.
-        elif t == "Rank" and not has_ranking:
+        elif t == "Rank" and _refuses(_RANK_PARAMETER_GATE, mt, game):
             bag.error(
                 f"move '{mt.name}' has a Rank parameter, but the game declares "
                 f"no ranking: — Rank enumerates the declared ranking, so it "
@@ -9069,10 +9398,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_directions = frozenset(directions_of(game)) if board_minted else frozenset()
     for mt in game.move_types:
         if mt.params:
-            _check_move_params(
-                mt, bag, mt.span, bool(game.ranking),
-                declared_positions, move_directions, game.content_flavor, game.deck,
-            )
+            _check_move_params(mt, bag, mt.span, game, declared_positions, move_directions)
     for nd in _walk(game):
         match nd:
             case n.Call() if (
@@ -9107,9 +9433,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # A deck-reading native call (suit_of, rank_value, a trick-
                 # winner, ...) has nothing to read in a piece game. The generic
                 # calls (top_of, team_of, ...) are absent from DECK_ONLY and
-                # stay legal. This arm and the clause arms below it are the
-                # Shadow Guards of `_check_library_clause_gates` for a call
-                # spliced from a library.
+                # stay legal. This arm and every arm below it that asks a
+                # `_CLAUSE_GATES` row are the Shadow Guards of
+                # `_check_library_clause_gates` for what a library splices in.
                 bag.error(
                     f"{content_kind_clause(game.content_flavor, game.deck)} -- "
                     f"`{nd.func}` reads a card's suit/rank/points, which a piece "
@@ -9193,11 +9519,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"(roadmap.md records the extension)",
                         nd.span,
                     )
-                elif (
-                    nd.index is not None
-                    and role_of(nd.index) is Role.TEAM
-                    and not game.teams
-                ):
+                elif _refuses(_TEAM_STATE_GATE, nd, game):
                     # A team-indexed store in a game with no teams has
                     # an EMPTY key set: it declares fine, holds nothing, and
                     # every later `x[…] := …` hits the runtime key guard far
@@ -9236,9 +9558,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"produces names unknown outcome phase '{nd.phase}'",
                     nd.span,
                 )
+            case n.ForEach() if _refuses(_CELL_RANGE_GATE, nd, game):
+                bag.error(
+                    "`for each cell ...` ranges over the board's cells, but this "
+                    f"game declares no `board:` — {_board_remedy(game)}",
+                    nd.span,
+                )
             case n.ForEach() if (
                 role_of(nd.role) not in _ITERATION_ROLES
                 and nd.role not in iterable_positions
+                # A declared board that minted no cells is refused as a
+                # `board:` clause (`_resolve_board`).
+                and not (_cell_ranges(nd, game) and game.board is not None)
             ):
                 bag.error(
                     f"unknown `for each` role '{nd.role}' (expected one of "
@@ -9258,9 +9589,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"a piece set has none of",
                     nd.span,
                 )
-            case (n.ForEach() | n.Quantifier()) if (
-                role_of(nd.role) is Role.TEAM and not game.teams
-            ):
+            case (n.ForEach() | n.Quantifier()) if _refuses(_TEAM_RANGE_GATE, nd, game):
                 # The team domain of a game with no `teams:` is empty, so the
                 # question would answer itself: `any` false, `all` true, `for
                 # each` never running.
@@ -9446,9 +9775,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"`zones {{ }}` — '{nd.dest.name}' is {what_k}",
                             nd.span,
                         )
-            case n.EpistemicOp() if (
-                game.content_flavor == "piece" and nd.op == "reveal"
-            ):
+            case n.EpistemicOp() if _refuses(_CARD_CONTENT_GATE, nd, game):
                 # `reveal one card from ...` hardcodes the noun "card"; a piece
                 # game has no such statement (the piece twin is grammatically
                 # inexpressible). `shuffle` falls through -- it moves a zone's

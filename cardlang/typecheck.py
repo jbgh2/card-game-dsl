@@ -74,7 +74,7 @@ from cardlang.builtins.functions import (
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.domains import require_role, role_of, role_type
+from cardlang.domains import CARD_PARAM_DOMAINS, require_role, role_of, role_type
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
     Regime,
@@ -245,6 +245,58 @@ RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
 RANKING_TRICK_ORDER_TWINS: frozenset[str] = (
     RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES
 ) & (TRICK_ORDER_EXCLUDED_FUNCS | TRICK_ORDER_EXCLUDED_WINNERS)
+
+
+def ranking_gated_slots(node: object) -> tuple[tuple[str, str], ...]:
+    """The round slots in `node` that read `ranking:`, as (slot, name): a trick
+    round's winner in `RANKING_GATED_WINNERS`, a climbing round's query in
+    `RANKING_GATED_CLIMB_QUERIES`. The one test for the slot gate, asked by
+    `_check_round_ranking` and by resolve's `uses`-line check."""
+    if isinstance(node, n.TrickRound) and node.winner_fn in RANKING_GATED_WINNERS:
+        return (("round winner", node.winner_fn),)
+    if isinstance(node, n.ClimbRound):
+        return tuple(
+            ("climb query", q)
+            for q in (node.combos_fn, node.follows_fn)
+            if q in RANKING_GATED_CLIMB_QUERIES
+        )
+    return ()
+
+
+_CARD_QUERY_SPELLINGS: dict[str, str] = {
+    "set": "cards in ... where",
+    "count": "number of cards in",
+    "any": "any card in",
+    "all": "all cards in",
+}
+
+
+def card_content_forms(node: object) -> tuple[str, ...]:
+    """What in `node` reads a deck card's content, in the designer's words: a
+    move parameter whose domain is a card axis or the card itself
+    (`CARD_PARAM_DOMAINS`), `reveal one card`, a card query, an aggregation
+    over `cards in ...`, a subset query. None of them has a piece-game form.
+    The one test for the flavor gates on these forms, asked by each of them
+    (resolve's move-parameter and reveal arms, this pass's query arms) and by
+    resolve's `uses`-line check."""
+    if isinstance(node, n.MoveTypeDef):
+        return tuple(
+            dict.fromkeys(
+                f"a `{p.type_name}` parameter"
+                for p in node.params
+                if p.type_name in CARD_PARAM_DOMAINS
+            )
+        )
+    if isinstance(node, n.EpistemicOp) and node.op == "reveal":
+        return ("`reveal one card`",)
+    if isinstance(node, n.CardQuery):
+        return (f"`{_CARD_QUERY_SPELLINGS[node.kind]}`",)
+    if isinstance(node, n.Comprehension):
+        fold = "sum of" if node.agg == "sum" else node.agg
+        return (f"`{fold} ... over cards in`",)
+    if isinstance(node, n.SubsetQuery):
+        return ("a subset query",)
+    return ()
 
 
 def _ranking_refusal(subject: str, name: str, instead: str) -> str:
@@ -2018,7 +2070,7 @@ def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> N
     source-slot operands, so `subset` in one of them means an outer binder or
     nothing (resolve's `_BINDER_SCOPE_FIELDS` makes the same split lexically).
     """
-    if env.flavor == "piece":
+    if env.flavor == "piece" and card_content_forms(e):
         # The source phrase spells `cards`, like every other card query, so a
         # piece game meets the same refusal rather than a different one.
         bag.error(
@@ -2355,17 +2407,11 @@ def _check_round_ranking(
     slot, never called, so the Call-site gate cannot see it; without this, a
     no-`ranking:` game naming one checks clean and crashes bare at the first
     trick's resolution."""
-    demanded: list[tuple[str, str]] = []
-    if isinstance(stmt, n.TrickRound) and stmt.winner_fn in RANKING_GATED_WINNERS:
-        demanded.append((f"round winner {stmt.winner_fn}", stmt.winner_fn))
-    if isinstance(stmt, n.ClimbRound):
-        for q in (stmt.combos_fn, stmt.follows_fn):
-            if q in RANKING_GATED_CLIMB_QUERIES:
-                demanded.append((f"climb query {q}", q))
-    if demanded and not env.has_ranking:
-        for subject, name in demanded:
-            instead = f"name {min(TRICK_ORDER_GATED_WINNERS)} as the winner"
-            bag.error(_ranking_refusal(subject, name, instead), stmt.span)
+    if env.has_ranking:
+        return
+    for slot, name in ranking_gated_slots(stmt):
+        instead = f"name {min(TRICK_ORDER_GATED_WINNERS)} as the winner"
+        bag.error(_ranking_refusal(f"{slot} {name}", name, instead), stmt.span)
 
 
 def _check_trick_order(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2567,7 +2613,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_bool(e.where, scoped, bag, "player-query predicate")
         return
     if isinstance(e, n.CardQuery):
-        if env.flavor == "piece":
+        if env.flavor == "piece" and card_content_forms(e):
             # `cards in ... / any card in ... / number of cards in ...` all
             # hardcode the card noun; a piece game has no such form (the piece
             # twin is grammatically inexpressible -- a recorded residual).
@@ -2598,7 +2644,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_subset_query(e, env, bag)
         return
     if isinstance(e, n.Comprehension):
-        if env.flavor == "piece":
+        if env.flavor == "piece" and card_content_forms(e):
             # `sum of ... over cards in ...` and the RANK_DIR order aggregators
             # hardcode "cards"; rejected in a piece game (no piece twin form).
             bag.error(

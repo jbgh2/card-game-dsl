@@ -4966,10 +4966,13 @@ none is coming.
 owns. Both are checked at the `uses` line, so an unmet contract or a collision
 is reported to the game's author rather than as an undeclared name inside
 spliced library text they never typed. So is every game clause the library's
-definitions need: a library calling a Builtin a game clause gates (`ranking:`
-for `rank_value`, say; the gates are `resolve._CLAUSE_GATES`), in a game whose
+definitions need: a library writing what a game clause gates, in a game whose
 clauses refuse it, is refused on the game's `uses` line, naming the library,
-the Builtin and the clause.
+what it writes and the clause. That covers a Builtin call (`ranking:` for
+`rank_value`), and a construct: a `Rank` move parameter, `for each team`, state
+keyed by team, `for each cell`, a card form in a piece game, a round's winner.
+The gates are `resolve._CLAUSE_GATES`, and each row's test is the one its gate
+asks of the game's own text. The rules judged are the ones the game activates.
 
 ```text
 requires {
