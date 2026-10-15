@@ -13,8 +13,8 @@
 //
 // WHAT IS HERE is what all twelve family files hold byte-identically: the
 // commit — the merchant's concealed choice of shipment, forced when one card
-// remains — and the wave. Both name only zones the contract below asks the game
-// to declare.
+// remains — the inspector's response, and the wave. All three name only what
+// the contract below asks the game to declare.
 //
 // WHAT IS DELIBERATELY NOT HERE is `inspect`, and the reason is measured rather
 // than chosen. Across the twelve files `inspect` has ten distinct bodies, from
@@ -26,20 +26,16 @@
 // problem, so no clause on the import would carry them. `inspect` is game-local
 // for exactly the reason `poker_betting` omits `fold`: the move that varies
 // stays with the game, and the library holds the part that is genuinely the
-// same. Each member defines its own `inspect` and offers it beside the imported
-// `wave` in one vocabulary list.
-//
-// The respond half — the offer, and the automatic wave when the inspector holds
-// no token — is identical in all twelve files and is game-local anyway, because
-// it names `inspect`. A library reaches only its own definitions, so a body
-// offering a game's move type would be reaching past its contract.
+// same. Each member defines its own `inspect`, and the library contracts for it
+// so the respond step can offer it beside the library's own `wave`.
 
 library smuggling {
 
   // What the including game must declare. The three zones are the ones these
-  // definitions move cards between; `merchant` is the role pronoun they act
-  // for. `inspector` and `tokens` are deliberately absent — nothing here reads
-  // them, and a contract entry no definition reaches is dead contract.
+  // definitions move cards between; `merchant` and `inspector` are the role
+  // pronouns they act for; `tokens` is what the respond step gates the
+  // inspection on; and `inspect` is the game's own inspection, offered beside
+  // `wave`.
   //
   // A zone type fixes the per-observer projection, so contracting for
   // `HiddenPile` rather than `PublicHand` is this library saying what its
@@ -51,6 +47,9 @@ library smuggling {
     shipment[player]  : HiddenPile<player>
     warehouse[player] : HiddenPile<player>
     merchant          : Player
+    inspector         : Player
+    tokens[player]    : Integer
+    inspect           : Move
   }
 
   // The merchant commits one card face down. With one card left the shipment is
@@ -64,6 +63,17 @@ library smuggling {
       as merchant {
         move chosen 1 card from hand[merchant] to shipment[merchant]
       }
+    }
+  }
+
+  // The inspector's half of a smuggling round, run after `commit_shipment`.
+  // The inspector decides only while they hold a token — with none left the
+  // wave is automatic.
+  procedure respond() {
+    if tokens[inspector] > 0 {
+      offer to inspector one of [inspect, wave]
+    } else {
+      move all cards from shipment[merchant] to warehouse[merchant]
     }
   }
 

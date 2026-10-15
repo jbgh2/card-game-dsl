@@ -64,7 +64,10 @@ game GreenLaneV2bDelayedBountyMini {
     // each pair boundary the escrowed bounties activate — for both players
     // at once, so neither side's bounty is ever fresher than the other's.
     // (Activation must credit tokens BEFORE the escrow is cleared; hence
-    // two passes.)
+    // two passes.) The inspector decides only while they hold a LIVE token;
+    // pending bounties do not count until they activate. No token-based gate
+    // on the merchant's side, deliberately: with token refunds, shipping
+    // order during a disarmed window is strategically live.
     repeat until hand[0] is empty and hand[1] is empty {
       merchant := 0
       inspector := 1
@@ -97,20 +100,6 @@ game GreenLaneV2bDelayedBountyMini {
   }
 
   winner: highest score
-}
-
-// The inspector's half of a smuggling round; the commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang). The
-// inspector decides only while they hold a LIVE token — pending bounties
-// don't count until they activate at the pair boundary. No token-based gate
-// on the merchant's side, deliberately: with token refunds, shipping order
-// during a disarmed window is strategically live.
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
 }
 
 // V2b delta lives here and at the pair boundary in `play`: a false alarm

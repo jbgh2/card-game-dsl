@@ -68,7 +68,10 @@ game GreenLaneV2Bounty {
 
   phase play {
     // Twelve smuggling rounds, roles alternating. Hands shrink in lockstep,
-    // so both empty together after six pairs.
+    // so both empty together after six pairs. There is deliberately NO
+    // token-based gate on the merchant's side: shipping order during a
+    // disarmed window is a live strategic choice precisely because tokens
+    // can flow back.
     repeat until hand[0] is empty and hand[1] is empty {
       merchant := 0
       inspector := 1
@@ -102,20 +105,6 @@ game GreenLaneV2Bounty {
   }
 
   winner: highest score
-}
-
-// The inspector's half of a smuggling round. The commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang), which the phase runs
-// first. The inspector decides only while they hold a token — with none left
-// the wave is automatic. Note there is deliberately NO token-based gate
-// on the merchant's side: shipping order during a disarmed window is a live
-// strategic choice precisely because tokens can flow back.
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
 }
 
 // Spend a token and open the crate. Contraband (K/A: rank_value >= 11) is

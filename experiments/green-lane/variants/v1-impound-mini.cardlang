@@ -88,16 +88,6 @@ game GreenLaneV1ImpoundMini {
   winner: highest score
 }
 
-// The inspector's half of a smuggling round; the commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang).
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
-}
-
 // Spend the token and open the crate. Contraband is seized and scores for
 // the inspector; legal goods are impounded in `cleared` (scoring nobody)
 // and the inspector pays the 5-point fine.

@@ -77,7 +77,12 @@ game GreenLaneV2bDelayedBounty {
     // so both empty together after six pairs. At each pair boundary the
     // escrowed bounties activate — for both players at once, so neither
     // side's bounty is ever fresher than the other's. (Activation must
-    // credit tokens BEFORE the escrow is cleared; hence two passes.)
+    // credit tokens BEFORE the escrow is cleared; hence two passes.) The
+    // inspector decides only while they hold a LIVE token; pending bounties
+    // do not count until they activate at the pair boundary. There is
+    // deliberately NO token-based gate on the merchant's side: shipping order
+    // during a disarmed window is a live strategic choice precisely because
+    // tokens can flow back.
     repeat until hand[0] is empty and hand[1] is empty {
       merchant := 0
       inspector := 1
@@ -113,21 +118,6 @@ game GreenLaneV2bDelayedBounty {
   }
 
   winner: highest score
-}
-
-// The inspector's half of a smuggling round. The commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang), which the phase runs
-// first. The inspector decides only while they hold a LIVE token — with none
-// left the wave is automatic, and pending bounties do not count until they
-// activate at the pair boundary. There is deliberately NO token-based gate on
-// the merchant's side: shipping order during a disarmed window is a live
-// strategic choice precisely because tokens can flow back.
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
 }
 
 // Spend a token and open the crate. Contraband (K/A: rank_value >= 11) is

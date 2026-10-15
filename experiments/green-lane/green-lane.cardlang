@@ -100,18 +100,6 @@ game GreenLane {
   winner: highest score
 }
 
-// The inspector's half of a smuggling round. The commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang), which the phase runs
-// first. The inspector decides only while they hold a token — with none left
-// the wave is automatic.
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
-}
-
 // Spend a token and open the crate. Contraband (K/A: rank_value >= 11) is
 // seized and will score for the inspector, and the merchant is fined 4.
 // Legal goods clear publicly and the inspector pays the 4-point fine.
