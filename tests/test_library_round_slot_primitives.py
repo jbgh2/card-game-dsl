@@ -5,9 +5,12 @@ property:   a round written in family-library text names in each query slot
             Primitives. A Primitive the slot accepts is refused to the
             library's author, in the library file, with the call position's
             rule and a fix that checks clean: the round written in the game.
-            Every other name meets the verdict the game-written round meets,
-            located in the library file -- a Builtin is accepted, and a name
-            the slot does not accept earns the slot's own refusal. No other
+            Every other name meets the verdict the game-written round meets:
+            a Builtin is accepted, a name the slot does not accept earns the
+            slot's own refusal at the library's span, and a name a game
+            clause decides is refused on the importer's `uses` line. A
+            Primitive's refusal stands alone: no game-clause gate judges a
+            round the library may not hold. No other
             reference namespace a library reaches admits a Primitive, so
             these slots and the call position are the whole class.
 domain:     query slot x name. The slot axis is every `_REFERENCE_SLOTS` row
@@ -51,7 +54,10 @@ does not prove:  that the game-written verdict is right -- it is the
             that refusal alone. Nor that the namespaces `_LIBRARY_UNSWEPT`
             holds as guarded elsewhere or designed name no Primitive: their
             names come from the importing game's own declarations, which the
-            class pin does not read.
+            class pin does not read. Nor the wording of a game-clause refusal
+            a cell meets on the importer's `uses` line: the cell checks that
+            it names the library and the name, and
+            tests/test_library_clause_gates.py holds the rest.
 """
 
 from __future__ import annotations
@@ -292,8 +298,17 @@ def test_a_library_round_slot_names_what_the_game_may_name_less_the_primitives(
         assert [message for _, message in got] == refused
         assert {source for source, _ in got} == {_LIBRARY_FILE}
     else:
-        assert [message for _, message in got] == [message for _, message in oracle]
-        assert all(source == _LIBRARY_FILE for source, _ in got)
+        # The game-written verdict: a name the slot does not accept earns the
+        # slot's own refusal at the library's span, and a name a game clause
+        # decides is the importer's, on its `uses` line, naming the library
+        # (tests/test_library_clause_gates.py owns that wording).
+        assert bool(got) == bool(oracle)
+        in_library = [message for source, message in got if source == _LIBRARY_FILE]
+        in_game = [message for source, message in got if source != _LIBRARY_FILE]
+        if in_library:
+            assert in_library == [message for _, message in oracle] and not in_game
+        else:
+            assert all(m.startswith(f"library '{_LIB}' ") and name in m for m in in_game)
 
 
 @pytest.mark.parametrize("form", [pytest.param(f, id=f.__name__) for f in _HOSTS])
@@ -407,9 +422,9 @@ def test_the_refusal_precedes_the_clause_gates_on_climb_queries(
     gate on climb queries refuses: the library is wrong whatever imports it,
     so its author hears that first and alone -- the clause question is the
     importer's only once the library names something a game may supply.
-    red under: a `uses`-line gate in `_check_library_clause_gates` reporting a
-    library's climb queries without asking whether the library-alone check
-    refused them (executed 2026-10-14 for the `trick_order` trigger)."""
+    red under: dropping the `_round_slot_primitives` filter from the nodes
+    `_check_library_clause_gates` judges (executed 2026-10-15, both
+    triggers)."""
     queries, (old, new) = _CLAUSE_TRIGGERS[trigger]
     _patch(monkeypatch, _CLIMB.library_text(_CLIMB.round(queries)))
     text = _CLIMB.game_text(uses=True, game_local_round=None)

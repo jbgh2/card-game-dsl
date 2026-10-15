@@ -1808,8 +1808,15 @@ def _check_library_clause_gates(
     One refusal per gate, naming everything the library writes that the gate
     refuses, and where; a construct two gates refuse is reported by the first,
     as the gates themselves do. The fix offered is the game's to make, never an
-    edit to the library, whose author is someone else."""
-    nodes = _library_nodes(library, game)
+    edit to the library, whose author is someone else.
+
+    A round naming a Primitive in a query slot (`_round_slot_primitives`) is
+    the library's own fault whatever imports it, refused to its author by
+    `check_library_alone`; no gate here judges that round, so the refusal
+    stands alone and no clause is asked of the game for a round the library
+    may not hold."""
+    refused = {id(nd) for nd, _ in _round_slot_primitives(library)}
+    nodes = [(nd, where) for nd, where in _library_nodes(library, game) if id(nd) not in refused]
     claimed: set[object] = set()
     for gate in _CLAUSE_GATES:
         if not gate.unmet(game):
