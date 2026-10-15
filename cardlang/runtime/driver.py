@@ -163,6 +163,16 @@ def seat_scores_of(
 RANK_DIR_TO_PICK: dict[str, Callable[..., Any]] = {"highest": max, "lowest": min}
 
 
+def declared_suit_values(game: n.Game) -> dict[str, int]:
+    """The game's Suit Ranking as a table: each listed suit's strength, the
+    weakest listed suit 0. The one load site of `rs.suit_values`, read by the
+    `suit_value(s)` Builtin alone. Empty for a game declaring no clause."""
+    if game.suit_ranking is None:
+        return {}
+    suits = game.suit_ranking.suits
+    return {s: len(suits) - 1 - i for i, s in enumerate(suits)}
+
+
 def declared_card_points(game: n.Game) -> dict[str, int]:
     """The game's card-point table, materialized over the deck's ranks: the
     `card_points { }` rows verbatim, every unlisted rank at the `else:` value
@@ -369,6 +379,7 @@ def play_game(
     # game's own `card_points { }` clause — the ONE source; the deck registry
     # carries no point table (empty for games that score by other means).
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
+    rs.suit_values = declared_suit_values(game)
     rs.card_points = declared_card_points(game)
     rs.trick_order = declared_trick_order(game)
     rs.declared_primitives = declared_primitives(game)

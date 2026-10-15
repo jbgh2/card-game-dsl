@@ -30,6 +30,7 @@ game Bridge {
 
   cards: standard52
   ranking: aces high
+  suit ranking: spades hearts diamonds clubs
 
   zones {
     deck              : Deck
@@ -236,8 +237,11 @@ move_type redouble {
 // `submit_bid` guard and its effect compute the identical level from one place
 // (they must agree: a bid the guard admits is the level the effect writes).
 function next_level(s : Suit?) = if cur_level is 0 then 1
-                                 elif strain_index(s) > strain_index(cur_strain) then cur_level
+                                 elif strain_rank(s) > strain_rank(cur_strain) then cur_level
                                  else cur_level + 1
+
+// A bid's strain: the suits as the game ranks them, no-trump above them all.
+function strain_rank(s : Suit?) = if s is none then 4 else suit_value(s)
 
 // Delegated Play (decisions.md "Delegated play"): dummy's tricks are played
 // from the exposed hand, and declarer decides them. Every other seat decides

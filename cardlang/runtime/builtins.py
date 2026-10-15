@@ -35,7 +35,7 @@ from typing import Any
 from cardlang.runtime import reads, trick_order, winners
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, IllegalMove
-from cardlang.runtime.values import SUITS, Card, Player, rank_strength
+from cardlang.runtime.values import Card, Player, rank_strength, suit_strength
 from cardlang.stdlib.boards import BoardEntry
 
 
@@ -78,8 +78,8 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return ctx.rs.team_of[args[0]]
         case "suit_of":
             return _suit_of(args[0])
-        case "strain_index":
-            return _strain_index(args[0])
+        case "suit_value":
+            return suit_strength(ctx.rs.suit_values, args[0], "suit_value")
         case "error":
             raise IllegalMove(args[0] if args else "illegal move")
         case "rank_value":
@@ -266,13 +266,6 @@ def _far_row(ctx: Ctx, player: int) -> tuple[str, ...]:
     """The rank at the far edge of `player`'s frame (the reach-to-win goal)
     -- a Collection<Cell>."""
     return _board_of(ctx, "far_row").far_row(_seat(ctx, "far_row", player))
-
-
-def _strain_index(strain: str | None) -> int:
-    """The bidding rank of a strain: clubs<diamonds<hearts<spades<no-trump. A
-    suit's ordinal in the deck's suit order; `none` (no-trump) ranks above every
-    suit. Used by an ascending contract auction's bids to compare strains."""
-    return len(SUITS) if strain is None else SUITS.index(strain)
 
 
 def _suit_of(value: Any) -> str:

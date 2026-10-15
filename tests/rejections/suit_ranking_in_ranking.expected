@@ -1,0 +1,1 @@
+suit_ranking_in_ranking.cardlang:8:3: error: a game ranks its suits in a clause of their own — write `suit ranking: spades hearts diamonds clubs`, strongest first; `ranking:` orders ranks
