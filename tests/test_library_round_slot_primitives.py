@@ -423,8 +423,7 @@ def test_the_refusal_precedes_the_clause_gates_on_climb_queries(
     so its author hears that first and alone -- the clause question is the
     importer's only once the library names something a game may supply.
     red under: dropping the `_round_slot_primitives` filter from the nodes
-    `_check_library_clause_gates` judges (executed 2026-10-15, both
-    triggers)."""
+    `resolve._library_nodes` yields (executed 2026-10-15, both triggers)."""
     queries, (old, new) = _CLAUSE_TRIGGERS[trigger]
     _patch(monkeypatch, _CLIMB.library_text(_CLIMB.round(queries)))
     text = _CLIMB.game_text(uses=True, game_local_round=None)
@@ -432,4 +431,27 @@ def test_the_refusal_precedes_the_clause_gates_on_climb_queries(
     got = _diagnostics(text.replace(old, new), _CLIMB.game)
     assert got == [
         (_LIBRARY_FILE, _primitive_rule(name)) for name in queries.values() if name
+    ]
+
+
+def test_a_gated_call_inside_a_refused_round_asks_the_importer_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The refused round is left out whole: a `ranking:`-gated call in its own
+    `until`, in an importer that declares no `ranking:`, adds no `uses`-line
+    refusal beside the library author's.
+
+    red under: leaving out only the round node itself, not its subtree, in
+    `resolve._library_nodes` (executed 2026-10-15: the `rank_value` call drew
+    a second, `uses`-line refusal)."""
+    until = "until (any player where hand[player] is empty)"
+    gated = "until (any card in trick_pile where rank_value(card) > 13)"
+    round_text = _CLIMB.round(_CLIMB.defaults)
+    assert round_text.count(until) == 1
+    _patch(monkeypatch, _CLIMB.library_text(round_text.replace(until, gated)))
+    text = _CLIMB.game_text(uses=True, game_local_round=None)
+    assert text.count(_CLIMB.clauses) == 1
+    got = _diagnostics(text.replace(_CLIMB.clauses, ""), _CLIMB.game)
+    assert got == [
+        (_LIBRARY_FILE, _primitive_rule(name)) for name in _CLIMB.defaults.values() if name
     ]

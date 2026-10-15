@@ -1773,15 +1773,18 @@ def _library_nodes(library: n.Library, game: n.Game) -> list[tuple[object, str]]
     that holds it, in the designer's words: its move types, functions and
     procedures, its provided state, and the rules the game activates. A rule
     no game activates is checked against its library alone (decisions.md
-    "Family libraries")."""
+    "Family libraries"). Nor is a round naming a Primitive in a query slot,
+    with everything inside it: `check_library_alone` refuses that round to the
+    library's author whatever imports it, so no game is asked a clause for it."""
     activated = _activated_rule_names(game)
+    refused = {id(sub) for nd, _ in _round_slot_primitives(library) for sub in _walk(nd)}
     found: list[tuple[object, str]] = []
     for field, noun in _LIBRARY_DEF_KINDS:
         for definition in getattr(library, field):
             if field == "rules" and definition.name not in activated:
                 continue
             where = f"{noun} `{definition.name}`"
-            found.extend((nd, where) for nd in _walk(definition))
+            found.extend((nd, where) for nd in _walk(definition) if id(nd) not in refused)
     if library.state is not None:
         found.extend((nd, "its provided state") for nd in _walk(library.state))
     return found
@@ -1812,11 +1815,10 @@ def _check_library_clause_gates(
 
     A round naming a Primitive in a query slot (`_round_slot_primitives`) is
     the library's own fault whatever imports it, refused to its author by
-    `check_library_alone`; no gate here judges that round, so the refusal
-    stands alone and no clause is asked of the game for a round the library
-    may not hold."""
-    refused = {id(nd) for nd, _ in _round_slot_primitives(library)}
-    nodes = [(nd, where) for nd, where in _library_nodes(library, game) if id(nd) not in refused]
+    `check_library_alone`; `_library_nodes` leaves that round and everything
+    inside it out, so the refusal stands alone and no clause is asked of the
+    game for a round the library may not hold."""
+    nodes = _library_nodes(library, game)
     claimed: set[object] = set()
     for gate in _CLAUSE_GATES:
         if not gate.unmet(game):
