@@ -72,11 +72,14 @@ does not prove:  Which pick a person should make. Who plays the other seats is
 from __future__ import annotations
 
 import argparse
+import builtins
+import errno
 import io
 import json
 import os
 import re
 import shlex
+import stat
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -547,6 +550,60 @@ def test_an_engine_failure_mid_session_keeps_the_picks_before_it(
     assert len(_saved(saved)["history"]) == 3 + 4
 
 
+def _owner_may(path: Path, bit: int) -> bool:
+    """Whether the mode bits of `path` grant its owner `bit`; a path that does
+    not exist is left for the operating system to refuse."""
+    try:
+        return bool(os.stat(path).st_mode & bit)
+    except FileNotFoundError:
+        return True
+
+
+def _denied(path: Any) -> PermissionError:
+    return PermissionError(errno.EACCES, os.strerror(errno.EACCES), os.fsdecode(path))
+
+
+@pytest.fixture
+def permissions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """File permissions held to a path's mode bits for the user the tests run as.
+
+    Root bypasses the mode bits, so a directory or file these tests lock stays
+    open to it and the refusal under test never happens. Under root, creating a
+    file in a directory, opening a file for reading, and `os.access` are
+    answered from the owner bits, which is what the operating system enforces
+    for the owner who is not root; every path these tests lock is the test
+    user's own. For any other user the operating system enforces them itself
+    and this fixture changes nothing."""
+    if os.geteuid() != 0:
+        return
+    real_os_open = os.open
+    real_io_open = io.open
+
+    def os_open(path: Any, flags: int, mode: int = 0o777, *, dir_fd: int | None = None) -> int:
+        if flags & os.O_CREAT and not _owner_may(Path(os.fsdecode(path)).parent, stat.S_IWUSR):
+            raise _denied(path)
+        return real_os_open(path, flags, mode, dir_fd=dir_fd)
+
+    def io_open(file: Any, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        if (
+            isinstance(file, (str, bytes, os.PathLike))
+            and mode.startswith("r")
+            and not _owner_may(Path(os.fsdecode(file)), stat.S_IRUSR)
+        ):
+            raise _denied(file)
+        return real_io_open(file, mode, *args, **kwargs)
+
+    bits = {os.R_OK: stat.S_IRUSR, os.W_OK: stat.S_IWUSR, os.X_OK: stat.S_IXUSR}
+
+    def access(path: Any, mode: int, **kwargs: Any) -> bool:
+        return all(_owner_may(Path(os.fsdecode(path)), bit) for flag, bit in bits.items() if mode & flag)
+
+    monkeypatch.setattr(os, "open", os_open)
+    monkeypatch.setattr(io, "open", io_open)
+    monkeypatch.setattr(builtins, "open", io_open)
+    monkeypatch.setattr(os, "access", access)
+
+
 class _LockingKeyboard(_Keyboard):
     """A keyboard that makes `folder` unwritable once it has read `lines`
     lines."""
@@ -565,6 +622,7 @@ class _LockingKeyboard(_Keyboard):
 
 
 @pytest.mark.parametrize("kept", [0, 1])
+@pytest.mark.usefixtures("permissions")
 def test_a_save_that_fails_mid_session_is_refused_with_the_last_save_kept(
     kept: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1053,6 +1111,7 @@ def test_every_file_option_and_kind_of_path_is_authored() -> None:
 
 
 @pytest.mark.parametrize(("option", "kind"), sorted(_FILE_EXPECTED))
+@pytest.mark.usefixtures("permissions")
 def test_each_kind_of_path_a_file_option_names(
     option: str,
     kind: str,
