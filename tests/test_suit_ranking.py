@@ -19,7 +19,7 @@ property:        every sentence written in the clause's position is accepted
                  with no clause; a declared clause moves no Suit domain.
 domain:          every deck in `DECKS`, crossed with the list forms (every
                  suit, the declared suits alone, each declared suit left
-                 out, a repeat) and the wrong-name kinds (an unknown name,
+                 out, each special suit left out, a repeat) and the wrong-name kinds (an unknown name,
                  `none`, a rank of the deck, a suit only another deck has, a
                  rank convention); every `n.Game` field as a reader position,
                  each a vehicle or a reason it holds no call, crossed with
