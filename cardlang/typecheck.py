@@ -1893,7 +1893,7 @@ def _card_field_hint(
     otherwise."""
     if not isinstance(_bare(got), TCard):
         return ""
-    fits = [f for f, t in CARD_FIELDS.items() if coercible(t, want)]
+    fits = [f for f, t in CARD_FIELDS.items() if t == _bare(want)]
     if len(fits) != 1:
         return ""
     field = fits[0]
