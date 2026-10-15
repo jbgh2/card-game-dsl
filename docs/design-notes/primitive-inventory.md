@@ -248,7 +248,7 @@ reserved slots.
   `canasta_black3_ok`, `canasta_add_ok`, `initial_minimum`, `canasta_bonus_for`,
   `nob_score`, `flush_score`, `_pool` (500), tarot `_is_bout` (already duplicated
   in the game file), `tarot_per_opp` (except its half-even rounding). Builtin →
-  stdlib candidates: `team_of`, `rank_value`, `card_value`, `strain_index`,
+  stdlib candidates: `team_of`, `rank_value`, `card_value`, `suit_value`,
   `suit_of` (caveat: dispatches on Card-or-zone shape). Not migratable: `error`
   (control flow), the six board arms (read `rs.board`).
 

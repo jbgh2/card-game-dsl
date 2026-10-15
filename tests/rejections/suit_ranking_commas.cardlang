@@ -1,0 +1,15 @@
+// Guard: parse.py's `suit_ranking_comma_reject` (diagnostics.lark). The
+// clause separates its suits with spaces, as `ranking:` does; the list habit
+// puts commas there.
+game SuitRankingCommas {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  suit ranking: spades, hearts, diamonds, clubs
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := suit_value(spades)
+  }
+  winner: highest score
+}

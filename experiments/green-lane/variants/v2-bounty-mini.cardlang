@@ -39,6 +39,7 @@ game GreenLaneV2BountyMini {
                                      // alarms hand one to the merchant, so a
                                      // player can hold 0..2
     fine_net[player] : Integer = 0   // fines received minus fines paid
+    fine             : Integer = 4   // what a seizure costs the merchant
     merchant         : Player  = 0   // this round's shipper
     inspector        : Player  = 1   // this round's customs officer
     score[player]    : Integer = 0   // settled once, in scoring
@@ -57,7 +58,9 @@ game GreenLaneV2BountyMini {
   }
 
   phase play {
-    // Six smuggling rounds, roles alternating; hands shrink in lockstep.
+    // Six smuggling rounds, roles alternating; hands shrink in lockstep. No
+    // token-based gate on the merchant's side, deliberately: with token
+    // refunds, shipping order during a disarmed window is strategically live.
     repeat until hand[0] is empty and hand[1] is empty {
       merchant := 0
       inspector := 1
@@ -90,36 +93,17 @@ game GreenLaneV2BountyMini {
   winner: highest score
 }
 
-// The inspector's half of a smuggling round; the commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang). No
-// token-based gate on the merchant's side, deliberately: with token
-// refunds, shipping order during a disarmed window is strategically live.
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
-}
-
+// The inspection is the imported `inspect` (docs/libraries/smuggling.cardlang);
+// this game supplies what counts as contraband, the fine, and what a false
+// alarm costs.
 // V2 delta lives here: a false alarm transfers the spent token to the
 // merchant (bounty) and the fine drops to 2; contraband is unchanged.
-move_type inspect {
-  when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
-  effect {
-    tokens[actor] -= 1
-    reveal one card from shipment[merchant]
-    // Contraband: rank_value >= 12 — textually the same threshold as the
-    // setup filter above, so the two sites cannot drift apart.
-    if any card in shipment[merchant] where rank_value(card) >= 12 {
-      move all cards from shipment[merchant] to seized[actor]
-      fine_net[merchant] -= 4
-      fine_net[actor] += 4
-    } else {
-      move all cards from shipment[merchant] to cleared[merchant]
-      tokens[merchant] += 1
-      fine_net[merchant] += 2
-      fine_net[actor] -= 2
-    }
-  }
+// Contraband: rank_value >= 12 — textually the same threshold as the
+// setup filter above, so the two sites cannot drift apart.
+function is_contraband(card : Card) = rank_value(card) >= 12
+
+procedure settle_false_alarm() {
+  tokens[merchant] += 1
+  fine_net[merchant] += 2
+  fine_net[inspector] -= 2
 }

@@ -671,6 +671,39 @@ game whose strength depends on the trick's context declares a
 answer — a card whose IDENTITY changes with context, Tichu's Phoenix — stays
 open ([open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md)).
 
+## The `suit ranking:` declaration
+
+`suit ranking:` declares the game's Suit Ranking, strongest first and
+space-separated, as `ranking:` declares ranks: `suit ranking: spades hearts
+diamonds clubs`. It is optional; `suit_value(s : Suit) : Integer` is its one
+reader, numbering the weakest listed suit 0, and a card is ranked by
+`suit_value(card.suit)`. There is no convention form: the closed set of rank
+conventions has no suit analogue, and a convention written here is refused
+naming `ranking:`.
+
+The list names every suit the deck declares (`Deck.suits`), each once, and may
+leave out the deck's **special suits**, its card suits beyond the declared
+ones (a 54-card deck's joker, Tarot's `atouts` and `excuse`, Tichu's
+`special`). A declared suit left out is refused at check time, naming it; a
+card of a left-out special suit reaching `suit_value` is refused when the game
+runs, naming the suit and the declared list, because which cards reach the
+read is a fact of zone contents (the partial-`ranking:` rule, for suits).
+
+**The clause reorders nothing.** Unlike `ranking:`, which orders and narrows
+the `Rank` move-parameter domain, `suit ranking:` leaves the `Suit` and
+`Suit?` move-parameter domains and `for each suit` / `any suit where` in deck
+order, so a Suit parameter's OpenSpiel action ids are the same with the clause
+and without it (Bridge's `submit_bid(strain : Suit?)` is the witness). The
+order is public and static, so it moves no information set.
+
+A clause nothing reads is refused (the `trump:` rule): some `suit_value` call
+must be written in the game or a library it uses. A `suit_value` call in a game
+declaring no clause is refused at the call, or on the `uses` line when a
+library makes it ("Family libraries"). A game whose strength order depends on
+the trick's context, the trump suit above all, declares a `trick_order { }`;
+its rows may read `suit_value` for the part of the order that is fixed (Skat's
+and Doppelkopf's jacks and queens, clubs high).
+
 ## Declared parameter domains
 
 A `move_type` may take any number of parameters (Go Fish's `ask(target :
@@ -4914,7 +4947,11 @@ Resolution is flat and two-level: game, then the named libraries, then the
 stdlib. There is no library-imports-library. Imports are pure name resolution —
 `resolve` splices each named library's move types, functions, procedures and
 provided state into the game before any other name check runs, so what flows on
-is one flat game and no later pass knows imports exist. A library's rules splice
+is one flat game. No later pass knows imports exist, with one recorded fact as
+the exception: where a Definition Contract crosses the splice (below), the
+answering definition and the library's calls of it carry the row, so `typecheck`
+can check the row's result type and report it on the game's `uses` line. A
+library's rules splice
 where a game's `active_rules:` names them instead, after the game's own rules —
 one splice, driven by activation, for every tier's rules alike. A rule template
 no game instantiates is therefore not an error, and a rule no game activates is
@@ -5040,11 +5077,14 @@ author needs. Post-splice a required name is just a variable declared later,
 and "declare it earlier" is advice a library author cannot take. Give the
 provided variable a literal default and set it from the contract in a phase.
 
-**A contract names state, a zone or a move type, and the type says
-which.** A `requires` entry's type is read against two registries — the
-state types, and the stdlib zone types — plus the one word `Move`, and the
-three are disjoint, so which of the game's declaring blocks answers an entry
-is derived rather than declared:
+**A contract names state, a zone, or a definition the game defines, and the
+row's shape says which.** A row with a parameter list is a Definition Contract
+for a definition the library CALLS: a function, typed by its result, or a
+procedure, typed `Procedure`. A row without one is keyed, and its type is read
+against two registries — the state types, and the stdlib zone types — plus the
+one word `Move`, for a move type the library OFFERS by name and never passes
+arguments. The three are disjoint, so which of the game's declaring blocks
+answers a row is derived rather than declared:
 
 ```text
 requires {
@@ -5053,28 +5093,63 @@ requires {
   merchant          : Player              // answered from its `state { }`
   raise_cap         : Integer
   fold              : Move                // answered by its `move_type fold { }`
+  is_contraband(card : Card) : Boolean    // by its `function is_contraband(…) = …`
+  settle_false_alarm() : Procedure        // by its `procedure settle_false_alarm() { … }`
 }
 ```
 
-A move-type contract is how a library presents a move the family leaves to
-the game: `poker_betting`'s street offers `fold` beside the four betting
-moves it defines, and folding touches the game's own zones, so the game
-defines it and the contract says the library will offer it. The game's own
-definition is the one answer — a library may not both define and require a
-move type, and one library's definition does not answer another's contract,
-exactly as for state. A move type is a definition rather than a keyed value,
-so its row carries neither an index nor a type argument; the declaration
-keyword itself (`fold : move_type`) parses in the slot and is refused by
-name, with the word to write.
+A Definition Contract is how a library holds a move whose parts the family
+leaves to the game. `poker_betting`'s street offers the game's `fold` beside
+the four betting moves it defines, because which cards a fold disposes of is
+the game's; `smuggling`'s `inspect` calls the game's `is_contraband` and runs
+its `settle_false_alarm`, because which goods are contraband and what a false
+alarm costs are the game's. The kinds a row can name are derived
+(`resolve.CONTRACT_KINDS`): every definition kind some library text can name.
+A rule is the kind it excludes, since only a game's `active_rules:` names a
+rule, and `x : Rule` is refused saying so.
+
+The game's own definition is the one answer — a library may not both define
+and require one, and one library's definition does not answer another's
+contract, exactly as for state. A Builtin needs no row (the library calls it
+directly), and a row may not take a Primitive's or a round callback's spelling,
+so a game's `primitives { }` entry never answers a function row. The game's
+definition matches the row by parameter POSITION and by the exact spelling of
+each parameter's type, `?` included; the row's parameter names are its own
+reading, since the library never names the game's binders. A function's result
+is inferred from its body, never declared, so it is checked against the row's
+result by the ordinary coercion rule in `typecheck`, which reads it off the
+stamp the splice leaves (above). Every one of these mismatches is reported once,
+on the game's `uses` line: the library's own calls are typed against the row,
+not against the game's answer, so a wrong answer earns no second report inside
+library text the game's author never wrote. One definition may answer rows of
+several libraries, and each row is checked on its own library's `uses` line; a
+name one library's row makes the game define, and another library brings in,
+is refused on that second `uses` line, since the two libraries do not combine
+and the game cannot rename its answer. The rest follows from the language
+around the row. A procedure may not run another, so a procedure row is run
+from a library move type's effect. A definition the library calls cannot be
+handed a new argument from the game's side, so the refusal of a call-site
+pronoun inside one sends the game's author to the parameter the row passes. A
+call cycle that crosses the splice is the game's to break, since its
+definition closed the cycle, and it is reported there.
 
 The spellings do not cross. A zone type carries the `<owner>` argument; a
-state type and `Move` carry none; no row is optional, so no row carries a
-`?` — the grammar has no spelling for one. An argument on a state or move row
-is refused against the LIBRARY ALONE, before any game is consulted, because
-it names a shape no `zones { }`, `state { }` or `move_type` line could
-answer — as are an owner argument disagreeing with the
-index, an owned zone type with no index, and an index that is a position
-domain rather than a seat or team. A library declares no `positions { }` and
+state type and `Move` carry none. A `?` is a type's nullability, never a
+row's optionality — no row is optional — so it appears only on a signature
+row's parameter or result type, where a function's own parameter could carry
+it. A keyed row's grammar has no spelling for one. An argument on a state or
+move row, a kind spelled where a type belongs (`fold : move_type`,
+`respond : Procedure`, `x : Function`), a signature on a move row
+(`fold() : Move`), a parameter type no definition of the row's kind could
+declare, and a function result that is not a value type are all refused
+against the LIBRARY ALONE, before any game is consulted, naming the row to
+write — as are an owner argument disagreeing with the index, an owned zone
+type with no index, and an index that is a position domain rather than a seat
+or team. So is a move row the library never offers, or a procedure row it
+never runs, because the game's answer would be refused as never offered or
+never run and no game could meet the row. The declaration keyword at the
+head of a row (`function is_contraband(card : Card) : Boolean`) is refused at
+parse, with the row it should be. A library declares no `positions { }` and
 cannot name one, so a position-indexed zone family cannot be contracted at
 all.
 
@@ -5210,8 +5285,9 @@ and the state its definitions own — but no zones and no phases — because tha
 as far as the corpus has forced it, not because a library is a lesser kind of
 thing than a game. The boundary moves as sibling games need to share more.
 Within today's boundary the corpus forced a sharper line, and the line is about
-VARIATION rather than about zones: **the move that differs across the family
-stays game-local; the library holds what every member holds identically.**
+VARIATION rather than about zones: **what differs across the family stays
+game-local; the library holds what every member holds identically, and
+contracts for the game's part of it.**
 
 `poker_betting` holds check, bet, call, raise and the `can_act`/`owes`/`pending`
 ring predicates — all of which move chips and nothing else, over the reading of
@@ -5223,15 +5299,15 @@ observation. Each game defines its own `fold`, and the library contracts
 for it (`requires { fold : Move }`) so its street can offer it beside the
 imported moves.
 
-`smuggling` draws the same line one family over, and the measurement is what
-draws it. Across the twelve smuggling files `commit_shipment` and `wave` are
-byte-identical and both move cards, so both are in the library; `inspect` has ten
-distinct bodies and is game-local. Those ten decompose into three orthogonal
-deltas — the fine (a per-game constant), the contraband predicate (a card
-predicate), and the bounty (an added statement) — and only the first is
-something a declaration could carry. So "touches a zone" was never the criterion:
-a move touching a CONTRACTED zone belongs in the library, and a move that varies
-does not, however zone-free it is.
+`smuggling` draws the same line one family over, at a finer grain. Its members'
+inspections differ in three orthogonal ways — the fine (a per-game constant),
+the contraband test (a card predicate), and what a false alarm costs (a
+statement block, carrying a bounty in some members) — and each is a part a
+contract row can name: the fine is required state, the test a function row,
+the false alarm a procedure row. So the whole round is in the library,
+`inspect` included, and each member supplies the three parts. "Touches a zone"
+was never the criterion: a move touching a CONTRACTED zone belongs in the
+library, and what varies stays the game's, however small the part.
 
 **Parameterization rides on state and on procedure arguments, not on the
 import.** Family members differ by constants, and where the constant lives
@@ -5253,17 +5329,15 @@ repeated at five sites that were otherwise identical.
 **A second family was measured against this rule and did not break it, but it
 did narrow what the rule is about.** The smuggling family's members differ in
 three ways, and only one is parameterization at all: a fine (a per-game
-constant, which required state carries), a contraband predicate, and an added
-statement. The last two are not constants of any kind, so no clause on the
-import would carry them either — a `with` clause is not what that family wants.
-What it wants, if anything, is a contract over DEFINITIONS: a required function
-would let the varying predicate be the game's while the move stayed shared, and
-a required move type would let the family share the offer step that is already
-byte-identical in every member. That is issue #189, and it is a different
-question from #178's — a definition is a NAME, in a namespace `requires` does
-not reach, where #178 asks whether a contract can express a capability at all.
-Recorded here so the next reader does not re-derive a `with` clause from the
-same evidence.
+constant, which required state carries), a contraband predicate, and a
+false-alarm cost that is statements. The last two are not constants of any
+kind, so no clause on the import would carry them either — a `with` clause is
+not what that family wants. What it wants is a contract over DEFINITIONS: the
+function and procedure rows above, which let the varying predicate and
+statements be the game's while the move stays shared. That is a different
+question from #178's — a definition is a NAME the game declares, where #178 asks
+whether a contract can express a capability at all. Recorded here so the next
+reader does not re-derive a `with` clause from the same evidence.
 
 **A member offers a subset of the family vocabulary, at no cost.** Importing a
 library is not a commitment to use all of it: Kuhn's `offering` list is
@@ -5307,14 +5381,14 @@ missing mechanism rather than a boundary — hence zone contracts — and the se
 half stands: state declarations are shared by being contracted, never by being
 held, so each member still writes its own.
 
-What the build measured, over all twelve files: `zones { }`, `commit_shipment`
-and `wave` are byte-identical everywhere; `state { }` varies in one default and
-one added variable; `phase play` varies in two lines; `phase scoring` in four;
-and `inspect` has ten bodies. The library ends up holding the commit, the wave
-and a four-entry contract — about an eighth of each file. The family shares
-roughly nine tenths of its text, so **most of what these siblings have in common
-is material this tier cannot hold at all**: zones (contracted, not shared),
-state declarations (likewise), the phase tree, and the varying move.
+What the build measured, over all twelve files: `zones { }`, `commit_shipment`,
+`respond` and `wave` are byte-identical everywhere; `state { }` varies in one
+default and one added variable; `phase play` varies in two lines; `phase
+scoring` in four; and `inspect` has ten bodies that differ only in the three
+parts above. The library holds the whole round — the commit, the respond step,
+the wave and the inspection — and the contract they reach. Even so, **much of
+what these siblings have in common is material this tier does not hold**: zones
+(contracted, not shared), state declarations (likewise), and the phase tree.
 
 Phases were NOT forced, and for a reason worth keeping: the shared phase material
 reduced to statements a procedure covers. A separate constraint capped how far

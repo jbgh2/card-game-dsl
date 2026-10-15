@@ -1,0 +1,1 @@
+suit_ranking_commas.cardlang:8:3: error: `suit ranking:` separates its suits with spaces, as `ranking:` does — write `suit ranking: spades hearts diamonds clubs`

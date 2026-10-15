@@ -186,22 +186,14 @@ its cost at the OpenSpiel target is pinned in
 `tests/openspiel_ready/test_kuhn_poker.py`, not here: the claim is about the
 action-space derivation, so it belongs in the channel of the adapter.
 
-The MOVE-TYPE contract kind (`<name> : Move`, decisions.md "Family
-libraries"): property — a row typed `Move` is answered by exactly one move
-type the including GAME defines, is offered from the library's own
-procedures, and every other answer or shape is refused where its author can
-act; domain — who answers (the game's move type, nothing, a state variable
-or zone of that name, another library's move type, the library itself) times
-how the row is written (bare, indexed, with a type argument, the keyword
-spelling) times how many definitions the game holds {0, 1, 2}, plus whether
-the game reaches any offer of it; registry — `resolve.MOVE_CONTRACT_TYPE`,
-`resolve.is_move_contract`, and the game's `move_types`, which
-`_check_move_requirement` reads; covered — the `_street` cells below, each
-naming its answer or shape; does not prove — that a row fixes the move
-type's ARITY or stake: a parameterized `move_type fold(c : Card)` answers
-`fold : Move` and the library's offer presents one candidate per card, which
-is the contract naming a definition and not its signature (issue #178 holds
-the residual).
+The Definition Contract rows (`fold : Move`, a function row, a procedure
+row; decisions.md "Family libraries") have their grid and ledger in
+tests/test_definition_contracts.py. The `_street` cells below are the move
+row against a real offer, end to end. A move row fixes no ARITY or stake: a
+parameterized `move_type fold(c : Card)` answers `fold : Move`, and the
+library's offer presents one candidate per card. The row names a definition,
+not its signature, since a move type is offered by name and passed no
+arguments; issue #178 holds the residual.
 """
 
 from __future__ import annotations
@@ -249,6 +241,8 @@ from cardlang.resolve import (
     _game_bindings,
     _library_reach,
     _library_slot_names,
+    dead_contract_rows,
+    library_reachable_namespaces,
     _resolve_zone,
     resolve,
 )
@@ -1777,6 +1771,9 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "player",
     ),
     "Parameter.type_name": ("function f(x : {read}) = 1", "column", "Integer"),
+    # A function row's result: written into the contract, like a keyed row's
+    # type — see `_slot_leaky`.
+    "FunctionContract.result_type": ("", "column", "Integer"),
     "Offer.offering": (
         "move_type lib_move {{ effect {{ declared_thing := 1 }} }} "
         "move_type m {{ effect {{ offer to actor one of [{read}] }} }}",
@@ -1836,6 +1833,7 @@ game SlotHost {
 }
 procedure game_proc() { declared_thing := 1 }
 move_type game_move { effect { declared_thing := 1 } }
+function wanted_fn() = 0
 """
 
 
@@ -1854,6 +1852,13 @@ def _slot_leaky(slot: str, *, leaking: bool) -> n.Library:
         )
     else:
         contract = _SLOT_CONTRACT.format(wanted="wanted_plain", wanted_type="Integer")
+    if slot == "FunctionContract.result_type":
+        # A function row, and a definition that calls it, so the row is reached.
+        contract = contract.rstrip()[:-1] + f" wanted_fn() : {read} }} "
+        return parse_library(
+            f"library leaky {{ {contract}function f(p : Player) = wanted_fn() }}",
+            "docs/libraries/leaky.cardlang",
+        )
     if slot == "TypeArg.name":
         # A zone contract, plus a definition that reads the zone — an entry no
         # definition reaches is dead contract and would fail the minimality
@@ -1959,6 +1964,15 @@ def test_every_reachable_reference_namespace_is_swept_or_excused() -> None:
         f"guards nothing, and its deletion cannot redden this test, so it reads "
         f"as a verified claim while being an unverified one"
     )
+
+
+def test_the_reachable_namespaces_agree_with_the_resolvers() -> None:
+    """This module derives the namespaces a library can name independently of
+    `resolve.library_reachable_namespaces`, which the contract-kind registry
+    is derived from; the two derivations agree.
+
+    red under: drop the contextual-slot half from either derivation."""
+    assert _reachable_reference_namespaces() == set(library_reachable_namespaces())
 
 
 def test_the_slot_grid_covers_every_swept_reachable_slot() -> None:
@@ -3384,16 +3398,11 @@ def test_every_library_contracts_for_exactly_what_it_reaches(name: str) -> None:
         f"{sorted({c.func for c in reach.refused_calls})} past its contract"
     )
     # Every kind of the contract: a state entry is answered by a state read, a
-    # zone entry by a zone read, a move-type entry by an offering that names
-    # it. Reading only the first would call every zone and move contract dead —
-    # the same trap `turns … again <var>` sprang on the bare-string half, one
-    # namespace over.
-    dead = (
-        {r.name for r in library.requires}
-        - reach.state_reads
-        - reach.zone_reads
-        - reach.move_type_reads
-    )
+    # zone entry by a zone read, a Definition Contract row by an offering, a
+    # call or a `run` that names it (`dead_contract_rows`). Reading only the
+    # first would call every zone and definition row dead — the same trap
+    # `turns … again <var>` sprang on the bare-string half, one namespace over.
+    dead = dead_contract_rows(library)
     assert not dead, (
         f"library '{name}' requires {sorted(dead)}, which no definition in it "
         f"reads — drop them from the contract"
@@ -3618,7 +3627,7 @@ def _expected_contract_outcome(source: str, args: int, declared_in: str) -> str:
 # names the block the declaration IS in, and one answered from no block at all
 # gets the plain one.
 _EXPECTED_NEEDLE: dict[tuple[str, str], str] = {
-    ("state", "zones"): "does not declare",
+    ("state", "zones"): "declares as a zone",
     ("state", "absent"): "does not declare",
     ("zone_owned", "state"): "declares as state",
     ("zone_owned", "absent"): "does not declare",
@@ -3869,14 +3878,13 @@ def test_a_contract_cannot_require_a_collection(
 
 # --- the MOVE-TYPE contract (issue #819) ---------------------------------------
 #
-# A `requires` row typed `Move` contracts for a move type the including GAME
+# A `requires` row `fold : Move` contracts for a move type the including GAME
 # defines, so a library procedure can present a move the family leaves to the
 # game — `poker_betting`'s `fold`, which touches the game's own zones. The row
-# shares the contract's shape with state and zone rows, and the kind is read
-# off the type slot exactly as a zone contract's is (`is_move_contract`). The
-# grid: who answers the row, crossed with how the library wrote it. Every cell
-# reads the message, so a refusal for the wrong reason (today's type-slot leak)
-# is red, never green by accident.
+# is a Definition Contract (`n.MoveContract`); the whole kind-by-answer grid is
+# tests/test_definition_contracts.py, and these cells are its move row against
+# a real street. Every cell reads the message, so a refusal for the wrong
+# reason is red, never green by accident.
 
 _STREET_LIBRARY = """
 library streetlib {{
@@ -3946,8 +3954,8 @@ def test_a_required_move_type_the_game_defines_is_offered_from_the_library(
     procedure presents it, and the seat is asked by `offer` with both moves
     on the table.
 
-    red under: drop the `Move` arm from `resolve._check_requires` — the row is
-    answered by nothing and the `uses` line is refused."""
+    red under: let the parse builder (`require_plain`) keep `fold : Move` as a
+    keyed row — it is no Definition Contract, and the library is refused."""
     game = resolve(_street(monkeypatch))
     offered: list[list[str]] = []
 
@@ -4082,7 +4090,7 @@ def test_a_contracted_move_type_the_game_defines_twice_names_the_count(
     two definitions answer nothing, and the refusal says how many it found.
 
     red under: drop the `len(found) > 1` arm of
-    `resolve._check_move_requirement` — two definitions are accepted as one."""
+    `resolve._check_definition_requirement` — two definitions are accepted as one."""
     _rejects(
         _street(
             monkeypatch,

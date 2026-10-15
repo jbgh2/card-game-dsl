@@ -135,6 +135,8 @@ _PARSE_LEVEL_CASES = frozenset(
         "subset_source_comma_joined",
         "subset_source_plus_joined",
         "subset_source_single_bracket",
+        "suit_ranking_commas",
+        "suit_ranking_in_ranking",
         "trick_order_assignment_row",
         "trick_order_assignment_row_unknown_key",
         "trick_order_colon",

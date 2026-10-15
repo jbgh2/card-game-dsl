@@ -118,6 +118,7 @@ EXCUSED: dict[tuple[str, str, int], str] = {
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",
+    ("doppelkopf.cardlang", "delete_line", 2): "doppelkopf_missing_fourth_play_empty_legal_set",
     # `hearts_missing_deal_empty_pass` has no live-corpus key either: the line
     # a seed deletes is the one its label-seeded rng picks, so an edit
     # anywhere in the file moves it, and hearts.cardlang's picks are lines

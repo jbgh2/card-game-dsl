@@ -41,10 +41,14 @@ property:   every `.cardlang` file in `tests/rejections/` is rejected by
             `cardlang.pipeline.check_dsl` with a `DiagnosticError` (a case
             that passes the pipeline is itself a test failure — this corpus
             contains only rejected programs), and its rendered diagnostic
-            matches its `.expected` golden byte-for-byte.
-domain:     the file-pair registry — `tests/rejections/*.cardlang` paired
-            with `tests/rejections/*.expected`, one pair per named guard
-            class. The population it samples FROM is open rather than
+            matches its `.expected` golden byte-for-byte. A file under
+            `tests/rejections/libraries/` is a library, refused by
+            `cardlang.parse.parse_library` the same way.
+domain:     the file-pair registry — `tests/rejections/*.cardlang` and
+            `tests/rejections/libraries/*.cardlang`, each paired with its
+            `.expected`, one pair per named guard class; a file's kind is
+            its directory's (`tools.dead_surface.start_for`). The
+            population it samples FROM is open rather than
             closed: every diagnostic emission site across `cardlang/parse.py`,
             `cardlang/resolve.py`, `cardlang/typecheck.py` and
             `cardlang/deckcheck.py` is a guard class, and the set grows as
@@ -79,7 +83,9 @@ from pathlib import Path
 import pytest
 
 from cardlang.diagnostics import DiagnosticError
+from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
+from tools.dead_surface import start_for
 
 REJECTIONS_DIR = Path(__file__).parent / "rejections"
 
@@ -101,8 +107,17 @@ def _render(exc: DiagnosticError) -> str:
     return "\n".join(lines) + "\n"
 
 
+def case_paths() -> list[Path]:
+    """Every rejection case: the games, and the libraries in their own
+    directory. Shared with tests/test_diagnostic_grammar.py, which parses each
+    under the start symbol its directory names."""
+    return sorted(REJECTIONS_DIR.glob("*.cardlang")) + sorted(
+        (REJECTIONS_DIR / "libraries").glob("*.cardlang")
+    )
+
+
 def _case_names() -> list[str]:
-    return sorted(p.stem for p in REJECTIONS_DIR.glob("*.cardlang"))
+    return [p.relative_to(REJECTIONS_DIR).with_suffix("").as_posix() for p in case_paths()]
 
 
 def test_every_cardlang_case_has_a_matching_expected() -> None:
@@ -110,8 +125,14 @@ def test_every_cardlang_case_has_a_matching_expected() -> None:
     `tests/openspiel_ready/test_coverage.py`'s registry<->module pin): an
     orphan `.cardlang` with no golden, or a golden with no `.cardlang`,
     fails loud instead of being silently skipped."""
-    cardlang_stems = {p.stem for p in REJECTIONS_DIR.glob("*.cardlang")}
-    expected_stems = {p.stem for p in REJECTIONS_DIR.glob("*.expected")}
+    cardlang_stems = set(_case_names())
+    expected_stems = {
+        p.relative_to(REJECTIONS_DIR).with_suffix("").as_posix()
+        for p in [
+            *REJECTIONS_DIR.glob("*.expected"),
+            *(REJECTIONS_DIR / "libraries").glob("*.expected"),
+        ]
+    }
     assert cardlang_stems == expected_stems, (
         "tests/rejections/ .cardlang/.expected pairs disagree: "
         f"missing .expected={sorted(cardlang_stems - expected_stems)}, "
@@ -144,7 +165,10 @@ def test_rejection_case(case: str) -> None:
     # rejected programs" guarantee: a case accepted by check_dsl fails here
     # with pytest's own "DID NOT RAISE" message rather than a hand-rolled one.
     with pytest.raises(DiagnosticError) as excinfo:
-        check_dsl(text, f"{case}.cardlang")
+        if start_for(source_path) == "library":
+            parse_library(text, f"{case}.cardlang")
+        else:
+            check_dsl(text, f"{case}.cardlang")
     rendered = _render(excinfo.value)
 
     if BLESS:

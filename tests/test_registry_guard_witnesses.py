@@ -670,11 +670,18 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # offering site the analysis never looked at. Its reddening mutation is
     # executed: delete an offering row and the module raises at import
     # ("_MOVE_TYPE_SLOT_OFFERS and the move-type reference slots disagree:
-    # ['LegalMoves.move_types']").
+    # ['LegalMoves.move_types']"). The `CONTRACT_KINDS` guard is the same
+    # reconciliation once more: the derived contractable kinds, the Definition
+    # Contract row nodes and the kind keywords must name one set of kinds, so
+    # a row node with no kind, or a kind with no row node, raises at import.
+    # Its reddening mutation is a row in `_CONTRACT_ROWS` for `rules`, which
+    # no library text can name (tests/test_definition_contracts.py::
+    # test_the_contract_kind_registry_is_the_derived_one).
     "resolve.py": [
         "_UNCLASSIFIED_MOVE_TYPE_SLOTS",
         "_UNKNOWN_CONTAINER_NAMESPACES",
         "site in RESERVATION_SITES",
+        "{f for f, _, _ in CONTRACT_KINDS} != set(_CONTRACT_ROWS) or set(_DEFINITION_KEYWORDS) != {f for f, _ in _LIBRARY_DEF_KINDS}",
     ],
     # The parse.py shape, one module over: a consumer validating a
     # grammar-admitted identifier against the registry that owns the row set,

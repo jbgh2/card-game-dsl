@@ -35,6 +35,7 @@ game GreenLaneV3GradedMini {
   state {
     tokens[player]   : Integer = 1   // one inspection for the whole game
     fine_net[player] : Integer = 0   // fines received minus fines paid
+    fine             : Integer = 4   // what a seizure costs the merchant
     merchant         : Player  = 0   // this round's shipper
     inspector        : Player  = 1   // this round's customs officer
     score[player]    : Integer = 0   // settled once, in scoring
@@ -86,31 +87,14 @@ game GreenLaneV3GradedMini {
   winner: highest score
 }
 
-// The inspector's half of a smuggling round; the commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang).
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
-}
+// The inspection is the imported `inspect` (docs/libraries/smuggling.cardlang);
+// this game supplies what counts as contraband, the fine, and what a false
+// alarm costs.
+// Contraband: rank_value is 5 (the 7) or 12 (the A) — textually the same
+// disjunct as the setup filters above, so the two sites cannot drift.
+function is_contraband(card : Card) = rank_value(card) is 5 or rank_value(card) is 12
 
-move_type inspect {
-  when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
-  effect {
-    tokens[actor] -= 1
-    reveal one card from shipment[merchant]
-    // Contraband: rank_value is 5 (the 7) or 12 (the A) — textually the same
-    // disjunct as the setup filters above, so the two sites cannot drift.
-    if any card in shipment[merchant] where rank_value(card) is 5 or rank_value(card) is 12 {
-      move all cards from shipment[merchant] to seized[actor]
-      fine_net[merchant] -= 4
-      fine_net[actor] += 4
-    } else {
-      move all cards from shipment[merchant] to cleared[merchant]
-      fine_net[merchant] += 4
-      fine_net[actor] -= 4
-    }
-  }
+procedure settle_false_alarm() {
+  fine_net[merchant] += fine
+  fine_net[inspector] -= fine
 }

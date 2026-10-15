@@ -283,6 +283,8 @@ def test_every_game_field_is_decided() -> None:
         # `card_points`.
         "primitives",
         "ranking", "ranking_convention", "span",
+        # Suit names only, like `ranking`.
+        "suit_ranking",
         "teams", "trick_order", "trump", "uses", "winner", "zones",
     ], (
         f"`Game` gained or lost a field: {walked}. Decide whether a state "

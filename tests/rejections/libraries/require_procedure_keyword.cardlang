@@ -1,0 +1,15 @@
+// A Definition Contract row written as the procedure's own header: the
+// `procedure` keyword belongs to the definition the game writes, and the row
+// says what it is with `: Procedure`.
+library inspection {
+  requires {
+    merchant : Player
+    procedure settle_false_alarm()
+  }
+
+  move_type clear {
+    effect {
+      run settle_false_alarm()
+    }
+  }
+}

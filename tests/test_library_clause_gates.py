@@ -59,7 +59,8 @@ registry:        gate members: `typecheck.RANKING_GATED_FUNCS`,
                  `PRIMITIVE_CLIMB_LEADS`, `PRIMITIVE_CLIMB_FOLLOWS`; the Trick
                  Order twins: `typecheck.RANKING_TRICK_ORDER_TWINS`;
                  `resolve._TEAM_CALL_FUNCS`, `resolve._FRAME_CALL_FUNCS`,
-                 `resolve._CARD_POINTS_CALLS`, `resolve._REGION_CALL_FUNCS`;
+                 `resolve._CARD_POINTS_CALLS`, `resolve._SUIT_RANKING_CALLS`,
+                 `resolve._REGION_CALL_FUNCS`;
                  roles and domains: `domains.ITERABLE_ROLES`,
                  `ZONE_INDEX_ROLES`, `PARAM_DOMAINS`, `CARD_PARAM_DOMAINS`,
                  `CARD_AXIS_ROLES`, `board_domains.BOARD_DOMAIN`; card forms:
@@ -161,6 +162,9 @@ class Clauses:
     ranking: bool = True
     card_points: bool = True
     trick_order: bool = False
+    # Off unless the probe reads it: a declared `suit ranking:` nothing reads is
+    # refused in its own right.
+    suit_ranking: bool = False
 
 
 def _teams_clause(players: int) -> str:
@@ -190,6 +194,7 @@ def _game_text(
         f"  board: grid({c.board_size}, {c.board_size})" if c.board else "",
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2" if c.ranking else "",
         "  card_points { A: 1 else: 0 }" if c.card_points else "",
+        "  suit ranking: spades hearts diamonds clubs" if c.suit_ranking else "",
         (
             "  trick_order { trump: card.suit is hearts  card_strength: 1 }"
             if c.trick_order
@@ -233,6 +238,9 @@ def _arg(param: Type) -> tuple[str, str, bool]:
         return "", '"probe"', True
     if isinstance(param, TOptional) and isinstance(param.inner, TEnum):
         return "", "none", True
+    if param == TEnum("Suit"):
+        # A library names no suit, so it reaches a suit through a card.
+        return "c : Card", "c.suit", True
     if isinstance(param, (TAny, TCollection)):
         return "", "pile", True
     if isinstance(param, TCell):
@@ -305,6 +313,7 @@ GATES: tuple[Gate, ...] = (
     Gate("trick_order_needed", TRICK_ORDER_GATED_FUNCS, "trick_order"),
     Gate("trick_order_refused", TRICK_ORDER_EXCLUDED_FUNCS, "trick_order"),
     Gate("card_points", resolve_module._CARD_POINTS_CALLS, "card_points"),
+    Gate("suit_ranking", resolve_module._SUIT_RANKING_CALLS, "`suit ranking:`"),
     Gate("teams", resolve_module._TEAM_CALL_FUNCS, "teams:"),
     Gate("board", BOARD_ONLY_CALL_FUNCS, "board:"),
     Gate("two_seats", resolve_module._FRAME_CALL_FUNCS, "players"),
@@ -319,7 +328,11 @@ def _home(member: str) -> Clauses:
     """A game every gate on `member` is met in."""
     if member in BOARD_ONLY_CALL_FUNCS:
         return _BOARD
-    return replace(_CARD, trick_order=member in TRICK_ORDER_GATED_FUNCS)
+    return replace(
+        _CARD,
+        trick_order=member in TRICK_ORDER_GATED_FUNCS,
+        suit_ranking=member in resolve_module._SUIT_RANKING_CALLS,
+    )
 
 
 def test_the_uses_check_holds_a_row_for_every_presence_gate() -> None:
@@ -360,6 +373,8 @@ def _unmet(gate: Gate, member: str) -> Clauses:
             return replace(home, trick_order=True)
         case "card_points":
             return replace(home, card_points=False)
+        case "suit_ranking":
+            return replace(home, suit_ranking=False)
         case "teams":
             return replace(home, teams=False)
         case "board":

@@ -22,6 +22,7 @@ from functools import cache
 
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import declared_suit_values
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import RANKS, SUITS, Card, Player, Seating
@@ -45,11 +46,11 @@ game G {{
   direction: clockwise
   cards: standard52
   ranking: aces high
+  suit ranking: spades hearts diamonds clubs
   uses stud
   zones {{ deck : Deck  upcards[player] : PublicHand<player> }}
   state {{
     stack[player] : Integer = 100  folded[player] : Boolean = false
-    lowest_suit : Suit = clubs  second_suit : Suit = diamonds  third_suit : Suit = hearts
   }}
   phase p {{
     let seat = {selector}()
@@ -78,19 +79,18 @@ def _seat(
     stack: Mapping[Player, int] | None = None,
 ) -> Player:
     """The seat `selector` names over `boards` (seat -> face-up cards, in the
-    order dealt), under the same `ranking:` and function index the driver
-    loads."""
+    order dealt), under the same `ranking:`, `suit ranking:` and function
+    index the driver loads."""
     players = len(boards)
     game, expr = _probe(players, selector)
     seats = tuple(range(players))
     rs = RuntimeState(Seating(players), ZoneStore(game.zones, seats), random.Random(0))
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
+    rs.suit_values = declared_suit_values(game)
     rs.function_index = {f.name: f for f in game.functions}
     rs.push_frame()
     rs.declare("stack", True, {p: (stack or {}).get(p, 100) for p in seats})
     rs.declare("folded", True, {p: p in folded for p in seats})
-    for name, suit in (("lowest_suit", "clubs"), ("second_suit", "diamonds"), ("third_suit", "hearts")):
-        rs.declare(name, False, suit)
     for p, cards in boards.items():
         rs.zones.instance("upcards", p).add_all(list(cards))
     seat = evaluate(expr, Ctx(rs=rs, chooser=_no_choice))
