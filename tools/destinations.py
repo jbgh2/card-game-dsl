@@ -39,7 +39,7 @@ Contract
 --------
 assumes:     a checkout with the corpus under `docs/games/`, the grammar at
              `cardlang/grammar/cardlang.lark`, and git history reachable from
-             `origin/main` (falling back to `main`, then `HEAD`).
+             `HEAD`, the checkout whose verdict files are read.
 establishes: a text report; nothing is written anywhere.
 illegal after: nothing -- the module has no side effects.
 """
@@ -272,13 +272,6 @@ def _git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout
 
 
-def _main_ref() -> str:
-    for ref in ("origin/main", "main"):
-        if subprocess.run(["git", "rev-parse", "--verify", "-q", ref], cwd=ROOT, capture_output=True).returncode == 0:
-            return ref
-    return "HEAD"
-
-
 def verdict_files(verdicts: pathlib.Path = VERDICTS) -> list[pathlib.Path]:
     return sorted(verdicts.glob("????-??-??.md"))
 
@@ -294,11 +287,10 @@ def verdict_commit(path: pathlib.Path, ref: str) -> str:
 def grammar_history(files: Sequence[pathlib.Path]) -> list[GrammarPoint]:
     """One point per verdict (the commit that added its file) and one for the
     checkout's HEAD."""
-    ref = _main_ref()
     points: list[GrammarPoint] = []
     grammar_rel = GRAMMAR.relative_to(ROOT).as_posix()
     for path in files:
-        sha = verdict_commit(path, ref)
+        sha = verdict_commit(path, "HEAD")
         if not sha:
             continue
         game_files = _git("ls-tree", "-r", "--name-only", sha, "--", "docs/games").split()
