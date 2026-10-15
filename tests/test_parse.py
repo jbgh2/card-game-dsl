@@ -265,9 +265,7 @@ def _hint_probe(keyword: str, start: str) -> str:
         return f"library L {{\n  {keyword}\n}}\n"
     if start == "start":
         return f"game G {{\n  players: 2\n  {keyword}\n}}\n"
-    # A fragment start (`stdlib_rules`) parses bare text, so the keyword on
-    # its own line is already the whole malformed source.
-    return f"  {keyword}\n"
+    raise AssertionError(f"no hint probe for start {start!r}")
 
 
 def test_the_hint_start_axis_is_every_entry_point() -> None:
@@ -278,7 +276,7 @@ def test_the_hint_start_axis_is_every_entry_point() -> None:
     `parse_to_tree` call — `"library"` leaves the axis and the `primitives`
     row's only firing cell goes with it.
     """
-    assert set(_HINT_STARTS) >= {"start", "library", "stdlib_rules"}, _HINT_STARTS
+    assert set(_HINT_STARTS) == set(parse._parser().options.start), _HINT_STARTS
 
 
 _HINT_CELLS = [

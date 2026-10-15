@@ -18,8 +18,9 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      the fully checked, procedure-free AST (post deck-capacity).
 Establishes:  a JSON-able rendering that carries resolve's facts forward —
-              ``ref_kind`` on every name, the resolved choose ceiling —
-              never re-derives them.
+              ``ref_kind`` on every name (``play_source`` for a rule
+              clause's bare ``hand``), the resolved choose ceiling — never
+              re-derives them.
 Consumed by:  the CLI and the golden-file snapshots. The runtime and the
               OpenSpiel adapter do NOT run off this rendering: they consume
               the checked AST directly (``pipeline.check_source`` ->

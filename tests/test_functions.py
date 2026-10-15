@@ -184,9 +184,14 @@ game G {
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  zones { deck : Deck  hand[player] : Hand<player> }
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
   state { score[player] : Integer = 0 }
-  phase play { active_rules: [R]  legal_moves: [play_to_trick] }
+  phase play {
+    active_rules: [R]
+    legal_moves: [play_to_trick]
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_of_led_suit
+  }
   winner: highest score
 }
 rule R {
@@ -205,6 +210,8 @@ def test_function_call_in_a_rule_expression_is_arity_checked() -> None:
 
 # A function may factor a bare per-player zone; the family instance resolves through
 # the acting player the caller set (`current_player` is inherited, not cleared).
+# A rule's clauses call a function over a card instead: inside a rule `hand` is
+# the Play Source, which a function body cannot see.
 ZONE_FN_SRC = """
 game G {
   players: 2
@@ -228,6 +235,7 @@ game G {
       tricks[winner] += 1
       move all cards from trick_pile to waste
       leader := winner
+      as leader { if held_count() > 26 { tricks[leader] += 1 } }
     }
   }
   winner: highest tricks
@@ -235,17 +243,18 @@ game G {
 rule FollowViaFunction {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: must_follow()
+  demands: cards in hand where follows(card, state.led_suit)
   if_impossible: hand
 }
-function must_follow() = cards in hand where card.suit is state.led_suit
+function follows(c : Card, s : Suit?) = c.suit is s
+function held_count() = number of cards in hand
 """
 
 
 def test_function_reading_a_bare_per_player_zone_runs_at_play() -> None:
-    # The rule `demands: must_follow()` is evaluated per acting player during
-    # legal-card selection; the bare `hand` must resolve to that player's hand
-    # rather than asserting on a cleared current player.
+    # `held_count()` is evaluated under `as leader`; its bare `hand` must
+    # resolve to that player's hand rather than asserting on a cleared
+    # current player. The rule's function takes the card it judges.
     game = check_dsl(ZONE_FN_SRC, "zone-fn.cardlang")
     for seed in range(10):
         play_game(game, random.Random(seed))  # must not raise

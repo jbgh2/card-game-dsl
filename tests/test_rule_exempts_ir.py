@@ -19,11 +19,14 @@ game Mini {
   players: 2
   max_length: 1000
   cards: standard52
+  ranking: aces high
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase p {
     active_rules: [MustFollowSuit, JokerIsExempt]
     legal_moves:  [play_to_trick]
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_of_led_suit
   }
   winner: highest score
 }

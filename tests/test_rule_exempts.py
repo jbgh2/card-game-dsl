@@ -27,11 +27,14 @@ game Mini {
   players: 2
   max_length: 1000
   cards: standard52
+  ranking: aces high
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase p {
     active_rules: [MustFollowSuit, JokerIsExempt]
     legal_moves:  [play_to_trick]
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_of_led_suit
   }
   winner: highest score
 }
@@ -53,7 +56,12 @@ def _ctx(led_suit: str | None, hand0: list[Card]) -> Ctx:
     rs = RuntimeState(Seating(2), ZoneStore(game.zones, (0, 1)), random.Random(0))
     rs.mech_state.append({"led_suit": led_suit})
     rs.zones.instance("hand", 0).add_all(hand0)
-    return Ctx(rs=rs, chooser=random_chooser(random.Random(0)), active_rules=active)
+    return Ctx(
+        rs=rs,
+        chooser=random_chooser(random.Random(0)),
+        active_rules=active,
+        round_source=("hand", rs.zones.instance("hand", 0)),
+    )
 
 
 def test_exempt_card_is_appended_last_regardless_of_hand_position() -> None:

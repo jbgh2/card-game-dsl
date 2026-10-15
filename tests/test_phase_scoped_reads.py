@@ -1187,8 +1187,8 @@ def _containment_source(cell: str) -> str:
                 top="rule r {\n"
                 "  constrains: play_to_trick\n"
                 "  applies_when: pinochle_meld_value(0) >= 0\n"
-                "  demands: cards in hand where true\n"
-                "  if_impossible: hand\n"
+                "  demands: cards in hand[actor] where true\n"
+                "  if_impossible: hand[actor]\n"
                 "}\n",
                 outer_body=_DEAL,
             )

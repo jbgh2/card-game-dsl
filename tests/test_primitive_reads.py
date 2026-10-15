@@ -87,8 +87,6 @@ _EXEMPT_RAW_ACCESS: dict[str, str] = {
     "execute.py": "engine core — names come from the AST, resolve-guarded",
     "mechanics.py": "engine core — names from the AST plus the magic `hand`"
     " (decisions.md \"Declared parameter domains\")",
-    "rules.py": "engine core — the magic `hand` read of `legal_cards`"
-    " (decisions.md \"Declared parameter domains\")",
     "reads.py": "the accessor implementation — the sanctioned raw-access site",
 }
 

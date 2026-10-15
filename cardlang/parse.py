@@ -330,10 +330,9 @@ def _parser() -> Lark:
         parser="earley",
         propagate_positions=True,
         maybe_placeholders=True,
-        # `start` is a game file; `stdlib_rules` is the stdlib rules fragment
-        # (rule definitions with no enclosing game); `library` is a family
-        # library (decisions.md "Family libraries").
-        start=["start", "stdlib_rules", "library"],
+        # `start` is a game file; `library` is a library file, a family
+        # library or the standard library (decisions.md "Family libraries").
+        start=["start", "library"],
     )
     # Every parse crosses this, so a terminal the grammar gains without a
     # designer's word for it cannot wait for a syntax error to be noticed.
@@ -1452,9 +1451,6 @@ class _Builder(Transformer[Token, n.Game]):
             params=params,
             span=self._span(meta),
         )
-
-    def stdlib_rules(self, meta: Meta, c: list[object]) -> tuple[n.RuleDef, ...]:
-        return tuple(x for x in c if isinstance(x, n.RuleDef))
 
     # --- expressions ---
 
@@ -2939,19 +2935,9 @@ def _transform(builder: _Builder, tree: Tree[Token]) -> object:
         raise
 
 
-def parse_stdlib_rules(text: str, source_name: str) -> tuple[n.RuleDef, ...]:
-    """Parse a standard-library rules fragment (rule definitions with no
-    enclosing game) into RuleDef nodes, spans mapped to ``source_name``."""
-    tree = parse_to_tree(text, source_name, start="stdlib_rules")
-    result = _transform(_Builder(source_name, 0), tree)
-    assert isinstance(result, tuple)
-    assert all(isinstance(r, n.RuleDef) for r in result)
-    return result
-
-
 def parse_library(text: str, source_name: str) -> n.Library:
-    """Parse a family-library file (`library <name> { ... }`, no enclosing game)
-    into a Library node, spans mapped to ``source_name`` — so a diagnostic raised
+    """Parse a library file (`library <name> { ... }`, no enclosing game) — a
+    family library or the standard library — into a Library node, spans mapped to ``source_name`` — so a diagnostic raised
     inside library text names the library file, not the game that used it."""
     tree = parse_to_tree(text, source_name, start="library")
     result = _transform(_Builder(source_name, 0), tree)

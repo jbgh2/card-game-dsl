@@ -258,6 +258,37 @@ than accepting surface it would silently drop ("Surface totality"):
 - a rule with neither `demands:` nor `exempts:`, which cannot change what is
   legal however its `applies_when:` reads.
 
+**Inside a rule, `hand` is the cards the player on turn plays from.** A
+rule is asked only at the trick round's card decision, so a bare `hand` in
+any of its clauses (`applies_when:`, `demands:`, `if_impossible:`,
+`exempts:`) names that decision's **Play Source**: the acting seat's instance
+of the round's `source` family, or, under Delegated Play, the zone
+`play_source_for` routes it to ("Delegated play"). It names that whatever
+the game calls its zones — a game whose round says `source hands` plays
+`MustFollowSuit` unchanged — and a rule needs nothing from a game to read
+it, which is what lets the standard library's rules carry an empty contract
+("Family libraries"). The reading is the rule's own and nobody else's:
+
+- a binder a clause introduces outranks it, and a subscripted `hand[p]`
+  names the game's declared `hand` zone, which a rule wanting that zone
+  writes (a `hand[p]` with no `hand` declared is refused, naming the bare
+  form);
+- a function a rule's clauses call, directly or through another, may not
+  read bare `hand` or a trick round's source family by name — a function
+  body cannot see the Play Source. Keep the filter in the rule and have the
+  function take a card: `cards in hand where follows(card, state.led_suit)`;
+- a game whose rules read `hand` may not also declare a state variable named
+  `hand`, or a zone named `hand` that is not kept per player — the rule
+  could never read it by that name — and a rule parameter may not be named
+  `hand`;
+- a rule reading `hand` in a game that runs no trick round is refused: it
+  would never be asked. A climbing round binds no rule.
+
+The checker types the Play Source as the contents of the trick rounds'
+`source` families, and judges what it reveals through those families'
+projections, which a trick round already must show their owner — so a
+rule's reads derive the same information sets as the round's own offer.
+
 **State the constraint where the move is made instead.** A transfer's
 `chosen N` binds a count (Hearts' pass is `move chosen 3 cards` — the
 `3` *is* the "pass exactly three" law); a move type's `when:` guard binds
@@ -1325,17 +1356,14 @@ runs, and silently changes the game. The declared types carry the same weight �
 untyped `state.x` is contagiously `Any`, and every comparison guard is dark behind
 it.
 
-**Rules consulted from within a round see the round's state.**
-Lexical scoping puts the active round's state frame
-into the scope chain at consultation time. A rule
-attached to a phase whose round is running reads
-`state.foo` and sees whatever `foo` is in scope — game state,
-hand state, phase state, *or* round-internal state — without any
-explicit export step. This is the same scoping rule that applies
-to imperative code in the phase body. Examples in the corpus:
+**Rules consulted from within a round see the round's published state.**
+A rule is asked at the trick round's card decision, so its `state.` names
+that round's published fields, the closed set above, exactly as `state.`
+does anywhere else; a rule reads game and phase state by the variable's own
+name, with no prefix. Examples in the corpus:
 
-- Hearts' `MustFollowSuit` reads `state.led_suit`, which lives
-  inside the trick `round`.
+- Hearts' `MustFollowSuit` reads `state.led_suit`, which the trick `round`
+  publishes.
 
 (A bidding or betting ring expresses its legality differently —
 not as `active_rules:` reading round state, but as the move types' own `when:`
@@ -1757,7 +1785,6 @@ would serve is deferred ([roadmap.md](roadmap.md), "Out of scope").
 
 **Convenience sugar (rewrites that compile away):**
 
-- `state.foo` → `foo` (just a disambiguating prefix)
 - `card.tapped` → `card.attributes[tapped]`
 
 Sugar is documented; the underlying form is what the compiler
@@ -3658,6 +3685,14 @@ The default — actor is chooser, hand is source — is implicit.
 Games without delegated play declare neither helper and the
 defaults apply.
 
+**A rule reads the routed pool.** Every rule is asked at the trick round's
+card decision, the one decision the helpers route, so a rule clause's bare
+`hand` — the Play Source ("Rule demand forms") — is the zone
+`play_source_for` yields, and so is the round's `source` family named bare
+in a clause. Bridge's `MustFollowSuit` therefore binds declarer to dummy's
+exposed cards on dummy's turn, not to dummy's emptied hand. A function the
+clauses call sees no Play Source, and reading one there is refused.
+
 **Why per-game helpers, not a zone-level construct.** A
 `choices_made_by:` declaration on the zone type was considered.
 The case against: delegated play is a niche pattern (Bridge dummy
@@ -4882,8 +4917,8 @@ planning, out loud, not discovered in review.
 
 ## Family libraries
 
-A **library** is the import tier between game-local definitions and the stdlib.
-It holds exactly the definition forms a game already holds — move_types, rules,
+A **family library** is the import tier between game-local definitions and the
+standard library. It holds exactly the definition forms a game already holds — move_types, rules,
 functions, procedures — plus the two state clauses `state` and
 `requires`, and it lives in
 `docs/libraries/<name>.cardlang`, beside the corpus and maintained with it. The
@@ -4910,15 +4945,33 @@ repeat imports nothing further.
 
 Resolution is flat and two-level: game, then the named libraries, then the
 stdlib. There is no library-imports-library. Imports are pure name resolution —
-`resolve` splices each named library's definitions into the game before any
-other name check runs, so what flows on is one flat game and no later pass knows
-imports exist. That is what makes an import carry no runtime and no
+`resolve` splices each named library's move types, functions, procedures and
+provided state into the game before any other name check runs, so what flows on
+is one flat game and no later pass knows imports exist. A library's rules splice
+where a game's `active_rules:` names them instead, after the game's own rules —
+one splice, driven by activation, for every tier's rules alike. A rule template
+no game instantiates is therefore not an error, and a rule no game activates is
+checked against its library alone; the collision guards below still sweep every
+rule a library declares, activated or not. That is what makes an import carry no runtime and no
 information-set implication, and the splice is the whole of the reason: nothing
 is added, and the game's own declarations are what run. In particular it is NOT
 because a library cannot name a zone. A contract can name one, and a zone type
 fixes the per-observer projection, so a library CAN say what its definitions
 were written against — `HiddenPile` rather than `PublicHand`. That constrains
 which games may import it; it changes nothing about the game that does.
+
+**The standard library is a library with an empty contract.**
+`cardlang/stdlib/rules.cardlang` is `library stdlib`: parsed by the same entry
+point and held to the same library-alone law as a family library. Two things
+set it apart. It ships with the language rather than the corpus, and no `uses`
+line names it — a game switches its rules on by name in `active_rules:`, and
+`uses stdlib` is refused with exactly that said. So its declared name is pinned
+at load, and its `requires` must be empty, since a contract row would have no
+`uses` line to be reported at. It needs no contract: its rules read the Play
+Source a rule's bare `hand` names and the suit a trick round publishes as
+`state.led_suit`, which every game that asks a rule has ("Rule demand forms").
+Every stdlib rule is activated by some corpus game, because a rule no game
+activates is checked by name alone.
 
 **`uses` imports; it does not inherit.** A game-local definition under an
 imported name is an error, not an override, and so is the same name from two
@@ -5110,8 +5163,9 @@ the metamorphic rename transform excludes it for the same reason.
 
 **The contract is meant to be sufficient, not advisory.** A library's
 definitions may reach only its `requires` contract, its own definitions, the
-stdlib, and the pronouns and binders any body has anyway — checked against the
-library alone, before any game is consulted. Without that the contract would be
+stdlib, the pronouns and binders any body has anyway, the Play Source a rule
+clause's bare `hand` names, and the fields a round publishes to `state.` —
+checked against the library alone, before any game is consulted. Without that the contract would be
 a suggestion: a body reading past it resolves against a game that happens to
 declare the extra name and fails against a game meeting the contract in full,
 reporting an unresolved-name error inside library text the game's author never
@@ -5124,7 +5178,9 @@ once an including game names a deck, and a family's members do not share one
 
 The check enforces this for every name the resolver classifies **and** for every
 name a construct holds as a bare string instead — a `turns … again <var>`, a
-`round`'s source and play zones, `state.<var>`. The second
+`round`'s source and play zones. (`state.<field>` names a field a round
+publishes, a set closed by `ROUND_STATE_FIELDS` and the same for a library as
+for a game.) The second
 half runs off the **reference-slot registry**: one table classifying every
 string-typed field of every AST node as a declaration, a binder, a reference
 into a named namespace, a keyword, opaque text, a classified name, or pass

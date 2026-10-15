@@ -16,11 +16,13 @@ from cardlang.pipeline import check_dsl
 # one names rather than on rule reachability: a rule no decision site consults
 # is itself rejected (tests/test_rule_surface_reachability.py), and would mask
 # the `override` diagnostic this fixture exists to provoke.
+# Subscripted, so the fixture needs no trick round: a rule clause's bare
+# `hand` is the trick round's Play Source.
 _RULE = """
   rule PassRule {
     constrains: play_to_trick
-    demands: cards in hand where card.suit is hearts
-    if_impossible: hand
+    demands: cards in hand[actor] where card.suit is hearts
+    if_impossible: hand[actor]
   }
 """
 

@@ -10,4 +10,4 @@ retired_spellings: []
 findings: [F-6]
 ---
 
-**Reserved word.** Approved compounds: hand zone · one hand (this cycle) · hand loop (the repetition it is one pass of)
+**Reserved word.** Approved compounds: hand zone · one hand (this cycle) · hand loop (the repetition it is one pass of) · a rule's `hand` (the [[play-source]])
