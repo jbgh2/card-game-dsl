@@ -72,3 +72,70 @@ def test_15_random_games_satisfy_invariants() -> None:
         # Card conservation.
         assert census["total"] == 52, f"seed {seed}: {census}"
     assert time.monotonic() - start < 60  # stays comfortably fast
+
+
+class _Asked(Exception):
+    """Stops a hand once the decision under test has been offered."""
+
+
+def test_the_bring_in_poster_called_around_is_not_asked_again() -> None:
+    """Pagat: "If the opener just places the minimum bring-in, subsequent
+    players have the option to complete the bet to a small bet ($5), to call
+    the bring-in ($2) or to fold. Only if someone completes the bet are later
+    players allowed to raise."
+
+    The poster decides once. It stands on the bring-in, every seat behind it
+    calls, and the next decision is the 4th street's opener facing no bet —
+    the poster is not asked again on 3rd street, because nobody completed.
+    Swept over seeds because which seat brings in is a fact about the deal.
+    The twin (`docs/games/seven-card-stud.md`) states the same rule.
+
+    red under: drop `acted[actor] := true` from `check` in
+    `docs/libraries/poker_betting.cardlang` — standing on the minimum then
+    leaves the poster pending, and the ring asks it again over its own post.
+    """
+    game = check_source(STUD)
+    seats = 4
+    for seed in range(20):
+        held: dict[str, Any] = {}
+        rows: list[tuple[int, frozenset[str], int]] = []
+
+        def capture(rs: Any) -> None:
+            held["rs"] = rs  # noqa: B023 -- consumed before the loop advances
+
+        def read(name: str) -> Any:
+            for frame in reversed(held["rs"].frames):  # noqa: B023
+                if name in frame:
+                    return frame[name]
+            raise AssertionError(f"{name} is in no live frame")
+
+        def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+            offered = frozenset(name for name, _ in candidates)
+            rows.append((player, offered, read("bet_to_match")))  # noqa: B023
+            if len(rows) > seats:  # noqa: B023
+                raise _Asked
+            want = "check" if len(rows) == 1 else "call"  # noqa: B023
+            return [c for c in candidates if c[0] == want]
+
+        try:
+            play_game(game, random.Random(seed), chooser=chooser, on_first_decision=capture)
+        except _Asked:
+            pass
+
+        poster, offered, standing = rows[0]
+        assert offered == {"check", "raise"} and standing == 2, (
+            f"seed {seed}: the street's first decision is seat {poster} facing "
+            f"{standing}, offered {sorted(offered)} — not the bring-in poster's "
+            f"stand-or-complete choice"
+        )
+        callers = [player for player, _, _ in rows[1:seats]]
+        assert poster not in callers and len(set(callers)) == seats - 1, (
+            f"seed {seed}: 3rd street asks {[poster, *callers]} — the poster "
+            f"once and each seat behind it once"
+        )
+        player, offered, standing = rows[seats]
+        assert standing == 0 and "raise" not in offered, (
+            f"seed {seed}: called around, the next decision is seat {player} "
+            f"facing {standing}, offered {sorted(offered)} — the bring-in poster "
+            f"is asked again on 3rd street, which no completion licensed"
+        )

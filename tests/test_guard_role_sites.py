@@ -226,6 +226,12 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         ("A library file whose declared `library <name>` disagrees with its "
         "filename. Author is the library author, not the game author."),
     ),
+    ("cardlang/stdlib/rules.py", "ValueError"): (
+        2,
+        ("The standard library's own file declaring a name other than `library "
+        "stdlib`, or a `requires` row. Author is the language maintainer who "
+        "edits the package's stdlib, not the game author; it fires at load."),
+    ),
     # --- the Interop boundary -------------------------------------------------
     ("cardlang/openspiel/encoding.py", "ValueError"): (
         5,

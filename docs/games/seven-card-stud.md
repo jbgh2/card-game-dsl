@@ -19,11 +19,11 @@ Each hand:
    the poster, which may check (standing on the 2) or raise (completing to 5).
    Which it takes is what the seats behind it face — the page states their
    rights as a consequence of the opener's choice, so the order carries the
-   rule. Called around later, that same seat holds the **option** again: it may
-   raise its own post as well as check, because posting is not the same as
-   having taken a turn. Pagat is silent on that *later* moment, where it spells
-   the same option out for Hold'em's big blind — so the second right is **this
-   file's own rule**, and the first is quoted.
+   rule. The poster decides **once**: if the others only call the bring-in,
+   the street closes without asking it again, because "Only if someone
+   completes the bet are later players allowed to raise." This is where the
+   bring-in differs from Hold'em's big blind, which is a full bet and so keeps
+   its option.
 
 3. Five betting streets — 3rd through 7th — interleaved with a dealt card each
    (an upcard on 4th/5th/6th, a face-down card on 7th, a burn before each). On

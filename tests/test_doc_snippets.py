@@ -199,9 +199,10 @@ game Skeleton {{
 def _wrap_active_rules_shadowing(frag: str) -> str:
     # decisions.md "Sub-phase rule and legal-move deltas": plain shadowing
     # (no +/-/override). The rule names are the doc's own illustrative
-    # letters, given a trivial always-applying body against the kernel move type.
+    # letters, given a trivial always-applying body against the kernel move type;
+    # subscripted, since the fragment runs no trick round for a bare `hand` to read.
     rules = "\n".join(
-        f"rule {name} {{ constrains: play_to_trick demands: cards in hand where card.suit is hearts if_impossible: hand }}"
+        f"rule {name} {{ constrains: play_to_trick demands: cards in hand[actor] where card.suit is hearts if_impossible: hand[actor] }}"
         for name in ("A", "B", "C", "X", "Y")
     )
     return _game(f"{frag}\n  winner: highest score", top_level=rules)

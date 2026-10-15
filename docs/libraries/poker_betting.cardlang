@@ -167,10 +167,9 @@ library poker_betting {
   }
 
   // A bet is a partial all-in when the actor cannot cover the limit. Its
-  // `counts` is `raise`'s rule with the reach arm collapsed: a bet fires only
-  // on an open street, where the level is zero, so reaching `level + limit`
-  // and posting the full `limit` are the same test and the half-bet arm alone
-  // decides (the rule itself is the comment above `raise`). The half-bet arm
+  // `counts` is `raise`'s rule read on an open street: a bet fires only where
+  // nothing stands, so the level is zero and the total over it is the post
+  // itself (the rule is the comment above `raise`). The half-bet test
   // measures against the FLOOR, as every `counts` in this library does; on an
   // open street that is `limit`, because only a placed wager moves the floor
   // and none has been placed.
@@ -243,22 +242,25 @@ library poker_betting {
   }
 
   // Aggression re-opens the betting — but only aggression that is big enough
-  // to count as one, and `counts` names the two ways of being big enough. A
-  // wager counts when it REACHES the next full wager, `level + limit`, however
-  // little the last action moved the bet — two sub-full wagers can stack, a
-  // bring-in shoved short and then completed, and the completion is the
-  // street's full bet whichever seat finishes it. And an all-in short of the
-  // target still counts when it moves the standing bet at least HALF a full
-  // bet: Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`), "an all-in
-  // wager of less than half a bet does not reopen the betting for any player
-  // who has already acted and is in the pot for all previous bets ... An
-  // all-in wager of a half a bet or more is treated as a full bet". "Or more"
-  // is why that comparison is `>=` and not `>`; exactly half re-opens. The
-  // yardstick is the street's size, never the distance still to travel —
-  // Pagat: "player A bets $4 and player B who has $6 left goes all-in, which
-  // is a raise of $2, i.e. half a full raise" — and a wager that counts
-  // BECOMES the level, which is Pagat's same example read forward: B's six is
-  // the level C raises from, to ten.
+  // to count as one. The yardstick is the TOTAL the wager stands above the
+  // last full wager, `now - level`, and it counts when that total is at least
+  // HALF a full bet. Pagat (`pagat.com/poker/rules/betting.html`): "if the
+  // all-in bet or raise is less than half the minimum amount required for a
+  // full bet or raise, it does not reopen the betting unless a subsequent
+  // player completes it", and its worked example measures from the last full
+  // bet rather than from the standing one: over B's $5 and D's all-in $6, "If
+  // E goes all-in for $8, this is enough to re-open the betting, since the
+  // total raise since the last full bet is now $3, more than half a full
+  // raise." So two sub-full wagers stack — a bring-in shoved short and then
+  // shoved again, or completed — and a wager reaching the next full wager,
+  // `level + limit`, always moves the full size and always counts, whichever
+  // seat finishes it. "At least half" is why the comparison is `>=` and not
+  // `>`; exactly half re-opens. The half is measured against the FLOOR, the
+  // street's size, never the distance still to travel — Pagat: "player A bets
+  // $4 and player B who has $6 left goes all-in, which is a raise of $2, i.e.
+  // half a full raise" — and a wager that counts BECOMES the level, which is
+  // Pagat's same example read forward: B's six is the level C raises from, to
+  // ten.
   //
   // The counted aggression, the `acted` clear and the level all follow the one
   // `counts` switch, because a wager that is not a raise can spend none of the
@@ -270,27 +272,29 @@ library poker_betting {
   // re-opening, counting and the right to re-raise together.
   //
   // A raise is offered against a STANDING bet to a seat with a TURN
-  // OUTSTANDING — `acted` means "has taken a turn since anything last re-opened
-  // to me", so owing chips is not itself a right to raise. A seat that already
-  // acted and is facing only a short all-in keeps its `acted` and stays in the
-  // ring through `owes`, and the betting is not reopened to it. A forced post is
+  // OUTSTANDING, and to no other. `acted` means "has taken a turn since a
+  // counted wager last re-opened the betting", so owing chips is not itself a
+  // right to raise, and neither is a standing bet short of a full one. Pagat
+  // splits the seats facing a short all-in exactly there: "A player who has
+  // not acted at all in the current betting round may fold, call or
+  // 'complete' the bet or raise", and "A player who has previously acted may
+  // call, fold or complete the bet or raise (as above) if there has been a
+  // full bet or raise since their previous action" — a full wager since is
+  // what clears `acted` — while "If a player has previously acted and the
+  // cost to call is less than half a minimum full bet or raise, the player may
+  // only call or fold. The player cannot raise or complete the bet." That last
+  // seat keeps its `acted` and stays in the ring through `owes`, whether the
+  // short all-in stands over a full wager or opens the street. A forced post is
   // not a turn taken within the round (decisions.md, "Named functions"), so the
   // big blind and the bring-in poster still hold their option.
   //
-  // Not reopened is not silenced, and the second arm of the guard is rule 5's
-  // third option: "may fold, call, or complete the wager". A standing bet ABOVE
-  // THE LEVEL is one nobody has yet made in full — a bring-in, a short opening
-  // all-in, a short shove over a completed bet — and bringing it up to one is
-  // open to every seat, spent turn or not; without this arm a two-chip shove
-  // freezes a five-chip street, and the seats behind it may only call a bet
-  // none of them was ever offered the chance to make. `raise` carries the
-  // completion rather than a move type of its own, because its target already
-  // IS the completion: the target is `level + limit` from every position, so
-  // at the level it is a full raise and above the level it is the completion,
-  // and there is no third arm. That is why the target is computed from the
-  // level and never added to the standing bet — adding a size to a bring-in of
-  // 2 on a 5-chip street would walk a ladder of its own (2, 7, 12) the rules
-  // have no step for.
+  // `raise` carries the completion rather than a move type of its own, because
+  // its target already IS the completion: the target is `level + limit` from
+  // every position, so at the level it is a full raise and above the level it
+  // is the completion, and there is no third arm. That is why the target is
+  // computed from the level and never added to the standing bet — adding a
+  // size to a bring-in of 2 on a 5-chip street would walk a ladder of its own
+  // (2, 7, 12) the rules have no step for.
   //
   // A raise needs someone able to ANSWER it. Facing opponents who are all-in,
   // the only legal actions are call and fold — raising into a field that cannot
@@ -324,7 +328,7 @@ library poker_betting {
           and big_limit > limit
           and (limit < floor
                or bet_by[actor] + stack[actor] > level + limit)
-          and (not acted[actor] or bet_to_match > level)
+          and not acted[actor]
           and raises < raise_cap
           and (number of players where can_act(player)) > 1
           and stack[actor] > bet_to_match - bet_by[actor]
@@ -333,8 +337,8 @@ library poker_betting {
       let want = target - bet_by[actor]
       let pay = if want < stack[actor] then want else stack[actor]
       let now = bet_by[actor] + pay
-      let moved = now - bet_to_match
-      let counts = now >= target or moved + moved >= floor
+      let moved = now - level
+      let counts = moved + moved >= floor
       stack[actor] := stack[actor] - pay
       committed[actor] := committed[actor] + pay
       bet_by[actor] := now
@@ -350,7 +354,7 @@ library poker_betting {
   move_type raise {
     when: bet_to_match > 0
           and limit >= floor
-          and (not acted[actor] or bet_to_match > level)
+          and not acted[actor]
           and raises < raise_cap
           and (number of players where can_act(player)) > 1
           and stack[actor] > bet_to_match - bet_by[actor]
@@ -359,8 +363,8 @@ library poker_betting {
       let want = target - bet_by[actor]
       let pay = if want < stack[actor] then want else stack[actor]
       let now = bet_by[actor] + pay
-      let moved = now - bet_to_match
-      let counts = now >= target or moved + moved >= floor
+      let moved = now - level
+      let counts = moved + moved >= floor
       stack[actor] := stack[actor] - pay
       committed[actor] := committed[actor] + pay
       bet_by[actor] := now

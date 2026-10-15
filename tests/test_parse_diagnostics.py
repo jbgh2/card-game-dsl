@@ -53,14 +53,14 @@ domain:     five axes. Two are crossed with each other and three stand alone,
             offers at a given point. That is the grammar's business and this
             module asserts nothing about it — only that whatever set is offered
             renders into designer words.
-            The domain covers the RENDERING of a parse failure under all three
-            entry points; WHO each entry point's sentence is addressed to is a
-            separate property, and holds for two of them. A game file and a
-            family library are both written by the reader the sentence
-            instructs. `cardlang/stdlib/rules.cardlang` ships inside the engine
-            and is parsed during resolve, so its reader is told to close a
-            brace in a file that is not theirs; routing that entry point to the
-            installation channel is issue #604.
+            The domain covers the RENDERING of a parse failure under every
+            entry point; WHO each sentence is addressed to is a separate
+            property. A game file and a family library are both written by the
+            reader the sentence instructs. The standard library shares the
+            `library` entry point but ships inside the engine and is parsed
+            during resolve, so its reader is told to close a brace in a file
+            that is not theirs; routing its failures to the installation
+            channel is issue #604.
 registry:   failure kinds: `lark.exceptions.UnexpectedInput.__subclasses__()`,
             closed here by `_failure_kinds`. Entry points:
             `tests/test_parse.py::_parse_entry_points`, itself a scrape of
@@ -192,13 +192,11 @@ def _probe(kind: type[UnexpectedInput], start: str) -> str | None:
         return {
             "start": "game G {\n  players: 2\n",
             "library": "library L {\n",
-            "stdlib_rules": "rule R {\n",
         }[start]
     # A character no terminal admits at that point.
     return {
         "start": "game G {\n  players: 2 @\n}\n",
         "library": "library L {\n  @\n}\n",
-        "stdlib_rules": "rule R {\n  @\n}\n",
     }[start]
 
 

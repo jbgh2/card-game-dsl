@@ -21,8 +21,8 @@ property:        every move type the grammar accepts carries its row, as
                  nothing can read); and at every decision whose candidates mix
                  plain and staked move types, `ranked` answers a plain one.
 domain:          definition site (`?top_item` and `?library_item`, the
-                 productions naming `move_type_def`; a game body and the stdlib
-                 rules fragment hold no move type) x row (absent, and each
+                 productions naming `move_type_def`; a game body holds no
+                 move type) x row (absent, and each
                  member of `nodes.STAKES`) x `when:` (absent / present) x
                  parameter domain (nullary, each of `domains.PARAM_DOMAIN_ORDER`,
                  a declared position domain, the board-minted direction

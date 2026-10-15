@@ -35,7 +35,12 @@ def _ctx(
     rs = RuntimeState(Seating(4), ZoneStore(game.zones, tuple(range(4))), random.Random(0))
     rs.mech_state.append({"led_suit": led_suit})
     rs.zones.instance("hand", 0).add_all(hand0)
-    return Ctx(rs=rs, chooser=random_chooser(random.Random(0)), active_rules=active)
+    return Ctx(
+        rs=rs,
+        chooser=random_chooser(random.Random(0)),
+        active_rules=active,
+        round_source=("hand", rs.zones.instance("hand", 0)),
+    )
 
 
 def test_per_rule_narrowing_survives_a_rule_that_demands_nothing() -> None:

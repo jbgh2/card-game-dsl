@@ -18,10 +18,15 @@ the resolved-AST level.
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
-Assumes:      a resolved AST (every ``NameRef`` classified, declarations
-              unique, rule templates instantiated).
-Establishes:  type validity only. The inferred :class:`~cardlang.types.Type`
-              values are ephemeral — they are NOT written onto nodes.
+Assumes:      a resolved AST (every ``NameRef`` classified over
+              ``n.RefKind``, declarations unique, rule templates
+              instantiated), in which a ``play_source`` read stands only in
+              a game holding a trick round (``resolve._check_play_source``).
+Establishes:  type validity only. A ``play_source`` read types as the join
+              of the trick rounds' ``source`` families' contents, read off
+              the stamp, never off the spelling ``hand``. The inferred
+              :class:`~cardlang.types.Type` values are ephemeral — they are
+              NOT written onto nodes.
               Downstream may assume every type Owner Guard held, but may not
               read types off the tree; a downstream consumer that needs a type
               is a signal to materialize it in this pass, never to re-infer it
@@ -53,7 +58,7 @@ Verified by:  the Owner Guard test modules (operator, aggregation, context,
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum
 from typing import assert_never
 
@@ -62,6 +67,8 @@ from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
 from cardlang.builtins.functions import (
     PRIMITIVE_CALL_FUNCS,
+    TRICK_ORDER_EXCLUDED_FUNCS,
+    TRICK_ORDER_EXCLUDED_WINNERS,
     TRICK_ORDER_GATED_WINNERS,
     TRICK_ORDER_ROWS,
 )
@@ -229,6 +236,33 @@ RANKING_GATED_WINNERS: frozenset[str] = frozenset(
 RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
     {"president_lead_options", "president_follows"}
 )
+
+# The ranking-gated names a Trick Order replaces. Beside a `trick_order { }`
+# block each is refused in favour of the Trick Order winner, whose strengths
+# are the block's `card_strength:` row, so naming that winner instead clears
+# this gate too. For every other member, declaring `ranking:` is the one fix,
+# and the refusal offers no other.
+RANKING_TRICK_ORDER_TWINS: frozenset[str] = (
+    RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES
+) & (TRICK_ORDER_EXCLUDED_FUNCS | TRICK_ORDER_EXCLUDED_WINNERS)
+
+
+def _ranking_refusal(subject: str, name: str, instead: str) -> str:
+    """The ranking gate's refusal for `name`, offering only fixes that clear it.
+    `instead` is how the Trick Order winner takes `name`'s place, said for the
+    position `name` is written in. A block needs its `trump:` row, and an
+    omitted `card_strength:` row reads `ranking:` after all, so the fix names
+    both; a `trump` clause is refused beside a block, so it names that too."""
+    fix = "declare one"
+    if name in RANKING_TRICK_ORDER_TWINS:
+        fix += (
+            f", or declare a `trick_order {{ }}` block with `trump:` and "
+            f"`card_strength:` rows in place of any `trump` clause, and {instead}"
+        )
+    return (
+        f"{subject} reads a card's rank strength from ranking:, but the game "
+        f"declares no ranking: — {fix}"
+    )
 
 
 def type_from_name(
@@ -409,6 +443,11 @@ class TypeEnv:
     # only fields. Default is the card pair for envs built ad hoc, which
     # `env_from_game` overrides per flavor.
     item_fields: Mapping[str, Type] = field(default_factory=lambda: dict(CARD_FIELDS))
+
+    # The content type of the Play Source a rule clause's bare `hand` reads:
+    # the join of every trick round's `source` family. None in a game that runs
+    # no trick round, where resolve's `_check_play_source` refuses the read.
+    play_source: Type | None = None
 
     def with_local(self, name: str, t: Type) -> TypeEnv:
         return replace(self, locals={**self.locals, name: t})
@@ -679,6 +718,14 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             return TBoolean()
         case "null":
             return TNull()  # the `none` literal — fits only optionals
+        case "play_source":
+            if env.play_source is None:
+                raise AssertionError(
+                    f"rule clause reads `{e.name}` in a game with no trick round "
+                    f"— resolve's `_check_play_source` refuses that before this "
+                    f"pass runs"
+                )
+            return env.play_source
         case "pronoun":
             # `actor` is universally the acting player at runtime
             # (evaluate._pronoun -> ctx.current_player, and the `Move`
@@ -688,19 +735,18 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
             # move-type/mechanic-specific (see ACTION_FIELDS for the
             # sound subset of `action` typed via Member access).
             return TPlayer() if e.name == "actor" else TAny()
-        case _:
-            # Every `ref_kind` resolve stamps is handled above, and resolve
-            # RAISES on an unclassified name before this pass runs — so an
-            # unknown kind here is a resolver/checker divergence, not a program
-            # error. Loud, per the same rule as `_env_miss`: the old blanket
-            # `TAny` made a whole new ref kind type as the permissive top and
-            # sail through every Owner Guard.
+        case None:
+            # Resolve RAISES on an unclassified name before this pass runs, so
+            # one here is a resolver/checker divergence, not a program error.
             raise AssertionError(
-                f"name '{e.name}' has ref_kind {e.ref_kind!r}, which this pass "
-                f"does not type — resolve classifies every name (and rejects "
-                f"the unclassifiable), so a new ref kind must be given a type "
-                f"here rather than defaulting to the permissive top"
+                f"name '{e.name}' has no ref_kind, which this pass does not "
+                f"type — resolve classifies every name (and rejects the "
+                f"unclassifiable)"
             )
+        case _:
+            # Exhaustive over `n.RefKind`: a new kind is a type error here until
+            # it is given a type, never the permissive top.
+            assert_never(e.ref_kind)
 
 
 def _type_name(t: Type) -> str:
@@ -964,7 +1010,35 @@ def _ambient_env(game: Game) -> TypeEnv:
         flavor=game.content_flavor,
         deck=game.deck,
         item_fields=item_field_table(game),
+        play_source=_play_source_type(game, zones),
     )
+
+
+def _play_source_type(game: Game, zones: Mapping[str, Type]) -> Type | None:
+    """The content type of the zones a trick round offers its cards from: the
+    join of every trick round's `source` family, wherever the round is
+    written. A rule is asked at whichever trick round runs, so its bare
+    `hand` holds the cards of any of them."""
+    sources: set[str] = set()
+    stack: list[object] = [game]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, tuple):
+            stack.extend(node)
+        elif is_dataclass(node) and not isinstance(node, (type, Span)):
+            if isinstance(node, n.TrickRound):
+                sources.add(node.source_zone)
+            stack.extend(getattr(node, f.name) for f in fields(node))
+    joined: Type | None = None
+    for name in sorted(sources):
+        content = zones[name]
+        joined = content if joined is None else join(joined, content)
+        if joined is None:
+            raise AssertionError(
+                f"the trick rounds' sources hold contents with no common type "
+                f"('{name}' among {sorted(sources)})"
+            )
+    return joined
 
 
 # A statement's enclosing binders, outermost first. A parameter binder carries
@@ -2281,22 +2355,17 @@ def _check_round_ranking(
     slot, never called, so the Call-site gate cannot see it; without this, a
     no-`ranking:` game naming one checks clean and crashes bare at the first
     trick's resolution."""
-    demanded: list[str] = []
+    demanded: list[tuple[str, str]] = []
     if isinstance(stmt, n.TrickRound) and stmt.winner_fn in RANKING_GATED_WINNERS:
-        demanded.append(f"round winner {stmt.winner_fn}")
+        demanded.append((f"round winner {stmt.winner_fn}", stmt.winner_fn))
     if isinstance(stmt, n.ClimbRound):
         for q in (stmt.combos_fn, stmt.follows_fn):
             if q in RANKING_GATED_CLIMB_QUERIES:
-                demanded.append(f"climb query {q}")
+                demanded.append((f"climb query {q}", q))
     if demanded and not env.has_ranking:
-        for name in demanded:
-            bag.error(
-                f"{name} reads a card's rank strength from ranking:, "
-                f"but the game declares no ranking: — declare one, or declare "
-                f"a `trick_order {{ }}` with a `card_strength:` row and name "
-                f"{min(TRICK_ORDER_GATED_WINNERS)}",
-                stmt.span,
-            )
+        for subject, name in demanded:
+            instead = f"name {min(TRICK_ORDER_GATED_WINNERS)} as the winner"
+            bag.error(_ranking_refusal(subject, name, instead), stmt.span)
 
 
 def _check_trick_order(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2578,18 +2647,21 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
                     )
+        # The Owner Guard for a call the game writes. A call spliced from a
+        # family library meets resolve's `_check_library_clause_gates` first,
+        # on the game's `uses` line; this is its Shadow Guard.
         if (
             e.func in RANKING_GATED_FUNCS
             and e.func not in env.functions
             and not env.has_ranking
         ):
-            bag.error(
-                f"{e.func}() reads a card's rank strength from ranking:, "
-                f"but the game declares no ranking: — declare one, or declare "
-                f"a `trick_order {{ }}` with a `card_strength:` row and name "
-                f"{min(TRICK_ORDER_GATED_WINNERS)}",
-                e.span,
+            winner = min(TRICK_ORDER_GATED_WINNERS)
+            instead = (
+                f"call `{winner}({e.args[0].name})` instead"
+                if e.args and isinstance(e.args[0], n.NameRef)
+                else f"call `{winner}` over the trick pile instead"
             )
+            bag.error(_ranking_refusal(f"{e.func}()", e.func, instead), e.span)
     elif isinstance(e, n.Subscript):
         obj_ref = e.obj
         if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":

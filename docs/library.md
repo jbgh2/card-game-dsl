@@ -203,8 +203,14 @@ Key design notes:
 ## Rules
 
 **Library rules are shared definitions**, not a prose catalogue: the bodies
-live in `cardlang/stdlib/rules.cardlang`, and a game activates one by naming
-it in `active_rules:` without defining it — the resolver splices the body in.
+live in `cardlang/stdlib/rules.cardlang`, which is `library stdlib`, and a game
+activates one by naming it in `active_rules:` without defining it or writing a
+`uses` line — the resolver splices the body in where it is named
+([decisions.md](decisions.md), "Family libraries"). The bodies read `hand`, the
+cards the player on turn plays from, and `state.led_suit`, so they need
+nothing from a game: a game whose trick round sources a family named anything
+at all activates them unchanged ([decisions.md](decisions.md), "Rule demand
+forms").
 Defining a game-local rule under a library name is rejected (a local copy
 would drift from the shared body silently). A parameterized rule is a
 template: the reference passes arguments (`NoLeadingSuitUntilBroken(hearts)`)
