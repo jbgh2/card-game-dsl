@@ -31,15 +31,12 @@ domain:     query slot x name. The slot axis is every `_REFERENCE_SLOTS` row
             namespace contributes no Primitive cell, and a member added to
             one joins the grid through the name axis. The class pin crosses
             the library-legal set of every swept namespace, and the table of
-            every `closed:` row of `_LIBRARY_UNSWEPT`, with the Primitives. A
-            declaration a library spells like a Primitive names the
-            library's own definition or state and reaches no Python; which
-            definitions may take a Primitive's spelling is the definition
-            contracts' (issue #189). The misuse probes run the routes and
-            neighbours a designer reaches for: a library procedure holding
-            the round,
-            Getaway's own trick as a library, and an importer whose
-            `trick_order { }` block a game-clause gate reads.
+            every `closed:` row of `_LIBRARY_UNSWEPT`, with the Primitives.
+            The misuse probes run the routes and neighbours a designer
+            reaches for: a library procedure holding the round, Getaway's
+            own trick as a library, and importers whose clauses a game-clause
+            gate on climb queries reads (a `trick_order { }` block, no
+            `ranking:`).
 registry:   slots: `cardlang.resolve._REFERENCE_SLOTS`; each slot's accepted
             names: `cardlang.resolve._ROUND_QUERY_REGISTRIES`; Primitives:
             `cardlang.builtins.functions.PRIMITIVE_CALL_FUNCS`,
@@ -388,23 +385,36 @@ def test_a_tochoo_library_is_refused_for_its_early_predicate(
     assert got == [(_LIBRARY_FILE, _primitive_rule("on_play_off_led_suit"))]
 
 
-def test_the_refusal_precedes_every_gate_the_game_decides(
-    monkeypatch: pytest.MonkeyPatch,
+# An importer's clause a game-clause gate on climb queries reads -> (the
+# queries the library's round names, the edit to the host that trips the gate).
+_CLAUSE_TRIGGERS: dict[str, tuple[dict[str, str | None], tuple[str, str]]] = {
+    "trick_order block": (
+        _CLIMB.defaults,
+        ("  cards: standard52\n", "  cards: standard52\n  trick_order {\n    trump: false\n  }\n"),
+    ),
+    "no ranking": (
+        {"combos_fn": "president_lead_options", "follows_fn": "president_follows"},
+        (_CLIMB.clauses, ""),
+    ),
+}
+
+
+@pytest.mark.parametrize("trigger", sorted(_CLAUSE_TRIGGERS))
+def test_the_refusal_precedes_the_clause_gates_on_climb_queries(
+    trigger: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A library's climb queries beside a game's `trick_order { }` block: the
-    library is wrong whatever imports it, so its author hears that first and
-    alone -- the clause question is the importer's only once the library
-    names something a game may supply. red under: a `uses`-line gate in
-    `_check_library_clause_gates` reporting a library's climb queries beside a
-    `trick_order { }` block without asking whether the library-alone check
-    refused them."""
-    _patch(monkeypatch, _CLIMB.library_text(_CLIMB.round(_CLIMB.defaults)))
-    text = _CLIMB.game_text(uses=True, game_local_round=None).replace(
-        "  cards: standard52\n",
-        "  cards: standard52\n  trick_order {\n    trump: false\n  }\n",
-        1,
-    )
-    got = _diagnostics(text, _CLIMB.game)
+    """A library's climb queries in an importer whose clauses a game-clause
+    gate on climb queries refuses: the library is wrong whatever imports it,
+    so its author hears that first and alone -- the clause question is the
+    importer's only once the library names something a game may supply.
+    red under: a `uses`-line gate in `_check_library_clause_gates` reporting a
+    library's climb queries without asking whether the library-alone check
+    refused them (executed 2026-10-14 for the `trick_order` trigger)."""
+    queries, (old, new) = _CLAUSE_TRIGGERS[trigger]
+    _patch(monkeypatch, _CLIMB.library_text(_CLIMB.round(queries)))
+    text = _CLIMB.game_text(uses=True, game_local_round=None)
+    assert text.count(old) == 1
+    got = _diagnostics(text.replace(old, new), _CLIMB.game)
     assert got == [
-        (_LIBRARY_FILE, _primitive_rule(name)) for name in _CLIMB.defaults.values() if name
+        (_LIBRARY_FILE, _primitive_rule(name)) for name in queries.values() if name
     ]

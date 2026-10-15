@@ -88,7 +88,11 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               refused on the game's ``uses`` line
               (``_check_library_clause_gates``) before the splice, so the
               gates downstream meet such a call only as its Shadow Guards.
-              And a named trump nobody
+              And a Primitive named by family-library text, as a call or in
+              a ``round``'s query slot, refused to the library's author
+              (``_check_library_encapsulation``) before the splice; the
+              slot registries are ``_ROUND_QUERY_REGISTRIES``, which
+              ``_validate_refs`` reads for every round. And a named trump nobody
               reads: a game-level ``trump:`` that is not a suit of the deck
               or that no trick round inherits, and a round ``trump`` clause
               on a winner whose body reads no trump
@@ -2321,7 +2325,8 @@ def _language_name_is(library: n.Library, name: str) -> _LibraryNameIs | None:
 # Where library text names a Primitive -> (what the library does with it, the
 # fix). A call's value can be computed by the game and passed in; a round slot
 # takes a bare name, so the round itself moves to the game.
-_PRIMITIVE_POSITIONS: dict[str, tuple[str, str, str]] = {
+_PrimitivePosition = Literal["call", "round slot"]
+_PRIMITIVE_POSITIONS: dict[_PrimitivePosition, tuple[str, str, str]] = {
     "call": (
         "calls",
         "call",
@@ -2338,7 +2343,7 @@ _PRIMITIVE_POSITIONS: dict[str, tuple[str, str, str]] = {
 }
 
 
-def _primitive_in_library(library: n.Library, position: str, name: str) -> str:
+def _primitive_in_library(library: n.Library, position: _PrimitivePosition, name: str) -> str:
     """The refusal for a Primitive library text names. The library's
     `function` namespace is `BUILTIN_CALL_FUNCS` (`_library_slot_names`) and
     its round slots admit no Primitive (`_round_slot_primitives`), so this is
