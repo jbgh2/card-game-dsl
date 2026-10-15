@@ -67,6 +67,9 @@ from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
 from cardlang.builtins.functions import (
     PRIMITIVE_CALL_FUNCS,
+    PRIMITIVE_CLIMB_FOLLOWS,
+    PRIMITIVE_CLIMB_LEADS,
+    TRICK_WINNER_NAMES,
     TRICK_ORDER_EXCLUDED_FUNCS,
     TRICK_ORDER_EXCLUDED_WINNERS,
     TRICK_ORDER_GATED_WINNERS,
@@ -275,10 +278,11 @@ def card_content_forms(node: object) -> tuple[str, ...]:
     """What in `node` reads a deck card's content, in the designer's words: a
     move parameter whose domain is a card axis or the card itself
     (`CARD_PARAM_DOMAINS`), `reveal one card`, a card query, an aggregation
-    over `cards in ...`, a subset query. None of them has a piece-game form.
-    The one test for the flavor gates on these forms, asked by each of them
-    (resolve's move-parameter and reveal arms, this pass's query arms) and by
-    resolve's `uses`-line check."""
+    over `cards in ...`, a subset query, a trick round's winner (each reads
+    the led suit), a climbing query (each reads card combinations). None of
+    them has a piece-game form. The one test for the flavor gates on these
+    forms, asked by each of them (resolve's move-parameter, reveal and round
+    gates, this pass's query arms) and by resolve's `uses`-line check."""
     if isinstance(node, n.MoveTypeDef):
         return tuple(
             dict.fromkeys(
@@ -296,6 +300,14 @@ def card_content_forms(node: object) -> tuple[str, ...]:
         return (f"`{fold} ... over cards in`",)
     if isinstance(node, n.SubsetQuery):
         return ("a subset query",)
+    if isinstance(node, n.TrickRound) and node.winner_fn in TRICK_WINNER_NAMES:
+        return (f"round winner `{node.winner_fn}`",)
+    if isinstance(node, n.ClimbRound):
+        return tuple(
+            f"climb query `{q}`"
+            for q in (node.combos_fn, node.follows_fn)
+            if q in PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
+        )
     return ()
 
 

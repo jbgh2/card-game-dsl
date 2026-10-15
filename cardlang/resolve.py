@@ -1560,11 +1560,11 @@ def _check_library_clause_gates(
             continue
         reached: dict[str, list[str]] = {}
         for nd, where in nodes:
-            key = nd.func if isinstance(nd, n.Call) else nd
-            if key in claimed:
-                continue
             phrases = gate.needs(nd, game)
             if not phrases:
+                continue
+            key = nd.func if isinstance(nd, n.Call) else nd
+            if key in claimed:
                 continue
             claimed.add(key)
             for phrase in phrases:
@@ -3291,6 +3291,7 @@ def resolve(game: n.Game) -> n.Game:
     # Before `_resolve_trump`, which returns early on a block game: R1 owns the
     # game-clause-beside-a-block cell, so the two never co-report on it.
     _check_trick_order_partition(game, bag)
+    _check_piece_rounds(game, bag)
     _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
     _check_climb_action_names(game, bag)
@@ -7664,6 +7665,26 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
             f"round or call it over the trick pile, or drop the block",
             game.trick_order.span or game.span,
         )
+
+
+def _check_piece_rounds(game: n.Game, bag: DiagnosticBag) -> None:
+    """A trick round's winner or a climbing query in a piece game: each reads
+    a deck card's suit or rank, which a piece set has none of
+    (`_CARD_CONTENT_GATE`). Refused here, before the type layer would ask the
+    game for a `ranking:` a piece game cannot declare. Spliced from a library,
+    `_check_library_clause_gates` has refused it first."""
+    for nd in _walk(game):
+        if not isinstance(nd, (n.TrickRound, n.ClimbRound)):
+            continue
+        if not _refuses(_CARD_CONTENT_GATE, nd, game):
+            continue
+        for phrase in card_content_forms(nd):
+            bag.error(
+                f"{content_kind_clause(game.content_flavor, game.deck)} -- "
+                f"{phrase} reads a deck card's suit or rank, which a piece set "
+                f"has none of",
+                nd.span,
+            )
 
 
 def _gated_calls(game: n.Game) -> list[n.Call]:
