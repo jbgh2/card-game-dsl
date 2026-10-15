@@ -307,6 +307,31 @@ def test_a_clause_missing_its_last_word_never_absorbs_suit_ranking(rule_name: st
     assert refused.value.diagnostic.span is not None
 
 
+@pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
+def test_a_clause_ending_in_the_name_suit_leaves_the_next_ranking_alone(
+    rule_name: str,
+) -> None:
+    """The refusal above is about `suit` on the `ranking:` line itself. A
+    clause on the line above whose last word is the name `suit` (`loser: suit`,
+    a state variable of that name) is a complete sentence, so an ordinary
+    `ranking:` after it is never refused as having taken `suit`.
+
+    red under: anchor parse.py's `suit`-before-`ranking:` check with `$`,
+    which matches before a trailing newline (executed 2026-10-15: the `cards`,
+    `direction`, `loser`, `pieces`, `trump`, `uses_decl` and `winner` rows
+    reddened)."""
+    words = _CLAUSE_TEXT[rule_name].split()
+    src = (
+        "game G {\n  players: 2\n  cards: standard52\n"
+        f"  {' '.join([*words[:-1], 'suit'])}\n  ranking: A K Q\n"
+        "  zones { deck : Deck }\n}"
+    )
+    try:
+        parse_text(src, "absorb.cardlang")
+    except DiagnosticError as exc:
+        assert "took the word `suit`" not in exc.diagnostic.message, exc.diagnostic
+
+
 # --- the second absorber: an empty expression slot ---------------------------
 #
 # A brace clause read as the expression an empty slot is missing would be

@@ -452,7 +452,7 @@ class _Builder(Transformer[Token, n.Game]):
         # line parses as `ranking:` — a whole parse with the clause gone. No
         # sentence of the language puts `suit` before `ranking:` on its line.
         before = self._text[: meta.start_pos].rstrip(" \t")
-        if re.search(r"(?<![A-Za-z0-9_])suit$", before):
+        if re.search(r"(?<![A-Za-z0-9_])suit\Z", before):
             raise DiagnosticError(
                 Diagnostic(
                     Severity.ERROR,
