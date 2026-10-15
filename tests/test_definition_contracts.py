@@ -15,9 +15,10 @@ domain:          six axes. (1) The contractable kind — `_LIBRARY_DEF_KINDS`
                  restricted to the kinds whose namespace some slot a library's
                  own text holds can name — crossed with who answers the row:
                  the game's matching definition, nothing, the same name as
-                 state, as a zone or as each other definition kind, the name
-                 defined twice, another library's definition, and the library
-                 itself. (2) Each field a signature row compares, read off the
+                 state, as a zone, as each other definition kind or as a
+                 `primitives { }` entry, the name defined twice, another
+                 library's definition, and the library itself, with the game
+                 answering the row or not. (2) Each field a signature row compares, read off the
                  row nodes' own fields: arity both ways, a parameter's type and
                  its nullability, a parameter's name (accepted: positional), a
                  function's result (refused when it does not coerce; the
@@ -34,8 +35,13 @@ domain:          six axes. (1) The contractable kind — `_LIBRARY_DEF_KINDS`
                  parameter, a row named twice, a bare read, a call of a
                  procedure row and a run of a function row, a library procedure
                  running a procedure row; a library call disagreeing with its
-                 own row; a dead row of each kind. (4) Two libraries
-                 contracting one name. (5) What crosses the splice: a call
+                 own row; a dead row of each kind; a row name the library
+                 also holds as provided state or as another definition, with
+                 the game answering or not. (4) Two libraries and one name:
+                 contracted at two signatures, as state and as a function,
+                 at two results in both orders of the `uses` lines, and
+                 contracted by one while the other brings it in. (5) What
+                 crosses the splice: a call
                  cycle through the contract, a call-site pronoun inside an
                  answering definition, a hidden read through an answering
                  function. (6) The row's spelling at parse, including each
@@ -332,14 +338,17 @@ def _assert(bag: list[str], expected: Reject | None) -> None:
 #
 # The answer column: the game's own matching definition, nothing, the same name
 # declared as each OTHER thing a game can declare (the two keyed blocks and
-# every definition kind), the name defined twice, another library's
-# definition, and the library defining it itself. Reported on the game's
-# `uses` line, except the last, which is the library's own contradiction.
+# every definition kind and a `primitives { }` entry), the name defined twice,
+# another library's definition, and the library defining it itself — with the
+# game answering the row or not. Reported on the game's `uses` line, except the
+# last two, which are the library's own contradiction, told once whatever the
+# game did.
 
 _OTHER_DECLARATIONS: dict[str, str] = {
     "state": "state",
     "zone": "a zone",
     **{field: f"a {noun}" for field, noun in _LIBRARY_DEF_KINDS},
+    "primitive": "a Primitive",
 }
 
 
@@ -349,6 +358,8 @@ def _as_other(other: str, name: str) -> dict[str, str]:
         return {"state": f"{name} : Boolean = false"}
     if other == "zone":
         return {"zones": f"{name} : Discard"}
+    if other == "primitive":
+        return {"primitives": f"primitives {{ {name}(p : Player) : Boolean }}"}
     return {"defs": _DEF_TEXT[other].format(name=name)}
 
 
@@ -372,6 +383,7 @@ def _answer_cells() -> Iterator[tuple[str, str]]:
         yield field, "twice"
         yield field, "other_library"
         yield field, "library_defines_too"
+        yield field, "library_defines_too_and_game_answers"
 
 
 def _answer_expected(field: str, answer: str) -> Reject | None:
@@ -389,7 +401,7 @@ def _answer_expected(field: str, answer: str) -> Reject | None:
         return Reject(GAME, (asks, "defines 2 times"))
     if answer == "other_library":
         return Reject(GAME, (asks, "which library 'other' defines"))
-    assert answer == "library_defines_too"
+    assert answer.startswith("library_defines_too")
     return Reject(LIBRARY, (f"both defines and requires {noun} '{k.name}'",))
 
 
@@ -413,9 +425,10 @@ def _answer_cell(field: str, answer: str) -> tuple[typing.Callable[[], tuple[n.L
             lambda: (_library(field), parse_library(other, "docs/libraries/other.cardlang")),
             _host(uses_more="uses other"),
         )
-    assert answer == "library_defines_too"
+    assert answer.startswith("library_defines_too")
     own = _DEF_TEXT[field].format(name=k.name).replace("{{", "{").replace("}}", "}")
-    return (lambda: (_library(field, extra=own),)), _host()
+    answered = k.answer if answer.endswith("game_answers") else ""
+    return (lambda: (_library(field, extra=own),)), _host(defs=answered)
 
 
 @pytest.mark.parametrize("field,answer", list(_answer_cells()))
@@ -790,6 +803,16 @@ _LIBRARY_MISUSE: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
         "ready(p : Player) : Boolean", "run ready(actor)", "",
         ("'ready'", "function", "not a procedure"),
     ),
+    # A result that is no value type: one sentence, and the row's `run` site
+    # is not also told the row is a function.
+    "procedure_result_with_question_mark": (
+        "settle(p : Player) : Procedure?", "run settle(actor)", "",
+        ("a procedure returns no value",),
+    ),
+    "unknown_result": (
+        "settle(p : Player) : Void", "run settle(actor)", "",
+        ("'Void'",),
+    ),
     "library_procedure_runs_a_procedure_row": (
         "settle(p : Player) : Procedure", "run helper(actor)",
         "procedure helper(p : Player) { run settle(p) }",
@@ -903,6 +926,94 @@ def test_two_libraries_contracting_one_name(
         _host(defs=_KIND["functions"].answer, uses_more="uses second"),
     )
     _assert(bag, Reject(GAME, needles))
+
+
+@pytest.mark.parametrize("probe_first", [True, False], ids=["probe_first", "second_first"])
+def test_two_libraries_reading_one_answer_at_different_results(
+    monkeypatch: pytest.MonkeyPatch, probe_first: bool
+) -> None:
+    """Both libraries' rows are checked against the one answer, in either
+    order of the `uses` lines: the answer carries every row it answers, so
+    the library whose result it does not meet is the one refused.
+
+    red under: let a later library's stamp replace an earlier one's in
+    `resolve._apply_uses` — one order is accepted and plays with a Boolean
+    where the second library reads an Integer."""
+    second = _SECOND.format(row="ready(q : Player) : Integer", use="if ready(actor) is 1 { }")
+    order = ("uses second", "") if not probe_first else ("", "uses second")
+    text = _host(defs=_KIND["functions"].answer, uses_more=order[1])
+    if not probe_first:
+        text = text.replace("uses contractlib", "uses second\n  uses contractlib", 1)
+    bag = _outcome(
+        monkeypatch,
+        lambda: (_library("functions"), parse_library(second, "docs/libraries/second.cardlang")),
+        text,
+    )
+    _assert(
+        bag,
+        Reject(GAME, ("library 'second' requires function `ready(q : Player) : Integer`", "returning Boolean")),
+    )
+
+
+# A library forcing a name on the game through its contract, while another
+# library brings in the same name: the game cannot rename its answer, so it is
+# told the two libraries do not combine. (clash text in the second library)
+_FORCED_CLASH: dict[str, str] = {
+    "provided_state": "state {{ ready : Boolean = false }}",
+    "move_type": "move_type ready {{ effect {{ acted[actor] := true }} }}",
+}
+
+
+@pytest.mark.parametrize("clash", sorted(_FORCED_CLASH))
+def test_a_name_one_contract_forces_and_another_library_brings_in(
+    monkeypatch: pytest.MonkeyPatch, clash: str
+) -> None:
+    second = (
+        "library second {{ requires {{ acted[player] : Boolean }} "
+        + _FORCED_CLASH[clash]
+        + " }}"
+    ).replace("{{", "{").replace("}}", "}")
+    bag = _outcome(
+        monkeypatch,
+        lambda: (_library("functions"), parse_library(second, "docs/libraries/second.cardlang")),
+        _host(defs=_KIND["functions"].answer, uses_more="uses second"),
+    )
+    _assert(
+        bag,
+        Reject(GAME, ("library 'second' brings in", "library 'contractlib' has this game define 'ready'", "drop one `uses` line")),
+    )
+
+
+# A library holding a name it also contracts for, told once to its author —
+# whether or not the game answered the row. (the library's own text)
+_OWN_CLASH: dict[str, str] = {
+    "provided_state": "state { ready : Boolean = false }",
+    "move_type": "move_type ready { effect { acted[actor] := true } }",
+    "procedure": "procedure ready(p : Player) { acted[p] := true }",
+}
+
+
+@pytest.mark.parametrize("answered", [True, False], ids=["answered", "unanswered"])
+@pytest.mark.parametrize("clash", sorted(_OWN_CLASH))
+def test_a_library_holding_its_own_row_name_is_told_once(
+    monkeypatch: pytest.MonkeyPatch, clash: str, answered: bool
+) -> None:
+    """The library's contradiction is its own; the game answering the row
+    did what the row asked, so it earns no sentence of its own.
+
+    red under: drop the contracted-name skip from
+    `resolve._check_library_shadows_game` — the answered cells gain a second
+    sentence in the game's file."""
+    bag = _outcome(
+        monkeypatch,
+        lambda: (_library("functions", extra=_OWN_CLASH[clash]),),
+        _host(defs=_KIND["functions"].answer if answered else ""),
+    )
+    if answered:
+        _assert(bag, Reject(LIBRARY, ("requires 'ready' as a function and also holds",)))
+    else:
+        assert any("requires 'ready' as a function and also holds" in line for line in bag), bag
+        assert not any(line.startswith(GAME) and "rename one" in line for line in bag), bag
 
 
 # --- Axis 5: what crosses the splice -----------------------------------------

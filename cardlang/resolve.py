@@ -232,8 +232,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               move or procedure row the library never reaches
               (``_check_contract_shapes``, ``_check_definition_claims``). The
               splice records each answer: the game's answering function or
-              procedure carries the row (``contract``), and so does every
-              library call of a contracted function (``Call.contract``) —
+              procedure carries every row it answers (``contracts``), and
+              every library call of a contracted function carries its own
+              row (``Call.contract``) —
               ``typecheck`` reads both, and nothing else about imports. A
               library ``run`` of a contracted procedure carries no stamp: its
               arity and parameter types are the row's by the check above, and
@@ -1230,28 +1231,28 @@ def _apply_uses(
     _check_provided_readonly(game, claims.provided, bag)
     _check_provided_shadowed_by_binder(game, claims.provided, bag)
     skip = claims.contested | frozenset(claims.provided)
-    answers: dict[tuple[str, str], n.ContractStamp] = {}
+    answers: dict[tuple[str, str], tuple[n.ContractStamp, ...]] = {}
     for use, library in libraries:
         check_library_alone(library, bag)
-        answers |= _check_requires(game, use, library, bag, skip, definition_claims)
+        for key, stamp in _check_requires(
+            game, use, library, bag, skip, definition_claims
+        ).items():
+            answers[key] = answers.get(key, ()) + (stamp,)
         _check_library_clause_gates(game, use, library, bag)
     # The Definition Contracts cross the splice here, the one moment both
-    # sides are in hand: the game's answering definitions carry the row they
-    # answer, and each library's calls of a contracted function carry its row,
-    # so typecheck types those calls against the row and checks the answer's
-    # inferred result against it, reporting on the `uses` line.
+    # sides are in hand: the game's answering definitions carry every row they
+    # answer, one per library, and each library's calls of a contracted
+    # function carry its own row, so typecheck types those calls against the
+    # row and checks the answer's inferred result against each, reporting on
+    # each library's `uses` line.
     game = replace(
         game,
         functions=tuple(
-            replace(f, contract=answers[("functions", f.name)])
-            if ("functions", f.name) in answers
-            else f
+            replace(f, contracts=answers.get(("functions", f.name), ()))
             for f in game.functions
         ),
         procedures=tuple(
-            replace(p, contract=answers[("procedures", p.name)])
-            if ("procedures", p.name) in answers
-            else p
+            replace(p, contracts=answers.get(("procedures", p.name), ()))
             for p in game.procedures
         ),
     )
@@ -1550,7 +1551,13 @@ def _check_library_collisions(
         local = {d.name: d for d in getattr(game, field)}
         from_libraries: dict[str, str] = {}
         for use, library in libraries:
+            # A definition the library also contracts for is the library's own
+            # contradiction (`_check_definition_claims`); the game answering
+            # the row did what the row asked.
+            contracted = _contracted(library, field) if field in _CONTRACT_ROWS else frozenset()
             for definition in getattr(library, field):
+                if definition.name in local and definition.name in contracted:
+                    continue
                 if definition.name in local:
                     bag.error(
                         f"{noun} '{definition.name}' is defined by this game and "
@@ -1695,7 +1702,17 @@ def _check_library_shadows_game(
     value, which has none."""
     game_names = _game_bindings(game)
     def_nouns = {noun for _, noun in _LIBRARY_DEF_KINDS}
+    # The name each library's Definition Contract rows make the game define.
+    contracted_by: dict[str, str] = {
+        r.name: library.name
+        for _, library in libraries
+        for field, _noun, _cls in CONTRACT_KINDS
+        for r in _contract_rows(library, field)
+    }
     for use, library in libraries:
+        own_rows = frozenset(
+            r.name for r in library.requires if not isinstance(r, n.RequireDecl)
+        )
         injected: list[tuple[str, str, Span | None]] = [
             (decl.name, "provided state", decl.span)
             for decl in (library.state.decls if library.state is not None else ())
@@ -1716,6 +1733,22 @@ def _check_library_shadows_game(
             if inject_noun == game_noun and inject_noun in def_nouns:
                 continue
             if inject_noun == "provided state" and game_noun == "state variable":
+                continue
+            # A name the library both holds and contracts for is its own
+            # contradiction, told to its author by `_check_contract_names`.
+            if name in own_rows:
+                continue
+            asked_by = contracted_by.get(name)
+            if asked_by is not None and game_noun in def_nouns:
+                # The game's definition answers another library's contract, so
+                # renaming it is not a fix the game's author can take.
+                bag.error(
+                    f"library '{library.name}' brings in {inject_noun} '{name}', "
+                    f"but library '{asked_by}' has this game define '{name}' as a "
+                    f"{game_noun} — the two libraries cannot both be used: drop "
+                    f"one `uses` line",
+                    use.span,
+                )
                 continue
             bag.error(
                 f"library '{library.name}' brings in {inject_noun} '{name}', but "
@@ -2061,16 +2094,28 @@ def _contracted(library: n.Library, field: str) -> frozenset[str]:
 def _meant(library: n.Library, field: str) -> frozenset[str]:
     """The names the library's rows contract for as definitions of one kind,
     as the author MEANT them: the well-formed rows, and the keyed rows that
-    spell the kind (`fold : move_type`, `respond : Procedure`). The slot sweep
-    reads this one, so a misworded row's uses are not also reported as leaks
-    and `_check_contract_shapes` stays the row's one speaker."""
-    return _contracted(library, field) | frozenset(
+    spell the kind (`fold : move_type`, `respond : Procedure`). A signature
+    row whose result is no value type (`settle() : Procedure?`,
+    `settle() : Void`) could have meant either a function or a procedure, so
+    its name is meant as both. The slot sweep reads this one, so a misworded
+    row's uses are not also reported as leaks and `_check_contract_shapes`
+    (or, for an unknown result, the type slot's own sweep) stays the row's one
+    speaker."""
+    misworded = frozenset(
         r.name
         for r in library.requires
         if isinstance(r, n.RequireDecl)
         and _names_a_kind(r)
         and _DEFINITION_KIND_WORDS[r.type_name] == field
     )
+    unread = frozenset(
+        r.name
+        for r in library.requires
+        if isinstance(r, n.FunctionContract)
+        and r.result_type.removesuffix("?") not in KNOWN_TYPE_NAMES
+        and field in ("functions", "procedures")
+    )
+    return _contracted(library, field) | misworded | unread
 
 
 def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
@@ -3064,7 +3109,7 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
 
 def _game_declarations_of(game: n.Game, name: str) -> list[str]:
     """Every kind of thing `name` is declared as in the game, as the noun a
-    near-miss names: state, a zone, and each definition kind."""
+    near-miss names: state, a zone, each definition kind, and a Primitive."""
     found: list[str] = []
     if any(
         decl.name == name
@@ -3078,6 +3123,8 @@ def _game_declarations_of(game: n.Game, name: str) -> list[str]:
     for field, noun in _LIBRARY_DEF_KINDS:
         if any(d.name == name for d in getattr(game, field)):
             found.append(f"a {noun}")
+    if game.primitives is not None and any(d.name == name for d in game.primitives.decls):
+        found.append("a Primitive")
     return found
 
 
@@ -8764,8 +8811,8 @@ def _check_functions(
                     f"function is hermetic and may not read "
                     f"{'/'.join(sorted(_CALL_SITE_PRONOUNS))} — "
                     + (
-                        _contracted_remedy(fn.contract)
-                        if fn.contract is not None
+                        _contracted_remedy(fn.contracts[0])
+                        if fn.contracts
                         else "pass the value in as a parameter"
                     ),
                     nd.span,
@@ -9283,8 +9330,8 @@ def _check_procedures(
                         )
                     elif nd.ref_kind == "pronoun" and nd.name in _CALL_SITE_PRONOUNS:
                         remedy = (
-                            _contracted_remedy(proc.contract)
-                            if proc.contract is not None
+                            _contracted_remedy(proc.contracts[0])
+                            if proc.contracts
                             else f"pass the value in as a parameter (`run "
                             f"{proc.name}({nd.name})`)"
                         )

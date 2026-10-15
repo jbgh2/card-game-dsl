@@ -1219,16 +1219,16 @@ class FunctionDef:
     """`function NAME(<param> : <type>, …) = <expr>` — a named, parameterized
     expression callable wherever an expression appears. The body is hermetic: it
     reads only its parameters (bound to the call arguments) and game/phase state
-    (read at call time), never the caller's binders. Non-recursive. ``contract``
-    is set by `resolve` on a game function answering a library's
-    [[definition-contract]] row: the obligation `typecheck` checks its result
-    against."""
+    (read at call time), never the caller's binders. Non-recursive.
+    ``contracts`` is set by `resolve` on a game function answering library
+    [[definition-contract]] rows, one stamp per library whose row it answers:
+    the obligations `typecheck` checks its result against."""
 
     name: str
     params: tuple[Parameter, ...]
     body: Expr
     span: Span | None = None
-    contract: ContractStamp | None = None
+    contracts: tuple[ContractStamp, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -1242,15 +1242,15 @@ class ProcedureDef:
     never the caller's binders, and never the call-site pronouns (`actor` /
     `action` / `outcome`), which would make its meaning depend on where it is
     called from. The resolver consumes procedures — post-expansion,
-    `Game.procedures` is empty. ``contract`` is set by `resolve` on a game
-    procedure answering a library's [[definition-contract]] row, whose `run`
-    sites are in library text."""
+    `Game.procedures` is empty. ``contracts`` is set by `resolve` on a game
+    procedure answering library [[definition-contract]] rows, whose `run` sites
+    are in library text."""
 
     name: str
     params: tuple[Parameter, ...]
     body: tuple[Stmt, ...]
     span: Span | None = None
-    contract: ContractStamp | None = None
+    contracts: tuple[ContractStamp, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

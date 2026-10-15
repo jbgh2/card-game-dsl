@@ -5085,7 +5085,11 @@ result by the ordinary coercion rule in `typecheck`, which reads it off the
 stamp the splice leaves (above). Every one of these mismatches is reported once,
 on the game's `uses` line: the library's own calls are typed against the row,
 not against the game's answer, so a wrong answer earns no second report inside
-library text the game's author never wrote. The rest follows from the language
+library text the game's author never wrote. One definition may answer rows of
+several libraries, and each row is checked on its own library's `uses` line; a
+name one library's row makes the game define, and another library brings in,
+is refused on that second `uses` line, since the two libraries do not combine
+and the game cannot rename its answer. The rest follows from the language
 around the row. A procedure may not run another, so a procedure row is run
 from a library move type's effect. A definition the library calls cannot be
 handed a new argument from the game's side, so the refusal of a call-site

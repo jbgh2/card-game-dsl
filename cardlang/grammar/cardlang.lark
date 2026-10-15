@@ -17,8 +17,9 @@ start: top_item+
 // reaches a library two ways: `state` PROVIDES it (the library owns the variable
 // and its initial value; the game may read it and may not write it) and
 // `requires` CONTRACTS for it (the game declares it, picks its initial value,
-// and writes it). A zone or a move type reaches it one way, contracted through
-// `requires` — the game declares the zone, or defines the move type.
+// and writes it). A zone, or a move type, function or procedure the library
+// uses, reaches it one way, contracted through `requires` — the game declares
+// the zone, or defines the definition.
 library: _LIBRARY_KW NAME "{" library_item* "}"
 
 ?library_item: requires_block

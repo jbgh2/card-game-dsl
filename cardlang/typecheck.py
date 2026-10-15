@@ -23,7 +23,7 @@ Assumes:      a resolved AST (every ``NameRef`` classified over
               instantiated), in which a ``play_source`` read stands only in
               a game holding a trick round (``resolve._check_play_source``).
               Every game function answering a library's Definition Contract
-              carries the row it answers (``FunctionDef.contract``), and
+              carries each row it answers (``FunctionDef.contracts``), and
               every library call of a contracted function carries its row
               (``Call.contract``); resolve stamps both at the splice, and no
               other source of contract knowledge exists here.
@@ -1377,21 +1377,22 @@ def _check_contracted_results(game: Game, env: TypeEnv, bag: DiagnosticBag) -> N
     row promises: its inferred result coerces to the row's, by the rule every
     typed position applies. The Owner Guard of the result leg, told to the
     game's author on the `uses` line its stamp carries — resolve compared the
-    name and parameters there already, and the result exists only here."""
+    name and parameters there already, and the result exists only here. One
+    function may answer rows of several libraries, so each row is checked."""
     for f in game.functions:
-        stamp = f.contract
-        if stamp is None or stamp.result_type is None:
-            continue
         got = env.functions[f.name].ret
-        want = _contract_type(stamp.result_type, env)
-        if not coercible(got, want):  # choke-point-exempt: a definition's inferred result against its contract row, no operand
-            bag.error(
-                f"library '{stamp.library}' requires function `{stamp.row}`, but "
-                f"game '{game.name}' defines `{f.name}` returning "
-                f"{_type_name(got)} — the library's calls read it as "
-                f"{_type_name(want)}",
-                stamp.uses_span,
-            )
+        for stamp in f.contracts:
+            if stamp.result_type is None:
+                continue
+            want = _contract_type(stamp.result_type, env)
+            if not coercible(got, want):  # choke-point-exempt: a definition's inferred result against its contract row, no operand
+                bag.error(
+                    f"library '{stamp.library}' requires function `{stamp.row}`, "
+                    f"but game '{game.name}' defines `{f.name}` returning "
+                    f"{_type_name(got)} — the library's calls read it as "
+                    f"{_type_name(want)}",
+                    stamp.uses_span,
+                )
 
 
 def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
