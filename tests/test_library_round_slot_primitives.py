@@ -422,8 +422,9 @@ def test_the_refusal_precedes_the_clause_gates_on_climb_queries(
     gate on climb queries refuses: the library is wrong whatever imports it,
     so its author hears that first and alone -- the clause question is the
     importer's only once the library names something a game may supply.
-    red under: dropping the `_round_slot_primitives` filter from the nodes
-    `resolve._library_nodes` yields (executed 2026-10-15, both triggers)."""
+    red under: running `_check_library_clause_gates` for a library
+    `check_library_alone` refused, in `resolve._apply_uses` (executed
+    2026-10-15, both triggers)."""
     queries, (old, new) = _CLAUSE_TRIGGERS[trigger]
     _patch(monkeypatch, _CLIMB.library_text(_CLIMB.round(queries)))
     text = _CLIMB.game_text(uses=True, game_local_round=None)
@@ -434,6 +435,32 @@ def test_the_refusal_precedes_the_clause_gates_on_climb_queries(
     ]
 
 
+def test_a_library_calling_a_primitive_asks_a_piece_game_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #873's witness: a library calling a deck-reading Primitive,
+    imported by a piece game. The library's author hears the Primitive refusal
+    alone; the game's author is not also told the library reads a card, a
+    question that is gone once the library is fixed.
+
+    red under: running `_check_library_clause_gates` for a library
+    `check_library_alone` refused, in `resolve._apply_uses` (executed
+    2026-10-15: a second, `uses`-line refusal that the game is played with
+    pieces)."""
+    _patch(
+        monkeypatch,
+        f"library {_LIB} {{ function probe_fn(p : Player) = belote_royal_player() }}\n",
+    )
+    text = (_GAMES / "tic-tac-toe.cardlang").read_text()
+    anchor = "game TicTacToe {\n"
+    assert text.count(anchor) == 1
+    got = _diagnostics(text.replace(anchor, f"{anchor}  uses {_LIB}\n"), "tic-tac-toe.cardlang")
+    assert len(got) == 1, got
+    source, message = got[0]
+    assert source == _LIBRARY_FILE, got
+    assert "'belote_royal_player', which is a Primitive" in message, got
+
+
 def test_a_gated_call_inside_a_refused_round_asks_the_importer_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -441,9 +468,9 @@ def test_a_gated_call_inside_a_refused_round_asks_the_importer_nothing(
     `until`, in an importer that declares no `ranking:`, adds no `uses`-line
     refusal beside the library author's.
 
-    red under: leaving out only the round node itself, not its subtree, in
-    `resolve._library_nodes` (executed 2026-10-15: the `rank_value` call drew
-    a second, `uses`-line refusal)."""
+    red under: running `_check_library_clause_gates` for a library
+    `check_library_alone` refused, in `resolve._apply_uses` (executed
+    2026-10-15: the `rank_value` call drew a second, `uses`-line refusal)."""
     until = "until (any player where hand[player] is empty)"
     gated = "until (any card in trick_pile where rank_value(card) > 13)"
     round_text = _CLIMB.round(_CLIMB.defaults)

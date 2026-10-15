@@ -89,7 +89,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               (``_check_library_clause_gates``) before the splice, so the
               gates downstream meet it only as its Shadow Guards. Each row's
               test is the one its gate asks. A library rule the game does not
-              activate is not brought in, and is not judged against the game.
+              activate is not brought in, and is not judged against the game;
+              nor is a library ``check_library_alone`` refuses, whose own
+              author speaks first and alone.
               And a Primitive named by family-library text, as a call or in
               a ``round``'s query slot, refused to the library's author
               (``_check_library_encapsulation``) before the splice; the
@@ -324,7 +326,7 @@ from cardlang.primitives_block import (
     walled_namespace_of,
 )
 from cardlang import primitives_block
-from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Span
+from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Severity, Span
 from cardlang.domains import (
     CARD_AXIS_ROLES,
     CARD_PARAM_DOMAINS,
@@ -1259,12 +1261,17 @@ def _apply_uses(
     skip = claims.contested | frozenset(claims.provided)
     answers: dict[tuple[str, str], tuple[n.ContractStamp, ...]] = {}
     for use, library in libraries:
+        before = len(bag.items)
         check_library_alone(library, bag)
+        # A library its own author must fix is not judged against the game's
+        # clauses: one the game lacks may not be needed once the library is sound.
+        sound = not any(d.severity is Severity.ERROR for d in bag.items[before:])
         for key, stamp in _check_requires(
             game, use, library, bag, skip, definition_claims
         ).items():
             answers[key] = answers.get(key, ()) + (stamp,)
-        _check_library_clause_gates(game, use, library, bag)
+        if sound:
+            _check_library_clause_gates(game, use, library, bag)
     # The Definition Contracts cross the splice here, the one moment both
     # sides are in hand: the game's answering definitions carry every row they
     # answer, one per library, and each library's calls of a contracted
@@ -1773,18 +1780,15 @@ def _library_nodes(library: n.Library, game: n.Game) -> list[tuple[object, str]]
     that holds it, in the designer's words: its move types, functions and
     procedures, its provided state, and the rules the game activates. A rule
     no game activates is checked against its library alone (decisions.md
-    "Family libraries"). Nor is a round naming a Primitive in a query slot,
-    with everything inside it: `check_library_alone` refuses that round to the
-    library's author whatever imports it, so no game is asked a clause for it."""
+    "Family libraries")."""
     activated = _activated_rule_names(game)
-    refused = {id(sub) for nd, _ in _round_slot_primitives(library) for sub in _walk(nd)}
     found: list[tuple[object, str]] = []
     for field, noun in _LIBRARY_DEF_KINDS:
         for definition in getattr(library, field):
             if field == "rules" and definition.name not in activated:
                 continue
             where = f"{noun} `{definition.name}`"
-            found.extend((nd, where) for nd in _walk(definition) if id(nd) not in refused)
+            found.extend((nd, where) for nd in _walk(definition))
     if library.state is not None:
         found.extend((nd, "its provided state") for nd in _walk(library.state))
     return found
@@ -1813,11 +1817,11 @@ def _check_library_clause_gates(
     as the gates themselves do. The fix offered is the game's to make, never an
     edit to the library, whose author is someone else.
 
-    A round naming a Primitive in a query slot (`_round_slot_primitives`) is
-    the library's own fault whatever imports it, refused to its author by
-    `check_library_alone`; `_library_nodes` leaves that round and everything
-    inside it out, so the refusal stands alone and no clause is asked of the
-    game for a round the library may not hold."""
+    Asked only of a library `check_library_alone` passes (`_apply_uses`): a
+    library at fault in itself -- a Primitive it calls or names in a round's
+    query slot, a malformed contract row -- is its author's to fix whatever
+    imports it, so that refusal stands alone and the game is asked no clause
+    for text the library may not hold."""
     nodes = _library_nodes(library, game)
     claimed: set[object] = set()
     for gate in _CLAUSE_GATES:
