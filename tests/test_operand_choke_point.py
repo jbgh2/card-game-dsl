@@ -90,14 +90,18 @@ def test_choke_point_holds_exactly_one_coercible() -> None:
 
 
 def test_exemptions_are_only_the_documented_ones() -> None:
-    """The whitelist is exactly two reasons: the symmetric comparison check,
+    """The whitelist is exactly three reasons: the symmetric comparison check,
     `_mutually_coercible`, shared by equality and membership's element (two
-    operands, no single `expected` -- two calls) and the `again` Boolean check (a
-    state-var NAME resolved to a type, not an operand expression -- one call).
-    Pinning the count means a THIRD exemption cannot be slipped in without a test
-    noticing and a reviewer having to bless it."""
+    operands, no single `expected` -- two calls); the `again` Boolean check (a
+    state-var NAME resolved to a type, not an operand expression -- one call);
+    and a definition's inferred result against its Definition Contract row
+    (`_check_contracted_results`: a type against a type, with no operand
+    expression for a seat range to apply to -- one call). Pinning the count
+    means another exemption cannot be slipped in without a test noticing and a
+    reviewer having to bless it."""
     marked = [c for c in _coercible_calls() if _marked(c)]
-    assert len(marked) == 3, (
-        f"expected 3 marked-exempt coercible() calls (comparison x2, again x1), "
-        f"found {len(marked)} at line(s) {sorted(c.lineno for c in marked)}"
+    assert len(marked) == 4, (
+        f"expected 4 marked-exempt coercible() calls (comparison x2, again x1, "
+        f"contract result x1), found {len(marked)} at line(s) "
+        f"{sorted(c.lineno for c in marked)}"
     )

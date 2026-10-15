@@ -353,25 +353,31 @@ def test_the_word_axis_is_every_alphabetic_alternation_terminal() -> None:
 
 
 # The denominator, derived a second time here rather than read off `TIERS`, so
-# a tier dropped from the tool is a tier this pin still expects.
+# a tier dropped from the tool is a tier this pin still expects. A later, more
+# specific pattern overrides an earlier one for the paths it matches: the
+# library rejection cases are libraries inside the tests tier.
 _EXPECTED_TIERS = {
     "docs/games/*.cardlang": ("corpus", "start"),
     "docs/libraries/*.cardlang": ("shared", "library"),
     "cardlang/stdlib/*.cardlang": ("shared", "library"),
     "experiments/**/*.cardlang": ("other", "start"),
     "tests/**/*.cardlang": ("other", "start"),
+    "tests/rejections/libraries/*.cardlang": ("other", "library"),
 }
 
 
 def test_the_default_denominator_is_every_tier() -> None:
     """Red under: dropping a tier from `TIERS`, or mis-kinding a directory."""
     by_name = {s.name: s for s in ds.default_sources()}
-    for pattern, (tier, start) in _EXPECTED_TIERS.items():
+    expected: dict[str, tuple[str, str]] = {}
+    for pattern, kind in _EXPECTED_TIERS.items():
         paths = list(ROOT.glob(pattern))
         assert paths, pattern
         for path in paths:
-            source = by_name[path.relative_to(ROOT).as_posix()]
-            assert (source.tier, source.start) == (tier, start), path
+            expected[path.relative_to(ROOT).as_posix()] = kind
+    for name, (tier, start) in expected.items():
+        source = by_name[name]
+        assert (source.tier, source.start) == (tier, start), name
 
 
 def test_a_source_that_does_not_parse_is_counted_not_fatal() -> None:

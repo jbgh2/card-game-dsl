@@ -11,31 +11,25 @@
 // is maintained with the family it serves, and `tests/test_smuggling_library.py`
 // binds it against every member so it cannot rot unnoticed.
 //
-// WHAT IS HERE is what all twelve family files hold byte-identically: the
-// commit — the merchant's concealed choice of shipment, forced when one card
-// remains — the inspector's response, and the wave. All three name only what
-// the contract below asks the game to declare.
-//
-// WHAT IS DELIBERATELY NOT HERE is `inspect`, and the reason is measured rather
-// than chosen. Across the twelve files `inspect` has ten distinct bodies, from
-// three orthogonal deltas: the fine (4 / 5 / 2), the contraband predicate
-// (`rank_value >= 11` / `>= 12` / `is 5 or is 12`), and the bounty (nothing /
-// `tokens[merchant] += 1` / `pending[merchant] += 1`). Only the first is a
-// per-game constant and could ride on required state. The second is a card
-// predicate and the third an added STATEMENT — neither is a parameterization
-// problem, so no clause on the import would carry them. `inspect` is game-local
-// for exactly the reason `poker_betting` omits `fold`: the move that varies
-// stays with the game, and the library holds the part that is genuinely the
-// same. Each member defines its own `inspect`, and the library contracts for it
-// so the respond step can offer it beside the library's own `wave`.
+// WHAT IS HERE is the whole smuggling round: the commit — the merchant's
+// concealed choice of shipment, forced when one card remains — the inspector's
+// response, the wave, and the inspection. Every member holds the first three
+// identically. The inspection varies across the family in three orthogonal
+// ways: the fine, which contraband the inspector seizes, and what a false
+// alarm costs (a fine, and in the bounty variants a token the merchant
+// receives). The fine is a per-game constant, so it rides on required state.
+// The contraband test is a card predicate, so the game defines it as a
+// function. The false-alarm cost is statements, so the game defines it as a
+// procedure. The library holds the move that is the same, and its contract
+// names the three parts that are the game's.
 
 library smuggling {
 
-  // What the including game must declare. The three zones are the ones these
-  // definitions move cards between; `merchant` and `inspector` are the role
-  // pronouns they act for; `tokens` is what the respond step gates the
-  // inspection on; and `inspect` is the game's own inspection, offered beside
-  // `wave`.
+  // What the including game must declare or define. The five zones are the ones
+  // these definitions move cards between; `merchant` and `inspector` are the
+  // role pronouns they act for; `tokens` is what an inspection spends;
+  // `fine_net` and `fine` are the fines ledger and a seizure's fine; and the
+  // last two rows are the game's own rules of inspection.
   //
   // A zone type fixes the per-observer projection, so contracting for
   // `HiddenPile` rather than `PublicHand` is this library saying what its
@@ -46,10 +40,15 @@ library smuggling {
     hand[player]      : Hand<player>
     shipment[player]  : HiddenPile<player>
     warehouse[player] : HiddenPile<player>
+    cleared[player]   : PlayerPile<player>
+    seized[player]    : PlayerPile<player>
     merchant          : Player
     inspector         : Player
     tokens[player]    : Integer
-    inspect           : Move
+    fine_net[player]  : Integer
+    fine              : Integer
+    is_contraband(card : Card) : Boolean   // which goods the inspector seizes
+    settle_false_alarm() : Procedure       // what an innocent shipment costs
   }
 
   // The merchant commits one card face down. With one card left the shipment is
@@ -82,6 +81,25 @@ library smuggling {
   move_type wave {
     effect {
       move all cards from shipment[merchant] to warehouse[merchant]
+    }
+  }
+
+  // Spend a token and open the crate. Contraband is seized — it will score for
+  // the inspector — and the merchant pays the fine. Legal goods clear publicly,
+  // and the false alarm costs whatever the game's `settle_false_alarm` says.
+  move_type inspect {
+    when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
+    effect {
+      tokens[actor] -= 1
+      reveal one card from shipment[merchant]
+      if any card in shipment[merchant] where is_contraband(card) {
+        move all cards from shipment[merchant] to seized[actor]
+        fine_net[merchant] -= fine
+        fine_net[actor] += fine
+      } else {
+        move all cards from shipment[merchant] to cleared[merchant]
+        run settle_false_alarm()
+      }
     }
   }
 }

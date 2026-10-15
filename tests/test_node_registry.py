@@ -116,13 +116,18 @@ def test_every_param_bearing_node_kind_is_reserved_swept() -> None:
     hand-written tuple inside the function, a new parameterized declaration
     form (procedures were one, once) would join the reserved-word sweep only if
     someone remembered it exists."""
-    from cardlang.resolve import _PARAM_BEARING
+    from cardlang.resolve import _PARAM_BEARING, CONTRACT_KINDS
 
+    # A Definition Contract row's parameters live only in a library's
+    # `requires { }`, which no game holds, so `_check_reserved_params` cannot
+    # reach them; the library-alone check sweeps them instead
+    # (tests/test_definition_contracts.py, the `reserved_parameter_name` cell).
+    contract_rows = {cls for _field, _noun, cls in CONTRACT_KINDS}
     with_params = {
         cls
         for cls in typing.get_args(n.Node)
         if any(f.name == "params" for f in dataclasses.fields(cls))
-    }
+    } - contract_rows
     assert with_params == set(_PARAM_BEARING), (
         f"node kinds with a `params` field: {sorted(c.__name__ for c in with_params)}; "
         f"kinds the reserved-word sweep covers: "

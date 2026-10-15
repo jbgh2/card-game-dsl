@@ -1,0 +1,1 @@
+libraries/require_procedure_keyword.cardlang:7:5: error: the `procedure` keyword begins the definition the game writes, not the `requires` row that names it — write `settle_false_alarm() : Procedure`
