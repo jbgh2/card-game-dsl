@@ -181,7 +181,7 @@ def test_real_adapter_yields_literals() -> None:
 def test_every_verdict_file_has_an_adding_commit() -> None:
     files = d.verdict_files()
     assert files
-    missing = [p.name for p in files if not d.verdict_commit(p, d._main_ref())]
+    missing = [p.name for p in files if not d.verdict_commit(p, "HEAD")]
     assert missing == [], missing
 
 
