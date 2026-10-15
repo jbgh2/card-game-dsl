@@ -27,6 +27,7 @@ does not prove:  that the engine reaches the generator only through these
 from __future__ import annotations
 
 import random
+import sys
 from collections.abc import Callable
 from typing import Any
 
@@ -126,6 +127,9 @@ _UNNAMED: dict[str, Callable[[random.Random], object]] = {
     "vonmisesvariate": lambda r: r.vonmisesvariate(0, 1),
     "weibullvariate": lambda r: r.weibullvariate(1, 1),
 }
+if sys.version_info >= (3, 12):
+    # `random.Random` draws `binomialvariate` from Python 3.12 on.
+    _UNNAMED["binomialvariate"] = lambda r: r.binomialvariate(1, 0.5)
 
 
 def test_the_unnamed_draws_are_every_other_drawing_method() -> None:
