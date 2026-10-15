@@ -904,6 +904,22 @@ def test_the_bid_ceiling_is_the_ladders_length() -> None:
     assert ceilings == [str(len(LADDER))]
 
 
+def test_the_declared_length_is_the_longest_legal_game() -> None:
+    """`max_length` is the longest line the rules allow, so no legal game is
+    refused. A hand's longest line climbs every rung singly — a bid, its
+    rung and a yes each — with a pass ending each part of the Reizen, then
+    takes the skat (one choice, two discards), the game type and the suit,
+    then plays all ten tricks.
+
+    red under: the declared bound one short of the derivation, or the
+    ladder growing without it."""
+    game = check_dsl(SKAT.read_text(), str(SKAT))
+    auction = 3 * len(LADDER) + 2
+    declaration = 1 + 2 + 1 + 1
+    play = 3 * 10
+    assert game.max_length == DEALS * (auction + declaration + play)
+
+
 def test_the_scoring_restates_pagats_examples() -> None:
     """Pagat's worked examples, through `rules_delta`.
 

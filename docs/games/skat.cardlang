@@ -31,7 +31,12 @@ game Skat {
 
   players: 3
   direction: clockwise
-  max_length: 8000
+  // Derived, not measured: the game is a fixed number of hands, each bounded.
+  // A hand's longest line climbs every rung of the ladder one at a time, each
+  // rung a bid, its number and a yes, with a pass ending each part of the
+  // Reizen; then picks up the skat, discards two, names a Suit game and its
+  // suit; then plays all ten tricks.
+  max_length: 8136
 
   cards: skat32
   ranking: ace-ten
