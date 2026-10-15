@@ -63,6 +63,14 @@ def emit(game: n.Game) -> IRDict:
         # The source form: the convention keyword when one was written, else
         # None. `ranking` above is always the operative (expanded) order.
         "ranking_convention": game.ranking_convention,
+        # Keyed ONLY when the game declares a `suit ranking:` clause — the
+        # `card_points` precedent, so clause-less games' IR goldens stay
+        # byte-stable.
+        **(
+            {"suit_ranking": list(game.suit_ranking.suits)}
+            if game.suit_ranking is not None
+            else {}
+        ),
         # Keyed ONLY when the game declares a `card_points { }` clause — the
         # `content_flavor` precedent, so clause-less games' IR goldens stay
         # byte-stable.

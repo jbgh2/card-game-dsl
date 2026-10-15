@@ -889,6 +889,13 @@ and which one is the game's own choice:
   game's `ranking:` declaration (higher = stronger; `rs.rank_index`), deck-
   agnostic. Used by Pinochle's `MustHeadTrick`/`MustOverTrump` rules to find
   the highest card of a suit played so far in the trick.
+- `suit_value(suit: Suit) → Integer` — the suit's strength under the game's
+  `suit ranking:` declaration, the weakest listed suit 0. A card's suit is
+  `card.suit`, so a card is ranked by `suit_value(card.suit)`. Calling it in a
+  game that declares no `suit ranking:` is a resolve error. Used by Skat and
+  Doppelkopf (the jacks' and queens' order inside the trump band), Bridge (the
+  bid ladder's strains, below no-trump) and the `stud` library (the suit
+  tie-break).
 - `card_points(card: Card) → Integer` — the card's points under the game's
   own `card_points { }` clause (decisions.md "Scoring has no constructs of its own"): listed
   ranks verbatim, unlisted ranks at the `else:` row's value or 0 without one.

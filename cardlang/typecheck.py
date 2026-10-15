@@ -1838,6 +1838,27 @@ def _spell_operand(e: n.Expr) -> str:
 _UNKEYED_COLLECTION = TCollection(TAny())
 
 
+def _card_field_hint(
+    got: Type, want: Type, got_name: str | None, call: n.Call | None
+) -> str:
+    """The fix a refusal appends when a Card stands where one of a card's
+    fields is wanted: the field spelling, read off `CARD_FIELDS`, written out
+    as the whole call when the operand is a one-argument call's named
+    argument (`suit_value(card)` for `suit_value(card.suit)`). Empty
+    otherwise."""
+    if not isinstance(_bare(got), TCard):
+        return ""
+    fits = [f for f, t in CARD_FIELDS.items() if coercible(t, want)]
+    if len(fits) != 1:
+        return ""
+    field = fits[0]
+    if got_name is None:
+        return f" — a card's {field} is its `.{field}`"
+    if call is not None and len(call.args) == 1:
+        return f" — write `{call.func}({got_name}.{field})`"
+    return f" — a card's {field} is `{got_name}.{field}`"
+
+
 def _key_hint(
     got: Type,
     want: Type,
@@ -2240,6 +2261,7 @@ def _check_operand(
     span: Span | None,
     *,
     expected_name: str | None = None,
+    call: n.Call | None = None,
 ) -> None:
     """The ONE operand-coercion check every `coercible(_, expected)` site routes
     through, so the seat-range check is applied at EVERY position an integer
@@ -2269,7 +2291,12 @@ def _check_operand(
     day a new operand position calls `coercible` directly instead of routing
     here."""
     if not coercible(got, expected):
-        bag.error(msg + _key_hint(got, expected, _name_of(node), expected_name), span)
+        bag.error(
+            msg
+            + _key_hint(got, expected, _name_of(node), expected_name)
+            + _card_field_hint(got, expected, _name_of(node), call),
+            span,
+        )
     _check_role_literal(node, expected, env, bag)
 
 
@@ -2601,6 +2628,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         arg, got, param, env, bag,
                         f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
+                        call=e,
                     )
         # The Owner Guard for a call the game writes. A call spliced from a
         # family library meets resolve's `_check_library_clause_gates` first,

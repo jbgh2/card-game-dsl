@@ -73,6 +73,9 @@ Each clause is owned elsewhere:
   ([library.md](library.md), "Built-in component sets").
 - `ranking:` — the deck's context-free rank order ([decisions.md](decisions.md),
   "The `ranking:` declaration: enumeration or convention").
+- `suit ranking:` — the game's Suit Ranking, strongest first, read by
+  `suit_value(s)` ([decisions.md](decisions.md), "The `suit ranking:`
+  declaration").
 - `zones { }` — the clause that decides what each seat sees; see below.
 - `state { }` — the state variables, lexically scoped
   ([decisions.md](decisions.md), "State scoping (lexical)").

@@ -118,6 +118,7 @@ game FiveCardStud {
 
   cards: standard52
   ranking: aces high
+  suit ranking: spades hearts diamonds clubs
 
   // The side-pot settlement, declared with what it reads. `committed`,
   // `folded` and `in_hand` are declared by `phase play`, so a read of one
@@ -136,12 +137,6 @@ game FiveCardStud {
 
   state {
     stack[player] : Integer = 200            // $100 at one unit = $0.50
-
-    // The suit order the `stud` library breaks ties on, lowest first:
-    // clubs (low), diamonds, hearts, spades (high). Nothing writes them.
-    lowest_suit : Suit = clubs
-    second_suit : Suit = diamonds
-    third_suit  : Suit = hearts
   }
 
   phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {

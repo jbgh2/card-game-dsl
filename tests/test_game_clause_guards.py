@@ -30,9 +30,12 @@ domain:     the `?game_item` alternatives of the `game` production, times
             names is eaten by it with no error. That is a property of the
             RANKING production, not of `uses`, so it is swept over every
             clause rather than probed on the one that was found broken.
-            The axis has TWO absorbers, because the class is "an unbounded
+            The axis has FOUR absorbers, because the class is "an unbounded
             or empty slot completes itself from the clause below it": the
-            `card_rank+` run, and an empty EXPRESSION slot. Within the
+            `card_rank+` run, `suit ranking:`'s run of suit names, any
+            clause's last slot left empty above `suit ranking:` (whose first
+            word is a name and whose rest is a whole `ranking:` clause), and
+            an empty EXPRESSION slot. Within the
             `game` production `loser:` is the only clause whose last slot is
             a bare `expr` (`winner:` takes `rank_dir NAME`), which is where
             the empty-EXPRESSION absorber is reachable at all.
@@ -48,9 +51,10 @@ registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             which the import tier's own module reuses; `GAME_DIRECTIONS` in
             `cardlang/runtime/values.py` for the direction value set;
             `COMPONENT_SETS` (same module, the `flavor` column) for the
-            content-clause name axis; `CARD_RANK_NAME`'s negative lookahead
-            for the `card_rank+` absorption leg, scraped by
-            `_card_rank_excluded` so both sides of the pin stay derived.
+            content-clause name axis; the negative lookaheads of
+            `CARD_RANK_NAME` and `SUIT_RANKING_NAME` for the two name-run
+            absorption legs, scraped by `_terminal_excluded` so both sides
+            of the pin stay derived.
             The LIBRARY half of the empty-EXPRESSION absorber, as the
             truncation grid over `?library_item`:
             tests/test_family_libraries.py. `ranking:` omission with
@@ -155,27 +159,52 @@ def _terminal_excluded(terminal: str) -> set[str]:
     return set(match.group(1).split("|"))
 
 
-def _card_rank_excluded() -> set[str]:
-    return _terminal_excluded("CARD_RANK_NAME")
+# The terminals of the two unbounded name runs a game clause ends with:
+# `ranking:`'s ranks and `suit ranking:`'s suits.
+_UNBOUNDED_RUN_TERMINALS = ("CARD_RANK_NAME", "SUIT_RANKING_NAME")
 
 
-def test_card_rank_excludes_every_clause_keyword() -> None:
-    """`ranking:` takes an unbounded `card_rank+` run, so any clause spelled as
-    two bare names in a row is absorbed into it and vanishes from the AST with no
-    error — the defect that let `uses <library>` be silently swallowed. The run
-    is bounded by refusing clause keywords as rank names, and BOTH sides of that
-    exclusion are derived: the clause list from `?game_item`, the excluded set
-    from the terminal. A clause added to the grammar without an entry in
-    CARD_RANK_NAME fails here rather than at a designer's desk.
+@pytest.mark.parametrize("terminal", _UNBOUNDED_RUN_TERMINALS)
+def test_card_rank_excludes_every_clause_keyword(terminal: str) -> None:
+    """`ranking:` takes an unbounded `card_rank+` run, and `suit ranking:` an
+    unbounded run of suit names, so any clause spelled as two bare names in a
+    row is absorbed into either and vanishes from the AST with no error — the
+    defect that let `uses <library>` be silently swallowed. Each run is bounded
+    by refusing clause keywords as names, and BOTH sides of that exclusion are
+    derived: the clause list from `?game_item`, the excluded set from the
+    terminal. A clause added to the grammar without an entry in each terminal
+    fails here rather than at a designer's desk.
 
     red under: delete `uses` from CARD_RANK_NAME's exclusion list in
-    cardlang.lark."""
+    cardlang.lark; delete `suit` from SUIT_RANKING_NAME's."""
     keywords = {_clause_keyword(rule) for rule in _game_item_alternatives()}
-    missing = keywords - _card_rank_excluded()
+    missing = keywords - _terminal_excluded(terminal)
     assert not missing, (
-        f"game clause keyword(s) {sorted(missing)} are still legal rank names, so "
-        f"`ranking:` can absorb the clause and drop it silently — add them to "
-        f"CARD_RANK_NAME's exclusion list in cardlang.lark"
+        f"game clause keyword(s) {sorted(missing)} are still legal names in "
+        f"{terminal}, so its clause can absorb them and drop the clause "
+        f"silently — add them to {terminal}'s exclusion list in cardlang.lark"
+    )
+
+
+@pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
+def test_no_clause_is_absorbed_when_it_follows_suit_ranking(rule_name: str) -> None:
+    """Every clause still parses as ITSELF when written after a `suit ranking:`
+    list — the `ranking:` sweep above, for the other unbounded run.
+
+    red under: delete `uses` from SUIT_RANKING_NAME's exclusion list."""
+    keyword = _clause_keyword(rule_name)
+    src = (
+        "game G {\n  players: 2\n  cards: standard52\n"
+        "  suit ranking: spades hearts\n"
+        f"  {_CLAUSE_TEXT[rule_name]}\n  zones {{ deck : Deck }}\n}}"
+    )
+    tree = parse_to_tree(src, "absorb.cardlang")
+    lists = [n for n in tree.iter_subtrees() if n.data == "suit_ranking"]
+    assert [str(t) for t in lists[0].children] == ["spades", "hearts"], (
+        f"`{keyword}` was absorbed into the suit list — the clause is silently gone"
+    )
+    assert sum(n.data == rule_name for n in tree.iter_subtrees()) >= 1, (
+        f"`{keyword}` did not parse as a `{rule_name}` clause"
     )
 
 
@@ -222,6 +251,7 @@ _CLAUSE_TEXT: dict[str, str] = {
     "pieces": "pieces: xo_marks",
     "board": "board: grid(3, 3)",
     "ranking": "ranking: K Q J",
+    "suit_ranking": "suit ranking: spades hearts",
     "card_points_table": "card_points { A: 1 }",
     "trump": "trump: hearts",
     "trick_order": "trick_order { trump: card.suit is hearts }",
@@ -235,6 +265,46 @@ _CLAUSE_TEXT: dict[str, str] = {
     # `loser:` takes an expr, not `winner:`'s `rank_dir NAME`.
     "loser": "loser: score",
 }
+
+
+# --- the third absorber: a clause's last slot left empty above `suit ranking:` -
+#
+# `suit ranking:` is the one game clause whose first word is also a name, and
+# what follows that word is itself a whole `ranking:` clause. So any clause
+# above it whose last slot takes a name or an expression, left empty, can take
+# `suit` as its value and leave a well-formed `ranking:` behind.
+
+
+@pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
+def test_a_clause_missing_its_last_word_never_absorbs_suit_ranking(rule_name: str) -> None:
+    """Every clause, written without its last word directly above `suit
+    ranking:`, either fails to parse, or keeps `suit ranking:` whole, or is
+    refused at parse for taking `suit` as its value — never a whole parse with
+    the clause gone. Swept over every clause, not only those whose last slot
+    is a name, so a clause whose shape changes stays covered.
+
+    red under: delete the `suit`-before-`ranking:` check from parse.py's
+    `ranking` callback — the `cards`, `direction`, `loser`, `pieces`,
+    `trump`, `uses_decl` and `winner` rows then parse with the clause gone
+    (executed 2026-10-14)."""
+    truncated = _CLAUSE_TEXT[rule_name].rsplit(maxsplit=1)[0]
+    src = (
+        "game G {\n  players: 2\n  cards: standard52\n"
+        f"  {truncated}\n  suit ranking: spades hearts\n  zones {{ deck : Deck }}\n}}"
+    )
+    try:
+        tree = parse_to_tree(src, "absorb.cardlang")
+    except DiagnosticError as exc:
+        assert exc.diagnostic.span is not None
+        return
+    kept = [n for n in tree.iter_subtrees() if n.data == "suit_ranking"]
+    if kept:
+        assert any([str(t) for t in k.children] == ["spades", "hearts"] for k in kept)
+        return
+    with pytest.raises(DiagnosticError) as refused:
+        parse_text(src, "absorb.cardlang")
+    assert "took the word `suit`" in refused.value.diagnostic.message
+    assert refused.value.diagnostic.span is not None
 
 
 # --- the second absorber: an empty expression slot ---------------------------
@@ -280,6 +350,7 @@ SINGLE_VALUED: dict[str, str] = {
     "pieces": "pieces:",
     "board": "board:",
     "ranking": "ranking:",
+    "suit_ranking": "suit ranking:",
     "card_points_table": "card_points { }",
     "trump": "trump:",
     "trick_order": "trick_order { }",
@@ -325,6 +396,7 @@ _EXTRA_CLAUSE: dict[str, str] = {
     "board": "  board: grid(3, 3)",
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
+    "suit_ranking": "  suit ranking: spades hearts diamonds clubs",
     "trump": "  trump: spades",
     # The duplicate probe must reach the `once` guard, so the block itself has
     # to be well-formed: a `trump:` row is required (parse's P8), and it speaks

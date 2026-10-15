@@ -185,9 +185,9 @@ def _list_cells() -> list[ListCell]:
         cells.append(ListCell(deck, "every_suit", every))
         cells.append(ListCell(deck, "declared_only", _strongest_first(deck, _declared(deck))))
         for left_out in _declared(deck):
-            cells.append(
-                ListCell(deck, "missing_declared", tuple(s for s in every if s != left_out), left_out)
-            )
+            rest = tuple(s for s in every if s != left_out)
+            if rest:  # else the empty clause, its own test below
+                cells.append(ListCell(deck, "missing_declared", rest, left_out))
         for left_out in _specials(deck):
             cells.append(
                 ListCell(deck, "missing_special", tuple(s for s in every if s != left_out), left_out)
@@ -211,8 +211,6 @@ def _value_body(suits: tuple[str, ...]) -> str:
 
 @pytest.mark.parametrize("cell", _list_cells(), ids=lambda c: c.id)
 def test_list_form(cell: ListCell) -> None:
-    if not cell.suits:
-        pytest.fail("a list cell holds no suit")
     clause = "suit ranking: " + " ".join(cell.suits)
     accepted = cell.form in ("every_suit", "declared_only", "missing_special")
     if accepted:
@@ -241,13 +239,11 @@ def test_list_form(cell: ListCell) -> None:
 
 
 @pytest.mark.parametrize(
-    "deck", [d for d in DECKS if len(_declared(d)) == 1], ids=lambda d: d
+    "deck", [d for d in DECKS if len(deck_suits(d)) == 1], ids=lambda d: d
 )
-def test_leaving_out_the_only_declared_suit_is_the_empty_clause(deck: str) -> None:
-    """A deck declaring one suit and no special one has nothing left once its
-    suit is left out: the list is empty, which the grammar refuses."""
-    if _specials(deck):
-        pytest.fail(f"{deck} has special suits; its missing cell is a list cell")
+def test_leaving_out_the_only_suit_is_the_empty_clause(deck: str) -> None:
+    """A deck with one suit has nothing left once its suit is left out: the
+    list is empty, which the grammar refuses."""
     text = _game(deck=deck, clause="suit ranking:", body="    score[0] := 1",
                  tail="function reader(s : Suit) = suit_value(s)")
     _at(_refusal(text), "probe.cardlang", _clause_line(text) + 1)
@@ -337,7 +333,11 @@ POSITIONS: dict[str, Position | str] = {
     ),
     "trick_order": Position(
         clauses="trick_order { trump: card.suit is spades  card_strength: suit_value(card.suit) }",
-        body="    let w = highest_by_trick_order(pile)",
+        body=(
+            "    deal 2 cards from deck to each hand\n"
+            "    round play_to_trick from 0 over all players source hand into pile "
+            "winner highest_by_trick_order"
+        ),
     ),
     "loser": Position(
         result="  loser: if suit_value(spades) > 0 then 0 else 1",
@@ -470,7 +470,7 @@ _ARGUMENTS: dict[str, tuple[str, str, str]] = {
     "optional_holding_none": ("", "pick", "runtime"),
     "none_literal": ("", "none", "expects Suit"),
     "card": ("", "top_of(deck)", "`.suit`"),
-    "card_binder": ("", "c", "`c.suit`"),
+    "card_binder": ("", "c", "`suit_value(c.suit)`"),
     "rank": ("", "top_of(deck).rank", "expects Suit"),
     "integer": ("", "3", "expects Suit"),
 }
@@ -510,7 +510,8 @@ def test_the_card_hint_names_a_fix_that_checks() -> None:
 _MISUSE: dict[str, tuple[str, str]] = {
     # name: (the clause line, a needle the refusal carries)
     "comparison_symbols": ("suit ranking: clubs < diamonds < hearts < spades", ""),
-    "commas": ("suit ranking: spades, hearts, diamonds, clubs", ""),
+    "commas": ("suit ranking: spades, hearts, diamonds, clubs",
+               "`suit ranking: spades hearts diamonds clubs`"),
     "no_colon": ("suit ranking spades hearts diamonds clubs", ""),
     "plural": ("suits ranking: spades hearts diamonds clubs", ""),
     "number_in_slot": ("suit ranking: 1 2 3 4", ""),
@@ -518,7 +519,8 @@ _MISUSE: dict[str, tuple[str, str]] = {
     "rank_convention": ("suit ranking: aces high", "`ranking: aces high`"),
     "ranks_in_slot": ("suit ranking: A K Q", "`ranking:`"),
     "suits_in_ranking": ("ranking: spades hearts diamonds clubs", "`suit ranking:`"),
-    "ranking_suit_order": ("ranking: suit spades hearts diamonds clubs", ""),
+    "ranking_suit_order": ("ranking: suit spades hearts diamonds clubs",
+                           "`suit ranking: spades hearts diamonds clubs`"),
 }
 
 
@@ -527,11 +529,28 @@ def test_a_misspelled_clause_is_refused_on_its_line(name: str) -> None:
     clause, needle = _MISUSE[name]
     text = _game(clause=clause, tail="function reader(s : Suit) = suit_value(s)")
     rendered = _refusal(text)
-    line = _clause_line(text) if "suit ranking" in clause else _line_of(text, clause.split()[0])
+    if clause.startswith("ranking:") and name != "ranking_suit_order":
+        # A `ranking:` refusal sits on the game's opening line, as every
+        # `ranking:` refusal does (issue #863).
+        line = _line_of(text, "game Probe")
+    else:
+        line = _line_of(text, " ".join(clause.split()[:2]))
     rows = [r for r in rendered.splitlines() if r.startswith(f"probe.cardlang:{line}:")]
     assert rows, rendered
     if needle:
         assert any(needle in r for r in rows), rendered
+
+
+def test_the_clause_is_inexpressible_in_a_library() -> None:
+    """A library declares no game clause; the clause written in one is a
+    located syntax error in the library's own file."""
+    with pytest.raises(DiagnosticError) as exc:
+        parse_library(
+            "library probe_lib {\n  suit ranking: spades hearts\n}\n",
+            "docs/libraries/probe_lib.cardlang",
+        )
+    assert exc.value.diagnostic.span is not None
+    assert exc.value.diagnostic.span.line == 2
 
 
 def test_a_second_clause_is_refused() -> None:

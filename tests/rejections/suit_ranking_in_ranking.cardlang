@@ -1,0 +1,15 @@
+// Guard: parse.py's `ranking_suit_reject` (diagnostics.lark). A Suit
+// Ranking is its own clause; written into `ranking:` with the word that names it, it
+// is refused naming the clause.
+game SuitRankingInRanking {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: suit spades hearts diamonds clubs
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := suit_value(spades)
+  }
+  winner: highest score
+}

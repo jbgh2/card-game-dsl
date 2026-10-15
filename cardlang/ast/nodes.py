@@ -841,6 +841,17 @@ class CardPointsTable:
     span: Span | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SuitRanking:
+    """The `suit ranking:` clause: the game's suits, strongest first (decisions.md
+    "The `suit ranking:` declaration"). Read by `suit_value(s)` alone, weakest
+    listed suit 0; it orders no domain. The span is the clause's own, where its
+    refusals land."""
+
+    suits: tuple[str, ...]
+    span: Span | None = None
+
+
 # The rows a `trick_order { }` block may declare. This literal is the
 # type-level statement of the row set; `builtins.functions.TRICK_ORDER_ROWS` is
 # the value-level one, and the two are pinned equal
@@ -1366,6 +1377,8 @@ class Game:
     # is always the operative strength order and this field only records the
     # source form (for `ir.emit`).
     ranking_convention: str | None = None
+    # The `suit ranking:` clause, or None for a game declaring none.
+    suit_ranking: SuitRanking | None = None
     # The `card_points { }` clause, or None for a game declaring no card
     # points. The ONE source of the game's card-point table (the deck registry
     # carries none): the driver loads `rs.card_points` from it, and resolve's
@@ -1445,6 +1458,7 @@ Node = (
     | ZoneDecl
     | CardPointsEntry
     | CardPointsTable
+    | SuitRanking
     | TrickOrderRow
     | TrickOrder
     | TypeRef

@@ -72,7 +72,7 @@ CALL_SIGS: dict[str, Sig] = {
     # an absence the runtime never produced). Plain `Suit` still assigns into
     # every corpus target (`trump_suit : Suit? = none`).
     "suit_of": Sig((TAny(),), TEnum("Suit")),
-    "strain_index": Sig((TOptional(TEnum("Suit")),), TInteger()),  # strain bidding rank
+    "suit_value": Sig((TEnum("Suit"),), TInteger()),  # strength under `suit ranking:`
     "error": Sig((TString(),), TAny()),  # the if_impossible fallback
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
     "card_points": Sig((TCard(),), TInteger()),  # a card's points under `card_points { }`

@@ -66,6 +66,12 @@ TRICK_ORDER_EQ: ":=" | "="
 %extend trump: _TRUMP_KW ":" INT     -> trump_int_reject
              | _TRUMP_KW ":" STRING  -> trump_string_reject
 
+// --- the suit ranking: written into `ranking:`, or as a comma list --------
+// A Suit Ranking is its own clause; a designer who knows `ranking:` writes the
+// suits into it with the word that names them. The comma arm is the list habit.
+%extend ranking: _RANKING_KW ":" _SUIT_KW SUIT_RANKING_NAME+ -> ranking_suit_reject
+%extend suit_ranking: _SUIT_KW _RANKING_KW ":" SUIT_RANKING_NAME ("," SUIT_RANKING_NAME)+ -> suit_ranking_comma_reject
+
 // --- a collection type outside a primitives entry ---------------------------
 // The spelling is real and the mistake is placement, so the twin carries the
 // trailing `?` too: a designer who thinks a state row may hold an optional

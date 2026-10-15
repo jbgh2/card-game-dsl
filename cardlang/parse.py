@@ -399,10 +399,13 @@ RANK_DIRECTIONS: frozenset[str] = frozenset({"highest", "lowest"})
 class _Builder(Transformer[Token, n.Game]):
     """Turns the Lark tree into AST nodes, threading source location through."""
 
-    def __init__(self, source_name: str, line_offset: int) -> None:
+    def __init__(self, source_name: str, line_offset: int, text: str = "") -> None:
         super().__init__()
         self._source_name = source_name
         self._line_offset = line_offset
+        # The parsed text, for the one callback that reads what precedes its
+        # own span (`ranking`); empty where no game clause can be parsed.
+        self._text = text
 
     def _span(self, meta: Meta) -> Span:
         return Span(
@@ -444,6 +447,21 @@ class _Builder(Transformer[Token, n.Game]):
         from cardlang.runtime.values import RANKING_CONVENTIONS
 
         span = self._span(meta)
+        # `suit ranking:` is the one game clause whose first word is also a
+        # name, so a clause above it left without its value (`trump:`,
+        # `uses`, `loser:` ...) takes `suit` as that value and the rest of the
+        # line parses as `ranking:` — a whole parse with the clause gone. No
+        # sentence of the language puts `suit` before `ranking:` on its line.
+        before = self._text[: meta.start_pos].rstrip(" \t")
+        if re.search(r"(?<![A-Za-z0-9_])suit$", before):
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    "the clause before `suit ranking:` has no value, so it took "
+                    "the word `suit` as one — finish that clause",
+                    span,
+                )
+            )
         if len(c) == 1 and isinstance(c[0], Token) and c[0].type == "RANK_CONV":
             return _Ranking(ranks=(), span=span, convention=str(c[0]))
         words = tuple(str(r) for r in c)
@@ -453,6 +471,9 @@ class _Builder(Transformer[Token, n.Game]):
 
     def card_rank(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
+
+    def suit_ranking(self, meta: Meta, c: list[Token]) -> n.SuitRanking:
+        return n.SuitRanking(tuple(str(t) for t in c), span=self._span(meta))
 
     # --- the card-point table (`card_points { }`) ---
 
@@ -482,6 +503,28 @@ class _Builder(Transformer[Token, n.Game]):
             entries=entries,
             else_value=else_rows[0].value if else_rows else None,
             span=self._span(meta),
+        )
+
+    def ranking_suit_reject(self, meta: Meta, c: list[Token]) -> None:
+        suits = " ".join(str(t) for t in c)
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a game ranks its suits in a clause of their own — write "
+                f"`suit ranking: {suits}`, strongest first; `ranking:` orders ranks",
+                self._span(meta),
+            )
+        )
+
+    def suit_ranking_comma_reject(self, meta: Meta, c: list[Token]) -> None:
+        suits = " ".join(str(t) for t in c)
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"`suit ranking:` separates its suits with spaces, as "
+                f"`ranking:` does — write `suit ranking: {suits}`",
+                self._span(meta),
+            )
         )
 
     def card_points_colon_reject(self, meta: Meta, c: list[object]) -> None:
@@ -1874,6 +1917,7 @@ class _Builder(Transformer[Token, n.Game]):
         direction: str | None = None
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
+        suit_ranking: n.SuitRanking | None = None
         card_points: n.CardPointsTable | None = None
         trick_order: n.TrickOrder | None = None
         primitives: n.PrimitivesBlock | None = None
@@ -1934,6 +1978,9 @@ class _Builder(Transformer[Token, n.Game]):
                 once("ranking:", item.span)
                 ranking = item.ranks
                 ranking_convention = item.convention
+            elif isinstance(item, n.SuitRanking):
+                once("suit ranking:", item.span)
+                suit_ranking = item
             elif isinstance(item, n.CardPointsTable):
                 once("card_points { }", item.span, merge_hint=True)
                 card_points = item
@@ -2030,6 +2077,7 @@ class _Builder(Transformer[Token, n.Game]):
             direction=direction,
             ranking=ranking,
             ranking_convention=ranking_convention,
+            suit_ranking=suit_ranking,
             card_points=card_points,
             trick_order=trick_order,
             primitives=primitives,
@@ -2284,6 +2332,7 @@ _WORD_OVERRIDES: dict[str, str] = {
     "CARD_POINTS_KEY": "a name",
     "TRICK_ORDER_KEY": "a name",
     "CARD_RANK_NAME": "a rank name",
+    "SUIT_RANKING_NAME": "a suit name",
     "INT": "a whole number",
     "STRING": "a quoted string",
     "LINE_COMMENT": "a `//` comment",
@@ -2842,7 +2891,7 @@ def parse_to_tree(
         # the operator goldens, pinned by tests/test_diagnostic_grammar.py); a
         # composed tree the builder accepts is a defect there, and the main
         # error still stands.
-        _transform(_Builder(source_name, line_offset), composed)
+        _transform(_Builder(source_name, line_offset, text), composed)
         raise DiagnosticError(main_error) from exc
     assert isinstance(tree, Tree)
     return tree
@@ -2925,7 +2974,7 @@ def _parse_text_cached(text: str, source_name: str, line_offset: int) -> n.Game:
     edited text (an editor session, a watch mode) mints a fresh entry per
     edit and never reuses it, so it must bound or clear this cache."""
     tree = parse_to_tree(text, source_name, line_offset)
-    result = _transform(_Builder(source_name, line_offset), tree)
+    result = _transform(_Builder(source_name, line_offset, text), tree)
     assert isinstance(result, n.Game)
     return result
 

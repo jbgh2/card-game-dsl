@@ -348,6 +348,10 @@ _TEAM_CALL_FUNCS = frozenset(
 # that declares none.
 _CARD_POINTS_CALLS: frozenset[str] = frozenset({"card_points"})
 
+# The Builtins that read the game's `suit ranking:`, refused in a game that
+# declares none.
+_SUIT_RANKING_CALLS: frozenset[str] = frozenset({"suit_value"})
+
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
 # domain table, not a hand-written local list.
 _KNOWN_ROLES = ZONE_INDEX_ROLES
@@ -654,6 +658,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.Game, "ranking"): "deck_rank",
     (n.CardPointsEntry, "rank"): "deck_rank",
     (n.Game, "trump"): "deck_suit",
+    (n.SuitRanking, "suits"): "deck_suit",
     (n.Game, "direction"): "enum_value",
     (n.RotateStmt, "values"): "enum_value",
     (n.Game, "deck"): "component_set",
@@ -1115,6 +1120,13 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read the game's card-point table",
         lambda g: "this game declares no `card_points { }` table",
         "declare one",
+    ),
+    _ClauseGate(
+        _SUIT_RANKING_CALLS,
+        lambda g: g.suit_ranking is None,
+        "read a suit's strength from `suit ranking:`",
+        lambda g: "this game declares no `suit ranking:`",
+        "declare one, naming the deck's suits strongest first",
     ),
     _ClauseGate(
         _TEAM_CALL_FUNCS,
@@ -2905,6 +2917,7 @@ def resolve(game: n.Game) -> n.Game:
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _resolve_card_points(game, bag)
+    _resolve_suit_ranking(game, bag)
     # Before `_resolve_trump`, which returns early on a block game: R1 owns the
     # game-clause-beside-a-block cell, so the two never co-report on it.
     _check_trick_order_partition(game, bag)
@@ -3122,7 +3135,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.AppliesWhen() | n.Demands()
             | n.FunctionDef() | n.ProcedureDef() | n.OutcomeCase()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
-            | n.CardPointsTable() | n.CardPointsEntry()
+            | n.CardPointsTable() | n.CardPointsEntry() | n.SuitRanking()
             | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
             | n.ActiveRules() | n.LegalMoves() | n.Mode() | n.TransitionTo() | n.MoveEvent()
@@ -5569,6 +5582,12 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
             f"piece set has no notion of; drop the clause",
             game.span,
         )
+    if game.suit_ranking is not None:
+        bag.error(
+            f"{kind} -- `suit ranking:` orders a deck's suits, which a piece "
+            f"set has none of; drop the clause",
+            game.suit_ranking.span or game.span,
+        )
     if game.trump is not None:
         bag.error(
             f"{kind} -- `trump:` names the suit that beats others in a trick, "
@@ -5711,12 +5730,18 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
                 for key in RANKING_CONVENTIONS
                 for w in (key, *key.replace("-", " ").split())
             }
-            hint = (
-                "  (did you mean a ranking convention? one of: "
-                + ", ".join(sorted(RANKING_CONVENTIONS)) + ")"
-                if rank.lower() in conv_words
-                else ""
-            )
+            if rank.lower() in conv_words:
+                hint = (
+                    "  (did you mean a ranking convention? one of: "
+                    + ", ".join(sorted(RANKING_CONVENTIONS)) + ")"
+                )
+            elif rank in suit_names(game.deck):
+                hint = (
+                    f"  ('{rank}' is a suit: a game ranks its suits with "
+                    f"`suit ranking:`, strongest first)"
+                )
+            else:
+                hint = ""
             bag.error(
                 f"ranking: names unknown rank '{rank}' — not a rank of deck "
                 f"'{game.deck}' (known ranks: {', '.join(sorted(known))})"
@@ -5757,6 +5782,100 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
                 f"of deck '{game.deck}' (known ranks: {', '.join(sorted(known))})",
                 entry.span or game.span,
             )
+
+
+def _declared_suits_phrase(deck: str) -> str:
+    """The suits a `suit ranking:` must list, in the designer's words: the deck's
+    declared suits, and the special suits it may leave out."""
+    from cardlang.runtime.values import DECKS, deck_suits
+
+    if deck not in DECKS:
+        return "the deck's suits"
+    declared = DECKS[deck].suits
+    specials = [s for s in deck_suits(deck) if s not in declared]
+    phrase = f"the deck's suits ({', '.join(declared)})"
+    if specials:
+        phrase += f", optionally with its special suits ({', '.join(specials)}),"
+    return phrase
+
+
+def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag) -> None:
+    """`suit ranking:` lists suits of the declared deck, each once, strongest
+    first: every suit the deck declares (`Deck.suits`), and any of its special
+    suits (`deck_suits` beyond the declared ones) it chooses to rank. A special
+    suit it leaves out is refused when a card of that suit reaches
+    `suit_value` (`runtime/values.py`, `suit_strength`), which is a fact of
+    zone contents.
+
+    A name the deck does not hold is refused naming what the designer most
+    likely meant: a rank or a rank convention belongs to `ranking:`.
+
+    A clause with no `suit_value` written anywhere in the game, its spliced
+    libraries included, is refused (the `trump:` precedent: a declaration
+    nothing reads is accepted-but-ignored). Written, not reached: the call
+    gate refuses a clause-less `suit_value` wherever it is written, dead code
+    included, so counting the same text here is what keeps a game from being
+    refused both with the clause and without it.
+
+    A piece game's clause is `_reject_card_content_clauses`'s; an unknown deck
+    is `_resolve_component_set`'s."""
+    ranking = game.suit_ranking
+    if ranking is None or game.content_flavor != "card" or not _deck_known(game.deck):
+        return
+    from cardlang.runtime.values import DECKS, RANKING_CONVENTIONS, deck_ranks, deck_suits
+
+    span = ranking.span or game.span
+    suits = deck_suits(game.deck)
+    words = " ".join(ranking.suits)
+    if words in RANKING_CONVENTIONS:
+        bag.error(
+            f"suit ranking: {words} is a rank convention — write it as "
+            f"`ranking: {words}`; `suit ranking:` lists "
+            f"{_declared_suits_phrase(game.deck)} strongest first",
+            span,
+        )
+        return
+    ranks = set(deck_ranks(game.deck))
+    seen: set[str] = set()
+    for name in ranking.suits:
+        if name in seen:
+            bag.error(
+                f"suit ranking: repeats suit '{name}' — name each suit once, "
+                f"strongest first",
+                span,
+            )
+        seen.add(name)
+        if name in suits:
+            continue
+        if name in ranks:
+            bag.error(
+                f"suit ranking: '{name}' is a rank of deck '{game.deck}', not a "
+                f"suit — a rank order is declared with `ranking:`; "
+                f"`suit ranking:` lists {_declared_suits_phrase(game.deck)} "
+                f"strongest first",
+                span,
+            )
+        else:
+            bag.error(
+                f"suit ranking: '{name}' is not a suit of deck '{game.deck}' — "
+                f"list {_declared_suits_phrase(game.deck)} strongest first",
+                span,
+            )
+    for declared in DECKS[game.deck].suits:
+        if declared not in seen:
+            bag.error(
+                f"suit ranking: leaves out {declared} — list "
+                f"{_declared_suits_phrase(game.deck)} strongest first",
+                span,
+            )
+    if not any(
+        isinstance(nd, n.Call) and nd.func in _SUIT_RANKING_CALLS for nd in _walk(game)
+    ):
+        bag.error(
+            "suit ranking: is read by nothing — `suit_value(s)` is its one "
+            "reader; call it where the game compares suits, or drop the clause",
+            span,
+        )
 
 
 # The callable containers a CONSUMPTION question must follow into, beyond the
@@ -5815,6 +5934,7 @@ _GAME_FIELD_ROLES: dict[str, str] = {
     "direction": "root",
     "ranking": "root",
     "ranking_convention": "root",
+    "suit_ranking": "root",
     "trump": "root",
     "max_length": "root",
     "span": "root",
@@ -6422,6 +6542,7 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     "direction": "refused",
     "ranking": "refused",
     "ranking_convention": "refused",
+    "suit_ranking": "refused",
     "card_points": "refused",
     "trick_order": "refused",
     "trump": "refused",
@@ -8903,6 +9024,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bag.error(
                     "`card_points(card)` reads the game's card-point table, "
                     "but this game declares no `card_points { }` clause",
+                    nd.span,
+                )
+            case n.Call() if nd.func in _SUIT_RANKING_CALLS and game.suit_ranking is None:
+                bag.error(
+                    f"`{nd.func}` reads a suit's strength from `suit ranking:`, "
+                    f"but this game declares no `suit ranking:` — declare one "
+                    f"listing {_declared_suits_phrase(game.deck)} strongest first",
                     nd.span,
                 )
             case n.Call() if nd.func in _TEAM_CALL_FUNCS and not game.teams:

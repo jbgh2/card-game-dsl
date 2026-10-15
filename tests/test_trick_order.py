@@ -273,7 +273,7 @@ _NEW_BUILTINS = _GATED_FUNCS
 # here from today's BUILTIN_CALL_FUNCS plus the five new names; pinned equal
 # to the registry pair once it exists, and total over BUILTIN_CALL_FUNCS.
 _ROW_CALLABLE = frozenset(
-    {"rank_value", "card_points", "suit_of", "strain_index", "team_of", "top_of", "bottom_of"}
+    {"rank_value", "card_points", "suit_of", "suit_value", "team_of", "top_of", "bottom_of"}
 )
 _ROW_UNCALLABLE = frozenset(
     {
@@ -712,7 +712,7 @@ def _row_hermeticity_cells() -> list[Cell]:
         "rank_value": "rank_value(card) > 3",
         "card_points": "card_points(card) > 3",
         "suit_of": "suit_of(card) is hearts",
-        "strain_index": "strain_index(card.suit) > 0",
+        "suit_value": "suit_value(card.suit) > 0",
         "team_of": "team_of(0) is 0",
         "top_of": "top_of(pile) is card",
         "bottom_of": "bottom_of(pile) is card",
@@ -728,7 +728,11 @@ def _row_hermeticity_cells() -> list[Cell]:
         "highest_by_trick_order": "highest_by_trick_order(pile) is 0",
         "follows_lead": "follows_lead(card, pile)",
     }
-    extra_clause = {"card_points": "card_points { A: 1 }", "team_of": "teams: [[0, 2], [1, 3]]"}
+    extra_clause = {
+        "card_points": "card_points { A: 1 }",
+        "team_of": "teams: [[0, 2], [1, 3]]",
+        "suit_value": "suit ranking: spades hearts diamonds clubs",
+    }
     for name in sorted(_ROW_CALLABLE | _ROW_UNCALLABLE):
         spelling = call_spelling[name]
         clauses = f"{extra_clause.get(name, '')}\n  {_block(f'trump: {spelling}')}"

@@ -25,6 +25,12 @@
     "2"
   ],
   "ranking_convention": "aces high",
+  "suit_ranking": [
+    "spades",
+    "hearts",
+    "diamonds",
+    "clubs"
+  ],
   "primitives": {
     "kind": "primitives",
     "entries": [
@@ -190,42 +196,6 @@
         "default": {
           "kind": "int",
           "value": 100
-        }
-      },
-      {
-        "kind": "state_decl",
-        "name": "lowest_suit",
-        "index": null,
-        "type": "Suit",
-        "optional": false,
-        "default": {
-          "kind": "name",
-          "name": "clubs",
-          "ref": "enum_value"
-        }
-      },
-      {
-        "kind": "state_decl",
-        "name": "second_suit",
-        "index": null,
-        "type": "Suit",
-        "optional": false,
-        "default": {
-          "kind": "name",
-          "name": "diamonds",
-          "ref": "enum_value"
-        }
-      },
-      {
-        "kind": "state_decl",
-        "name": "third_suit",
-        "index": null,
-        "type": "Suit",
-        "optional": false,
-        "default": {
-          "kind": "name",
-          "name": "hearts",
-          "ref": "enum_value"
         }
       }
     ]
@@ -5970,86 +5940,6 @@
     },
     {
       "kind": "function",
-      "name": "suit_place",
-      "params": [
-        {
-          "name": "s",
-          "type_name": "Suit"
-        }
-      ],
-      "body": {
-        "kind": "if_expr",
-        "cond": {
-          "kind": "binop",
-          "op": "is",
-          "left": {
-            "kind": "name",
-            "name": "s",
-            "ref": "local"
-          },
-          "right": {
-            "kind": "name",
-            "name": "lowest_suit",
-            "ref": "state_var"
-          }
-        },
-        "then": {
-          "kind": "int",
-          "value": 0
-        },
-        "elifs": [],
-        "otherwise": {
-          "kind": "if_expr",
-          "cond": {
-            "kind": "binop",
-            "op": "is",
-            "left": {
-              "kind": "name",
-              "name": "s",
-              "ref": "local"
-            },
-            "right": {
-              "kind": "name",
-              "name": "second_suit",
-              "ref": "state_var"
-            }
-          },
-          "then": {
-            "kind": "int",
-            "value": 1
-          },
-          "elifs": [],
-          "otherwise": {
-            "kind": "if_expr",
-            "cond": {
-              "kind": "binop",
-              "op": "is",
-              "left": {
-                "kind": "name",
-                "name": "s",
-                "ref": "local"
-              },
-              "right": {
-                "kind": "name",
-                "name": "third_suit",
-                "ref": "state_var"
-              }
-            },
-            "then": {
-              "kind": "int",
-              "value": 2
-            },
-            "elifs": [],
-            "otherwise": {
-              "kind": "int",
-              "value": 3
-            }
-          }
-        }
-      }
-    },
-    {
-      "kind": "function",
       "name": "card_order",
       "params": [
         {
@@ -6081,7 +5971,7 @@
         },
         "right": {
           "kind": "call",
-          "func": "suit_place",
+          "func": "suit_value",
           "args": [
             {
               "kind": "member",
