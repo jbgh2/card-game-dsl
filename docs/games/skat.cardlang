@@ -160,6 +160,7 @@ game Skat {
       passer := none
       speaker := none
       responder := none
+      rung := 0
 
       // All passed: forehand may play at 18 or throw the hand in (it still
       // counts toward the 36).

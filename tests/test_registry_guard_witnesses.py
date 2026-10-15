@@ -743,6 +743,13 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # test_wrapper_refuses_a_location_outside_the_three
     # (tests/test_salvo_primitives.py).
     "runtime/salvo.py": ["not 0 <= loc < len(LOCATIONS)"],
+    # Skat's rung argument, the same shape: bounded by the ladder table's own
+    # LENGTH, so a rung added to `_BID_SEQUENCE` widens the guard with it. An
+    # Owner Guard — the game's `choose` ceiling keeps every legal pick inside
+    # — witnessed one past each end in
+    # test_the_ladder_primitives_are_the_rules_ladder
+    # (tests/test_skat_rules_differential.py).
+    "runtime/skat.py": ["not 1 <= rung <= len(_BID_SEQUENCE)"],
     "runtime/state.py": [
         "role_of(decl.index) not in ZONE_INDEX_ROLES and decl.index not in positions"
     ],

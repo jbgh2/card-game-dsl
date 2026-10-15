@@ -53,6 +53,38 @@ class TestReadiness(ReadinessProofs):
                 "seed-7 line at step 415, past any bound this walk affords; "
                 "the same sweep plays it"),
             ),
+            (
+                "declare_null",
+                ("one arm of the four-way game type, chosen at the few "
+                "declarations the walk's first hands reach (first applied at "
+                "step 227); tests/test_skat_rules_differential.py's reach "
+                "floor plays it (`hands.null`, `hands.null_hand`)"),
+            ),
+            (
+                "no_announcement",
+                ("offered only in a Suit or Grand hand game, which the walk "
+                "first declares past this bound (first applied at step 148); "
+                "the read's referee asks it at every such declaration "
+                "(`declare.announcement_choices`)"),
+            ),
+            (
+                "announce_schneider",
+                ("the same hand-game announcement offer, first applied at step "
+                "259; the referee's reach floor scores it "
+                "(`hands.announced_schneider`)"),
+            ),
+            (
+                "announce_schwarz",
+                ("the same offer's Schwarz arm, unapplied within 800 steps; "
+                "the referee's reach floor scores it "
+                "(`hands.announced_schwarz`)"),
+            ),
+            (
+                "announce_ouvert",
+                ("the same offer's open arm, first applied at step 762; the "
+                "referee's reach floor scores it and checks the exposure "
+                "(`hands.announced_ouvert`, `info.ouvert_first_leads`)"),
+            ),
         ),
     )
 
