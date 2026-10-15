@@ -1,81 +1,125 @@
 """A game missing a clause its library needs is told so on its own `uses` line.
 
-A Builtin a game clause gates is refused against the same clauses whether the
-game writes the call or a family library it uses does. Written by the game, the
-refusal sits at the call. Reached through a library, it sits on the game's
-`uses` line and names the library, the Builtin and the clause, and nothing is
-reported inside the library file, whose author is someone else. The ranking
-gate's refusal offers only fixes that clear it, and each one it offers is
-applied here and checked.
+A construct a game clause decides -- a Builtin call, a move parameter's domain,
+a range's role, a provided declaration's index, a card form in a piece game, a
+position past a board region, a round's winner or climbing query -- is refused
+against the same clauses whether the game writes it or a family library it
+uses does. Written by the game, the refusal sits at the construct. Reached
+through a library, it sits on the game's `uses` line and names the library,
+the construct and the clause, and nothing is reported inside the library file,
+whose author is someone else. Each gate's test has one home, which the `uses`
+check and the gate both ask. Every remedy a refusal offers is applied here and
+checked.
 
 Completeness ledger
 -------------------
-property:        for every clause-gated Builtin, the library-reached verdict
-                 equals the game-written one, located on the `uses` line; and
-                 every remedy the ranking refusal offers clears it.
-domain:          each clause gate's members that are Builtins, crossed with
-                 {clause met, clause unmet} and {written in the game, reached
-                 through a library}; the unmet game is the member's home game
-                 with that one clause changed, and the probe call is built
-                 from the member's signature. Beside it: every definition kind
-                 a library holds, each reaching one gated Builtin; every
-                 ranking-gated name in each position it is named from (call,
-                 trick winner, climbing query), each remedy its refusal offers
-                 applied; and every corpus game declaring `ranking:` that uses
+property:        for every construct a game clause decides that a library can
+                 write, the library-reached verdict equals the game-written
+                 one, located on the `uses` line; each gate asks its row's
+                 test rather than a copy; and every remedy a refusal offers
+                 clears it.
+domain:          the Builtin members of each clause gate, and the node members:
+                 every iterable role and the board's `cell` in each range form
+                 that names one, every role a declaration may be keyed by,
+                 every fixed and card parameter domain on a move type, every
+                 grammar alternative that reads a zone as cards plus `reveal
+                 one card`, every trick-round winner, a round's own `trump`
+                 clause and every climbing query in a round a move type's
+                 effect holds (each against the content flavor too, since a
+                 piece game declares none of the clauses that decide them),
+                 and a literal position into every board region.
+                 Each member is crossed with {clause met, clause unmet} and
+                 {written in the game, reached through a library}; a
+                 clause-free member is run met, as the control. Beside it:
+                 every definition kind a library holds, for a Builtin and a
+                 node member, and a library rule crossed with whether the game
+                 activates it (one it does not activate is checked against its
+                 library alone); every ranking-gated name in each position it
+                 is named from, each remedy its refusal offers applied; the
+                 `teams:` and `board:` remedies applied across seat counts and
+                 flavors; every member of a gate on a clause a piece game
+                 cannot declare, in a piece game; and every corpus game declaring `ranking:` that uses
                  a checked-in library reaching a ranking-gated Builtin, with
-                 its `ranking:` line deleted. Three member groups never reach a game through a
-                 library, each pinned by the refusal that bars it in the
-                 library's own file: a gated Primitive (a library calls
-                 Builtins only), a gated round slot (a procedure body holds no
-                 round), and a board verb taking a cell or a direction (a
-                 library declares no positions). The constructs a clause gates
-                 that are not Builtin calls (a `Rank` move parameter, team
-                 ranges, team-indexed provided state, card content in a piece
-                 game) are refused through a library by their own gates,
-                 inside the library file: issue #851.
+                 its `ranking:` line deleted. Members no library reaches are
+                 each pinned by the refusal that bars them in the library's own
+                 file: a gated Primitive call, a round in a procedure body, a
+                 board verb taking a cell or a direction. Deck capacity is
+                 judged at the phase that runs a library's deal, in the game's
+                 own file. Members held elsewhere are refused in the library
+                 file, each cell marked with its record: a card-axis role in a
+                 piece game (issue #183), a movement's noun and filter (issue
+                 #170), and a seat or team number, a card field and a rank
+                 string, whose gates need an operand's type (issue #868).
 registry:        gate members: `typecheck.RANKING_GATED_FUNCS`,
                  `RANKING_GATED_WINNERS`, `RANKING_GATED_CLIMB_QUERIES`;
                  `builtins.functions.TRICK_ORDER_GATED_FUNCS`,
                  `TRICK_ORDER_EXCLUDED_FUNCS`, `BOARD_ONLY_CALL_FUNCS`,
-                 `DECK_ONLY_CALL_FUNCS`; the Trick Order twins:
-                 `typecheck.RANKING_TRICK_ORDER_TWINS`;
+                 `DECK_ONLY_CALL_FUNCS`, `TRICK_WINNER_NAMES`,
+                 `TRICK_ORDER_GATED_WINNERS`, `TRICK_ORDER_EXCLUDED_WINNERS`,
+                 `PRIMITIVE_CLIMB_LEADS`, `PRIMITIVE_CLIMB_FOLLOWS`; the Trick
+                 Order twins: `typecheck.RANKING_TRICK_ORDER_TWINS`;
                  `resolve._TEAM_CALL_FUNCS`, `resolve._FRAME_CALL_FUNCS`,
-                 `resolve._CARD_POINTS_CALLS`, `resolve._SUIT_RANKING_CALLS`; the `lines(k)` span gate is
-                 keyed on the Builtin's own name (`resolve._check_board_call`).
-                 The Builtin partition: `resolve._CLAUSE_GATES` and
-                 `resolve._CLAUSE_FREE_BUILTINS` over `BUILTIN_CALL_FUNCS`.
-                 Probe arguments: `builtins.signatures.CALL_SIGS`. Definition
-                 kinds: `resolve._LIBRARY_DEF_KINDS`.
+                 `resolve._CARD_POINTS_CALLS`, `resolve._SUIT_RANKING_CALLS`,
+                 `resolve._REGION_CALL_FUNCS`;
+                 roles and domains: `domains.ITERABLE_ROLES`,
+                 `ZONE_INDEX_ROLES`, `PARAM_DOMAINS`, `CARD_PARAM_DOMAINS`,
+                 `CARD_AXIS_ROLES`, `board_domains.BOARD_DOMAIN`; card forms:
+                 the `cq_`, `sq_` and `agg_` aliases of
+                 cardlang/grammar/cardlang.lark. The table:
+                 `resolve._CLAUSE_GATES`, its Builtin partition with
+                 `resolve._CLAUSE_FREE_BUILTINS` over `BUILTIN_CALL_FUNCS`,
+                 its node rows by name in `NODE_GATES`. Probe arguments:
+                 `builtins.signatures.CALL_SIGS`. Definition kinds:
+                 `resolve._LIBRARY_DEF_KINDS`.
 does not prove:  that a member outside the Trick Order twin set has no Trick
                  Order remedy: the expected column reads the same set the
                  refusal is built from, so the two agree by construction, and
-                 only the twins' remedy is executed. Nor
-                 that the game-written refusal points at the call's column: a
-                 cell matches the definition's line.
+                 only the twins' remedy is executed. Nor that a game-written
+                 refusal points at the construct's column: a cell matches the
+                 definition's line. Nor that two node members in one game are
+                 told in one refusal per gate: the cells hold one member each.
+                 Nor that a gate reads its clause through its row: the one
+                 home is the construct test, and a gate in the type layer, or
+                 the Trick Order partition's two branches, reads the clause
+                 itself, so the clause half of a row agrees with its gate only
+                 as far as the cells run both channels.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
 
 import cardlang.resolve as resolve_module
+import cardlang.typecheck as typecheck_module
+from cardlang.board_domains import BOARD_DOMAIN
 from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
+    PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     TRICK_ORDER_EXCLUDED_FUNCS,
+    TRICK_ORDER_EXCLUDED_WINNERS,
     TRICK_ORDER_GATED_FUNCS,
     TRICK_ORDER_GATED_WINNERS,
+    TRICK_WINNER_NAMES,
     TRUMP_READING_WINNERS,
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
+from cardlang.domains import (
+    CARD_AXIS_ROLES,
+    CARD_PARAM_DOMAINS,
+    ITERABLE_ROLES,
+    ZONE_INDEX_ROLES,
+)
+from cardlang.domains import PARAM_DOMAINS as _FIXED_PARAM_DOMAINS
 from cardlang.libraries import library_names, load_library
-from cardlang.parse import parse_library
+from cardlang.parse import parse_library, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.typecheck import (
     RANKING_GATED_CLIMB_QUERIES,
@@ -298,7 +342,7 @@ def test_the_uses_check_holds_a_row_for_every_presence_gate() -> None:
 
     red under: emptying the members of the `teams:` row of
     `resolve._CLAUSE_GATES` (executed 2026-10-13)."""
-    table = {row.members for row in resolve_module._CLAUSE_GATES}
+    table = {row.members for row in resolve_module._CLAUSE_GATES if row.members}
     grid = {gate.members for gate in GATES if gate.name != "board_span"}
     assert table == grid
 
@@ -585,42 +629,80 @@ def test_the_trick_order_remedy_clears_the_refusal(case: RankingCase) -> None:
 
 
 # --- every definition kind a library holds reaches the gate the same way -----
+#
+# A Builtin call and a node construct, each in every definition kind. A rule
+# reaches the game only where `active_rules:` switches it on; one no game
+# activates is checked against its library alone (decisions.md "Family
+# libraries"), so it is crossed with activation.
 
 _KIND_TEMPLATES: dict[str, str] = {
     "rules": (
-        "rule probe_rule { constrains: play_to_trick "
-        "demands: cards in hand where rank_value(card) > 0  if_impossible: hand }"
+        "rule probe_rule {{ constrains: play_to_trick "
+        "demands: cards in hand where {pred}  if_impossible: hand }}"
     ),
-    "move_types": (
-        "move_type probe_mv { when: (sum of rank_value(card) over cards in pile) > 0 "
-        "effect { } }"
+    "move_types": "move_type probe_mv {{ when: {pred} effect {{ }} }}",
+    "functions": "function probe_fn() = {pred}",
+    "procedures": "procedure probe_pr() {{ let x = {pred} }}",
+}
+
+# (the predicate a definition holds, the game that fails its gate, the words
+# its refusal names)
+_KIND_PROBES: dict[str, tuple[str, Clauses, tuple[str, str]]] = {
+    "builtin": (
+        "(sum of rank_value(card) over cards in pile) > 0",
+        replace(_CARD, ranking=False, trick_order=True),
+        ("rank_value", "ranking:"),
     ),
-    "functions": "function probe_fn() = sum of rank_value(card) over cards in pile",
-    "procedures": "procedure probe_pr() { let x = sum of rank_value(card) over cards in pile }",
+    "node": (
+        "any team where true",
+        replace(_CARD, teams=False, trick_order=True),
+        ("`any team where`", "teams:"),
+    ),
 }
 
 
-@pytest.mark.parametrize("field", [field for field, _ in resolve_module._LIBRARY_DEF_KINDS])
+def _kind_cases() -> list[object]:
+    cases: list[object] = []
+    for field, _ in resolve_module._LIBRARY_DEF_KINDS:
+        for probe in sorted(_KIND_PROBES):
+            for activated in (True, False) if field == "rules" else (True,):
+                case_id = f"{field}-{probe}" + ("" if activated else "-not_activated")
+                cases.append(pytest.param(field, probe, activated, id=case_id))
+    return cases
+
+
+@pytest.mark.parametrize(("field", "probe", "activated"), _kind_cases())
 def test_every_definition_kind_is_refused_on_the_uses_line(
-    field: str, monkeypatch: pytest.MonkeyPatch
+    field: str, probe: str, activated: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    pred, clauses, (word, clause) = _KIND_PROBES[probe]
     library = parse_library(
         f"library {_LIB} {{\n"
         "  requires { pile : TrickPile  hand[player] : Hand<player> }\n"
-        f"  {_KIND_TEMPLATES[field]}\n}}\n",
+        f"  {_KIND_TEMPLATES[field].format(pred=pred)}\n}}\n",
         _LIB_FILE,
     )
     monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
     monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    rounds = (
+        "active_rules: [probe_rule]\n    "
+        "round play_to_trick from 0 over all players source hand into pile "
+        "winner highest_by_trick_order"
+    )
     text = _game_text(
-        replace(_CARD, ranking=False), uses=True, game_fn="", tag=f"Kind{field.title()}"
+        clauses, uses=True, game_fn="",
+        tag=f"Kind{field.title()}{probe.title()}{activated}",
+        statement=rounds if field == "rules" and activated else "",
     )
     rendered = _rendered(text)
+    if not activated:
+        assert rendered is None, rendered
+        return
     assert rendered is not None
     assert _LIB_FILE not in rendered, rendered
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
     assert any(
-        line.startswith(where) and "rank_value" in line and "ranking:" in line
+        line.startswith(where) and word in line and clause in line
         for line in rendered.splitlines()
     ), rendered
 
@@ -713,12 +795,13 @@ _SLOT_ROUNDS: dict[str, str] = {
 
 
 @pytest.mark.parametrize("member", sorted(_SLOT_ROUNDS))
-def test_a_library_cannot_name_a_clause_gated_round_slot(
+def test_a_library_procedure_cannot_hold_a_round(
     member: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A gated winner or climbing query is named in a round, and a library
-    holds a round only in a procedure, whose body may not hold one: the library
-    is refused in its own file, whatever clauses the game declares.
+    """A procedure body may not hold a round, so a library naming a gated
+    winner or climbing query there is refused in its own file, in a game whose
+    clauses meet the gate. A library reaches a game with a round through a move
+    type's effect, which the node cells run.
 
     red under: disabling the `_WINNER_BINDING_STMTS` arm of
     `resolve._check_procedures` (executed 2026-10-13)."""
@@ -726,7 +809,7 @@ def test_a_library_cannot_name_a_clause_gated_round_slot(
         f"library {_LIB} {{\n"
         "  requires { pile : TrickPile  hand[player] : Hand<player> }\n"
         f"  procedure probe_pr() {{ {_SLOT_ROUNDS[member]} }}\n}}\n",
-        replace(_CARD, ranking=False),
+        replace(_CARD, trick_order=member in TRICK_ORDER_GATED_WINNERS),
         f"Slot{member.replace('_', '').title()}",
         monkeypatch,
     )
@@ -765,7 +848,8 @@ def _corpus_ranking_witnesses() -> list[tuple[str, str]]:
         for line in lines:
             words = line.split()
             if len(words) == 2 and words[0] == "uses" and words[1] in library_names():
-                calls = resolve_module._library_calls(load_library(words[1]))
+                game = parse_text("\n".join(lines), path.name)
+                calls = resolve_module._library_calls(load_library(words[1]), game)
                 if any(call.func in RANKING_GATED_FUNCS for call, _ in calls):
                     found.append((path.name, words[1]))
     return found
@@ -891,3 +975,953 @@ def test_one_library_missing_two_clauses_is_told_both(
     lines = [line for line in rendered.splitlines() if line.startswith(where)]
     assert any("rank_value" in line and "ranking:" in line for line in lines), rendered
     assert any("card_points(" in line or "`card_points`" in line for line in lines), rendered
+
+
+# --- the gates on constructs that are not Builtin calls -----------------------
+#
+# The same law for every construct a game clause decides that a library can
+# write: a move parameter's domain, a range's role, a provided declaration's
+# index, a card form in a piece game, a position past a board region, a round's
+# winner or climbing query. Each member is written once, as a definition, and
+# checked written by the game and reached through a library, in a game that
+# meets its gate and in one that fails it.
+
+
+@dataclass(frozen=True)
+class NodeGame:
+    """The probe game a node member is checked in: its clauses, plus the
+    game-level `trump:` a trump-reading winner reads."""
+
+    clauses: Clauses
+    trump: bool = False
+
+
+@dataclass(frozen=True)
+class NodeMember:
+    """One construct a node gate decides: the definition holding it (named
+    `probe_fn`), what the library contracts for or provides, the words a
+    refusal must name, and the games that meet and fail the gate."""
+
+    gate: str
+    construct: str
+    definition: str
+    word: str
+    clause: str
+    met: NodeGame
+    unmet: NodeGame
+    requires: str = ""
+    provided: str = ""
+    # What the game-written refusal names, where it is not the clause.
+    game_word: str = ""
+
+    @property
+    def id(self) -> str:
+        return f"{self.gate}-{self.construct}"
+
+
+def _node_game_text(
+    member: NodeMember, game: NodeGame, *, through_library: bool, tag: str
+) -> str:
+    c = game.clauses
+    if c.pieces:
+        content = "pieces: breakthrough_men"
+        zones = "box : Deck  reserve[player] : PlayerPile<player>  pile : TrickPile"
+    else:
+        content = "cards: standard52"
+        zones = "deck : Deck  hand[player] : Hand<player>  pile : TrickPile"
+    if c.board:
+        zones += "  square[cell] : Cell<cell>"
+    state = "score[player] : Integer = 0"
+    if member.provided and not through_library:
+        state += f"  {member.provided}"
+    definition = member.definition
+    statement = ""
+    if definition.startswith("procedure"):
+        statement = "run probe_fn()"
+    elif definition.startswith("move_type"):
+        statement = "turns t from 0 over all players until true { offer to t one of [probe_fn] }"
+    written = not through_library and definition != "state"
+    lines = [
+        f"game Probe{tag} {{",
+        f"  players: {c.players}",
+        f"  {_teams_clause(c.players)}" if c.teams else "",
+        "  max_length: 1000",
+        f"  {content}",
+        f"  board: grid({c.board_size}, {c.board_size})" if c.board else "",
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2" if c.ranking else "",
+        "  trump: hearts" if game.trump else "",
+        (
+            "  trick_order { trump: card.suit is hearts  card_strength: 1 }"
+            if c.trick_order
+            else ""
+        ),
+        f"  uses {_LIB}" if through_library else "",
+        f"  zones {{ {zones} }}",
+        f"  state {{ {state} }}",
+        "  phase p {",
+        "    let w = highest_by_trick_order(pile)" if c.trick_order else "",
+        "    for each player q: score[q] := 0",
+        f"    {statement}",
+        "  }",
+        "  winner: highest score",
+        "}",
+        definition if written else "",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _node_library_text(member: NodeMember) -> str:
+    requires = f"requires {{ {member.requires} }}" if member.requires else ""
+    provided = f"state {{ {member.provided} }}" if member.provided else ""
+    definition = "" if member.definition == "state" else member.definition
+    return f"library {_LIB} {{\n  {requires}\n  {provided}\n  {definition}\n}}\n"
+
+
+# --- the axes, each derived from the registry that defines it ----------------
+
+_CARD_AXIS_ROLE_NAMES = frozenset(role.value for role in CARD_AXIS_ROLES)
+
+
+def _role_members() -> list[NodeMember]:
+    """Every iterable role crossed with every range form that names one: `for
+    each`, and the `any`/`all` quantifiers. A board's `cell` is ranged by `for
+    each` alone: its quantifier is the position query, which names a declared
+    position domain, and a library declares none."""
+    members: list[NodeMember] = []
+    roles = sorted(role.value for role in ITERABLE_ROLES) + [BOARD_DOMAIN]
+    for role in roles:
+        forms = [("for_each", f"procedure probe_fn() {{ for each {role} x: let y = 1 }}")]
+        if role != BOARD_DOMAIN:
+            forms += [
+                ("any", f"function probe_fn() = any {role} where true"),
+                ("all", f"function probe_fn() = all {role}s where true"),
+            ]
+        for form, definition in forms:
+            if role == "team":
+                gate, word, clause = "team_range", "team", "teams:"
+                met, unmet = NodeGame(_CARD), NodeGame(replace(_CARD, teams=False))
+            elif role == BOARD_DOMAIN:
+                gate, word, clause = "cell_range", "for each cell", "board:"
+                met, unmet = NodeGame(_BOARD), NodeGame(replace(_BOARD, board=False))
+            elif role in _CARD_AXIS_ROLE_NAMES:
+                gate, word, clause = "card_axis_role", role, "pieces"
+                met, unmet = NodeGame(_CARD), NodeGame(_PIECES)
+            else:
+                gate, word, clause = "clause_free", role, ""
+                met, unmet = NodeGame(_CARD), NodeGame(_CARD)
+            members.append(
+                NodeMember(gate, f"{form}_{role}", definition, word, clause, met, unmet)
+            )
+    return members
+
+
+def _state_index_members() -> list[NodeMember]:
+    """Provided state keyed by every role a declaration may be keyed by."""
+    members: list[NodeMember] = []
+    for role in sorted(r.value for r in ZONE_INDEX_ROLES):
+        decl = f"won[{role}] : Integer = 0"
+        if role == "team":
+            members.append(
+                NodeMember(
+                    "team_state", "team", "state", "won[team]", "teams:",
+                    NodeGame(_CARD), NodeGame(replace(_CARD, teams=False)), provided=decl,
+                )
+            )
+        else:
+            members.append(
+                NodeMember(
+                    "clause_free", f"state_{role}", "state", role, "",
+                    NodeGame(_CARD), NodeGame(_CARD), provided=decl,
+                )
+            )
+    return members
+
+
+def _move_parameter_members() -> list[NodeMember]:
+    """A move type taking each parameter domain fixed by the language or by
+    the deck. `Rank` is gated twice: by the content flavor and by `ranking:`."""
+    members: list[NodeMember] = []
+    for domain in sorted(_FIXED_PARAM_DOMAINS | CARD_PARAM_DOMAINS):
+        definition = f"move_type probe_fn(x : {domain}) {{ effect {{ }} }}"
+        tag = domain.replace("?", "_opt")
+        if domain in CARD_PARAM_DOMAINS:
+            members.append(
+                NodeMember(
+                    "card_content", f"param_{tag}", definition, f"`{domain}`", "pieces",
+                    NodeGame(_CARD), NodeGame(_PIECES),
+                )
+            )
+        else:
+            members.append(
+                NodeMember(
+                    "clause_free", f"param_{tag}", definition, domain, "",
+                    NodeGame(_CARD), NodeGame(_CARD),
+                )
+            )
+        if domain == "Rank":
+            members.append(
+                NodeMember(
+                    "rank_parameter", "param_Rank", definition, "`Rank`", "ranking:",
+                    NodeGame(_CARD), NodeGame(replace(_CARD, ranking=False)),
+                )
+            )
+    return members
+
+
+# Every grammar alternative that reads a zone as cards, keyed by its
+# alternative name, written as a function body over the contracted `pile`.
+_CARD_FORM_PROBES: dict[str, str] = {
+    "cq_set": "cards in pile where true",
+    "cq_count": "number of cards in pile",
+    "cq_any": "any card in pile where true",
+    "cq_all": "all cards in pile where true",
+    "sq_any": "any subset of 2 cards in pile where true",
+    "sq_all": "all subsets of 2 cards in pile where true",
+    "sq_count": "number of subsets of 2 cards in pile where true",
+    "agg_sum": "sum of 1 over cards in pile",
+    "agg_order": "highest 1 over cards in pile or 0",
+    "agg_subset_sum": "sum of 1 over subsets of 2 cards in pile",
+    "agg_subset_order": "highest 1 over subsets of 2 cards in pile or 0",
+}
+
+
+def _card_form_alternatives() -> frozenset[str]:
+    """The grammar's card-reading alternatives: the aliases of the
+    `card_query`, `subset_query` and `agg_query` productions."""
+    grammar = (_REPO / "cardlang" / "grammar" / "cardlang.lark").read_text()
+    return frozenset(re.findall(r"->\s*((?:cq|sq|agg)_\w+)", grammar))
+
+
+def test_the_card_form_probes_are_the_grammar_alternatives() -> None:
+    """A card-reading form added to the grammar is a red here until it has a
+    probe, so the card-content cells cannot quietly miss it.
+
+    red under: adding an alternative `-> cq_none` to `card_query` in
+    cardlang/grammar/cardlang.lark (executed 2026-10-14)."""
+    assert _card_form_alternatives() == frozenset(_CARD_FORM_PROBES)
+
+
+def _card_form_members() -> list[NodeMember]:
+    members = [
+        NodeMember(
+            "card_content", alias, f"function probe_fn() = {text}", "", "pieces",
+            NodeGame(_CARD), NodeGame(_PIECES), requires="pile : TrickPile",
+        )
+        for alias, text in sorted(_CARD_FORM_PROBES.items())
+    ]
+    members.append(
+        NodeMember(
+            "card_content", "reveal", "procedure probe_fn() { reveal one card from pile }",
+            "reveal one card", "pieces", NodeGame(_CARD), NodeGame(_PIECES),
+            requires="pile : TrickPile",
+        )
+    )
+    return members
+
+
+_ROUND_ZONES = "hand[player] : Hand<player>  pile : TrickPile"
+
+
+def _round_definition(round_text: str, params: str = "") -> str:
+    head = f"move_type probe_fn({params})" if params else "move_type probe_fn"
+    return f"{head} {{ effect {{ {round_text} }} }}"
+
+
+def _round_members() -> list[NodeMember]:
+    """Every trick-round winner, a round's own `trump` clause, and every
+    climbing query, in a round a move type's effect holds, against each
+    clause that decides it."""
+    members: list[NodeMember] = []
+    no_order = replace(_CARD, trick_order=False)
+    with_order = replace(_CARD, trick_order=True)
+    for winner in sorted(TRICK_WINNER_NAMES):
+        definition = _round_definition(_trick_round(winner))
+        trump = winner in TRUMP_READING_WINNERS
+        members.append(
+            NodeMember(
+                "card_content", f"winner_{winner}", definition, winner, "pieces",
+                NodeGame(with_order if winner in TRICK_ORDER_GATED_WINNERS else no_order, trump),
+                NodeGame(_PIECES), requires=_ROUND_ZONES,
+            )
+        )
+        if winner in TRICK_ORDER_GATED_WINNERS:
+            members.append(
+                NodeMember(
+                    "trick_order_reading", f"winner_{winner}", definition, winner,
+                    "trick_order", NodeGame(with_order), NodeGame(no_order),
+                    requires=_ROUND_ZONES,
+                )
+            )
+        if winner in TRICK_ORDER_EXCLUDED_WINNERS:
+            members.append(
+                NodeMember(
+                    "trick_order_replaced", f"winner_{winner}", definition, winner,
+                    "trick_order", NodeGame(no_order, trump), NodeGame(with_order),
+                    requires=_ROUND_ZONES,
+                )
+            )
+        if winner in RANKING_GATED_WINNERS:
+            members.append(
+                NodeMember(
+                    "ranking_slot", f"winner_{winner}", definition, winner, "ranking:",
+                    NodeGame(no_order, trump), NodeGame(replace(_CARD, ranking=False), trump),
+                    requires=_ROUND_ZONES,
+                )
+            )
+    members.append(
+        NodeMember(
+            "trick_order_replaced", "round_trump_clause",
+            _round_definition(_trick_round("highest_trump_or_led_suit") + " trump s", "s : Suit"),
+            "`trump` clause", "trick_order", NodeGame(no_order), NodeGame(with_order),
+            requires=_ROUND_ZONES,
+        )
+    )
+    for query in sorted(PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS):
+        family = query.split("_")[0]
+        definition = _round_definition(
+            _climb_round(f"{family}_lead_options", f"{family}_follows")
+        )
+        members.append(
+            NodeMember(
+                "card_content", f"climb_{query}", definition, query, "pieces",
+                NodeGame(no_order), NodeGame(_PIECES), requires=_ROUND_ZONES,
+            )
+        )
+        members.append(
+            NodeMember(
+                "trick_order_replaced", f"climb_{query}", definition, query, "trick_order",
+                NodeGame(no_order), NodeGame(with_order), requires=_ROUND_ZONES,
+            )
+        )
+        if query in RANKING_GATED_CLIMB_QUERIES:
+            members.append(
+                NodeMember(
+                    "ranking_slot", f"climb_{query}", definition, query, "ranking:",
+                    NodeGame(no_order), NodeGame(replace(_CARD, ranking=False)),
+                    requires=_ROUND_ZONES,
+                )
+            )
+    return members
+
+
+# Past every region of the smallest board probed, inside every region of the
+# largest.
+_PAST = 9
+
+
+def _region_members() -> list[NodeMember]:
+    """A literal position into each board region, on a board large enough and
+    on one too small."""
+    members: list[NodeMember] = []
+    for region in sorted(resolve_module._REGION_CALL_FUNCS):
+        seat = isinstance(CALL_SIGS[region].params[0], TPlayer)
+        members.append(
+            NodeMember(
+                "board_position", region,
+                f"function probe_fn({'p : Player' if seat else ''}) = "
+                f"{region}({'p' if seat else '3'})[{_PAST}]",
+                f"{region}(...)[{_PAST}]", "board: grid(3, 3)",
+                NodeGame(replace(_BOARD, board_size=10)), NodeGame(_BOARD),
+                game_word="past the end",
+            )
+        )
+    return members
+
+
+def _node_members() -> list[NodeMember]:
+    return (
+        _role_members()
+        + _state_index_members()
+        + _move_parameter_members()
+        + _card_form_members()
+        + _round_members()
+        + _region_members()
+    )
+
+
+# The node rows of `resolve._CLAUSE_GATES`, by the name the grid gives them.
+# Named rather than imported, so the cell table derives on a tree without them.
+NODE_GATES: dict[str, str] = {
+    "card_content": "_CARD_CONTENT_GATE",
+    "trick_order_reading": "_TRICK_ORDER_READING_GATE",
+    "trick_order_replaced": "_TRICK_ORDER_REPLACED_GATE",
+    "team_range": "_TEAM_RANGE_GATE",
+    "team_state": "_TEAM_STATE_GATE",
+    "cell_range": "_CELL_RANGE_GATE",
+    "board_position": "_BOARD_POSITION_GATE",
+    "rank_parameter": "_RANK_PARAMETER_GATE",
+    "ranking_slot": "_RANKING_SLOT_GATE",
+}
+
+# Members the `uses` check does not hold, each with its record.
+_HELD_ELSEWHERE: dict[str, str] = {
+    "card_axis_role": (
+        "a card-axis role in a piece game is refused in the library file; "
+        "issue #183 decides whether a library may name one at all"
+    ),
+}
+
+
+def test_the_uses_check_holds_a_row_for_every_node_gate() -> None:
+    """The rows of the `uses`-line check's table that are not keyed on a
+    Builtin are exactly the node gates this grid runs, so a node gate the
+    table lacks, or one the grid never runs, is a red here.
+
+    red under: deleting `_CELL_RANGE_GATE` from `resolve._CLAUSE_GATES`
+    (executed 2026-10-14)."""
+    rows = [getattr(resolve_module, name) for name in NODE_GATES.values()]
+    table = [row for row in resolve_module._CLAUSE_GATES if not row.members]
+    assert len(table) == len(rows) and all(row in table for row in rows)
+    gates = {m.gate for m in _node_members()} - {"clause_free"} - set(_HELD_ELSEWHERE)
+    assert gates == set(NODE_GATES)
+
+
+@dataclass(frozen=True)
+class NodeCell:
+    member: NodeMember
+    met: bool
+    through_library: bool
+
+    @property
+    def id(self) -> str:
+        return (
+            f"{self.member.id}-{'met' if self.met else 'unmet'}-"
+            f"{'library' if self.through_library else 'game'}"
+        )
+
+
+def _node_cells() -> list[object]:
+    params: list[object] = []
+    for member in _node_members():
+        for met in (True, False):
+            if member.gate == "clause_free" and not met:
+                continue
+            for through_library in (False, True):
+                cell = NodeCell(member, met, through_library)
+                marks = []
+                if member.gate in _HELD_ELSEWHERE and through_library and not met:
+                    marks.append(
+                        pytest.mark.xfail(
+                            strict=True, raises=AssertionError,
+                            reason=_HELD_ELSEWHERE[member.gate],
+                        )
+                    )
+                params.append(pytest.param(cell, id=cell.id, marks=marks))
+    return params
+
+
+def _check_node(
+    member: NodeMember, game: NodeGame, *, through_library: bool, tag: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[str, str | None]:
+    if through_library:
+        library = parse_library(_node_library_text(member), _LIB_FILE)
+        monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
+        monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    text = _node_game_text(member, game, through_library=through_library, tag=tag)
+    return text, _rendered(text)
+
+
+def _construct_line(text: str, member: NodeMember) -> int:
+    if member.provided:
+        return _line_of(text, member.provided)
+    kind = member.definition.split(" ")[0]
+    return _line_of(text, f"{kind} probe_fn")
+
+
+def _node_tag(cell_id: str) -> str:
+    return "".join(ch for ch in cell_id.title() if ch.isalnum())
+
+
+@pytest.mark.parametrize("cell", _node_cells())
+def test_node_gate_cell(cell: NodeCell, monkeypatch: pytest.MonkeyPatch) -> None:
+    member = cell.member
+    game = member.met if cell.met else member.unmet
+    text, rendered = _check_node(
+        member, game, through_library=cell.through_library, tag=_node_tag(cell.id),
+        monkeypatch=monkeypatch,
+    )
+    if cell.met:
+        assert rendered is None, rendered
+        return
+    assert rendered is not None, "accepted a game that does not meet the gate"
+    clause = member.clause.rstrip(":")
+    if not cell.through_library:
+        where = f"{_GAME_FILE}:{_construct_line(text, member)}:"
+        word = member.game_word or clause
+        assert any(
+            line.startswith(where) and word in line for line in rendered.splitlines()
+        ), rendered
+        return
+    assert _LIB_FILE not in rendered, rendered
+    where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
+    assert any(
+        line.startswith(where) and f"'{_LIB}'" in line and member.word in line
+        and clause in line
+        for line in rendered.splitlines()
+    ), rendered
+
+
+# --- each node gate asks its row's test, not a copy of it --------------------
+#
+# Each gate's test has one home. Emptying that home must clear the refusal of
+# every member the game writes, so a downstream gate restating the test inline
+# would still refuse here, and be red.
+
+
+def _no_needs(row_name: str) -> tuple[object, str, object]:
+    row = getattr(resolve_module, row_name)
+    return resolve_module, row_name, replace(row, needs=lambda nd, g: ())
+
+
+def _homes(gate: str) -> list[tuple[object, str, object]]:
+    """Where `gate`'s test lives, as (module, attribute, emptied value)."""
+    match gate:
+        case "card_content":
+            return [
+                _no_needs("_CARD_CONTENT_GATE"),
+                (typecheck_module, "card_content_forms", lambda nd: ()),
+            ]
+        case "trick_order_reading":
+            return [(resolve_module, "_trick_order_reading_slots", lambda nd, g: ())]
+        case "trick_order_replaced":
+            return [
+                (resolve_module, name, lambda nd, g: ())
+                for name in (
+                    "_round_trump_clauses", "_trick_order_excluded_winners", "_climb_queries"
+                )
+            ]
+        case "board_position":
+            return [(resolve_module, "_position_past_end", lambda nd, g: None)]
+        case "ranking_slot":
+            return [(typecheck_module, "ranking_gated_slots", lambda nd: ())]
+    return [_no_needs(NODE_GATES[gate])]
+
+
+# What each gate's own refusal says, for a member the game writes.
+_GATE_REFUSALS: dict[str, str] = {
+    "card_content": "this game declares pieces",
+    "trick_order_reading": "reads the game's `trick_order { }` block, but this game declares none",
+    "trick_order_replaced": "beside a `trick_order { }` block",
+    "team_range": "ranges over teams",
+    "team_state": "is indexed by 'team'",
+    "cell_range": "ranges over the board's cells",
+    "board_position": "is past the end",
+    "rank_parameter": "has a Rank parameter",
+    "ranking_slot": "reads a card's rank strength",
+}
+
+
+@pytest.mark.parametrize(
+    "member",
+    [pytest.param(m, id=m.id) for m in _node_members() if m.gate in NODE_GATES],
+)
+def test_each_node_gate_asks_its_rows_test(
+    member: NodeMember, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """red under: restating the team range test inline in the `ForEach` /
+    `Quantifier` team arm of `resolve._validate_refs` (`role_of(nd.role) is
+    Role.TEAM and not game.teams`) (executed 2026-10-14)."""
+    text = _node_game_text(
+        member, member.unmet, through_library=False, tag=f"Home{_node_tag(member.id)}"
+    )
+    refused = _rendered(text)
+    assert refused is not None and _GATE_REFUSALS[member.gate] in refused, refused
+    for module, name, value in _homes(member.gate):
+        monkeypatch.setattr(module, name, value)
+    emptied = _rendered(text.replace("game Home", "game Emptied", 1))
+    assert emptied is None or _GATE_REFUSALS[member.gate] not in emptied, emptied
+
+
+# --- the members a node test cannot reach, each with its record --------------
+#
+# A gate that needs an operand's type lives in the type layer, which runs after
+# the splice; a construct whose flavor question issue #170 holds. Each is
+# refused in the library file today, and each cell names what fixing it means.
+
+_TYPE_LAYER_ISSUE = (
+    "issue #868: the gate needs an operand's type, which the `uses` check, "
+    "run before the splice, does not have"
+)
+
+
+@dataclass(frozen=True)
+class HeldMember:
+    name: str
+    library: str
+    game: str
+    word: str
+    clause: str
+    reason: str
+    # What the gate that refuses it today says, in the library file.
+    refusal: str
+
+
+_HELD: tuple[HeldMember, ...] = (
+    HeldMember(
+        "seat_number",
+        "requires { hand[player] : Hand<player> } function probe_fn() = "
+        "number of cards in hand[5]",
+        "players4", "hand[5]", "players:", _TYPE_LAYER_ISSUE, "seat 5 is out of range",
+    ),
+    HeldMember(
+        "team_number",
+        "state { won[team] : Integer = 0 } function probe_fn() = won[2]",
+        "teams2", "won[2]", "teams:", _TYPE_LAYER_ISSUE, "team 2 is out of range",
+    ),
+    HeldMember(
+        "card_field",
+        "function probe_fn(c : Card) = c.suit",
+        "pieces", "c.suit", "pieces", _TYPE_LAYER_ISSUE, "has no field 'suit'",
+    ),
+    HeldMember(
+        "rank_string",
+        'function probe_fn(c : Card) = c.rank is "A"',
+        "kuhn3", '"A"', "cards:", _TYPE_LAYER_ISSUE, '"A" is not a Rank value',
+    ),
+    HeldMember(
+        "movement_filter",
+        "requires { box : Deck  pile : TrickPile } procedure probe_fn() "
+        "{ move all cards from box where card.rank is card.rank to pile }",
+        "pieces", "card", "pieces",
+        "issue #170: a movement's item noun and its filter's binder follow the "
+        "game's content flavor, and that issue decides who owns the question",
+        "unresolved name 'card'",
+    ),
+)
+
+
+def _held_game(held: HeldMember) -> str:
+    clauses = {
+        "players4": replace(_CARD, teams=False),
+        "teams2": replace(_CARD, players=2, teams=True),
+        "pieces": _PIECES,
+        "kuhn3": replace(_CARD, ranking=False, card_points=False, teams=False),
+    }[held.game]
+    text = _game_text(clauses, uses=True, game_fn="", tag=f"Held{held.name.title()}")
+    if held.game == "kuhn3":
+        text = text.replace("cards: standard52", "cards: kuhn3")
+    return text
+
+
+@pytest.mark.parametrize(
+    "held",
+    [
+        pytest.param(
+            h, id=h.name,
+            marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=h.reason),
+        )
+        for h in _HELD
+    ],
+)
+def test_a_held_member_is_refused_on_the_uses_line(
+    held: HeldMember, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _with_libraries(monkeypatch, {_LIB: f"library {_LIB} {{ {held.library} }}"})
+    text = _held_game(held)
+    rendered = _rendered(text)
+    assert rendered is not None
+    assert _LIB_FILE not in rendered, rendered
+    where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
+    assert any(
+        line.startswith(where) and held.word in line and held.clause in line
+        for line in rendered.splitlines()
+    ), rendered
+
+
+@pytest.mark.parametrize("held", [pytest.param(h, id=h.name) for h in _HELD])
+def test_a_held_member_is_refused_in_the_library_file(
+    held: HeldMember, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The guard that stands until the held cells move: loud, in the library's
+    file."""
+    _with_libraries(monkeypatch, {_LIB: f"library {_LIB} {{ {held.library} }}"})
+    rendered = _rendered(_held_game(held))
+    assert rendered is not None
+    assert any(
+        line.startswith(_LIB_FILE) and held.refusal in line for line in rendered.splitlines()
+    ), rendered
+
+
+# --- deck capacity is judged where the game runs the deal ---------------------
+
+
+@pytest.mark.parametrize("count", [13, 14])
+def test_a_library_deal_is_judged_at_the_phase_that_runs_it(
+    count: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deck capacity is counted after the procedure is spliced into the phase
+    that runs it, so a library's deal the deck cannot hold is refused at that
+    phase, in the game's own file, and never in the library's."""
+    _with_libraries(
+        monkeypatch,
+        {
+            _LIB: f"library {_LIB} {{ requires {{ deck : Deck  hand[player] : Hand<player> }} "
+            f"procedure deal_all() {{ deal {count} cards from deck to each hand }} }}"
+        },
+    )
+    text = _game_text(
+        _CARD, uses=True, game_fn="", tag=f"Deal{count}", statement="run deal_all()"
+    )
+    rendered = _rendered(text)
+    if count * 4 <= 52:
+        assert rendered is None, rendered
+        return
+    assert rendered is not None
+    assert _LIB_FILE not in rendered, rendered
+    assert rendered.startswith(f"{_GAME_FILE}:{_line_of(text, 'phase p')}:"), rendered
+    assert "deals up to" in rendered, rendered
+
+
+# --- misuse probes and remedies for the node gates ----------------------------
+
+
+def _uses_line_refusal(text: str, rendered: str | None) -> str:
+    assert rendered is not None
+    assert _LIB_FILE not in rendered, rendered
+    where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
+    hits = [line for line in rendered.splitlines() if line.startswith(where)]
+    assert hits, rendered
+    return hits[0]
+
+
+@pytest.mark.parametrize("players", [2, 3, 4, 5, 6])
+def test_the_offered_teams_clause_partitions_the_seats(
+    players: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The `teams:` a team refusal offers is written for this game's seats, and
+    pasted in as written it clears the refusal."""
+    _with_libraries(
+        monkeypatch, {_LIB: f"library {_LIB} {{ function probe_fn() = any team where true }}"}
+    )
+    clauses = replace(_CARD, players=players, teams=False)
+    text = _game_text(clauses, uses=True, game_fn="", tag=f"Seats{players}")
+    refusal = _uses_line_refusal(text, _rendered(text))
+    offered = re.search(r"`(teams: \[.*\])`", refusal)
+    assert offered is not None, refusal
+    remedied = text.replace("  max_length: 1000", f"  {offered.group(1)}\n  max_length: 1000")
+    assert _rendered(remedied.replace("game Seats", "game Remedied", 1)) is None
+
+
+@pytest.mark.parametrize("pieces", [True, False])
+def test_the_board_refusal_offers_a_board_only_where_one_is_legal(
+    pieces: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `board:` is legal only beside `pieces:`. A piece game is offered one,
+    and declaring it clears the refusal; a card game is told it cannot use the
+    library, for a cell range and for a board-reading Builtin alike.
+
+    red under: returning "declare one" for every flavor from
+    `resolve._board_fix` (executed 2026-10-14)."""
+    library = (
+        f"library {_LIB} {{ procedure probe_fn() {{ for each cell c: let y = 1 }} "
+        f"function probe_lines() = lines(3) }}"
+    )
+    _with_libraries(monkeypatch, {_LIB: library})
+    clauses = replace(_BOARD, board=False) if pieces else _CARD
+    text = _game_text(
+        clauses, uses=True, game_fn="", tag=f"Cells{pieces}", statement="run probe_fn()"
+    )
+    rendered = _rendered(text)
+    assert rendered is not None
+    where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
+    refusals = [line for line in rendered.splitlines() if line.startswith(where)]
+    assert len(refusals) == 2, rendered
+    for refusal in refusals:
+        assert ("declare one" in refusal) == pieces, refusal
+        assert ("a card game cannot use this library" in refusal) == (not pieces), refusal
+    if pieces:
+        remedied = text.replace("  max_length: 1000", "  board: grid(3, 3)\n  max_length: 1000")
+        assert _rendered(remedied.replace("game Cells", "game Remedied", 1)) is None
+
+
+_RANK_PARAM_LIB = (
+    f"library {_LIB} {{ move_type probe_fn(r : Rank) {{ effect {{ }} }} }}"
+)
+
+
+def test_a_ranking_convention_meets_the_rank_parameter_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _with_libraries(monkeypatch, {_LIB: _RANK_PARAM_LIB})
+    text = _game_text(replace(_CARD, ranking=False), uses=True, game_fn="", tag="ConvParam")
+    text = text.replace("  max_length: 1000", "  max_length: 1000\n  ranking: aces high")
+    assert _rendered(text) is None
+
+
+def test_a_convention_on_a_misspelled_deck_does_not_ask_for_a_ranking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _with_libraries(monkeypatch, {_LIB: _RANK_PARAM_LIB})
+    text = _game_text(replace(_CARD, ranking=False), uses=True, game_fn="", tag="DeckParam")
+    text = text.replace("cards: standard52", "cards: standrd52\n  ranking: aces high")
+    rendered = _rendered(text)
+    assert rendered is not None and "standrd52" in rendered, rendered
+    assert "declares no `ranking:`" not in rendered, rendered
+    assert _LIB_FILE not in rendered, rendered
+
+
+def test_a_piece_game_is_told_its_flavor_before_its_ranking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A piece game cannot declare `ranking:`, so a library `Rank` parameter is
+    refused for the flavor, and nothing asks for a ranking."""
+    _with_libraries(monkeypatch, {_LIB: _RANK_PARAM_LIB})
+    text = _game_text(_PIECES, uses=True, game_fn="", tag="PieceParam")
+    refusal = _uses_line_refusal(text, _rendered(text))
+    assert "pieces" in refusal and "`Rank`" in refusal, refusal
+    assert "ranking:" not in (_rendered(text) or ""), _rendered(text)
+
+
+def test_a_malformed_teams_clause_is_refused_at_the_clause_not_the_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _with_libraries(
+        monkeypatch, {_LIB: f"library {_LIB} {{ function probe_fn() = any team where true }}"}
+    )
+    text = _game_text(_CARD, uses=True, game_fn="", tag="BadTeamsRange")
+    text = text.replace("teams: [[0, 2], [1, 3]]", "teams: [[0, 2], [1]]")
+    rendered = _rendered(text)
+    assert rendered is not None and "seat 3" in rendered, rendered
+    assert _LIB_FILE not in rendered and "probe_lib" not in rendered, rendered
+
+
+def test_a_board_that_mints_no_cells_is_refused_at_the_board(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A declared board that fails is the `board:` clause's refusal; the
+    library's `for each cell` is not blamed for the cells it never got."""
+    _with_libraries(
+        monkeypatch,
+        {_LIB: f"library {_LIB} {{ procedure probe_fn() {{ for each cell c: let y = 1 }} }}"},
+    )
+    text = _game_text(
+        replace(_BOARD, board_size=0), uses=True, game_fn="", tag="NoCells",
+        statement="run probe_fn()",
+    )
+    rendered = _rendered(text)
+    assert rendered is not None and "board family 'grid'" in rendered, rendered
+    assert _LIB_FILE not in rendered and "probe_lib" not in rendered, rendered
+
+
+# --- a piece game is never asked for a clause it cannot declare ---------------
+#
+# A piece game is refused `ranking:`, `trump:`, `card_points` and a Trick
+# Order, so a refusal asking it for one offers a fix that cannot be applied.
+# Every member of a gate on those clauses reaches a piece game's refusal
+# through the content-flavor gate, which runs first.
+
+_CARD_ONLY_CLAUSE_GATES = (
+    "rank_parameter", "ranking_slot", "trick_order_reading", "trick_order_replaced"
+)
+
+
+def test_every_card_clause_builtin_is_deck_only() -> None:
+    """The Builtin rows on a clause a piece game cannot declare are pre-empted
+    in a piece game by the deck-only row, which runs first.
+
+    red under: removing `card_points` from `DECK_ONLY_CALL_FUNCS` (executed
+    2026-10-14)."""
+    card_clause_builtins = (
+        (RANKING_GATED_FUNCS & BUILTIN_CALL_FUNCS)
+        | TRICK_ORDER_GATED_FUNCS
+        | TRICK_ORDER_EXCLUDED_FUNCS
+        | resolve_module._CARD_POINTS_CALLS
+    )
+    assert card_clause_builtins <= DECK_ONLY_CALL_FUNCS, sorted(
+        card_clause_builtins - DECK_ONLY_CALL_FUNCS
+    )
+
+
+@pytest.mark.parametrize(
+    "member",
+    [pytest.param(m, id=m.id) for m in _node_members() if m.gate in _CARD_ONLY_CLAUSE_GATES],
+)
+def test_a_piece_game_is_told_its_flavor_not_a_card_clause(
+    member: NodeMember, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """red under: deleting the `TrickRound` and `ClimbRound` arms of
+    `typecheck.card_content_forms` (executed 2026-10-14)."""
+    text, rendered = _check_node(
+        member, NodeGame(_PIECES), through_library=True,
+        tag=f"Flavor{_node_tag(member.id)}", monkeypatch=monkeypatch,
+    )
+    assert rendered is not None
+    where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
+    assert any(
+        line.startswith(where) and f"'{_LIB}'" in line and "played with pieces" in line
+        for line in rendered.splitlines()
+    ), rendered
+    for clause in ("`ranking:`", "`trick_order { }`"):
+        assert clause not in rendered, rendered
+
+
+# --- every occurrence is named, however often a member recurs -----------------
+#
+# A gate's refusal names every definition that holds one of its members. A
+# member written twice, in two definitions, is named in both, for a Builtin row
+# and for a node row alike.
+
+
+def _twice(definition: str) -> str:
+    return definition + "\n  " + definition.replace("probe_fn", "probe_fn2", 1)
+
+
+def _repeat_cases() -> list[object]:
+    cases: list[object] = []
+    for gate in GATES:
+        if gate.name == "board_span":
+            continue
+        member = next(
+            (m for m in sorted(gate.members & BUILTIN_CALL_FUNCS) if _probe(m).library_spellable),
+            None,
+        )
+        if member is None:
+            continue
+        probe = _probe(member)
+        requires = "requires { pile : TrickPile }" if probe.needs_pile else ""
+        cases.append(
+            pytest.param(
+                f"library {_LIB} {{\n  {requires}\n  {_twice(_function(probe))}\n}}\n",
+                _unmet(gate, member), None, member,
+                id=f"builtin-{gate.name}-{member}",
+            )
+        )
+    seen: set[str] = set()
+    for node in _node_members():
+        if node.gate not in NODE_GATES or node.gate in seen or node.definition == "state":
+            continue
+        seen.add(node.gate)
+        requires = f"requires {{ {node.requires} }}" if node.requires else ""
+        cases.append(
+            pytest.param(
+                f"library {_LIB} {{\n  {requires}\n  {_twice(node.definition)}\n}}\n",
+                node.unmet.clauses, node.unmet, node.word,
+                id=f"node-{node.id}",
+            )
+        )
+    return cases
+
+
+@pytest.mark.parametrize(("library", "clauses", "node_game", "word"), _repeat_cases())
+def test_a_member_written_twice_is_named_in_both_definitions(
+    library: str, clauses: Clauses, node_game: NodeGame | None, word: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """red under: claiming each member as the gate reaches it, rather than
+    after the gate has collected every occurrence, in
+    `resolve._check_library_clause_gates` (the Builtin cells); and claiming a
+    node row's members by what the refusal calls them rather than by the
+    node itself (the node cells) (both executed 2026-10-14)."""
+    _with_libraries(monkeypatch, {_LIB: library})
+    text = _game_text(clauses, uses=True, game_fn="", tag="Twice")
+    if node_game is not None and node_game.trump:
+        text = text.replace("  max_length: 1000", "  trump: hearts\n  max_length: 1000")
+    rendered = _rendered(text)
+    assert rendered is not None
+    where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
+    assert any(
+        line.startswith(where) and word in line
+        and "`probe_fn`" in line and "`probe_fn2`" in line
+        for line in rendered.splitlines()
+    ), rendered
