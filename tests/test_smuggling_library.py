@@ -95,9 +95,10 @@ def test_every_member_binds_the_library(member: Path) -> None:
 
 @pytest.mark.parametrize("member", _members(), ids=_ids())
 def test_every_member_plays_to_termination(member: Path) -> None:
-    """Binding is not running. The imported `commit_shipment` holds the family's
-    only decision site, so a member that checked but did not reach it would be a
-    library proven by inspection alone."""
+    """Binding is not running. The library holds every decision site in the
+    family — the commit's concealed card choice and the respond step's offer —
+    so a member that checked but reached none would be a library proven by
+    inspection alone."""
     game = check_dsl(member.read_text(), member.name)
     chose = 0
 
@@ -108,7 +109,7 @@ def test_every_member_plays_to_termination(member: Path) -> None:
 
     rng = random.Random(0)
     play_game(game, rng, chooser=chooser)
-    assert chose > 0, "no decision reached — the imported commit never ran"
+    assert chose > 0, "no decision reached — no imported decision site ran"
 
 
 def _trace_digest(member: Path, seed: int) -> str:

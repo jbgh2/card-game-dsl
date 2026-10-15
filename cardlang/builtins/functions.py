@@ -143,7 +143,7 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "player_holding",
         "team_of",  # the team a player belongs to
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
-        "strain_index",  # bidding rank of a strain: C<D<H<S<NT (none = no-trump, highest)
+        "suit_value",  # a suit's strength under the game's `suit ranking:` (weakest listed 0)
         "error",  # the if_impossible fallback that rejects the move
         "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
         "card_points",  # a card's points under the game's `card_points { }` table
@@ -292,7 +292,7 @@ TRICK_ORDER_ROW_CALLS: frozenset[str] = frozenset(
         "rank_value",  # the declared `ranking:` order -- what strength defaults to
         "card_points",  # the declared `card_points { }` table
         "suit_of",  # the suit of its card argument
-        "strain_index",  # a strain's bidding rank (pure over the argument)
+        "suit_value",  # the declared `suit ranking:` table
         "team_of",  # the seating's team map (public, fixed)
         "top_of",  # a position read of the collection its argument names
         "bottom_of",
@@ -361,7 +361,7 @@ BUILTIN_READS_NOTHING: frozenset[str] = frozenset(
         "home",
         "far_row",
         "team_of",
-        "strain_index",
+        "suit_value",
         "error",
         "rank_value",
         "card_points",
@@ -475,8 +475,8 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "salvo_combos",
         "scopa_sums_to",
         "skat_matadors",
-        "strain_index",
         "suit_of",
+        "suit_value",
         "tarot_excuse_player",
         "tarot_per_opp",
         "tichu_dragon_won",

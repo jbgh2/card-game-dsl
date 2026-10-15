@@ -32,6 +32,7 @@ game Skat {
 
   cards: skat32
   ranking: ace-ten
+  suit ranking: clubs spades hearts diamonds
   card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0  8: 0  7: 0 }
 
   // The two this game borrows from outside the DSL. `skat_next_bid` takes no
@@ -60,7 +61,7 @@ game Skat {
     trump:         not is_null
                    and (card.rank is J or (not is_grand and card.suit is trump_suit))
     card_strength: if is_null then null_strength(card)
-                   elif card.rank is J then 100 + suit_order(card.suit)
+                   elif card.rank is J then 100 + suit_value(card.suit)
                    else rank_value(card)
   }
 
@@ -279,10 +280,6 @@ move_type declare_suit(s : Suit) {
 }
 
 // === Functions ===
-
-// Within the jacks: clubs > spades > hearts > diamonds.
-function suit_order(s : Suit) =
-  if s is clubs then 4 elif s is spades then 3 elif s is hearts then 2 else 1
 
 // Null's natural order, A K Q J 10 9 8 7 — the ten drops below the jack,
 // which the game's ace-ten `ranking:` (read by `rank_value`) does not do, so

@@ -82,12 +82,14 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               settled inside ``_apply_uses``, before the splice — afterwards
               the two are one flat declaration block and the distinction no
               longer exists to check. And, for a game that ``uses`` a
-              library, a Builtin the library's definitions call that a game
-              clause the game lacks (or holds) gates — every gate in
-              ``_CLAUSE_GATES``, plus a literal ``lines(k)`` past the board —
-              refused on the game's ``uses`` line
+              library, anything the library brings in that a game clause the
+              game lacks (or holds) gates — a Builtin call or a construct, by
+              every row of ``_CLAUSE_GATES``, plus a literal ``lines(k)`` past
+              the board — refused on the game's ``uses`` line
               (``_check_library_clause_gates``) before the splice, so the
-              gates downstream meet such a call only as its Shadow Guards.
+              gates downstream meet it only as its Shadow Guards. Each row's
+              test is the one its gate asks. A library rule the game does not
+              activate is not brought in, and is not judged against the game.
               And a Primitive named by family-library text, as a call or in
               a ``round``'s query slot, refused to the library's author
               (``_check_library_encapsulation``) before the splice; the
@@ -222,19 +224,51 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               ``magic_hand`` may therefore assume a seat is a key of every
               family they resolve that way, and ``_check_hidden_reads`` may
               credit a bare read as the acting seat's own instance.
+              And, for a library's ``requires { }``: a row is a keyed
+              declaration (state, zone) or a Definition Contract of a kind
+              in ``CONTRACT_KINDS`` — derived, so a rule, which no library
+              text can name, is never one — and every Definition Contract is
+              answered by exactly one of the game's own definitions of its
+              kind, at its parameters' positions and exact type spellings
+              (``_check_definition_requirement``). Illegal after this pass: a
+              row whose shape no game could answer, a library both defining
+              and requiring a definition, a row answered by another library's
+              definition, a function row spelled like a native name or a
+              round callback, a procedure row a library procedure runs, and a
+              move or procedure row the library never reaches
+              (``_check_contract_shapes``, ``_check_definition_claims``). The
+              splice records each answer: the game's answering function or
+              procedure carries every row it answers (``contracts``), and
+              every library call of a contracted function carries its own
+              row (``Call.contract``) —
+              ``typecheck`` reads both, and nothing else about imports. A
+              library ``run`` of a contracted procedure carries no stamp: its
+              arity and parameter types are the row's by the check above, and
+              a refusal there raises before ``typecheck`` runs. ``expand``
+              needs no delta: a contracted procedure is a game procedure, run
+              from a library move type's effect.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
               accepted cell rather than only resolving it, since
               "accepted" was exactly the assertion that hid the defect
-              the grid was written for.
+              the grid was written for. For the Definition Contracts, the grid
+              in ``tests/test_definition_contracts.py``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import Literal, TypeGuard, assert_never, cast, get_args
+from typing import (
+    Literal,
+    TypeGuard,
+    assert_never,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
@@ -332,7 +366,12 @@ from cardlang.stdlib.zones import (
     identity_to_all,
     reveals,
 )
-from cardlang.typecheck import KNOWN_TYPE_NAMES, RANKING_GATED_FUNCS
+from cardlang.typecheck import (
+    KNOWN_TYPE_NAMES,
+    RANKING_GATED_FUNCS,
+    card_content_forms,
+    ranking_gated_slots,
+)
 from cardlang.types import Flavor, TCollection, TPlayer, TTeam
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
@@ -368,6 +407,10 @@ _TEAM_CALL_FUNCS = frozenset(
 # The Builtins that read the game's `card_points { }` table, refused in a game
 # that declares none.
 _CARD_POINTS_CALLS: frozenset[str] = frozenset({"card_points"})
+
+# The Builtins that read the game's `suit ranking:`, refused in a game that
+# declares none.
+_SUIT_RANKING_CALLS: frozenset[str] = frozenset({"suit_value"})
 
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
 # domain table, not a hand-written local list.
@@ -596,6 +639,11 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.PositionDecl, "members_named"): "position_member",
     (n.StateDecl, "name"): "state",
     (n.RequireDecl, "name"): "state",
+    # A Definition Contract row declares the name the game's definition must
+    # take, in that definition's own namespace.
+    (n.MoveContract, "name"): "move_type",
+    (n.FunctionContract, "name"): "function",
+    (n.ProcedureContract, "name"): "procedure",
     (n.RuleDef, "name"): "rule",
     (n.MoveTypeDef, "name"): "move_type",
     (n.FunctionDef, "name"): "function",
@@ -647,6 +695,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # Types, in every position a type name can be written.
     (n.StateDecl, "type_name"): "type",
     (n.RequireDecl, "type_name"): "type",
+    (n.FunctionContract, "result_type"): "type",
     (n.Parameter, "type_name"): "type",
     (n.PrimitiveDecl, "return_type"): "type",
     # A `reads` name is one of the game's own KEYED declarations — a state
@@ -694,6 +743,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.Game, "ranking"): "deck_rank",
     (n.CardPointsEntry, "rank"): "deck_rank",
     (n.Game, "trump"): "deck_suit",
+    (n.SuitRanking, "suits"): "deck_suit",
     (n.Game, "direction"): "enum_value",
     (n.RotateStmt, "values"): "enum_value",
     (n.Game, "deck"): "component_set",
@@ -790,7 +840,16 @@ _OPAQUE_SLOTS: frozenset[tuple[type, str]] = frozenset(
 # stamps -- a reference's kind, a `winner:` clause's index role.
 _CLASSIFIED_SLOTS: frozenset[tuple[type, str]] = frozenset({(n.NameRef, "name")})
 _METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
-    {(n.NameRef, "ref_kind"), (n.Winner, "keyed_by")}
+    {
+        (n.NameRef, "ref_kind"),
+        (n.Winner, "keyed_by"),
+        # The Definition Contract a `uses` splice records: spellings copied off
+        # a row as facts, never names a sweep resolves.
+        (n.ContractStamp, "library"),
+        (n.ContractStamp, "row"),
+        (n.ContractStamp, "param_types"),
+        (n.ContractStamp, "result_type"),
+    }
 )
 
 
@@ -882,6 +941,125 @@ def _naming_slots_by_type() -> dict[type, tuple[str, ...]]:
 
 
 _NAMING_SLOTS_BY_TYPE: dict[type, tuple[str, ...]] = _naming_slots_by_type()
+
+
+def _library_node_types() -> frozenset[type]:
+    """Every node kind a library can hold, by walking `n.Library`'s own clauses
+    through the AST's annotations."""
+
+    def leaves(annotation: object) -> set[type]:
+        out: set[type] = set()
+        stack = [annotation]
+        while stack:
+            current = stack.pop()
+            if get_origin(current) is not None:
+                stack.extend(get_args(current))
+            elif isinstance(current, type):
+                out.add(current)
+        return out
+
+    kinds = set(get_args(n.Node))
+    hints = {cls: get_type_hints(cls) for cls in kinds}
+    seen: set[type] = set()
+    stack = [
+        cls
+        for f in fields(n.Library)
+        if f.name not in ("name", "span")
+        for cls in leaves(hints[n.Library][f.name]) & kinds
+    ]
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        for f in fields(current):
+            stack.extend(leaves(hints[current][f.name]) & kinds)
+    return frozenset(seen)
+
+
+def library_reachable_namespaces() -> frozenset[str]:
+    """The reference namespaces a library's own text can name: every slot of
+    every node kind a library can hold, read through the registry."""
+    reachable = _library_node_types()
+    return frozenset(
+        namespace
+        for slot, namespace in _REFERENCE_SLOTS.items()
+        if slot[0] in reachable and slot not in _CONTEXTUAL_SLOTS
+    ) | frozenset(
+        namespace
+        for (cls, _), slot in _CONTEXTUAL_SLOTS.items()
+        if cls in reachable
+        for namespace in slot.namespaces
+    )
+
+
+# Each definition kind's declaration keyword, as the grammar spells it — the
+# word a designer reaches for when writing a kind in a type slot. Pinned to the
+# grammar's own productions by tests/test_definition_contracts.py.
+_DEFINITION_KEYWORDS: dict[str, str] = {
+    "rules": "rule",
+    "move_types": "move_type",
+    "functions": "function",
+    "procedures": "procedure",
+}
+
+# Every word that names a definition KIND rather than a type, for a keyed row's
+# type slot: each kind's keyword and its capitalised form, and the move row's
+# own word, which names a contract only when the row is bare (`fold : Move`).
+# A keyed row spelling any of them is the library author's to fix, and
+# `_check_contract_shapes` is its one speaker.
+_DEFINITION_KIND_WORDS: dict[str, str] = {
+    **{word: field for field, word in _DEFINITION_KEYWORDS.items()},
+    **{
+        "".join(part.title() for part in word.split("_")): field
+        for field, word in _DEFINITION_KEYWORDS.items()
+    },
+    n.MOVE_CONTRACT_TYPE: "move_types",
+}
+
+# The Definition Contract row node for each definition kind that has one.
+_CONTRACT_ROWS: dict[str, type] = {
+    "move_types": n.MoveContract,
+    "functions": n.FunctionContract,
+    "procedures": n.ProcedureContract,
+}
+
+
+def _library_element(field: str) -> type:
+    """The definition node an `n.Library` field holds (`functions` ->
+    `n.FunctionDef`)."""
+    (element, _) = get_args(get_type_hints(n.Library)[field])
+    assert isinstance(element, type)
+    return element
+
+
+def _contract_kinds() -> tuple[tuple[str, str, type], ...]:
+    reachable = library_reachable_namespaces()
+    return tuple(
+        (field, noun, _CONTRACT_ROWS[field])
+        for field, noun in _LIBRARY_DEF_KINDS
+        if _DECLARATION_SLOTS[(_library_element(field), "name")] in reachable
+    )
+
+
+# The definition kinds a library can contract for, as (`n.Library` field, noun,
+# row node): `_LIBRARY_DEF_KINDS` restricted to the kinds whose namespace some
+# slot a library's own text holds can name. A kind no library text can name
+# (rule: only a game's `active_rules:` names one) is excluded by that
+# derivation, never by a list.
+CONTRACT_KINDS: tuple[tuple[str, str, type], ...] = _contract_kinds()
+# Runtime refusal: a row node with no contractable kind, or a contractable kind
+# with no row node, would be a contract nothing checks.
+if {f for f, _, _ in CONTRACT_KINDS} != set(_CONTRACT_ROWS) or set(
+    _DEFINITION_KEYWORDS
+) != {f for f, _ in _LIBRARY_DEF_KINDS}:
+    raise AssertionError(
+        "CONTRACT_KINDS, _CONTRACT_ROWS and _DEFINITION_KEYWORDS disagree about "
+        "which definition kinds a library contracts for"
+    )
+_CONTRACT_KIND_OF: dict[type, tuple[str, str]] = {
+    cls: (field, noun) for field, noun, cls in CONTRACT_KINDS
+}
 
 
 def slot_namespace(node: object, field_name: str) -> str | None:
@@ -1024,7 +1202,9 @@ class _StateClaims:
     contested: frozenset[str]
 
 
-def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
+def _apply_uses(
+    game: n.Game, bag: DiagnosticBag
+) -> tuple[n.Game, dict[str, n.RuleDef]]:
     """Resolve every `uses <library>` line: load the named libraries, refuse the
     three-way collisions, check each library's `requires` contract against the
     game's declared state, and splice the definitions into the game.
@@ -1039,7 +1219,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     "Family libraries"). That is also why the game's own definitions are spliced
     alongside, not merged over, the library's."""
     if not game.uses:
-        return game
+        return game, {}
 
     available = library_names()
     libraries: list[tuple[n.UsesDecl, n.Library]] = []
@@ -1072,15 +1252,37 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     _check_library_collisions(game, libraries, bag)
     claims = _check_state_claims(game, libraries, bag)
-    move_claims = _check_move_claims(game, libraries, bag)
+    definition_claims = _check_definition_claims(game, libraries, bag)
     _check_library_shadows_game(game, libraries, bag)
     _check_provided_readonly(game, claims.provided, bag)
     _check_provided_shadowed_by_binder(game, claims.provided, bag)
     skip = claims.contested | frozenset(claims.provided)
+    answers: dict[tuple[str, str], tuple[n.ContractStamp, ...]] = {}
     for use, library in libraries:
         check_library_alone(library, bag)
-        _check_requires(game, use, library, bag, skip, move_claims)
+        for key, stamp in _check_requires(
+            game, use, library, bag, skip, definition_claims
+        ).items():
+            answers[key] = answers.get(key, ()) + (stamp,)
         _check_library_clause_gates(game, use, library, bag)
+    # The Definition Contracts cross the splice here, the one moment both
+    # sides are in hand: the game's answering definitions carry every row they
+    # answer, one per library, and each library's calls of a contracted
+    # function carry its own row, so typecheck types those calls against the
+    # row and checks the answer's inferred result against each, reporting on
+    # each library's `uses` line.
+    game = replace(
+        game,
+        functions=tuple(
+            replace(f, contracts=answers.get(("functions", f.name), ()))
+            for f in game.functions
+        ),
+        procedures=tuple(
+            replace(p, contracts=answers.get(("procedures", p.name), ()))
+            for p in game.procedures
+        ),
+    )
+    libraries = [(use, _stamp_contracted_calls(use, library)) for use, library in libraries]
 
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
     # import is the base a game extends, which is the order the game file itself
@@ -1116,7 +1318,47 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     # `uses` is emptied here for the same reason `procedures` is emptied by
     # `expand`: a surviving entry downstream would mean the import was parsed and
     # ignored, and `openspiel.encoding` walks every dataclass field of the Game.
-    return replace(game, uses=(), state=state, **spliced)  # type: ignore[arg-type]
+    # The libraries' rules return beside the game, stamped like the rest, for
+    # `_instantiate_rules` to splice where `active_rules:` names them.
+    library_rules = {r.name: r for _, library in libraries for r in library.rules}
+    return replace(game, uses=(), state=state, **spliced), library_rules  # type: ignore[arg-type]
+
+
+def _stamp_contracted_calls(use: n.UsesDecl, library: n.Library) -> n.Library:
+    """`library` with every call of a function its Definition Contract names
+    carrying that row (`n.Call.contract`), so typecheck types the call against
+    the row whatever the game answered."""
+    rows = {r.name: r for r in _contract_rows(library, "functions")}
+    if not rows:
+        return library
+    stamps = {
+        name: n.ContractStamp(
+            library=library.name,
+            row=_spelled_contract(row),
+            param_types=tuple(p.type_name for p in row.params),
+            result_type=row.result_type,
+            uses_span=use.span,
+        )
+        for name, row in rows.items()
+        if isinstance(row, n.FunctionContract)
+    }
+
+    def stamp(value: object) -> object:
+        if isinstance(value, tuple):
+            return tuple(stamp(item) for item in value)
+        if isinstance(value, n.Call) and value.func in stamps:
+            return replace(
+                value, args=cast(tuple[n.Expr, ...], stamp(value.args)), contract=stamps[value.func]
+            )
+        return _traverse(value, lambda _field, v: stamp(v))
+
+    return replace(
+        library,
+        rules=cast(tuple[n.RuleDef, ...], stamp(library.rules)),
+        move_types=cast(tuple[n.MoveTypeDef, ...], stamp(library.move_types)),
+        functions=cast(tuple[n.FunctionDef, ...], stamp(library.functions)),
+        procedures=cast(tuple[n.ProcedureDef, ...], stamp(library.procedures)),
+    )
 
 
 def check_library_alone(library: n.Library, bag: DiagnosticBag) -> None:
@@ -1132,87 +1374,378 @@ def check_library_alone(library: n.Library, bag: DiagnosticBag) -> None:
 
 @dataclass(frozen=True)
 class _ClauseGate:
-    """A game clause some Builtins need, or are refused beside.
+    """A game clause some constructs need, or are refused beside.
 
+    `needs` is the gate's one test: what in a node the clause decides, in the
+    designer's words, or nothing. The gate asks it of the game's own text, and
+    `_check_library_clause_gates` asks it of a library's definitions before the
+    splice. A Builtin row's test is "a call whose name is in `members`", and
     `members` is the owning gate's own registry, never a copy of it. `unmet`
     reads the clause as the game WROTE it, because the `uses` check runs before
     `_expand_ranking`: a convention keyword is a `ranking:` here. A clause that
     is written but malformed counts as met, so its own Owner Guard speaks rather
-    than a request for a clause the game already has. `reads` completes "which
-    read ..." and `lacks` names what the game has instead."""
+    than a request for a clause the game already has. `verb` and `reads` say
+    what the library does with what `needs` names ("calls `x`, which reads
+    ..."), and `lacks` and `fix` say what the game has instead and what to
+    write."""
 
-    members: frozenset[str]
+    needs: Callable[[object, n.Game], tuple[str, ...]]
     unmet: Callable[[n.Game], bool]
+    verb: str
     reads: str
     lacks: Callable[[n.Game], str]
-    fix: str
+    fix: Callable[[n.Game], str]
+    members: frozenset[str] = frozenset()
 
 
-# Every gate on a Builtin's legality that a game clause decides, in the order
-# the gates themselves run, so a Builtin two gates refuse is reported by the
-# one that refuses it when the game writes the call. Each row's members are its
-# gate's own registry, so a Builtin joining a gate's registry joins its row,
-# and a new clause gate is a new row; `_check_library_clause_gates` reads the
-# table and names no gate. That each row agrees with its gate, member by
-# member, is executed in tests/test_library_clause_gates.py.
+def _builtin_gate(
+    members: frozenset[str],
+    unmet: Callable[[n.Game], bool],
+    reads: str,
+    lacks: Callable[[n.Game], str],
+    fix: Callable[[n.Game], str],
+) -> _ClauseGate:
+    """A row whose test is a call to one of the gate's Builtins."""
+    return _ClauseGate(
+        needs=lambda nd, g: (
+            (f"`{nd.func}`",) if isinstance(nd, n.Call) and nd.func in members else ()
+        ),
+        unmet=unmet,
+        verb="calls",
+        reads=reads,
+        lacks=lacks,
+        fix=fix,
+        members=members,
+    )
+
+
+def _refuses(gate: _ClauseGate, node: object, game: n.Game) -> bool:
+    """Whether `gate` refuses `node` in `game`: the test a downstream gate asks
+    of the game's own text, the same two halves the `uses` check asks of a
+    library's."""
+    return gate.unmet(game) and bool(gate.needs(node, game))
+
+
+def _teams_example(game: n.Game) -> str:
+    """A `teams:` clause that partitions this game's seats, alternating them
+    between two partnerships, for a refusal to offer as written."""
+    count = max(game.players.count, 2)
+    sides = (range(0, count, 2), range(1, count, 2))
+    return "teams: [" + ", ".join(
+        "[" + ", ".join(map(str, side)) + "]" for side in sides
+    ) + "]"
+
+
+def _declares_ranking(game: n.Game) -> bool:
+    """`ranking:` as written or as expanded: before `_expand_ranking` a
+    convention keyword is the clause, after it the expanded order is, and a
+    convention that cannot expand is refused by resolve itself."""
+    return bool(game.ranking) or game.ranking_convention is not None
+
+
+def _rank_parameters(node: object, game: n.Game) -> tuple[str, ...]:
+    """A move type's `Rank` parameter, which enumerates the declared ranking.
+    `Rank?` is no parameter domain at all (`_FIXED_DOMAINS`)."""
+    if isinstance(node, n.MoveTypeDef) and any(p.type_name == "Rank" for p in node.params):
+        return ("a `Rank` parameter",)
+    return ()
+
+
+def _team_ranges(node: object, game: n.Game) -> tuple[str, ...]:
+    """A range over the team domain: `for each team`, `any team where`, `all
+    teams where`."""
+    if isinstance(node, (n.ForEach, n.Quantifier)) and role_of(node.role) is Role.TEAM:
+        if isinstance(node, n.ForEach):
+            return ("`for each team`",)
+        return ("`any team where`",) if node.kind == "any" else ("`all teams where`",)
+    return ()
+
+
+def _team_keyed_state(node: object, game: n.Game) -> tuple[str, ...]:
+    """A state declaration keyed by team."""
+    if (
+        isinstance(node, n.StateDecl)
+        and node.index is not None
+        and role_of(node.index) is Role.TEAM
+    ):
+        return (f"`{node.name}[team]`",)
+    return ()
+
+
+def _cell_ranges(node: object, game: n.Game) -> tuple[str, ...]:
+    """A `for each` over the board's cells, the domain a `board:` mints."""
+    if isinstance(node, n.ForEach) and node.role == BOARD_DOMAIN:
+        return ("`for each cell`",)
+    return ()
+
+
+def _board_positions_past_end(node: object, game: n.Game) -> tuple[str, ...]:
+    """A literal position past the end of a board region, read off the declared
+    board (`_position_past_end`)."""
+    if not (isinstance(node, n.Subscript) and isinstance(node.obj, n.Call)):
+        return ()
+    past = _position_past_end(node, game)
+    if past is None:
+        return ()
+    index, length = past
+    return (f"`{node.obj.func}(...)[{index}]` on a region of {length}",)
+
+
+def _trick_order_reading_slots(node: object, game: n.Game) -> tuple[str, ...]:
+    """A trick round naming a winner that reads the `trick_order { }` block."""
+    if isinstance(node, n.TrickRound) and node.winner_fn in TRICK_ORDER_GATED_WINNERS:
+        return (f"round winner `{node.winner_fn}`",)
+    return ()
+
+
+def _round_trump_clauses(node: object, game: n.Game) -> tuple[str, ...]:
+    """A trick round's own `trump` clause."""
+    if isinstance(node, n.TrickRound) and node.trump is not None:
+        return ("a round `trump` clause",)
+    return ()
+
+
+def _trick_order_excluded_winners(node: object, game: n.Game) -> tuple[str, ...]:
+    """A trick round naming a winner a `trick_order { }` block replaces."""
+    if isinstance(node, n.TrickRound) and node.winner_fn in TRICK_ORDER_EXCLUDED_WINNERS:
+        return (f"round winner `{node.winner_fn}`",)
+    return ()
+
+
+# EVERY registered climbing query, not the `ranking:`-reading subset: a climb
+# query carries its own card order whether it reads `rank_index` (president's)
+# or hard-codes one (the bigtwo_* and tichu_* engines), and either way a game
+# naming one beside a Trick Order has two orders that the engine runs side by
+# side.
+_CLIMB_QUERIES = PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
+
+
+def _climb_queries(node: object, game: n.Game) -> tuple[tuple[str, str], ...]:
+    """A climbing round's queries, as (slot, name), each carrying its own card
+    order."""
+    if not isinstance(node, n.ClimbRound):
+        return ()
+    return tuple(
+        (slot, name)
+        for slot, name in (("combinations", node.combos_fn), ("follows", node.follows_fn))
+        if name in _CLIMB_QUERIES
+    )
+
+
+def _trick_order_replaced_slots(node: object, game: n.Game) -> tuple[str, ...]:
+    """Every round slot a `trick_order { }` block replaces, refused beside one
+    by `_check_trick_order_partition`. An `early` clause on the Trick Order
+    winner is not one: no clause the game writes clears it, so it is the
+    library's own to drop and is refused in its file."""
+    return (
+        _round_trump_clauses(node, game)
+        + _trick_order_excluded_winners(node, game)
+        + tuple(f"climb query `{name}`" for _, name in _climb_queries(node, game))
+    )
+
+
+def _card_contents(node: object, game: n.Game) -> tuple[str, ...]:
+    return card_content_forms(node)
+
+
+def _ranking_slots(node: object, game: n.Game) -> tuple[str, ...]:
+    return tuple(f"{slot} `{name}`" for slot, name in ranking_gated_slots(node))
+
+
+_PIECES_LACK = "this game is played with pieces"
+_PIECES_FIX = "a game played with pieces cannot use this library"
+_NO_RANKING = "this game declares no `ranking:`"
+_NO_TEAMS = "this game declares no `teams:`"
+_TRICK_ORDER_FIX = (
+    "a game with a Trick Order cannot use this library; drop the block or the "
+    "`uses` line"
+)
+
+
+def _teams_fix(game: n.Game) -> str:
+    return f"declare the partnerships (`{_teams_example(game)}`)"
+
+
+_CARD_CONTENT_GATE = _ClauseGate(
+    _card_contents,
+    lambda g: g.content_flavor == "piece",
+    "writes",
+    "read a deck card's content",
+    lambda g: _PIECES_LACK,
+    lambda g: _PIECES_FIX,
+)
+_TRICK_ORDER_READING_GATE = _ClauseGate(
+    _trick_order_reading_slots,
+    lambda g: g.content_flavor == "card" and g.trick_order is None,
+    "writes",
+    "read the game's `trick_order { }` block",
+    lambda g: "this game declares none",
+    lambda g: "declare one",
+)
+_TRICK_ORDER_REPLACED_GATE = _ClauseGate(
+    _trick_order_replaced_slots,
+    lambda g: g.content_flavor == "card" and g.trick_order is not None,
+    "writes",
+    "carry the trump and card order a `trick_order { }` block replaces",
+    lambda g: "this game declares a `trick_order { }` block",
+    lambda g: _TRICK_ORDER_FIX,
+)
+_TEAM_RANGE_GATE = _ClauseGate(
+    _team_ranges,
+    lambda g: not g.teams,
+    "writes",
+    "range over the game's teams",
+    lambda g: _NO_TEAMS,
+    _teams_fix,
+)
+_TEAM_STATE_GATE = _ClauseGate(
+    _team_keyed_state,
+    lambda g: not g.teams,
+    "provides",
+    "key state by the game's teams",
+    lambda g: _NO_TEAMS,
+    _teams_fix,
+)
+
+
+def _board_remedy(game: n.Game) -> str:
+    """What a game lacking a `board:` can do: a board lays out a piece game,
+    and is refused beside `cards:`."""
+    if game.content_flavor == "piece":
+        return "declare one"
+    return "a board is declared only in a game played with pieces"
+
+
+def _board_fix(game: n.Game) -> str:
+    remedy = _board_remedy(game)
+    if game.content_flavor == "piece":
+        return remedy
+    return f"{remedy}, so a card game cannot use this library"
+
+
+_CELL_RANGE_GATE = _ClauseGate(
+    _cell_ranges,
+    lambda g: g.board is None,
+    "writes",
+    "range over the board's cells",
+    lambda g: "this game declares no `board:`",
+    _board_fix,
+)
+_BOARD_POSITION_GATE = _ClauseGate(
+    _board_positions_past_end,
+    lambda g: g.board is not None,
+    "writes",
+    "read a position past the end of a board region",
+    lambda g: f"this game declares `board: {_board_spelling(g)}`",
+    lambda g: "declare a board that holds it",
+)
+_RANK_PARAMETER_GATE = _ClauseGate(
+    _rank_parameters,
+    lambda g: not _declares_ranking(g),
+    "declares",
+    "enumerate the game's ranking",
+    lambda g: _NO_RANKING,
+    lambda g: "declare one",
+)
+_RANKING_SLOT_GATE = _ClauseGate(
+    _ranking_slots,
+    lambda g: not _declares_ranking(g),
+    "writes",
+    "read a card's rank strength from `ranking:`",
+    lambda g: _NO_RANKING,
+    lambda g: "declare one",
+)
+
+
+def _board_spelling(game: n.Game) -> str:
+    board = game.board
+    if board is None:
+        return "none"
+    return f"{board.family}({', '.join(map(str, board.args))})"
+
+
+# Every gate on a construct's legality that a game clause decides, in the order
+# the gates themselves run, so a construct two gates refuse is reported by the
+# one that refuses it when the game writes it (the content flavor first: in a
+# piece game a `Rank` parameter's fix is not a `ranking:`, which a piece game
+# cannot declare). Each row's test is the one its gate asks, so a construct
+# joining a gate joins its row, and a new clause gate is a new row;
+# `_check_library_clause_gates` reads the table and names no gate. That each
+# row agrees with its gate, member by member, is executed in
+# tests/test_library_clause_gates.py.
 _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
-    _ClauseGate(
+    _builtin_gate(
         DECK_ONLY_CALL_FUNCS,
         lambda g: g.content_flavor == "piece",
         "read a card's suit, rank or points",
-        lambda g: "this game is played with pieces",
-        "a game played with pieces cannot use this library",
+        lambda g: _PIECES_LACK,
+        lambda g: _PIECES_FIX,
     ),
-    _ClauseGate(
+    _CARD_CONTENT_GATE,
+    _builtin_gate(
         TRICK_ORDER_GATED_FUNCS,
         lambda g: g.trick_order is None,
         "read the game's `trick_order { }` block",
         lambda g: "this game declares none",
-        "declare one",
+        lambda g: "declare one",
     ),
-    _ClauseGate(
+    _TRICK_ORDER_READING_GATE,
+    _builtin_gate(
         TRICK_ORDER_EXCLUDED_FUNCS,
         lambda g: g.trick_order is not None,
         "read the trump and led suit a trick round names",
         lambda g: "this game declares a `trick_order { }` block, which replaces them",
-        "a game with a Trick Order cannot use this library; drop the block or the "
-        "`uses` line",
+        lambda g: _TRICK_ORDER_FIX,
     ),
-    _ClauseGate(
+    _TRICK_ORDER_REPLACED_GATE,
+    _builtin_gate(
         _CARD_POINTS_CALLS,
         lambda g: g.card_points is None,
         "read the game's card-point table",
         lambda g: "this game declares no `card_points { }` table",
-        "declare one",
+        lambda g: "declare one",
     ),
-    _ClauseGate(
+    _builtin_gate(
+        _SUIT_RANKING_CALLS,
+        lambda g: g.suit_ranking is None,
+        "read a suit's strength from `suit ranking:`",
+        lambda g: "this game declares no `suit ranking:`",
+        lambda g: "declare one, naming the deck's suits strongest first",
+    ),
+    _builtin_gate(
         _TEAM_CALL_FUNCS,
         lambda g: not g.teams,
         "ask which team a seat is on",
-        lambda g: "this game declares no `teams:`",
-        "declare the partnerships (`teams: [[0, 2], [1, 3]]`)",
+        lambda g: _NO_TEAMS,
+        _teams_fix,
     ),
-    _ClauseGate(
+    _TEAM_RANGE_GATE,
+    _TEAM_STATE_GATE,
+    _builtin_gate(
         BOARD_ONLY_CALL_FUNCS,
         lambda g: g.board is None,
         "read the board",
         lambda g: "this game declares no `board:`",
-        "declare one",
+        _board_fix,
     ),
-    _ClauseGate(
+    _CELL_RANGE_GATE,
+    _BOARD_POSITION_GATE,
+    _builtin_gate(
         _FRAME_CALL_FUNCS,
         lambda g: g.board is not None and g.players.count != 2,
         "read a grid's two-player movement frame",
         lambda g: f"this game declares `players: {g.players.count}`",
-        "the frame is defined for two seats, so it needs `players: 2`",
+        lambda g: "the frame is defined for two seats, so it needs `players: 2`",
     ),
-    _ClauseGate(
+    _builtin_gate(
         RANKING_GATED_FUNCS,
-        lambda g: not g.ranking and g.ranking_convention is None,
+        lambda g: not _declares_ranking(g),
         "read a card's rank strength from `ranking:`",
-        lambda g: "this game declares no `ranking:`",
-        "declare one",
+        lambda g: _NO_RANKING,
+        lambda g: "declare one",
     ),
+    _RANK_PARAMETER_GATE,
+    _RANKING_SLOT_GATE,
 )
 
 # The Builtins no game clause gates. Listed, not derived by subtraction, so a
@@ -1223,59 +1756,94 @@ _CLAUSE_FREE_BUILTINS: frozenset[str] = frozenset(
 )
 
 
-def _library_calls(library: n.Library) -> list[tuple[n.Call, str]]:
-    """Every call in `library`'s definitions, with the definition that holds
-    it, in the designer's words. Provided state is not walked: a default may
-    call nothing (`_check_state_default_scope`)."""
-    found: list[tuple[n.Call, str]] = []
+def _activated_rule_names(game: n.Game) -> frozenset[str]:
+    """The rules the game's `active_rules:` switches on, the only library rules
+    the splice brings in (`_instantiate_rules`)."""
+    return frozenset(
+        ref.name
+        for nd in _walk(game)
+        if isinstance(nd, n.ActiveRules)
+        for ref in nd.refs
+        if ref.delta in ("plain", "add")
+    )
+
+
+def _library_nodes(library: n.Library, game: n.Game) -> list[tuple[object, str]]:
+    """Every node of what `library` brings into `game`, with the definition
+    that holds it, in the designer's words: its move types, functions and
+    procedures, its provided state, and the rules the game activates. A rule
+    no game activates is checked against its library alone (decisions.md
+    "Family libraries")."""
+    activated = _activated_rule_names(game)
+    found: list[tuple[object, str]] = []
     for field, noun in _LIBRARY_DEF_KINDS:
         for definition in getattr(library, field):
+            if field == "rules" and definition.name not in activated:
+                continue
             where = f"{noun} `{definition.name}`"
-            found.extend((nd, where) for nd in _walk(definition) if isinstance(nd, n.Call))
+            found.extend((nd, where) for nd in _walk(definition))
+    if library.state is not None:
+        found.extend((nd, "its provided state") for nd in _walk(library.state))
     return found
+
+
+def _library_calls(library: n.Library, game: n.Game) -> list[tuple[n.Call, str]]:
+    """Every call `library` brings into `game` (`_library_nodes`)."""
+    return [(nd, where) for nd, where in _library_nodes(library, game) if isinstance(nd, n.Call)]
 
 
 def _check_library_clause_gates(
     game: n.Game, use: n.UsesDecl, library: n.Library, bag: DiagnosticBag
 ) -> None:
-    """A library's definitions calling a Builtin that a game clause gates,
-    checked against the game's clauses and reported on its `uses` line.
+    """What a library brings in that a game clause gates, checked against the
+    game's clauses and reported on its `uses` line.
 
-    The Owner Guard for every such call a library brings in: the game's author
-    wrote the `uses` line and lacks the clause, and the call sits in a file they
-    did not write. Each gate's own check stays the Owner Guard for a call the
-    game writes, and is the Shadow Guard for a spliced one, which never reaches
-    it while `resolve` raises on this pass's refusals before splicing on.
+    The Owner Guard for every such construct a library brings in: the game's
+    author wrote the `uses` line and lacks the clause, and the construct sits
+    in a file they did not write. Each gate's own check stays the Owner Guard
+    for what the game writes, and is the Shadow Guard for what is spliced,
+    which never reaches it while `resolve` raises on this pass's refusals
+    before splicing on.
 
-    One refusal per gate, naming every gated Builtin the library calls and
-    where; a Builtin two gates refuse is reported by the first, as the gates
-    themselves do. The fix offered is the game's to make, never an edit to the
-    library, whose author is someone else."""
-    calls = _library_calls(library)
-    claimed: set[str] = set()
+    One refusal per gate, naming everything the library writes that the gate
+    refuses, and where; a construct two gates refuse is reported by the first,
+    as the gates themselves do. The fix offered is the game's to make, never an
+    edit to the library, whose author is someone else."""
+    nodes = _library_nodes(library, game)
+    claimed: set[object] = set()
     for gate in _CLAUSE_GATES:
         if not gate.unmet(game):
             continue
         reached: dict[str, list[str]] = {}
-        for call, where in calls:
-            if call.func in gate.members and call.func not in claimed:
-                places = reached.setdefault(call.func, [])
+        # Claimed once the gate has every occurrence, so a member recurring in
+        # a second definition is named there too; a later gate skips it.
+        keys: set[object] = set()
+        for nd, where in nodes:
+            phrases = gate.needs(nd, game)
+            if not phrases:
+                continue
+            key = nd.func if isinstance(nd, n.Call) else nd
+            if key in claimed:
+                continue
+            keys.add(key)
+            for phrase in phrases:
+                places = reached.setdefault(phrase, [])
                 if where not in places:
                     places.append(where)
+        claimed |= keys
         if not reached:
             continue
-        claimed.update(reached)
         listing = " and ".join(
-            f"`{name}` (in {', '.join(places)})" for name, places in reached.items()
+            f"{phrase} (in {', '.join(places)})" for phrase, places in reached.items()
         )
         verb, _, rest = gate.reads.partition(" ")
         reads = f"{verb}s {rest}" if len(reached) == 1 else gate.reads
         bag.error(
-            f"library '{library.name}' calls {listing}, which {reads}, but "
-            f"{gate.lacks(game)} — {gate.fix}",
+            f"library '{library.name}' {gate.verb} {listing}, which {reads}, but "
+            f"{gate.lacks(game)} — {gate.fix(game)}",
             use.span,
         )
-    _check_library_lines_span(game, use, library, calls, bag)
+    _check_library_lines_span(game, use, library, _library_calls(library, game), bag)
 
 
 def _check_library_lines_span(
@@ -1335,7 +1903,13 @@ def _check_library_collisions(
         local = {d.name: d for d in getattr(game, field)}
         from_libraries: dict[str, str] = {}
         for use, library in libraries:
+            # A definition the library also contracts for is the library's own
+            # contradiction (`_check_definition_claims`); the game answering
+            # the row did what the row asked.
+            contracted = _contracted(library, field) if field in _CONTRACT_ROWS else frozenset()
             for definition in getattr(library, field):
+                if definition.name in local and definition.name in contracted:
+                    continue
                 if definition.name in local:
                     bag.error(
                         f"{noun} '{definition.name}' is defined by this game and "
@@ -1480,7 +2054,17 @@ def _check_library_shadows_game(
     value, which has none."""
     game_names = _game_bindings(game)
     def_nouns = {noun for _, noun in _LIBRARY_DEF_KINDS}
+    # The name each library's Definition Contract rows make the game define.
+    contracted_by: dict[str, str] = {
+        r.name: library.name
+        for _, library in libraries
+        for field, _noun, _cls in CONTRACT_KINDS
+        for r in _contract_rows(library, field)
+    }
     for use, library in libraries:
+        own_rows = frozenset(
+            r.name for r in library.requires if not isinstance(r, n.RequireDecl)
+        )
         injected: list[tuple[str, str, Span | None]] = [
             (decl.name, "provided state", decl.span)
             for decl in (library.state.decls if library.state is not None else ())
@@ -1501,6 +2085,22 @@ def _check_library_shadows_game(
             if inject_noun == game_noun and inject_noun in def_nouns:
                 continue
             if inject_noun == "provided state" and game_noun == "state variable":
+                continue
+            # A name the library both holds and contracts for is its own
+            # contradiction, told to its author by `_check_contract_names`.
+            if name in own_rows:
+                continue
+            asked_by = contracted_by.get(name)
+            if asked_by is not None and game_noun in def_nouns:
+                # The game's definition answers another library's contract, so
+                # renaming it is not a fix the game's author can take.
+                bag.error(
+                    f"library '{library.name}' brings in {inject_noun} '{name}', "
+                    f"but library '{asked_by}' has this game define '{name}' as a "
+                    f"{game_noun} — the two libraries cannot both be used: drop "
+                    f"one `uses` line",
+                    use.span,
+                )
                 continue
             bag.error(
                 f"library '{library.name}' brings in {inject_noun} '{name}', but "
@@ -1551,10 +2151,10 @@ def _check_state_claims(
 
     provided: dict[str, str] = {}
     contested: set[str] = set()
-    # A move-type row (`fold : Move`) claims no state name: `_check_move_claims`
-    # owns its collisions, so the state sweep reads past it.
+    # A Definition Contract row claims no state name: `_check_definition_claims`
+    # owns its collisions, so the state sweep reads the keyed rows alone.
     for use, library in libraries:
-        required = {r.name for r in library.requires if not _is_move_contract_row(r)}
+        required = {r.name for r in _keyed_rows(library)}
         for decl in library.state.decls if library.state is not None else ():
             if decl.name in required:
                 contested.add(decl.name)
@@ -1589,9 +2189,7 @@ def _check_state_claims(
                 provided[decl.name] = library.name
 
     for use, library in libraries:
-        for want in library.requires:
-            if _is_move_contract_row(want):
-                continue
+        for want in _keyed_rows(library):
             owner = provided.get(want.name)
             if owner is not None and owner != library.name:
                 contested.add(want.name)
@@ -1809,55 +2407,86 @@ def is_zone_contract(want: n.RequireDecl) -> bool:
     return want.type_name in LIBRARY_ZONE_TYPES
 
 
-# A `requires` entry typed by this word contracts for a MOVE TYPE the including
-# game defines — `poker_betting`'s `fold`, which touches the game's own zones —
-# rather than for a state variable or a zone. The row's type slot names the
-# KIND of declaration that answers it, and this is the kind whose answer is a
-# `move_type` block (decisions.md "Family libraries"). The word is the glossary's
-# for the player-action family, not a type a value can carry: `_slot_leaks`
-# admits it on a `RequireDecl` alone, so a `state { x : Move }` stays a leak.
-MOVE_CONTRACT_TYPE = "Move"
-# The spelling a designer reaches for first is the declaration keyword, which
-# parses in a type slot; `_check_contract_shapes` refuses it by name with the
-# word to write, so the sweep steps over it rather than calling it a type the
-# library lacks.
-_MOVE_CONTRACT_KEYWORD = "move_type"
+def _names_a_kind(want: n.RequireDecl) -> bool:
+    """Whether a keyed row's type slot names a definition KIND
+    (`_DEFINITION_KIND_WORDS`) — `x : Procedure`, `fold : move_type`,
+    `fold[player] : Move`. Every such row is malformed, and
+    `_check_contract_shapes` is its one speaker, so the sweeps step over it."""
+    return want.type_name in _DEFINITION_KIND_WORDS
 
 
-def is_move_contract(want: n.RequireDecl) -> bool:
-    """Whether a `requires` entry names a move type the including game must
-    define, rather than a `state { }` or `zones { }` declaration."""
-    return want.type_name == MOVE_CONTRACT_TYPE
+def _keyed_rows(library: n.Library) -> tuple[n.RequireDecl, ...]:
+    """The library's well-worded keyed rows: the state and zones it
+    contracts for."""
+    return tuple(
+        r
+        for r in library.requires
+        if isinstance(r, n.RequireDecl) and not _names_a_kind(r)
+    )
 
 
-def _is_move_contract_row(want: n.RequireDecl) -> bool:
-    """A move-type row as the author MEANT it, the keyword misspelling
-    included: the slot sweeps read this one so the misspelled row's offering
-    is not also reported as a leak, leaving `_check_contract_shapes` as the
-    row's one speaker."""
-    return want.type_name in (MOVE_CONTRACT_TYPE, _MOVE_CONTRACT_KEYWORD)
+def _state_rows(library: n.Library) -> tuple[n.RequireDecl, ...]:
+    return tuple(r for r in _keyed_rows(library) if not is_zone_contract(r))
+
+
+def _contract_rows(library: n.Library, field: str) -> tuple[n.DefinitionContract, ...]:
+    """The library's Definition Contract rows of one contractable kind."""
+    cls = _CONTRACT_ROWS[field]
+    return tuple(
+        r
+        for r in library.requires
+        if isinstance(r, cls) and not isinstance(r, n.RequireDecl)
+    )
+
+
+def _contracted(library: n.Library, field: str) -> frozenset[str]:
+    return frozenset(r.name for r in _contract_rows(library, field))
+
+
+def _meant(library: n.Library, field: str) -> frozenset[str]:
+    """The names the library's rows contract for as definitions of one kind,
+    as the author MEANT them: the well-formed rows, and the keyed rows that
+    spell the kind (`fold : move_type`, `respond : Procedure`). A signature
+    row whose result is no value type (`settle() : Procedure?`,
+    `settle() : Void`) could have meant either a function or a procedure, so
+    its name is meant as both. The slot sweep reads this one, so a misworded
+    row's uses are not also reported as leaks and `_check_contract_shapes`
+    (or, for an unknown result, the type slot's own sweep) stays the row's one
+    speaker."""
+    misworded = frozenset(
+        r.name
+        for r in library.requires
+        if isinstance(r, n.RequireDecl)
+        and _names_a_kind(r)
+        and _DEFINITION_KIND_WORDS[r.type_name] == field
+    )
+    unread = frozenset(
+        r.name
+        for r in library.requires
+        if isinstance(r, n.FunctionContract)
+        and r.result_type.removesuffix("?") not in KNOWN_TYPE_NAMES
+        and field in ("functions", "procedures")
+    )
+    return _contracted(library, field) | misworded | unread
 
 
 def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
     provided = library.state.decls if library.state is not None else ()
     return {
-        "state": frozenset(
-            r.name
-            for r in library.requires
-            if not is_zone_contract(r) and not _is_move_contract_row(r)
-        )
+        "state": frozenset(r.name for r in _state_rows(library))
         | frozenset(d.name for d in provided),
         # A contract's type slot may name either registry, so the sweep admits
         # both — the entry's own leg then refuses the crossed shapes (a `?` on a
         # zone type, an `<owner>` on a state type), which is a shape question
         # rather than a spelling one.
         "type": KNOWN_TYPE_NAMES | frozenset(LIBRARY_ZONE_TYPES),
-        # A library presents the move types it defines and the ones it contracts
-        # for: a required move type is the game's to define and the library's
-        # to offer, which is the whole of why the contract kind exists.
+        # A library reaches the definitions it holds and the ones its Definition
+        # Contract rows name: those are the game's to define and the library's
+        # to offer, call or run, which is the whole of why the rows exist.
         "move_type": frozenset(m.name for m in library.move_types)
-        | frozenset(r.name for r in library.requires if _is_move_contract_row(r)),
-        "procedure": frozenset(p.name for p in library.procedures),
+        | _meant(library, "move_types"),
+        "procedure": frozenset(p.name for p in library.procedures)
+        | _meant(library, "procedures"),
         # BUILTIN_CALL_FUNCS, not CALL_FUNCS: a library body may call the
         # generic native functions the language ships, and may not call a
         # game-local [[primitive]]. A Primitive's meaning belongs to ONE game,
@@ -1866,13 +2495,15 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         # importing game that declares a block would refuse the call anyway,
         # to ITS author rather than the library's, which is the library-alone
         # property this sweep is for.
-        "function": frozenset(f.name for f in library.functions) | BUILTIN_CALL_FUNCS,
+        "function": frozenset(f.name for f in library.functions)
+        | _meant(library, "functions")
+        | BUILTIN_CALL_FUNCS,
         "enum_value": SEAT_DIRECTION_VALUES,
         # No longer empty: a library reaches exactly the zones it contracts for,
         # and nothing else. This is the set every zone-naming slot is swept
         # against — `Transfer.source`/`dest` as ordinary expressions, and
         # `Round.source_zone`/`play_zone` as bare strings.
-        "zone": frozenset(r.name for r in library.requires if is_zone_contract(r)),
+        "zone": frozenset(r.name for r in _keyed_rows(library) if is_zone_contract(r)),
         # A zone type's `<owner>` argument. A library has no `positions { }` and
         # cannot declare one, so the roles are all it may name — which is also
         # why a position-indexed zone family cannot be contracted at all. The
@@ -1972,18 +2603,21 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
 
 def _slot_leaks(
     library: n.Library,
-) -> tuple[tuple[_SlotLeak, ...], frozenset[str], frozenset[str], frozenset[str]]:
+) -> tuple[tuple[_SlotLeak, ...], dict[str, frozenset[str]]]:
     """Every bare-string reference in `library` that names something outside it,
-    and the state names its bare-string slots successfully READ.
+    and, per namespace, the names its bare-string slots successfully READ.
 
-    The second half is not a by-product: `state_reads` feeds the contract's
-    MINIMALITY check, and before this sweep existed it accumulated from
+    The second half is not a by-product: the reads feed the contract's
+    MINIMALITY check, and before this sweep existed they accumulated from
     `NameRef`s alone — so `turns … again <var>` had no correct spelling at all.
     Naming the variable in `requires` made the entry look dead and the check
     called the contract non-minimal; leaving it out was the leak. One sweep
     answers both, which is why they are computed together rather than in two
-    passes that could disagree about what a slot reaches."""
+    passes that could disagree about what a slot reaches. A zone named by a
+    round's bare-string slot, a move type an offering names, a function a call
+    names and a procedure a `run` names are each reached ONLY here."""
     legal = _library_slot_names(library)
+    keyed = [r for r in library.requires if isinstance(r, n.RequireDecl)]
     # A `requires` entry spelling the collection constructor is not a name the
     # library is missing. `Collection` is a type word the language owns — the
     # checker prints it, and `RESERVATION_SITES` keeps any declaration from
@@ -1993,35 +2627,43 @@ def _slot_leaks(
     # defect first, and in a voice that sends the author to declare a type the
     # reservation sweep then refuses.
     collection_contracts = frozenset(
-        id(want)
-        for want in library.requires
-        if want.type_name == COLLECTION_TYPE_CONSTRUCTOR
+        id(want) for want in keyed if want.type_name == COLLECTION_TYPE_CONSTRUCTOR
     )
     collection_elements = frozenset(
         id(arg)
-        for want in library.requires
+        for want in keyed
         if id(want) in collection_contracts
         for arg in want.type_args
     )
+    # A row's type slots are `_check_contract_shapes`' to judge wherever the
+    # row names a definition: a keyed row spelling a definition kind, a
+    # signature row's parameter types (each kind admits its own domain), and a
+    # signature row's result spelled as a kind.
+    shaped_params = frozenset(
+        id(p)
+        for row in library.requires
+        if isinstance(row, (n.FunctionContract, n.ProcedureContract))
+        for p in row.params
+    )
+    reached: dict[str, set[str]] = {
+        ns: set() for ns in ("state", "zone", "move_type", "function", "procedure")
+    }
     leaks: list[_SlotLeak] = []
-    reads: set[str] = set()
-    zone_reads: set[str] = set()
-    move_reads: set[str] = set()
     for node in _walk(library):
-        if id(node) in collection_elements:
+        if id(node) in collection_elements or id(node) in shaped_params:
             continue
         for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
             if field_name == "type_name" and id(node) in collection_contracts:
                 continue
-            # A move-type contract's type slot names a KIND, not a type, and
-            # `_check_contract_shapes` is its one speaker — for the word itself,
-            # for the keyword spelling it refuses by name, and for a type
-            # argument on the row, which is a shape question before it is a
-            # zone-owner one.
             if (
                 field_name in ("type_name", "type_args")
                 and isinstance(node, n.RequireDecl)
-                and _is_move_contract_row(node)
+                and _names_a_kind(node)
+            ):
+                continue
+            if (
+                isinstance(node, n.FunctionContract)
+                and node.result_type.removesuffix("?") in _DEFINITION_KIND_WORDS
             ):
                 continue
             namespace = slot_namespace(node, field_name)
@@ -2036,19 +2678,9 @@ def _slot_leaks(
                 bare = name.removesuffix("?") if namespace == "type" else name
                 if bare not in allowed:
                     leaks.append(_SlotLeak(node, field_name, name, namespace))
-                elif namespace == "state":
-                    reads.add(bare)
-                elif namespace == "zone":
-                    # `Round.source_zone` / `play_zone` name a zone as a bare
-                    # string, so the minimality check needs them for the same
-                    # reason it needs `turns … again <var>`: a contract entry
-                    # reached only through a bare-string slot would look dead.
-                    zone_reads.add(bare)
-                elif namespace == "move_type":
-                    # An offering names its move types as bare strings, so a
-                    # move-type contract is reached only here.
-                    move_reads.add(bare)
-    return tuple(leaks), frozenset(reads), frozenset(zone_reads), frozenset(move_reads)
+                elif namespace in reached:
+                    reached[namespace].add(bare)
+    return tuple(leaks), {ns: frozenset(names) for ns, names in reached.items()}
 
 
 @dataclass(frozen=True)
@@ -2057,7 +2689,8 @@ class _LibraryReach:
     OWN namespaces — the input to both directions of the `requires` contract:
     nothing may be reached that the contract does not cover (`unresolved`,
     `refused_calls`, `slot_leaks`), and nothing may be in the contract that is
-    never reached (`state_reads`, which the tier's ledger test reads)."""
+    never reached (`dead_contract_rows`, over `state_reads`, `zone_reads` and
+    `definition_reads`)."""
 
     unresolved: tuple[n.NameRef, ...]
     refused_calls: tuple[n.Call, ...]
@@ -2069,7 +2702,9 @@ class _LibraryReach:
     #: a whole predicate: the clause's own words, never a read past the
     #: contract.
     always_refused: tuple[Diagnostic, ...]
-    move_type_reads: frozenset[str]
+    #: The definitions the library's text names, per definition namespace
+    #: (`move_type`, `function`, `procedure`).
+    definition_reads: dict[str, frozenset[str]]
 
 
 def _library_reach(library: n.Library) -> _LibraryReach:
@@ -2102,21 +2737,18 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         # what it owns. A definition may reach either — the contract is
         # sufficient for the library's own variables trivially, since it declares
         # them itself.
-        state_vars=frozenset(
-            r.name
-            for r in library.requires
-            if not is_zone_contract(r) and not _is_move_contract_row(r)
-        )
+        state_vars=frozenset(r.name for r in _state_rows(library))
         | frozenset(d.name for d in provided_state),
         # The OTHER of the two name sets a library is checked against. It is
         # computed here and in `_library_slot_names` from different inputs, so a
         # zone contract fed to one and not the other would leave half the sweep
         # blind — which is the shape of the defect the slot registry exists for.
-        zones=frozenset(r.name for r in library.requires if is_zone_contract(r)),
+        zones=frozenset(r.name for r in _keyed_rows(library) if is_zone_contract(r)),
         enums=SEAT_DIRECTION_VALUES,
         ranks=frozenset(),
         suits=frozenset(),
-        definitions=frozenset(d.name for field, _ in _LIBRARY_DEF_KINDS for d in getattr(library, field)),
+        definitions=frozenset(d.name for field, _ in _LIBRARY_DEF_KINDS for d in getattr(library, field))
+        | frozenset(r.name for field, _, _ in CONTRACT_KINDS for r in _contract_rows(library, field)),
     )
     # `_rewrite` both classifies and reports, and its report ("unresolved name
     # 'x'") is the GAME's author — the wrong one here — so that report is
@@ -2157,7 +2789,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
     # definitions: `requires` has no expression to classify but its type names
     # are references like any other, so a contract can name a type only the
     # importing game defines.
-    leaks, slot_reads, slot_zone_reads, slot_move_reads = _slot_leaks(library)
+    leaks, slot_reads = _slot_leaks(library)
     # Two namespaces keep a message of their own, so they are lifted out of the
     # generic list rather than reported twice: a card literal says why a family
     # library is deck-agnostic, and a refused call says what the called name
@@ -2179,11 +2811,28 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         refused_calls=calls,
         card_literals=cards,
         slot_leaks=rest,
-        state_reads=frozenset(state_reads) | slot_reads,
-        zone_reads=frozenset(zone_reads) | slot_zone_reads,
-        move_type_reads=slot_move_reads,
+        state_reads=frozenset(state_reads) | slot_reads["state"],
+        zone_reads=frozenset(zone_reads) | slot_reads["zone"],
+        definition_reads={
+            ns: slot_reads[ns] for ns in ("move_type", "function", "procedure")
+        },
         always_refused=always_refused,
     )
+
+
+def dead_contract_rows(library: n.Library) -> frozenset[str]:
+    """The `requires` rows no text in the library reaches: a state row no
+    read names, a zone row no zone slot names, a Definition Contract row no
+    offering, call or `run` names. The contract's MINIMALITY, asked of every
+    library by tests/test_family_libraries.py, and of a dead move or procedure
+    row by `_check_contract_shapes`, since no game could answer one."""
+    reach = _library_reach(library)
+    reached = (
+        reach.state_reads
+        | reach.zone_reads
+        | frozenset().union(*reach.definition_reads.values())
+    )
+    return frozenset(r.name for r in library.requires) - reached
 
 
 _NAMESPACE_NOUN: dict[str, str] = {
@@ -2223,15 +2872,19 @@ _NAMESPACE_ADVICE: dict[str, str] = {
     ),
     "type": (
         "use a built-in type, or keep this definition in the game (a `requires` "
-        "entry's type is a state type, a kernel zone type, or `Move` for a "
-        "move type the game defines)"
+        "row's type is a state type, a kernel zone type, `Move` for a move type "
+        "the game defines, or a function row's result type)"
     ),
     "move_type": (
         "define the move type in the library, contract for it with "
         "`<name> : Move` in `requires { }` so the including game defines it, "
         "or keep this definition in the game"
     ),
-    "procedure": "define the procedure in the library, or keep this definition in the game",
+    "procedure": (
+        "define the procedure in the library, contract for it with "
+        "`<name>(<parameter> : <type>, …) : Procedure` in `requires { }` so the "
+        "including game defines it, or keep this definition in the game"
+    ),
     "position": (
         "a library declares no position domains — keep the definition that needs it "
         "in the game"
@@ -2289,6 +2942,13 @@ def _library_own_name_is(library: n.Library, name: str) -> _LibraryNameIs | None
         if any(d.name == name for d in getattr(library, field)):
             kind: Literal["function", "other"] = "function" if field == "functions" else "other"
             return _LibraryNameIs(f"a {noun} the library defines", kind)
+    for field, noun, _cls in CONTRACT_KINDS:
+        if name in _contracted(library, field):
+            kind = "function" if field == "functions" else "other"
+            return _LibraryNameIs(
+                f"a {noun} the including game defines under this library's contract",
+                kind,
+            )
     legal = _library_slot_names(library)
     for namespace in _LIBRARY_OWN_NAMESPACES:
         if name in legal[namespace]:
@@ -2432,8 +3092,10 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
         if what is None:
             bag.error(
                 f"library '{library.name}' calls '{call.func}', which is neither "
-                f"defined in the library nor a native function — a library's "
-                f"definitions may not reach into the game that imports them",
+                f"defined in the library nor a native function — contract for it "
+                f"with `{call.func}(<parameter> : <type>, …) : <result type>` in "
+                f"`requires {{ }}` so the including game defines it, or keep the "
+                f"definition that needs it in the game",
                 call.span,
             )
         elif what.kind == "primitive":
@@ -2457,6 +3119,21 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             card.span,
         )
     for leak in reach.slot_leaks:
+        # A `run` or an offering naming one of the library's own definitions
+        # of another kind is told what the name is, as a call is.
+        own = (
+            _library_own_name_is(library, leak.name)
+            if leak.namespace in ("procedure", "move_type")
+            else None
+        )
+        if own is not None:
+            bag.error(
+                f"library '{library.name}' names '{leak.name}' as a "
+                f"{_NAMESPACE_NOUN[leak.namespace]}, but it is {own.phrase}, not "
+                f"a {_NAMESPACE_NOUN[leak.namespace]}",
+                getattr(leak.node, "span", None),
+            )
+            continue
         bag.error(
             f"library '{library.name}' names the "
             f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
@@ -2473,7 +3150,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     # declared later, so the general Owner Guard's advice — declare it earlier — is
     # advice they cannot take. Only the game can declare required state, and it
     # always lands after the library's own.
-    required = {r.name for r in library.requires}
+    required = {r.name for r in _keyed_rows(library)}
     provided = library.state.decls if library.state is not None else ()
     for decl in provided:
         for node in _walk(decl.default):
@@ -2494,16 +3171,26 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 )
 
 
-def _spelled_contract(want: n.RequireDecl) -> str:
+def _spelled_contract(want: n.ContractRow) -> str:
     """A `requires` entry as its author wrote it, for a diagnostic to quote."""
+    if isinstance(want, n.MoveContract):
+        return f"{want.name} : {n.MOVE_CONTRACT_TYPE}"
+    if isinstance(want, (n.FunctionContract, n.ProcedureContract)):
+        listed = ", ".join(f"{p.name} : {p.type_name}" for p in want.params)
+        result = (
+            want.result_type
+            if isinstance(want, n.FunctionContract)
+            else n.PROCEDURE_CONTRACT_TYPE
+        )
+        return f"{want.name}({listed}) : {result}"
     index = f"[{want.index}]" if want.index else ""
     args = f"<{', '.join(a.name for a in want.type_args)}>" if want.type_args else ""
     return f"{want.name}{index} : {want.type_name}{args}"
 
 
 def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
-    """Every `requires` entry names a shape SOME game could declare — checked
-    against the library alone, before any game is consulted.
+    """Every `requires` entry names a shape SOME game could declare or define —
+    checked against the library alone, before any game is consulted.
 
     Without this the crossed spellings would surface as "your game does not
     declare it", which is advice no game can take: `x : Hand` names an owned
@@ -2526,41 +3213,25 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
     `tests/test_family_libraries.py`'s
     `test_a_contract_shape_is_refused_exactly_when_the_declaration_would_be` —
     a contract admitting a shape a `zones { }` line refuses would be a contract
-    no game could meet.
+    no game could meet. A signature row's parameter domains are the same kind
+    of second implementation, of `_check_declared_type_names` (functions) and
+    `_PROCEDURE_PARAM_DOMAINS` (procedures), pinned equal by
+    tests/test_definition_contracts.py.
 
     One asymmetry, by exclusion: `_resolve_zone` also refuses a position-indexed
     family whose type has distinct owner/others projections. A contract cannot
     be position-indexed at all (`index_domain` is swept to the roles), so the
     case does not arise here."""
+    _check_contract_names(library, bag)
     for want in library.requires:
-        spelled = _spelled_contract(want)
-        if want.type_name == _MOVE_CONTRACT_KEYWORD:
-            bag.error(
-                f"library '{library.name}' requires `{spelled}`, but "
-                f"`move_type` is the declaration keyword, not a type — a move "
-                f"type the game must define is contracted as "
-                f"`{want.name} : {MOVE_CONTRACT_TYPE}`",
-                want.span,
-            )
+        if isinstance(want, (n.FunctionContract, n.ProcedureContract)):
+            _check_signature_row(library, want, bag)
             continue
-        if is_move_contract(want):
-            # A move type is a definition, not a keyed value: it carries
-            # neither an index nor an owner, and either spelling is the
-            # library author's to fix, before any game is consulted.
-            if want.index is not None:
-                bag.error(
-                    f"library '{library.name}' requires move type `{spelled}`, "
-                    f"but a move type has no index — write "
-                    f"`{want.name} : {MOVE_CONTRACT_TYPE}`",
-                    want.span,
-                )
-            if want.type_args:
-                bag.error(
-                    f"library '{library.name}' requires move type `{spelled}`, "
-                    f"but a move type contract takes no type argument — write "
-                    f"`{want.name} : {MOVE_CONTRACT_TYPE}`",
-                    want.span,
-                )
+        if isinstance(want, n.MoveContract):
+            continue
+        spelled = _spelled_contract(want)
+        if _names_a_kind(want):
+            _refuse_kind_word(library, want, bag)
             continue
         if want.type_name == COLLECTION_TYPE_CONSTRUCTOR:
             # A collection is neither a zone type nor a state type, so the
@@ -2575,8 +3246,10 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 f"library '{library.name}' requires `{spelled}`, and a "
                 f"collection type (`Collection<Card>`) is spellable in a "
                 f"`primitives {{ }}` entry only — a contract names a "
-                f"`state {{ }}` or a `zones {{ }}` declaration, or a move type "
-                f"as `<name> : {MOVE_CONTRACT_TYPE}`, and a library declares no "
+                f"`state {{ }}` or a `zones {{ }}` declaration, or a definition "
+                f"the game defines (`<name> : {n.MOVE_CONTRACT_TYPE}`, "
+                f"`<name>(…) : <result type>`, `<name>(…) : "
+                f"{n.PROCEDURE_CONTRACT_TYPE}`), and a library declares no "
                 f"Primitives",
                 want.span,
             )
@@ -2621,103 +3294,378 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"write `{want.type_name}<{want.index}>`",
                     want.span,
                 )
+    _check_contract_reach(library, bag)
 
 
-def _check_move_requirement(
-    game: n.Game,
-    use: n.UsesDecl,
+def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBag) -> None:
+    """A keyed row whose type slot names a definition kind
+    (`_DEFINITION_KIND_WORDS`): each kind is told the row to write."""
+    spelled = _spelled_contract(want)
+    field = _DEFINITION_KIND_WORDS[want.type_name]
+    head = f"library '{library.name}' requires `{spelled}`"
+    if field == "move_types":
+        if want.type_name != n.MOVE_CONTRACT_TYPE:
+            why = f"`{want.type_name}` names the kind, not the row's type word"
+        elif want.index is not None:
+            why = "a move type has no index"
+        else:
+            why = "a move type contract takes no type argument"
+        message = f"{head}, but {why} — write `{want.name} : {n.MOVE_CONTRACT_TYPE}`"
+    elif field == "functions":
+        message = (
+            f"{head}, but a function the game defines is contracted by its "
+            f"signature, not by a kind word — write `{want.name}(<parameter> : "
+            f"<type>, …) : <result type>`"
+        )
+    elif field == "procedures":
+        message = (
+            f"{head}, but a procedure the game defines is contracted by its "
+            f"signature, not by a kind word — write `{want.name}(<parameter> : "
+            f"<type>, …) : {n.PROCEDURE_CONTRACT_TYPE}`"
+        )
+    else:
+        message = (
+            f"{head}, but a rule cannot be contracted: only a game's "
+            f"`active_rules:` names a rule, and a library has no `active_rules:`, "
+            f"so no library text could use one — keep the definition that needs "
+            f"it in the game"
+        )
+    bag.error(message, want.span)
+
+
+def _check_signature_row(
     library: n.Library,
-    want: n.RequireDecl,
+    want: n.FunctionContract | n.ProcedureContract,
     bag: DiagnosticBag,
 ) -> None:
-    """The move-type leg of the contract: the game defines this move type, in
-    a `move_type` block of its own. Reported on the game's `uses` line, to the
-    game's author; the shapes the LIBRARY could get wrong are
-    `_check_contract_shapes`', and ran before any game was consulted.
-
-    The two near-misses worth naming: a game that declared the name as state
-    or as a zone has not forgotten it, and telling it to add a move type
-    without saying why would read as the checker missing the declaration in
-    front of it."""
-    found = [m for m in game.move_types if m.name == want.name]
-    if found:
-        if len(found) > 1:
+    """A function or procedure row's own spelling: a name the language does not
+    already hold, parameters a definition of that kind could declare, and — for
+    a function — a result type a value can have."""
+    head = f"library '{library.name}' requires `{_spelled_contract(want)}`"
+    if isinstance(want, n.FunctionContract):
+        if want.name in VALUE_NAMES:
             bag.error(
-                f"library '{library.name}' requires move type `{want.name}`, "
-                f"which game '{game.name}' defines {len(found)} times — a "
-                f"requirement must name ONE definition",
-                use.span,
+                f"{head}, but '{want.name}' is a round's callback, named in its "
+                f"slot and never called — no game defines it as a function, so "
+                f"rename the row",
+                want.span,
             )
+        elif want.name in BUILTIN_CALL_FUNCS:
+            bag.error(
+                f"{head}, but '{want.name}' is a function every game has — call "
+                f"it directly; it needs no contract row",
+                want.span,
+            )
+        elif want.name in PRIMITIVE_CALL_FUNCS:
+            bag.error(
+                f"{head}, but '{want.name}' is a Primitive, which belongs to the "
+                f"one game that declares it — a library several games import may "
+                f"not reach one, so name a function each game defines in the "
+                f"language",
+                want.span,
+            )
+        _check_signature_result(library, want, bag)
+    seen: set[str] = set()
+    for p in want.params:
+        if p.name in seen:
+            bag.error(
+                f"{head}, which names more than one parameter named '{p.name}' — "
+                f"rename one",
+                want.span,
+            )
+        seen.add(p.name)
+        if p.name in RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS:
+            bag.error(
+                f"{head}, whose parameter '{p.name}' is spelled like a word the "
+                f"language reserves — the game's definition could not take it, "
+                f"so rename it",
+                want.span,
+            )
+        if isinstance(want, n.FunctionContract):
+            admitted = p.type_name.removesuffix("?") in KNOWN_TYPE_NAMES
+            domains = "a value type (" + ", ".join(sorted(KNOWN_TYPE_NAMES)) + "), with or without `?`"
+        else:
+            admitted = p.type_name in _PROCEDURE_PARAM_DOMAINS
+            domains = ", ".join(sorted(_PROCEDURE_PARAM_DOMAINS))
+        if not admitted:
+            noun = "function" if isinstance(want, n.FunctionContract) else "procedure"
+            bag.error(
+                f"{head}, whose parameter `{p.name} : {p.type_name}` no {noun} "
+                f"could declare — a {noun} parameter is {domains}",
+                want.span,
+            )
+
+
+def _check_signature_result(
+    library: n.Library, want: n.FunctionContract, bag: DiagnosticBag
+) -> None:
+    """A function row's result: a value type, with or without `?`. An unknown
+    word is the slot sweep's (`_slot_leaks`, the `type` namespace); every
+    spelling the language gives another meaning is refused here, naming it."""
+    head = f"library '{library.name}' requires `{_spelled_contract(want)}`"
+    bare = want.result_type.removesuffix("?")
+    if bare in KNOWN_TYPE_NAMES:
         return
-    as_state = any(
-        decl.name == want.name
+    if bare == n.PROCEDURE_CONTRACT_TYPE:
+        message = (
+            f"{head}, but a procedure returns no value, so its row carries no "
+            f"`?` — write `{want.name}(…) : {n.PROCEDURE_CONTRACT_TYPE}`"
+        )
+    elif bare == n.MOVE_CONTRACT_TYPE:
+        message = (
+            f"{head}, but a move type is offered by name and passed no "
+            f"arguments — write `{want.name} : {n.MOVE_CONTRACT_TYPE}`"
+        )
+    elif bare in _DEFINITION_KIND_WORDS:
+        message = (
+            f"{head}, but '{want.result_type}' names a kind of definition, not "
+            f"the type the function returns — write the result's type"
+        )
+    elif bare in LIBRARY_ZONE_TYPES:
+        message = (
+            f"{head}, but '{bare}' is a zone type — a function returns a value, "
+            f"and a zone the game declares is contracted as a keyed row"
+        )
+    else:
+        return
+    bag.error(message, want.span)
+
+
+def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:
+    """A library names each thing once: two rows of one name, or a Definition
+    Contract row whose name the library also provides as state or defines as a
+    definition of ANOTHER kind, would leave a body's use of the name meaning
+    whichever reading the sweep happens to try first. The same kind is
+    `_check_definition_claims`', whose sentence names the two clauses."""
+    seen: dict[str, n.ContractRow] = {}
+    provided = {d.name for d in library.state.decls} if library.state is not None else set()
+    for want in library.requires:
+        if want.name in seen:
+            bag.error(
+                f"library '{library.name}' requires '{want.name}' in more than "
+                f"one row — a contract names each thing once; keep one row",
+                want.span,
+            )
+            continue
+        seen[want.name] = want
+        if isinstance(want, n.RequireDecl):
+            continue
+        own_field = _CONTRACT_KIND_OF[type(want)][0]
+        clashes = [
+            noun
+            for field, noun in _LIBRARY_DEF_KINDS
+            if field != own_field and any(d.name == want.name for d in getattr(library, field))
+        ] + (["provided state"] if want.name in provided else [])
+        for noun in clashes:
+            bag.error(
+                f"library '{library.name}' requires '{want.name}' as a "
+                f"{_CONTRACT_KIND_OF[type(want)][1]} and also holds a {noun} of "
+                f"that name — rename one",
+                want.span,
+            )
+
+
+def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
+    """The Definition Contract rows the library's own text must reach for any
+    game to answer them, and the one place a procedure row may be run.
+
+    A move-type row the library never offers, or a procedure row it never
+    runs, is a contract no game can meet: the game's move type would be
+    refused as never offered and its procedure as never run. A function row
+    nothing calls is merely dead, which the minimality pin asks of every
+    library (`dead_contract_rows`). And a procedure may not run another, so a
+    library procedure running a procedure row is told the row's one home: a
+    library move type's effect."""
+    dead = dead_contract_rows(library)
+    for want in library.requires:
+        if want.name not in dead:
+            continue
+        if isinstance(want, n.MoveContract):
+            bag.error(
+                f"library '{library.name}' requires `{_spelled_contract(want)}` "
+                f"but never offers it — a game's `{want.name}` would be refused "
+                f"as never offered, so no game could answer the row: offer it, "
+                f"or drop the row",
+                want.span,
+            )
+        elif isinstance(want, n.ProcedureContract):
+            bag.error(
+                f"library '{library.name}' requires `{_spelled_contract(want)}` "
+                f"but never runs it — a game's `{want.name}` would be refused as "
+                f"never run, so no game could answer the row: run it from a "
+                f"move type's effect, or drop the row",
+                want.span,
+            )
+    rows = _contracted(library, "procedures")
+    for proc in library.procedures:
+        for nd in _walk(proc):
+            if isinstance(nd, n.RunStmt) and nd.name in rows:
+                bag.error(
+                    f"library '{library.name}': procedure '{proc.name}' runs "
+                    f"'{nd.name}', which the including game defines under this "
+                    f"library's contract — a procedure may not run another, so "
+                    f"run it from a move type's effect",
+                    nd.span,
+                )
+
+
+def _game_declarations_of(game: n.Game, name: str) -> list[str]:
+    """Every kind of thing `name` is declared as in the game, as the noun a
+    near-miss names: state, a zone, each definition kind, and a Primitive."""
+    found: list[str] = []
+    if any(
+        decl.name == name
         for node in _walk(game)
         if isinstance(node, n.StateBlock)
         for decl in node.decls
-    )
-    as_zone = any(zone.name == want.name for zone in game.zones)
-    if as_state or as_zone:
-        kind = "state" if as_state else "a zone"
+    ):
+        found.append("state")
+    if any(zone.name == name for zone in game.zones):
+        found.append("a zone")
+    for field, noun in _LIBRARY_DEF_KINDS:
+        if any(d.name == name for d in getattr(game, field)):
+            found.append(f"a {noun}")
+    if game.primitives is not None and any(d.name == name for d in game.primitives.decls):
+        found.append("a Primitive")
+    return found
+
+
+def _definition_template(want: n.DefinitionContract) -> str:
+    """The definition that answers a row, as the game would write it."""
+    if isinstance(want, n.MoveContract):
+        return f"a `move_type {want.name} {{ effect {{ ... }} }}` block"
+    listed = ", ".join(f"{p.name} : {p.type_name}" for p in want.params)
+    if isinstance(want, n.FunctionContract):
+        return f"`function {want.name}({listed}) = …`"
+    return f"`procedure {want.name}({listed}) {{ … }}`"
+
+
+def _check_definition_requirement(
+    game: n.Game,
+    use: n.UsesDecl,
+    library: n.Library,
+    want: n.DefinitionContract,
+    bag: DiagnosticBag,
+) -> n.ContractStamp | None:
+    """The definition leg of the contract: the game defines this move type,
+    function or procedure itself, at the row's parameters. Reported on the
+    game's `uses` line, to the game's author; the shapes the LIBRARY could get
+    wrong are `_check_contract_shapes`', and ran before any game was consulted.
+
+    Parameters are matched by position and by their type spelling, exactly: the
+    row's parameter names are its own reading, since the library never names
+    the game's binders. A function's RESULT is typecheck's: its type is inferred
+    from the body, never declared, so the stamp returned for an answer that
+    matches here carries the row's result to `typecheck`, which reports a
+    mismatch on this same `uses` line.
+
+    The near-misses worth naming: a game that declared the name as anything
+    else has not forgotten it, and telling it to add a definition without
+    saying why would read as the checker missing the declaration in front of
+    it."""
+    field, noun = _CONTRACT_KIND_OF[type(want)]
+    spelled = want.name if isinstance(want, n.MoveContract) else _spelled_contract(want)
+    head = f"library '{library.name}' requires {noun} `{spelled}`"
+    found = [d for d in getattr(game, field) if d.name == want.name]
+    if len(found) > 1:
+        # Shadow Guard of `_check_duplicate_names`, which refuses the duplicate
+        # after the splice; counted here so the contract's guarantee does not
+        # depend on that guard's coverage.
         bag.error(
-            f"library '{library.name}' requires move type `{want.name}`, which "
-            f"game '{game.name}' declares as {kind} — `{MOVE_CONTRACT_TYPE}` "
-            f"names a move type, so the definition belongs in a "
-            f"`move_type {want.name} {{ effect {{ ... }} }}` block",
+            f"{head}, which game '{game.name}' defines {len(found)} times — a "
+            f"requirement must name ONE definition",
             use.span,
         )
-        return
-    bag.error(
-        f"library '{library.name}' requires move type `{want.name}`, which game "
-        f"'{game.name}' does not define — add a `move_type {want.name} "
-        f"{{ effect {{ ... }} }}` block with the effect the game wants",
-        use.span,
+        return None
+    if not found:
+        others = _game_declarations_of(game, want.name)
+        if others:
+            bag.error(
+                f"{head}, which game '{game.name}' declares as {others[0]} — the "
+                f"row names a {noun}, so the definition belongs in "
+                f"{_definition_template(want)}",
+                use.span,
+            )
+        else:
+            bag.error(
+                f"{head}, which game '{game.name}' does not define — add "
+                f"{_definition_template(want)}",
+                use.span,
+            )
+        return None
+    if isinstance(want, n.MoveContract):
+        return None
+    have = found[0]
+    if len(have.params) != len(want.params):
+        count = len(have.params)
+        bag.error(
+            f"{head}, but game '{game.name}' defines `{want.name}` with {count} "
+            f"parameter{'' if count == 1 else 's'}",
+            use.span,
+        )
+        return None
+    for i, (got, wanted) in enumerate(zip(have.params, want.params), start=1):
+        if got.type_name != wanted.type_name:
+            bag.error(
+                f"{head}, but game '{game.name}' defines `{want.name}` whose "
+                f"parameter {i} is `{got.type_name}`",
+                use.span,
+            )
+            return None
+    return n.ContractStamp(
+        library=library.name,
+        row=_spelled_contract(want),
+        param_types=tuple(p.type_name for p in want.params),
+        result_type=want.result_type if isinstance(want, n.FunctionContract) else None,
+        uses_span=use.span,
     )
 
 
-def _check_move_claims(
+def _check_definition_claims(
     game: n.Game,
     libraries: list[tuple[n.UsesDecl, n.Library]],
     bag: DiagnosticBag,
-) -> frozenset[str]:
-    """Refuse the two ways a move-type contract can be claimed from the wrong
-    side, and report which names were ruled on.
+) -> frozenset[tuple[str, str]]:
+    """Refuse the two ways a Definition Contract can be claimed from the wrong
+    side, for every contractable kind, and report which (kind, name) pairs
+    were ruled on.
 
     The state-claim rules one kind over (`_check_state_claims`), for the same
-    reasons: a library that both defines and requires a move type points two
+    reasons: a library that both defines and requires a definition points two
     ways at once, and a requirement answered by ANOTHER library's definition
     couples two libraries through a name neither mentions the other in. The
-    game's own definition is the one answer, and `_check_move_requirement`
-    checks for it."""
-    contested: set[str] = set()
-    defined_by: dict[str, str] = {}
-    for _, library in libraries:
-        for mt in library.move_types:
-            defined_by.setdefault(mt.name, library.name)
-    for use, library in libraries:
-        own = {m.name: m for m in library.move_types}
-        for want in library.requires:
-            if not is_move_contract(want):
-                continue
-            if want.name in own:
-                contested.add(want.name)
-                bag.error(
-                    f"library '{library.name}' both defines and requires move "
-                    f"type '{want.name}' — `move_type` makes it the library's "
-                    f"and `requires` leaves it to the including game, so a name "
-                    f"can be one or the other: drop it from whichever clause is "
-                    f"wrong",
-                    own[want.name].span,
-                )
-            elif want.name in defined_by:
-                contested.add(want.name)
-                bag.error(
-                    f"library '{library.name}' requires move type `{want.name}`, "
-                    f"which library '{defined_by[want.name]}' defines — a "
-                    f"requirement names a move type the including GAME defines, "
-                    f"and is not answered by another library's definition; "
-                    f"define it in the game and rename one of the two",
-                    use.span,
-                )
+    game's own definition is the one answer, and
+    `_check_definition_requirement` checks for it."""
+    contested: set[tuple[str, str]] = set()
+    for field, noun, _cls in CONTRACT_KINDS:
+        keyword = _DEFINITION_KEYWORDS[field]
+        defined_by: dict[str, str] = {}
+        for _, library in libraries:
+            for d in getattr(library, field):
+                defined_by.setdefault(d.name, library.name)
+        for use, library in libraries:
+            own = {d.name: d for d in getattr(library, field)}
+            for want in _contract_rows(library, field):
+                if want.name in own:
+                    contested.add((field, want.name))
+                    bag.error(
+                        f"library '{library.name}' both defines and requires "
+                        f"{noun} '{want.name}' — `{keyword}` makes it the "
+                        f"library's and `requires` leaves it to the including "
+                        f"game, so a name can be one or the other: drop it from "
+                        f"whichever clause is wrong",
+                        own[want.name].span,
+                    )
+                elif want.name in defined_by:
+                    contested.add((field, want.name))
+                    bag.error(
+                        f"library '{library.name}' requires {noun} `{want.name}`, "
+                        f"which library '{defined_by[want.name]}' defines — a "
+                        f"requirement names a {noun} the including GAME defines, "
+                        f"and is not answered by another library's definition; "
+                        f"define it in the game and rename one of the two",
+                        use.span,
+                    )
     return frozenset(contested)
 
 
@@ -2833,9 +3781,9 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
     provided = library.state.decls if library.state is not None else ()
     # A move-type contract's index is `_check_contract_shapes`' to refuse: a
     # move type has no index at all, so a role question would be the wrong one.
-    for decl, verb in [
-        (w, "requires") for w in library.requires if not _is_move_contract_row(w)
-    ] + [(d, "provides") for d in provided]:
+    for decl, verb in [(w, "requires") for w in _keyed_rows(library)] + [
+        (d, "provides") for d in provided
+    ]:
         if decl.index is None or role_of(decl.index) in ZONE_INDEX_ROLES:
             continue
         roles = ", ".join(role_names(ZONE_INDEX_ROLES))
@@ -2854,15 +3802,19 @@ def _check_requires(
     library: n.Library,
     bag: DiagnosticBag,
     skip: frozenset[str] = frozenset(),
-    skip_moves: frozenset[str] = frozenset(),
-) -> None:
-    """Check a library's `requires` contract against the game's declarations.
+    skip_definitions: frozenset[tuple[str, str]] = frozenset(),
+) -> dict[tuple[str, str], n.ContractStamp]:
+    """Check a library's `requires` contract against the game's declarations,
+    and return the stamp each answering function or procedure carries on,
+    keyed by (definition kind, name).
 
-    An entry names state, a zone or a move type, and its type says which
-    (`is_zone_contract`, `is_move_contract`). The zone leg is
-    `_check_zone_requirement`, the move leg `_check_move_requirement`; what
-    follows is the state one. `skip_moves` is the move-type twin of `skip`:
-    the names `_check_move_claims` has already ruled on.
+    An entry names state, a zone, or a definition the game defines, and the
+    row's shape says which: a Definition Contract row is its own node, and a
+    keyed row's type says state or zone (`is_zone_contract`). The zone leg is
+    `_check_zone_requirement`, the definition leg
+    `_check_definition_requirement`; what follows is the state one.
+    `skip_definitions` is the definition twin of `skip`: the (kind, name)
+    pairs `_check_definition_claims` has already ruled on.
 
     `skip` names the state `_check_state_claims` has already ruled on — provided
     names and contested ones. Without it a name claimed both ways would fail
@@ -2926,24 +3878,29 @@ def _check_requires(
     # over the two members known today: a requirement is malformed exactly when
     # some Owner Guard has already reported against its own span, so a future
     # Owner Guard on a new `RequireDecl` field is covered the day it lands,
-    # with nothing to remember here. Both malformation Owner Guards run before
-    # this pass, in `_apply_uses`'s loop, and report at the requirement's span
+    # with nothing to remember here. The malformation Owner Guards run before
+    # this pass, in `check_library_alone`, and report at the requirement's span
     # (`_check_require_indexes` for the index, `_check_library_encapsulation`
-    # for the type name).
+    # for the type name, `_check_contract_shapes` for the row's shape).
     #
     # This is the opposite direction from `skip`, which suppresses a downstream
     # report about a name the GAME's own claims already ruled on.
     malformed = {d.span for d in bag.items if d.span is not None}
+    stamps: dict[tuple[str, str], n.ContractStamp] = {}
     for want in library.requires:
-        # Span-keyed, so it speaks about BOTH legs and is hoisted above the
+        # Span-keyed, so it speaks about EVERY leg and is hoisted above the
         # split: a malformed zone contract would otherwise get its shape error
         # in the library AND a mismatch pinned on the game, which is the second
         # report this suppression exists to prevent.
         if want.span is not None and want.span in malformed:
             continue
-        if is_move_contract(want):
-            if want.name not in skip_moves:
-                _check_move_requirement(game, use, library, want, bag)
+        if not isinstance(want, n.RequireDecl):
+            field = _CONTRACT_KIND_OF[type(want)][0]
+            if (field, want.name) in skip_definitions:
+                continue
+            stamp = _check_definition_requirement(game, use, library, want, bag)
+            if stamp is not None:
+                stamps[(field, want.name)] = stamp
             continue
         if is_zone_contract(want):
             # `skip` is the STATE-claim set (`_check_state_claims`), so it never
@@ -2958,6 +3915,17 @@ def _check_requires(
         wanted = f"{want.name}{f'[{want.index}]' if want.index else ''}"
         spelled = f"{wanted} : {want.type_name}"
         if not found:
+            # The near-miss worth naming: a game that defined the name as a
+            # function (or any definition) has not forgotten it.
+            others = _game_declarations_of(game, want.name)
+            if others:
+                bag.error(
+                    f"library '{library.name}' requires state `{spelled}`, which "
+                    f"game '{game.name}' declares as {others[0]} — the row names "
+                    f"a `state {{ }}` variable, so the declaration belongs there",
+                    use.span,
+                )
+                continue
             bag.error(
                 f"library '{library.name}' requires state `{spelled}`, which "
                 f"game '{game.name}' does not declare — add it to the game's "
@@ -2999,6 +3967,7 @@ def _check_requires(
                 f"`{have.type_name}{'?' if have.optional else ''}`",
                 use.span,
             )
+    return stamps
 
 
 def resolve(game: n.Game) -> n.Game:
@@ -3019,8 +3988,13 @@ def resolve(game: n.Game) -> n.Game:
     own_procedures = frozenset(p.name for p in game.procedures)
     own_rules = frozenset(r.name for r in game.rules)
     uses_names = [u.name for u in game.uses]
-    game = _apply_uses(game, bag)
+    game, library_rules = _apply_uses(game, bag)
     _raise_if_errors(bag)
+    # Which library each spliced function came from: the one origin fact a
+    # cycle crossing the splice needs, to be reported to the game's author.
+    library_functions = {
+        f.name: name for name in uses_names for f in load_library(name).functions
+    }
     own_move_types = frozenset(mt.name for mt in game.move_types) - frozenset(
         m.name for name in uses_names for m in load_library(name).move_types
     )
@@ -3030,9 +4004,11 @@ def resolve(game: n.Game) -> n.Game:
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _resolve_card_points(game, bag)
+    _resolve_suit_ranking(game, bag)
     # Before `_resolve_trump`, which returns early on a block game: R1 owns the
     # game-clause-beside-a-block cell, so the two never co-report on it.
     _check_trick_order_partition(game, bag)
+    _check_piece_rounds(game, bag)
     _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
     _check_climb_action_names(game, bag)
@@ -3073,9 +4049,6 @@ def resolve(game: n.Game) -> n.Game:
     # instantiation attempt hit some OTHER, already-separately-reported
     # mismatch (arity, missing arguments, …) — that conflation would pile a
     # spurious "undefined rule" note onto every such mismatch.
-    library_rules = {
-        r.name: r for name in uses_names for r in load_library(name).rules
-    }
     known_rule_names = {r.name for r in game.rules} | set(library_rules) | set(stdlib_rules())
 
     # Library-rule splice and template instantiation: after this, every rule in
@@ -3109,7 +4082,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_declared_type_names(game, bag)
     _check_state_default_scope(game, bag)
     _check_state_scope(game, bag)
-    _check_functions(game, bag)
+    _check_functions(game, bag, library_functions)
     # After `_check_functions`: the row walk reuses its call map and `_reaches`
     # to follow a row's reach through the designer functions.
     _check_trick_order_rows(game, bag)
@@ -3237,11 +4210,15 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
         # covered by `_rewrite` + `_check_reserved_params` — see the docstring.)
         case (
             n.Game() | n.PlayersSpec() | n.Winner() | n.Loser()
-            # The import trio binds nothing: `uses` and `requires` name state and
+            # The import nodes bind nothing: `uses` and `requires` name state and
             # definitions that already live in flat, game-wide namespaces, and a
             # `Library` is gone by the end of `_apply_uses` — its definitions are
-            # spliced into the Game and reached through the arms below.
+            # spliced into the Game and reached through the arms below. A
+            # signature row's parameters are its own reading and scope no body,
+            # and a contract stamp holds spellings, never a name.
             | n.Library() | n.UsesDecl() | n.RequireDecl()
+            | n.MoveContract() | n.FunctionContract() | n.ProcedureContract()
+            | n.ContractStamp()
             | n.MoveTypeDef() | n.Parameter() | n.RuleDef() | n.RuleRef()
             # A `primitives { }` entry's parameters name the arguments its
             # Python receives and key its `reads` binders; no DSL body is
@@ -3251,7 +4228,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.AppliesWhen() | n.Demands()
             | n.FunctionDef() | n.ProcedureDef() | n.OutcomeCase()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
-            | n.CardPointsTable() | n.CardPointsEntry()
+            | n.CardPointsTable() | n.CardPointsEntry() | n.SuitRanking()
             | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
             | n.ActiveRules() | n.LegalMoves() | n.Mode() | n.TransitionTo() | n.MoveEvent()
@@ -3911,16 +4888,31 @@ def _check_positional_index_range(game: n.Game, bag: DiagnosticBag) -> None:
     at play time instead of here. A computed position, or a collection whose
     length is runtime data, is that guard's alone."""
     for nd in _walk(game):
-        if not (isinstance(nd, n.Subscript) and isinstance(nd.index, n.IntLit)):
+        past = _position_past_end(nd, game)
+        if past is None:
             continue
-        length = _static_length(nd.obj, game)
-        if length is None or nd.index.value < length:
-            continue
+        # A board region's position is `_BOARD_POSITION_GATE`'s test; spliced
+        # from a library, `_check_library_clause_gates` has refused it first.
+        assert isinstance(nd, n.Subscript)
+        index, length = past
         bag.error(
-            f"position {nd.index.value} is past the end: this collection holds "
+            f"position {index} is past the end: this collection holds "
             f"{length}, at positions 0 .. {length - 1}",
             nd.index.span or nd.span,
         )
+
+
+def _position_past_end(node: object, game: n.Game) -> tuple[int, int] | None:
+    """(position, length) for a literal position past the end of a collection
+    whose length the sentence states (`_static_length`), else None. The one
+    test `_check_positional_index_range` asks, and, for a board region,
+    `_BOARD_POSITION_GATE`'s."""
+    if not (isinstance(node, n.Subscript) and isinstance(node.index, n.IntLit)):
+        return None
+    length = _static_length(node.obj, game)
+    if length is None or node.index.value < length:
+        return None
+    return node.index.value, length
 
 
 def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
@@ -5841,6 +6833,12 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
             f"piece set has no notion of; drop the clause",
             game.span,
         )
+    if game.suit_ranking is not None:
+        bag.error(
+            f"{kind} -- `suit ranking:` orders a deck's suits, which a piece "
+            f"set has none of; drop the clause",
+            game.suit_ranking.span or game.span,
+        )
     if game.trump is not None:
         bag.error(
             f"{kind} -- `trump:` names the suit that beats others in a trick, "
@@ -5983,12 +6981,18 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
                 for key in RANKING_CONVENTIONS
                 for w in (key, *key.replace("-", " ").split())
             }
-            hint = (
-                "  (did you mean a ranking convention? one of: "
-                + ", ".join(sorted(RANKING_CONVENTIONS)) + ")"
-                if rank.lower() in conv_words
-                else ""
-            )
+            if rank.lower() in conv_words:
+                hint = (
+                    "  (did you mean a ranking convention? one of: "
+                    + ", ".join(sorted(RANKING_CONVENTIONS)) + ")"
+                )
+            elif rank in suit_names(game.deck):
+                hint = (
+                    f"  ('{rank}' is a suit: a game ranks its suits with "
+                    f"`suit ranking:`, strongest first)"
+                )
+            else:
+                hint = ""
             bag.error(
                 f"ranking: names unknown rank '{rank}' — not a rank of deck "
                 f"'{game.deck}' (known ranks: {', '.join(sorted(known))})"
@@ -6029,6 +7033,100 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
                 f"of deck '{game.deck}' (known ranks: {', '.join(sorted(known))})",
                 entry.span or game.span,
             )
+
+
+def _declared_suits_phrase(deck: str) -> str:
+    """The suits a `suit ranking:` must list, in the designer's words: the deck's
+    declared suits, and the special suits it may leave out."""
+    from cardlang.runtime.values import DECKS, deck_suits
+
+    if deck not in DECKS:
+        return "the deck's suits"
+    declared = DECKS[deck].suits
+    specials = [s for s in deck_suits(deck) if s not in declared]
+    phrase = f"the deck's suits ({', '.join(declared)})"
+    if specials:
+        phrase += f", optionally with its special suits ({', '.join(specials)}),"
+    return phrase
+
+
+def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag) -> None:
+    """`suit ranking:` lists suits of the declared deck, each once, strongest
+    first: every suit the deck declares (`Deck.suits`), and any of its special
+    suits (`deck_suits` beyond the declared ones) it chooses to rank. A special
+    suit it leaves out is refused when a card of that suit reaches
+    `suit_value` (`runtime/values.py`, `suit_strength`), which is a fact of
+    zone contents.
+
+    A name the deck does not hold is refused naming what the designer most
+    likely meant: a rank or a rank convention belongs to `ranking:`.
+
+    A clause with no `suit_value` written anywhere in the game, its spliced
+    libraries included, is refused (the `trump:` precedent: a declaration
+    nothing reads is accepted-but-ignored). Written, not reached: the call
+    gate refuses a clause-less `suit_value` wherever it is written, dead code
+    included, so counting the same text here is what keeps a game from being
+    refused both with the clause and without it.
+
+    A piece game's clause is `_reject_card_content_clauses`'s; an unknown deck
+    is `_resolve_component_set`'s."""
+    ranking = game.suit_ranking
+    if ranking is None or game.content_flavor != "card" or not _deck_known(game.deck):
+        return
+    from cardlang.runtime.values import DECKS, RANKING_CONVENTIONS, deck_ranks, deck_suits
+
+    span = ranking.span or game.span
+    suits = deck_suits(game.deck)
+    words = " ".join(ranking.suits)
+    if words in RANKING_CONVENTIONS:
+        bag.error(
+            f"suit ranking: {words} is a rank convention — write it as "
+            f"`ranking: {words}`; `suit ranking:` lists "
+            f"{_declared_suits_phrase(game.deck)} strongest first",
+            span,
+        )
+        return
+    ranks = set(deck_ranks(game.deck))
+    seen: set[str] = set()
+    for name in ranking.suits:
+        if name in seen:
+            bag.error(
+                f"suit ranking: repeats suit '{name}' — name each suit once, "
+                f"strongest first",
+                span,
+            )
+        seen.add(name)
+        if name in suits:
+            continue
+        if name in ranks:
+            bag.error(
+                f"suit ranking: '{name}' is a rank of deck '{game.deck}', not a "
+                f"suit — a rank order is declared with `ranking:`; "
+                f"`suit ranking:` lists {_declared_suits_phrase(game.deck)} "
+                f"strongest first",
+                span,
+            )
+        else:
+            bag.error(
+                f"suit ranking: '{name}' is not a suit of deck '{game.deck}' — "
+                f"list {_declared_suits_phrase(game.deck)} strongest first",
+                span,
+            )
+    for declared in DECKS[game.deck].suits:
+        if declared not in seen:
+            bag.error(
+                f"suit ranking: leaves out {declared} — list "
+                f"{_declared_suits_phrase(game.deck)} strongest first",
+                span,
+            )
+    if not any(
+        isinstance(nd, n.Call) and nd.func in _SUIT_RANKING_CALLS for nd in _walk(game)
+    ):
+        bag.error(
+            "suit ranking: is read by nothing — `suit_value(s)` is its one "
+            "reader; call it where the game compares suits, or drop the clause",
+            span,
+        )
 
 
 # The callable containers a CONSUMPTION question must follow into, beyond the
@@ -6087,6 +7185,7 @@ _GAME_FIELD_ROLES: dict[str, str] = {
     "direction": "root",
     "ranking": "root",
     "ranking_convention": "root",
+    "suit_ranking": "root",
     "trump": "root",
     "max_length": "root",
     "span": "root",
@@ -6694,6 +7793,7 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     "direction": "refused",
     "ranking": "refused",
     "ranking_convention": "refused",
+    "suit_ranking": "refused",
     "card_points": "refused",
     "trick_order": "refused",
     "trump": "refused",
@@ -7268,8 +8368,10 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
         return  # `_reject_card_content_clauses` already named the kind
     if game.trick_order is None:
         # --- without a block: no gated name may appear -----------------------
+        # A round spliced from a library is `_check_library_clause_gates`'s,
+        # which this loop and the round loops below shadow.
         for rnd in _trick_order_rounds(game):
-            if rnd.winner_fn in TRICK_ORDER_GATED_WINNERS:
+            if _trick_order_reading_slots(rnd, game):
                 others = ", ".join(sorted(TRICK_WINNER_NAMES - TRICK_ORDER_GATED_WINNERS))
                 bag.error(
                     f"round winner {rnd.winner_fn} reads the game's "
@@ -7309,13 +8411,13 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
             game.span,
         )
     for rnd in _trick_order_rounds(game):
-        if rnd.trump is not None:
+        if _round_trump_clauses(rnd, game):
             bag.error(
                 "round `trump` clause beside a `trick_order { }` block — the "
                 "block's `trump:` row is the trump; drop the clause",
                 rnd.span,
             )
-        if rnd.winner_fn in TRICK_ORDER_EXCLUDED_WINNERS:
+        if _trick_order_excluded_winners(rnd, game):
             gated = ", ".join(sorted(TRICK_ORDER_GATED_WINNERS))
             bag.error(
                 f"round winner {rnd.winner_fn} beside a `trick_order {{ }}` "
@@ -7335,28 +8437,18 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 f"clause",
                 rnd.span,
             )
-    # EVERY registered climbing query, not the `ranking:`-reading subset: a
-    # climb query carries its own card order whether it reads `rank_index`
-    # (president's) or hard-codes one (the bigtwo_* and tichu_* engines), and
-    # either way a game naming one beside a Trick Order has two orders that
-    # the engine runs side by side. Derived from the two registries by union
-    # so a query added to either is refused without an edit here.
-    climb_queries = PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
     for nd in _walk(game):
-        if isinstance(nd, n.ClimbRound):
-            for query_slot, fname in (
-                ("combinations", nd.combos_fn),
-                ("follows", nd.follows_fn),
-            ):
-                if fname in climb_queries:
-                    bag.error(
-                        f"climb round `{query_slot} {fname}` beside a "
-                        f"`trick_order {{ }}` block — the climbing round's "
-                        f"queries carry their own order; a game with a Trick "
-                        f"Order cannot also name {fname} (the climb family "
-                        f"reading the Trick Order is issue #251)",
-                        nd.span,
-                    )
+        if not isinstance(nd, n.ClimbRound):
+            continue
+        for query_slot, fname in _climb_queries(nd, game):
+            bag.error(
+                f"climb round `{query_slot} {fname}` beside a "
+                f"`trick_order {{ }}` block — the climbing round's "
+                f"queries carry their own order; a game with a Trick "
+                f"Order cannot also name {fname} (the climb family "
+                f"reading the Trick Order is issue #251)",
+                nd.span,
+            )
     for nd in _walk(game):
         if isinstance(nd, n.Call) and nd.func in TRICK_ORDER_EXCLUDED_FUNCS:
             arg = "pile"
@@ -7399,6 +8491,26 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
             f"round or call it over the trick pile, or drop the block",
             game.trick_order.span or game.span,
         )
+
+
+def _check_piece_rounds(game: n.Game, bag: DiagnosticBag) -> None:
+    """A trick round's winner or a climbing query in a piece game: each reads
+    a deck card's suit or rank, which a piece set has none of
+    (`_CARD_CONTENT_GATE`). Refused here, before the type layer would ask the
+    game for a `ranking:` a piece game cannot declare. Spliced from a library,
+    `_check_library_clause_gates` has refused it first."""
+    for nd in _walk(game):
+        if not isinstance(nd, (n.TrickRound, n.ClimbRound)):
+            continue
+        if not _refuses(_CARD_CONTENT_GATE, nd, game):
+            continue
+        for phrase in card_content_forms(nd):
+            bag.error(
+                f"{content_kind_clause(game.content_flavor, game.deck)} -- "
+                f"{phrase} reads a deck card's suit or rank, which a piece set "
+                f"has none of",
+                nd.span,
+            )
 
 
 def _gated_calls(game: n.Game) -> list[n.Call]:
@@ -8176,7 +9288,9 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
     return value
 
 
-def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
+def _check_functions(
+    game: n.Game, bag: DiagnosticBag, library_functions: dict[str, str] | None = None
+) -> None:
     """Functions are hermetic and non-recursive: a body may reference only its own
     parameters, binders it introduces (`number of players where …`), and game/phase
     state — not a name the flat classifier tagged `local` from some unrelated binder,
@@ -8235,14 +9349,63 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                     f"function '{fn.name}' reads the call-site pronoun '{nd.name}'; a "
                     f"function is hermetic and may not read "
                     f"{'/'.join(sorted(_CALL_SITE_PRONOUNS))} — "
-                    f"pass the value in as a parameter",
+                    + (
+                        _contracted_remedy(fn.contracts[0])
+                        if fn.contracts
+                        else "pass the value in as a parameter"
+                    ),
                     nd.span,
                 )
         if _reaches(fn.name, fn.name, calls):
-            bag.error(
-                f"function '{fn.name}' is recursive; functions must be non-recursive",
-                fn.span,
-            )
+            _report_recursion(fn, calls, library_functions or {}, bag)
+
+
+def _contracted_remedy(contract: n.ContractStamp) -> str:
+    """The fix for a definition answering a Definition Contract that reads a
+    call-site pronoun. Its call sites are in the library's text, which the
+    game's author cannot edit, so the fix named is one they can take."""
+    return (
+        f"library '{contract.library}' calls it under its contract "
+        f"`{contract.row}`, from text this game cannot edit, so no argument can "
+        f"be added there: read the value from the parameter the row passes, or "
+        f"from the game's own state"
+    )
+
+
+def _report_recursion(
+    fn: n.FunctionDef,
+    calls: dict[str, set[str]],
+    library_functions: dict[str, str],
+    bag: DiagnosticBag,
+) -> None:
+    """A recursive function, told to the Author who closed the cycle. A cycle
+    that crosses the splice — a library function calling a contracted game
+    function that calls back into the library — is in neither file alone: the
+    game's function is what closed it, so the game's author is told, at each
+    game function on the cycle, and the library's members stay quiet."""
+    cycle = {fn.name} | {
+        other
+        for other in calls
+        if _reaches(fn.name, other, calls) and _reaches(other, fn.name, calls)
+    }
+    imported = sorted(name for name in cycle if name in library_functions)
+    if not imported or len(imported) == len(cycle):
+        bag.error(
+            f"function '{fn.name}' is recursive; functions must be non-recursive",
+            fn.span,
+        )
+        return
+    if fn.name in library_functions:
+        return
+    through = ", ".join(
+        f"library '{library_functions[name]}''s function '{name}'" for name in imported
+    )
+    bag.error(
+        f"function '{fn.name}' is recursive through {through}, which calls it "
+        f"back; functions must be non-recursive, and this game's definition "
+        f"closes the cycle",
+        fn.span,
+    )
 
 
 def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
@@ -8705,12 +9868,17 @@ def _check_procedures(
                             nd.span,
                         )
                     elif nd.ref_kind == "pronoun" and nd.name in _CALL_SITE_PRONOUNS:
+                        remedy = (
+                            _contracted_remedy(proc.contracts[0])
+                            if proc.contracts
+                            else f"pass the value in as a parameter (`run "
+                            f"{proc.name}({nd.name})`)"
+                        )
                         bag.error(
                             f"procedure '{proc.name}' reads the call-site pronoun "
                             f"'{nd.name}'; a procedure body is spliced into call "
-                            f"sites that need not share a call-site context — pass "
-                            f"the value in as a parameter (`run {proc.name}"
-                            f"({nd.name})`)",
+                            f"sites that need not share a call-site context — "
+                            f"{remedy}",
                             nd.span,
                         )
 
@@ -8772,21 +9940,19 @@ def _check_move_params(
     mt: n.MoveTypeDef,
     bag: DiagnosticBag,
     span: Span | None,
-    has_ranking: bool,
+    game: n.Game,
     positions: frozenset[str],
     directions: frozenset[str],
-    flavor: Flavor,
-    deck: str,
 ) -> None:
     """Totality gate for a parameterized move offered/enumerated in a decision
     (an `offer` statement). Fixed-from-type
     domains (`Suit`/`Suit?`/`Rank`/`Player`) and a single `Card` parameter are
     allowed; a `Card` parameter combined with any other parameter, a
     bounded-`Integer` parameter (deferred), two parameters sharing a name, and
-    a `Rank` parameter in a game with no declared `ranking:` (`has_ranking`)
-    are rejected with a message.
+    a `Rank` parameter in a game with no declared `ranking:`
+    (`_RANK_PARAMETER_GATE`) are rejected with a message.
 
-    `has_ranking` gates only `Rank`: `Player`'s domain is the seats, always
+    The ranking gate covers only `Rank`: `Player`'s domain is the seats, always
     non-empty for a real game, and `Suit`'s is `deck_suits`, always non-empty
     for a real deck — neither can be empty the way `game.ranking` (optional,
     `()` by default) can. Without this gate, a Rank-parameterized move in a
@@ -8797,14 +9963,16 @@ def _check_move_params(
     types = [p.type_name for p in mt.params]
     # A piece game has no suit/rank/card domain to enumerate, so a move
     # parameterized by one has no candidate space. Checked before the
-    # has_ranking / unsupported-domain arms so the diagnostic names the KIND
+    # ranking / unsupported-domain arms so the diagnostic names the KIND
     # (a Rank param in a piece game is a flavor error, not a missing-ranking
-    # one); Player and position domains stay legal.
-    if flavor == "piece":
+    # one); Player and position domains stay legal. Spliced from a library,
+    # `_check_library_clause_gates` has refused both first, by the same gates.
+    if _refuses(_CARD_CONTENT_GATE, mt, game):
         offending = [t for t in types if t in CARD_PARAM_DOMAINS]
         if offending:
             bag.error(
-                f"{content_kind_clause(flavor, deck)} -- move '{mt.name}' has a "
+                f"{content_kind_clause(game.content_flavor, game.deck)} -- "
+                f"move '{mt.name}' has a "
                 f"{offending[0]} parameter, whose domain is the deck's "
                 f"suits/ranks; a piece set enumerates neither",
                 span,
@@ -8867,7 +10035,7 @@ def _check_move_params(
         # stripping a trailing `?`): `Rank?` is not in `_FIXED_DOMAINS`, so it
         # is already rejected by the elif above and never reaches this branch
         # — only bare `Rank` needs the non-empty-`ranking:` gate.
-        elif t == "Rank" and not has_ranking:
+        elif t == "Rank" and _refuses(_RANK_PARAMETER_GATE, mt, game):
             bag.error(
                 f"move '{mt.name}' has a Rank parameter, but the game declares "
                 f"no ranking: — Rank enumerates the declared ranking, so it "
@@ -9133,10 +10301,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_directions = frozenset(directions_of(game)) if board_minted else frozenset()
     for mt in game.move_types:
         if mt.params:
-            _check_move_params(
-                mt, bag, mt.span, bool(game.ranking),
-                declared_positions, move_directions, game.content_flavor, game.deck,
-            )
+            _check_move_params(mt, bag, mt.span, game, declared_positions, move_directions)
     for nd in _walk(game):
         match nd:
             case n.Call() if (
@@ -9171,9 +10336,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # A deck-reading native call (suit_of, rank_value, a trick-
                 # winner, ...) has nothing to read in a piece game. The generic
                 # calls (top_of, team_of, ...) are absent from DECK_ONLY and
-                # stay legal. This arm and the clause arms below it are the
-                # Shadow Guards of `_check_library_clause_gates` for a call
-                # spliced from a library.
+                # stay legal. This arm and every arm below it that asks a
+                # `_CLAUSE_GATES` row are the Shadow Guards of
+                # `_check_library_clause_gates` for what a library splices in.
                 bag.error(
                     f"{content_kind_clause(game.content_flavor, game.deck)} -- "
                     f"`{nd.func}` reads a card's suit/rank/points, which a piece "
@@ -9191,6 +10356,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bag.error(
                     "`card_points(card)` reads the game's card-point table, "
                     "but this game declares no `card_points { }` clause",
+                    nd.span,
+                )
+            case n.Call() if nd.func in _SUIT_RANKING_CALLS and game.suit_ranking is None:
+                bag.error(
+                    f"`{nd.func}` reads a suit's strength from `suit ranking:`, "
+                    f"but this game declares no `suit ranking:` — declare one "
+                    f"listing {_declared_suits_phrase(game.deck)} strongest first",
                     nd.span,
                 )
             case n.Call() if nd.func in _TEAM_CALL_FUNCS and not game.teams:
@@ -9257,11 +10429,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"(roadmap.md records the extension)",
                         nd.span,
                     )
-                elif (
-                    nd.index is not None
-                    and role_of(nd.index) is Role.TEAM
-                    and not game.teams
-                ):
+                elif _refuses(_TEAM_STATE_GATE, nd, game):
                     # A team-indexed store in a game with no teams has
                     # an EMPTY key set: it declares fine, holds nothing, and
                     # every later `x[…] := …` hits the runtime key guard far
@@ -9300,9 +10468,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"produces names unknown outcome phase '{nd.phase}'",
                     nd.span,
                 )
+            case n.ForEach() if _refuses(_CELL_RANGE_GATE, nd, game):
+                bag.error(
+                    "`for each cell ...` ranges over the board's cells, but this "
+                    f"game declares no `board:` — {_board_remedy(game)}",
+                    nd.span,
+                )
             case n.ForEach() if (
                 role_of(nd.role) not in _ITERATION_ROLES
                 and nd.role not in iterable_positions
+                # A declared board that minted no cells is refused as a
+                # `board:` clause (`_resolve_board`).
+                and not (_cell_ranges(nd, game) and game.board is not None)
             ):
                 bag.error(
                     f"unknown `for each` role '{nd.role}' (expected one of "
@@ -9322,9 +10499,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"a piece set has none of",
                     nd.span,
                 )
-            case (n.ForEach() | n.Quantifier()) if (
-                role_of(nd.role) is Role.TEAM and not game.teams
-            ):
+            case (n.ForEach() | n.Quantifier()) if _refuses(_TEAM_RANGE_GATE, nd, game):
                 # The team domain of a game with no `teams:` is empty, so the
                 # question would answer itself: `any` false, `all` true, `for
                 # each` never running.
@@ -9510,9 +10685,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"`zones {{ }}` — '{nd.dest.name}' is {what_k}",
                             nd.span,
                         )
-            case n.EpistemicOp() if (
-                game.content_flavor == "piece" and nd.op == "reveal"
-            ):
+            case n.EpistemicOp() if _refuses(_CARD_CONTENT_GATE, nd, game):
                 # `reveal one card from ...` hardcodes the noun "card"; a piece
                 # game has no such statement (the piece twin is grammatically
                 # inexpressible). `shuffle` falls through -- it moves a zone's

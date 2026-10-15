@@ -49,6 +49,7 @@ game Doppelkopf {
 
   cards: doppelkopf48
   ranking: ace-ten
+  suit ranking: clubs spades hearts diamonds
   card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0 }
 
   // The normal game's trump group: both hearts 10 (the Dulle) on top, then
@@ -61,8 +62,8 @@ game Doppelkopf {
     trump:         card.rank is Q or card.rank is J or card.suit is diamonds
                    or (card.suit is hearts and card.rank is "10")
     card_strength: if card.suit is hearts and card.rank is "10" then 300
-                   elif card.rank is Q then 200 + suit_order(card.suit)
-                   elif card.rank is J then 100 + suit_order(card.suit)
+                   elif card.rank is Q then 200 + suit_value(card.suit)
+                   elif card.rank is J then 100 + suit_value(card.suit)
                    else rank_value(card)
   }
 
@@ -469,10 +470,6 @@ function cards_left(p : Player) = number of cards in hand[p]
 // public record is complete).
 function is_re(p : Player) =
   re_known[p] or (any card in hand[p] where card is Q of clubs)
-
-// Within the queens and the jacks: clubs > spades > hearts > diamonds.
-function suit_order(s : Suit) =
-  if s is clubs then 4 elif s is spades then 3 elif s is hearts then 2 else 1
 
 // Strict follow by class, straight off the Trick Order: `follows_lead` is
 // the winner's own candidate test, so legality and winning read ONE

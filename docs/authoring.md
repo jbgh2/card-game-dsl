@@ -73,6 +73,9 @@ Each clause is owned elsewhere:
   ([library.md](library.md), "Built-in component sets").
 - `ranking:` — the deck's context-free rank order ([decisions.md](decisions.md),
   "The `ranking:` declaration: enumeration or convention").
+- `suit ranking:` — the game's Suit Ranking, strongest first, read by
+  `suit_value(s)` ([decisions.md](decisions.md), "The `suit ranking:`
+  declaration").
 - `zones { }` — the clause that decides what each seat sees; see below.
 - `state { }` — the state variables, lexically scoped
   ([decisions.md](decisions.md), "State scoping (lexical)").
@@ -387,7 +390,11 @@ answers to is refused with the available ones listed. The tier and its rules are
 The library's `requires { }` block is its **contract**: what the including game
 must declare for the import to resolve. State variables, and also zones — each
 named with the zone type the library's definitions were written against, since
-that type is what fixes the per-observer Projection they assume. The contract
+that type is what fixes the per-observer Projection they assume — and the
+definitions your game supplies for the library to use: a move type it offers
+(`fold : Move`), a function it calls (`is_contraband(card : Card) : Boolean`,
+answered by your `function is_contraband(card : Card) = …`), or a procedure it
+runs (`settle_false_alarm() : Procedure`). The contract
 is checked at the `uses` line, so an unmet one is reported to you rather than
 as an undeclared name somewhere inside the library. The libraries live in
 `docs/libraries/`, and reading the one you are importing is the fastest way to

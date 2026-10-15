@@ -14,6 +14,7 @@ game StudPartialBringIn {
 
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  suit ranking: spades hearts diamonds clubs
 
   // Copied with the body: the seat selectors the streets open on, from the
   // family library, and the settlement Primitive the showdown calls, reading
@@ -37,11 +38,6 @@ game StudPartialBringIn {
   state {
     // Chips as integers; total is invariant. The winner holds them all.
     stack[player] : Integer = 2
-
-    // The suit order the `stud` library breaks ties on, lowest first.
-    lowest_suit : Suit = clubs
-    second_suit : Suit = diamonds
-    third_suit  : Suit = hearts
   }
 
   phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {

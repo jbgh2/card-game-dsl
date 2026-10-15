@@ -49,6 +49,7 @@ game GreenLaneV2Bounty {
                                      // alarms hand one to the merchant, so a
                                      // player can hold 0..4
     fine_net[player] : Integer = 0   // fines received minus fines paid
+    fine             : Integer = 4   // what a seizure costs the merchant
     merchant         : Player  = 0   // this round's shipper
     inspector        : Player  = 1   // this round's customs officer
     score[player]    : Integer = 0   // settled once, in scoring
@@ -68,7 +69,10 @@ game GreenLaneV2Bounty {
 
   phase play {
     // Twelve smuggling rounds, roles alternating. Hands shrink in lockstep,
-    // so both empty together after six pairs.
+    // so both empty together after six pairs. There is deliberately NO
+    // token-based gate on the merchant's side: shipping order during a
+    // disarmed window is a live strategic choice precisely because tokens
+    // can flow back.
     repeat until hand[0] is empty and hand[1] is empty {
       merchant := 0
       inspector := 1
@@ -104,39 +108,18 @@ game GreenLaneV2Bounty {
   winner: highest score
 }
 
-// The inspector's half of a smuggling round. The commit is the imported
-// `commit_shipment` (docs/libraries/smuggling.cardlang), which the phase runs
-// first. The inspector decides only while they hold a token — with none left
-// the wave is automatic. Note there is deliberately NO token-based gate
-// on the merchant's side: shipping order during a disarmed window is a live
-// strategic choice precisely because tokens can flow back.
-procedure respond() {
-  if tokens[inspector] > 0 {
-    offer to inspector one of [inspect, wave]
-  } else {
-    move all cards from shipment[merchant] to warehouse[merchant]
-  }
-}
-
+// The inspection is the imported `inspect` (docs/libraries/smuggling.cardlang);
+// this game supplies what counts as contraband, the fine, and what a false
+// alarm costs.
 // Spend a token and open the crate. Contraband (K/A: rank_value >= 11) is
 // seized and will score for the inspector, and the merchant is fined 4 —
 // the token is destroyed. Legal goods clear publicly, the spent token is
 // handed to the merchant as a bounty, and the inspector pays a reduced
 // 2-point fine for the false alarm.
-move_type inspect {
-  when: tokens[actor] > 0   // backstop: the offer site in respond() gates on tokens
-  effect {
-    tokens[actor] -= 1
-    reveal one card from shipment[merchant]
-    if any card in shipment[merchant] where rank_value(card) >= 11 {
-      move all cards from shipment[merchant] to seized[actor]
-      fine_net[merchant] -= 4
-      fine_net[actor] += 4
-    } else {
-      move all cards from shipment[merchant] to cleared[merchant]
-      tokens[merchant] += 1
-      fine_net[merchant] += 2
-      fine_net[actor] -= 2
-    }
-  }
+function is_contraband(card : Card) = rank_value(card) >= 11
+
+procedure settle_false_alarm() {
+  tokens[merchant] += 1
+  fine_net[merchant] += 2
+  fine_net[inspector] -= 2
 }

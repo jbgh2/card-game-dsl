@@ -60,6 +60,12 @@ a `Rank` parameter in that same game is a compile error. Folding the two
 accessors into one would break one of those two facts, so the table keeps both
 columns.
 
+`suit` has no such divergence, and its two columns read the deck alone:
+`deck_suits` order (`rs.suits` at runtime, `DomainSources.suits` in the action
+space). A game's `suit ranking:` orders neither column; `suit_value(s)` is its
+only reader. A Suit move parameter's action ids and `for each suit` are
+therefore the same with the clause and without it.
+
 Known outlier / residual: `Card`
 --------------------------------
 `Card` is deliberately NOT a row. It is a legal move-parameter domain, but its

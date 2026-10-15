@@ -20,8 +20,9 @@ domain:     name category x position. The category axis: every native-name
             callability, `PRIMITIVE_CALL_FUNCS`, each non-empty member of
             `WALLED_NAMESPACES`); every library definition kind
             (`_LIBRARY_DEF_KINDS`); every contract kind a library body names
-            (state, zone, move type); the closed tables a body names without
-            a contract (`SEAT_DIRECTION_VALUES`, `KNOWN_TYPE_NAMES`,
+            (state, zone, and each Definition Contract kind); the closed
+            tables a body names without a contract (`SEAT_DIRECTION_VALUES`,
+            `KNOWN_TYPE_NAMES`,
             `LIBRARY_ZONE_TYPES`, `LIBRARY_MOVE_TYPES`, the stdlib rules);
             every card deck's suits and ranks (`DECKS`); and a name that is
             none of these, which is where a name only the importing game
@@ -40,7 +41,8 @@ domain:     name category x position. The category axis: every native-name
 registry:   native names: `cardlang.builtins.functions` (`BUILTIN_CALL_FUNCS`,
             `PRIMITIVE_CALL_FUNCS`, `VALUE_NAMES`) and
             `cardlang.primitives_block.WALLED_NAMESPACES`; definition kinds:
-            `cardlang.resolve._LIBRARY_DEF_KINDS`; closed tables:
+            `cardlang.resolve._LIBRARY_DEF_KINDS`; Definition Contract kinds:
+            `cardlang.resolve.CONTRACT_KINDS`; closed tables:
             `cardlang.stdlib.enums.SEAT_DIRECTION_VALUES`,
             `cardlang.typecheck.KNOWN_TYPE_NAMES`,
             `cardlang.stdlib.zones.LIBRARY_ZONE_TYPES`,
@@ -76,6 +78,7 @@ from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import WALLED_NAMESPACES
 from cardlang.resolve import (
+    CONTRACT_KINDS,
     _LIBRARY_DEF_KINDS,
     _callback_outside_slot,
     _check_library_encapsulation,
@@ -97,12 +100,25 @@ _DEF_SOURCE: dict[str, str] = {
     "procedures": "procedure {name}() {{ }}",
 }
 
-# Each contract kind, naming the probe's target.
+# Each contract kind, naming the probe's target: the two keyed kinds, and one
+# Definition Contract row per kind `CONTRACT_KINDS` derives
+# (`test_every_definition_contract_kind_is_a_category`).
+_DEFINITION_ROW: dict[str, str] = {
+    "move_types": "requires {{ {name} : Move }}",
+    "functions": "requires {{ {name}() : Integer }}",
+    "procedures": "requires {{ {name}() : Procedure }}",
+}
 _REQUIRES_SOURCE: dict[str, tuple[str, str]] = {
     # kind -> (contract source, the noun the refusal names it by)
     "state": ("requires {{ {name} : Integer }}", "state variable"),
     "zone": ("requires {{ {name} : Discard }}", "zone"),
-    "move type": ("requires {{ {name} : Move }}", "move type"),
+    **{
+        noun: (
+            _DEFINITION_ROW[field],
+            f"{noun} the including game defines under this library's contract",
+        )
+        for field, noun, _cls in CONTRACT_KINDS
+    },
 }
 
 _POSITIONS: dict[str, str] = {
@@ -200,8 +216,10 @@ def _missing_contract(name: str) -> str:
 def _unknown_call(name: str) -> str:
     return (
         f"library '{_LIB}' calls '{name}', which is neither defined in the "
-        f"library nor a native function — a library's definitions may not "
-        f"reach into the game that imports them"
+        f"library nor a native function — contract for it with "
+        f"`{name}(<parameter> : <type>, …) : <result type>` in `requires {{ }}` "
+        f"so the including game defines it, or keep the definition that needs "
+        f"it in the game"
     )
 
 
@@ -213,9 +231,12 @@ def _expected(category: str, position: str) -> str | None:
             return None
         if category not in _LIBRARY_OWN:
             return _missing_contract(name)
-        call_it = f" — call it: `{name}(...)`" if category == "own functions" else ""
+        callable = category in ("own functions", "contracted function")
+        call_it = f" — call it: `{name}(...)`" if callable else ""
         return f"library '{_LIB}' reads '{name}', which is a {noun}, not a value{call_it}"
-    if category in ("own functions", "builtin call", "callable trick winner"):
+    if category in (
+        "own functions", "contracted function", "builtin call", "callable trick winner"
+    ):
         return None
     if category == "trick winner":
         return _callback_outside_slot(name)
@@ -234,6 +255,14 @@ def _expected(category: str, position: str) -> str | None:
 def test_a_library_is_told_what_the_name_it_cannot_reach_is(category: str, position: str) -> None:
     expected = _expected(category, position)
     assert _probe(category, position) == ([] if expected is None else [expected])
+
+
+def test_every_definition_contract_kind_is_a_category() -> None:
+    """The contract categories follow the registry of contractable kinds, so a
+    kind joining it is a red here rather than a kind no cell names.
+
+    red under: add a row node and a kind to `resolve.CONTRACT_KINDS`."""
+    assert set(_DEFINITION_ROW) == {field for field, _, _ in CONTRACT_KINDS}
 
 
 def test_the_probe_library_is_otherwise_clean() -> None:

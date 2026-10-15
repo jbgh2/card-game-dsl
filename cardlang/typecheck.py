@@ -22,6 +22,11 @@ Assumes:      a resolved AST (every ``NameRef`` classified over
               ``n.RefKind``, declarations unique, rule templates
               instantiated), in which a ``play_source`` read stands only in
               a game holding a trick round (``resolve._check_play_source``).
+              Every game function answering a library's Definition Contract
+              carries each row it answers (``FunctionDef.contracts``), and
+              every library call of a contracted function carries its row
+              (``Call.contract``); resolve stamps both at the splice, and no
+              other source of contract knowledge exists here.
 Establishes:  type validity only. A ``play_source`` read types as the join
               of the trick rounds' ``source`` families' contents, read off
               the stamp, never off the spelling ``hand``. The inferred
@@ -35,7 +40,12 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               declared collection parameter is exactly
               ``TCollection(element, key=None, zone=False)`` — the facets a
               spelling can produce are the defaults, and no other are
-              reachable.
+              reachable. A function answering a Definition Contract returns a
+              type its row's result admits by the ordinary ``coercible`` rule
+              (``_check_contracted_results``, reported on the importing game's
+              `uses` line); a library's call of a contracted function is typed
+              against the row (``_call_sig``), whatever the game answered, so
+              a wrong answer earns that one sentence and none in library text.
 Now illegal:  a type-invalid program, per the Owner Guards above and their
               completeness ledgers. Also a `Sig` built from an entry's
               spelling anywhere but ``_param_type``, a declared collection
@@ -50,9 +60,11 @@ Now illegal:  a type-invalid program, per the Owner Guards above and their
               ``resolve._validate_refs``' (its unknown-name and declared-only
               arms), and this pass raises ``ShadowGuardError`` naming them;
               anything else with no signature is a registry divergence and
-              keeps the assert channel.
+              keeps the assert channel. And a Definition Contract read from
+              anything but its stamp.
 Verified by:  the Owner Guard test modules (operator, aggregation, context,
-              ranking, rule-ref) and their ledgers.
+              ranking, rule-ref) and their ledgers;
+              tests/test_definition_contracts.py for the contract result.
 """
 
 from __future__ import annotations
@@ -67,6 +79,9 @@ from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
 from cardlang.builtins.functions import (
     PRIMITIVE_CALL_FUNCS,
+    PRIMITIVE_CLIMB_FOLLOWS,
+    PRIMITIVE_CLIMB_LEADS,
+    TRICK_WINNER_NAMES,
     TRICK_ORDER_EXCLUDED_FUNCS,
     TRICK_ORDER_EXCLUDED_WINNERS,
     TRICK_ORDER_GATED_WINNERS,
@@ -74,7 +89,7 @@ from cardlang.builtins.functions import (
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.domains import require_role, role_of, role_type
+from cardlang.domains import CARD_PARAM_DOMAINS, require_role, role_of, role_type
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
     Regime,
@@ -245,6 +260,67 @@ RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
 RANKING_TRICK_ORDER_TWINS: frozenset[str] = (
     RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES
 ) & (TRICK_ORDER_EXCLUDED_FUNCS | TRICK_ORDER_EXCLUDED_WINNERS)
+
+
+def ranking_gated_slots(node: object) -> tuple[tuple[str, str], ...]:
+    """The round slots in `node` that read `ranking:`, as (slot, name): a trick
+    round's winner in `RANKING_GATED_WINNERS`, a climbing round's query in
+    `RANKING_GATED_CLIMB_QUERIES`. The one test for the slot gate, asked by
+    `_check_round_ranking` and by resolve's `uses`-line check."""
+    if isinstance(node, n.TrickRound) and node.winner_fn in RANKING_GATED_WINNERS:
+        return (("round winner", node.winner_fn),)
+    if isinstance(node, n.ClimbRound):
+        return tuple(
+            ("climb query", q)
+            for q in (node.combos_fn, node.follows_fn)
+            if q in RANKING_GATED_CLIMB_QUERIES
+        )
+    return ()
+
+
+_CARD_QUERY_SPELLINGS: dict[str, str] = {
+    "set": "cards in ... where",
+    "count": "number of cards in",
+    "any": "any card in",
+    "all": "all cards in",
+}
+
+
+def card_content_forms(node: object) -> tuple[str, ...]:
+    """What in `node` reads a deck card's content, in the designer's words: a
+    move parameter whose domain is a card axis or the card itself
+    (`CARD_PARAM_DOMAINS`), `reveal one card`, a card query, an aggregation
+    over `cards in ...`, a subset query, a trick round's winner (each reads
+    the led suit), a climbing query (each reads card combinations). None of
+    them has a piece-game form. The one test for the flavor gates on these
+    forms, asked by each of them (resolve's move-parameter, reveal and round
+    gates, this pass's query arms) and by resolve's `uses`-line check."""
+    if isinstance(node, n.MoveTypeDef):
+        return tuple(
+            dict.fromkeys(
+                f"a `{p.type_name}` parameter"
+                for p in node.params
+                if p.type_name in CARD_PARAM_DOMAINS
+            )
+        )
+    if isinstance(node, n.EpistemicOp) and node.op == "reveal":
+        return ("`reveal one card`",)
+    if isinstance(node, n.CardQuery):
+        return (f"`{_CARD_QUERY_SPELLINGS[node.kind]}`",)
+    if isinstance(node, n.Comprehension):
+        fold = "sum of" if node.agg == "sum" else node.agg
+        return (f"`{fold} ... over cards in`",)
+    if isinstance(node, n.SubsetQuery):
+        return ("a subset query",)
+    if isinstance(node, n.TrickRound) and node.winner_fn in TRICK_WINNER_NAMES:
+        return (f"round winner `{node.winner_fn}`",)
+    if isinstance(node, n.ClimbRound):
+        return tuple(
+            f"climb query `{q}`"
+            for q in (node.combos_fn, node.follows_fn)
+            if q in PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
+        )
+    return ()
 
 
 def _ranking_refusal(subject: str, name: str, instead: str) -> str:
@@ -516,7 +592,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             # already in the bag). Gradual, not a lookup miss.
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
-            sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
+            sig = _call_sig(e, env)
             if sig is None:
                 if e.func in PRIMITIVE_CALL_FUNCS:
                     # A Primitive this game does not declare. `native_call_sigs`
@@ -1338,6 +1414,51 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     return sigs
 
 
+def _contract_type(spelled: str, env: TypeEnv) -> Type:
+    """A Definition Contract's type spelling: a value type, with or without
+    `?` (resolve's `_check_contract_shapes` admits no other)."""
+    return type_from_name(
+        spelled.removesuffix("?"), spelled.endswith("?"), env.positions, env.directions
+    )
+
+
+def _call_sig(call: n.Call, env: TypeEnv) -> Sig | None:
+    """The signature a call is typed against: its Definition Contract row when
+    the call is a library's of a contracted function, else the native table,
+    else the game's own function."""
+    if call.contract is not None:
+        result = call.contract.result_type
+        assert result is not None, "a contracted call names a function row"
+        return Sig(
+            tuple(_contract_type(p, env) for p in call.contract.param_types),
+            _contract_type(result, env),
+        )
+    return env.call_sigs.get(call.func) or env.functions.get(call.func)
+
+
+def _check_contracted_results(game: Game, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A function answering a library's Definition Contract returns what the
+    row promises: its inferred result coerces to the row's, by the rule every
+    typed position applies. The Owner Guard of the result leg, told to the
+    game's author on the `uses` line its stamp carries — resolve compared the
+    name and parameters there already, and the result exists only here. One
+    function may answer rows of several libraries, so each row is checked."""
+    for f in game.functions:
+        got = env.functions[f.name].ret
+        for stamp in f.contracts:
+            if stamp.result_type is None:
+                continue
+            want = _contract_type(stamp.result_type, env)
+            if not coercible(got, want):  # choke-point-exempt: a definition's inferred result against its contract row, no operand
+                bag.error(
+                    f"library '{stamp.library}' requires function `{stamp.row}`, "
+                    f"but game '{game.name}' defines `{f.name}` returning "
+                    f"{_type_name(got)} — the library's calls read it as "
+                    f"{_type_name(want)}",
+                    stamp.uses_span,
+                )
+
+
 def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
     # Every host's parameter spelling reads through the block's ONE
     # decomposition, so the collection form a `primitives { }` entry writes and
@@ -1883,6 +2004,27 @@ def _spell_operand(e: n.Expr) -> str:
 _UNKEYED_COLLECTION = TCollection(TAny())
 
 
+def _card_field_hint(
+    got: Type, want: Type, got_name: str | None, call: n.Call | None
+) -> str:
+    """The fix a refusal appends when a Card stands where one of a card's
+    fields is wanted: the field spelling, read off `CARD_FIELDS`, written out
+    as the whole call when the operand is a one-argument call's named
+    argument (`suit_value(card)` for `suit_value(card.suit)`). Empty
+    otherwise."""
+    if not isinstance(_bare(got), TCard):
+        return ""
+    fits = [f for f, t in CARD_FIELDS.items() if t == _bare(want)]
+    if len(fits) != 1:
+        return ""
+    field = fits[0]
+    if got_name is None:
+        return f" — a card's {field} is its `.{field}`"
+    if call is not None and len(call.args) == 1:
+        return f" — write `{call.func}({got_name}.{field})`"
+    return f" — a card's {field} is `{got_name}.{field}`"
+
+
 def _key_hint(
     got: Type,
     want: Type,
@@ -2018,7 +2160,7 @@ def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> N
     source-slot operands, so `subset` in one of them means an outer binder or
     nothing (resolve's `_BINDER_SCOPE_FIELDS` makes the same split lexically).
     """
-    if env.flavor == "piece":
+    if env.flavor == "piece" and card_content_forms(e):
         # The source phrase spells `cards`, like every other card query, so a
         # piece game meets the same refusal rather than a different one.
         bag.error(
@@ -2285,6 +2427,7 @@ def _check_operand(
     span: Span | None,
     *,
     expected_name: str | None = None,
+    call: n.Call | None = None,
 ) -> None:
     """The ONE operand-coercion check every `coercible(_, expected)` site routes
     through, so the seat-range check is applied at EVERY position an integer
@@ -2314,7 +2457,12 @@ def _check_operand(
     day a new operand position calls `coercible` directly instead of routing
     here."""
     if not coercible(got, expected):
-        bag.error(msg + _key_hint(got, expected, _name_of(node), expected_name), span)
+        bag.error(
+            msg
+            + _key_hint(got, expected, _name_of(node), expected_name)
+            + _card_field_hint(got, expected, _name_of(node), call),
+            span,
+        )
     _check_role_literal(node, expected, env, bag)
 
 
@@ -2355,17 +2503,11 @@ def _check_round_ranking(
     slot, never called, so the Call-site gate cannot see it; without this, a
     no-`ranking:` game naming one checks clean and crashes bare at the first
     trick's resolution."""
-    demanded: list[tuple[str, str]] = []
-    if isinstance(stmt, n.TrickRound) and stmt.winner_fn in RANKING_GATED_WINNERS:
-        demanded.append((f"round winner {stmt.winner_fn}", stmt.winner_fn))
-    if isinstance(stmt, n.ClimbRound):
-        for q in (stmt.combos_fn, stmt.follows_fn):
-            if q in RANKING_GATED_CLIMB_QUERIES:
-                demanded.append((f"climb query {q}", q))
-    if demanded and not env.has_ranking:
-        for subject, name in demanded:
-            instead = f"name {min(TRICK_ORDER_GATED_WINNERS)} as the winner"
-            bag.error(_ranking_refusal(subject, name, instead), stmt.span)
+    if env.has_ranking:
+        return
+    for slot, name in ranking_gated_slots(stmt):
+        instead = f"name {min(TRICK_ORDER_GATED_WINNERS)} as the winner"
+        bag.error(_ranking_refusal(f"{slot} {name}", name, instead), stmt.span)
 
 
 def _check_trick_order(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2567,7 +2709,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_bool(e.where, scoped, bag, "player-query predicate")
         return
     if isinstance(e, n.CardQuery):
-        if env.flavor == "piece":
+        if env.flavor == "piece" and card_content_forms(e):
             # `cards in ... / any card in ... / number of cards in ...` all
             # hardcode the card noun; a piece game has no such form (the piece
             # twin is grammatically inexpressible -- a recorded residual).
@@ -2598,7 +2740,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_subset_query(e, env, bag)
         return
     if isinstance(e, n.Comprehension):
-        if env.flavor == "piece":
+        if env.flavor == "piece" and card_content_forms(e):
             # `sum of ... over cards in ...` and the RANK_DIR order aggregators
             # hardcode "cards"; rejected in a piece game (no piece twin form).
             bag.error(
@@ -2631,7 +2773,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     if isinstance(e, n.Not):
         _check_bool(e.operand, env, bag, "`not` operand")
     if isinstance(e, n.Call):
-        sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
+        sig = _call_sig(e, env)
         if sig is not None:
             args = list(e.args)
             if len(args) != len(sig.params):
@@ -2646,6 +2788,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         arg, got, param, env, bag,
                         f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
+                        call=e,
                     )
         # The Owner Guard for a call the game writes. A call spliced from a
         # family library meets resolve's `_check_library_clause_gates` first,
@@ -3905,6 +4048,7 @@ def typecheck(game: Game) -> Game:
         bag.error(f"a game needs at least one player, got {players.count}", players.span)
 
     env = replace(env_from_game(game), functions=function_registry(game, bag))
+    _check_contracted_results(game, env, bag)
     outcomes = outcome_registry(game, env.positions)
     for stmt, binders in _all_statements_scoped(game):
         senv = _scoped_env(env, binders)

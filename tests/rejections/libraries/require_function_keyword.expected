@@ -1,0 +1,1 @@
+libraries/require_function_keyword.cardlang:6:5: error: the `function` keyword begins the definition the game writes, not the `requires` row that names it — write `is_contraband(card : Card) : Boolean`

@@ -17,8 +17,9 @@ start: top_item+
 // reaches a library two ways: `state` PROVIDES it (the library owns the variable
 // and its initial value; the game may read it and may not write it) and
 // `requires` CONTRACTS for it (the game declares it, picks its initial value,
-// and writes it). A zone or a move type reaches it one way, contracted through
-// `requires` — the game declares the zone, or defines the move type.
+// and writes it). A zone, or a move type, function or procedure the library
+// uses, reaches it one way, contracted through `requires` — the game declares
+// the zone, or defines the definition.
 library: _LIBRARY_KW NAME "{" library_item* "}"
 
 ?library_item: requires_block
@@ -37,17 +38,29 @@ library: _LIBRARY_KW NAME "{" library_item* "}"
 // `state_block` unchanged to say so — a provided variable's initial value is
 // the library's precisely because the variable is.
 //
-// An entry names a thing the game declares, and its type says which kind: a
-// `state { }` type, a `zones { }` type, or `Move` for a move type the game
-// defines in a `move_type` block of its own. That is why the type slot carries
-// the index-domain argument a zone type takes, while a state type and a move
-// type take none; no row is optional, so no `?` is spelled here. Which reading
-// a head takes is decisions.md "Typed object model"; an argument is legal on a
+// An entry names a thing the game declares or defines, and the row's shape says
+// which kind. A row with no parameter list is keyed: a `state { }` type, a
+// `zones { }` type, or `Move` for a move type the game defines in a `move_type`
+// block of its own. That is why its type slot carries the index-domain argument
+// a zone type takes, while a state type and a move type take none; a `?` would
+// make a row optional, and no row is, so none is spelled there. Which reading a
+// head takes is decisions.md "Typed object model"; an argument is legal on a
 // zone row only, and the cross is refused at resolve rather than here: the
 // grammar cannot see which registry a NAME came from, and a syntax error would
 // report a shape question as a spelling one.
+//
+// A row with a parameter list is a [[definition-contract]] for a definition the
+// library CALLS: a function, typed by its result, or a procedure, typed
+// `Procedure`. It is the `primitives { }` entry's colon-row ("supplied from
+// elsewhere, at this signature"), reusing `parameter`, so a contract's
+// parameters and a function's are one shape and a parameter type may carry the
+// `?` a function's parameter may. A move type is offered by name and never
+// passed arguments, so its row stays keyed. The result slot is `payload_type`
+// rather than `NAME [type_args]`: under the composed grammar a collection there
+// takes the `payload_type` twin's one derivation (diagnostics.lark).
 requires_block: _REQUIRES_KW "{" require_decl* "}"
 require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
+            | NAME "(" [parameter ("," parameter)*] ")" ":" payload_type -> require_signature
 
 ?top_item: game
          | rule_def
@@ -69,6 +82,7 @@ game: _GAME_KW NAME "{" game_item* "}"
           | pieces
           | board
           | ranking
+          | suit_ranking
           | card_points_table
           | trump
           | trick_order
@@ -172,6 +186,17 @@ max_length: _MAX_LENGTH_KW ":" INT
 // derivation, so this arm is unambiguous), anchored like _AS_KW below.
 ranking: _RANKING_KW ":" (RANK_CONV | card_rank+)
 RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
+
+// The game's Suit Ranking (decisions.md "The `suit ranking:` declaration"):
+// its suits, strongest first, read by `suit_value(s)` alone. Space-separated
+// like `ranking:`, one direction rule for both ordering clauses. The list is
+// unbounded, so its terminal refuses every game-clause keyword exactly as
+// CARD_RANK_NAME does, `suit` included: a clause spelled as two bare names
+// (`uses <library>`, a second `suit ranking:`) is otherwise absorbed as more
+// suits. Pinned against `?game_item` by
+// tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
+suit_ranking: _SUIT_KW _RANKING_KW ":" SUIT_RANKING_NAME+
+SUIT_RANKING_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The game's card-point table (decisions.md "Scoring has no constructs of its own"): a block
 // clause beside `cards:`, rank-keyed rows in `ranking:`'s key position, values
@@ -759,7 +784,7 @@ card_literal: card_rank _OF_KW NAME
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
-CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The card-point table's rank-key terminal: `ranking:`'s key position (a NAME
 // or a bare INT — the INT arm is on `card_points_key`), carrying NAME's base

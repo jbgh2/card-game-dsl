@@ -1,0 +1,93 @@
+// Green Lane MINI answering the smuggling library's
+// `is_contraband(card : Card) : Boolean` row with a function that returns a
+// rank's value. The game's author is told once, on this file's `uses` line;
+// the library's own call is typed against the row, so nothing is reported in
+// library text.
+
+game GreenLaneMini {
+
+  uses smuggling
+
+  players: 2
+  direction: clockwise
+  max_length: 200
+
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck              : Deck
+    dead              : Muck                  // the 46 out-of-play cards
+    hand[player]      : Hand<player>          // goods still to ship
+    shipment[player]  : HiddenPile<player>    // this round's face-down shipment
+    warehouse[player] : HiddenPile<player>    // waved-through goods, concealed
+    cleared[player]   : PlayerPile<player>    // inspected-legal goods, public
+    seized[player]    : PlayerPile<player>    // contraband this player confiscated
+  }
+
+  state {
+    tokens[player]   : Integer = 1   // one inspection for the whole game
+    fine_net[player] : Integer = 0   // fines received minus fines paid
+    fine             : Integer = 4   // what a seizure costs the merchant
+    merchant         : Player  = 0   // this round's shipper
+    inspector        : Player  = 1   // this round's customs officer
+    score[player]    : Integer = 0   // settled once, in scoring
+  }
+
+  phase setup {
+    // Fixed public hands: 2, 3 (legal; rank_value 0..1) and A (contraband;
+    // rank_value 12) of clubs for P0, spades for P1.
+    move all cards from deck
+         where card.suit is clubs and (rank_value(card) <= 1 or rank_value(card) >= 12)
+         to hand[0]
+    move all cards from deck
+         where card.suit is spades and (rank_value(card) <= 1 or rank_value(card) >= 12)
+         to hand[1]
+    move all cards from deck to dead
+  }
+
+  phase play {
+    // Six smuggling rounds, roles alternating; hands shrink in lockstep.
+    repeat until hand[0] is empty and hand[1] is empty {
+      merchant := 0
+      inspector := 1
+      run commit_shipment()
+      run respond()
+      merchant := 1
+      inspector := 0
+      run commit_shipment()
+      run respond()
+    }
+  }
+
+  phase scoring {
+    let goods0 = (sum of rank_value(card) over cards in warehouse[0])
+               + (number of cards in warehouse[0])
+               + (sum of rank_value(card) over cards in cleared[0])
+               + (number of cards in cleared[0])
+               + (sum of rank_value(card) over cards in seized[0])
+               + (number of cards in seized[0])
+    let goods1 = (sum of rank_value(card) over cards in warehouse[1])
+               + (number of cards in warehouse[1])
+               + (sum of rank_value(card) over cards in cleared[1])
+               + (number of cards in cleared[1])
+               + (sum of rank_value(card) over cards in seized[1])
+               + (number of cards in seized[1])
+    score[0] := goods0 - goods1 + fine_net[0] - fine_net[1]
+    score[1] := goods1 - goods0 + fine_net[1] - fine_net[0]
+  }
+
+  winner: highest score
+}
+
+// The inspection is the imported `inspect` (docs/libraries/smuggling.cardlang);
+// this game supplies what counts as contraband, the fine, and what a false
+// alarm costs.
+// Contraband: rank_value >= 12 — textually the same threshold as the
+// setup filter above, so the two sites cannot drift apart.
+function is_contraband(card : Card) = rank_value(card)
+
+procedure settle_false_alarm() {
+  fine_net[merchant] += fine
+  fine_net[inspector] -= fine
+}

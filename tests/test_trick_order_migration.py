@@ -211,9 +211,11 @@ a row could sit green over a hash nothing can move:
 * PER-ROW ORDER WITNESSES, each in that game's own declaration, so a row
   cannot be green over a game file nothing in it matters to:
     - doppelkopf.cardlang, the queen band reversed
-      (`200 + suit_order(...)` -> `200 - suit_order(...)`): `200 failed`.
+      (`200 + suit_value(...)` -> `200 - suit_value(...)`): `200 failed`
+      (executed 2026-10-14).
     - skat.cardlang, the jack band reversed
-      (`100 + suit_order(...)` -> `100 - suit_order(...)`): `200 failed`.
+      (`100 + suit_value(...)` -> `100 - suit_value(...)`): `200 failed`
+      (executed 2026-10-14).
     - five-hundred.cardlang, the two bowers swapped in `card_strength:`
       (101 <-> 100): `3 failed, 197 passed` -- fewer seeds because a 500 game
       is one to three hands and only some deals put a bower in a decided

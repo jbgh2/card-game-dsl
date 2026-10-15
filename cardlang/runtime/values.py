@@ -446,6 +446,38 @@ def rank_strength(rank_index: Mapping[str, int], rank: str, reader: str) -> int:
     )
 
 
+def suit_strength(suit_values: Mapping[str, int], suit: str, reader: str) -> int:
+    """A suit's strength under the game's `suit ranking:`, the weakest listed
+    suit 0: the one lookup `suit_value(s)` routes through.
+
+    The list may leave out a deck's special suits, and which cards reach a read
+    is a fact of zone contents, so a suit the list leaves out is refused here,
+    in the runtime's channel, naming the reader, the suit and the declared
+    list. The type layer lets a `Suit?` stand where a `Suit` is wanted, so a
+    `Suit?` argument holding none reaches here, and is refused the same way. An EMPTY
+    table is the Shadow Guard behind resolve's clause gate, which refuses the
+    reader in a game declaring no `suit ranking:`."""
+    if suit is None:
+        raise OwnerGuardError(
+            f"{reader}: no suit to rank (the value is none) — test `is none` "
+            f"before asking for a suit's strength"
+        )
+    strength = suit_values.get(suit)
+    if strength is not None:
+        return strength
+    if not suit_values:
+        raise ShadowGuardError(
+            "resolve._CLAUSE_GATES (the `suit ranking:` row)",
+            f"{reader} read a suit's strength in a game with no `suit ranking:`",
+        )
+    listed = ", ".join(sorted(suit_values, key=lambda s: -suit_values[s]))
+    raise OwnerGuardError(
+        f"{reader}: suit '{suit}' has no place in the game's `suit ranking:` "
+        f"({listed}) — add it to `suit ranking:`, or keep its cards out of "
+        f"this read"
+    )
+
+
 # A player is just an identity; the runtime uses small ints P0..P(n-1).
 Player = int
 

@@ -25,6 +25,12 @@
     "2"
   ],
   "ranking_convention": "aces high",
+  "suit_ranking": [
+    "spades",
+    "hearts",
+    "diamonds",
+    "clubs"
+  ],
   "trump": null,
   "teams": [
     [
@@ -2591,7 +2597,7 @@
               "op": ">",
               "left": {
                 "kind": "call",
-                "func": "strain_index",
+                "func": "strain_rank",
                 "args": [
                   {
                     "kind": "name",
@@ -2602,7 +2608,7 @@
               },
               "right": {
                 "kind": "call",
-                "func": "strain_index",
+                "func": "strain_rank",
                 "args": [
                   {
                     "kind": "name",
@@ -2631,6 +2637,44 @@
             "kind": "int",
             "value": 1
           }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "strain_rank",
+      "params": [
+        {
+          "name": "s",
+          "type_name": "Suit?"
+        }
+      ],
+      "body": {
+        "kind": "if_expr",
+        "cond": {
+          "kind": "is_check",
+          "check": "none",
+          "operand": {
+            "kind": "name",
+            "name": "s",
+            "ref": "local"
+          }
+        },
+        "then": {
+          "kind": "int",
+          "value": 4
+        },
+        "elifs": [],
+        "otherwise": {
+          "kind": "call",
+          "func": "suit_value",
+          "args": [
+            {
+              "kind": "name",
+              "name": "s",
+              "ref": "local"
+            }
+          ]
         }
       }
     },

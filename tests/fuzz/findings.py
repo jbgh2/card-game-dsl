@@ -211,6 +211,26 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         ),
     ),
     Finding(
+        slug="doppelkopf_missing_fourth_play_empty_legal_set",
+        classification="accepted-then-crashes-at-playout",
+        stage="playout",
+        exception_type_name="AssertionError",
+        message_substring="playout invariant violated",
+        note=(
+            "docs/games/doppelkopf.cardlang, `delete_line` seed 2, deleting the "
+            "fourth seat's play in the hand-rolled trick, `as s4 { move chosen "
+            "one card from hand[s4] where follow_ok(s4, card) to trick_pile }` "
+            "(line 222 at discovery time, 2026-10-14). Every trick then closes "
+            "one card short, the hands drain unevenly, and at decision 54 a "
+            "seat is asked for a card from a legal set of none: the "
+            "`gops_empty_legal_set` channel, the harness's own T3 invariant. "
+            "The same deletion on main f3524080 checks clean "
+            "and crashes identically; seed 2 reached it once the `suit "
+            "ranking:` line (issue #845) shifted the file by one line, so the "
+            "class predates that change and only the numbering moved."
+        ),
+    ),
+    Finding(
         slug="gops_empty_legal_set",
         classification="accepted-then-crashes-at-playout",
         stage="playout",

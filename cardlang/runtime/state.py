@@ -374,6 +374,9 @@ class RuntimeState:
         self.teams: tuple[int, ...] = ()  # team ids (empty for teamless games)
         self.team_of: TeamOf = TeamOf({})  # player -> their team id
         self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
+        # suit -> strength under the game's `suit ranking:` (weakest listed 0);
+        # empty for a game declaring none.
+        self.suit_values: dict[str, int] = {}
         # rank -> card points, materialized over the deck's ranks from the
         # game's `card_points { }` clause; empty for a game declaring none.
         self.card_points: dict[str, int] = {}
