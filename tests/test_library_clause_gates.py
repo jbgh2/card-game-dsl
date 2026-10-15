@@ -1839,3 +1839,74 @@ def test_a_piece_game_is_told_its_flavor_not_a_card_clause(
     ), rendered
     for clause in ("`ranking:`", "`trick_order { }`"):
         assert clause not in rendered, rendered
+
+
+# --- every occurrence is named, however often a member recurs -----------------
+#
+# A gate's refusal names every definition that holds one of its members. A
+# member written twice, in two definitions, is named in both, for a Builtin row
+# and for a node row alike.
+
+
+def _twice(definition: str) -> str:
+    return definition + "\n  " + definition.replace("probe_fn", "probe_fn2", 1)
+
+
+def _repeat_cases() -> list[object]:
+    cases: list[object] = []
+    for gate in GATES:
+        if gate.name == "board_span":
+            continue
+        member = next(
+            (m for m in sorted(gate.members & BUILTIN_CALL_FUNCS) if _probe(m).library_spellable),
+            None,
+        )
+        if member is None:
+            continue
+        probe = _probe(member)
+        requires = "requires { pile : TrickPile }" if probe.needs_pile else ""
+        cases.append(
+            pytest.param(
+                f"library {_LIB} {{\n  {requires}\n  {_twice(_function(probe))}\n}}\n",
+                _unmet(gate, member), None, member,
+                id=f"builtin-{gate.name}-{member}",
+            )
+        )
+    seen: set[str] = set()
+    for node in _node_members():
+        if node.gate not in NODE_GATES or node.gate in seen or node.definition == "state":
+            continue
+        seen.add(node.gate)
+        requires = f"requires {{ {node.requires} }}" if node.requires else ""
+        cases.append(
+            pytest.param(
+                f"library {_LIB} {{\n  {requires}\n  {_twice(node.definition)}\n}}\n",
+                node.unmet.clauses, node.unmet, node.word,
+                id=f"node-{node.id}",
+            )
+        )
+    return cases
+
+
+@pytest.mark.parametrize(("library", "clauses", "node_game", "word"), _repeat_cases())
+def test_a_member_written_twice_is_named_in_both_definitions(
+    library: str, clauses: Clauses, node_game: NodeGame | None, word: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """red under: claiming each member as the gate reaches it, rather than
+    after the gate has collected every occurrence, in
+    `resolve._check_library_clause_gates` (the Builtin cells); and claiming a
+    node row's members by what the refusal calls them rather than by the
+    node itself (the node cells) (both executed 2026-10-14)."""
+    _with_libraries(monkeypatch, {_LIB: library})
+    text = _game_text(clauses, uses=True, game_fn="", tag="Twice")
+    if node_game is not None and node_game.trump:
+        text = text.replace("  max_length: 1000", "  trump: hearts\n  max_length: 1000")
+    rendered = _rendered(text)
+    assert rendered is not None
+    where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
+    assert any(
+        line.startswith(where) and word in line
+        and "`probe_fn`" in line and "`probe_fn2`" in line
+        for line in rendered.splitlines()
+    ), rendered

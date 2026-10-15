@@ -1559,6 +1559,9 @@ def _check_library_clause_gates(
         if not gate.unmet(game):
             continue
         reached: dict[str, list[str]] = {}
+        # Claimed once the gate has every occurrence, so a member recurring in
+        # a second definition is named there too; a later gate skips it.
+        keys: set[object] = set()
         for nd, where in nodes:
             phrases = gate.needs(nd, game)
             if not phrases:
@@ -1566,11 +1569,12 @@ def _check_library_clause_gates(
             key = nd.func if isinstance(nd, n.Call) else nd
             if key in claimed:
                 continue
-            claimed.add(key)
+            keys.add(key)
             for phrase in phrases:
                 places = reached.setdefault(phrase, [])
                 if where not in places:
                     places.append(where)
+        claimed |= keys
         if not reached:
             continue
         listing = " and ".join(
