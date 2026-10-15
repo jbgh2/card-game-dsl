@@ -73,9 +73,11 @@ TRICK_ORDER_EQ: ":=" | "="
 // answer the other one. The entry slot's other three malformed shapes get no
 // twin here -- at a non-entry position the sentence worth teaching is the
 // well-formed one, and a malformed collection in a slot that has none is loud
-// either way (issue #560). `require_decl` and the zone `type_ref` get no twin:
-// both already derive `<...>` through `type_args`, so a twin there would give
-// one string two derivations, and their refusals are the zone registry's.
+// either way (issue #560). `require_decl`'s keyed row and the zone `type_ref`
+// get no twin: both already derive `<...>` through `type_args`, so a twin
+// there would give one string two derivations, and their refusals are the zone
+// registry's. A signature row's slots are `payload_type`s, so they take the
+// twin below.
 %extend type_name: NAME "<" NAME ">"     -> collection_type_reject
                  | NAME "<" NAME ">" "?" -> collection_type_reject
 %extend payload_type: NAME "<" NAME ">" -> collection_type_reject
@@ -115,3 +117,12 @@ STAKE_FLAG_COLON: /:/
 %extend COMP_OP: "==" | "!="
 %extend factor: factor DIV_OP postfix -> div_symbol
 DIV_OP: "/" | "%"
+
+// --- a definition-contract row written as the definition's header ----------
+// `function is_contraband(card : Card) : Boolean` and `procedure settle()` are
+// the headers a designer is about to write in the game, so they are what a
+// designer copies into `requires { }`. The main grammar reads the keyword as a
+// row's name and stops at the next word; each twin derives the header, with or
+// without the `:` result, as one complete row, and names the row to write.
+%extend require_decl: _FUNCTION_KW NAME "(" [parameter ("," parameter)*] ")" [":" payload_type]  -> require_function_keyword_reject
+                    | _PROCEDURE_KW NAME "(" [parameter ("," parameter)*] ")" [":" payload_type] -> require_procedure_keyword_reject

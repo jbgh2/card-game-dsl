@@ -104,11 +104,15 @@ class Subscript:
 
 @dataclass(frozen=True, slots=True)
 class Call:
-    """A function call, e.g. `player_holding(2 of clubs)`."""
+    """A function call, e.g. `player_holding(2 of clubs)`. ``contract`` is set
+    by `resolve` on a library's call of a function its [[definition-contract]]
+    names, so the call is typed against the row rather than against whatever
+    the game answered."""
 
     func: str
     args: tuple[Expr, ...]
     span: Span | None = None
+    contract: ContractStamp | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1215,12 +1219,16 @@ class FunctionDef:
     """`function NAME(<param> : <type>, …) = <expr>` — a named, parameterized
     expression callable wherever an expression appears. The body is hermetic: it
     reads only its parameters (bound to the call arguments) and game/phase state
-    (read at call time), never the caller's binders. Non-recursive."""
+    (read at call time), never the caller's binders. Non-recursive.
+    ``contracts`` is set by `resolve` on a game function answering library
+    [[definition-contract]] rows, one stamp per library whose row it answers:
+    the obligations `typecheck` checks its result against."""
 
     name: str
     params: tuple[Parameter, ...]
     body: Expr
     span: Span | None = None
+    contracts: tuple[ContractStamp, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -1234,12 +1242,15 @@ class ProcedureDef:
     never the caller's binders, and never the call-site pronouns (`actor` /
     `action` / `outcome`), which would make its meaning depend on where it is
     called from. The resolver consumes procedures — post-expansion,
-    `Game.procedures` is empty."""
+    `Game.procedures` is empty. ``contracts`` is set by `resolve` on a game
+    procedure answering library [[definition-contract]] rows, whose `run` sites
+    are in library text."""
 
     name: str
     params: tuple[Parameter, ...]
     body: tuple[Stmt, ...]
     span: Span | None = None
+    contracts: tuple[ContractStamp, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -1310,18 +1321,81 @@ class UsesDecl:
 
 @dataclass(frozen=True, slots=True)
 class RequireDecl:
-    """One entry of a library's `requires` block: the thing the including game
-    must declare or define, with the shape the library's bodies read it at. A
+    """A keyed entry of a library's `requires` block: state or a zone the
+    including game declares, with the shape the library's bodies read it at. A
     `StateDecl` minus the default, which the game owns — plus the zone types'
     `<owner>` argument, because an entry may name a `zones { }` declaration as
-    well as a `state { }` one — or, typed `Move`, a move type the game defines
-    (`resolve.MOVE_CONTRACT_TYPE`)."""
+    well as a `state { }` one. A definition the game defines is a
+    [[definition-contract]] row instead (`MoveContract`, `FunctionContract`,
+    `ProcedureContract`)."""
 
     name: str
     index: str | None
     type_name: str
     type_args: tuple[TypeArg, ...]
     span: Span | None = None
+
+
+# The type-slot words that make a `requires` row a Definition Contract: `Move`
+# on a keyed row (a move type, offered by name), `Procedure` as a signature
+# row's result (a procedure, which returns nothing). Read by the parse builder,
+# which builds the row's node, and by resolve's diagnostics.
+MOVE_CONTRACT_TYPE = "Move"
+PROCEDURE_CONTRACT_TYPE = "Procedure"
+
+
+@dataclass(frozen=True, slots=True)
+class MoveContract:
+    """`<name> : Move` in `requires { }` — a [[definition-contract]] row for a
+    move type the including game defines and the library offers. Offered by
+    name, so the row carries no signature."""
+
+    name: str
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionContract:
+    """`<name>(<param> : <type>, …) : <result>` in `requires { }` — a
+    [[definition-contract]] row for a function the including game defines and
+    the library calls. Matched by parameter position and type; the parameter
+    names are the row's own reading and bind nothing."""
+
+    name: str
+    params: tuple[Parameter, ...]
+    result_type: str
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ProcedureContract:
+    """`<name>(<param> : <type>, …) : Procedure` in `requires { }` — a
+    [[definition-contract]] row for a procedure the including game defines and
+    a library move type's effect runs."""
+
+    name: str
+    params: tuple[Parameter, ...]
+    span: Span | None = None
+
+
+DefinitionContract: TypeAlias = MoveContract | FunctionContract | ProcedureContract
+ContractRow: TypeAlias = RequireDecl | DefinitionContract
+
+
+@dataclass(frozen=True, slots=True)
+class ContractStamp:
+    """What `resolve` records where a [[definition-contract]] crosses the
+    splice: on the game's answering definition, and on each library call of a
+    contracted function. Every field is a fact the pass stamps, never a name
+    any sweep resolves: the library, the row as written, the row's parameter
+    type spellings and result spelling (None for a procedure), and the `uses`
+    line the game's author is told on."""
+
+    library: str
+    row: str
+    param_types: tuple[str, ...]
+    result_type: str | None
+    uses_span: Span | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1341,7 +1415,7 @@ class Library:
     """
 
     name: str
-    requires: tuple[RequireDecl, ...] = ()
+    requires: tuple[ContractRow, ...] = ()
     state: StateBlock | None = None
     rules: tuple[RuleDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
@@ -1439,6 +1513,10 @@ Node = (
     | Library
     | UsesDecl
     | RequireDecl
+    | MoveContract
+    | FunctionContract
+    | ProcedureContract
+    | ContractStamp
     | PlayersSpec
     | Winner
     | Loser

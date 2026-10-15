@@ -1,0 +1,11 @@
+// A Definition Contract row written as the function's own header: the
+// `function` keyword belongs to the definition the game writes, not to the row.
+library inspection {
+  requires {
+    shipment[player] : HiddenPile<player>
+    function is_contraband(card : Card) : Boolean
+  }
+
+  function shipment_is_contraband(p : Player) =
+    any card in shipment[p] where is_contraband(card)
+}

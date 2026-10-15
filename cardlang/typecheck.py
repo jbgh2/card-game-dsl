@@ -22,6 +22,11 @@ Assumes:      a resolved AST (every ``NameRef`` classified over
               ``n.RefKind``, declarations unique, rule templates
               instantiated), in which a ``play_source`` read stands only in
               a game holding a trick round (``resolve._check_play_source``).
+              Every game function answering a library's Definition Contract
+              carries each row it answers (``FunctionDef.contracts``), and
+              every library call of a contracted function carries its row
+              (``Call.contract``); resolve stamps both at the splice, and no
+              other source of contract knowledge exists here.
 Establishes:  type validity only. A ``play_source`` read types as the join
               of the trick rounds' ``source`` families' contents, read off
               the stamp, never off the spelling ``hand``. The inferred
@@ -35,7 +40,12 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               declared collection parameter is exactly
               ``TCollection(element, key=None, zone=False)`` — the facets a
               spelling can produce are the defaults, and no other are
-              reachable.
+              reachable. A function answering a Definition Contract returns a
+              type its row's result admits by the ordinary ``coercible`` rule
+              (``_check_contracted_results``, reported on the importing game's
+              `uses` line); a library's call of a contracted function is typed
+              against the row (``_call_sig``), whatever the game answered, so
+              a wrong answer earns that one sentence and none in library text.
 Now illegal:  a type-invalid program, per the Owner Guards above and their
               completeness ledgers. Also a `Sig` built from an entry's
               spelling anywhere but ``_param_type``, a declared collection
@@ -50,9 +60,11 @@ Now illegal:  a type-invalid program, per the Owner Guards above and their
               ``resolve._validate_refs``' (its unknown-name and declared-only
               arms), and this pass raises ``ShadowGuardError`` naming them;
               anything else with no signature is a registry divergence and
-              keeps the assert channel.
+              keeps the assert channel. And a Definition Contract read from
+              anything but its stamp.
 Verified by:  the Owner Guard test modules (operator, aggregation, context,
-              ranking, rule-ref) and their ledgers.
+              ranking, rule-ref) and their ledgers;
+              tests/test_definition_contracts.py for the contract result.
 """
 
 from __future__ import annotations
@@ -516,7 +528,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             # already in the bag). Gradual, not a lookup miss.
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
-            sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
+            sig = _call_sig(e, env)
             if sig is None:
                 if e.func in PRIMITIVE_CALL_FUNCS:
                     # A Primitive this game does not declare. `native_call_sigs`
@@ -1336,6 +1348,51 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     for fname in func_defs:
         visit(fname, frozenset())
     return sigs
+
+
+def _contract_type(spelled: str, env: TypeEnv) -> Type:
+    """A Definition Contract's type spelling: a value type, with or without
+    `?` (resolve's `_check_contract_shapes` admits no other)."""
+    return type_from_name(
+        spelled.removesuffix("?"), spelled.endswith("?"), env.positions, env.directions
+    )
+
+
+def _call_sig(call: n.Call, env: TypeEnv) -> Sig | None:
+    """The signature a call is typed against: its Definition Contract row when
+    the call is a library's of a contracted function, else the native table,
+    else the game's own function."""
+    if call.contract is not None:
+        result = call.contract.result_type
+        assert result is not None, "a contracted call names a function row"
+        return Sig(
+            tuple(_contract_type(p, env) for p in call.contract.param_types),
+            _contract_type(result, env),
+        )
+    return env.call_sigs.get(call.func) or env.functions.get(call.func)
+
+
+def _check_contracted_results(game: Game, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A function answering a library's Definition Contract returns what the
+    row promises: its inferred result coerces to the row's, by the rule every
+    typed position applies. The Owner Guard of the result leg, told to the
+    game's author on the `uses` line its stamp carries — resolve compared the
+    name and parameters there already, and the result exists only here. One
+    function may answer rows of several libraries, so each row is checked."""
+    for f in game.functions:
+        got = env.functions[f.name].ret
+        for stamp in f.contracts:
+            if stamp.result_type is None:
+                continue
+            want = _contract_type(stamp.result_type, env)
+            if not coercible(got, want):  # choke-point-exempt: a definition's inferred result against its contract row, no operand
+                bag.error(
+                    f"library '{stamp.library}' requires function `{stamp.row}`, "
+                    f"but game '{game.name}' defines `{f.name}` returning "
+                    f"{_type_name(got)} — the library's calls read it as "
+                    f"{_type_name(want)}",
+                    stamp.uses_span,
+                )
 
 
 def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
@@ -2631,7 +2688,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     if isinstance(e, n.Not):
         _check_bool(e.operand, env, bag, "`not` operand")
     if isinstance(e, n.Call):
-        sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
+        sig = _call_sig(e, env)
         if sig is not None:
             args = list(e.args)
             if len(args) != len(sig.params):
@@ -3905,6 +3962,7 @@ def typecheck(game: Game) -> Game:
         bag.error(f"a game needs at least one player, got {players.count}", players.span)
 
     env = replace(env_from_game(game), functions=function_registry(game, bag))
+    _check_contracted_results(game, env, bag)
     outcomes = outcome_registry(game, env.positions)
     for stmt, binders in _all_statements_scoped(game):
         senv = _scoped_env(env, binders)

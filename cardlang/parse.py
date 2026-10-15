@@ -91,7 +91,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from importlib import resources
-from typing import Literal, cast
+from typing import Literal, NoReturn, cast
 
 from lark import Lark, Token, Tree
 from lark.exceptions import UnexpectedCharacters, UnexpectedInput, VisitError
@@ -204,7 +204,7 @@ class _Zones:
 
 @dataclass(frozen=True, slots=True)
 class _Requires:
-    decls: tuple[n.RequireDecl, ...]
+    decls: tuple[n.ContractRow, ...]
     span: Span
 
 
@@ -957,13 +957,18 @@ class _Builder(Transformer[Token, n.Game]):
     def uses_decl(self, meta: Meta, c: list[Token]) -> n.UsesDecl:
         return n.UsesDecl(name=str(c[0]), span=self._span(meta))
 
-    def require_plain(self, meta: Meta, c: list[object]) -> n.RequireDecl:
+    def require_plain(self, meta: Meta, c: list[object]) -> n.RequireDecl | n.MoveContract:
         index = c[1]
         assert index is None or isinstance(index, str)
         args: tuple[n.TypeArg, ...] = ()
         if len(c) > 3 and c[3] is not None:
             assert isinstance(c[3], tuple)
             args = c[3]
+        # `fold : Move` is the move type's Definition Contract. The same word
+        # with an index or an argument stays a keyed row, so the contract-shape
+        # Owner Guard can tell its author the row to write.
+        if str(c[2]) == n.MOVE_CONTRACT_TYPE and index is None and not args:
+            return n.MoveContract(name=str(c[0]), span=self._span(meta))
         return n.RequireDecl(
             name=str(c[0]),
             index=index,
@@ -972,7 +977,47 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def requires_block(self, meta: Meta, c: list[n.RequireDecl]) -> _Requires:
+    def require_signature(
+        self, meta: Meta, c: list[object]
+    ) -> n.FunctionContract | n.ProcedureContract:
+        name, params, result = self._signature_row(c)
+        assert result is not None
+        if result == n.PROCEDURE_CONTRACT_TYPE:
+            return n.ProcedureContract(name=name, params=params, span=self._span(meta))
+        return n.FunctionContract(
+            name=name, params=params, result_type=result, span=self._span(meta)
+        )
+
+    @staticmethod
+    def _signature_row(c: list[object]) -> tuple[str, tuple[n.Parameter, ...], str | None]:
+        """A signature row's children: the name, the parameters, and the
+        result spelling (None where a header twin left it off)."""
+        params = tuple(x for x in c if isinstance(x, n.Parameter))
+        result = c[-1] if isinstance(c[-1], str) and not isinstance(c[-1], Token) else None
+        return str(c[0]), params, result
+
+    def _header_row_reject(self, meta: Meta, c: list[object], keyword: str) -> NoReturn:
+        name, params, result = self._signature_row(c)
+        listed = ", ".join(f"{p.name} : {p.type_name}" for p in params)
+        if keyword == "procedure":
+            result = n.PROCEDURE_CONTRACT_TYPE
+        row = f"{name}({listed}) : {result or '<result type>'}"
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"the `{keyword}` keyword begins the definition the game writes, "
+                f"not the `requires` row that names it — write `{row}`",
+                self._span(meta),
+            )
+        )
+
+    def require_function_keyword_reject(self, meta: Meta, c: list[object]) -> NoReturn:
+        self._header_row_reject(meta, c, "function")
+
+    def require_procedure_keyword_reject(self, meta: Meta, c: list[object]) -> NoReturn:
+        self._header_row_reject(meta, c, "procedure")
+
+    def requires_block(self, meta: Meta, c: list[n.ContractRow]) -> _Requires:
         return _Requires(tuple(c), span=self._span(meta))
 
     def library(self, meta: Meta, c: list[object]) -> n.Library:
@@ -981,7 +1026,7 @@ class _Builder(Transformer[Token, n.Game]):
         # without a word — the accepted-but-ignored defect class, at the
         # granularity of a whole clause. `game()` below is the sibling this
         # mirrors, down to the `else` arm's channel.
-        requires: tuple[n.RequireDecl, ...] = ()
+        requires: tuple[n.ContractRow, ...] = ()
         seen_requires = False
         state: n.StateBlock | None = None
         rules: list[n.RuleDef] = []

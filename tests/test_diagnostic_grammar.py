@@ -50,7 +50,6 @@ does not prove:  that the later-mistake rule picks the right error for a
 from __future__ import annotations
 
 import dataclasses
-import pathlib
 import re
 
 import pytest
@@ -63,10 +62,9 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import _Builder, _parser, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import ALWAYS_HOLDERS
-from tools.dead_surface import LIVE_TIERS, default_sources, refusing_methods
+from tests.test_rejections import case_paths
+from tools.dead_surface import LIVE_TIERS, default_sources, refusing_methods, start_for
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-REJECTIONS = ROOT / "tests" / "rejections"
 
 
 def test_the_main_grammar_carries_no_reject_alias() -> None:
@@ -101,9 +99,9 @@ def _diagnostic_twins() -> set[str]:
 def _twins_the_goldens_exercise() -> set[str]:
     twins = _diagnostic_twins()
     exercised: set[str] = set()
-    for fixture in sorted(REJECTIONS.glob("*.cardlang")):
+    for fixture in case_paths():
         try:
-            tree = parse_module._diagnostic_parser().parse(fixture.read_text(), start=GOLDEN_START)
+            tree = parse_module._diagnostic_parser().parse(fixture.read_text(), start=start_for(fixture))
         except Exception:  # noqa: BLE001 -- a golden that fails both grammars is not a twin's
             continue
         exercised |= {str(sub.data) for sub in tree.iter_subtrees()} & twins
@@ -179,9 +177,10 @@ WRONG = (
 )
 
 
-# Every golden is a game: `tests/test_rejections.py` checks each through
-# `check_dsl`, so the start symbol is the game's.
-GOLDEN_START = "start"
+# A golden is a game, checked through `check_dsl`, or a library under
+# `tests/rejections/libraries/`, parsed through `parse_library`
+# (`tests/test_rejections.py`); its start symbol is its directory's
+# (`tools.dead_surface.start_for`).
 
 
 def test_every_golden_a_twin_derives_has_one_derivation() -> None:
@@ -200,15 +199,16 @@ def test_every_golden_a_twin_derives_has_one_derivation() -> None:
     )
     ambiguous: list[str] = []
     derived = 0
-    for fixture in sorted(REJECTIONS.glob("*.cardlang")):
+    for fixture in case_paths():
         text = fixture.read_text()
+        start = start_for(fixture)
         try:
-            _parser().parse(text, start=GOLDEN_START)
+            _parser().parse(text, start=start)
             continue
         except UnexpectedInput:
             pass
         try:
-            tree = explicit.parse(text, start=GOLDEN_START)
+            tree = explicit.parse(text, start=start)
         except UnexpectedInput:
             continue
         derived += 1
