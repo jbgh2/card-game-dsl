@@ -30,7 +30,12 @@ domain:          the Builtin members of each clause gate, and the node members:
                  and a literal position into every board region.
                  Each member is crossed with {clause met, clause unmet} and
                  {written in the game, reached through a library}; a
-                 clause-free member is run met, as the control. Beside it:
+                 clause-free member is run met, as the control. A climbing
+                 query is a Primitive, which no library may name, so its
+                 library-reached cells, met and unmet, are its library-alone
+                 refusal in the library file and its `uses`-line gate never
+                 judges it (tests/test_library_round_slot_primitives.py).
+                 Beside it:
                  every definition kind a library holds, for a Builtin and a
                  node member, and a library rule crossed with whether the game
                  activates it (one it does not activate is checked against its
@@ -121,6 +126,7 @@ from cardlang.domains import PARAM_DOMAINS as _FIXED_PARAM_DOMAINS
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import parse_library, parse_text
 from cardlang.pipeline import check_dsl
+from cardlang.primitives_block import walled_namespace_of
 from cardlang.typecheck import (
     RANKING_GATED_CLIMB_QUERIES,
     RANKING_GATED_FUNCS,
@@ -798,13 +804,16 @@ _SLOT_ROUNDS: dict[str, str] = {
 def test_a_library_procedure_cannot_hold_a_round(
     member: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A procedure body may not hold a round, so a library naming a gated
-    winner or climbing query there is refused in its own file, in a game whose
-    clauses meet the gate. A library reaches a game with a round through a move
-    type's effect, which the node cells run.
+    """A procedure body may not hold a round, and a climbing query is a
+    Primitive, which no library names (tests/test_library_round_slot_primitives.py),
+    so a library naming a gated winner or climbing query there is refused in
+    its own file, in a game whose clauses meet the gate. A library reaches a
+    game with a round through a move type's effect, which the node cells run.
 
     red under: disabling the `_WINNER_BINDING_STMTS` arm of
-    `resolve._check_procedures` (executed 2026-10-13)."""
+    `resolve._check_procedures` (the winners, executed 2026-10-13), or
+    `resolve._round_slot_primitives` (the climbing queries, executed
+    2026-10-14)."""
     rendered = _library_alone_refusal(
         f"library {_LIB} {{\n"
         "  requires { pile : TrickPile  hand[player] : Hand<player> }\n"
@@ -813,9 +822,13 @@ def test_a_library_procedure_cannot_hold_a_round(
         f"Slot{member.replace('_', '').title()}",
         monkeypatch,
     )
+    refusal = (
+        f"names '{member}', which is a Primitive"
+        if walled_namespace_of(member) is not None
+        else "contains a `round`"
+    )
     assert any(
-        line.startswith(_LIB_FILE) and "contains a `round`" in line
-        for line in rendered.splitlines()
+        line.startswith(_LIB_FILE) and refusal in line for line in rendered.splitlines()
     ), rendered
 
 
@@ -1433,6 +1446,28 @@ def _node_tag(cell_id: str) -> str:
     return "".join(ch for ch in cell_id.title() if ch.isalnum())
 
 
+def _library_alone(member: NodeMember) -> bool:
+    """A member no library may write: a climbing query is a Primitive, so a
+    library round naming one is refused in the library file whatever the
+    game's clauses (tests/test_library_round_slot_primitives.py), and its
+    `uses`-line gate never judges it."""
+    return walled_namespace_of(member.word) is not None
+
+
+def _assert_library_alone_refusal(member: NodeMember, text: str, rendered: str | None) -> None:
+    """The member's library-alone refusal, in the library file, and no
+    clause-gate refusal of it on the game's `uses` line. A piece game also
+    meets the contract's unmet `hand` zone there, which is not the member's."""
+    assert rendered is not None, "accepted a library naming a Primitive"
+    lines = rendered.splitlines()
+    assert any(
+        line.startswith(_LIB_FILE) and f"names '{member.word}', which is a Primitive" in line
+        for line in lines
+    ), rendered
+    uses_line = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
+    assert not any(line.startswith(uses_line) and member.word in line for line in lines), rendered
+
+
 @pytest.mark.parametrize("cell", _node_cells())
 def test_node_gate_cell(cell: NodeCell, monkeypatch: pytest.MonkeyPatch) -> None:
     member = cell.member
@@ -1441,6 +1476,9 @@ def test_node_gate_cell(cell: NodeCell, monkeypatch: pytest.MonkeyPatch) -> None
         member, game, through_library=cell.through_library, tag=_node_tag(cell.id),
         monkeypatch=monkeypatch,
     )
+    if cell.through_library and _library_alone(member):
+        _assert_library_alone_refusal(member, text, rendered)
+        return
     if cell.met:
         assert rendered is None, rendered
         return
@@ -1840,12 +1878,19 @@ def test_every_card_clause_builtin_is_deck_only() -> None:
 def test_a_piece_game_is_told_its_flavor_not_a_card_clause(
     member: NodeMember, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """red under: deleting the `TrickRound` and `ClimbRound` arms of
-    `typecheck.card_content_forms` (executed 2026-10-14)."""
+    """A climbing query reaches no piece game through a library: the library
+    is refused for the Primitive first and alone, and the game-written cells
+    of `test_node_gate_cell` carry the flavor refusal for it.
+
+    red under: deleting the `TrickRound` and `ClimbRound` arms of
+    `typecheck.card_content_forms` (executed 2026-10-15: the winner members)."""
     text, rendered = _check_node(
         member, NodeGame(_PIECES), through_library=True,
         tag=f"Flavor{_node_tag(member.id)}", monkeypatch=monkeypatch,
     )
+    if _library_alone(member):
+        _assert_library_alone_refusal(member, text, rendered)
+        return
     assert rendered is not None
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
     assert any(
