@@ -25,7 +25,7 @@
 
 library smuggling {
 
-  // What the including game must declare or define. The five zones are the ones
+  // What the including game must declare or define. The zones are the ones
   // these definitions move cards between; `merchant` and `inspector` are the
   // role pronouns they act for; `tokens` is what an inspection spends;
   // `fine_net` and `fine` are the fines ledger and a seizure's fine; and the
