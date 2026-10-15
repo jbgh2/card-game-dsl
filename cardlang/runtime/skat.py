@@ -6,7 +6,8 @@ declaration a pair of `offer`s plus a single-seat suit offer, the ten
 tricks three single-actor filtered [[transfer]]s per trick, and the scoring plain
 statements. Follow legality and trick resolution are the game's declared
 [[trick-order]], so what stays game-local is only what the expression language
-cannot say: the bid ladder and matador counting.
+cannot say: the bid ladder (`skat_next_bid`, `skat_bid_at`) and matador
+counting.
 
 `skat_matadors` reads the declared contract from state (`is_grand` / `is_null`
 / `trump_suit`) — the Stud/Cribbage precedent for game-local primitives over
@@ -67,6 +68,20 @@ def skat_next_bid(value: int) -> int:
     speaker facing it is offered only the pass)."""
     nexts = [x for x in _BID_SEQUENCE if x > value]
     return nexts[0] if nexts else 0
+
+
+def skat_bid_at(rung: int) -> int:
+    """The bid at `rung` of the Reizen ladder, counted from 1; 0 at rung 0,
+    the standing bid before anyone has bid. A rung past the ladder's top is
+    the description's error, in the runtime's channel: the game's `choose`
+    ceiling is the ladder's length, so no legal pick reaches one."""
+    if rung == 0:
+        return 0
+    if not 1 <= rung <= len(_BID_SEQUENCE):
+        raise OwnerGuardError(
+            f"skat_bid_at: rung {rung} is off the Reizen ladder (1..{len(_BID_SEQUENCE)})"
+        )
+    return _BID_SEQUENCE[rung - 1]
 
 
 def skat_matadors(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:

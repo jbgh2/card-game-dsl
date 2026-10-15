@@ -45,8 +45,9 @@ A sanctioned regeneration covers `skat_scores.json` and `skat_hands.json`
 on every seed they hold: Skat is read against Pagat (issue #728), so the
 declarer is offered Null Ouvert and Null Ouvert Hand at every declaration and
 the Suit and Grand announcements in every hand game, a Null hand ends at the
-declarer's first trick, the responder answers the ladder's last rung, and the
-ladder holds 154. The declaration's menu grows on every hand, so the chooser
+declarer's first trick, the responder answers the ladder's last rung, the
+ladder holds 154, and a bid names its rung, so a bidder may jump. The
+auction's and the declaration's menus grow on every hand, so the chooser
 draws move from each seed's first hand. The rules are pinned away from these
 vectors, by tests/test_skat_rules_differential.py.
 

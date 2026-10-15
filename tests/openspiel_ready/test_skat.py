@@ -28,11 +28,12 @@ class TestReadiness(ReadinessProofs):
         # line's declarer plays a Clubs Hand announced Ouvert (the lowest
         # action id of each offer), so its hand lies face up from the first
         # lead and the last such pause with two concealed hands to pair is
-        # the first decider's answer in the Reizen's second part: step 3 on
-        # every manifest seed. The play's information structure is held by
+        # the first decider's answer in the Reizen's second part: step 5 on
+        # every manifest seed, each bid being two picks (the bid, then its
+        # rung). The play's information structure is held by
         # tests/test_skat_skat_secrecy.py and the read's referee,
         # tests/test_skat_rules_differential.py.
-        depth=3,
+        depth=5,
         # provenance zones derive from the checked AST's Arrival-Record calls
         # (`follows_lead` / `highest_by_trick_order` over `trick_pile`)
         provenance_depth=126,  # the greedy line first plays to the trick at 127

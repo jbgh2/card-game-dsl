@@ -38,14 +38,15 @@ game Skat {
   suit ranking: clubs spades hearts diamonds
   card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0  8: 0  7: 0 }
 
-  // The two this game borrows from outside the DSL. `skat_next_bid` takes no
-  // `reads` clause: the ladder is a table, pure over its argument, and resolve
-  // refuses a clause on an entry that never receives one. `skat_matadors`
+  // The three this game borrows from outside the DSL. The ladder's two take
+  // no `reads` clause: the ladder is a table, pure over its argument, and
+  // resolve refuses a clause on an entry that never receives one. `skat_matadors`
   // counts the run from the club Jack down the trump order over ONE hand plus
   // the widow, so `hand[p]` narrows to the hand the call names while `skat`
   // and the three contract variables are whole-value reads.
   primitives {
     skat_next_bid(value : Integer) : Integer
+    skat_bid_at(rung : Integer) : Integer
     skat_matadors(p : Player) : Integer
         reads is_null, is_grand, trump_suit, hand[p], skat
   }
@@ -112,6 +113,7 @@ game Skat {
         responder       : Player? = none
         passer          : Player? = none
         working_bid     : Integer = 0
+        rung            : Integer = 0      // the standing bid's rung of the ladder (0 = no bid)
         declarer        : Player? = none
         thrown          : Boolean = false
         hand_mode       : Boolean = false
@@ -132,8 +134,8 @@ game Skat {
       trump_suit := none
 
       // --- The Reizen: middlehand speaks against forehand, then rearhand
-      // against the survivor. A speaker bids the next ladder value or passes;
-      // the responder holds (yes) or passes. A speaker facing the exhausted
+      // against the survivor. A speaker bids any ladder value above the
+      // standing bid or passes; the responder holds (yes) or passes. A speaker facing the exhausted
       // ladder has only the pass, so the responder always answers the last
       // bid.
       responder := dealer offset_by left           // forehand answers first
@@ -271,9 +273,14 @@ game Skat {
 // are guards over the same vocabulary: the speaker sees [bid, pass], the
 // responder [yes, pass] — the reference's literal candidate lists.
 
+// A bid names any rung above the standing one: "normally" the next, but a
+// speaker may jump. The ceiling is the ladder's length.
 move_type bid {
   when: actor is speaker and skat_next_bid(working_bid) > 0
-  effect { working_bid := skat_next_bid(working_bid) }
+  effect {
+    rung := choose integer in rung + 1 .. 63
+    working_bid := skat_bid_at(rung)
+  }
 }
 
 move_type yes {

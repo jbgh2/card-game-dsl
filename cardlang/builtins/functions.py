@@ -192,6 +192,7 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
+        "skat_bid_at",  # Skat: the Reizen ladder value at a rung (0 = no bid)
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
         "tichu_wish_after_trick",  # Tichu: the Mahjong's wish in force once the trick is folded in (0 = none)
@@ -419,6 +420,7 @@ ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
         "five_hundred_bid_level",
         "peg_origin_of",
         "player_holding",
+        "skat_bid_at",
         "skat_next_bid",
         "team_of",
         "top_of",

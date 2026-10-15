@@ -373,6 +373,10 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.skat", "skat_matadors", InvocationContract.BUNDLED,
         Sig((TPlayer(),), TInteger()),
     ),
+    "skat_bid_at": Implementation(
+        "cardlang.runtime.skat", "skat_bid_at", InvocationContract.PURE,
+        Sig((TInteger(),), TInteger()),
+    ),
     "skat_next_bid": Implementation(
         "cardlang.runtime.skat", "skat_next_bid", InvocationContract.PURE,
         Sig((TInteger(),), TInteger()),

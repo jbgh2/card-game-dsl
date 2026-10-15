@@ -9,7 +9,7 @@ assumes.
 
 The referee below restates those rules and never imports them from the
 engine: who deals, who speaks and who answers in each part of the auction,
-the bid ladder, the throw-in, the contracts the declarer may choose and the
+the bid ladder and the numbers a bid may name, the throw-in, the contracts the declarer may choose and the
 announcements a hand game may add, which cards a seat may play, who takes a
 trick, when a Null hand ends, what each seat may see, and the declarer's
 score. It plays whole games as the chooser and the observer of every seat.
@@ -18,7 +18,8 @@ with its own derivation from the live hands and the line it has itself
 chosen; at every hand end it recomputes the score delta; on every observed
 card movement it checks that the observing seat may see the identities it
 is shown. The engine is read for the world only — the hands and the skat —
-never for a legal set, a winner or a score.
+never for a legal set, a winner or a score; the two ladder Primitives are
+imported only by the pin that holds them to the referee's own ladder.
 
 `CHECKS` is the registry of what the referee checks: each divergence it can
 note, mapped to the reach counters that show the check ran. The clean run
@@ -36,7 +37,8 @@ at the first divergence.
 Contract:
 - Assumes: the chooser sees each decision of docs/games/skat.cardlang with
   the candidate shapes the game offers today — the auction and declaration
-  move types as `(name, arg)` tuples, a card play as one `Card` of the
+  move types as `(name, arg)` tuples, the number a bid names as its rung of
+  the ladder (an `int`, counted from 1), a card play as one `Card` of the
   playing seat's source zone, the skat discard as two `Card`s of the
   declarer's twelve — and the observer sees every card movement from every
   seat's view.
@@ -53,7 +55,10 @@ Completeness ledger:
   reddening: `PLANTED`, one row per rule family the game file states. The
              bid ladder and the matador count are game-local Primitives
              (cardlang/runtime/skat.py); this module recomputes both in play
-             but plants no fault in Python.
+             and holds the two ladder Primitives to the rules' ladder over
+             their whole domains
+             (`test_the_ladder_primitives_are_the_rules_ladder`), but plants
+             no fault in Python.
 
 What a green does not prove: anything about decisions the policies do not
 reach at this width beyond the reach floor's counters; that the skat stays
@@ -67,6 +72,7 @@ from __future__ import annotations
 import ast
 import functools
 import random
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -76,6 +82,8 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.skat import skat_bid_at, skat_next_bid
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, Player
 
@@ -100,7 +108,8 @@ NONE, SCHNEIDER, SCHWARZ, OUVERT = 0, 1, 2, 3
 
 
 def _ladder() -> tuple[int, ...]:
-    """Every bid is the value of some possible game: a Suit game's
+    """Every bid is the value of some possible game, and a bid may name any
+    of them above the standing bid: a Suit game's
     multiplier runs from 2 (with or against 1, game) to 18 (eleven
     matadors, game, hand, Schneider and Schwarz each made and announced,
     open), Grand's to 11 (four matadors), plus the four Null values."""
@@ -235,7 +244,8 @@ CHECKS: dict[str, tuple[str, ...]] = {
     "deal.hand_not_ten_cards_and_a_skat_of_two": ("deals",),
     "auction.wrong_seat_asked": ("auction.asks",),
     "auction.offer_wrong_for_seat": ("auction.speaker_asks", "auction.responder_asks"),
-    "auction.bid_not_the_next_game_value": ("auction.bids_checked",),
+    "auction.bid_not_the_named_game_value": ("auction.bids_checked",),
+    "auction.bid_numbers_differ": ("auction.bid_numbers", "auction.jump_bids"),
     "auction.responder_not_asked_after_the_last_rung": ("auction.top_rung_reached",),
     "auction.declarer_wrong": ("auction.declarers",),
     "auction.all_pass_offer_wrong": ("auction.all_passed",),
@@ -347,6 +357,7 @@ class Referee:
         self.level = NONE
         self.announcement_asked = False
         self.top_rung_pending = False
+        self.awaiting_rung = False
         self.discard: list[Card] = []
         self.original: list[Card] = []
         self.trick: list[tuple[Player, Card]] = []
@@ -516,6 +527,8 @@ class Referee:
             self._start_deal()
         names = {x[0] for x in cands if isinstance(x, tuple) and x}
         cards = [x for x in cands if isinstance(x, Card)]
+        if cands and all(isinstance(x, int) for x in cands):
+            return self._rung(player, cands)
         if names & {"bid", "yes", "pass"}:
             return self._auction(player, cands, names)
         if names & {"play_at_eighteen", "throw_in"}:
@@ -558,6 +571,9 @@ class Referee:
             self._part_over(self.responder)
         if player != self.turn:
             self._note("auction.wrong_seat_asked", f"P{player} asked, P{self.turn} to speak (part {self.part})")
+        if self.awaiting_rung:
+            self._note("auction.bid_numbers_differ", f"P{player} asked before the bid named a number")
+            self.awaiting_rung = False
         if self.turn == self.speaker:
             self.counts["auction.speaker_asks"] += 1
             want = {"pass"} | ({"bid"} if _next_bid(self.bid) is not None else set())
@@ -569,13 +585,7 @@ class Referee:
         pick = self._auction_pick(cands, names)
         said = pick[0][0]
         if said == "bid":
-            nxt = _next_bid(self.bid)
-            assert nxt is not None
-            self.bid = nxt
-            if _next_bid(self.bid) is None:
-                self.counts["auction.top_rung_reached"] += 1
-                self.top_rung_pending = True
-            self.turn = self.responder
+            self.awaiting_rung = True
         elif said == "yes":
             self.top_rung_pending = False
             self.turn = self.speaker
@@ -587,14 +597,39 @@ class Referee:
         return pick
 
     def _check_bid(self) -> None:
-        """The standing bid on the table is the rules' rung: each bid is the
-        next game value above the last."""
+        """The standing bid on the table is the game value the bid named."""
         if self.bid:
             self.counts["auction.bids_checked"] += 1
             standing = self._state().get("working_bid")
             if standing != self.bid:
-                self._note("auction.bid_not_the_next_game_value", f"table {standing}, rules {self.bid}")
+                self._note("auction.bid_not_the_named_game_value", f"table {standing}, rules {self.bid}")
                 self.bid = int(standing)
+
+    def _rung(self, player: Player, cands: list[Any]) -> list[Any]:
+        """The number a bid names: any game value above the standing bid. The
+        game numbers the ladder's rungs from 1; the referee reads each rung
+        through its own ladder."""
+        self.counts["auction.bid_numbers"] += 1
+        want = {i for i, v in enumerate(LADDER, start=1) if v > self.bid}
+        if not self.awaiting_rung or player != self.speaker or set(cands) != want or len(cands) != len(want):
+            self._note(
+                "auction.bid_numbers_differ",
+                f"P{player} offered rungs {min(cands)}..{max(cands)} ({len(cands)}), rules {len(want)} above {self.bid}",
+            )
+        lowest = min(cands)
+        if self.eager or self.rng.random() < 0.75:
+            pick = lowest
+        else:
+            pick = self.rng.choice(cands)
+            if pick != lowest:
+                self.counts["auction.jump_bids"] += 1
+        self.awaiting_rung = False
+        self.bid = LADDER[pick - 1]
+        if _next_bid(self.bid) is None:
+            self.counts["auction.top_rung_reached"] += 1
+            self.top_rung_pending = True
+        self.turn = self.responder
+        return [pick]
 
     def _auction_pick(self, cands: list[Any], names: set[str]) -> list[Any]:
         if self.eager:
@@ -843,6 +878,32 @@ def test_the_ladder_is_the_rules_game_values() -> None:
     assert LADDER[-1] == 24 * 11
 
 
+def test_the_ladder_primitives_are_the_rules_ladder() -> None:
+    """Both ladder Primitives, over their whole domains, against the rules'
+    ladder: `skat_bid_at` at every rung and one past each end, and
+    `skat_next_bid` at every standing bid from no bid to the top rung.
+
+    red under: a rung dropped from or added to `_BID_SEQUENCE`, or
+    `skat_bid_at` counting its rungs from 0."""
+    for rung in range(len(LADDER) + 1):
+        assert skat_bid_at(rung) == (LADDER[rung - 1] if rung else 0), rung
+    for off in (-1, len(LADDER) + 1):
+        with pytest.raises(OwnerGuardError):
+            skat_bid_at(off)
+    for standing in range(LADDER[-1] + 1):
+        assert skat_next_bid(standing) == (_next_bid(standing) or 0), standing
+
+
+def test_the_bid_ceiling_is_the_ladders_length() -> None:
+    """The game's `choose` ceiling is the number of rungs, so every rung is
+    offered and none past the top.
+
+    red under: the ceiling written one short, or the ladder growing without
+    it."""
+    ceilings = re.findall(r"rung := choose integer in rung \+ 1 \.\. (\d+)", SKAT.read_text())
+    assert ceilings == [str(len(LADDER))]
+
+
 def test_the_scoring_restates_pagats_examples() -> None:
     """Pagat's worked examples, through `rules_delta`.
 
@@ -891,6 +952,11 @@ PLANTED: list[tuple[str, list[tuple[str, str]], set[str]]] = [
             )
         ],
         {"auction.responder_not_asked_after_the_last_rung"},
+    ),
+    (
+        "a bid climbs one rung only",
+        [("rung := choose integer in rung + 1 .. 63", "rung := choose integer in rung + 1 .. rung + 1 up to 63")],
+        {"auction.bid_numbers_differ"},
     ),
     (
         "Null Ouvert is not offered",

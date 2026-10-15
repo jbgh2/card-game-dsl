@@ -488,7 +488,8 @@ in tests/test_trump_slot_class.py.
 - **Skat's hand** runs on the kernel with no mechanic: the Reizen is two
   sequential `turns` rings over role-guarded two-participant sets (the
   call-and-response configuration; the bid ladder lives in the
-  `skat_next_bid` primitive, which the `bid` guard reads), the contract
+  `skat_next_bid` and `skat_bid_at` primitives — the `bid` guard asks for a
+  rung left, and a bid chooses its rung), the contract
   declaration a pair of `offer`s plus a single-seat `declare_suit(s : Suit)`
   offer and, in a Suit or Grand hand game, an announcement offer, an open
   contract's exposure a movement into a `PublicHand` zone, and the ten
@@ -998,9 +999,12 @@ Skat's contract machinery is the game-local primitives below, reading
 game's declared Trick Order rather than primitives. `skat_matadors` reads the
 declared contract (`is_grand` / `is_null` / `trump_suit`) from state:
 
-- `skat_next_bid(value: Integer) → Integer` — the next of the 62 reachable
-  Reizen game values above `value`, or 0 when the ladder is exhausted (the
-  auction's `until` reads 0 as "the speaker cannot raise").
+- `skat_next_bid(value: Integer) → Integer` — the next reachable Reizen game
+  value above `value`, or 0 when the ladder is exhausted (the `bid` guard
+  reads 0 as "the speaker cannot raise").
+- `skat_bid_at(rung: Integer) → Integer` — the Reizen game value at `rung`,
+  counted from 1 (0 at rung 0, no bid); a rung past the top is refused at
+  play time.
 - `skat_matadors(p: Player) → Integer` — the with/without run from the club
   Jack down the trump order, over `p`'s hand plus the skat. (The overbid
   rule's loss base — the smallest multiple of the base covering the bid —
