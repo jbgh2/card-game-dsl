@@ -205,15 +205,17 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   discard specifically — proven in the readiness harness.
 - **Skat** — *done.* The Reizen call-and-response auction needed NO new order
   value: it is a role-guarded two-participant ring — `bid` guarded to the
-  speaker, `yes` to the responder, `pass` open, `until` carrying
-  pass-or-exhausted-ladder (the reference's zero-draw auto-pass), two
+  speaker, `yes` to the responder, `pass` open, `until` carrying the pass
+  (a speaker facing the exhausted ladder is offered only the pass), two
   sequential rings threading the survivor ([decisions.md](decisions.md),
   "Auctions, polls and betting rings are `turns` plus `offer`", the
   call-and-response paragraph). The three
   once-filed objections (role vocabularies, conditional participation, the
   seat reorder) each mapped to an existing axis — guards, the `until`
   predicate, `from <speaker>`. The contract choice is a pair of `offer`s plus
-  a single-seat `declare_suit(s : Suit)` offer; the ten tricks run
+  a single-seat `declare_suit(s : Suit)` offer and, in a Suit or Grand hand
+  game, an announcement offer; an open contract lays the declarer's hand
+  into a PublicHand zone before the first lead; the ten tricks run
   Schnapsen-style (three single-actor filtered movements over the game's
   `follow_ok`, which asks `follows_lead` of the hand first and admits any
   card when the player is void in the led class, both read off the game's

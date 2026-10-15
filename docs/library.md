@@ -487,10 +487,12 @@ in tests/test_trump_slot_class.py.
   `claimed | talon_closed | open_play` outcome.
 - **Skat's hand** runs on the kernel with no mechanic: the Reizen is two
   sequential `turns` rings over role-guarded two-participant sets (the
-  call-and-response configuration; the 62-value ladder lives in the
-  `skat_next_bid` primitive and its exhaustion in the `until` predicate), the
-  contract declaration a pair of `offer`s plus a single-seat
-  `declare_suit(s : Suit)` offer, and the ten tricks three single-actor
+  call-and-response configuration; the bid ladder lives in the
+  `skat_next_bid` primitive, which the `bid` guard reads), the contract
+  declaration a pair of `offer`s plus a single-seat `declare_suit(s : Suit)`
+  offer and, in a Suit or Grand hand game, an announcement offer, an open
+  contract's exposure a movement into a `PublicHand` zone, and the ten
+  tricks three single-actor
   filtered transfers per trick over the game's own `follow_ok`, which asks
   `follows_lead` of the hand first and admits any card when the player holds
   nothing in the led class — like Schnapsen's follower, the strict-follow

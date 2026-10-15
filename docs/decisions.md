@@ -586,13 +586,13 @@ turns bidder from dealer over all players
   Reizen — a speaker naming successive ladder values against a responder
   who holds or passes, twice in sequence with the survivor advancing — runs
   on the plain ring: `turns bidder from speaker over players where player is
-  speaker or player is responder until <someone passed, or the ladder is
-  exhausted>`, with `bid` guarded to the speaker and `yes` to the
-  responder. Role-dependent vocabularies are move guards (the speaker's
-  candidates filter to `[bid, pass]`, the responder's to `[yes, pass]`);
-  conditional participation is the `until` predicate, checked before each
-  ask (a pass — or the exhausted bid ladder, the reference's zero-draw
-  auto-pass — ends the contest before the responder is offered a turn); the
+  speaker or player is responder until <someone passed>`, with `bid`
+  guarded to the speaker (and to a ladder with a rung left) and `yes` to
+  the responder. Role-dependent vocabularies are move guards (the
+  speaker's candidates filter to `[bid, pass]`, or to `[pass]` alone once
+  the ladder is exhausted, the responder's to `[yes, pass]`); conditional
+  participation is the `until` predicate, checked before each ask (a pass
+  ends the contest, so the responder always answers the last bid); the
   speaks-before-his-seat reorder is `from speaker`; and the two sequential
   contests are two rings threading the survivor through phase state.
 - **Accumulator.** The decision-relevant running state (Bridge's standing

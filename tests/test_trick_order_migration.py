@@ -298,15 +298,6 @@ MIGRATIONS: tuple[Migration, ...] = (
         "doppelkopf_stream_hashes.json",
         retired_traces=_HAND_ROLLED_TRICK | {"decision"},
     ),
-    # `skat_trick_winner` emitted `trick_end` carrying the declared contract
-    # ({game_type, trump}) as well, and was Skat's only emitter of it -- the
-    # ten tricks are hand-rolled movements, not a trick `round`, so no round
-    # form emits one here.
-    Migration(
-        "skat.cardlang",
-        "skat_stream_hashes.json",
-        retired_traces=_HAND_ROLLED_TRICK | {"trick_end", "decision"},
-    ),
     # `five_hundred_trick_winner` likewise emitted `trick_end` carrying the
     # declared contract ({trump, misere, joker_suit}): the ten tricks are
     # hand-rolled movements and the game's auction is a `turns` ring, which
@@ -333,9 +324,10 @@ MIGRATIONS: tuple[Migration, ...] = (
 # corrected tree claims only that the tree equals itself -- the shape of a pin
 # and none of the property. French Tarot left this way: `issue #357` corrected
 # the must-trump obligation after a led Excuse against Pagat, moving 168 of the
-# 200 seeds, and `issue #542` owns what replaces the coverage for a corrected
-# game (the same fork meets 500, whose `issue #106` is open against a row still
-# here).
+# 200 seeds. Skat left the same way when its read against Pagat (`issue #728`)
+# added the contracts and announcements the declarer is offered, moving every
+# seed. `issue #542` owns what replaces the coverage for a corrected game (the
+# same fork meets 500, whose `issue #106` is open against a row still here).
 
 SEEDS: tuple[int, ...] = tuple(range(200))
 

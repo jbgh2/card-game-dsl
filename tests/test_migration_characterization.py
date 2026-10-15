@@ -41,6 +41,15 @@ best score, both partners of a winning team and every tied seat
 it is read from, so a golden's winners are checkable against its own
 scores and the game's `teams:` without running anything.
 
+A sanctioned regeneration covers `skat_scores.json` and `skat_hands.json`
+on every seed they hold: Skat is read against Pagat (issue #728), so the
+declarer is offered Null Ouvert and Null Ouvert Hand at every declaration and
+the Suit and Grand announcements in every hand game, a Null hand ends at the
+declarer's first trick, the responder answers the ladder's last rung, and the
+ladder holds 154. The declaration's menu grows on every hand, so the chooser
+draws move from each seed's first hand. The rules are pinned away from these
+vectors, by tests/test_skat_rules_differential.py.
+
 An ELEVENTH sanctioned regeneration covers `seven-card-stud_hands.json` on
 5 of its 50 seeds and `holdem_hands.json` on 1 of its 50: `poker_betting`
 plays Pagat's all-in rule for both of its cases (issue #828). A seat that has
@@ -1112,13 +1121,11 @@ def test_schnapsen_migration_preserves_per_hand_scores() -> None:
     assert_golden_seeds("schnapsen", _capture_schnapsen_hands(), expected)
 
 
-# Skat moves the whole hand — the Reizen call-and-response (a role-guarded
-# two-participant ring on the auction form), the contract declaration, the ten
-# strict-follow tricks, and the base x multiplier scoring — from
-# `run_skat_hand` onto the kernel. Unlike Schnapsen, the monolith iterates no
-# sets (measured: ZERO divergent seeds across PYTHONHASHSEED {0,1,2,3,7} x 50
-# seeds), so these goldens pinned pre-migration with nothing sanctioned, and
-# any diff is a real draw divergence. A hand settles only the declarer's
+# Skat runs the whole hand on the kernel — the Reizen call-and-response (a
+# role-guarded two-participant ring), the contract declaration, the ten
+# strict-follow tricks, and the base x multiplier scoring. These goldens
+# characterize the game as read against its source (the module docstring's
+# Skat regeneration), and any diff is a real draw divergence. A hand settles only the declarer's
 # ±game_value, so the final 36-hand score can mask a mid-game divergence; like
 # Stud/Cribbage/Schnapsen we also pin the full per-hand `score` vector,
 # anchored on the driver's own `hand_end` trace (for Skat's `winner: highest

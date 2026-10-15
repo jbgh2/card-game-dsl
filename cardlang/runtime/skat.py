@@ -6,8 +6,7 @@ declaration a pair of `offer`s plus a single-seat suit offer, the ten
 tricks three single-actor filtered [[transfer]]s per trick, and the scoring plain
 statements. Follow legality and trick resolution are the game's declared
 [[trick-order]], so what stays game-local is only what the expression language
-cannot say: the 62-value bid ladder, matador counting, and the overbid
-arithmetic (a ceiling).
+cannot say: the bid ladder and matador counting.
 
 `skat_matadors` reads the declared contract from state (`is_grand` / `is_null`
 / `trump_suit`) — the Stud/Cribbage precedent for game-local primitives over
@@ -21,12 +20,14 @@ from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Player
 
-# The legal Reizen bid sequence (reachable game values).
+# The legal Reizen bid sequence: every reachable game value — each base
+# value times each multiplier its contract can reach, and the four Null
+# values.
 _BID_SEQUENCE = (
     18, 20, 22, 23, 24, 27, 30, 33, 35, 36, 40, 44, 45, 46, 48, 50,
     54, 55, 59, 60, 63, 66, 70, 72, 77, 80, 81, 84, 88, 90, 96, 99,
     100, 108, 110, 117, 120, 121, 126, 130, 132, 135, 140, 143, 144,
-    150, 153, 156, 160, 162, 165, 168, 170, 176, 180, 187, 192, 198,
+    150, 153, 154, 156, 160, 162, 165, 168, 170, 176, 180, 187, 192, 198,
     204, 216, 240, 264,
 )
 
@@ -62,8 +63,8 @@ def _trump_order(game_type: str, trump_suit: str | None) -> list[tuple[str, str]
 
 def skat_next_bid(value: int) -> int:
     """The next Reizen ladder value above `value`, or 0 when the ladder is
-    exhausted (the auction's `until` reads 0 as "the speaker cannot raise",
-    ending the exchange with no draw, exactly like the reference)."""
+    exhausted (the `bid` guard reads 0 as "the speaker cannot raise", so a
+    speaker facing it is offered only the pass)."""
     nexts = [x for x in _BID_SEQUENCE if x > value]
     return nexts[0] if nexts else 0
 
