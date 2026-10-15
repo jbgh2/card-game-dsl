@@ -677,9 +677,9 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.Produces, "phase"): "phase",
     (n.RunStmt, "name"): "procedure",
     (n.Call, "func"): "function",
-    # The Primitive query registries a `round` selects from. A closed kernel table
-    # in every direction — the same names for a library as for a game — which is
-    # why they are references and yet not a channel a game can feed.
+    # The query registries a `round` selects from (`_ROUND_QUERY_REGISTRIES`):
+    # the same names for a library as for a game, and Primitives among them, so
+    # a library naming one is refused at `_check_library_encapsulation`.
     (n.TrickRound, "winner_fn"): "primitive_query",
     (n.TrickRound, "early_termination"): "primitive_query",
     (n.ClimbRound, "combos_fn"): "primitive_query",
@@ -718,6 +718,16 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # CONTENT FLAVOR, which is the component set's, so it is a game-fed slot the
     # way a suit is. Not swept for a library — see `_LIBRARY_UNSWEPT`.
     (n.Transfer, "item"): "content_kind",
+}
+
+# Each `primitive_query` slot -> the names a round may write there. The one
+# statement of a slot's registry: `_validate_refs` refuses a name outside it,
+# and `_round_slot_primitives` refuses a library the Primitives inside it.
+_ROUND_QUERY_REGISTRIES: dict[tuple[type, str], frozenset[str]] = {
+    (n.TrickRound, "winner_fn"): TRICK_WINNER_NAMES,
+    (n.TrickRound, "early_termination"): PRIMITIVE_EARLY_PREDICATES,
+    (n.ClimbRound, "combos_fn"): PRIMITIVE_CLIMB_LEADS,
+    (n.ClimbRound, "follows_fn"): PRIMITIVE_CLIMB_FOLLOWS,
 }
 
 # Closed grammar keyword: a word the parser puts there from a fixed set of
@@ -1897,12 +1907,19 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 # reason becomes untrue without anyone noticing. DESIGNED: nothing checks the
 # name anywhere, by a recorded decision.
 #
-# Every reason below was PROBED, not reasoned. The three that are not simply
-# closed were all wrong on first writing — each said the classified pass refused
-# the case, and each case in fact resolves clean and is refused a stage later.
+# Every reason below was PROBED through the full pipeline, not reasoned: a case
+# `resolve` alone accepts is often refused a stage later, and the pass a
+# guarded-elsewhere row names is the one the probe found refusing it.
 _LIBRARY_UNSWEPT: dict[str, str] = {
     "kernel_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
-    "primitive_query": "closed: the Primitive round-query registries, identical either side",
+    "primitive_query": (
+        "guarded elsewhere: a Primitive the slot's registry "
+        "(`_ROUND_QUERY_REGISTRIES`) holds is refused to the library's author by "
+        "`_round_slot_primitives`, since a Primitive is one game's own; any other "
+        "name outside that registry is refused by `_validate_refs`'s round arms "
+        "after the splice, at the library's span — the registries are the same for "
+        "every importing game, so no game can feed the slot a name"
+    ),
     "round_state": (
         "closed: `ROUND_STATE_FIELDS`, the fields a round publishes, identical for a "
         "library and a game; typecheck refuses any other `state.` field"
@@ -2301,18 +2318,56 @@ def _language_name_is(library: n.Library, name: str) -> _LibraryNameIs | None:
     return None
 
 
-def _primitive_in_library(library: n.Library, verb: str, name: str) -> str:
-    """The refusal for a Primitive a library body names. The library's
-    `function` namespace is `BUILTIN_CALL_FUNCS` (`_library_slot_names`), so
-    this is that rule said to the library's author, with the fix that keeps
-    the Primitive in the one game that declares it."""
+# Where library text names a Primitive -> (what the library does with it, the
+# fix). A call's value can be computed by the game and passed in; a round slot
+# takes a bare name, so the round itself moves to the game.
+_PRIMITIVE_POSITIONS: dict[str, tuple[str, str, str]] = {
+    "call": (
+        "calls",
+        "call",
+        "compute the value in the game and pass it to the library's function as "
+        "an argument, or keep the definition that needs it in the game",
+    ),
+    "round slot": (
+        "names",
+        "name",
+        "a round slot takes a name, never a value, so the game cannot pass this "
+        "one in — write the round in the game, in a phase or in a move type the "
+        "game defines",
+    ),
+}
+
+
+def _primitive_in_library(library: n.Library, position: str, name: str) -> str:
+    """The refusal for a Primitive library text names. The library's
+    `function` namespace is `BUILTIN_CALL_FUNCS` (`_library_slot_names`) and
+    its round slots admit no Primitive (`_round_slot_primitives`), so this is
+    that rule said to the library's author, with the fix that keeps the
+    Primitive in the one game that declares it."""
+    verb, act, fix = _PRIMITIVE_POSITIONS[position]
     return (
         f"library '{library.name}' {verb} '{name}', which is a Primitive — a "
         f"Primitive belongs to the one game that declares it, so a library that "
-        f"several games import may not call one: compute the value in the game "
-        f"and pass it to the library's function as an argument, or keep the "
-        f"definition that needs it in the game"
+        f"several games import may not {act} one: {fix}"
     )
+
+
+def _round_slot_primitives(library: n.Library) -> list[tuple[object, str]]:
+    """Every (node, name) where a round in `library` names, in a query slot, a
+    Primitive that slot's registry holds. A name outside the registry is left
+    to `_validate_refs`, which refuses it for a game and a library alike."""
+    found: list[tuple[object, str]] = []
+    for node in _walk(library):
+        for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
+            if slot_namespace(node, field_name) != "primitive_query":
+                continue
+            accepted = _ROUND_QUERY_REGISTRIES[(type(node), field_name)]
+            found.extend(
+                (node, name)
+                for name in slot_strings(node, field_name)
+                if name in accepted and walled_namespace_of(name) is not None
+            )
+    return found
 
 
 def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None:
@@ -2377,13 +2432,17 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 call.span,
             )
         elif what.kind == "primitive":
-            bag.error(_primitive_in_library(library, "calls", call.func), call.span)
+            bag.error(_primitive_in_library(library, "call", call.func), call.span)
         else:
             bag.error(
                 f"library '{library.name}' calls '{call.func}', which is "
                 f"{what.phrase}, not a function",
                 call.span,
             )
+    for node, name in _round_slot_primitives(library):
+        bag.error(
+            _primitive_in_library(library, "round slot", name), getattr(node, "span", None)
+        )
     for card in reach.card_literals:
         bag.error(
             f"library '{library.name}' names the card `{card.rank} of "
@@ -9509,13 +9568,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"'{nd.move_type}' is not runnable on it (roadmap.md)",
                         nd.span,
                     )
-                if nd.combos_fn not in PRIMITIVE_CLIMB_LEADS:
+                if nd.combos_fn not in _ROUND_QUERY_REGISTRIES[(n.ClimbRound, "combos_fn")]:
                     bag.error(
                         f"climb round `combinations` query '{nd.combos_fn}' is not a "
                         f"combination lead query",
                         nd.span,
                     )
-                if nd.follows_fn not in PRIMITIVE_CLIMB_FOLLOWS:
+                if nd.follows_fn not in _ROUND_QUERY_REGISTRIES[(n.ClimbRound, "follows_fn")]:
                     bag.error(
                         f"climb round `follows` query '{nd.follows_fn}' is not a "
                         f"combination follows query",
@@ -9551,7 +9610,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"a TrickPile",
                             nd.span,
                         )
-                if nd.winner_fn not in TRICK_WINNER_NAMES:
+                if nd.winner_fn not in _ROUND_QUERY_REGISTRIES[(n.TrickRound, "winner_fn")]:
                     bag.error(
                         f"trick round winner '{nd.winner_fn}' is not a trick "
                         f"winner function",
@@ -9592,7 +9651,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     )
                 if (
                     nd.early_termination is not None
-                    and nd.early_termination not in PRIMITIVE_EARLY_PREDICATES
+                    and nd.early_termination
+                    not in _ROUND_QUERY_REGISTRIES[(n.TrickRound, "early_termination")]
                 ):
                     bag.error(
                         f"round early-termination predicate "

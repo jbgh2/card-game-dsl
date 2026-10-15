@@ -77,6 +77,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
+from cardlang.primitives_block import walled_namespace_of
 from cardlang.typecheck import (
     RANKING_GATED_CLIMB_QUERIES,
     RANKING_GATED_FUNCS,
@@ -702,12 +703,16 @@ _SLOT_ROUNDS: dict[str, str] = {
 def test_a_library_cannot_name_a_clause_gated_round_slot(
     member: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A gated winner or climbing query is named in a round, and a library
-    holds a round only in a procedure, whose body may not hold one: the library
-    is refused in its own file, whatever clauses the game declares.
+    """A gated winner or climbing query named in a round a library procedure
+    holds is refused in the library's own file, whatever clauses the game
+    declares: a climbing query is a Primitive, which no library names
+    (tests/test_library_round_slot_primitives.py), and a procedure body may
+    not hold a round.
 
     red under: disabling the `_WINNER_BINDING_STMTS` arm of
-    `resolve._check_procedures` (executed 2026-10-13)."""
+    `resolve._check_procedures` (the winners, executed 2026-10-13), or
+    `resolve._round_slot_primitives` (the climbing queries, executed
+    2026-10-14)."""
     rendered = _library_alone_refusal(
         f"library {_LIB} {{\n"
         "  requires { pile : TrickPile  hand[player] : Hand<player> }\n"
@@ -716,9 +721,13 @@ def test_a_library_cannot_name_a_clause_gated_round_slot(
         f"Slot{member.replace('_', '').title()}",
         monkeypatch,
     )
+    refusal = (
+        f"names '{member}', which is a Primitive"
+        if walled_namespace_of(member) is not None
+        else "contains a `round`"
+    )
     assert any(
-        line.startswith(_LIB_FILE) and "contains a `round`" in line
-        for line in rendered.splitlines()
+        line.startswith(_LIB_FILE) and refusal in line for line in rendered.splitlines()
     ), rendered
 
 

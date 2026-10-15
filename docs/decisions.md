@@ -5158,8 +5158,15 @@ authored, because no annotation carries it.
 The registry is what makes the boundary statable. A namespace a library can
 reach is either swept against what the library itself has, or carries a written
 reason why reaching it is not a channel — a closed kernel table or domain registry
-identical either side, or a name owned by a declaration that IS swept. There is
-no third state, and no consumer keeps a list of the slots it remembered.
+identical either side, a name owned by a declaration that IS swept, or a name
+another named pass refuses to the library's author. There is no third state, and
+no consumer keeps a list of the slots it remembered.
+
+A library names no [[primitive]], in a call or in a `round`'s query slots: a
+Primitive belongs to the one game that declares it, so library text naming one
+couples every importer to that game. Both are refused to the library's author.
+A call's value can be computed by the game and passed in as an argument; a round
+slot takes a bare name, so a round naming a Primitive is written in the game.
 
 **Name collisions on state are guarded the same way collisions on definitions
 are.** A library may not both provide and require one name — the two clauses
