@@ -6072,16 +6072,22 @@ _FUNCTION_TAKES_A_CARD = (
 def _contracted_answer_on(
     key: tuple[str, str],
     reached: dict[tuple[str, str], tuple[object, tuple[str, str] | None]],
+    roots: tuple[n.Expr, ...],
 ) -> n.ContractStamp | None:
-    """The row of the first function answering a Definition Contract on the
-    chain `_definition_closure` reached `key` by, from `key` back to the
-    root: a library's rule reaching it calls the game's answer."""
+    """The row a library's call of the game's answer carries (`Call.contract`)
+    on the chain `_definition_closure` reached `key` by from `roots`: the
+    stamp on the call that crosses into the answer, so the library named is
+    the one whose text makes that call."""
+    chain: list[tuple[str, str]] = []
     at: tuple[str, str] | None = key
     while at is not None and at in reached:
-        definition, at_via = reached[at]
-        if isinstance(definition, n.FunctionDef) and definition.contracts:
-            return definition.contracts[0]
-        at = at_via
+        chain.append(at)
+        at = reached[at][1]
+    callers: list[object] = [reached[callee][0] for callee in chain[1:]] + [roots]
+    for (_ns, name), caller in zip(chain, callers):
+        for nd in _child_nodes(caller):
+            if isinstance(nd, n.Call) and nd.func == name and nd.contract is not None:
+                return nd.contract
     return None
 
 
@@ -6137,7 +6143,7 @@ def _check_play_source(
             subscripted = {id(nd.obj) for nd in _walk(fn) if isinstance(nd, n.Subscript)}
             answer = (
                 None if rule.name in own_rules
-                else _contracted_answer_on(("function", fname), reached)
+                else _contracted_answer_on(("function", fname), reached, _rule_clauses(rule))
             )
             remedy = (
                 _FUNCTION_TAKES_A_CARD if answer is None
@@ -9398,7 +9404,7 @@ def _check_functions(
                     f"function is hermetic and may not read "
                     f"{'/'.join(sorted(_CALL_SITE_PRONOUNS))} — "
                     + (
-                        _contracted_remedy(fn.contracts[0])
+                        _contracted_remedy(fn.contracts)
                         if fn.contracts
                         else "pass the value in as a parameter"
                     ),
@@ -9408,13 +9414,16 @@ def _check_functions(
             _report_recursion(fn, calls, library_functions or {}, bag)
 
 
-def _contracted_remedy(contract: n.ContractStamp) -> str:
+def _contracted_remedy(contracts: tuple[n.ContractStamp, ...]) -> str:
     """The fix for a definition answering a Definition Contract that reads a
-    call-site pronoun. Its call sites are in the library's text, which the
-    game's author cannot edit, so the fix named is one they can take."""
+    call-site pronoun. Its call sites are in the text of every library whose
+    row it answers, which the game's author cannot edit, so the fix named is
+    one they can take."""
+    callers = " and ".join(
+        f"library '{c.library}' calls it under its contract `{c.row}`" for c in contracts
+    )
     return (
-        f"library '{contract.library}' calls it under its contract "
-        f"`{contract.row}`, from text this game cannot edit, so no argument can "
+        f"{callers}, from text this game cannot edit, so no argument can "
         f"be added there: read the value from the parameter the row passes, or "
         f"from the game's own state"
     )
@@ -9917,7 +9926,7 @@ def _check_procedures(
                         )
                     elif nd.ref_kind == "pronoun" and nd.name in _CALL_SITE_PRONOUNS:
                         remedy = (
-                            _contracted_remedy(proc.contracts[0])
+                            _contracted_remedy(proc.contracts)
                             if proc.contracts
                             else f"pass the value in as a parameter (`run "
                             f"{proc.name}({nd.name})`)"
@@ -11145,8 +11154,9 @@ class ZoneRead:
     a family is read, what the read needs, and the route it was reached by.
     `choose` names the `choose` field the read sits in, when it does. `exit`
     is the call of a library function a read in that function's body was
-    reached by, and `crossing` the contracted call a read in the game's
-    answer to a library was reached by."""
+    reached by, `crossing` the contracted call a read in the game's answer to
+    a library was reached by, and `bindings` the names followed by value on
+    the way to it."""
 
     zone: str
     index: n.Expr | None
@@ -11158,6 +11168,7 @@ class ZoneRead:
     choose: str | None = None
     exit: n.Call | None = None
     crossing: _Crossing | None = None
+    bindings: tuple[_Binding, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -11198,20 +11209,6 @@ def _spell(expr: object) -> str:
             return f"{_spell(b.left)} {b.op} {_spell(b.right)}"
         case _:
             return "..."
-
-
-def _within_args(span: Span | None, call: n.Call) -> bool:
-    """Whether `span` lies inside one of `call`'s arguments: a read the
-    caller's own text makes, which the callee's body reads by value."""
-    if span is None:
-        return False
-    return any(
-        arg.span is not None
-        and arg.span.source_name == span.source_name
-        and arg.span.start <= span.start
-        and span.end <= arg.span.end
-        for arg in call.args
-    )
 
 
 class _Seat:
@@ -11338,8 +11335,10 @@ class _HiddenReads:
                 elif ref.ref_kind == "local":
                     for b in scope.lookup(ref.name):
                         if b.index_binder is None:
-                            yield from self.reads_of(
-                                b.value, scope.follow(b), need, route + (b.via,), choose, calls
+                            yield from self._by_value(
+                                b, self.reads_of(
+                                    b.value, scope.follow(b), need, route + (b.via,), choose, calls
+                                )
                             )
             case n.Subscript() as sub:
                 obj = sub.obj
@@ -11352,12 +11351,14 @@ class _HiddenReads:
                             inner = scope.follow(b).bind(
                                 b.index_binder, (_Binding(sub.index, scope, b.via),)
                             )
-                            yield from self.reads_of(
-                                b.value, inner, need, route + (b.via,), choose, calls
+                            yield from self._by_value(
+                                b, self.reads_of(b.value, inner, need, route + (b.via,), choose, calls)
                             )
                         else:
-                            yield from self.reads_of(
-                                b.value, scope.follow(b), need, route + (b.via,), choose, calls
+                            yield from self._by_value(
+                                b, self.reads_of(
+                                    b.value, scope.follow(b), need, route + (b.via,), choose, calls
+                                )
                             )
                 else:
                     yield from self.reads_of(obj, scope, "identity", route, choose, calls)
@@ -11404,6 +11405,12 @@ class _HiddenReads:
             case _:
                 return
 
+    @staticmethod
+    def _by_value(binding: _Binding, reads: Iterator[ZoneRead]) -> Iterator[ZoneRead]:
+        """`reads`, each recording that it was reached through `binding`."""
+        for read in reads:
+            yield replace(read, bindings=read.bindings + (binding,))
+
     def _call_reads(
         self,
         call: n.Call,
@@ -11421,12 +11428,18 @@ class _HiddenReads:
             # A function body is hermetic: it names no binder of the caller's,
             # and inherits the acting seat.
             body_scope = replace(scope, names=(), aliases=_ActorAliases(frozenset()))
+            bound: list[_Binding] = []
             for param, arg in zip(fn.params, call.args):
-                body_scope = body_scope.bind(param.name, (_Binding(arg, scope, via),))
+                binding = _Binding(arg, scope, via)
+                bound.append(binding)
+                body_scope = body_scope.bind(param.name, (binding,))
             for found in self.reads_of(
                 fn.body, body_scope, need, route + (via,), choose, calls + (call.func,)
             ):
-                if found.crossing is None and not _within_args(found.span, call):
+                # A read reached through a parameter is the caller's own text,
+                # read by value, however the caller computed the argument.
+                by_value = any(b is mine for b in found.bindings for mine in bound)
+                if found.crossing is None and not by_value:
                     if call.contract is not None:
                         anchor = found.exit.span if found.exit is not None else found.span
                         crossing = _Crossing(

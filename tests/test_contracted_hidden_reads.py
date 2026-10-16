@@ -33,8 +33,12 @@ domain:          every judged position a library's text can hold (the
                  Arrival Record over a concealed pile; the library's own
                  indirections between its decision and its call (a rule
                  template the game turns on with an argument, a `let`, a
-                 procedure argument); a computed seat the sentence cannot
-                 quote; and the misuse probes (the library's own read handed
+                 procedure argument); a read the library makes in its own
+                 text and hands the answer by value (a helper call in the
+                 argument, nested helper calls, a `let`-bound call and a
+                 `let`-bound read); one answer two libraries call, each
+                 refusal naming the library whose text calls it; a computed
+                 seat the sentence cannot quote; and the misuse probes (the library's own read handed
                  in as an argument, one answer asked at a game and a library
                  position, bare-family sugar in the answer). No library text
                  holds a position where no seat decides, so the no-seat rows
@@ -865,13 +869,6 @@ def test_the_sentences_of_the_two_sibling_refusals(monkeypatch: pytest.MonkeyPat
 
 # --- the library's own reads, handed to the answer by value ------------------
 
-_FOUND = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="PR #887 review: a library read handed by value, and one answer two libraries call",
-)
-
-
 _ARGUMENT_READS: dict[str, tuple[Position, str, str, list[str]]] = {
     # position, the row, the game's answer reading only its parameter, and the
     # library's functions; each reads `secret[1]` in the library's own text
@@ -915,7 +912,6 @@ _ARGUMENT_READS: dict[str, tuple[Position, str, str, list[str]]] = {
 }
 
 
-@_FOUND
 @pytest.mark.parametrize("via", sorted(_ARGUMENT_READS))
 def test_a_read_the_library_hands_the_answer_by_value_stays_the_librarys(
     monkeypatch: pytest.MonkeyPatch, via: str
@@ -970,7 +966,6 @@ def _two_libraries(monkeypatch: pytest.MonkeyPatch, answer: str) -> list[str]:
     )
 
 
-@_FOUND
 def test_a_bare_hand_under_the_second_librarys_rule_names_that_library(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -982,7 +977,6 @@ def test_a_bare_hand_under_the_second_librarys_rule_names_that_library(
     assert "library 'libb'" in bag[0] and "library 'liba'" not in bag[0], bag
 
 
-@_FOUND
 def test_a_pronoun_in_an_answer_two_libraries_call_names_both(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
