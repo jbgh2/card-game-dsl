@@ -53,6 +53,8 @@ from __future__ import annotations
 import pathlib
 import textwrap
 
+from cardlang.runtime.errors import Located
+from tests.test_runtime_refusal_location import _REFUSALS, engine_exception_classes
 from tools import destinations as d
 
 GAME = textwrap.dedent(
@@ -225,8 +227,8 @@ def test_real_renderer_facts_derive() -> None:
     assert isinstance(d.span_has_trace(d.DIAGNOSTICS_MODULE.read_text()), bool)
     sites = d.diagnostic_sites()
     assert all(isinstance(n, int) and n > 0 for n in sites.values())  # empty is the Destination, not a failure
-    assert d.REFUSALS, "the refusal census names no designer-addressed class"
-    assert isinstance(d.unlocated_refusals(d.engine_exception_classes(), d.REFUSALS, d.Located), list)
+    assert _REFUSALS, "the refusal census names no designer-addressed class"
+    assert isinstance(d.unlocated_refusals(engine_exception_classes(), _REFUSALS, Located), list)
 
 
 def test_real_candidates_file_has_a_boards_ladder() -> None:
