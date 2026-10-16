@@ -861,3 +861,133 @@ def test_the_sentences_of_the_two_sibling_refusals(monkeypatch: pytest.MonkeyPat
         "edit, so the filter cannot move into the rule: read the card the row "
         "passes, or the game's own state"
     ], hand
+
+
+# --- the library's own reads, handed to the answer by value ------------------
+
+_FOUND = pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="PR #887 review: a library read handed by value, and one answer two libraries call",
+)
+
+
+_ARGUMENT_READS: dict[str, tuple[Position, str, str, list[str]]] = {
+    # position, the row, the game's answer reading only its parameter, and the
+    # library's functions; each reads `secret[1]` in the library's own text
+    # and hands the answer the value.
+    "helper_call": (
+        Position("bool", move_when="when: ready(libpeek())"),
+        "ready(b : Boolean) : Boolean",
+        "function ready(b : Boolean) = b",
+        ["function libpeek() = any card in secret[1] where true"],
+    ),
+    "nested_helper_calls": (
+        Position("bool", move_when="when: ready(libwrap(libpeek()))"),
+        "ready(b : Boolean) : Boolean",
+        "function ready(b : Boolean) = b",
+        [
+            "function libpeek() = any card in secret[1] where true",
+            "function libwrap(b : Boolean) = b",
+        ],
+    ),
+    "let_bound_helper_call": (
+        Position(
+            "int",
+            effect="let k = libcount()\n pick[actor] := choose integer in 0 .. (count(k)) up to 3",
+        ),
+        "count(n : Integer) : Integer",
+        "function count(n : Integer) = n",
+        ["function libcount() = number of cards in secret[1] where true"],
+    ),
+    "let_bound_read": (
+        Position(
+            "int",
+            effect=(
+                "let k = number of cards in secret[1] where true\n"
+                " pick[actor] := choose integer in 0 .. (count(k)) up to 3"
+            ),
+        ),
+        "count(n : Integer) : Integer",
+        "function count(n : Integer) = n",
+        [],
+    ),
+}
+
+
+@_FOUND
+@pytest.mark.parametrize("via", sorted(_ARGUMENT_READS))
+def test_a_read_the_library_hands_the_answer_by_value_stays_the_librarys(
+    monkeypatch: pytest.MonkeyPatch, via: str
+) -> None:
+    """The library reads the concealed zone in its own text -- in a helper it
+    calls, nested, or bound by `let` -- and passes the value as the answer's
+    argument. The answer reads only its parameter, so the read is the
+    library's, told in the library's file in its inline sentence."""
+    pos, row, answer, lib_defs = _ARGUMENT_READS[via]
+    library = _library_text(pos, "", [row], lib_defs)
+    bag = _bag(monkeypatch, library, _game(answer, False))
+    assert len(bag) == 1, bag
+    assert bag[0].startswith(LIBRARY) and "is decided by the acting seat" in bag[0], bag
+    assert "calls it under its contract" not in bag[0], bag
+
+
+# --- one answer, two libraries -----------------------------------------------
+
+_LIB_A = """library liba {
+  requires {
+    acted[player] : Boolean
+    hand[player] : Hand<player>
+    ok(c : Card) : Boolean
+  }
+  procedure ask(first : Player) {
+    turns t from first over players where not acted[player]
+          until (number of players where not acted[player]) is 0 {
+      offer to t one of [stay]
+    }
+  }
+  move_type stay { effect { if any card in hand[actor] where ok(card) { acted[actor] := true } } }
+}
+"""
+_LIB_B = """library libb {
+  requires {
+    ok(c : Card) : Boolean
+  }
+  rule watch { constrains: play_to_trick demands: cards in hand where ok(card) if_impossible: hand }
+}
+"""
+
+
+def _two_libraries(monkeypatch: pytest.MonkeyPatch, answer: str) -> list[str]:
+    game = _game(answer, True).replace("uses contractlib", "uses liba\n  uses libb")
+    return _outcome(
+        monkeypatch,
+        lambda: (
+            parse_library(_LIB_A, "docs/libraries/liba.cardlang"),
+            parse_library(_LIB_B, "docs/libraries/libb.cardlang"),
+        ),
+        game,
+    )
+
+
+@_FOUND
+def test_a_bare_hand_under_the_second_librarys_rule_names_that_library(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One answer meets rows of two libraries; the second's rule reaches it.
+    The refusal names the library whose rule calls it, never the first
+    library the `uses` lines happen to list."""
+    bag = _two_libraries(monkeypatch, "function ok(c : Card) = c in hand")
+    assert len(bag) == 1, bag
+    assert "library 'libb'" in bag[0] and "library 'liba'" not in bag[0], bag
+
+
+@_FOUND
+def test_a_pronoun_in_an_answer_two_libraries_call_names_both(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Either library's call site is text the game cannot edit: the
+    call-site pronoun refusal names every library that calls the answer."""
+    bag = _two_libraries(monkeypatch, "function ok(c : Card) = acted[actor]")
+    assert len(bag) == 1, bag
+    assert "library 'liba'" in bag[0] and "library 'libb'" in bag[0], bag
