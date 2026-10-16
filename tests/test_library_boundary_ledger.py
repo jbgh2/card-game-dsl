@@ -153,6 +153,7 @@ def _line(text: str, needle: str) -> int:
 GAME = "game"
 USES = "uses"
 LIBRARY = "library"
+BOTH = "both"
 
 
 @dataclass(frozen=True)
@@ -178,16 +179,20 @@ def _assert_told(cell: Crossing, bag: list[str]) -> None:
         return
     assert bag, "expected a refusal, but the cell was accepted"
     text = "\n".join(bag)
+    in_library = [line for line in bag if line.startswith(_LIB_FILE)]
+    in_game = [line for line in bag if not line.startswith(_LIB_FILE)]
     if cell.owner == LIBRARY:
-        assert all(line.startswith(_LIB_FILE) for line in bag), text
+        assert in_game == [], text
     else:
+        # BOTH: two faults, two authors -- the library's own, and the game's reach.
+        assert bool(in_library) == (cell.owner == BOTH), text
         needle = f"uses {_LIB}" if cell.owner == USES else cell.anchor
         assert needle is not None
         at = f"{_GAME_FILE}:{_line(cell.game, needle)}:"
-        assert all(line.startswith(_GAME_FILE) for line in bag), text
-        assert any(line.startswith(at) for line in bag), f"nothing at {at}\n{text}"
+        assert all(line.startswith(_GAME_FILE) for line in in_game), text
+        assert any(line.startswith(at) for line in in_game), f"nothing at {at}\n{text}"
         if cell.names_library:
-            assert all(_NAMED in line for line in bag), text
+            assert all(_NAMED in line for line in in_game), text
     for needle in cell.needles:
         assert any(needle in line for line in bag), f"{needle!r} not said:\n{text}"
 
@@ -384,26 +389,16 @@ def _row_crossing(row: str, arm: RowArm) -> Crossing:
     return Crossing(
         library, host, arm.owner,
         anchor=f"{row}: {_ROW_ASKS[row]}",
-        needles=(f"`{row}:`", "`libf`") if arm.owner == GAME else (),
+        needles=("`libf`",) if arm.owner == GAME else (),
         twin=twin,
     )
 
 
-_UNBUILT = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #886: a game's call into library text is refused in the library's file",
-)
-
-
-def _red(owner: str | None) -> list[pytest.MarkDecorator]:
-    return [_UNBUILT] if owner == GAME else []
-
-
 def _row_cells() -> list[object]:
     return [
-        pytest.param(row, arm, id=f"{row}-{arm}", marks=_red(spec.owner))
+        pytest.param(row, arm, id=f"{row}-{arm}")
         for row in TRICK_ORDER_ROW_KEYS
-        for arm, spec in _row_arms(row).items()
+        for arm in _row_arms(row)
     ]
 
 
@@ -427,7 +422,7 @@ _UNACTING_HOST = """game Boundary {{
   ranking: aces high
   uses boundarylib
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : Discard }}
-  state {{ score[player] : Integer = 0  bid : Integer = 0  done : Boolean = false }}
+  state {{ score[player] : Integer = 0  bid : Integer = 0  done : Boolean = false  who : Player = 0 }}
   {phase}
   {result}
 }}
@@ -468,7 +463,7 @@ _UNACTING_NEEDS: dict[str, tuple[str, str]] = {
     "choose": ("choose integer in 0 .. 1", GAME),
     # `actor` in a function body is refused to its author in every game
     # (`_check_functions`), and told once.
-    "actor": ("if actor is actor then 0 else 1", LIBRARY),
+    "actor": ("if actor is who then 0 else 1", LIBRARY),
 }
 
 
@@ -481,7 +476,7 @@ def _unacting_crossing(place: str, need: str) -> Crossing:
     phase, result, anchor = _UNACTING_PLACES[place]
     body, owner = _UNACTING_NEEDS[need]
     definition = f"function libpick() = {body}"
-    library = f"library {_LIB} {{\n  {definition}\n}}\n"
+    library = f"library {_LIB} {{\n  requires {{ who : Player }}\n  {definition}\n}}\n"
     host = _UNACTING_HOST.format(phase=phase, result=result)
     twin = host.replace(f"  uses {_LIB}\n", "") + definition + "\n"
     return Crossing(
@@ -494,7 +489,7 @@ def _unacting_crossing(place: str, need: str) -> Crossing:
 @pytest.mark.parametrize(
     "place,need",
     [
-        pytest.param(place, need, id=f"{place}-{need}", marks=[_UNBUILT])
+        pytest.param(place, need, id=f"{place}-{need}")
         for place in sorted(_UNACTING_PLACES)
         for need in sorted(_UNACTING_NEEDS)
     ],
@@ -578,7 +573,7 @@ def _play_source_crossing(slot: str) -> Crossing:
 
 
 @pytest.mark.parametrize(
-    "slot", [pytest.param(s, id=s, marks=[_UNBUILT]) for s in sorted(_RULE_SLOTS)]
+    "slot", sorted(_RULE_SLOTS)
 )
 def test_a_rule_calling_a_library_function_that_reads_hand(
     monkeypatch: pytest.MonkeyPatch, slot: str
@@ -635,10 +630,7 @@ _POLL_PAYLOADS = sorted({*HP.EXPR_PAYLOADS, *HP.STMT_PAYLOADS})
 
 def _poll_cells() -> list[object]:
     return [
-        pytest.param(
-            route, payload, id=f"{route}-{payload}",
-            marks=_red(_poll_crossing(route, payload).owner),
-        )
+        pytest.param(route, payload, id=f"{route}-{payload}")
         for route in _POLL_ROUTES
         for payload in _POLL_PAYLOADS
         if payload in HP.EXPR_PAYLOADS or HP.ROUTES[route][2]
@@ -661,8 +653,9 @@ def _poll_owner(route: str, payload: str, library: str) -> str:
         # A Primitive or a phase the library names: refused to its author.
         return LIBRARY
     if route == "run" and payload in HP.PROC_OWN_REFUSALS:
-        # A procedure body may not hold it in any game (`_check_procedures`).
-        return LIBRARY
+        # A procedure body may not hold it in any game (`_check_procedures`),
+        # and the poll may not reach it either.
+        return BOTH
     return GAME
 
 
@@ -679,10 +672,10 @@ def _poll_crossing(route: str, payload: str) -> Crossing:
     game, library = _lift(host, definitions)
     owner = _poll_owner(route, payload, library)
     first = HP.ROUTES[route][0].splitlines()[-1].strip()
-    anchor = re.split(r"[({]", first)[0].strip() if owner == GAME else None
+    anchor = re.split(r"[({]", first)[0].strip() if owner in (GAME, BOTH) else None
     return Crossing(
         library, game, owner, anchor=anchor,
-        needles=("the Hosted Poll",) if owner == GAME else (),
+        needles=("the Hosted Poll",) if owner in (GAME, BOTH) else (),
         twin=HP.source(**kw, **needs, extra=definitions),
     )
 
@@ -1135,6 +1128,123 @@ def test_a_library_refused_against_itself(monkeypatch: pytest.MonkeyPatch, check
     _assert_told(Crossing(library, _SEAT_HOST, LIBRARY), bag)
 
 
+# --- the sentences a game's author reads ----------------------------------------
+
+_SENTENCES: dict[str, str] = {
+    "row": (
+        "`trump:` reads zone 'probe' (HiddenPile) through library 'boundarylib''s "
+        "function `libf`, which does not project identity to every observer — a "
+        "Trick Order is public by construction and may read only fully public "
+        "zones. `libf` is library 'boundarylib''s, so write the fact in the row "
+        "from the card and public state instead of calling it"
+    ),
+    "row-bare-family": (
+        "`trump:` reads `shown` bare (the acting player's instance) through "
+        "library 'boundarylib''s function `libf` — a Trick Order row has no acting "
+        "player. `libf` is library 'boundarylib''s, so write the fact in the row "
+        "from the card and public state instead of calling it"
+    ),
+    "rule": (
+        "rule 'Probed' calls library 'boundarylib''s function `libbare` from its "
+        "clauses, which reads `hand`: inside a rule, `hand` is the cards the "
+        "player on turn plays from, and a function cannot see which cards those "
+        "are — `libbare` is library 'boundarylib''s, so write the filter in the "
+        "rule's own clause (`cards in hand where ...`) instead of calling it"
+    ),
+    "no-one-acts": (
+        "a `choose` (through library 'boundarylib''s function `libpick`) is written "
+        "where no player is acting (a phase's `when` or `repeat until` is read "
+        "between turns), so no one can make the decision. Make the decision "
+        "before the gate is read -- in an earlier phase, or for `repeat until` in "
+        "the phase's own body -- into a state variable (`as <player> { pick := "
+        "choose ... }`), and read that variable here"
+    ),
+    "hosted-poll": (
+        "the Hosted Poll (`before asking p`) may not hold a card movement, "
+        "reached through library 'boundarylib''s procedure 'via' (run): it runs "
+        "between two asks of a live climbing trick, where only decisions and "
+        "state writes may happen. `via` is library 'boundarylib''s, so take it "
+        "out of the Hosted Poll's body"
+    ),
+}
+
+
+def _sentence_cell(name: str) -> Crossing:
+    return {
+        "row": lambda: _row_crossing("trump", _row_arms("trump")["zone-HiddenPile"]),
+        "row-bare-family": lambda: _row_crossing("trump", _row_arms("trump")["bare-family"]),
+        "rule": lambda: _play_source_crossing("demands"),
+        "no-one-acts": lambda: _unacting_crossing(R._NO_ACTOR_GATE, "choose"),
+        "hosted-poll": lambda: _poll_crossing("run", "Transfer"),
+    }[name]()
+
+
+@pytest.mark.parametrize("name", sorted(_SENTENCES))
+def test_the_sentence_a_game_author_reads(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    cell = _sentence_cell(name)
+    (line,) = _bag(monkeypatch, cell.library, cell.game)
+    assert line.split(": error: ", 1)[1] == _SENTENCES[name]
+
+
+# --- every remedy a crossing's refusal offers passes ----------------------------
+
+
+def test_the_row_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """"write the fact in the row from the card and public state instead of
+    calling it": the row written that way, the library still used, checks
+    clean, for every row and every arm the game owns."""
+    for row in TRICK_ORDER_ROW_KEYS:
+        for name, arm in _row_arms(row).items():
+            if arm.owner != GAME:
+                continue
+            cell = _row_crossing(row, arm)
+            fixed = cell.game.replace(f"{row}: {_ROW_ASKS[row]}", f"{row}: {_ROW_DEFAULT[row]}")
+            assert fixed != cell.game
+            assert _bag(monkeypatch, cell.library, fixed) == [], (row, name)
+
+
+def test_the_rule_filter_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """"write the filter in the rule's own clause (`cards in hand where
+    ...`)": the library function's read written in the clause itself checks
+    clean, from every clause slot."""
+    for slot in _RULE_SLOTS:
+        cell = _play_source_crossing(slot)
+        fixed = cell.game.replace("libbare()", "any card in hand where true")
+        assert _bag(monkeypatch, cell.library, fixed) == [], slot
+
+
+def test_the_no_one_acting_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The decision made earlier into a state variable, and the variable read
+    where the library function was called, checks clean at every place."""
+    for place in _UNACTING_PLACES:
+        cell = _unacting_crossing(place, "choose")
+        fixed = cell.game.replace("libpick()", "bid")
+        assert _bag(monkeypatch, cell.library, fixed) == [], place
+
+
+def test_the_hosted_poll_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """"take it out of the Hosted Poll's body": the poll holding only its own
+    statements, the library still used, leaves nothing in the game's file on
+    every route. A statement only a phase body may hold (`produce`, `skip to
+    next hand`) in a library move type is then refused to the library's
+    author, by the type layer, a stage later."""
+    for route in _POLL_ROUTES:
+        for payload in _POLL_PAYLOADS:
+            if not (payload in HP.EXPR_PAYLOADS or HP.ROUTES[route][2]):
+                continue
+            cell = _poll_crossing(route, payload)
+            if cell.owner != GAME:
+                continue
+            body = HP.ROUTES[route][0].format(x="", e="")
+            fixed = cell.game.replace(HP.indent(body), HP.COUNTING)
+            assert fixed != cell.game, (route, payload)
+            if "nop" in body:
+                # The game's own helper the poll offered, which nothing offers now.
+                fixed = fixed.replace(HP.NOP, "")
+            bag = _bag(monkeypatch, cell.library, fixed)
+            assert all(line.startswith(_LIB_FILE) for line in bag), (route, payload, bag)
+
+
 # --- the walkers, derived -------------------------------------------------------
 #
 # A refusal can sit in one author's text for the other's cause only where a
@@ -1193,6 +1303,7 @@ def _pool_name(node: ast.expr) -> str | None:
 # walker -> where its crossings are held
 WALKERS: dict[str, str] = {
     "resolve._check_trick_order_rows": "test_a_row_reaching_a_library_function",
+    "resolve._row_routes": "the routes `_check_trick_order_rows` locates its refusals by",
     "resolve._check_play_source": (
         "test_a_rule_calling_a_library_function_that_reads_hand; the answer's: "
         "test_a_library_reaching_the_games_text[play-source]"

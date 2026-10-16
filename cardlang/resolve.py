@@ -52,7 +52,13 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               and every library rule a game activates, the standard
               library's included -- carries its ``n.LibraryOrigin``, and no
               game text carries one: it is the only record of where spliced
-              text came from that a later pass may read.
+              text came from that any check, this pass's included, may read.
+              A refusal that the Trick Order row walk, the play-source walk,
+              the no-acting-seat walk or the Hosted Poll walk reaches through
+              a route running from the game's text into a library's is
+              located at the game's last text on that route (the call, `run`
+              or offer ``_library_entry`` names), and names the library and
+              its definition, with a fix the game's text can take.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -272,10 +278,11 @@ Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import (
     Literal,
+    Protocol,
     TypeGuard,
     assert_never,
     cast,
@@ -1194,6 +1201,78 @@ def _definition_closure(
                     reached[key] = (target, via)
                     frontier.append((target, key))
     return reached
+
+
+def _library_functions(game: n.Game) -> dict[str, str]:
+    """Each spliced library function, by name, to the library it came from,
+    read off its `n.LibraryOrigin`."""
+    return {f.name: f.origin.library for f in game.functions if f.origin is not None}
+
+
+@dataclass(frozen=True)
+class _LibraryEntry:
+    """Where a route from the game's text last entered a library's: the game
+    text naming the library definition (a call, a `run`, an offer), that
+    definition's origin, and how many definitions deep the entry stands."""
+
+    span: Span | None
+    origin: n.LibraryOrigin
+    depth: int
+    name: str
+
+    @property
+    def through(self) -> str:
+        """The entered definition, in the game's author's words."""
+        return f"library '{self.origin.library}''s {self.origin.where}"
+
+
+def _library_entry(steps: Sequence[tuple[Span | None, object]]) -> _LibraryEntry | None:
+    """The last step a route from game-written text takes into library text,
+    when the route ends in library text; None when it ends in the game's.
+    `steps` is each definition the route enters, in order, with the span of
+    the text that names it."""
+    entry: _LibraryEntry | None = None
+    in_library = False
+    for depth, (span, definition) in enumerate(steps, start=1):
+        origin = getattr(definition, "origin", None)
+        if origin is not None and not in_library:
+            entry = _LibraryEntry(span, origin, depth, str(getattr(definition, "name", "")))
+        in_library = origin is not None
+    return entry if in_library else None
+
+
+def _naming_span(container: object, namespace: str, name: str) -> Span | None:
+    """The span of the first node in `container` whose reference slot names
+    `name` in `namespace` (a call, a `run`, an offer)."""
+    for node in _child_nodes(container):
+        for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
+            if slot_namespace(node, field_name) == namespace and name in slot_strings(
+                node, field_name
+            ):
+                return cast(Span | None, getattr(node, "span", None))
+    return None
+
+
+def _closure_steps(
+    key: tuple[str, str],
+    reached: dict[tuple[str, str], tuple[object, tuple[str, str] | None]],
+    root: object,
+) -> list[tuple[Span | None, object]]:
+    """The route `_definition_closure` reached `key` by from `root`, as
+    `_library_entry`'s steps."""
+    chain: list[tuple[str, str]] = []
+    at: tuple[str, str] | None = key
+    while at is not None:
+        chain.append(at)
+        at = reached[at][1]
+    chain.reverse()
+    steps: list[tuple[Span | None, object]] = []
+    caller: object = root
+    for ns, name in chain:
+        target = reached[(ns, name)][0]
+        steps.append((_naming_span(caller, ns, name), target))
+        caller = target
+    return steps
 
 
 def _reachable_nodes(game: n.Game) -> Iterator[object]:
@@ -4049,17 +4128,9 @@ def resolve(game: n.Game) -> n.Game:
     # reachable offer is refused like any game-local move type.
     own_procedures = frozenset(p.name for p in game.procedures)
     own_rules = frozenset(r.name for r in game.rules)
-    uses_names = [u.name for u in game.uses]
     game, library_rules = _apply_uses(game, bag)
     _raise_if_errors(bag)
-    # Which library each spliced function came from: the one origin fact a
-    # cycle crossing the splice needs, to be reported to the game's author.
-    library_functions = {
-        f.name: name for name in uses_names for f in load_library(name).functions
-    }
-    own_move_types = frozenset(mt.name for mt in game.move_types) - frozenset(
-        m.name for name in uses_names for m in load_library(name).move_types
-    )
+    own_move_types = frozenset(mt.name for mt in game.move_types if mt.origin is None)
     _resolve_component_set(game, bag)
     _reject_card_content_clauses(game, bag)
     _resolve_direction(game, bag)
@@ -4144,7 +4215,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_declared_type_names(game, bag)
     _check_state_default_scope(game, bag)
     _check_state_scope(game, bag)
-    _check_functions(game, bag, library_functions)
+    _check_functions(game, bag)
     # After `_check_functions`: the row walk reuses its call map and `_reaches`
     # to follow a row's reach through the designer functions.
     _check_trick_order_rows(game, bag)
@@ -4158,7 +4229,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_actor_alias_comparisons(game, bag)
     _check_delegation(game, bag)
     _check_implicit_pools(game, bag)
-    _check_hidden_reads(game, bag, frozenset(library_functions))
+    _check_hidden_reads(game, bag)
     game = _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
@@ -6200,6 +6271,11 @@ def _check_play_source(
                     f"passes, or the game's own state"
                 )
             )
+            entry = (
+                _library_entry(_closure_steps(("function", fname), reached, _rule_clauses(rule)))
+                if rule.origin is None
+                else None
+            )
             for nd in _walk(fn.body):
                 if (
                     isinstance(nd, n.NameRef)
@@ -6209,6 +6285,18 @@ def _check_play_source(
                     and id(nd) not in reported
                 ):
                     reported.add(id(nd))
+                    if entry is not None:
+                        inner = f", then function `{fname}`" if fname != entry.name else ""
+                        bag.error(
+                            f"rule '{rule.name}' calls {entry.through}{inner} from its "
+                            f"clauses, which reads `{nd.name}`: {_PLAY_SOURCE_READING}, "
+                            f"and a function cannot see which cards those are — "
+                            f"`{entry.name}` is library '{entry.origin.library}''s, so "
+                            f"write the filter in the rule's own clause "
+                            f"(`cards in {nd.name} where ...`) instead of calling it",
+                            entry.span,
+                        )
+                        continue
                     bag.error(
                         f"function '{fname}' reads `{nd.name}`, and rule "
                         f"'{rule.name}' calls it from its clauses: "
@@ -8621,6 +8709,50 @@ def _gated_calls(game: n.Game) -> list[n.Call]:
     ]
 
 
+class _ErrorSink(Protocol):
+    def error(self, message: str, span: Span | None) -> None: ...
+
+
+@dataclass(frozen=True)
+class _RowLibrarySink:
+    """A row's refusal of what it reaches through library text, told at the
+    game's call into that text, once, with the fix the game can take."""
+
+    bag: DiagnosticBag
+    entry: _LibraryEntry
+    row: n.TrickOrderRow
+    seen: set[tuple[str, Span | None]]
+
+    def error(self, message: str, span: Span | None) -> None:
+        message += (
+            f". `{self.entry.name}` is library '{self.entry.origin.library}''s, so "
+            f"write the fact in the row from the card and public state instead of "
+            f"calling it"
+        )
+        at = self.entry.span or self.row.span
+        if (message, at) not in self.seen:
+            self.seen.add((message, at))
+            self.bag.error(message, at)
+
+
+def _row_routes(
+    row: n.TrickOrderRow, fns: dict[str, n.FunctionDef]
+) -> dict[str, list[tuple[Span | None, object]]]:
+    """Each function a row reaches, with the route it is first reached by:
+    every function the route enters, from the row's own call, with the call
+    that enters it (`_library_entry`'s steps)."""
+    routes: dict[str, list[tuple[Span | None, object]]] = {}
+    frontier: list[tuple[object, list[tuple[Span | None, object]]]] = [(row.body, [])]
+    while frontier:
+        container, steps = frontier.pop(0)
+        for nd in _walk(container):
+            if isinstance(nd, n.Call) and nd.func in fns and nd.func not in routes:
+                route = steps + [(nd.span, fns[nd.func])]
+                routes[nd.func] = route
+                frontier.append((fns[nd.func].body, route))
+    return routes
+
+
 def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
     """Every row of a [[trick-order]] is HERMETIC: a pure function of the card
     and public state.
@@ -8677,11 +8809,28 @@ def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
         for name in sorted(fn_names):
             if any(f == name or _reaches(f, name, calls) for f in direct):
                 sites.extend((nd, name) for nd in _walk(fns[name].body))
+        # A function reached through library text is the library's, sound
+        # where the library calls it: the row's call of it is what fails.
+        entries = {
+            name: entry
+            for name, steps in _row_routes(row, fns).items()
+            if (entry := _library_entry(steps)) is not None
+        }
+        seen: set[tuple[str, Span | None]] = set()
 
         def through(fn: str | None) -> str:
-            return f" through function `{fn}`" if fn else ""
+            entry = entries.get(fn) if fn else None
+            if entry is None:
+                return f" through function `{fn}`" if fn else ""
+            inner = f", then function `{fn}`" if fn != entry.name else ""
+            return f" through {entry.through}{inner}"
+
+        def sink(fn: str | None) -> _ErrorSink:
+            entry = entries.get(fn) if fn else None
+            return bag if entry is None else _RowLibrarySink(bag, entry, row, seen)
 
         for nd, fn in sites:
+            out = sink(fn)
             if isinstance(nd, n.NameRef) and nd.ref_kind == "pronoun":
                 # actor/action/winner reached through a function are already
                 # refused by `_check_functions`' own hermeticity guard, which
@@ -8689,7 +8838,7 @@ def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
                 # guard for the other two.
                 if fn is not None and nd.name in _CALL_SITE_PRONOUNS:
                     continue
-                bag.error(
+                out.error(
                     f"`{row.key}:` reads the pronoun '{nd.name}'"
                     + through(fn)
                     + f" — a Trick Order row is hermetic: it is asked from the "
@@ -8700,7 +8849,7 @@ def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
                     nd.span or row.span,
                 )
             elif isinstance(nd, n.Choose):
-                bag.error(
+                out.error(
                     f"`{row.key}:` makes a `choose`"
                     + through(fn)
                     + " — a Trick Order row is a fact, not a decision: it may "
@@ -8709,10 +8858,10 @@ def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
                 )
             elif isinstance(nd, n.NameRef) and nd.ref_kind == "zone":
                 _check_row_zone_read(
-                    game, row, nd, fn, bag, through, id(nd) in subscripted
+                    game, row, nd, fn, out, through, id(nd) in subscripted
                 )
             elif isinstance(nd, n.Call):
-                _check_row_call(game, row, nd, fn, bag, through)
+                _check_row_call(game, row, nd, fn, out, through)
 
 
 def _check_row_zone_read(
@@ -8720,7 +8869,7 @@ def _check_row_zone_read(
     row: n.TrickOrderRow,
     nd: n.NameRef,
     fn: str | None,
-    bag: DiagnosticBag,
+    bag: _ErrorSink,
     through: Callable[[str | None], str],
     is_subscripted: bool,
 ) -> None:
@@ -8751,17 +8900,21 @@ def _check_row_zone_read(
         # that Shadow Guard so the fix is a subscript the author can write.
         # A player-typed state variable of THIS game, so the suggested
         # subscript is a name the designer can actually write.
-        example = "declarer"
-        if game.state is not None:
-            example = next(
-                (v.name for v in game.state.decls if v.type_name == "Player"), example
-            )
+        # Through library text there is no subscript the game can write: the
+        # sink names the fix it can take instead.
+        fix = ""
+        if not isinstance(bag, _RowLibrarySink):
+            example = "declarer"
+            if game.state is not None:
+                example = next(
+                    (v.name for v in game.state.decls if v.type_name == "Player"), example
+                )
+            fix = f"; subscript it with a player the state names (`{nd.name}[{example}]`)"
         bag.error(
             f"`{row.key}:` reads `{nd.name}` bare (the acting player's "
             f"instance)"
             + through(fn)
-            + f" — a Trick Order row has no acting player; subscript it with a "
-            f"player the state names (`{nd.name}[{example}]`)",
+            + f" — a Trick Order row has no acting player{fix}",
             nd.span or row.span,
         )
 
@@ -8771,7 +8924,7 @@ def _check_row_call(
     row: n.TrickOrderRow,
     nd: n.Call,
     fn: str | None,
-    bag: DiagnosticBag,
+    bag: _ErrorSink,
     through: Callable[[str | None], str],
 ) -> None:
     if nd.func in declared_names(game):
@@ -9388,9 +9541,7 @@ def _rewrite_value(value: object, cats: _Categories, bag: DiagnosticBag) -> obje
     return value
 
 
-def _check_functions(
-    game: n.Game, bag: DiagnosticBag, library_functions: dict[str, str] | None = None
-) -> None:
+def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
     """Functions are hermetic and non-recursive: a body may reference only its own
     parameters, binders it introduces (`number of players where …`), and game/phase
     state — not a name the flat classifier tagged `local` from some unrelated binder,
@@ -9457,7 +9608,7 @@ def _check_functions(
                     nd.span,
                 )
         if _reaches(fn.name, fn.name, calls):
-            _report_recursion(fn, calls, library_functions or {}, bag)
+            _report_recursion(fn, calls, _library_functions(game), bag)
 
 
 def _contracted_remedy(contracts: tuple[n.ContractStamp, ...]) -> str:
@@ -9809,23 +9960,52 @@ def _check_hosted_polls(game: n.Game, bag: DiagnosticBag) -> None:
             segments: list[str] = []
             while key is not None:
                 ns, name = key
-                segments.append(f"{_HOSTED_REACH_NOUN[ns]} '{name}' ({_HOSTED_REACH_VERB[ns]})")
+                origin = getattr(reached[key][0], "origin", None)
+                owner = f"library '{origin.library}''s " if origin is not None else ""
+                segments.append(
+                    f"{owner}{_HOSTED_REACH_NOUN[ns]} '{name}' ({_HOSTED_REACH_VERB[ns]})"
+                )
                 key = reached[key][1]
             text = " → ".join(reversed(segments))
             return f", reached through {text}{', ' + part if part else ''}"
 
-        units: list[tuple[object, str]] = [(poll.body, "")]
+        seen: set[tuple[str, Span | None]] = set()
+        units: list[tuple[object, str, _ErrorSink]] = [(poll.body, "", bag)]
         for key, (target, _via) in reached.items():
+            # Library text the poll reaches is sound where the library runs
+            # it: the poll's reach into it is what fails.
+            entry = _library_entry(_closure_steps(key, reached, poll))
+            out: _ErrorSink = bag if entry is None else _PollLibrarySink(bag, entry, seen)
             for f in fields(cast(n.Node, target)):
                 part = _HOSTED_REACH_PART.get((type(target), f.name), "")
-                units.append((getattr(target, f.name), path(key, part)))
-        for unit, via in units:
+                units.append((getattr(target, f.name), path(key, part), out))
+        for unit, via, sink in units:
             for nd in _child_nodes(unit):
-                _check_hosted_node(nd, clause, via, primitives, bag)
+                _check_hosted_node(nd, clause, via, primitives, sink)
+
+
+@dataclass(frozen=True)
+class _PollLibrarySink:
+    """A Hosted Poll's refusal of library text it reaches, told at the poll's
+    reach into that text, once, with the fix the game can take."""
+
+    bag: DiagnosticBag
+    entry: _LibraryEntry
+    seen: set[tuple[str, Span | None]]
+
+    def error(self, message: str, span: Span | None) -> None:
+        message += (
+            f". `{self.entry.name}` is library '{self.entry.origin.library}''s, so "
+            f"take it out of the Hosted Poll's body"
+        )
+        at = self.entry.span or span
+        if (message, at) not in self.seen:
+            self.seen.add((message, at))
+            self.bag.error(message, at)
 
 
 def _check_hosted_node(
-    nd: object, clause: str, via: str, primitives: set[str], bag: DiagnosticBag
+    nd: object, clause: str, via: str, primitives: set[str], bag: _ErrorSink
 ) -> None:
     """One node of a Hosted Poll's closure against the four refusals."""
     why_live = (
@@ -11313,14 +11493,15 @@ class _HiddenReads:
     pool is judged per delegated decision by the runtime Owner Guard
     `delegation.check_decider_sees`, which this check shadows statically."""
 
-    def __init__(
-        self, game: n.Game, bag: DiagnosticBag, library_functions: frozenset[str] = frozenset()
-    ) -> None:
+    def __init__(self, game: n.Game, bag: DiagnosticBag) -> None:
         self.game = game
         self.bag = bag
         # The spliced functions a library brought, so a read in one's body is
         # located at the game's call of it.
-        self.library_functions = library_functions
+        self.library_functions = frozenset(_library_functions(game))
+        # Whether each procedure body being walked is a library's: the text a
+        # walk stands in, where a `run` has carried it.
+        self.library_text: list[bool] = []
         self.zones = {z.name: z for z in game.zones}
         # The families a rule clause's Play Source can be an instance of.
         self.play_sources = frozenset(
@@ -11985,7 +12166,9 @@ class _HiddenReads:
         if not all(acting for _, acting in self.trick_rounds_acting):
             for fn in self.game.functions:
                 if fn.name in (CHOOSER_HELPER, SOURCE_HELPER):
+                    self.library_text.append(fn.origin is not None)
                     self._refuse_unacting_decisions(fn.body, _ReadScope())
+                    self.library_text.pop()
         self.place = _NO_ACTOR_STATEMENT
 
     def _outside(self, expr: object, scope: _ReadScope, seat: _Seat) -> None:
@@ -12005,7 +12188,8 @@ class _HiddenReads:
         if scope.acting:
             return False
         found = False
-        for node, route, answered in self._actor_needs_in(expr, ()):
+        in_library = bool(self.library_text) and self.library_text[-1]
+        for node, route, answered, entered in self._actor_needs_in(expr, (), in_library=in_library):
             found = True
             if answered is not None and isinstance(node, n.Choose):
                 self._report_unacting_answer(route, answered, node.span)
@@ -12014,6 +12198,14 @@ class _HiddenReads:
                 # Owner Guard of `actor` in a function body, which sends the
                 # answer's author to the parameter the row passes.
                 continue
+            elif entered is not None and isinstance(node, n.Choose):
+                at = entered.depth - 1
+                told = route[:at] + (entered.through,) + route[at + 1:]
+                self._report_no_actor("a `choose`", told, entered.span)
+            elif entered is not None:
+                # Shadows `_check_functions`' call-site pronoun refusal, which
+                # tells the library's author in every game.
+                continue
             elif isinstance(node, n.Choose):
                 self._report_no_actor("a `choose`", route, node.span)
             else:
@@ -12021,20 +12213,29 @@ class _HiddenReads:
         return found
 
     def _actor_needs_in(
-        self, expr: object, calls: tuple[str, ...], answered: _Answered | None = None
-    ) -> Iterator[tuple[n.Choose | n.NameRef, tuple[str, ...], _Answered | None]]:
+        self,
+        expr: object,
+        calls: tuple[str, ...],
+        answered: _Answered | None = None,
+        entered: _LibraryEntry | None = None,
+        in_library: bool = False,
+    ) -> Iterator[
+        tuple[n.Choose | n.NameRef, tuple[str, ...], _Answered | None, _LibraryEntry | None]
+    ]:
         """Each `choose` and each `actor` read `expr` evaluates, with the
-        functions it is reached through and, when the route crossed a
-        library's call of the game's answer to a Definition Contract, that
-        crossing."""
+        functions it is reached through; when the route crossed a library's
+        call of the game's answer to a Definition Contract, that crossing; and
+        when it left the game's text for a library function, that entry."""
         for node in _child_nodes(expr):
             route = tuple(f"function `{c}`" for c in calls)
             if isinstance(node, n.Choose):
-                yield node, route, answered
+                yield node, route, answered, entered
             elif isinstance(node, n.NameRef) and node.ref_kind == "pronoun" and node.name == "actor":
-                yield node, route, answered
+                yield node, route, answered, entered
             elif isinstance(node, n.Call) and node.func in self.functions and node.func not in calls:
                 inner = answered
+                callee = self.functions[node.func]
+                into = entered
                 if inner is None and node.contract is not None:
                     inner = _Answered(node.contract, node.func, len(calls) + 1, None)
                 elif (
@@ -12043,8 +12244,10 @@ class _HiddenReads:
                     and node.func in self.library_functions
                 ):
                     inner = replace(inner, anchor=node.span)
+                elif inner is None and into is None and not in_library and callee.origin is not None:
+                    into = _LibraryEntry(node.span, callee.origin, len(calls) + 1, callee.name)
                 yield from self._actor_needs_in(
-                    self.functions[node.func].body, calls + (node.func,), inner
+                    callee.body, calls + (node.func,), inner, into, callee.origin is not None
                 )
 
     def _report_unacting_answer(
@@ -12347,10 +12550,12 @@ class _HiddenReads:
         if proc is None or stmt.name in self.running:
             return  # unknown, or a cycle another check refuses
         self.running.append(stmt.name)
+        self.library_text.append(proc.origin is not None)
         try:
             self._run_body(proc, stmt, scope, seat)
         finally:
             self.running.pop()
+            self.library_text.pop()
 
     def _run_body(
         self, proc: n.ProcedureDef, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat
@@ -12417,9 +12622,7 @@ def hidden_read_verdicts(game: n.Game) -> list[HiddenReadVerdict]:
     return reads.verdicts
 
 
-def _check_hidden_reads(
-    game: n.Game, bag: DiagnosticBag, library_functions: frozenset[str] = frozenset()
-) -> None:
+def _check_hidden_reads(game: n.Game, bag: DiagnosticBag) -> None:
     """A read of a zone at a position whose value reaches a decision must be
     one the deciders can make (decisions.md "Honest Play is assumed, so a rule
     reading concealed cards is mis-modelled"). Where no seat is deciding
@@ -12432,10 +12635,8 @@ def _check_hidden_reads(
     `_validate_refs` and `_check_primitive_reads` (every call resolves, every
     `reads` name is single-membership), and `_check_functions` and
     `_check_procedures` (the call graph the reader follows is acyclic, and a
-    cycle it meets is reported there). `library_functions` names the spliced
-    functions a library brought, where a read reached through the game's
-    answer to a library's call is located."""
-    _HiddenReads(game, bag, library_functions).run()
+    cycle it meets is reported there)."""
+    _HiddenReads(game, bag).run()
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:

@@ -5169,6 +5169,17 @@ names the argument. So is a `choose` the answer makes where the library reads
 it with no player acting, and a bare `hand` the answer reads under a library's
 rule, each told a fix the game's text can take.
 
+The same holds from the game's side. A library definition is sound when some
+calling position meets it, so a failure that only the game's choice of where
+to call it produces is the game's. A Trick Order row, a rule clause, a place
+where no player is acting, or a Hosted Poll that reaches library text the
+position may not hold is refused in the game's file, at the last text the
+game wrote on the way: the call, the `run` or the offer. The refusal names
+the library and its definition, and tells the fix the game's text can take.
+A fault in the library's own text stays the library's in every game,
+whatever calls it. A function reading `actor` is one of these, and is told
+once, to the library's author.
+
 The spellings do not cross. A zone type carries the `<owner>` argument; a
 state type and `Move` carry none. A `?` is a type's nullability, never a
 row's optionality — no row is optional — so it appears only on a signature
