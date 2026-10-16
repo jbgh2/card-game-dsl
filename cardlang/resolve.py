@@ -162,8 +162,12 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               not every seat can make; where a seat is deciding, a read that
               seat cannot make, being neither of a zone every seat sees nor
               of the deciding seat's own instance of a zone its owner sees.
-              The refusal names the announcement the rules are missing. The
-              runtime's decision sites may therefore assume every zone read
+              The refusal names the announcement the rules are missing; one
+              reached through the game's answer to a library's call of a
+              Definition Contract (``Call.contract``) is located in the
+              game's text, at the last node the game wrote on the way to the
+              read, and names the library, the row and the library's
+              decision. The runtime's decision sites may therefore assume every zone read
               at those positions is visible to the seat deciding there:
               under Delegated Play a rule's clauses are judged against
               ``chooser_for(actor)``, since every rule is asked at the trick
@@ -243,7 +247,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               procedure carries every row it answers (``contracts``), and
               every library call of a contracted function carries its own
               row (``Call.contract``) —
-              ``typecheck`` reads both, and nothing else about imports. A
+              ``typecheck`` reads both, and nothing else about imports;
+              ``_check_hidden_reads``, ``_check_play_source`` and the
+              no-acting-seat walk read them to tell the game's author. A
               library ``run`` of a contracted procedure carries no stamp: its
               arity and parameter types are the row's by the check above, and
               a refusal there raises before ``typecheck`` runs. ``expand``
@@ -4109,7 +4115,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_actor_alias_comparisons(game, bag)
     _check_delegation(game, bag)
     _check_implicit_pools(game, bag)
-    _check_hidden_reads(game, bag)
+    _check_hidden_reads(game, bag, frozenset(library_functions))
     game = _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
@@ -6063,6 +6069,22 @@ _FUNCTION_TAKES_A_CARD = (
 )
 
 
+def _contracted_answer_on(
+    key: tuple[str, str],
+    reached: dict[tuple[str, str], tuple[object, tuple[str, str] | None]],
+) -> n.ContractStamp | None:
+    """The row of the first function answering a Definition Contract on the
+    chain `_definition_closure` reached `key` by, from `key` back to the
+    root: a library's rule reaching it calls the game's answer."""
+    at: tuple[str, str] | None = key
+    while at is not None and at in reached:
+        definition, at_via = reached[at]
+        if isinstance(definition, n.FunctionDef) and definition.contracts:
+            return definition.contracts[0]
+        at = at_via
+    return None
+
+
 def _rule_clauses(rule: n.RuleDef) -> tuple[n.Expr, ...]:
     """The expressions a rule's clauses hold, in clause order."""
     exprs = (
@@ -6113,6 +6135,19 @@ def _check_play_source(
         for (_ns, fname), (fn, _via) in sorted(reached.items(), key=lambda kv: kv[0]):
             assert isinstance(fn, n.FunctionDef)
             subscripted = {id(nd.obj) for nd in _walk(fn) if isinstance(nd, n.Subscript)}
+            answer = (
+                None if rule.name in own_rules
+                else _contracted_answer_on(("function", fname), reached)
+            )
+            remedy = (
+                _FUNCTION_TAKES_A_CARD if answer is None
+                else (
+                    f"library '{answer.library}' calls it under its contract "
+                    f"`{answer.row}`, from text this game cannot edit, so the "
+                    f"filter cannot move into the rule: read the card the row "
+                    f"passes, or the game's own state"
+                )
+            )
             for nd in _walk(fn.body):
                 if (
                     isinstance(nd, n.NameRef)
@@ -6126,7 +6161,7 @@ def _check_play_source(
                         f"function '{fname}' reads `{nd.name}`, and rule "
                         f"'{rule.name}' calls it from its clauses: "
                         f"{_PLAY_SOURCE_READING}, and a function cannot see "
-                        f"which cards those are — {_FUNCTION_TAKES_A_CARD}",
+                        f"which cards those are — {remedy}",
                         nd.span,
                     )
     if not reading:
@@ -11075,11 +11110,43 @@ class _ReadScope:
 
 
 @dataclass(frozen=True)
+class _Crossing:
+    """A library's call of a function its Definition Contract names, as a
+    read reached through the game's answer crossed it: the row's stamp, the
+    answering function, the call's arguments bound to its parameters and the
+    scope they are read in, the route inside the answer, and the last node of
+    the game's text on the way to the read."""
+
+    stamp: n.ContractStamp
+    function: n.FunctionDef
+    args: tuple[n.Expr, ...]
+    scope: _ReadScope
+    inner_route: tuple[str, ...]
+    anchor: Span | None
+
+
+@dataclass(frozen=True)
+class _Answered:
+    """A library's call of the game's answer to a Definition Contract, as the
+    walk for decisions no seat can make crossed it: the row's stamp, the
+    answer, how deep in the route it stands, and the game's call of a library
+    function the walk left the game's text by."""
+
+    stamp: n.ContractStamp
+    function: str
+    depth: int
+    anchor: Span | None
+
+
+@dataclass(frozen=True)
 class ZoneRead:
     """One read of a zone an expression makes: the zone, its index as written
     (None for a bare family or an unindexed zone), whether every instance of
     a family is read, what the read needs, and the route it was reached by.
-    `choose` names the `choose` field the read sits in, when it does."""
+    `choose` names the `choose` field the read sits in, when it does. `exit`
+    is the call of a library function a read in that function's body was
+    reached by, and `crossing` the contracted call a read in the game's
+    answer to a library was reached by."""
 
     zone: str
     index: n.Expr | None
@@ -11089,6 +11156,8 @@ class ZoneRead:
     route: tuple[str, ...]
     span: Span | None
     choose: str | None = None
+    exit: n.Call | None = None
+    crossing: _Crossing | None = None
 
 
 @dataclass(frozen=True)
@@ -11129,6 +11198,20 @@ def _spell(expr: object) -> str:
             return f"{_spell(b.left)} {b.op} {_spell(b.right)}"
         case _:
             return "..."
+
+
+def _within_args(span: Span | None, call: n.Call) -> bool:
+    """Whether `span` lies inside one of `call`'s arguments: a read the
+    caller's own text makes, which the callee's body reads by value."""
+    if span is None:
+        return False
+    return any(
+        arg.span is not None
+        and arg.span.source_name == span.source_name
+        and arg.span.start <= span.start
+        and span.end <= arg.span.end
+        for arg in call.args
+    )
 
 
 class _Seat:
@@ -11187,9 +11270,14 @@ class _HiddenReads:
     pool is judged per delegated decision by the runtime Owner Guard
     `delegation.check_decider_sees`, which this check shadows statically."""
 
-    def __init__(self, game: n.Game, bag: DiagnosticBag) -> None:
+    def __init__(
+        self, game: n.Game, bag: DiagnosticBag, library_functions: frozenset[str] = frozenset()
+    ) -> None:
         self.game = game
         self.bag = bag
+        # The spliced functions a library brought, so a read in one's body is
+        # located at the game's call of it.
+        self.library_functions = library_functions
         self.zones = {z.name: z for z in game.zones}
         # The families a rule clause's Play Source can be an instance of.
         self.play_sources = frozenset(
@@ -11335,9 +11423,20 @@ class _HiddenReads:
             body_scope = replace(scope, names=(), aliases=_ActorAliases(frozenset()))
             for param, arg in zip(fn.params, call.args):
                 body_scope = body_scope.bind(param.name, (_Binding(arg, scope, via),))
-            yield from self.reads_of(
+            for found in self.reads_of(
                 fn.body, body_scope, need, route + (via,), choose, calls + (call.func,)
-            )
+            ):
+                if found.crossing is None and not _within_args(found.span, call):
+                    if call.contract is not None:
+                        anchor = found.exit.span if found.exit is not None else found.span
+                        crossing = _Crossing(
+                            call.contract, fn, call.args, scope,
+                            found.route[len(route) + 1:], anchor,
+                        )
+                        found = replace(found, crossing=crossing)
+                    elif fn.name in self.library_functions:
+                        found = replace(found, exit=call)
+                yield found
             return
         decl = self.primitives.get(call.func)
         if decl is not None:
@@ -11547,7 +11646,106 @@ class _HiddenReads:
             self.verdicts.append(HiddenReadVerdict(position, read, accepted, reason, span))
             if accepted:
                 continue
+            if read.crossing is not None:
+                self._report_crossed(position, read, seat, to_owner)
+                continue
             self._report(position, read, seat, to_owner, span or read.span, source and not in_choose)
+
+    def _report_crossed(self, what: str, read: ZoneRead, seat: _Seat, to_owner: bool) -> None:
+        """A refused read the game's answer to a Definition Contract makes,
+        told to the game's author at the last text the game wrote on the way
+        to it (decisions.md "Family libraries"): a library is sound when some
+        answer meets its row, so a read only some answers make is the
+        answer's. The zone is spelled as the game wrote it, and where the
+        instance read is the one the library's argument names, the sentence
+        names that argument."""
+        crossing = read.crossing
+        assert crossing is not None
+        fn = crossing.function
+        written, passed = self._game_spelling(read, crossing)
+        needs = _NEED_PHRASE[read.need].format(z=written)
+        through = (
+            f" (through {', then '.join(crossing.inner_route)})" if crossing.inner_route else ""
+        )
+        calls = (
+            f"library '{crossing.stamp.library}' calls it under its contract "
+            f"`{crossing.stamp.row}` in {what}"
+        )
+        decider = seat.label
+        decides = (
+            "which each receiving seat decides, so every receiving seat"
+            if seat.every
+            else f"which {decider} decides, so {decider}"
+        )
+        if passed is not None:
+            value, param = passed
+            cannot = "not every receiving seat can see them" if seat.every else f"{decider} cannot see them"
+            message = (
+                f"function `{fn.name}` reads {needs}{through}, and library "
+                f"'{crossing.stamp.library}' passes `{value}` as `{param}` when it "
+                f"calls it under its contract `{crossing.stamp.row}` in {what}, "
+                f"{decides} must be able to check it, but {cannot}"
+            )
+        else:
+            blind = (
+                "which not every receiving seat can see" if seat.every
+                else f"which {decider} cannot see{self._why_not_owned(read.index, read.index_scope)}"
+            )
+            message = (
+                f"function `{fn.name}` reads {needs}{through}, {blind}, but {calls}, "
+                f"{decides} must be able to check it"
+            )
+        own = (
+            self._passed_deciding_seat(read, crossing)
+            if passed is None and not seat.every and to_owner
+            else None
+        )
+        also = f", or the cards of the seat the library passes as `{own}`" if own else ""
+        message += (
+            f". Read cards every seat can see{also}, or have the holder announce "
+            f"or reveal the fact first"
+        )
+        key = (message, crossing.anchor)
+        if key not in self._reported:
+            self._reported.add(key)
+            self.bag.error(message, crossing.anchor)
+
+    def _game_spelling(
+        self, read: ZoneRead, crossing: _Crossing
+    ) -> tuple[str, tuple[str, str] | None]:
+        """The zone as the game's text spells it, and -- where the instance
+        read is named by one of the library's arguments -- that argument and
+        the parameter it binds."""
+        if read.index is None:
+            return self._zone_text(read), None
+        chain = self._spellings(read.index, read.index_scope)
+        start = 0
+        if read.exit is not None:
+            start = next(
+                (at for at, (expr, _) in enumerate(chain) if any(expr is a for a in read.exit.args)),
+                0,
+            )
+        passed: tuple[str, str] | None = None
+        for at, (expr, _) in enumerate(chain):
+            for param, arg in zip(crossing.function.params, crossing.args):
+                if expr is arg and at > start:
+                    passed = (_spell(arg), param.name)
+                    break
+            if passed is not None:
+                break
+        index, _ = chain[start]
+        return f"`{read.zone}[{_spell(index)}]`", passed
+
+    def _passed_deciding_seat(self, read: ZoneRead, crossing: _Crossing) -> str | None:
+        """The parameter the library binds to the deciding seat, where the
+        zone read is a family keyed by player: reading that parameter's
+        instance is the remedy that passes."""
+        if self._owned_by(read.zone) is not Role.PLAYER:
+            return None
+        for param, arg in zip(crossing.function.params, crossing.args):
+            if param.type_name == "Player" and self._names_acting_seat(arg, crossing.scope):
+                return param.name
+        return None
 
     def _report(
         self, what: str, read: ZoneRead, seat: _Seat, to_owner: bool,
@@ -11743,27 +11941,70 @@ class _HiddenReads:
         if scope.acting:
             return False
         found = False
-        for node, route in self._actor_needs_in(expr, ()):
+        for node, route, answered in self._actor_needs_in(expr, ()):
             found = True
-            if isinstance(node, n.Choose):
+            if answered is not None and isinstance(node, n.Choose):
+                self._report_unacting_answer(route, answered, node.span)
+            elif answered is not None:
+                # Shadows `_check_functions`' call-site pronoun refusal, the
+                # Owner Guard of `actor` in a function body, which sends the
+                # answer's author to the parameter the row passes.
+                continue
+            elif isinstance(node, n.Choose):
                 self._report_no_actor("a `choose`", route, node.span)
             else:
                 self._report_no_actor("`actor`", route, node.span, reads=True)
         return found
 
     def _actor_needs_in(
-        self, expr: object, calls: tuple[str, ...]
-    ) -> Iterator[tuple[n.Choose | n.NameRef, tuple[str, ...]]]:
+        self, expr: object, calls: tuple[str, ...], answered: _Answered | None = None
+    ) -> Iterator[tuple[n.Choose | n.NameRef, tuple[str, ...], _Answered | None]]:
         """Each `choose` and each `actor` read `expr` evaluates, with the
-        functions it is reached through."""
+        functions it is reached through and, when the route crossed a
+        library's call of the game's answer to a Definition Contract, that
+        crossing."""
         for node in _child_nodes(expr):
             route = tuple(f"function `{c}`" for c in calls)
             if isinstance(node, n.Choose):
-                yield node, route
+                yield node, route, answered
             elif isinstance(node, n.NameRef) and node.ref_kind == "pronoun" and node.name == "actor":
-                yield node, route
+                yield node, route, answered
             elif isinstance(node, n.Call) and node.func in self.functions and node.func not in calls:
-                yield from self._actor_needs_in(self.functions[node.func].body, calls + (node.func,))
+                inner = answered
+                if inner is None and node.contract is not None:
+                    inner = _Answered(node.contract, node.func, len(calls) + 1, None)
+                elif (
+                    inner is not None
+                    and inner.anchor is None
+                    and node.func in self.library_functions
+                ):
+                    inner = replace(inner, anchor=node.span)
+                yield from self._actor_needs_in(
+                    self.functions[node.func].body, calls + (node.func,), inner
+                )
+
+    def _report_unacting_answer(
+        self, route: tuple[str, ...], answered: _Answered, span: Span | None
+    ) -> None:
+        """A `choose` the game's answer to a Definition Contract makes where
+        the library reads it with no player acting: told to the game's author,
+        at the last text the game wrote on the way to it, with the fix the
+        answer can take."""
+        inner = route[answered.depth:]
+        through = f" (through {', then '.join(inner)})" if inner else ""
+        where = _NO_ACTOR_WHERE[self.place]
+        message = (
+            f"function `{answered.function}` makes a `choose`{through}, but "
+            f"library '{answered.stamp.library}' calls it under its contract "
+            f"`{answered.stamp.row}` where no player is acting ({where}), so no "
+            f"one can make the decision. Compute the answer from the parameters "
+            f"the row passes, or from the game's own state"
+        )
+        at = answered.anchor or span
+        key = (message, at)
+        if key not in self._reported:
+            self._reported.add(key)
+            self.bag.error(message, at)
 
     def _report_no_actor(
         self, what: str, route: tuple[str, ...], span: Span | None, reads: bool = False
@@ -12112,7 +12353,9 @@ def hidden_read_verdicts(game: n.Game) -> list[HiddenReadVerdict]:
     return reads.verdicts
 
 
-def _check_hidden_reads(game: n.Game, bag: DiagnosticBag) -> None:
+def _check_hidden_reads(
+    game: n.Game, bag: DiagnosticBag, library_functions: frozenset[str] = frozenset()
+) -> None:
     """A read of a zone at a position whose value reaches a decision must be
     one the deciders can make (decisions.md "Honest Play is assumed, so a rule
     reading concealed cards is mis-modelled"). Where no seat is deciding
@@ -12125,8 +12368,10 @@ def _check_hidden_reads(game: n.Game, bag: DiagnosticBag) -> None:
     `_validate_refs` and `_check_primitive_reads` (every call resolves, every
     `reads` name is single-membership), and `_check_functions` and
     `_check_procedures` (the call graph the reader follows is acyclic, and a
-    cycle it meets is reported there)."""
-    _HiddenReads(game, bag).run()
+    cycle it meets is reported there). `library_functions` names the spliced
+    functions a library brought, where a read reached through the game's
+    answer to a library's call is located."""
+    _HiddenReads(game, bag, library_functions).run()
 
 
 def _raise_if_errors(bag: DiagnosticBag) -> None:

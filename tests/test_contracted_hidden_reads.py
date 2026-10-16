@@ -24,12 +24,17 @@ domain:          every judged position a library's text can hold (the
                  library's argument names -- each with a zone the deciding
                  seat cannot see and one every seat sees. Beside it: the
                  answer read at the game's own position through a library
-                 wrapper; each remedy a refusal offers, run; and the other
-                 refusals reached through an answer -- a `choose` and an
-                 `actor` where no player is acting, a bare `hand` from a
-                 library rule, an Arrival Record over a concealed pile.
-                 No library text holds a position where no seat decides, so
-                 the no-seat rows are outside by derivation.
+                 wrapper; a contracted procedure and a contracted move type,
+                 whose decisions are the game's own text; a decision each
+                 receiving seat makes, and one Delegated Play routes; each
+                 remedy a refusal offers, run; the other refusals reached
+                 through an answer -- a `choose` and an `actor` where no
+                 player is acting, a bare `hand` from a library rule, an
+                 Arrival Record over a concealed pile; and the misuse probes
+                 (the library's own read handed in as an argument, one answer
+                 asked at a game and a library position, bare-family sugar in
+                 the answer). No library text holds a position where no seat
+                 decides, so the no-seat rows are outside by derivation.
 registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS` restricted
                  by `tests.test_family_libraries._library_reachable_node_types`;
                  the inline verdict per position and zone type:
@@ -196,7 +201,7 @@ class Built:
     anchor: str | None
 
 
-def _build(key: tuple[type, str], route: str, zone: str, arg: str = "actor") -> Built:
+def _build(key: tuple[type, str], route: str, zone: str) -> Built:
     pos = _POSITIONS[key]
     fn, row = _ROW[pos.kind]
     rows = [row]
@@ -207,11 +212,11 @@ def _build(key: tuple[type, str], route: str, zone: str, arg: str = "actor") -> 
         expr = _read(pos.kind, f"{zone}[1]", "actor")
     elif route == "library_wrapper":
         lib_defs.append(f"function gate(p : Player) = {fn}(p)")
-        expr = f"gate({arg})"
+        expr = "gate(actor)"
     elif route in ("library_function_library_seat", "library_seat"):
         expr = f"{fn}(1)"
     else:
-        expr = f"{fn}({arg})"
+        expr = f"{fn}(actor)"
     defs = ""
     anchor: str | None = f"{zone}["
     if route in ("answer", "library_wrapper"):
@@ -316,26 +321,13 @@ def _bag(monkeypatch: pytest.MonkeyPatch, library: str, game: str) -> list[str]:
 
 # --- the grid ---------------------------------------------------------------
 
-_RED = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "issue #866: a hidden read reached through a contracted function is "
-        "refused in the library's file"
-    ),
-)
-
 
 def _cells() -> list[object]:
     cells: list[object] = []
     for key in _KEYS:
         for route in ROUTES:
             for zone in ("secret", "won"):
-                hidden = zone == "secret"
-                marks = [_RED] if hidden and route != "inline" else []
-                cells.append(
-                    pytest.param(key, route, zone, id=f"{_label(key)}-{route}-{zone}", marks=marks)
-                )
+                cells.append(pytest.param(key, route, zone, id=f"{_label(key)}-{route}-{zone}"))
     return cells
 
 
@@ -429,7 +421,6 @@ def test_each_offered_remedy_is_accepted(
     assert bag == [], "\n".join(bag)
 
 
-@_RED
 def test_the_passed_seat_is_offered_only_where_it_is_the_deciders(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -456,7 +447,6 @@ def test_the_passed_seat_is_offered_only_where_it_is_the_deciders(
 # --- the game's own position, through a library wrapper ----------------------
 
 
-@_RED
 def test_a_game_position_reaching_its_answer_through_a_library_wrapper(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -500,7 +490,6 @@ _NO_ACTOR_LIBRARY = """library contractlib {
 """
 
 
-@_RED
 def test_a_choose_in_an_answer_read_where_no_one_acts_is_the_games(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -523,7 +512,6 @@ def test_the_answer_to_a_no_one_acting_read_is_accepted(monkeypatch: pytest.Monk
     assert bag == [], bag
 
 
-@_RED
 def test_actor_in_an_answer_read_where_no_one_acts_is_told_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -552,7 +540,6 @@ _RULE_LIBRARY = """library contractlib {
 """
 
 
-@_RED
 def test_a_bare_hand_in_an_answer_a_library_rule_calls_is_told_a_fix_the_game_can_take(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -587,7 +574,8 @@ def test_an_arrival_record_over_a_concealed_pile_in_an_answer_is_the_games(
     game = _game(defs, True)
     bag = _bag(monkeypatch, library, game)
     assert bag and all(line.startswith(GAME) for line in bag), bag
-    assert any(line.startswith(_where(game, defs, "follows_lead(")) for line in bag), bag
+    at = _where(game, defs, "follows_lead(")
+    assert any(line.startswith(at) and "fully public pile" in line for line in bag), bag
 
 
 # --- the other two contracted kinds: the decision is the game's own text -----
@@ -634,8 +622,8 @@ def test_a_contracted_procedure_or_move_type_decides_in_the_games_text(
     definition whose positions are the game's own text, so the refusal is
     there already, at the game's position.
 
-    red under: report `_HiddenReads._judge`'s refusals at the run site or the
-    offer, in place of the position."""
+    red under: have `_HiddenReads._judge` report an uncrossed refusal with no
+    span."""
     row, offering, use, answer = _CONTRACTED_KIND[kind]
     library = (
         _KIND_LIBRARY.replace("{row}", row).replace("{offering}", offering).replace("{use}", use)
@@ -646,7 +634,6 @@ def test_a_contracted_procedure_or_move_type_decides_in_the_games_text(
     assert bag[0].startswith(GAME) and "`secret[1]`" in bag[0], bag
 
 
-@_RED
 def test_a_read_every_receiving_seat_decides_is_told_without_the_passed_seat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -661,3 +648,66 @@ def test_a_read_every_receiving_seat_decides_is_told_without_the_passed_seat(
     assert bag[0].startswith(_where(game, defs, "secret[")), bag
     assert "not every receiving seat can see" in bag[0], bag
     assert "the seat the library passes" not in bag[0], bag
+
+
+# --- misuse probes ----------------------------------------------------------
+
+
+def test_a_read_in_the_librarys_own_argument_stays_the_librarys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The library hands the answer a value its own text reads from a zone the
+    deciding seat cannot see: the answer reads only its parameter, so the read
+    is the library's, at the library's text."""
+    library = _library_text(
+        Position("bool"),
+        "true",
+        ["ready(b : Boolean) : Boolean", "secret[player] : HiddenPile<player>"],
+        [],
+    ).replace("move_type stay { ", "move_type stay { when: ready(any card in secret[1] where true) ")
+    bag = _bag(monkeypatch, library, _game("function ready(b : Boolean) = b", False))
+    assert len(bag) == 1, bag
+    assert bag[0].startswith(LIBRARY) and "`secret[1]`" in bag[0], bag
+
+
+def test_one_answer_read_at_a_game_position_and_a_library_position_is_told_each(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The game's own move type and the library's both ask the answer: two
+    sentences at the one read, each naming its own position."""
+    built = _build((n.MoveTypeDef, "when"), "answer", "secret")
+    defs = built.defs + "\nmove_type mine { when: ready(actor) effect { acted[actor] := true } }"
+    game = _game(defs, False, "offer to 0 one of [mine]")
+    bag = _bag(monkeypatch, built.library, game)
+    assert len(bag) == 2, bag
+    assert all(line.startswith(GAME) for line in bag), bag
+    assert any("library 'contractlib'" in line for line in bag), bag
+    assert any("move type `mine`'s `when:`" in line for line in bag), bag
+
+
+def test_an_answer_reading_bare_family_sugar_reads_the_deciders_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A designer writes the family bare in the answer, meaning the deciding
+    seat's own: the body inherits the acting seat, so it is accepted."""
+    built = _build((n.MoveTypeDef, "when"), "answer", "secret")
+    bag = _bag(
+        monkeypatch, built.library, _game("function ready(p : Player) = any card in secret where true", False)
+    )
+    assert bag == [], bag
+
+
+def test_a_read_through_an_answer_under_delegated_play_names_the_routed_decider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Under Delegated Play a rule's clauses are decided by
+    `chooser_for(actor)`: the answer's refusal names that decider, still in
+    the game's file."""
+    key = (n.AppliesWhen, "pred")
+    built = _build(key, "answer", "secret")
+    defs = built.defs + "\nfunction chooser_for(p : Player) = if p is 1 then 0 else p"
+    game = _game(defs, True)
+    bag = _bag(monkeypatch, built.library, game)
+    assert len(bag) == 1, bag
+    assert bag[0].startswith(_where(game, defs, "secret[")), bag
+    assert "`chooser_for(actor)`" in bag[0] and "library 'contractlib'" in bag[0], bag
