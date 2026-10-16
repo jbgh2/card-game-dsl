@@ -47,9 +47,9 @@ domain:          two directions. Game to library, the checks that follow a
                  implicit read's family; the ones a cited issue holds: a
                  library rule, Delegated Play helper or provided `hand` the
                  game's trick play decides, a seat-direction word the game's
-                 state captures, and
-                 a library movement in a piece game; and the
-                 library text a game activates or runs, judged once the game
+                 state captures, and a procedure parameter a piece game's
+                 filter binder captures; and the library text a game
+                 activates or runs, judged once the game
                  is known (a rule activated, a library round). Beside them,
                  the library's own text: every check
                  `resolve.check_library_alone` runs, a call-site pronoun in a
@@ -1009,15 +1009,8 @@ def _held_choices() -> dict[str, tuple[str, str, str, str]]:
 """,
             "expects a SeatDirection",
         ),
-        "movement-filter-binder-in-a-piece-game": (
-            "issue #900",
-            f"library {_LIB} {{ {_FLAVOR_REQUIRES} procedure clear() {{ move all cards "
-            "from pile where card is top_of(pile) to box } }",
-            _PIECES.format(body="run clear()"),
-            "unresolved name 'card'",
-        ),
         "procedure-parameter-captured-in-a-piece-game": (
-            "issue #900",
+            "issue #170",
             f"library {_LIB} {{ {_FLAVOR_REQUIRES} procedure give(piece : Player) {{ "
             "move all cards from pile where piece is piece to box } }",
             _PIECES.format(body="run give(0)"),
@@ -1074,9 +1067,6 @@ def test_each_game_choice_an_issue_holds_is_accepted_without_the_choice(
         "seat-direction-captured-by-the-games-state": held[
             "seat-direction-captured-by-the-games-state"
         ][2].replace("  left : Integer = 0", ""),
-        "movement-filter-binder-in-a-piece-game": _FLAVOR_HOST.format(
-            content="cards: standard52", deck="deck : Deck  ", body="run clear()"
-        ),
         "procedure-parameter-captured-in-a-piece-game": _FLAVOR_HOST.format(
             content="cards: standard52", deck="deck : Deck  ", body="run give(0)"
         ),
