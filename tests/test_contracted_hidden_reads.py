@@ -22,7 +22,9 @@ domain:          every judged position a library's text can hold (the
                  answer calls with the game's seat and with the seat the
                  library passed; and in the answer, of the instance the
                  library's argument names -- each with a zone the deciding
-                 seat cannot see and one every seat sees. Beside it: the
+                 seat cannot see and one every seat sees. A library picks a
+                 seat through a required player; each route written with a
+                 seat number instead is the seat-agnostic refusal's, alone. Beside it: the
                  answer read at the game's own position through a library
                  wrapper; a contracted procedure and a contracted move type,
                  whose decisions are the game's own text; a decision each
@@ -48,7 +50,8 @@ domain:          every judged position a library's text can hold (the
 registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS` restricted
                  by `tests.test_family_libraries._library_reachable_node_types`;
                  the inline verdict per position and zone type:
-                 tests/test_hidden_reads.py; the host and the bag reader:
+                 tests/test_hidden_reads.py; a library's seat and team
+                 numbers: tests/test_library_type_gates.py; the host and the bag reader:
                  tests/test_definition_contracts.py.
 does not prove:  that every position's sentence is whole: the move type's
                  `when:` and the two siblings are pinned exactly, the other
@@ -57,6 +60,7 @@ does not prove:  that every position's sentence is whole: the move type's
 
 from __future__ import annotations
 
+import re
 import typing
 from dataclasses import dataclass
 
@@ -204,14 +208,16 @@ ROUTES = (
 @dataclass(frozen=True)
 class Built:
     """A cell's library text, game definitions, and the text in the game's
-    definitions a refusal must point at (None: the library's own read)."""
+    definitions a refusal must point at (None: the library's own read). The
+    library names a seat other than the decider through a required player,
+    `other`, as a library must."""
 
     library: str
     defs: str
     anchor: str | None
 
 
-def _build(key: tuple[type, str], route: str, zone: str) -> Built:
+def _build(key: tuple[type, str], route: str, zone: str, seat_written: str = "other") -> Built:
     pos = _POSITIONS[key]
     fn, row = _ROW[pos.kind]
     rows = [row]
@@ -219,12 +225,12 @@ def _build(key: tuple[type, str], route: str, zone: str) -> Built:
     seat = "actor" if route == "inline" else "p"
     if route == "inline":
         rows = []
-        expr = _read(pos.kind, f"{zone}[1]", "actor")
+        expr = _read(pos.kind, f"{zone}[{seat_written}]", "actor")
     elif route == "library_wrapper":
         lib_defs.append(f"function gate(p : Player) = {fn}(p)")
         expr = "gate(actor)"
     elif route in ("library_function_library_seat", "library_seat"):
-        expr = f"{fn}(1)"
+        expr = f"{fn}({seat_written})"
     else:
         expr = f"{fn}(actor)"
     defs = ""
@@ -281,6 +287,8 @@ def _library_text(pos: Position, expr: str, rows: list[str], lib_defs: list[str]
         )
         if marker in text
     ]
+    if re.search(r"\bother\b", text):
+        used.append("other : Player")
     return text.replace("{rows}", "\n    ".join(dict.fromkeys(rows + used)))
 
 
@@ -297,7 +305,7 @@ _HOST = """game Host {
     won[player] : PlayerPile<player>
     secret[player] : HiddenPile<player>
   }
-  state { acted[player] : Boolean = false  pick[player] : Integer = 0 }
+  state { acted[player] : Boolean = false  pick[player] : Integer = 0  other : Player = 1 }
   phase play {
     {active}
     round play_to_trick from 0 over all players source hand into pile
@@ -369,7 +377,7 @@ def test_a_read_through_an_answer_is_told_to_its_author(
     if library_seat:
         # The instance read is the one the library's argument names: the
         # sentence spells the game's own text and names what the library passes.
-        assert f"`{zone}[p]`" in line and "passes `1` as `p`" in line, line
+        assert f"`{zone}[p]`" in line and "passes `other` as `p`" in line, line
         assert "the seat the library passes" not in line, line
     else:
         assert f"`{zone}[1]`" in line, line
@@ -672,12 +680,12 @@ def test_a_read_in_the_librarys_own_argument_stays_the_librarys(
     library = _library_text(
         Position("bool"),
         "true",
-        ["ready(b : Boolean) : Boolean", "secret[player] : HiddenPile<player>"],
+        ["ready(b : Boolean) : Boolean", "secret[player] : HiddenPile<player>", "other : Player"],
         [],
-    ).replace("move_type stay { ", "move_type stay { when: ready(any card in secret[1] where true) ")
+    ).replace("move_type stay { ", "move_type stay { when: ready(any card in secret[other] where true) ")
     bag = _bag(monkeypatch, library, _game("function ready(b : Boolean) = b", False))
     assert len(bag) == 1, bag
-    assert bag[0].startswith(LIBRARY) and "`secret[1]`" in bag[0], bag
+    assert bag[0].startswith(LIBRARY) and "`secret[other]`" in bag[0], bag
 
 
 def test_one_answer_read_at_a_game_position_and_a_library_position_is_told_each(
@@ -781,7 +789,7 @@ def test_a_library_argument_no_index_spelling_reaches_is_named_by_what_it_is_not
     """The library passes a computed seat the sentence cannot quote: it says
     the seat is not shown to be the decider, never a placeholder."""
     built = _build((n.MoveTypeDef, "when"), "library_seat", "secret")
-    library = built.library.replace("ready(1)", "ready(if acted[actor] then 1 else 0)")
+    library = built.library.replace("ready(other)", "ready(if acted[actor] then other else actor)")
     bag = _bag(monkeypatch, library, _game(built.defs, False))
     assert len(bag) == 1, bag
     assert "passes a seat it does not show to be the acting seat as `p`" in bag[0], bag
@@ -818,7 +826,7 @@ _SENTENCES: dict[str, str] = {
     ),
     "library_seat": (
         "function `ready` reads the cards in `secret[p]`, and library 'contractlib' "
-        "passes `1` as `p` when it calls it under its contract "
+        "passes `other` as `p` when it calls it under its contract "
         "`ready(p : Player) : Boolean` in move type `stay`'s `when:`, which the "
         "acting seat decides, so the acting seat must be able to check it, but the "
         "acting seat cannot see them. Read cards every seat can see, or have the "
@@ -871,20 +879,20 @@ def test_the_sentences_of_the_two_sibling_refusals(monkeypatch: pytest.MonkeyPat
 
 _ARGUMENT_READS: dict[str, tuple[Position, str, str, list[str]]] = {
     # position, the row, the game's answer reading only its parameter, and the
-    # library's functions; each reads `secret[1]` in the library's own text
+    # library's functions; each reads `secret[other]` in the library's own text
     # and hands the answer the value.
     "helper_call": (
         Position("bool", move_when="when: ready(libpeek())"),
         "ready(b : Boolean) : Boolean",
         "function ready(b : Boolean) = b",
-        ["function libpeek() = any card in secret[1] where true"],
+        ["function libpeek() = any card in secret[other] where true"],
     ),
     "nested_helper_calls": (
         Position("bool", move_when="when: ready(libwrap(libpeek()))"),
         "ready(b : Boolean) : Boolean",
         "function ready(b : Boolean) = b",
         [
-            "function libpeek() = any card in secret[1] where true",
+            "function libpeek() = any card in secret[other] where true",
             "function libwrap(b : Boolean) = b",
         ],
     ),
@@ -895,13 +903,13 @@ _ARGUMENT_READS: dict[str, tuple[Position, str, str, list[str]]] = {
         ),
         "count(n : Integer) : Integer",
         "function count(n : Integer) = n",
-        ["function libcount() = number of cards in secret[1] where true"],
+        ["function libcount() = number of cards in secret[other] where true"],
     ),
     "let_bound_read": (
         Position(
             "int",
             effect=(
-                "let k = number of cards in secret[1] where true\n"
+                "let k = number of cards in secret[other] where true\n"
                 " pick[actor] := choose integer in 0 .. (count(k)) up to 3"
             ),
         ),
@@ -985,3 +993,24 @@ def test_a_pronoun_in_an_answer_two_libraries_call_names_both(
     bag = _two_libraries(monkeypatch, "function ok(c : Card) = acted[actor]")
     assert len(bag) == 1, bag
     assert "library 'liba'" in bag[0] and "library 'libb'" in bag[0], bag
+
+
+# --- composition: a library names no seat ------------------------------------
+
+
+@pytest.mark.parametrize("route", ["inline", "library_seat", "library_function_library_seat"])
+def test_a_library_route_written_with_a_seat_number_is_its_authors(
+    monkeypatch: pytest.MonkeyPatch, route: str
+) -> None:
+    """Each route whose library text picks the seat, written with a seat
+    number instead of a required player, over a zone every seat sees: the
+    library's author alone is told, by the seat-agnostic refusal, and the
+    answer is not consulted.
+
+    red under: have `typecheck`'s seat-literal check skip a literal whose
+    origin is a library."""
+    pos = _POSITIONS[(n.MoveTypeDef, "when")]
+    built = _build((n.MoveTypeDef, "when"), route, "won", seat_written="1")
+    bag = _bag(monkeypatch, built.library, _game(built.defs, bool(pos.rule)))
+    assert len(bag) == 1, bag
+    assert bag[0].startswith(LIBRARY) and "library 'contractlib' names seat 1" in bag[0], bag
