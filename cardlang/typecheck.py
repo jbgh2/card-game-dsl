@@ -26,7 +26,10 @@ Assumes:      a resolved AST (every ``NameRef`` classified over
               carries each row it answers (``FunctionDef.contracts``), and
               every library call of a contracted function carries its row
               (``Call.contract``); resolve stamps both at the splice, and no
-              other source of contract knowledge exists here.
+              other source of contract knowledge exists here. Every
+              definition and provided declaration of library text carries
+              its ``n.LibraryOrigin`` and no game text does; that stamp is
+              the only source of where text came from (``library_origins``).
 Establishes:  type validity only. A ``play_source`` read types as the join
               of the trick rounds' ``source`` families' contents, read off
               the stamp, never off the spelling ``hand``. The inferred
@@ -46,15 +49,25 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               `uses` line); a library's call of a contracted function is typed
               against the row (``_call_sig``), whatever the game answered, so
               a wrong answer earns that one sentence and none in library text.
+              A verdict reading a game clause (``CLAUSE_READS``) on library
+              text is told to the author who owns its fact: a seat or team
+              number, or a rank or suit written as a string, to the
+              library's author in the library file in every game; a card
+              field the game's component set lacks, on the game's `uses`
+              line. A string literal where a content-axis value is wanted is
+              judged by one spelling rule at a comparison and at every
+              operand alike (``_check_enum_literal``).
 Now illegal:  a type-invalid program, per the Owner Guards above and their
               completeness ledgers. Also a `Sig` built from an entry's
               spelling anywhere but ``_param_type``, a declared collection
               carrying a facet reaching the runtime, and a Primitive's `Sig`
               read from ``CALL_SIGS`` — that table keys the Builtins, and a
               Primitive's shape is its index row's
-              (``primitives_block.implementation_sig``). Recorded residuals
-              live in the tracker (issue #143 orders them) and in each Owner
-              Guard module's ledger.
+              (``primitives_block.implementation_sig``). Also a clause field
+              of ``TypeEnv`` read anywhere ``CLAUSE_READS`` does not name, and
+              a library-told verdict that does not ask the origin stamp.
+              Recorded residuals live in the tracker (issue #143 orders them)
+              and in each Owner Guard module's ledger.
               The ``Call`` arm's own refusals are Shadow Guards, not Owner
               Guards: a Primitive the game does not declare is
               ``resolve._validate_refs``' (its unknown-name and declared-only
@@ -64,7 +77,8 @@ Now illegal:  a type-invalid program, per the Owner Guards above and their
               anything but its stamp.
 Verified by:  the Owner Guard test modules (operator, aggregation, context,
               ranking, rule-ref) and their ledgers;
-              tests/test_definition_contracts.py for the contract result.
+              tests/test_definition_contracts.py for the contract result;
+              tests/test_library_type_gates.py for the origin stamp's readers.
 """
 
 from __future__ import annotations
@@ -72,7 +86,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum
-from typing import assert_never
+from typing import Literal, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
@@ -524,9 +538,124 @@ class TypeEnv:
     # the join of every trick round's `source` family. None in a game that runs
     # no trick round, where resolve's `_check_play_source` refuses the read.
     play_source: Type | None = None
+    # The game's two content-axis enum names (`_axis_enum_names`): the enums a
+    # library may not name a value of.
+    axis_enums: tuple[str, str] = ("Suit", "Rank")
+    # Every node of library text, by identity, to the origin the splice stamped
+    # on the definition holding it (`library_origins`). Game text is absent.
+    origins: Mapping[int, n.LibraryOrigin] = field(default_factory=dict)
 
     def with_local(self, name: str, t: Type) -> TypeEnv:
         return replace(self, locals={**self.locals, name: t})
+
+
+# Where each `TypeEnv` field's value comes from. A `clause` field is decided by
+# a clause the game writes (`players:`, `teams:`, `cards:`/`pieces:`,
+# `ranking:`, `board:`, `positions { }`, `primitives { }`, its trick rounds); a
+# `declaration` field by the game's declarations, which a library's contract is
+# checked against on its `uses` line; `scope` by the binders in scope; `splice`
+# by the origin stamp itself. Every read of a clause field is a row of
+# `CLAUSE_READS` (tests/test_library_type_gates.py).
+TYPE_ENV_FIELD_SOURCES: dict[str, Literal["clause", "declaration", "scope", "splice"]] = {
+    "state_vars": "declaration",
+    "zones": "declaration",
+    "zone_families": "declaration",
+    "value_enums": "clause",
+    "locals": "scope",
+    "functions": "declaration",
+    "procedures": "declaration",
+    "call_sigs": "clause",
+    "has_ranking": "clause",
+    "max_players": "clause",
+    "max_teams": "clause",
+    "positions": "clause",
+    "directions": "clause",
+    "flavor": "clause",
+    "deck": "clause",
+    "item_fields": "clause",
+    "play_source": "clause",
+    "axis_enums": "clause",
+    "origins": "splice",
+}
+
+
+@dataclass(frozen=True)
+class ClauseRead:
+    """What one read of a clause field decides about library text.
+
+    `library`: a verdict on library text is refused to the library's author,
+    in every game, by `gate`. `uses_line`: refused on the game's `uses` line,
+    by `gate`. `shadowed`: library text never reaches it, because the Owner
+    Guard `reason` names refuses it before the splice. `held`: refused in the
+    library file pending the issue `reason` cites. `typing`: types a node and
+    refuses nothing itself. `game_text`: reached only from text a library
+    cannot hold, as `reason` says."""
+
+    verdict: Literal["library", "uses_line", "shadowed", "held", "typing", "game_text"]
+    gate: str | None = None
+    reason: str = ""
+
+
+_CARD_CONTENT_ROW = (
+    "a card form in a piece game is refused on the `uses` line by "
+    "`resolve._CLAUSE_GATES`' content row"
+)
+_RANKING_ROWS = (
+    "a ranking-gated name is refused on the `uses` line by "
+    "`resolve._CLAUSE_GATES`' ranking rows"
+)
+
+# Every (function, field) read of a clause field of a `TypeEnv` in this module.
+CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
+    ("_check_role_literal", "max_players"): ClauseRead("library", "_check_role_literal"),
+    ("_check_role_literal", "max_teams"): ClauseRead("library", "_check_role_literal"),
+    ("_enum_domain", "value_enums"): ClauseRead("library", "_check_enum_literal"),
+    ("_check_enum_literal", "axis_enums"): ClauseRead("library", "_check_enum_literal"),
+    ("_library_axis_refusal", "flavor"): ClauseRead("library", "_check_enum_literal"),
+    ("_check_expr", "item_fields"): ClauseRead("uses_line", "_check_expr"),
+    ("_check_expr", "flavor"): ClauseRead(
+        "uses_line", "_check_expr",
+        f"the field refusal's words; in the card-form arms {_CARD_CONTENT_ROW}",
+    ),
+    ("_check_expr", "deck"): ClauseRead("shadowed", reason=_CARD_CONTENT_ROW),
+    ("_check_expr", "has_ranking"): ClauseRead("shadowed", reason=_RANKING_ROWS),
+    ("_check_round_ranking", "has_ranking"): ClauseRead("shadowed", reason=_RANKING_ROWS),
+    ("_check_subset_query", "flavor"): ClauseRead("shadowed", reason=_CARD_CONTENT_ROW),
+    ("_check_subset_query", "deck"): ClauseRead("shadowed", reason=_CARD_CONTENT_ROW),
+    ("_check_transfer", "flavor"): ClauseRead(
+        "held", reason="a movement's item noun follows the game's flavor: issue #170"
+    ),
+    ("_check_transfer", "deck"): ClauseRead(
+        "held", reason="a movement's item noun follows the game's flavor: issue #170"
+    ),
+    ("_check_stmt_exprs", "flavor"): ClauseRead(
+        "typing", reason="binds a filter's item noun, which resolve checks (issue #170)"
+    ),
+    ("_check_trick_order", "has_ranking"): ClauseRead(
+        "game_text", reason="a `trick_order { }` block, which a library cannot hold"
+    ),
+    ("_name_type", "value_enums"): ClauseRead(
+        "typing", reason="types a deck value, which library text cannot name"
+    ),
+    ("_name_type", "play_source"): ClauseRead("typing", reason="types a rule's Play Source"),
+    ("infer", "item_fields"): ClauseRead("typing", reason="types a card's field"),
+    ("_call_sig", "call_sigs"): ClauseRead(
+        "typing", reason="a call's signature; library text names no Primitive"
+    ),
+    ("_contract_type", "positions"): ClauseRead("typing", reason="a contract row's spelling"),
+    ("_contract_type", "directions"): ClauseRead("typing", reason="a contract row's spelling"),
+    ("_param_type", "positions"): ClauseRead("typing", reason="a parameter's declared type"),
+    ("_param_type", "directions"): ClauseRead("typing", reason="a parameter's declared type"),
+    ("_domain_query_binder_type", "positions"): ClauseRead(
+        "typing", reason="a position query's binder"
+    ),
+    ("_index_domain_spelling", "positions"): ClauseRead(
+        "typing", reason="names a position domain in a message"
+    ),
+    ("_scoped_env", "positions"): ClauseRead("typing", reason="a `for each` binder's type"),
+    ("typecheck", "positions"): ClauseRead("typing", reason="a move parameter's binder"),
+    ("typecheck", "directions"): ClauseRead("typing", reason="a move parameter's binder"),
+}
 
 
 def _untyped_operator(op: str) -> AssertionError:
@@ -1087,7 +1216,31 @@ def _ambient_env(game: Game) -> TypeEnv:
         deck=game.deck,
         item_fields=item_field_table(game),
         play_source=_play_source_type(game, zones),
+        axis_enums=_axis_enum_names(game),
+        origins=library_origins(game),
     )
+
+
+def library_origins(game: Game) -> dict[int, n.LibraryOrigin]:
+    """Every node of the library text `resolve` spliced into `game`, by
+    identity, mapped to the `n.LibraryOrigin` stamped on the definition that
+    holds it -- read off the stamp, never off a span."""
+    found: dict[int, n.LibraryOrigin] = {}
+    stack: list[tuple[object, n.LibraryOrigin | None]] = [(game, None)]
+    while stack:
+        node, origin = stack.pop()
+        if isinstance(node, tuple):
+            stack.extend((item, origin) for item in node)
+            continue
+        if not is_dataclass(node) or isinstance(node, (type, Span, n.LibraryOrigin)):
+            continue
+        stamped = getattr(node, "origin", None)
+        if isinstance(stamped, n.LibraryOrigin):
+            origin = stamped
+        if origin is not None:
+            found[id(node)] = origin
+        stack.extend((getattr(node, f.name), origin) for f in fields(node))
+    return found
 
 
 def _play_source_type(game: Game, zones: Mapping[str, Type]) -> Type | None:
@@ -1509,6 +1662,63 @@ def _enum_domain(env: TypeEnv, enum_name: str) -> frozenset[str]:
     return frozenset(v for v, t in env.value_enums.items() if t.name == enum_name)
 
 
+def _check_enum_literal(
+    enum: TEnum,
+    lit: n.StrLit,
+    env: TypeEnv,
+    bag: DiagnosticBag,
+    site: tuple[str, Span | None] | None = None,
+) -> None:
+    """A string literal where a value of `enum` is wanted: the one spelling
+    rule, at a comparison and at every operand alike (decisions.md, "Rank and
+    suit values"). A numeric value the deck holds is admitted; a name-form
+    value is written bare; anything else is no value of the deck. Library text
+    names no value of a content axis, so there the literal is refused to the
+    library's author whatever it spells. `site` is an operand position's own
+    message and span, which the refusal leads with; a comparison has none."""
+    origin = env.origins.get(id(lit))
+    if origin is not None and enum.name in env.axis_enums:
+        bag.error(_library_axis_refusal(origin, enum, lit.value, env), lit.span)
+        return
+    if lit.value not in _enum_domain(env, enum.name):
+        problem = f'"{lit.value}" is not a {enum.name} value of this deck'
+    elif not lit.value.isdigit():
+        problem = (
+            f"write the {enum.name} value bare — {lit.value}, not "
+            f'"{lit.value}" (strings spell only the numeric ranks, '
+            f"which would otherwise read as Integers)"
+        )
+    else:
+        return
+    if site is None:
+        bag.error(problem, lit.span)
+    else:
+        msg, span = site
+        bag.error(f"{msg}: {problem}", span)
+
+
+def _library_axis_refusal(
+    origin: n.LibraryOrigin, enum: TEnum, value: str, env: TypeEnv
+) -> str:
+    noun = enum.name.lower()
+    items = content_noun(env.flavor, plural=True)
+    if origin.provided is not None:
+        fix = (
+            f"declare `{origin.provided}` in `requires {{ }}` instead of "
+            f"`state {{ }}`, so the game declares it and picks its first {noun}"
+        )
+    else:
+        fix = (
+            f"take the {noun} as a parameter (`{noun[0]} : {enum.name}`) and let "
+            f"the game pass it"
+        )
+    return (
+        f'library \'{origin.library}\' names the {noun} "{value}" — a library '
+        f"names no {noun}, because the games that use it play with different "
+        f"{items}; {fix}"
+    )
+
+
 def _check_enum_operand(
     enum: TEnum, other: n.Expr, other_bare: Type, env: TypeEnv, bag: DiagnosticBag
 ) -> None:
@@ -1543,19 +1753,7 @@ def _check_enum_operand(
         )
         return
     if isinstance(other, n.StrLit):
-        domain = _enum_domain(env, enum.name)
-        if other.value not in domain:
-            bag.error(
-                f'"{other.value}" is not a {enum.name} value of this deck',
-                other.span,
-            )
-        elif not other.value.isdigit():
-            bag.error(
-                f"write the {enum.name} value bare — {other.value}, not "
-                f'"{other.value}" (strings spell only the numeric ranks, '
-                f"which would otherwise read as Integers)",
-                other.span,
-            )
+        _check_enum_literal(enum, other, env, bag)
         return
     if isinstance(other_bare, TAny):
         # Gradual: an unrefined `infer` arm must not manufacture errors.
@@ -2383,6 +2581,10 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     bare = expected.inner if isinstance(expected, TOptional) else expected
     if not isinstance(index, n.IntLit):
         return
+    origin = env.origins.get(id(index))
+    if origin is not None and isinstance(bare, (TPlayer, TTeam)):
+        bag.error(_library_role_refusal(origin, index.value, bare), index.span)
+        return
     if isinstance(bare, TPlayer):
         # A game always declares `players:`, so `max_players` is the real seat
         # count; 0 would mean "no player info" (a partial env, not reached in a
@@ -2415,6 +2617,28 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
             f"{bound} {noun}(s) ({ids})",
             index.span,
         )
+
+
+def _library_role_refusal(origin: n.LibraryOrigin, value: int, role: Type) -> str:
+    """A seat or team number in library text: the library names none, since
+    the games that use it seat different numbers of players and form
+    different teams (decisions.md, "Family libraries")."""
+    kind = _type_name(role)
+    if isinstance(role, TPlayer):
+        noun, why, binder = "seat", "seat different numbers of players", "dealer"
+    else:
+        noun, why, binder = kind.lower(), "form different teams", "side"
+    if origin.provided is not None:
+        fix = (
+            f"declare `{origin.provided}` in `requires {{ }}` instead of "
+            f"`state {{ }}`, so the game declares it and picks its first {noun}"
+        )
+    else:
+        fix = f"add `{binder} : {kind}` to `requires {{ }}` and write `{binder}` here"
+    return (
+        f"library '{origin.library}' names {noun} {value} — a library names no "
+        f"{noun}, because the games that use it {why}; {fix}"
+    )
 
 
 def _check_operand(
@@ -2456,14 +2680,34 @@ def _check_operand(
     `coercible(_, Player)` coercion escapes the range check: the pin reddens the
     day a new operand position calls `coercible` directly instead of routing
     here."""
+    bare = expected.inner if isinstance(expected, TOptional) else expected
+    if isinstance(node, n.StrLit) and isinstance(bare, TEnum):
+        _check_enum_literal(bare, node, env, bag, (msg, span))
+        return
     if not coercible(got, expected):
         bag.error(
             msg
             + _key_hint(got, expected, _name_of(node), expected_name)
-            + _card_field_hint(got, expected, _name_of(node), call),
+            + _card_field_hint(got, expected, _name_of(node), call)
+            + _numeric_rank_hint(node, got, bare, env),
             span,
         )
     _check_role_literal(node, expected, env, bag)
+
+
+def _numeric_rank_hint(node: n.Expr, got: Type, want: Type, env: TypeEnv) -> str:
+    """The fix a refusal appends when an Integer stands where a rank is
+    wanted: the string spelling, or in library text the parameter a library
+    takes instead of naming a rank. Empty otherwise."""
+    if not (isinstance(_bare(got), TInteger) and want == TEnum("Rank")):
+        return ""
+    if id(node) in env.origins:
+        return (
+            " — a library names no rank; take the rank as a parameter "
+            "(`r : Rank`) and let the game pass it"
+        )
+    return ' — numeric ranks are written as strings ("10")'
+
 
 
 def _check_round_actors(
@@ -2919,12 +3163,31 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             # card axis on a piece, or vice versa) would read as `TAny` and only
             # fail (or worse, not fail) at play time. Noun and fields are
             # flavor-keyed; a card game reproduces the CARD_FIELDS message.
-            noun = content_noun(env.flavor, plural=False).capitalize()
             field_list = " and ".join(f"`{f}`" for f in sorted(env.item_fields))
-            bag.error(
-                f"{noun} has no field '{e.field}' (its fields are {field_list})",
-                e.span,
-            )
+            origin = env.origins.get(id(e))
+            if origin is not None and origin.uses_span is not None:
+                # The component set is the game's fact: its author is told on
+                # the `uses` line, as for the card forms `_CLAUSE_GATES` refuses.
+                if env.flavor == "piece":
+                    lacks = f"this game is played with pieces, whose fields are {field_list}"
+                    fix = "a game played with pieces cannot use this library"
+                else:
+                    lacks = f"this game's cards have the fields {field_list}"
+                    fix = "a game played with these cards cannot use this library"
+                message = (
+                    f"library '{origin.library}' reads the field `{e.field}` (in "
+                    f"{origin.where}), but {lacks} — {fix}"
+                )
+                if not any(
+                    d.message == message and d.span == origin.uses_span for d in bag.items
+                ):
+                    bag.error(message, origin.uses_span)
+            else:
+                noun = content_noun(env.flavor, plural=False).capitalize()
+                bag.error(
+                    f"{noun} has no field '{e.field}' (its fields are {field_list})",
+                    e.span,
+                )
         elif isinstance(bare, TCollection):
             # A zone-family subscript (`hand[p]`) is typed as the zone's
             # content collection rather than a single Card, so a dot-form

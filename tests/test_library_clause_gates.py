@@ -52,9 +52,10 @@ domain:          the Builtin members of each clause gate, and the node members:
                  judged at the phase that runs a library's deal, in the game's
                  own file. Members held elsewhere are refused in the library
                  file, each cell marked with its record: a card-axis role in a
-                 piece game (issue #183), a movement's noun and filter (issue
-                 #170), and a seat or team number, a card field and a rank
-                 string, whose gates need an operand's type (issue #868).
+                 piece game (issue #183) and a movement's noun and filter
+                 (issue #170). A seat or team number, a card field and a rank
+                 or suit string are type-layer gates, told through the
+                 splice's origin stamp (tests/test_library_type_gates.py).
 registry:        gate members: `typecheck.RANKING_GATED_FUNCS`,
                  `RANKING_GATED_WINNERS`, `RANKING_GATED_CLIMB_QUERIES`;
                  `builtins.functions.TRICK_ORDER_GATED_FUNCS`,
@@ -500,13 +501,19 @@ _TRICK_ORDER_TWINS = RANKING_TRICK_ORDER_TWINS
 _TRICK_ORDER_WINNER = min(TRICK_ORDER_GATED_WINNERS)
 
 
-def _trick_round(winner: str) -> str:
-    return f"round play_to_trick from 0 over all players source hand into pile winner {winner}"
-
-
-def _climb_round(lead: str, follows: str) -> str:
+def _trick_round(winner: str, leader: str = "0") -> str:
+    """A trick round naming `winner`, led by `leader`: a seat in a game's own
+    phase, the acting seat in a move type's effect, since a library names no
+    seat."""
     return (
-        "round climb play_combination from 0 over all players source hand into pile "
+        f"round play_to_trick from {leader} over all players source hand into pile "
+        f"winner {winner}"
+    )
+
+
+def _climb_round(lead: str, follows: str, leader: str = "0") -> str:
+    return (
+        f"round climb play_combination from {leader} over all players source hand into pile "
         f"combinations {lead} follows {follows} "
         "until (number of players where hand[player] is not empty) <= 1"
     )
@@ -1248,7 +1255,7 @@ def _round_members() -> list[NodeMember]:
     no_order = replace(_CARD, trick_order=False)
     with_order = replace(_CARD, trick_order=True)
     for winner in sorted(TRICK_WINNER_NAMES):
-        definition = _round_definition(_trick_round(winner))
+        definition = _round_definition(_trick_round(winner, "actor"))
         trump = winner in TRUMP_READING_WINNERS
         members.append(
             NodeMember(
@@ -1284,7 +1291,9 @@ def _round_members() -> list[NodeMember]:
     members.append(
         NodeMember(
             "trick_order_replaced", "round_trump_clause",
-            _round_definition(_trick_round("highest_trump_or_led_suit") + " trump s", "s : Suit"),
+            _round_definition(
+                _trick_round("highest_trump_or_led_suit", "actor") + " trump s", "s : Suit"
+            ),
             "`trump` clause", "trick_order", NodeGame(no_order), NodeGame(with_order),
             requires=_ROUND_ZONES,
         )
@@ -1292,7 +1301,7 @@ def _round_members() -> list[NodeMember]:
     for query in sorted(PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS):
         family = query.split("_")[0]
         definition = _round_definition(
-            _climb_round(f"{family}_lead_options", f"{family}_follows")
+            _climb_round(f"{family}_lead_options", f"{family}_follows", "actor")
         )
         members.append(
             NodeMember(
@@ -1573,15 +1582,10 @@ def test_each_node_gate_asks_its_rows_test(
 
 # --- the members a node test cannot reach, each with its record --------------
 #
-# A gate that needs an operand's type lives in the type layer, which runs after
-# the splice; a construct whose flavor question issue #170 holds. Each is
-# refused in the library file today, and each cell names what fixing it means.
-
-_TYPE_LAYER_ISSUE = (
-    "issue #868: the gate needs an operand's type, which the `uses` check, "
-    "run before the splice, does not have"
-)
-
+# A construct whose flavor question issue #170 holds is refused in the library
+# file, and its cell names what fixing it means. A gate that needs an operand's
+# type is told through the splice's origin stamp instead
+# (tests/test_library_type_gates.py).
 
 @dataclass(frozen=True)
 class HeldMember:
@@ -1597,27 +1601,6 @@ class HeldMember:
 
 _HELD: tuple[HeldMember, ...] = (
     HeldMember(
-        "seat_number",
-        "requires { hand[player] : Hand<player> } function probe_fn() = "
-        "number of cards in hand[5]",
-        "players4", "hand[5]", "players:", _TYPE_LAYER_ISSUE, "seat 5 is out of range",
-    ),
-    HeldMember(
-        "team_number",
-        "state { won[team] : Integer = 0 } function probe_fn() = won[2]",
-        "teams2", "won[2]", "teams:", _TYPE_LAYER_ISSUE, "team 2 is out of range",
-    ),
-    HeldMember(
-        "card_field",
-        "function probe_fn(c : Card) = c.suit",
-        "pieces", "c.suit", "pieces", _TYPE_LAYER_ISSUE, "has no field 'suit'",
-    ),
-    HeldMember(
-        "rank_string",
-        'function probe_fn(c : Card) = c.rank is "A"',
-        "kuhn3", '"A"', "cards:", _TYPE_LAYER_ISSUE, '"A" is not a Rank value',
-    ),
-    HeldMember(
         "movement_filter",
         "requires { box : Deck  pile : TrickPile } procedure probe_fn() "
         "{ move all cards from box where card.rank is card.rank to pile }",
@@ -1630,16 +1613,8 @@ _HELD: tuple[HeldMember, ...] = (
 
 
 def _held_game(held: HeldMember) -> str:
-    clauses = {
-        "players4": replace(_CARD, teams=False),
-        "teams2": replace(_CARD, players=2, teams=True),
-        "pieces": _PIECES,
-        "kuhn3": replace(_CARD, ranking=False, card_points=False, teams=False),
-    }[held.game]
-    text = _game_text(clauses, uses=True, game_fn="", tag=f"Held{held.name.title()}")
-    if held.game == "kuhn3":
-        text = text.replace("cards: standard52", "cards: kuhn3")
-    return text
+    clauses = {"pieces": _PIECES}[held.game]
+    return _game_text(clauses, uses=True, game_fn="", tag=f"Held{held.name.title()}")
 
 
 @pytest.mark.parametrize(

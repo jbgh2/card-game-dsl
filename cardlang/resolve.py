@@ -46,7 +46,13 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               ``POSITION_NAME_SOURCES`` already holds. And a ``winner:``
               clause carries its target declaration's index role
               (``Winner.keyed_by``), so no later pass walks state
-              declarations to learn how the result is keyed.
+              declarations to learn how the result is keyed. Every piece of
+              library text spliced into the game -- a family library's move
+              types, functions, procedures and provided state declarations,
+              and every library rule a game activates, the standard
+              library's included -- carries its ``n.LibraryOrigin``, and no
+              game text carries one: it is the only record of where spliced
+              text came from that a later pass may read.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -851,6 +857,10 @@ _METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.ContractStamp, "row"),
         (n.ContractStamp, "param_types"),
         (n.ContractStamp, "result_type"),
+        # Where a `uses` splice found the text: facts the splice stamps.
+        (n.LibraryOrigin, "library"),
+        (n.LibraryOrigin, "where"),
+        (n.LibraryOrigin, "provided"),
     }
 )
 
@@ -1289,7 +1299,10 @@ def _apply_uses(
             for p in game.procedures
         ),
     )
-    libraries = [(use, _stamp_contracted_calls(use, library)) for use, library in libraries]
+    libraries = [
+        (use, _stamp_origin(use, _stamp_contracted_calls(use, library)))
+        for use, library in libraries
+    ]
 
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
     # import is the base a game extends, which is the order the game file itself
@@ -1329,6 +1342,36 @@ def _apply_uses(
     # `_instantiate_rules` to splice where `active_rules:` names them.
     library_rules = {r.name: r for _, library in libraries for r in library.rules}
     return replace(game, uses=(), state=state, **spliced), library_rules  # type: ignore[arg-type]
+
+
+def _stamp_origin(use: n.UsesDecl, library: n.Library) -> n.Library:
+    """`library` with each definition and provided declaration carrying its
+    `n.LibraryOrigin`: the library, the definition in the designer's words (as
+    `_library_nodes` names it), and the `uses` line."""
+    stamped: dict[str, object] = {}
+    for field, noun in _LIBRARY_DEF_KINDS:
+        stamped[field] = tuple(
+            replace(
+                d,
+                origin=n.LibraryOrigin(library.name, f"{noun} `{d.name}`", use.span),
+            )
+            for d in getattr(library, field)
+        )
+    state = library.state
+    if state is not None:
+        state = replace(
+            state,
+            decls=tuple(
+                replace(
+                    decl,
+                    origin=n.LibraryOrigin(
+                        library.name, "its provided state", use.span, decl.name
+                    ),
+                )
+                for decl in state.decls
+            ),
+        )
+    return replace(library, state=state, **stamped)  # type: ignore[arg-type]
 
 
 def _stamp_contracted_calls(use: n.UsesDecl, library: n.Library) -> n.Library:
@@ -2582,13 +2625,13 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "requirement and for a provided variable alike"
     ),
     "role": (
-        "guarded elsewhere, and NOT closed — the row's first reading was wrong. The role "
-        "NAMES are the domain registry's, but `suit`/`rank` admissibility follows the "
-        "importing game's component set: `for each suit` is accepted by a card game and "
-        "refused by a piece game. So this is deck-agnosticism escaping through a role, "
-        "the same property `deck_rank`/`deck_suit` are swept for. It is not silent — "
-        "typecheck's flavor Owner Guard refuses it to the LIBRARY's author — but the "
-        "library-alone property is weaker here than the sweep provides (issue #183)"
+        "guarded elsewhere, and NOT closed. The role NAMES are the domain registry's, "
+        "but `suit`/`rank` admissibility follows the importing game's component set: "
+        "`for each suit` is accepted by a card game and refused by a piece game. So "
+        "this is deck-agnosticism escaping through a role, the same property "
+        "`deck_rank`/`deck_suit` are swept for. It is not silent — `_validate_refs` "
+        "refuses it at the library's span — but the library-alone property is weaker "
+        "here than the sweep provides (issue #183)"
     ),
     "content_kind": (
         "guarded elsewhere: typecheck compares the item noun against the game's content "
@@ -4228,10 +4271,10 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             # `Library` is gone by the end of `_apply_uses` — its definitions are
             # spliced into the Game and reached through the arms below. A
             # signature row's parameters are its own reading and scope no body,
-            # and a contract stamp holds spellings, never a name.
+            # and a contract stamp or an origin stamp holds spellings, never a name.
             | n.Library() | n.UsesDecl() | n.RequireDecl()
             | n.MoveContract() | n.FunctionContract() | n.ProcedureContract()
-            | n.ContractStamp()
+            | n.ContractStamp() | n.LibraryOrigin()
             | n.MoveTypeDef() | n.Parameter() | n.RuleDef() | n.RuleRef()
             # A `primitives { }` entry's parameters name the arguments its
             # Python receives and key its `reads` binders; no DSL body is
@@ -4433,7 +4476,10 @@ def _instantiate_rules(
     `_resolve_phase_item` — this loop skips it so that is the only diagnostic
     a game ever sees for it, not a second, unsatisfiable "pass arguments"
     alongside "not yet supported"."""
-    lib = stdlib_rules()
+    lib = {
+        name: replace(rule, origin=n.LibraryOrigin(STDLIB_NAME, f"rule `{name}`"))
+        for name, rule in stdlib_rules().items()
+    }
     local = {r.name: r for r in game.rules}
     for r in game.rules:
         if r.name in lib:
