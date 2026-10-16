@@ -14,7 +14,7 @@ grows one construct at a time as the corpus forces one (`docs/games/`).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from typing import Literal, TypeAlias, get_args
 
 from cardlang.diagnostics import Span
@@ -1421,15 +1421,19 @@ class LibraryOrigin:
     state declarations, and on every library rule, the standard library's
     included, a game activates. ``where`` is the definition holding the text in
     the designer's words (``function `f` ``, ``its provided state``),
-    ``provided`` the variable a provided declaration declares, and
+    ``provided`` the variable a provided declaration declares,
     ``uses_span`` the game's `uses` line (None for the standard library, which
-    has none). The type layer reads it to tell a verdict on library text to
-    the author who owns its fact (decisions.md, "Family libraries")."""
+    has none), and ``contracted_zones`` the zone families the library's
+    `requires { }` names, whose declarations the contract fixes for every
+    game that meets it. Resolve and the type layer read it to tell a verdict
+    on library text to the author who owns its fact (decisions.md, "Family
+    libraries")."""
 
     library: str
     where: str
     uses_span: Span | None = None
     provided: str | None = None
+    contracted_zones: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -1659,3 +1663,25 @@ def state_blocks(game: Game) -> list[StateBlock]:
     for phase in game.phases:
         rec(phase)
     return blocks
+
+
+def library_origins(game: Game) -> dict[int, LibraryOrigin]:
+    """Every node of the library text `resolve` spliced into `game`, by
+    identity, mapped to the `LibraryOrigin` stamped on the definition that
+    holds it -- read off the stamp, never off a span."""
+    found: dict[int, LibraryOrigin] = {}
+    stack: list[tuple[object, LibraryOrigin | None]] = [(game, None)]
+    while stack:
+        node, origin = stack.pop()
+        if isinstance(node, tuple):
+            stack.extend((item, origin) for item in node)
+            continue
+        if not is_dataclass(node) or isinstance(node, (type, Span, LibraryOrigin)):
+            continue
+        stamped = getattr(node, "origin", None)
+        if isinstance(stamped, LibraryOrigin):
+            origin = stamped
+        if origin is not None:
+            found[id(node)] = origin
+        stack.extend((getattr(node, f.name), origin) for f in fields(node))
+    return found

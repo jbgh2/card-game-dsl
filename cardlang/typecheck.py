@@ -89,7 +89,7 @@ from enum import Enum
 from typing import Literal, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.ast.nodes import Game
+from cardlang.ast.nodes import Game, library_origins
 from cardlang.board_domains import directions_of
 from cardlang.builtins.functions import (
     PRIMITIVE_CALL_FUNCS,
@@ -1219,28 +1219,6 @@ def _ambient_env(game: Game) -> TypeEnv:
         axis_enums=_axis_enum_names(game),
         origins=library_origins(game),
     )
-
-
-def library_origins(game: Game) -> dict[int, n.LibraryOrigin]:
-    """Every node of the library text `resolve` spliced into `game`, by
-    identity, mapped to the `n.LibraryOrigin` stamped on the definition that
-    holds it -- read off the stamp, never off a span."""
-    found: dict[int, n.LibraryOrigin] = {}
-    stack: list[tuple[object, n.LibraryOrigin | None]] = [(game, None)]
-    while stack:
-        node, origin = stack.pop()
-        if isinstance(node, tuple):
-            stack.extend((item, origin) for item in node)
-            continue
-        if not is_dataclass(node) or isinstance(node, (type, Span, n.LibraryOrigin)):
-            continue
-        stamped = getattr(node, "origin", None)
-        if isinstance(stamped, n.LibraryOrigin):
-            origin = stamped
-        if origin is not None:
-            found[id(node)] = origin
-        stack.extend((getattr(node, f.name), origin) for f in fields(node))
-    return found
 
 
 def _play_source_type(game: Game, zones: Mapping[str, Type]) -> Type | None:

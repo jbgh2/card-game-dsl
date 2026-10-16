@@ -41,17 +41,20 @@ domain:          two directions. Game to library, the checks that follow a
                  Arrival Record, a call cycle, a call-site pronoun in a
                  function and in a procedure, and every contractable kind left
                  unanswered; every gate of the clause-gate grid; every member
-                 of the type layer's clause reads; the game declarations the
-                 framing check found that no contract row names; and the
+                 of the type layer's clause reads; the game declarations
+                 that no contract row names, one witness per member: a `Card`
+                 parameter's `hand`, its type, a climb engine's action and an
+                 implicit read's family; the ones a cited issue holds: a
+                 library rule or Delegated Play helper the game's trick rounds
+                 decide, a seat-direction word the game's state captures, and
+                 a library movement in a piece game; and the
                  library text a game activates or runs, judged once the game
                  is known (a rule activated, a library round). Beside them,
                  the library's own text: every check
                  `resolve.check_library_alone` runs, a call-site pronoun in a
                  library function, and a statement no procedure or move
                  type's effect may hold. The crossings held by an issue are
-                 cells marked with it; the scoped-read containment arms on a
-                 library move type (`_check_offered_containers`) have no
-                 witness here, and issue #889 holds them. A library holds no
+                 cells marked with it. A library holds no
                  climbing round, whose slots name Primitives, so no Hosted
                  Poll and no poll binder starts in library text, and its
                  cell is the library's own refusal; it holds no `trick_order
@@ -71,7 +74,10 @@ registry:        walkers: the passes' source, `crossing_walkers`; rows and the
                  tests/test_definition_contracts.py; clause gates:
                  tests/test_library_clause_gates.py; type-layer clause reads:
                  `typecheck.CLAUSE_READS`, tests/test_library_type_gates.py;
-                 library-alone checks: `resolve.check_library_alone`.
+                 library-alone checks: `resolve.check_library_alone`; game
+                 declarations, each crossed with whether the contract names
+                 the zone, and the scoped-read containment arms on a library
+                 move type: tests/test_library_declaration_gates.py.
 does not prove:  that a check crossing into another definition by an idiom
                  other than the helpers and pool look-ups `crossing_walkers`
                  names is enumerated: such a check is outside the scan. Nor
@@ -831,10 +837,6 @@ def test_a_library_procedure_run_as_the_seat_it_reads_is_accepted(
 # Refusals decided by what the game declares, which no `requires` row names
 # and no `resolve._CLAUSE_GATES` row routes to the `uses` line.
 
-_DECLARED_GAP = (
-    "issue #889: a library construct the game's own declarations refuse is "
-    "told in the library's file"
-)
 _DECLARED_HOST = """game Boundary {{
   players: 3
   cards: standard52
@@ -880,16 +882,7 @@ def _declared_cases() -> dict[str, tuple[str, str]]:
     }
 
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        pytest.param(
-            c, id=c,
-            marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=_DECLARED_GAP),
-        )
-        for c in sorted(_declared_cases())
-    ],
-)
+@pytest.mark.parametrize("case", sorted(_declared_cases()))
 def test_a_library_construct_the_games_declarations_refuse(
     monkeypatch: pytest.MonkeyPatch, case: str
 ) -> None:
@@ -898,12 +891,174 @@ def test_a_library_construct_the_games_declarations_refuse(
     _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
 
 
-def test_each_game_declaration_case_is_refused_today(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The #889 cells are red for the location alone: each is refused, in the
-    library's file, so a fix moves the report and never the verdict."""
-    for case, (library, game) in _declared_cases().items():
-        bag = _bag(monkeypatch, library, game)
-        assert bag and all(line.startswith(_LIB_FILE) for line in bag), (case, bag)
+# A game choice an issue holds: (the issue, the library, the game, a phrase of
+# the refusal, so a cell refused for another reason is no verdict).
+_TRICK_HOST_TWO = """game Boundary {{
+  players: 4
+  max_length: 3000
+  cards: standard52
+  ranking: aces high
+  uses boundarylib
+  zones {{
+    deck : Deck  hand[player] : Hand<player>  stock[player] : Hand<player>
+    trick_pile : TrickPile  captured[player] : PlayerPile<player>
+  }}
+  state {{ score[player] : Integer = 0  leader : Player = 0 }}
+  phase play {{
+    active_rules: [{rule}]
+    deal 5 cards from deck to each hand
+    deal 5 cards from deck to each stock
+    repeat until (all players where {src}[player] is empty) {{
+      round play_to_trick from leader over all players source {src} into trick_pile
+            winner highest_trump_or_led_suit
+      move all cards from trick_pile to captured[winner]
+      score[winner] += 1
+      leader := winner
+    }}
+  }}
+  winner: highest score
+}}
+{extra}"""
+_STOCK = "requires { stock[player] : Hand<player> }"
+_FLAVOR_HOST = """game Boundary {{
+  players: 2
+  max_length: 3000
+  {content}
+  uses boundarylib
+  zones {{ {deck}pile : Discard  box : Discard }}
+  state {{ score[player] : Integer = 0  n : Integer = 0 }}
+  phase play {{ {body} }}
+  winner: highest score
+}}
+"""
+_PIECES = _FLAVOR_HOST.replace("{content}", "pieces: xo_marks").replace("{deck}", "")
+_FLAVOR_REQUIRES = "requires { pile : Discard  box : Discard }"
+
+
+def _held_choices() -> dict[str, tuple[str, str, str, str]]:
+    return {
+        "rule-function-reading-the-round-source": (
+            "issue #898",
+            f"library {_LIB} {{ {_STOCK} function stock_has(s : Suit?) = any card in stock "
+            "where card.suit is s  rule FollowStock { constrains: play_to_trick "
+            "applies_when: stock_has(state.led_suit) demands: cards in hand where "
+            "card.suit is state.led_suit if_impossible: hand } }",
+            _TRICK_HOST_TWO.format(rule="FollowStock", src="stock", extra=""),
+            "a function cannot see which cards those are",
+        ),
+        "rule-clause-under-delegated-play": (
+            "issue #898",
+            f"library {_LIB} {{ {_STOCK} rule StockRule {{ constrains: play_to_trick "
+            "applies_when: any card in stock where card.suit is state.led_suit "
+            "demands: cards in hand where card.suit is state.led_suit if_impossible: hand } }",
+            _TRICK_HOST_TWO.format(
+                rule="StockRule", src="hand", extra="function chooser_for(p : Player) = p\n"
+            ),
+            "cannot see",
+        ),
+        "delegated-play-helper-with-no-trick-round": (
+            "issue #898",
+            f"library {_LIB} {{ {_STOCK} function chooser_for(p : Player) = p }}",
+            """game Boundary {
+  players: 2
+  max_length: 3000
+  cards: standard52
+  uses boundarylib
+  zones { deck : Deck  stock[player] : Hand<player>  pile : Discard }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 5 cards from deck to each stock
+    for each player p: as p { move chosen 1 card from stock[p] to pile }
+  }
+  winner: highest score
+}
+""",
+            "holds no trick round",
+        ),
+        "seat-direction-captured-by-the-games-state": (
+            "issue #899",
+            f"library {_LIB} {{ requires {{ dealer : Player }} "
+            "procedure rot() { dealer := dealer offset_by left } }",
+            """game Boundary {
+  players: 2
+  max_length: 3000
+  cards: standard52
+  uses boundarylib
+  zones { deck : Deck  pile : Discard }
+  state { score[player] : Integer = 0  dealer : Player = 0  left : Integer = 0 }
+  phase play { run rot() }
+  winner: highest score
+}
+""",
+            "expects a SeatDirection",
+        ),
+        "movement-filter-binder-in-a-piece-game": (
+            "issue #114",
+            f"library {_LIB} {{ {_FLAVOR_REQUIRES} procedure clear() {{ move all cards "
+            "from pile where card is top_of(pile) to box } }",
+            _PIECES.format(body="run clear()"),
+            "unresolved name 'card'",
+        ),
+        "procedure-parameter-captured-in-a-piece-game": (
+            "issue #114",
+            f"library {_LIB} {{ {_FLAVOR_REQUIRES} procedure give(piece : Player) {{ "
+            "move all cards from pile where piece is piece to box } }",
+            _PIECES.format(body="run give(0)"),
+            "shadowing its own parameter",
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        pytest.param(
+            c, id=c,
+            marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=f"{issue}: told in the library's file"),
+        )
+        for c, (issue, _l, _g, _s) in sorted(_held_choices().items())
+    ],
+)
+def test_a_game_choice_an_issue_holds(monkeypatch: pytest.MonkeyPatch, case: str) -> None:
+    _issue, library, game, said = _held_choices()[case]
+    bag = _bag(monkeypatch, library, game)
+    # Refused for this check's own reason, wherever it is told.
+    assert bag and any(said in line for line in bag), bag
+    _assert_told(Crossing(library, game, USES), bag)
+
+
+def test_each_game_choice_an_issue_holds_is_accepted_without_the_choice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The control for the held cells: without the game's choice, each
+    library checks clean, so some game meets it.
+
+    red under: have `resolve._check_delegation` refuse a helper whatever the
+    game's rounds."""
+    held = _held_choices()
+    unchosen = {
+        "rule-function-reading-the-round-source": _TRICK_HOST_TWO.format(
+            rule="FollowStock", src="hand", extra=""
+        ),
+        "rule-clause-under-delegated-play": _TRICK_HOST_TWO.format(
+            rule="StockRule", src="hand", extra=""
+        ),
+        "delegated-play-helper-with-no-trick-round": _TRICK_HOST_TWO.format(
+            rule="MustFollowSuit", src="hand", extra=""
+        ).replace("stock[player] : Hand<player>", "stock[player] : Hand<player>  pile : Discard"),
+        "seat-direction-captured-by-the-games-state": held[
+            "seat-direction-captured-by-the-games-state"
+        ][2].replace("  left : Integer = 0", ""),
+        "movement-filter-binder-in-a-piece-game": _FLAVOR_HOST.format(
+            content="cards: standard52", deck="deck : Deck  ", body="run clear()"
+        ),
+        "procedure-parameter-captured-in-a-piece-game": _FLAVOR_HOST.format(
+            content="cards: standard52", deck="deck : Deck  ", body="run give(0)"
+        ),
+    }
+    assert set(unchosen) == set(held)
+    for case, (_issue, library, _game, _said) in held.items():
+        assert _bag(monkeypatch, library, unchosen[case]) == [], case
 
 
 # --- library text a game activates or runs, judged once the game is known -------
@@ -1416,7 +1571,8 @@ WALKERS: dict[str, str] = {
     "resolve._report_recursion": "test_a_library_reaching_the_games_text[call-cycle]",
     "resolve._check_unoffered_move_types": "reports the game's own move type, at its declaration",
     "resolve._check_implicit_pools": (
-        "test_a_library_construct_the_games_declarations_refuse (issue #889)"
+        "test_a_library_construct_the_games_declarations_refuse; crossed in "
+        "tests/test_library_declaration_gates.py"
     ),
     "resolve._consumption_reachable_nodes": "a consumption question: reports the declaration asked about",
     "resolve._resolve_trump": "a consumption question: reports the game's `trump:`",
