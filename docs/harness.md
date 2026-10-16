@@ -285,7 +285,12 @@ part excluded at activation is (below); the taker finishes every part
 that does not wait on it, and the PR says the unit awaits the operator's
 step. An epic that is not a milestone — an operator's container — takes
 the same rule against its goal sentence: a finding that bears on the goal
-is filed as its sub-issue. The sweep lists each open milestone as one
+is filed as its sub-issue. **The third instance of a class is filed, not
+fixed.** A taker fixes a finding at its site once and twice; at the third
+instance of one class inside a unit it files the class against the
+Destination that owns it (`roadmap.md`, "Destinations"), naming the
+machinery part that closes it by construction, and leaves the remaining
+sites to that part — the planning skill's Gate 3.5 says how. The sweep lists each open milestone as one
 takeable row, the epic's, ahead of every tiered issue — the nearest due
 date first, so the due date is how the review says which of the two is
 taken first — and holds every other issue in the milestone off the front: the epic is taken as a unit,
