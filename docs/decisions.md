@@ -5158,7 +5158,16 @@ from a library move type's effect. A definition the library calls cannot be
 handed a new argument from the game's side, so the refusal of a call-site
 pronoun inside one sends the game's author to the parameter the row passes. A
 call cycle that crosses the splice is the game's to break, since its
-definition closed the cycle, and it is reported there.
+definition closed the cycle, and it is reported there. A library is sound
+when some answer meets its row, so a failure only some answers produce is the
+answer's, and it is reported there too. A read the deciding seat cannot make,
+reached through the game's answer from a library's decision, is refused in
+the game's file, at the last text the game wrote on the way to the read,
+naming the library, the row and the library's decision; that holds where the
+library's argument names the instance the answer reads, and the sentence then
+names the argument. So is a `choose` the answer makes where the library reads
+it with no player acting, and a bare `hand` the answer reads under a library's
+rule, each told a fix the game's text can take.
 
 The spellings do not cross. A zone type carries the `<owner>` argument; a
 state type and `Move` carry none. A `?` is a type's nullability, never a

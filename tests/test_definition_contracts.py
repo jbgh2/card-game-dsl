@@ -66,7 +66,9 @@ registry:        kinds: `resolve._LIBRARY_DEF_KINDS` through
                  rendering of a wrong result:
                  tests/rejections/contract_result_mismatch.expected; the
                  keyword-header twins: tests/rejections/libraries/; the
-                 witness family: tests/test_smuggling_library.py.
+                 witness family: tests/test_smuggling_library.py; a hidden
+                 read through an answer at every library position:
+                 tests/test_contracted_hidden_reads.py.
 does not prove:  that every member of a registry earns its exact sentence:
                  each cell reads its sentence by needle, through one host.
 """
@@ -1157,15 +1159,6 @@ library contractlib {
 """
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "issue #866: a hidden read reached through a contracted function at a "
-        "library decision position is refused in the library's file, where the "
-        "game's author cannot act"
-    ),
-)
 def test_a_hidden_read_through_a_contracted_function_is_the_games(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
