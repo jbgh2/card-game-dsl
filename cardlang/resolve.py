@@ -53,12 +53,15 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               library's included -- carries its ``n.LibraryOrigin``, and no
               game text carries one: it is the only record of where spliced
               text came from that any check, this pass's included, may read.
-              A refusal that the Trick Order row walk, the play-source walk,
-              the no-acting-seat walk or the Hosted Poll walk reaches through
-              a route running from the game's text into a library's is
-              located at the game's last text on that route (the call, `run`
-              or offer ``_library_entry`` names), and names the library and
-              its definition, with a fix the game's text can take.
+              A refusal that the Trick Order row walk, the play-source walk
+              or the no-acting-seat walk reaches through a call from the
+              game's text into a library function, or that the Hosted Poll
+              walk reaches through a call, `run` or offer into library text,
+              is located at the game's last text on that route (the node
+              ``_library_entry`` names). It names the library and its
+              definition, with a fix the game's text can take; a statement
+              the reached definition may hold in no game (``_NEVER_HELD``)
+              stays its author's.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -9970,7 +9973,7 @@ def _check_hosted_polls(game: n.Game, bag: DiagnosticBag) -> None:
             return f", reached through {text}{', ' + part if part else ''}"
 
         seen: set[tuple[str, Span | None]] = set()
-        units: list[tuple[object, str, _ErrorSink]] = [(poll.body, "", bag)]
+        units: list[tuple[object, str, _ErrorSink, object]] = [(poll.body, "", bag, poll)]
         for key, (target, _via) in reached.items():
             # Library text the poll reaches is sound where the library runs
             # it: the poll's reach into it is what fails.
@@ -9978,10 +9981,23 @@ def _check_hosted_polls(game: n.Game, bag: DiagnosticBag) -> None:
             out: _ErrorSink = bag if entry is None else _PollLibrarySink(bag, entry, seen)
             for f in fields(cast(n.Node, target)):
                 part = _HOSTED_REACH_PART.get((type(target), f.name), "")
-                units.append((getattr(target, f.name), path(key, part), out))
-        for unit, via, sink in units:
+                units.append((getattr(target, f.name), path(key, part), out, target))
+        for unit, via, sink, holder in units:
+            never = _NEVER_HELD.get(type(holder), ())
             for nd in _child_nodes(unit):
-                _check_hosted_node(nd, clause, via, primitives, sink)
+                # A statement the holding definition may not hold anywhere is
+                # its author's fault in every game, told where it is written.
+                at = bag if isinstance(nd, never) else sink
+                _check_hosted_node(nd, clause, via, primitives, at)
+
+
+# The statements a definition kind may hold in no game, by kind: a procedure's
+# are `_check_procedures`' refusals, a move type effect's are the type layer's
+# (`typecheck._check_misplaced_produce` and its `continue to` arm).
+_NEVER_HELD: dict[type, tuple[type, ...]] = {
+    n.ProcedureDef: _NON_LOCAL_STMTS + _WINNER_BINDING_STMTS,
+    n.MoveTypeDef: _NON_LOCAL_STMTS,
+}
 
 
 @dataclass(frozen=True)
@@ -12550,6 +12566,8 @@ class _HiddenReads:
         if proc is None or stmt.name in self.running:
             return  # unknown, or a cycle another check refuses
         self.running.append(stmt.name)
+        # A library procedure's statements are reported where they are
+        # written, whatever the run site decided: issue #888.
         self.library_text.append(proc.origin is not None)
         try:
             self._run_body(proc, stmt, scope, seat)

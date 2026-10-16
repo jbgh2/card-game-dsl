@@ -5171,14 +5171,16 @@ rule, each told a fix the game's text can take.
 
 The same holds from the game's side. A library definition is sound when some
 calling position meets it, so a failure that only the game's choice of where
-to call it produces is the game's. A Trick Order row, a rule clause, a place
-where no player is acting, or a Hosted Poll that reaches library text the
-position may not hold is refused in the game's file, at the last text the
-game wrote on the way: the call, the `run` or the offer. The refusal names
-the library and its definition, and tells the fix the game's text can take.
-A fault in the library's own text stays the library's in every game,
-whatever calls it. A function reading `actor` is one of these, and is told
-once, to the library's author.
+to call it produces is the game's. Some positions call a library function
+that reads what they may not hold: a Trick Order row, a rule clause, or a
+place where no player is acting. Others are a Hosted Poll that calls, runs
+or offers such library text. Each is refused in the game's file, at the last
+text the game wrote on the way. The refusal names the library and its
+definition, and tells the fix the game's text can take. A fault in the
+library's own text stays the library's in every game, whatever calls it. A
+function reading `actor` is one such fault, and a statement a procedure or
+a move type's effect may never hold is another; each is told once, to the
+library's author.
 
 The spellings do not cross. A zone type carries the `<owner>` argument; a
 state type and `Move` carry none. A `?` is a type's nullability, never a

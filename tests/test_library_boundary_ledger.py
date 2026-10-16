@@ -41,18 +41,24 @@ domain:          two directions. Game to library, the checks that follow a
                  Arrival Record, a call cycle, a call-site pronoun in a
                  function and in a procedure, and every contractable kind left
                  unanswered; every gate of the clause-gate grid; every member
-                 of the type layer's clause reads; and the game declarations
-                 no contract row names. Beside them, the library's own text:
-                 every check `resolve.check_library_alone` runs, a call-site
-                 pronoun in a library function, and a statement no procedure
-                 may hold. The crossings held by an issue are cells marked with
-                 it. A library holds no climbing round, whose slots name
-                 Primitives, so no Hosted Poll and no poll binder starts in
-                 library text; it holds no `trick_order { }` block, so no row
-                 is library text; it cannot contract a position-indexed zone,
-                 and that row's cell is the library's own refusal; and an
-                 `early` predicate is a Primitive, which a library may not
-                 name.
+                 of the type layer's clause reads; the game declarations the
+                 framing check found that no contract row names; and the
+                 library text a game activates or runs, judged once the game
+                 is known (a rule activated, a library round). Beside them,
+                 the library's own text: every check
+                 `resolve.check_library_alone` runs, a call-site pronoun in a
+                 library function, and a statement no procedure or move
+                 type's effect may hold. The crossings held by an issue are
+                 cells marked with it; the scoped-read containment arms on a
+                 library move type (`_check_offered_containers`) have no
+                 witness here, and issue #889 holds them. A library holds no
+                 climbing round, whose slots name Primitives, so no Hosted
+                 Poll and no poll binder starts in library text, and its
+                 cell is the library's own refusal; it holds no `trick_order
+                 { }` block, so no row is library text; it cannot contract a
+                 position-indexed zone, and that row's cell is the library's
+                 own refusal; and an `early` predicate is a Primitive, its
+                 cell the same.
 registry:        walkers: the passes' source, `crossing_walkers`; rows and the
                  row-call partition: `cardlang.builtins.functions`; pronouns:
                  `resolve._PRONOUNS`, `resolve._CALL_SITE_PRONOUNS`; zone
@@ -153,7 +159,6 @@ def _line(text: str, needle: str) -> int:
 GAME = "game"
 USES = "uses"
 LIBRARY = "library"
-BOTH = "both"
 
 
 @dataclass(frozen=True)
@@ -184,8 +189,7 @@ def _assert_told(cell: Crossing, bag: list[str]) -> None:
     if cell.owner == LIBRARY:
         assert in_game == [], text
     else:
-        # BOTH: two faults, two authors -- the library's own, and the game's reach.
-        assert bool(in_library) == (cell.owner == BOTH), text
+        assert in_library == [], text
         needle = f"uses {_LIB}" if cell.owner == USES else cell.anchor
         assert needle is not None
         at = f"{_GAME_FILE}:{_line(cell.game, needle)}:"
@@ -653,10 +657,16 @@ def _poll_owner(route: str, payload: str, library: str) -> str:
         # A Primitive or a phase the library names: refused to its author.
         return LIBRARY
     if route == "run" and payload in HP.PROC_OWN_REFUSALS:
-        # A procedure body may not hold it in any game (`_check_procedures`),
-        # and the poll may not reach it either.
-        return BOTH
+        # A procedure body may not hold it in any game (`_check_procedures`).
+        return LIBRARY
+    if route != "run" and payload in _MOVE_EFFECT_NEVER:
+        # Nor may a move type's effect (the type layer's phase-only refusals).
+        return LIBRARY
     return GAME
+
+
+# The statements a move type's effect may hold in no game: phase control flow.
+_MOVE_EFFECT_NEVER = frozenset({"Produce", "ContinueTo", "SkipToNextHand"})
 
 
 def _poll_crossing(route: str, payload: str) -> Crossing:
@@ -667,15 +677,16 @@ def _poll_crossing(route: str, payload: str) -> Crossing:
         text, _words = HP.STMT_PAYLOADS[payload]
         kw = HP._route_source(route, text, is_stmt=True)
     needs = HP.SNIPPETS.get(payload, ("", {}))[1]
-    definitions = kw.pop("extra")
+    # A library names no seat: the grid's filler statement, rewritten seat-free.
+    definitions = kw.pop("extra").replace("score[0] += 0", "runs += 0")
     host = HP.source(**kw, **needs)
     game, library = _lift(host, definitions)
     owner = _poll_owner(route, payload, library)
     first = HP.ROUTES[route][0].splitlines()[-1].strip()
-    anchor = re.split(r"[({]", first)[0].strip() if owner in (GAME, BOTH) else None
+    anchor = re.split(r"[({]", first)[0].strip() if owner == GAME else None
     return Crossing(
         library, game, owner, anchor=anchor,
-        needles=("the Hosted Poll",) if owner in (GAME, BOTH) else (),
+        needles=("the Hosted Poll",) if owner == GAME else (),
         twin=HP.source(**kw, **needs, extra=definitions),
     )
 
@@ -893,6 +904,91 @@ def test_each_game_declaration_case_is_refused_today(monkeypatch: pytest.MonkeyP
     for case, (library, game) in _declared_cases().items():
         bag = _bag(monkeypatch, library, game)
         assert bag and all(line.startswith(_LIB_FILE) for line in bag), (case, bag)
+
+
+# --- library text a game activates or runs, judged once the game is known -------
+#
+# A library rule is judged when a game activates it, and a library procedure's
+# rounds when a game runs it; each refusal names who owns it.
+
+_ACTIVATING_HOST = """game Boundary {
+  players: 3
+  cards: standard52
+  max_length: 200
+  ranking: aces high
+  uses boundarylib
+  zones { deck : Deck  hand[player] : Hand<player>  pile : Discard }
+  state { score[player] : Integer = 0 }
+  phase setup { shuffle deck  deal 5 cards from deck to each hand }
+  phase play { BODY }
+  winner: highest score
+}
+"""
+_PIECE_HOST = """game Boundary {
+  players: 2
+  pieces: breakthrough_men
+  max_length: 200
+  uses boundarylib
+  zones { box : Deck  reserve[player] : PlayerPile<player>  pile : TrickPile }
+  state { score[player] : Integer = 0 }
+  phase play { active_rules: [libr(hearts)] score[0] := 1 }
+  winner: highest score
+}
+"""
+_LEADS = "demands: cards in hand where card.suit is state.led_suit if_impossible: hand"
+_ROUND_REQUIRES = "requires { hand[player] : Hand<player>  pile : Discard }"
+
+# case -> (library, game, owner, the game text a game-owned refusal stands at)
+_JUDGED_ONCE_KNOWN: dict[str, tuple[str, str, str, str | None]] = {
+    "rule-activated-where-no-trick-round-asks-it": (
+        f"library {_LIB} {{ rule librule {{ constrains: play_to_trick {_LEADS} }} }}",
+        _ACTIVATING_HOST.replace("BODY", "active_rules: [librule] score[0] := 1"),
+        GAME, "active_rules: [librule]",
+    ),
+    "rule-constraining-an-unknown-move-type": (
+        f"library {_LIB} {{ rule librule {{ constrains: nosuch demands: hand if_impossible: hand }} }}",
+        _ACTIVATING_HOST.replace("BODY", f"active_rules: [librule] {_TRICK}"),
+        LIBRARY, None,
+    ),
+    "rule-enforcing-nothing": (
+        f"library {_LIB} {{ rule librule {{ constrains: play_to_trick if_impossible: hand }} }}",
+        _ACTIVATING_HOST.replace("BODY", f"active_rules: [librule] {_TRICK}"),
+        LIBRARY, None,
+    ),
+    "rule-template-in-a-piece-game": (
+        f"library {_LIB} {{ rule libr(piece : Suit) {{ constrains: play_to_trick "
+        "demands: cards in hand where true if_impossible: hand } }",
+        _PIECE_HOST, USES, None,
+    ),
+    "round-early-predicate": (
+        f"library {_LIB} {{ {_ROUND_REQUIRES} procedure lr(p : Player) {{ round play_to_trick "
+        "from p over all players source hand into pile winner highest_of_led_suit "
+        "early on_play_off_led_suit } }",
+        _ACTIVATING_HOST.replace("BODY", "run lr(0)"),
+        LIBRARY, None,
+    ),
+    "climbing-round-and-its-hosted-poll": (
+        f"library {_LIB} {{ {_ROUND_REQUIRES} procedure lc(p : Player) {{ round climb "
+        "play_combination from p over all players source hand into pile combinations "
+        "tichu_lead_options follows tichu_follows until true } }",
+        _ACTIVATING_HOST.replace("BODY", "run lc(0)"),
+        LIBRARY, None,
+    ),
+    "row-reaching-a-primitive": (
+        f"library {_LIB} {{ function lp(c : Card) = skat_next_bid(0) > 3 }}",
+        _TRICK_HOST.format(clauses="", rows=_rows("trump").replace("libf(card)", "lp(card)"), zones=""),
+        LIBRARY, None,
+    ),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_JUDGED_ONCE_KNOWN))
+def test_library_text_judged_once_the_game_is_known(
+    monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    library, game, owner, anchor = _JUDGED_ONCE_KNOWN[case]
+    cell = Crossing(library, game, owner, anchor=anchor, names_library=owner == USES)
+    _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
 
 
 # --- library to game: the crossings an owning grid holds -------------------------
@@ -1224,10 +1320,8 @@ def test_the_no_one_acting_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -
 
 def test_the_hosted_poll_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
     """"take it out of the Hosted Poll's body": the poll holding only its own
-    statements, the library still used, leaves nothing in the game's file on
-    every route. A statement only a phase body may hold (`produce`, `skip to
-    next hand`) in a library move type is then refused to the library's
-    author, by the type layer, a stage later."""
+    statements, the library still used, checks clean on every route the game
+    owns."""
     for route in _POLL_ROUTES:
         for payload in _POLL_PAYLOADS:
             if not (payload in HP.EXPR_PAYLOADS or HP.ROUTES[route][2]):
@@ -1241,8 +1335,7 @@ def test_the_hosted_poll_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -> 
             if "nop" in body:
                 # The game's own helper the poll offered, which nothing offers now.
                 fixed = fixed.replace(HP.NOP, "")
-            bag = _bag(monkeypatch, cell.library, fixed)
-            assert all(line.startswith(_LIB_FILE) for line in bag), (route, payload, bag)
+            assert _bag(monkeypatch, cell.library, fixed) == [], (route, payload)
 
 
 # --- the walkers, derived -------------------------------------------------------
