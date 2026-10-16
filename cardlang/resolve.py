@@ -2625,13 +2625,13 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "requirement and for a provided variable alike"
     ),
     "role": (
-        "guarded elsewhere, and NOT closed — the row's first reading was wrong. The role "
-        "NAMES are the domain registry's, but `suit`/`rank` admissibility follows the "
-        "importing game's component set: `for each suit` is accepted by a card game and "
-        "refused by a piece game. So this is deck-agnosticism escaping through a role, "
-        "the same property `deck_rank`/`deck_suit` are swept for. It is not silent — "
-        "typecheck's flavor Owner Guard refuses it to the LIBRARY's author — but the "
-        "library-alone property is weaker here than the sweep provides (issue #183)"
+        "guarded elsewhere, and NOT closed. The role NAMES are the domain registry's, "
+        "but `suit`/`rank` admissibility follows the importing game's component set: "
+        "`for each suit` is accepted by a card game and refused by a piece game. So "
+        "this is deck-agnosticism escaping through a role, the same property "
+        "`deck_rank`/`deck_suit` are swept for. It is not silent — `_validate_refs` "
+        "refuses it at the library's span — but the library-alone property is weaker "
+        "here than the sweep provides (issue #183)"
     ),
     "content_kind": (
         "guarded elsewhere: typecheck compares the item noun against the game's content "
