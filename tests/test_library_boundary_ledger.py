@@ -33,8 +33,19 @@ domain:          two directions. Game to library, the checks that follow a
                  route and with every payload its own grid refuses; a game
                  decision, at every judged position of
                  `HIDDEN_READ_POSITIONS`, reading through a library function;
-                 and a library procedure the game runs where no one acts or
-                 for a seat it picks. Library to game: the game's answer to a
+                 and a library procedure the game runs: every judged
+                 position a procedure body holds (the seat-deciding rows of
+                 `HIDDEN_READ_POSITIONS` whose node is a statement or an
+                 expression), reading the cards of a parameter's seat, of a
+                 contracted seat, of a zone no seat sees and of an index no
+                 `as` names, each run where no one acts, as another seat and
+                 as the seat it decides for; a decision reading nothing, where
+                 no one acts; a run from a game move type's effect; the game's
+                 own argument reading cards, through a function and through a
+                 `let`; and the procedures no caller meets -- two seats, a seat the body
+                 writes before it reads it, a `to each` movement, and a run
+                 from a library move type's effect. Library to game: the
+                 game's answer to a
                  Definition Contract at every judged position a library holds
                  and through a library function, in a `choose` and an `actor`
                  where no one acts, a bare `hand` under a library rule, an
@@ -75,7 +86,8 @@ registry:        walkers: the passes' source, `crossing_walkers`; rows and the
                  tests/test_definition_contracts.py; clause gates:
                  tests/test_library_clause_gates.py; type-layer clause reads:
                  `typecheck.CLAUSE_READS`, tests/test_library_type_gates.py;
-                 library-alone checks: `resolve.check_library_alone`; game
+                 library-alone checks: `resolve.check_library_alone`;
+                 positions a procedure holds: `_procedure_positions`; game
                  declarations, each crossed with whether the contract names
                  the zone, and the scoped-read containment arms on a library
                  move type: tests/test_library_declaration_gates.py.
@@ -85,7 +97,15 @@ does not prove:  that a check crossing into another definition by an idiom
                  that every arm of a library-to-game family is told to its
                  owner: one witness per arm runs here, and the owning grid
                  holds the cross. Nor that a sentence is whole: cells pin its
-                 file, its line and the names it carries.
+                 file, its line and the names it carries. Nor that the callers
+                 `_HiddenReads._meeting_callers` tries are every caller: they
+                 are the two ways `_names_acting_seat` proves library text's
+                 index is the acting seat, a parameter and a State Variable,
+                 and a proof added there goes untried, its refusals told to
+                 the library. Nor that a library's own fault behind a decision
+                 run where no one acts is told: the walk stops at the
+                 decision, so a procedure no caller meets is told only that no
+                 one acts.
 """
 
 from __future__ import annotations
@@ -763,63 +783,289 @@ def test_a_game_decision_reading_through_a_library_function(
 #
 # `_HiddenReads._run_body` judges a procedure's statements in the run site's
 # acting context, so a library procedure's decision is decided by where the
-# game runs it.
+# game runs it. The procedure is sound when some caller meets it: then every
+# refusal its run makes is the game's, told at the `run`; when no caller can,
+# it is the library's, told where the library wrote it.
 
-_RUN_GAP = (
-    "issue #888: a library procedure a game runs is judged in the game's "
-    "context but refused in the library's file"
-)
 _RUN_REQUIRES = (
-    "requires { secret[player] : HiddenPile<player>  leader : Player  "
-    "hand[player] : Hand<player>  pile : Discard  bid : Integer }"
+    "requires { secret[player] : HiddenPile<player>  leader : Player  dealer : Player  "
+    "hand[player] : Hand<player>  pile : Discard  bid : Integer  stock : Deck }"
 )
 _RUN_HOST = """game Boundary {{
   players: 3
   cards: standard52
   max_length: 200
+  ranking: aces high
   uses boundarylib
-  zones {{ deck : Deck  hand[player] : Hand<player>  pile : Discard  secret[player] : HiddenPile<player> }}
-  state {{ score[player] : Integer = 0  leader : Player = 0  bid : Integer = 0 }}
+  zones {{ deck : Deck  stock : Deck  hand[player] : Hand<player>  pile : Discard  secret[player] : HiddenPile<player> }}
+  state {{ score[player] : Integer = 0  leader : Player = 0  dealer : Player = 1  bid : Integer = 0 }}
   phase setup {{ shuffle deck  deal 5 cards from deck to each hand }}
   phase play {{ {body} }}
   winner: highest score
 }}
 """
 
-# case -> (the library procedure, the game's run of it)
-_RUN_CASES: dict[str, tuple[str, str]] = {
-    "no-one-acts-choose": ("procedure libpr() { bid := choose integer in 0 .. 1 }", "run libpr()"),
-    "no-one-acts-chosen-movement": (
-        "procedure libpr() { move chosen 1 card from hand to pile }", "run libpr()",
+
+# What a refusal of a procedure's decision says: its seat cannot see what
+# it reads, or no one is there to decide.
+_RUN_REFUSALS = ("cannot see", "no one can make the decision")
+
+
+def _assert_run_told(cell: Crossing, bag: list[str]) -> None:
+    """`_assert_told`, and a refusal told to the library offers no run of
+    the procedure as its fix."""
+    _assert_told(cell, bag)
+    if cell.owner == LIBRARY:
+        text = "\n".join(bag)
+        assert any(why in text for why in _RUN_REFUSALS), text
+        assert not any(_REMEDY.search(line) for line in bag), text
+
+
+def _run_library(definitions: str) -> str:
+    return f"library {_LIB} {{\n  {_RUN_REQUIRES}\n  {definitions}\n}}\n"
+
+
+def _run_twin(definitions: str, body: str) -> str:
+    """The same game with the library's definitions written in it."""
+    return _run_game(body).replace(f"  uses {_LIB}\n", "") + definitions + "\n"
+
+
+# The judged positions a procedure body can hold: the rows of
+# `HIDDEN_READ_POSITIONS` a seat decides whose node is a statement or an
+# expression, so it can be written inside a procedure.
+def _procedure_positions() -> frozenset[tuple[type, str]]:
+    held = {*typing.get_args(n.Stmt), *typing.get_args(n.Expr)}
+    return frozenset(
+        key
+        for key, (kind, _) in R.HIDDEN_READ_POSITIONS.items()
+        if kind in (R.READ_POSITION_SEAT, R.READ_POSITION_CHOSEN) and key[0] in held
+    )
+
+
+# position -> the procedure statement reading zone reference `z` there.
+_RUN_POSITIONS: dict[tuple[type, str], Callable[[str], str]] = {
+    (n.Choose, "lo"): lambda z: (
+        f"bid := choose integer in (number of cards in {z} where rank_value(card) > 3) .. 13"
     ),
-    "seat-passed-by-value": (
-        "procedure libpr(p : Player) { move chosen 1 card from secret[p] to pile }",
-        "as 0 { run libpr(1) }",
+    (n.Choose, "hi"): lambda z: (
+        f"bid := choose integer in 0 .. (number of cards in {z} where rank_value(card) > 3) up to 13"
     ),
-    "seat-the-run-acts-as": (
-        "procedure libpr() { move chosen 1 card from secret[leader] to pile }",
-        "as 0 { run libpr() }",
+    (n.Choose, "excluding"): lambda z: (
+        f"bid := choose integer in 0 .. 13 excluding (number of cards in {z} where rank_value(card) > 3)"
+    ),
+    (n.Transfer, "amount"): lambda z: (
+        f"move chosen (number of cards in {z} where rank_value(card) > 3) cards from hand to pile"
+    ),
+    (n.Transfer, "source"): lambda z: f"move chosen 1 card from {z} to pile",
+    (n.Transfer, "where"): lambda z: f"move chosen 1 card from hand where any card in {z} where rank_value(card) > 3 to pile",
+    (n.Transfer, "dest"): lambda z: (
+        f"move chosen 1 card from hand to secret[if any card in {z} where rank_value(card) > 3 then leader else leader]"
     ),
 }
 
+# How the procedure names the zone it reads, and whether some caller meets
+# it: by its parameter `p` and by a contracted seat it can be run as, or by
+# a zone no seat sees and an index no `as` names, which no caller can.
+_RUN_READERS: dict[str, tuple[str, bool]] = {
+    "parameter": ("secret[p]", True),
+    "state-variable": ("secret[leader]", True),
+    "unseen-zone": ("stock", False),
+    "unnamed-seat": ("secret[leader + 0]", False),
+}
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        pytest.param(
-            c, id=c, marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RUN_GAP)
+# Where the game runs it: no seat acting, the wrong seat, and the seat the
+# procedure decides for.
+_RUN_SITES: dict[str, str] = {
+    "no-one-acts": "run libpr(leader)",
+    "wrong-seat": "as dealer { run libpr(leader) }",
+    "meeting-seat": "as leader { run libpr(leader) }",
+}
+
+
+def _position_label(key: tuple[type, str]) -> str:
+    return f"{key[0].__name__}.{key[1]}"
+
+
+def _run_position_crossing(position: tuple[type, str], reader: str, site: str) -> Crossing:
+    zone, meetable = _RUN_READERS[reader]
+    procedure = f"procedure libpr(p : Player) {{ {_RUN_POSITIONS[position](zone)} }}"
+    run = _RUN_SITES[site]
+    if not meetable:
+        owner: str | None = LIBRARY
+    else:
+        owner = None if site == "meeting-seat" else GAME
+    return Crossing(
+        _run_library(procedure),
+        _run_game(run),
+        owner,
+        anchor=run,
+        twin=_run_twin(procedure, run),
+    )
+
+
+def _run_position_cells() -> list[object]:
+    cells: list[object] = []
+    for position in sorted(_procedure_positions(), key=_position_label):
+        for reader in _RUN_READERS:
+            for site in _RUN_SITES:
+                cells.append(
+                    pytest.param(
+                        position, reader, site, id=f"{_position_label(position)}-{reader}-{site}"
+                    )
+                )
+    return cells
+
+
+def test_the_run_positions_are_the_judged_rows_a_procedure_holds() -> None:
+    """Every judged position a procedure body can hold has a statement here.
+
+    red under: move `(n.Transfer, "where")` to `READ_POSITION_OUTSIDE`."""
+    assert set(_RUN_POSITIONS) == _procedure_positions()
+
+
+@pytest.mark.parametrize(("position", "reader", "site"), _run_position_cells())
+def test_a_library_procedure_run_reading_at_a_judged_position(
+    monkeypatch: pytest.MonkeyPatch, position: tuple[type, str], reader: str, site: str
+) -> None:
+    """A read some caller can make is the game's to make where it runs the
+    procedure; a read no caller can make is the library's, in every game.
+
+    red under (the library cells): make `_HiddenReads._run_sink` give an
+    empty `_meeting_callers` the any-player caller, so every refusal is told
+    at the `run`."""
+    cell = _run_position_crossing(position, reader, site)
+    _assert_run_told(cell, _bag(monkeypatch, cell.library, cell.game))
+
+
+@dataclass(frozen=True)
+class RunCase:
+    """The library's definitions, the phase body that runs them, who is told
+    and, where the run stands outside the phase body, the game's own
+    definitions holding it (`defs`) and the run itself (`at`)."""
+
+    definitions: str
+    body: str
+    owner: str
+    defs: str = ""
+    at: str | None = None
+    needles: tuple[str, ...] = ()
+
+    @property
+    def anchor(self) -> str:
+        return self.at or self.body
+
+    def game(self, body: str | None = None) -> str:
+        return _run_game(body if body is not None else self.body) + self.defs
+
+    def crossing(self) -> Crossing:
+        return Crossing(
+            _run_library(self.definitions), self.game(), self.owner, anchor=self.anchor,
+            needles=self.needles,
+            twin=self.game().replace(f"  uses {_LIB}\n", "") + self.definitions + "\n",
         )
-        for c in sorted(_RUN_CASES)
-    ],
+
+
+# What a refusal of a read the game's own argument makes adds.
+_BY_ARGUMENT = "the cards are read by the argument this `run` passes it"
+# What a refusal adds where no run of the procedure as one seat passes with
+# the arguments this `run` passes it.
+_NO_RUN_FIX = "pass it only arguments that seat can see"
+
+_RUN_CASES: dict[str, RunCase] = {
+    "no-one-acts-choose": RunCase(
+        "procedure libpr() { bid := choose integer in 0 .. 1 }", "run libpr()", GAME,
+    ),
+    "no-one-acts-chosen-movement": RunCase(
+        "procedure libpr() { move chosen 1 card from hand to pile }", "run libpr()", GAME,
+    ),
+    "seat-passed-by-value": RunCase(
+        "procedure libpr(p : Player) { move chosen 1 card from secret[p] to pile }",
+        "as 0 { run libpr(1) }",
+        GAME,
+    ),
+    "seat-the-run-acts-as": RunCase(
+        "procedure libpr() { move chosen 1 card from secret[leader] to pile }",
+        "as 0 { run libpr() }",
+        GAME,
+    ),
+    # A game move type's effect runs it, for whichever seat is offered it.
+    "run-by-a-game-move-type": RunCase(
+        "procedure libpr() { move chosen 1 card from secret[leader] to pile }",
+        "offer to leader one of [gmt]",
+        GAME,
+        defs="move_type gmt { effect { run libpr() } }\n",
+        at="run libpr()",
+    ),
+    # The game's own argument reads the cards: the read is the game's text.
+    "argument-calls-a-function": RunCase(
+        "procedure libpr(k : Integer) { move chosen k cards from hand to pile }",
+        "as leader { run libpr(high_cards(dealer)) }",
+        GAME,
+        needles=(_BY_ARGUMENT,),
+    ),
+    "argument-bound-by-a-let": RunCase(
+        "procedure libpr(k : Integer) { move chosen k cards from hand to pile }",
+        "as leader { let n = high_cards(dealer)  run libpr(n) }",
+        GAME,
+        at="run libpr(n)",
+        needles=(_BY_ARGUMENT,),
+    ),
+    # The argument reads the seat the run acts as, and the body another: no
+    # run as one seat passes with this argument.
+    "argument-and-body-read-two-seats": RunCase(
+        "procedure libpr(k : Integer) { move chosen k cards from secret[leader] to pile }",
+        "as dealer { run libpr(high_cards(dealer)) }",
+        GAME,
+        needles=(_NO_RUN_FIX,),
+    ),
+    # No one seat sees both pools, so no caller meets the procedure, though
+    # each statement alone is met by some caller.
+    "two-seats": RunCase(
+        "procedure libpr() { move chosen 1 card from secret[leader] to pile  "
+        "move chosen 1 card from secret[dealer] to pile }",
+        "as leader { run libpr() }",
+        LIBRARY,
+    ),
+    # The procedure moves the seat it reads before reading it.
+    "seat-written-before-it-is-read": RunCase(
+        "procedure libpr() { leader := dealer  move chosen 1 card from secret[leader] to pile }",
+        "as leader { run libpr() }",
+        LIBRARY,
+    ),
+    # Each receiving seat decides, whoever runs it.
+    "to-each-receiver": RunCase(
+        "procedure libpr() { move chosen 1 card from secret[leader] to each hand }",
+        "as leader { run libpr() }",
+        LIBRARY,
+    ),
+    # A library move type runs it: library text throughout.
+    "run-by-a-library-move-type": RunCase(
+        "procedure libpr() { move chosen 1 card from secret[leader] to pile }  "
+        "move_type libmt { effect { run libpr() } }",
+        "offer to leader one of [libmt]",
+        LIBRARY,
+    ),
+}
+# The game's own definitions every run's game holds.
+_RUN_GAME_DEFS = (
+    "function high_cards(p : Player) = number of cards in secret[p] where rank_value(card) > 3\n"
 )
+
+
+def _run_game(run: str) -> str:
+    return _RUN_HOST.format(body=run) + _RUN_GAME_DEFS
+
+
+@pytest.mark.parametrize("case", sorted(_RUN_CASES))
 def test_a_library_procedure_run_where_it_cannot_decide(
     monkeypatch: pytest.MonkeyPatch, case: str
 ) -> None:
-    procedure, run = _RUN_CASES[case]
-    library = f"library {_LIB} {{\n  {_RUN_REQUIRES}\n  {procedure}\n}}\n"
-    game = _RUN_HOST.format(body=run)
-    cell = Crossing(library, game, GAME, anchor=run)
-    _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    """red under (the library cells): make `_HiddenReads._run_sink` give
+    an empty `_meeting_callers` the any-player caller, or push
+    `False` for a library move type's effect in `_walk_game`; (the argument
+    cells): drop the `run_args` arm of `_HiddenReads._tell`."""
+    cell = _RUN_CASES[case].crossing()
+    _assert_run_told(cell, _bag(monkeypatch, cell.library, cell.game))
 
 
 def test_a_library_procedure_run_as_the_seat_it_reads_is_accepted(
@@ -828,9 +1074,62 @@ def test_a_library_procedure_run_as_the_seat_it_reads_is_accepted(
     """The control for the run family: the same procedure, run as the seat
     whose cards it reads, checks clean, so the library is sound for some
     caller."""
-    procedure, _run = _RUN_CASES["seat-the-run-acts-as"]
-    library = f"library {_LIB} {{\n  {_RUN_REQUIRES}\n  {procedure}\n}}\n"
-    assert _bag(monkeypatch, library, _RUN_HOST.format(body="as leader { run libpr() }")) == []
+    case = _RUN_CASES["seat-the-run-acts-as"]
+    library = _run_library(case.definitions)
+    assert _bag(monkeypatch, library, case.game("as leader { run libpr() }")) == []
+
+
+_REMEDY = re.compile(r"so run it [^:]*: `(as [^`]*)`")
+
+
+def _run_fix_cells() -> list[tuple[str, str, str, str]]:
+    """Every game-owned run cell: (id, library, the game, the run a fix
+    replaces)."""
+    cells = [
+        (key, _run_library(case.definitions), case.game(), case.anchor)
+        for key, case in sorted(_RUN_CASES.items())
+        if case.owner == GAME
+    ]
+    for position in sorted(_procedure_positions(), key=_position_label):
+        for reader in _RUN_READERS:
+            for site in _RUN_SITES:
+                cell = _run_position_crossing(position, reader, site)
+                if cell.owner == GAME:
+                    cells.append(
+                        (
+                            f"{_position_label(position)}-{reader}-{site}",
+                            cell.library, cell.game, _RUN_SITES[site],
+                        )
+                    )
+    return cells
+
+
+@pytest.mark.parametrize(
+    ("library", "game", "run"),
+    [
+        pytest.param(library, game, run, id=cell_id)
+        for cell_id, library, game, run in _run_fix_cells()
+    ],
+)
+def test_the_fix_a_run_is_told_passes(
+    monkeypatch: pytest.MonkeyPatch, library: str, game: str, run: str
+) -> None:
+    """A run's refusals offer at most one run of the procedure, and that run,
+    written in place of the game's own (a `<player>` in it spelled as seat
+    0), checks clean; where they offer none, each says why.
+
+    red under: in `_HiddenReads._run_sink`, offer the first of
+    `_meeting_callers` without asking `_passing_fix`."""
+    bag = _bag(monkeypatch, library, game)
+    text = "\n".join(bag)
+    fixes = {m.group(1) for line in bag for m in _REMEDY.finditer(line)}
+    assert len(fixes) <= 1, text
+    if not fixes:
+        assert bag and all(_BY_ARGUMENT in line or _NO_RUN_FIX in line for line in bag), text
+        return
+    fix = fixes.pop().replace("<player>", "0")
+    assert game.count(run) == 1, run
+    assert _bag(monkeypatch, library, game.replace(run, fix)) == [], fix
 
 
 # --- library to game: a game declaration the library's text depends on ----------
@@ -1580,7 +1879,10 @@ WALKERS: dict[str, str] = {
         "test_a_decision_no_one_can_make_in_a_library_function; the answer's: "
         "test_a_library_reaching_the_games_text[no-one-acts-*]"
     ),
-    "resolve._HiddenReads._run": "test_a_library_procedure_run_where_it_cannot_decide (issue #888)",
+    "resolve._HiddenReads._run": (
+        "test_a_library_procedure_run_reading_at_a_judged_position, "
+        "test_a_library_procedure_run_where_it_cannot_decide"
+    ),
     "resolve._HiddenReads._after": "liveness of an `as` state variable: refuses nothing itself",
     "resolve._check_functions": "test_a_library_reaching_the_games_text[call-cycle, call-site-pronoun-*]",
     "resolve._report_recursion": "test_a_library_reaching_the_games_text[call-cycle]",
@@ -1626,6 +1928,13 @@ def _game_to_library_cells() -> list[Crossing]:
         for payload in _POLL_PAYLOADS
         if payload in HP.EXPR_PAYLOADS or HP.ROUTES[route][2]
     )
+    cells.extend(
+        _run_position_crossing(position, reader, site)
+        for position in sorted(_procedure_positions(), key=_position_label)
+        for reader in _RUN_READERS
+        for site in _RUN_SITES
+    )
+    cells.extend(case.crossing() for case in _RUN_CASES.values())
     return cells
 
 
@@ -1669,7 +1978,7 @@ def test_every_crossing_not_told_to_its_owner_cites_its_issue() -> None:
     yet told to its owner names the issue that holds it, so the ledger has no
     unaddressed and uncited crossing.
 
-    red under: drop the issue number from `_RUN_GAP`."""
+    red under: drop the issue number from `_DECLARED_GAP`."""
     marked = _marked_cells()
     assert marked
     uncited = [(t, c) for t, c, reason in marked if not re.search(r"issue #\d+", reason)]
