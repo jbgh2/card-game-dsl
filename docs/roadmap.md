@@ -86,8 +86,8 @@ Destination.
   not this Destination. Held by
   [#893](https://github.com/jbgh2/card-game-dsl/issues/893). Distance: whether
   `Span` carries a trace, the diagnostic construction sites outside
-  `cardlang/diagnostics.py` by module, and the runtime refusal classes that
-  carry no span.
+  `cardlang/diagnostics.py` by module, and the designer-addressed runtime
+  refusal classes, the refusal census's own set, that carry no span.
 - **Boards.** The topology witness ladder in
   [games/_candidates.md](games/_candidates.md) plays: a board game enters
   the corpus by the same path as a card game, with the two open questions

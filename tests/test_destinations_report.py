@@ -17,9 +17,9 @@ property:   each reader derives its facts from its source and nothing else:
             generator issue's checkboxes; the ladder is the `### ` headings
             of the candidates file's Boards section; the renderer facts are
             the `Span` trace field by name, the Diagnostic constructions
-            outside the renderer module by `ast`, and the runtime error
-            classes not deriving from `Located` through the module's own
-            hierarchy; a grammar point counts
+            outside the renderer module by `ast`, and the refusal census's
+            designer-addressed classes not deriving from `Located`; a grammar
+            point counts
             lark's defined rules and distinct keyword spellings, taken at the
             commit that added each verdict file.
 domain:     synthetic texts built here for every reader, so no cell depends
@@ -181,22 +181,21 @@ def test_diagnostic_sites_counts_constructors_outside_the_renderer(tmp_path: pat
     assert d.diagnostic_sites(tmp_path, tmp_path / "diagnostics.py") == {"parse.py": 2, "sub/m.py": 1}
 
 
-def test_unlocated_errors_follows_the_module_hierarchy() -> None:
-    src = textwrap.dedent(
-        """
-        class Located:
-            pass
-        class GameDescriptionError(Located, Exception):
-            pass
-        class OwnerGuardError(GameDescriptionError):
-            pass
-        class InstallationError(Exception):
-            pass
-        class Helper:
-            pass
-        """
-    )
-    assert d.unlocated_errors(src) == ["InstallationError"]
+def test_unlocated_refusals_counts_only_the_census_set() -> None:
+    class Located:
+        pass
+
+    class Refused(Located, Exception):
+        pass
+
+    class Bare(Exception):
+        pass
+
+    class Installer(Exception):
+        pass
+
+    classes: dict[str, type[BaseException]] = {"Refused": Refused, "Bare": Bare, "Installer": Installer}
+    assert d.unlocated_refusals(classes, {"Refused", "Bare", "Missing"}, Located) == ["Bare"]
 
 
 # --- tree-facing pins ----------------------------------------------------------------
@@ -222,10 +221,12 @@ def test_every_verdict_file_has_an_adding_commit() -> None:
     assert missing == [], missing
 
 
-def test_real_renderer_and_errors_modules_parse() -> None:
+def test_real_renderer_facts_derive() -> None:
     assert isinstance(d.span_has_trace(d.DIAGNOSTICS_MODULE.read_text()), bool)
-    assert d.diagnostic_sites(), "no construction site outside the renderer -- the reader sees nothing"
-    assert isinstance(d.unlocated_errors(d.RUNTIME_ERRORS.read_text()), list)
+    sites = d.diagnostic_sites()
+    assert all(isinstance(n, int) and n > 0 for n in sites.values())  # empty is the Destination, not a failure
+    assert d.REFUSALS, "the refusal census names no designer-addressed class"
+    assert isinstance(d.unlocated_refusals(d.engine_exception_classes(), d.REFUSALS, d.Located), list)
 
 
 def test_real_candidates_file_has_a_boards_ladder() -> None:

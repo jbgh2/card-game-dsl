@@ -35,7 +35,8 @@ What it derives, and from where:
 * **A refusal lands in the designer's file, in the designer's words** --
   whether `Span` declares its instantiation-trace field, the calls that
   construct a Diagnostic outside the renderer module (by module, read with
-  `ast`), and the runtime refusal classes that do not carry a span.
+  `ast`), and the designer-addressed runtime refusal classes (the refusal
+  census's own set) that do not carry a span.
 * **Boards** -- the topology witness ladder in `docs/games/_candidates.md`
   against the corpus games declaring a `grid(` Component Set.
 
@@ -57,14 +58,17 @@ import pathlib
 import re
 import subprocess
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from lark import Lark
 
 from cardlang.builtins import functions as builtin_registries
 from cardlang.openspiel import resample
+from cardlang.runtime.errors import Located
 from tests.keyword_fusion_sweep import code_mask
+from tests.test_runtime_refusal_location import _REFUSALS as REFUSALS
+from tests.test_runtime_refusal_location import engine_exception_classes
 from tools.dead_surface import keyword_axis
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -310,7 +314,6 @@ def grammar_history(files: Sequence[pathlib.Path]) -> list[GrammarPoint]:
 # --- A refusal lands in the designer's file ------------------------------------------
 
 DIAGNOSTICS_MODULE = ROOT / "cardlang" / "diagnostics.py"
-RUNTIME_ERRORS = RUNTIME / "errors.py"
 PACKAGE = ROOT / "cardlang"
 TRACE_FIELD = "instantiated_at"
 _CONSTRUCTORS = frozenset({"Diagnostic", "DiagnosticError"})
@@ -346,28 +349,16 @@ def diagnostic_sites(package: pathlib.Path = PACKAGE, renderer: pathlib.Path = D
     return out
 
 
-def unlocated_errors(errors_source: str, located: str = "Located") -> list[str]:
-    """Exception classes in the runtime's errors module that do not carry a
-    span: those not deriving, directly or through a parent in the module,
-    from the `Located` mixin."""
-    bases: dict[str, list[str]] = {}
-    for node in ast.parse(errors_source).body:
-        if isinstance(node, ast.ClassDef):
-            bases[node.name] = [b.id if isinstance(b, ast.Name) else b.attr if isinstance(b, ast.Attribute) else "" for b in node.bases]
-
-    def is_located(name: str, seen: frozenset[str] = frozenset()) -> bool:
-        if name == located:
-            return True
-        if name in seen or name not in bases:
-            return False
-        return any(is_located(b, seen | {name}) for b in bases[name])
-
-    return [
-        name
-        for name, parents in bases.items()
-        if name != located and any(p.endswith("Exception") or p.endswith("Error") or p in bases for p in parents)
-        and not is_located(name)
-    ]
+def unlocated_refusals(
+    classes: Mapping[str, type[BaseException]], refusals: Iterable[str], located: type
+) -> list[str]:
+    """The designer-addressed refusal classes that do not carry a span: the
+    refusal census's own set (`tests.test_runtime_refusal_location._REFUSALS`,
+    the classes a game sentence can raise and a designer must act on) that do
+    not derive from the `Located` carrier. Failures the census addresses to
+    the installer, the primitive maintainer or the compile channel are not
+    the designer's and are not counted."""
+    return sorted(name for name in refusals if name in classes and not issubclass(classes[name], located))
 
 
 # --- Boards ---------------------------------------------------------------------------
@@ -457,7 +448,7 @@ def render(
         f"diagnostic construction sites outside the renderer: {sum(sites.values())} in {len(sites)} modules -- "
         + ", ".join(f"{m} {n}" for m, n in sorted(sites.items(), key=lambda kv: -kv[1]))
     )
-    out.append(f"runtime refusal classes without a span: {len(unlocated)} -- {', '.join(unlocated) or '-'}")
+    out.append(f"designer-addressed runtime refusals without a span: {len(unlocated)} -- {', '.join(unlocated) or '-'}")
     out.append("")
 
     out.append("== Boards ==")
@@ -484,7 +475,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             boards=board_games(),
             trace=span_has_trace(DIAGNOSTICS_MODULE.read_text()),
             sites=diagnostic_sites(),
-            unlocated=unlocated_errors(RUNTIME_ERRORS.read_text()),
+            unlocated=unlocated_refusals(engine_exception_classes(), REFUSALS, Located),
         )
     )
     return 0
