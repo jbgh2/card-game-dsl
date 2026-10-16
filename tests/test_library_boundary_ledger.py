@@ -45,8 +45,9 @@ domain:          two directions. Game to library, the checks that follow a
                  that no contract row names, one witness per member: a `Card`
                  parameter's `hand`, its type, a climb engine's action and an
                  implicit read's family; the ones a cited issue holds: a
-                 library rule or Delegated Play helper the game's trick rounds
-                 decide, a seat-direction word the game's state captures, and
+                 library rule, Delegated Play helper or provided `hand` the
+                 game's trick play decides, a seat-direction word the game's
+                 state captures, and
                  a library movement in a piece game; and the
                  library text a game activates or runs, judged once the game
                  is known (a rule activated, a library round). Beside them,
@@ -920,6 +921,9 @@ _TRICK_HOST_TWO = """game Boundary {{
 }}
 {extra}"""
 _STOCK = "requires { stock[player] : Hand<player> }"
+_NO_HAND = _TRICK_HOST_TWO.replace("hand[player] : Hand<player>  ", "").replace(
+    "    deal 5 cards from deck to each hand\n", ""
+)
 _FLAVOR_HOST = """game Boundary {{
   players: 2
   max_length: 3000
@@ -974,6 +978,19 @@ def _held_choices() -> dict[str, tuple[str, str, str, str]]:
 }
 """,
             "holds no trick round",
+        ),
+        "delegated-play-helper-deciding-outside-any-binder": (
+            "issue #898",
+            f"library {_LIB} {{ {_STOCK} function chooser_for(p : Player) = "
+            "if (choose integer in 0 .. 1) is 0 then p else p }",
+            _TRICK_HOST_TWO.format(rule="MustFollowSuit", src="hand", extra=""),
+            "no player is acting",
+        ),
+        "provided-hand-beside-a-rule-reading-the-play-source": (
+            "issue #898",
+            f"library {_LIB} {{ state {{ hand : Integer = 0 }} function lidle() = hand }}",
+            _NO_HAND.format(rule="MustFollowSuit", src="stock", extra=""),
+            "inside a rule, `hand` is the cards",
         ),
         "seat-direction-captured-by-the-games-state": (
             "issue #899",
@@ -1046,6 +1063,14 @@ def test_each_game_choice_an_issue_holds_is_accepted_without_the_choice(
         "delegated-play-helper-with-no-trick-round": _TRICK_HOST_TWO.format(
             rule="MustFollowSuit", src="hand", extra=""
         ).replace("stock[player] : Hand<player>", "stock[player] : Hand<player>  pile : Discard"),
+        "delegated-play-helper-deciding-outside-any-binder": _TRICK_HOST_TWO.replace(
+            "      round play_to_trick", "      as leader {{ round play_to_trick"
+        ).replace(
+            "winner highest_trump_or_led_suit\n", "winner highest_trump_or_led_suit }}\n"
+        ).format(rule="MustFollowSuit", src="hand", extra=""),
+        "provided-hand-beside-a-rule-reading-the-play-source": _NO_HAND.replace(
+            "    active_rules: [{rule}]\n", ""
+        ).format(src="stock", extra=""),
         "seat-direction-captured-by-the-games-state": held[
             "seat-direction-captured-by-the-games-state"
         ][2].replace("  left : Integer = 0", ""),

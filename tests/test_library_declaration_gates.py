@@ -508,7 +508,8 @@ def _scoped_cell(arm: str, mover: str, site: str) -> Cell:
         )
         return Cell(library, game, USES, said, remedies=((library, offered),))
     # "keep `pinochle_meld_value` out of" the game's text reaching it, "or
-    # declare `trump_suit` at game level and read it there".
+    # declare `trump_suit` at game level and drop `in outer` from
+    # `pinochle_meld_value`'s read of it".
     kept_out = game.replace(
         "for each player p: meld[p] := pinochle_meld_value(p)", _IDLE
     ).replace("when: pinochle_meld_value(actor) >= 0", "when: true")

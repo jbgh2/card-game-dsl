@@ -8529,8 +8529,8 @@ def _check_offered_containers(
                     f"`{phase_name}` — the analysis does not follow offers made "
                     f"from inside {kind}, so there is no position to judge and "
                     f"the scope cannot be established; keep `{entry}` out of "
-                    f"{through}, or declare `{read}` at game level and read it "
-                    f"there",
+                    f"{through}, or declare `{read}` at game level and drop "
+                    f"`in {phase_name}` from `{entry}`'s read of it",
                 )
                 continue
             # A wall with a witness, not a decision: coup's move-type effects
