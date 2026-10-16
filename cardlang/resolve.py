@@ -11680,9 +11680,14 @@ class _HiddenReads:
         if passed is not None:
             value, param = passed
             cannot = "not every receiving seat can see them" if seat.every else f"{decider} cannot see them"
+            # `_spell` quotes the shapes an index takes; any other argument is
+            # named by what it is not.
+            argument = (
+                f"a seat it does not show to be {decider}" if "..." in value else f"`{value}`"
+            )
             message = (
                 f"function `{fn.name}` reads {needs}{through}, and library "
-                f"'{crossing.stamp.library}' passes `{value}` as `{param}` when it "
+                f"'{crossing.stamp.library}' passes {argument} as `{param}` when it "
                 f"calls it under its contract `{crossing.stamp.row}` in {what}, "
                 f"{decides} must be able to check it, but {cannot}"
             )

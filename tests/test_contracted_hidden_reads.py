@@ -30,19 +30,25 @@ domain:          every judged position a library's text can hold (the
                  remedy a refusal offers, run; the other refusals reached
                  through an answer -- a `choose` and an `actor` where no
                  player is acting, a bare `hand` from a library rule, an
-                 Arrival Record over a concealed pile; and the misuse probes
-                 (the library's own read handed in as an argument, one answer
-                 asked at a game and a library position, bare-family sugar in
-                 the answer). No library text holds a position where no seat
-                 decides, so the no-seat rows are outside by derivation.
+                 Arrival Record over a concealed pile; the library's own
+                 indirections between its decision and its call (a rule
+                 template the game turns on with an argument, a `let`, a
+                 procedure argument); a computed seat the sentence cannot
+                 quote; and the misuse probes (the library's own read handed
+                 in as an argument, one answer asked at a game and a library
+                 position, bare-family sugar in the answer). No library text
+                 holds a position where no seat decides, so the no-seat rows
+                 are outside by derivation; and a library holds no climbing
+                 round, whose slots name Primitives (its own author is told
+                 so), so no Hosted Poll's reach starts in library text.
 registry:        positions: `cardlang.resolve.HIDDEN_READ_POSITIONS` restricted
                  by `tests.test_family_libraries._library_reachable_node_types`;
                  the inline verdict per position and zone type:
                  tests/test_hidden_reads.py; the host and the bag reader:
                  tests/test_definition_contracts.py.
-does not prove:  that each sentence reads well beyond its needles: a cell
-                 reads the location and the phrases it names, never the
-                 whole sentence.
+does not prove:  that every position's sentence is whole: the move type's
+                 `when:` and the two siblings are pinned exactly, the other
+                 positions by location and needle.
 """
 
 from __future__ import annotations
@@ -711,3 +717,147 @@ def test_a_read_through_an_answer_under_delegated_play_names_the_routed_decider(
     assert len(bag) == 1, bag
     assert bag[0].startswith(_where(game, defs, "secret[")), bag
     assert "`chooser_for(actor)`" in bag[0] and "library 'contractlib'" in bag[0], bag
+
+
+# --- the library's own indirections before the call --------------------------
+
+_COUNT_HIDDEN = "function count(p : Player) = number of cards in secret[1] where true"
+
+_INDIRECTIONS: dict[str, tuple[Position, list[str], bool]] = {
+    # The library's own text between its decision and its call of the answer.
+    "rule_template": (
+        Position(
+            "bool",
+            rule=(
+                "rule watch(s : Suit) { constrains: play_to_trick applies_when: ready(actor) "
+                "demands: cards in hand where card.suit is s if_impossible: hand }"
+            ),
+        ),
+        [],
+        True,
+    ),
+    "let": (
+        Position("int", effect="let k = count(actor)\n pick[actor] := choose integer in 0 .. (k) up to 3"),
+        [],
+        False,
+    ),
+    "run_argument": (
+        Position("int", effect="run chooser(actor, count(actor))"),
+        ["procedure chooser(who : Player, k : Integer) { pick[who] := choose integer in 0 .. (k) up to 3 }"],
+        False,
+    ),
+}
+
+
+@pytest.mark.parametrize("via", sorted(_INDIRECTIONS))
+def test_an_answer_reached_through_the_librarys_own_indirection_is_the_games(
+    monkeypatch: pytest.MonkeyPatch, via: str
+) -> None:
+    """A rule template the game turns on with an argument, a `let` and a
+    procedure argument in the library's text: the answer's read is told to
+    the game at the read, whatever library text carries its value."""
+    pos, lib_defs, rule = _INDIRECTIONS[via]
+    fn, row = _ROW[pos.kind]
+    library = _library_text(pos, "", [row], lib_defs)
+    defs = _COUNT_HIDDEN if pos.kind == "int" else (
+        "function ready(p : Player) = any card in secret[1] where true"
+    )
+    game = _game(defs, rule)
+    if via == "rule_template":
+        game = game.replace("active_rules: [watch]", "active_rules: [watch(hearts)]")
+    bag = _bag(monkeypatch, library, game)
+    assert len(bag) == 1, bag
+    assert bag[0].startswith(_where(game, defs, "secret[")), bag
+    assert "library 'contractlib'" in bag[0] and f"`{row}`" in bag[0], bag
+
+
+def test_a_library_argument_no_index_spelling_reaches_is_named_by_what_it_is_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The library passes a computed seat the sentence cannot quote: it says
+    the seat is not shown to be the decider, never a placeholder."""
+    built = _build((n.MoveTypeDef, "when"), "library_seat", "secret")
+    library = built.library.replace("ready(1)", "ready(if acted[actor] then 1 else 0)")
+    bag = _bag(monkeypatch, library, _game(built.defs, False))
+    assert len(bag) == 1, bag
+    assert "passes a seat it does not show to be the acting seat as `p`" in bag[0], bag
+    assert "..." not in bag[0], bag
+
+
+def test_the_passed_seat_remedy_through_a_library_function_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fix a read in a library function the answer calls is offered: hand
+    the library function the seat the library passes."""
+    for key in _KEYS:
+        pos = _POSITIONS[key]
+        fn, _row = _ROW[pos.kind]
+        built = _build(key, "library_function", "secret")
+        bag = _bag(
+            monkeypatch,
+            built.library,
+            _game(f"function {fn}(p : Player) = libpeek(p)", bool(pos.rule)),
+        )
+        assert bag == [], (key, bag)
+
+
+# --- the sentences, whole ----------------------------------------------------
+
+_SENTENCES: dict[str, str] = {
+    "answer": (
+        "function `ready` reads the cards in `secret[1]`, which the acting seat "
+        "cannot see, but library 'contractlib' calls it under its contract "
+        "`ready(p : Player) : Boolean` in move type `stay`'s `when:`, which the "
+        "acting seat decides, so the acting seat must be able to check it. Read "
+        "cards every seat can see, or the cards of the seat the library passes as "
+        "`p`, or have the holder announce or reveal the fact first"
+    ),
+    "library_seat": (
+        "function `ready` reads the cards in `secret[p]`, and library 'contractlib' "
+        "passes `1` as `p` when it calls it under its contract "
+        "`ready(p : Player) : Boolean` in move type `stay`'s `when:`, which the "
+        "acting seat decides, so the acting seat must be able to check it, but the "
+        "acting seat cannot see them. Read cards every seat can see, or have the "
+        "holder announce or reveal the fact first"
+    ),
+    "library_function": (
+        "function `ready` reads the cards in `secret[1]` (through function "
+        "`libpeek`), which the acting seat cannot see, but library 'contractlib' "
+        "calls it under its contract `ready(p : Player) : Boolean` in move type "
+        "`stay`'s `when:`, which the acting seat decides, so the acting seat must be "
+        "able to check it. Read cards every seat can see, or the cards of the seat "
+        "the library passes as `p`, or have the holder announce or reveal the fact "
+        "first"
+    ),
+}
+
+
+@pytest.mark.parametrize("route", sorted(_SENTENCES))
+def test_the_sentence_a_game_author_reads(monkeypatch: pytest.MonkeyPatch, route: str) -> None:
+    built = _build((n.MoveTypeDef, "when"), route, "secret")
+    game = _game(built.defs, False)
+    bag = _bag(monkeypatch, built.library, game)
+    assert built.anchor is not None
+    assert bag == [f"{_where(game, built.defs, built.anchor)} error: {_SENTENCES[route]}"], bag
+
+
+def test_the_sentences_of_the_two_sibling_refusals(monkeypatch: pytest.MonkeyPatch) -> None:
+    choose = _bag(
+        monkeypatch, _NO_ACTOR_LIBRARY, _game("function count(p : Player) = choose integer in 0 .. 3", False)
+    )
+    assert [line.split(" error: ", 1)[1] for line in choose] == [
+        "function `count` makes a `choose`, but library 'contractlib' calls it under "
+        "its contract `count(p : Player) : Integer` where no player is acting "
+        "(outside any `as <player>`, `for each player`, `turns` or offered move, "
+        "nobody is taking a turn), so no one can make the decision. Compute the "
+        "answer from the parameters the row passes, or from the game's own state"
+    ], choose
+    hand = _bag(monkeypatch, _RULE_LIBRARY, _game("function ok(c : Card) = c in hand", True))
+    assert [line.split(" error: ", 1)[1] for line in hand] == [
+        "function 'ok' reads `hand`, and rule 'watch' calls it from its clauses: "
+        "inside a rule, `hand` is the cards the player on turn plays from, and a "
+        "function cannot see which cards those are — library 'contractlib' calls it "
+        "under its contract `ok(c : Card) : Boolean`, from text this game cannot "
+        "edit, so the filter cannot move into the rule: read the card the row "
+        "passes, or the game's own state"
+    ], hand
