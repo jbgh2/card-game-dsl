@@ -959,6 +959,13 @@ class RunCase:
 
 # What a refusal of a read the game's own argument makes adds.
 _BY_ARGUMENT = "the cards are read by the argument this `run` passes it"
+# What a refusal adds where no run of the procedure as one seat passes with
+# the arguments this `run` passes it.
+_NO_RUN_FIX = "pass it only arguments that seat can see"
+_RUN_FIX_GAP = (
+    "issue #888: a run's offered fix keeps an argument that reads cards the "
+    "seat it moves to cannot see"
+)
 
 _RUN_CASES: dict[str, RunCase] = {
     "no-one-acts-choose": RunCase(
@@ -999,6 +1006,14 @@ _RUN_CASES: dict[str, RunCase] = {
         at="run libpr(n)",
         needles=(_BY_ARGUMENT,),
     ),
+    # The argument reads the seat the run acts as, and the body another: no
+    # run as one seat passes with this argument.
+    "argument-and-body-read-two-seats": RunCase(
+        "procedure libpr(k : Integer) { move chosen k cards from secret[leader] to pile }",
+        "as dealer { run libpr(high_cards(dealer)) }",
+        GAME,
+        needles=(_NO_RUN_FIX,),
+    ),
     # No one seat sees both pools, so no caller meets the procedure, though
     # each statement alone is met by some caller.
     "two-seats": RunCase(
@@ -1037,7 +1052,20 @@ def _run_game(run: str) -> str:
     return _RUN_HOST.format(body=run) + _RUN_GAME_DEFS
 
 
-@pytest.mark.parametrize("case", sorted(_RUN_CASES))
+@pytest.mark.parametrize(
+    "case",
+    [
+        pytest.param(
+            c, id=c,
+            marks=(
+                [pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RUN_FIX_GAP)]
+                if c == "argument-and-body-read-two-seats"
+                else []
+            ),
+        )
+        for c in sorted(_RUN_CASES)
+    ],
+)
 def test_a_library_procedure_run_where_it_cannot_decide(
     monkeypatch: pytest.MonkeyPatch, case: str
 ) -> None:
@@ -1064,12 +1092,12 @@ _REMEDY = re.compile(r"so run it [^:]*: `(as [^`]*)`")
 
 
 def _run_fix_cells() -> list[tuple[str, str, str, str]]:
-    """Every game-owned run cell whose refusal offers a run of the
-    procedure: (id, library, the game, the run the fix replaces)."""
+    """Every game-owned run cell: (id, library, the game, the run a fix
+    replaces)."""
     cells = [
         (key, _run_library(case.definitions), case.game(), case.anchor)
         for key, case in sorted(_RUN_CASES.items())
-        if case.owner == GAME and _BY_ARGUMENT not in case.needles
+        if case.owner == GAME
     ]
     for position in sorted(_procedure_positions(), key=_position_label):
         for reader in _RUN_READERS:
@@ -1088,18 +1116,33 @@ def _run_fix_cells() -> list[tuple[str, str, str, str]]:
 @pytest.mark.parametrize(
     ("library", "game", "run"),
     [
-        pytest.param(library, game, run, id=cell_id)
+        pytest.param(
+            library, game, run, id=cell_id,
+            marks=(
+                [pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RUN_FIX_GAP)]
+                if cell_id == "argument-and-body-read-two-seats"
+                else []
+            ),
+        )
         for cell_id, library, game, run in _run_fix_cells()
     ],
 )
 def test_the_fix_a_run_is_told_passes(
     monkeypatch: pytest.MonkeyPatch, library: str, game: str, run: str
 ) -> None:
-    """The run the refusal offers, written in place of the game's own (a
-    `<player>` in it spelled as seat 0), checks clean."""
+    """A run's refusals offer at most one run of the procedure, and that run,
+    written in place of the game's own (a `<player>` in it spelled as seat
+    0), checks clean; where they offer none, each says why.
+
+    red under: in `_HiddenReads._run_sink`, offer the fix of
+    `_meeting_caller` without `_passing_fix`."""
     bag = _bag(monkeypatch, library, game)
+    text = "\n".join(bag)
     fixes = {m.group(1) for line in bag for m in _REMEDY.finditer(line)}
-    assert len(fixes) == 1, "\n".join(bag)
+    assert len(fixes) <= 1, text
+    if not fixes:
+        assert bag and all(_BY_ARGUMENT in line or _NO_RUN_FIX in line for line in bag), text
+        return
     fix = fixes.pop().replace("<player>", "0")
     assert game.count(run) == 1, run
     assert _bag(monkeypatch, library, game.replace(run, fix)) == [], fix
