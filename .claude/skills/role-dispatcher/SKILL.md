@@ -35,7 +35,11 @@ single CI runner; raising it is a charter edit.
    member of its milestone in the act of filing, then worked or named as
    the next step; the Dispatcher decides by the sentence and does not ask
    (docs/harness.md, "The Ready Front"). A finding the sentence does not
-   reach is filed loose. When the PR landing the last
+   reach is filed loose. A Merge Lane A finding (`tools/lane-of.sh`) is
+   filed as a sub-issue of the epic but never added to the milestone: the
+   Dispatcher names it in the epic's body as the operator's step, finishes
+   every part that does not wait on it, and the PR says the unit awaits
+   that step. When the PR landing the last
    part merges — no open sub-issue of the epic and no open member of its
    milestone other than the epic itself remains, the count alone is not
    it — and the milestone's

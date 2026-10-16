@@ -370,8 +370,9 @@ discipline upstream to be correct, which is the point.
   they hold sub-items, not work of their own. A finding that bears on an
   epic's goal — closing the epic with it open would leave the goal sentence,
   or its milestone's finish line, false — is filed as the epic's sub-issue
-  by whoever finds it, without asking (`docs/harness.md`, "The Ready
-  Front").
+  by whoever finds it, without asking; it joins the milestone too unless it
+  is Merge Lane A, which is named on the epic as the operator's step
+  instead (`docs/harness.md`, "The Ready Front").
 - Every migrated issue carries a `## Provenance` line naming its source.
   Keep that habit for new issues that split off an existing one.
 

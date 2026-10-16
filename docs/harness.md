@@ -276,9 +276,16 @@ and the finder files it as a sub-issue of the epic and a member of its
 milestone in the act of filing, with the usual kind and reachability, and
 names it on the epic — the finder decides by the sentence and does not
 ask the operator whether it belongs. A finding the sentence does not reach
-is filed loose with its labels and never joins. An epic that is not a
-milestone — an operator's container — takes the same rule against its
-goal sentence: a finding that bears on the goal is filed as its sub-issue. The sweep lists each open milestone as one
+is filed loose with its labels and never joins. The one finding that
+bears on the sentence and still does not join the milestone is a Merge
+Lane A one (`tools/lane-of.sh` on the files it would touch): it is filed
+as a sub-issue of the epic so it is not lost, never as a milestone member,
+and named in the epic's body as the operator's step, exactly as a Lane A
+part excluded at activation is (below); the taker finishes every part
+that does not wait on it, and the PR says the unit awaits the operator's
+step. An epic that is not a milestone — an operator's container — takes
+the same rule against its goal sentence: a finding that bears on the goal
+is filed as its sub-issue. The sweep lists each open milestone as one
 takeable row, the epic's, ahead of every tiered issue — the nearest due
 date first, so the due date is how the review says which of the two is
 taken first — and holds every other issue in the milestone off the front: the epic is taken as a unit,
