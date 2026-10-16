@@ -108,6 +108,7 @@ class _Table:
         self.tricks: list[tuple[Player, list[Card]]] = []
         self.contracts: list[tuple[str, str | None]] = []
         self.hand_starts: list[int] = []
+        self.declarers: list[Player] = []
         self.thrown = 0
         self._pending: list[tuple[Player, Card]] = []
         self._gt = "suit"
@@ -120,19 +121,20 @@ class _Table:
         if player != 0:
             return
         if event[0] == "announce":
-            self._announced(str(event[2]))
+            self._announced(Player(int(event[1])), str(event[2]))
         elif event[0] == "move":
             self._moved(event)
 
-    def _announced(self, said: str) -> None:
+    def _announced(self, actor: Player, said: str) -> None:
         if said in _HAND_OPENERS:
             self.hand_starts.append(len(self.tricks))
+            self.declarers.append(actor)
             self._gt, self._trump = "suit", None
         elif said == "throw_in":
             self.thrown += 1
         elif said == "declare_grand":
             self._gt, self._trump = "grand", None
-        elif said == "declare_null":
+        elif said in ("declare_null", "declare_null_ouvert"):
             self._gt, self._trump = "null", None
         elif said.startswith("declare_suit("):
             self._gt = "suit"
@@ -140,9 +142,11 @@ class _Table:
 
     def _moved(self, event: tuple[Any, ...]) -> None:
         _, src, _src_view, dst, dst_view = event
-        if dst == "trick_pile" and isinstance(src, str) and src.startswith("hand["):
+        # A seat plays from its hand; an open (ouvert) declarer from its
+        # exposed cards.
+        if dst == "trick_pile" and isinstance(src, str) and src.startswith(("hand[", "open_hand[")):
             (card_str,) = dst_view  # one card per play
-            play = (Player(int(src[len("hand[") : -1])), _parse(card_str))
+            play = (Player(int(src[src.index("[") + 1 : -1])), _parse(card_str))
             self.plays.append(play)
             self._pending.append(play)
         elif src == "trick_pile" and isinstance(dst, str) and dst.startswith("captured["):
@@ -182,8 +186,9 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
     assert census["total_value"] == 120, f"seed {seed}: {census}"
 
     # Non-vacuity, pinned against the announcements rather than against itself:
-    # every hand not thrown in plays exactly ten tricks, so an oracle whose
-    # observation stream went empty fails here instead of iterating nothing.
+    # every hand not thrown in plays ten tricks, or a Null hand until the
+    # declarer takes one, so an oracle whose observation stream went empty
+    # fails here instead of iterating nothing.
     # This floor comes FIRST because the three counts below are each `0 == 0`
     # when every hand is thrown in -- the non-vacuity guard passing vacuously,
     # the same class it exists to close. It is a floor, not a live constraint:
@@ -194,25 +199,38 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
     )
     played_hands = HANDS - table.thrown
     assert len(table.hand_starts) == played_hands, f"seed {seed}"
-    assert len(table.tricks) == played_hands * TRICKS_PER_HAND, f"seed {seed}"
+    assert len(table.declarers) == played_hands, f"seed {seed}"
+    assert len(table.tricks) >= played_hands, f"seed {seed}"
     assert len(table.plays) == 3 * len(table.tricks), f"seed {seed}"
 
     contracts: Counter[str] = Counter()
-    for h, first in enumerate(table.hand_starts):
-        h_tricks = table.tricks[first : first + TRICKS_PER_HAND]
-        h_plays = table.plays[3 * first : 3 * (first + TRICKS_PER_HAND)]
+    ends = [*table.hand_starts[1:], len(table.tricks)]
+    for h, (first, end) in enumerate(zip(table.hand_starts, ends)):
+        h_tricks = table.tricks[first:end]
+        h_plays = table.plays[3 * first : 3 * end]
         gt, trump = table.contracts[first]
         contracts[gt] += 1
 
-        # The deal reconstructs from the plays: ten cards each, and the union is
-        # thirty of the thirty-two (the skat holds the other two).
+        # A hand plays ten tricks; a Null hand ends at the declarer's first.
+        declarer = table.declarers[h]
+        taken = [t for t, (w, _) in enumerate(h_tricks) if w == declarer]
+        if gt == "null" and taken:
+            assert taken == [len(h_tricks) - 1], f"seed {seed} hand {h}: Null played on after trick {taken[0]}"
+        else:
+            assert len(h_tricks) == TRICKS_PER_HAND, f"seed {seed} hand {h}"
+
+        # The deal reconstructs from the plays: a card a trick from each seat,
+        # all distinct (the cards not played lie in the hands and the skat).
         dealt: dict[Player, list[Card]] = {}
         for p, c in h_plays:
             dealt.setdefault(p, []).append(c)
         assert sorted(dealt) == [0, 1, 2], f"seed {seed} hand {h}"
-        assert all(len(cs) == TRICKS_PER_HAND for cs in dealt.values()), f"seed {seed} hand {h}"
-        assert len({(c.rank, c.suit) for _, c in h_plays}) == 30, f"seed {seed} hand {h}"
+        assert all(len(cs) == len(h_tricks) for cs in dealt.values()), f"seed {seed} hand {h}"
+        assert len({(c.rank, c.suit) for _, c in h_plays}) == 3 * len(h_tricks), f"seed {seed} hand {h}"
 
+        # The cards a Null hand never reached are seen by no seat, so the
+        # follow check below reads only the cards played; the whole hand's
+        # legality is tests/test_skat_rules_differential.py's.
         remaining = {p: {(c.rank, c.suit) for c in cs} for p, cs in dealt.items()}
         for t, (winner, cards) in enumerate(h_tricks):
             group = h_plays[3 * t : 3 * t + 3]
@@ -221,7 +239,7 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
             # The contract holds for the whole hand.
             assert table.contracts[first + t] == (gt, trump), f"seed {seed} hand {h}"
             # Routing: the winner leads the next trick.
-            if t + 1 < TRICKS_PER_HAND:
+            if t + 1 < len(h_tricks):
                 assert h_plays[3 * (t + 1)][0] == winner, f"seed {seed} hand {h} trick {t}"
             # The winner recomputes under the announced contract's order.
             assert winner == _winner(group, gt, trump), f"seed {seed} hand {h} trick {t} ({gt})"

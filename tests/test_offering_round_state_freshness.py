@@ -440,18 +440,22 @@ ROUNDS: dict[str, Rounds] = {
     "skat.cardlang": Rounds(
         # The Reizen is one window at two sites: middlehand against forehand,
         # then rearhand against the survivor, over the same three ring roles.
-        # `working_bid` is the result the settlement reads. The suit
-        # declaration is a single-seat `offer`, a decision with no episode.
+        # `working_bid` is the result the settlement reads; `rung` is the
+        # ring's own count of it. The suit declaration and the announcement
+        # are single-seat `offer`s, decisions with no episode, and the
+        # announcements are results the scoring reads.
         windows=(
             Window(
                 vocabularies=(("bid", "yes", "pass"),),
-                idle=(("passer", None), ("speaker", None), ("responder", None)),
+                value_decisions=True,  # a bid names its rung
+                idle=(("passer", None), ("speaker", None), ("responder", None), ("rung", 0)),
             ),
         ),
         persistent=frozenset(
             {
                 "dealer", "declarer", "declarer_tricks", "hand_mode",
-                "hands_played", "is_grand", "is_null", "leader", "score",
+                "hands_played", "is_grand", "is_null", "leader", "ouvert",
+                "schneider_announced", "schwarz_announced", "score",
                 "thrown", "trump_suit", "working_bid",
             }
         ),

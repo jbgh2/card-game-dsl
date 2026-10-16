@@ -18,6 +18,7 @@ from cardlang.openspiel.encoding import (
 )
 from cardlang.runtime import reads, narrowing
 from cardlang.runtime.state import RuntimeState, ZoneStore
+from cardlang.runtime.skat import _BID_SEQUENCE
 from cardlang.runtime.tichu import ROW as TICHU_ROW
 from cardlang.runtime.values import RANKS, SUITS, Card, Seating
 
@@ -248,25 +249,35 @@ def test_schnapsen_space_folds_play_card_into_the_card_block() -> None:
 def test_skat_space_names_offers_and_reizen_vocabulary() -> None:
     space = _space("skat.cardlang")
     # 52 cards (skat32 is a standard-catalogue subset, unused slots) + the
-    # ten nullary offer names (sorted) — the Reizen's bid/yes/pass among
-    # them — then declare_suit over the four suits in the offering block.
-    assert space.num_distinct_actions == 66
-    assert [space.to_string(a) for a in range(52, 66)] == [
+    # nullary offer names (sorted) — the Reizen's bid/yes/pass among them —
+    # then the bid's rung block, 0 up to the ladder's length, then
+    # declare_suit over the four suits in the offering block.
+    names = [
+        "announce_ouvert",
+        "announce_schneider",
+        "announce_schwarz",
         "bid",
         "choose_suit_game",
         "declare_grand",
         "declare_hand",
         "declare_null",
+        "declare_null_ouvert",
+        "no_announcement",
         "pass",
         "pick_up_skat",
         "play_at_eighteen",
         "throw_in",
         "yes",
+    ]
+    rungs = [str(r) for r in range(len(_BID_SEQUENCE) + 1)]
+    suits = [
         "declare_suit(clubs)",
         "declare_suit(diamonds)",
         "declare_suit(hearts)",
         "declare_suit(spades)",
     ]
+    assert space.num_distinct_actions == 52 + len(names) + len(rungs) + len(suits)
+    assert [space.to_string(a) for a in range(52, space.num_distinct_actions)] == names + rungs + suits
 
 
 def test_skat_offer_move_encodes_the_same_as_its_runtime_tuple_shape() -> None:

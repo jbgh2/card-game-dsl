@@ -64,7 +64,7 @@ table below is as surveyed on the date above, and is not maintained.) But the co
 | five_hundred.py | 269 | ranking (c) + ladder (d) | bowers/joker orders, 2-D bid ladder, misère dead-seat *participation* |
 | stud.py | 192 | classify (b) + argmax (e) | poker hand classifier (choose-5-of-7); side-pot accumulator fold |
 | cribbage.py | 186 | count-subsets (b) + provenance (e) | fifteens = cardinality of a filtered powerset; seq_bits bit-packing for provenance |
-| skat.py | 181 | ranking (c) + ladder (d) | contract-dependent trump SETS and plain orders (Null ≠ Suit); the 62-value Reizen ladder |
+| skat.py | 181 | ranking (c) + ladder (d) | contract-dependent trump SETS and plain orders (Null ≠ Suit); the Reizen ladder |
 | tarot.py | 162 | ranking (c) | Excuse never-wins; effective led suit skips the exempt card |
 | president.py | 160 | ranking (c) | transparent threes: a play's strength *inherited from the play it beat* |
 | pinochle.py | 73 | catalogue (b-lite) | fixed meld catalogue scored by multiset multiplicity |

@@ -25,9 +25,15 @@ class TestReadiness(ReadinessProofs):
         # ten-card hands and the skat are dealt, so the single-opponent
         # branch has no stock to swap against, and only a pause whose seat
         # is the first decider leaves two other hands to pair. The greedy
-        # line lands there at step 8 on every manifest seed, with swappable
-        # pairs to spare; the default pause lands on a bidder's answer.
-        depth=8,
+        # line's declarer plays a Clubs Hand announced Ouvert (the lowest
+        # action id of each offer), so its hand lies face up from the first
+        # lead and the last such pause with two concealed hands to pair is
+        # the first decider's answer in the Reizen's second part: step 5 on
+        # every manifest seed, each bid being two picks (the bid, then its
+        # rung). The play's information structure is held by
+        # tests/test_skat_skat_secrecy.py and the read's referee,
+        # tests/test_skat_rules_differential.py.
+        depth=5,
         # provenance zones derive from the checked AST's Arrival-Record calls
         # (`follows_lead` / `highest_by_trick_order` over `trick_pile`)
         provenance_depth=126,  # the greedy line first plays to the trick at 127
@@ -46,6 +52,38 @@ class TestReadiness(ReadinessProofs):
                 ("the other arm of the same all-pass hand, first applied on the "
                 "seed-7 line at step 415, past any bound this walk affords; "
                 "the same sweep plays it"),
+            ),
+            (
+                "declare_null",
+                ("one arm of the four-way game type, chosen at the few "
+                "declarations the walk's first hands reach (first applied at "
+                "step 227); tests/test_skat_rules_differential.py's reach "
+                "floor plays it (`hands.null`, `hands.null_hand`)"),
+            ),
+            (
+                "no_announcement",
+                ("offered only in a Suit or Grand hand game, which the walk "
+                "first declares past this bound (first applied at step 148); "
+                "the read's referee asks it at every such declaration "
+                "(`declare.announcement_choices`)"),
+            ),
+            (
+                "announce_schneider",
+                ("the same hand-game announcement offer, first applied at step "
+                "259; the referee's reach floor scores it "
+                "(`hands.announced_schneider`)"),
+            ),
+            (
+                "announce_schwarz",
+                ("the same offer's Schwarz arm, unapplied within 800 steps; "
+                "the referee's reach floor scores it "
+                "(`hands.announced_schwarz`)"),
+            ),
+            (
+                "announce_ouvert",
+                ("the same offer's open arm, first applied at step 762; the "
+                "referee's reach floor scores it and checks the exposure "
+                "(`hands.announced_ouvert`, `info.ouvert_first_leads`)"),
             ),
         ),
     )
