@@ -64,8 +64,10 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               stays its author's. A refusal of a decision's seat the
               hidden-read walk makes in a library procedure's body, where
               the game's text runs it, is located at that `run` when some
-              caller meets the procedure (``_HiddenReads._meeting_caller``),
-              with that caller as the fix; where no caller meets it, it
+              caller meets the procedure (``_HiddenReads._meeting_callers``),
+              with the first meeting caller that passes written in place of
+              that `run` as the fix, and no run where none does; where no
+              caller meets it, it
               stays at the statement the library wrote. A read the run's own
               arguments make is the game's text, located at the `run`. An
               `actor` read and a refusal reached through the game's answer to
@@ -10028,18 +10030,26 @@ class _PollLibrarySink:
             self.bag.error(message, at)
 
 
-# The seat a caller `_HiddenReads._meeting_caller` makes runs a procedure as,
+# The seat a caller of `_HiddenReads._meeting_callers` runs a procedure as,
 # where any one player meets it: a name no game binds, read as the acting seat.
 _ANY_PLAYER = "<player>"
+
+
+# The fix a library procedure's run is told where some caller meets the
+# procedure but no run of it as one seat passes with the run's own arguments.
+_NO_RUN_FIX = (
+    "run it as a seat that can see the cards it reads, and pass it only "
+    "arguments that seat can see"
+)
 
 
 @dataclass(frozen=True)
 class _RunLibrarySink:
     """Where a library procedure's refusals are told when the game's text
     runs it: a read the game's own argument makes, at the `run`; a refusal
-    of the seat deciding, at the `run` with the caller that meets the
-    procedure as the fix the game can take (`fix`), or where the library
-    wrote it when no caller meets it (`fix` None)."""
+    of the seat deciding, at the `run` with the fix the game can take
+    (`fix`), or where the library wrote it when no caller meets it (`fix`
+    None)."""
 
     run: n.RunStmt
     origin: n.LibraryOrigin
@@ -10074,7 +10084,7 @@ def _made_up_run(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.Expr) -> n.RunSt
 
 
 def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled: str) -> str:
-    """The run `_meeting_caller` found, as the game's author writes it: the
+    """A run of `_meeting_callers`, as the game's author writes it: the
     seat to every Player parameter, the run's own argument to each other
     one, named by its parameter (`<k>`) where `_spell` cannot quote it."""
     spelled_args = [
@@ -11595,7 +11605,7 @@ class _HiddenReads:
         # library's: the text a walk stands in, where a `run` has carried it.
         self.library_text: list[bool] = []
         # Whether this walk judges a library procedure alone, under a caller
-        # `_meeting_caller` makes; such a walk asks no caller of its own.
+        # `_tells_nothing` makes; such a walk asks no caller of its own.
         self.alone = alone
         # Where a refusal `_tell` makes is told: the sink of each `run` the
         # walk is inside, None where the refusal stands where it is written.
@@ -11604,7 +11614,7 @@ class _HiddenReads:
         # parameters, by identity, innermost last.
         self.run_args: list[frozenset[int]] = []
         # The caller meeting each library procedure the game runs, by `run`.
-        self.meeting: dict[int, tuple[n.NameRef, str] | None] = {}
+        self.meeting: dict[int, tuple[tuple[n.NameRef, str], ...]] = {}
         # How many refusals `_tell` was asked to make.
         self.told = 0
         self.zones = {z.name: z for z in game.zones}
@@ -12675,7 +12685,7 @@ class _HiddenReads:
         if proc is None or stmt.name in self.running:
             return  # unknown, or a cycle another check refuses
         self.running.append(stmt.name)
-        self.run_sinks.append(self._run_sink(proc, stmt))
+        self.run_sinks.append(self._run_sink(proc, stmt, scope, seat))
         self.library_text.append(proc.origin is not None)
         try:
             self._run_body(proc, stmt, scope, seat)
@@ -12684,29 +12694,39 @@ class _HiddenReads:
             self.run_sinks.pop()
             self.library_text.pop()
 
-    def _run_sink(self, proc: n.ProcedureDef, stmt: n.RunStmt) -> _RunLibrarySink | None:
+    def _run_sink(
+        self, proc: n.ProcedureDef, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat
+    ) -> _RunLibrarySink | None:
         """Where the refusals this `run` makes in `proc`'s body are told: at
         the `run`, when it is the game's run of a library procedure some
         caller meets (decisions.md "Family libraries": a library definition
         is sound when some calling position meets it); where the body wrote
-        them otherwise, the library's own fault in every game."""
+        them otherwise, the library's own fault in every game. The fix
+        offered is the first meeting caller that, written in place of this
+        `run` with its own arguments, tells nothing; where none does, no run
+        is offered."""
         if proc.origin is None or self.alone or (self.library_text and self.library_text[-1]):
             return None
-        met = self._meeting_caller(proc, stmt)
-        fix = None if met is None else _meeting_fix(proc, stmt, *met)
+        met = self._meeting_callers(proc, stmt)
+        if not met:
+            return _RunLibrarySink(stmt, proc.origin, None)
+        passing = next(
+            (m for m in met if self._passing_fix(proc, stmt, m[0], scope, seat)), None
+        )
+        fix = _NO_RUN_FIX if passing is None else _meeting_fix(proc, stmt, *passing)
         return _RunLibrarySink(stmt, proc.origin, fix)
 
-    def _meeting_caller(
+    def _meeting_callers(
         self, proc: n.ProcedureDef, stmt: n.RunStmt
-    ) -> tuple[n.NameRef, str] | None:
-        """The first caller that meets `proc`, judged alone: run as one
+    ) -> tuple[tuple[n.NameRef, str], ...]:
+        """Each caller that meets `proc`, judged alone, in order: run as one
         player passed to every Player parameter, then as each Player-typed
         State Variable passed the same way, every other parameter passed a
         value reading no cards (`_made_up_run`). A caller meets it when its
         walk tells no refusal. These are every caller `_names_acting_seat`
         can prove a library's index the acting seat for: a library names no
         seat literal, no caller's binder and no routed pool, so its index is
-        a parameter or a State Variable. None when no caller meets it."""
+        a parameter or a State Variable. Empty when no caller meets it."""
         key = id(stmt)
         if key in self.meeting:
             return self.meeting[key]
@@ -12715,18 +12735,40 @@ class _HiddenReads:
             for decl in (self.game.state.decls if self.game.state is not None else ())
             if decl.type_name == "Player" and decl.index is None and not decl.optional
         ]
-        found: tuple[n.NameRef, str] | None = None
-        for seat, spelled in seats:
-            alone = _HiddenReads(self.game, DiagnosticBag(), alone=True)
-            alone.collected = self.collected
-            alone.trick_rounds_acting, alone.phase_stack = [], []
-            caller = n.AsBlock(seat, (_made_up_run(proc, stmt, seat),), stmt.span)
-            alone._stmt(caller, _ReadScope(), _Seat("the acting seat"))
-            if alone.told == 0:
-                found = (seat, spelled)
-                break
+        found = tuple(
+            (ref, spelled)
+            for ref, spelled in seats
+            if self._tells_nothing(
+                n.AsBlock(ref, (_made_up_run(proc, stmt, ref),), stmt.span),
+                _ReadScope(), _Seat("the acting seat"),
+            )
+        )
         self.meeting[key] = found
         return found
+
+    def _passing_fix(
+        self, proc: n.ProcedureDef, stmt: n.RunStmt, ref: n.NameRef, scope: _ReadScope,
+        seat: _Seat,
+    ) -> bool:
+        """Whether the run `_meeting_fix` spells for `ref`, standing where
+        `stmt` stands with `stmt`'s own non-seat arguments, tells nothing."""
+        args = tuple(
+            ref if param.type_name == "Player" else arg
+            for param, arg in zip(proc.params, stmt.args)
+        )
+        fix = n.AsBlock(ref, (replace(stmt, args=args),), stmt.span)
+        return self._tells_nothing(fix, scope, seat)
+
+    def _tells_nothing(self, stmt: n.Stmt, scope: _ReadScope, seat: _Seat) -> bool:
+        """Whether `stmt`, walked alone from `scope`, tells no refusal: a
+        fresh walk, so nothing it finds reaches this walk's verdicts, with
+        seat numbers past this walk's, so no proof of who acts carries in."""
+        alone = _HiddenReads(self.game, DiagnosticBag(), alone=True)
+        alone.collected = self.collected
+        alone.trick_rounds_acting, alone.phase_stack = [], []
+        alone.seats = self.seats
+        alone._stmt(stmt, scope, seat)
+        return alone.told == 0
 
     def _run_body(
         self, proc: n.ProcedureDef, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat

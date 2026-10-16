@@ -91,7 +91,7 @@ does not prove:  that a check crossing into another definition by an idiom
                  owner: one witness per arm runs here, and the owning grid
                  holds the cross. Nor that a sentence is whole: cells pin its
                  file, its line and the names it carries. Nor that the callers
-                 `_HiddenReads._meeting_caller` tries are every caller: they
+                 `_HiddenReads._meeting_callers` tries are every caller: they
                  are the two ways `_names_acting_seat` proves library text's
                  index is the acting seat, a parameter and a State Variable,
                  and a proof added there goes untried, its refusals told to
@@ -923,8 +923,9 @@ def test_a_library_procedure_run_reading_at_a_judged_position(
     """A read some caller can make is the game's to make where it runs the
     procedure; a read no caller can make is the library's, in every game.
 
-    red under (the library cells): drop the `_meeting_caller` test in
-    `_HiddenReads._run`, so every refusal is told at the `run`."""
+    red under (the library cells): make `_HiddenReads._run_sink` give an
+    empty `_meeting_callers` the any-player caller, so every refusal is told
+    at the `run`."""
     cell = _run_position_crossing(position, reader, site)
     _assert_run_told(cell, _bag(monkeypatch, cell.library, cell.game))
 
@@ -962,10 +963,6 @@ _BY_ARGUMENT = "the cards are read by the argument this `run` passes it"
 # What a refusal adds where no run of the procedure as one seat passes with
 # the arguments this `run` passes it.
 _NO_RUN_FIX = "pass it only arguments that seat can see"
-_RUN_FIX_GAP = (
-    "issue #888: a run's offered fix keeps an argument that reads cards the "
-    "seat it moves to cannot see"
-)
 
 _RUN_CASES: dict[str, RunCase] = {
     "no-one-acts-choose": RunCase(
@@ -1052,25 +1049,12 @@ def _run_game(run: str) -> str:
     return _RUN_HOST.format(body=run) + _RUN_GAME_DEFS
 
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        pytest.param(
-            c, id=c,
-            marks=(
-                [pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RUN_FIX_GAP)]
-                if c == "argument-and-body-read-two-seats"
-                else []
-            ),
-        )
-        for c in sorted(_RUN_CASES)
-    ],
-)
+@pytest.mark.parametrize("case", sorted(_RUN_CASES))
 def test_a_library_procedure_run_where_it_cannot_decide(
     monkeypatch: pytest.MonkeyPatch, case: str
 ) -> None:
-    """red under (the library cells): make `_HiddenReads._run_sink` build
-    its sink from `_meeting_caller(...) or` the any-player caller, or push
+    """red under (the library cells): make `_HiddenReads._run_sink` give
+    an empty `_meeting_callers` the any-player caller, or push
     `False` for a library move type's effect in `_walk_game`; (the argument
     cells): drop the `run_args` arm of `_HiddenReads._tell`."""
     cell = _RUN_CASES[case].crossing()
@@ -1116,14 +1100,7 @@ def _run_fix_cells() -> list[tuple[str, str, str, str]]:
 @pytest.mark.parametrize(
     ("library", "game", "run"),
     [
-        pytest.param(
-            library, game, run, id=cell_id,
-            marks=(
-                [pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RUN_FIX_GAP)]
-                if cell_id == "argument-and-body-read-two-seats"
-                else []
-            ),
-        )
+        pytest.param(library, game, run, id=cell_id)
         for cell_id, library, game, run in _run_fix_cells()
     ],
 )
@@ -1134,8 +1111,8 @@ def test_the_fix_a_run_is_told_passes(
     written in place of the game's own (a `<player>` in it spelled as seat
     0), checks clean; where they offer none, each says why.
 
-    red under: in `_HiddenReads._run_sink`, offer the fix of
-    `_meeting_caller` without `_passing_fix`."""
+    red under: in `_HiddenReads._run_sink`, offer the first of
+    `_meeting_callers` without asking `_passing_fix`."""
     bag = _bag(monkeypatch, library, game)
     text = "\n".join(bag)
     fixes = {m.group(1) for line in bag for m in _REMEDY.finditer(line)}
