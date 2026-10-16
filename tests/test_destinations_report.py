@@ -15,7 +15,11 @@ property:   each reader derives its facts from its source and nothing else:
             kind it reads off a text and for a game it does not refuse; the
             read ledger is the
             generator issue's checkboxes; the ladder is the `### ` headings
-            of the candidates file's Boards section; a grammar point counts
+            of the candidates file's Boards section; the renderer facts are
+            the `Span` trace field by name, the Diagnostic constructions
+            outside the renderer module by `ast`, and the runtime error
+            classes not deriving from `Located` through the module's own
+            hierarchy; a grammar point counts
             lark's defined rules and distinct keyword spellings, taken at the
             commit that added each verdict file.
 domain:     synthetic texts built here for every reader, so no cell depends
@@ -162,6 +166,39 @@ def test_grammar_point_counts_rules_and_keyword_spellings() -> None:
     assert point.keywords == 2  # "game" (plain string) and "players" (_KW terminal)
 
 
+def test_span_has_trace_reads_the_field() -> None:
+    assert d.span_has_trace("class Span:\n    source_name: str\n    instantiated_at: object\n")
+    assert not d.span_has_trace("class Span:\n    source_name: str\n")
+    assert not d.span_has_trace("class Other:\n    instantiated_at: object\n")
+
+
+def test_diagnostic_sites_counts_constructors_outside_the_renderer(tmp_path: pathlib.Path) -> None:
+    (tmp_path / "diagnostics.py").write_text("def render():\n    return Diagnostic(1)\n")
+    (tmp_path / "parse.py").write_text("x = Diagnostic(1)\ny = diag.DiagnosticError(2)\nz = Other(3)\n")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "m.py").write_text("raise DiagnosticError(1)\n")
+    (tmp_path / "clean.py").write_text("def f():\n    pass\n")
+    assert d.diagnostic_sites(tmp_path, tmp_path / "diagnostics.py") == {"parse.py": 2, "sub/m.py": 1}
+
+
+def test_unlocated_errors_follows_the_module_hierarchy() -> None:
+    src = textwrap.dedent(
+        """
+        class Located:
+            pass
+        class GameDescriptionError(Located, Exception):
+            pass
+        class OwnerGuardError(GameDescriptionError):
+            pass
+        class InstallationError(Exception):
+            pass
+        class Helper:
+            pass
+        """
+    )
+    assert d.unlocated_errors(src) == ["InstallationError"]
+
+
 # --- tree-facing pins ----------------------------------------------------------------
 
 
@@ -183,6 +220,12 @@ def test_every_verdict_file_has_an_adding_commit() -> None:
     assert files
     missing = [p.name for p in files if not d.verdict_commit(p, "HEAD")]
     assert missing == [], missing
+
+
+def test_real_renderer_and_errors_modules_parse() -> None:
+    assert isinstance(d.span_has_trace(d.DIAGNOSTICS_MODULE.read_text()), bool)
+    assert d.diagnostic_sites(), "no construction site outside the renderer -- the reader sees nothing"
+    assert isinstance(d.unlocated_errors(d.RUNTIME_ERRORS.read_text()), list)
 
 
 def test_real_candidates_file_has_a_boards_ladder() -> None:
