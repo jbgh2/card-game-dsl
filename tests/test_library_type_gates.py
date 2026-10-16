@@ -30,29 +30,32 @@ property:        for every type-layer verdict that reads a game clause, library
                  clean, and the rank remedy plays.
 domain:          the stamp's domain -- every definition kind of
                  `resolve._LIBRARY_DEF_KINDS` (a rule in each of its clause
-                 slots, crossed with activation), a move type's `when:` and
-                 its effect, and a provided state default, plain and indexed
-                 -- crossed with each member: a seat number, a team number,
-                 a rank string, a suit string, and a card field outside the
-                 game's component set (a piece set, whose sets share one
-                 axis pair, and a deck); each crossed with {game-written, library-reached} and
-                 {clause met, clause unmet}. Beside it, every operand site of
-                 the choke point (`typecheck._check_operand`, derived from its
-                 calls) placed with each role it can carry -- seat, team, rank,
-                 suit -- or held by the reason it carries none; each rank
-                 position crossed with every spelling class over a short, a
-                 full and the tarot deck, and the call position crossed with
-                 every rank of every deck in `DECKS`; every numeric rank of
-                 every deck passed as an argument and played. A rule no game
+                 slots, crossed with activation; a move type in its `when:`
+                 and its effect) and a provided state default, plain and
+                 indexed, plus a standard library rule a game activates --
+                 crossed with each member: a seat number, a team number, a
+                 rank string, a suit string, and a card field outside the
+                 game's component set (a piece set, the piece sets sharing
+                 one axis pair, and a deck); each crossed with {game-written,
+                 library-reached} and {clause met, clause unmet}. Beside it,
+                 every operand site of the choke point
+                 (`typecheck._check_operand`, derived from its calls) placed
+                 with each role it can carry -- seat, team, rank, suit -- or
+                 held by the reason it carries none; each rank position
+                 crossed with every spelling class over a short, a full and
+                 the tarot deck, and the call position crossed with every
+                 rank of every deck in `DECKS`; every numeric rank of every
+                 deck passed as an argument and played. A rule no game
                  activates is checked against its library alone, which reads
                  names and not types, so its type-layer cells are clean in
-                 every game: the cost PR #860 accepted, held by the pin that
-                 every library rule is one some corpus game activates. A seat or team number
-                 compared by `is` is issue #803's, and one reaching a seat
-                 through an `if` branch, a `let`, a function's result or
-                 arithmetic is issue #805's: those cells are marked. Card-axis
-                 roles in a piece game are issue #183's and a movement's noun
-                 is issue #170's; their library cells are pinned in
+                 every game: the cost PR #860 accepted, held for the standard
+                 library by the pin that a corpus game activates each of its
+                 rules. A seat or team number compared by `is` is issue
+                 #803's, and one reaching a seat through an `if` branch, a
+                 `let`, a function's result or arithmetic is issue #805's:
+                 those cells are marked. Card-axis roles in a piece game are
+                 issue #183's and a movement's noun is issue #170's; their
+                 library cells are pinned in
                  tests/test_library_clause_gates.py.
 registry:        stamp domain: `resolve._LIBRARY_DEF_KINDS`, `n.Library.state`;
                  the stamp: `n.LibraryOrigin`; clause fields and their
@@ -70,11 +73,7 @@ does not prove:  that a Primitive's rank argument plays as the card's own
                  function's, and the cell that executes is the user
                  function's. Nor that every operand site was crossed with
                  every deck: only the call position is, and the other sites
-                 meet the decks only through the shared literal check. Nor that
-                 a library with both a library-alone member and a `uses`-line
-                 clause-gate refusal hears both at once: resolve raises on the
-                 clause gate before the type layer runs, so the library's own
-                 refusal is heard once the game meets the clause.
+                 meet the decks only through the shared literal check.
 """
 
 from __future__ import annotations
@@ -219,19 +218,6 @@ def _tag(*parts: object) -> str:
     )
 
 
-# --- the red this change is built against --------------------------------------
-#
-# Each cell the change moves carries a strict mark until the change lands: the
-# library-alone members in every game, the clause-decided members a game fails,
-# and every rank or suit written at an operand that is not a comparison.
-
-_FLIPS = "issue #868, issue #884: the verdict this change builds"
-
-
-def _flip(flips: bool, raises: type[BaseException] = AssertionError) -> list[pytest.MarkDecorator]:
-    return [pytest.mark.xfail(strict=True, raises=raises, reason=_FLIPS)] if flips else []
-
-
 # --- the verdicts, in the words each owner is told ---------------------------
 
 
@@ -279,14 +265,14 @@ def _assert_verdict(text: str, rendered: str | None, verdict: Verdict) -> None:
 def _seat_refusal(value: int, provided: str | None = None) -> tuple[str, ...]:
     head = (f"library '{_LIB}' names seat {value}", "a library names no seat")
     if provided is not None:
-        return head + (f"move `{provided}` to `requires {{",)
+        return head + (f"declare `{provided}` in `requires {{ }}` instead of `state {{ }}`",)
     return head + ("add `dealer : Player` to `requires { }`",)
 
 
 def _team_refusal(value: int, provided: str | None = None) -> tuple[str, ...]:
     head = (f"library '{_LIB}' names team {value}", "a library names no team")
     if provided is not None:
-        return head + (f"move `{provided}` to `requires {{",)
+        return head + (f"declare `{provided}` in `requires {{ }}` instead of `state {{ }}`",)
     return head + ("add `side : Team` to `requires { }`",)
 
 
@@ -294,7 +280,7 @@ def _enum_refusal(enum: str, value: str, provided: str | None = None) -> tuple[s
     noun = enum.lower()
     head = (f'library \'{_LIB}\' names the {noun} "{value}"', f"a library names no {noun}")
     if provided is not None:
-        return head + (f"move `{provided}` to `requires {{",)
+        return head + (f"declare `{provided}` in `requires {{ }}` instead of `state {{ }}`",)
     return head + (f"take the {noun} as a parameter",)
 
 
@@ -483,14 +469,15 @@ def _kind_cells() -> list[object]:
                     for through_library in (False, True):
                         for activated in (True, False) if kind == "rules" else (True,):
                             cell = KindCell(member, kind, slot, met, through_library, activated)
-                            params.append(pytest.param(cell, id=cell.id, marks=_flip(_kind_flips(cell))))
+                            params.append(pytest.param(cell, id=cell.id))
     return params
 
 
 def test_the_piece_sets_share_one_axis_pair() -> None:
     """The piece-set axis of the card-field member is one cell because every
     piece set in the registry names the same two fields; a set naming others
-    is a new member. red under: a piece set registered with other axes."""
+    is a new member. red under: registering `xo_marks` with the axes `side`
+    and `mark` (executed 2026-10-15)."""
     axes = {cs.axes for cs in COMPONENT_SETS.values() if cs.flavor == "piece"}
     assert axes == {("side", "kind")}
 
@@ -500,17 +487,6 @@ def test_every_member_is_held_by_every_kind_or_names_why() -> None:
         assert set(member.unheld) <= set(_KIND_SLOTS), member.name
         for reason in member.unheld.values():
             assert reason
-
-
-def _kind_flips(cell: KindCell) -> bool:
-    member = cell.member
-    if not cell.through_library:
-        # A rank or suit string as a state's first value is an operand, not a
-        # comparison: its verdict is the spelling rule's.
-        return cell.kind == "state" and member.name in ("rank_string", "suit_string")
-    if cell.kind == "rules" and not cell.activated:
-        return False
-    return member.library_verdict == "library" or not cell.met
 
 
 def _kind_expected(cell: KindCell) -> Verdict:
@@ -785,10 +761,7 @@ def _role_cells() -> list[object]:
                     f"{_site_id(site)}-{placement.role}-{'met' if met else 'unmet'}-"
                     f"{'library' if through_library else 'game'}"
                 )
-                params.append(pytest.param(
-                    site, placement, met, through_library, id=cell_id,
-                    marks=_flip(through_library),
-                ))
+                params.append(pytest.param(site, placement, met, through_library, id=cell_id))
     return params
 
 
@@ -819,7 +792,6 @@ def test_role_number_cell(
     _assert_verdict(text, _rendered(text), expected)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FLIPS)
 def test_seat_zero_is_a_seat_a_library_names(monkeypatch: pytest.MonkeyPatch) -> None:
     """The first seat is a seat: a library names none of them."""
     _with_library(monkeypatch, f"requires {{ {_HAND} }}\nfunction probe_fn() = number of cards in hand[0]")
@@ -940,7 +912,7 @@ def _enum_expected(
             return Verdict(library=_enum_refusal(enum, spelling.value, "probe_x" if provided else None))
         if spelling.value is not None:
             return Verdict(library=(f"reads '{spelling.value}'",))  # the deck-agnostic name sweep
-        return Verdict(library=("numeric ranks are written as strings",))
+        return Verdict(library=("a library names no rank; take the rank as a parameter",))
     if spelling.string:
         assert spelling.value is not None
         if spelling.value not in values:
@@ -969,10 +941,8 @@ def _enum_cells() -> list[object]:
                         f"{_site_id(site)}-{placement.role}-{deck}-{spelling.name}-"
                         f"{'library' if through_library else 'game'}"
                     )
-                    flips = spelling.string or spelling.value is None
                     params.append(pytest.param(
                         site, placement, deck, spelling, through_library, id=cell_id,
-                        marks=_flip(flips),
                     ))
     return params
 
@@ -1007,7 +977,6 @@ def _rank_cells() -> list[object]:
                     continue
                 params.append(pytest.param(
                     deck, rank, string, id=f"{deck}-{rank}-{'string' if string else 'bare'}",
-                    marks=_flip(string or rank.isdigit()),
                 ))
     return params
 
@@ -1036,7 +1005,7 @@ def test_every_rank_of_every_deck_as_an_argument(deck: str, rank: str, string: b
 
 def _numeric_ranks() -> list[object]:
     return [
-        pytest.param(deck, rank, id=f"{deck}-{rank}", marks=_flip(True, DiagnosticError))
+        pytest.param(deck, rank, id=f"{deck}-{rank}")
         for deck in sorted(DECKS)
         for rank in sorted(rank_names(deck), key=lambda r: (len(r), r))
         if rank.isdigit()
@@ -1061,7 +1030,6 @@ def test_a_numeric_rank_argument_plays_as_the_cards_own(deck: str, rank: str) ->
     assert result.scores[0] == sum(1 for c in build_deck(deck) if c.rank == rank)
 
 
-@pytest.mark.xfail(strict=True, raises=DiagnosticError, reason=_FLIPS)
 def test_the_library_rank_remedy_checks_and_plays(monkeypatch: pytest.MonkeyPatch) -> None:
     """The refusal's fix, applied: the library takes the rank as a parameter
     and the game passes rank 10."""
@@ -1120,7 +1088,6 @@ def test_the_card_field_remedy_is_leaving_the_library(monkeypatch: pytest.Monkey
 # --- who the stamp names, and who it does not ---------------------------------
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FLIPS)
 def test_two_libraries_are_each_told_on_their_own_line(monkeypatch: pytest.MonkeyPatch) -> None:
     clean = parse_library("library probe_other { function probe_g() = 1 }", "docs/libraries/probe_other.cardlang")
     reading = parse_library(
@@ -1150,7 +1117,6 @@ def test_a_game_argument_to_a_library_rule_is_the_games(monkeypatch: pytest.Monk
     assert _rendered(text) is None
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_FLIPS)
 def test_a_standard_library_rule_is_held_to_the_same_law(monkeypatch: pytest.MonkeyPatch) -> None:
     library = parse_library(
         "library stdlib { rule ProbeRule { constrains: play_to_trick  "
@@ -1187,7 +1153,7 @@ _ENV_RECEIVER_SUFFIX = "env"
 def _clause_reads() -> set[tuple[str, str]]:
     """(enclosing function, field) for every read of a clause field of a
     `TypeEnv` in typecheck.py."""
-    sources = getattr(typecheck_module, "TYPE_ENV_FIELD_SOURCES")
+    sources = typecheck_module.TYPE_ENV_FIELD_SOURCES
     clause = {f for f, kind in sources.items() if kind == "clause"}
     owner = _enclosing_functions()
     reads: set[tuple[str, str]] = set()
@@ -1202,25 +1168,25 @@ def _clause_reads() -> set[tuple[str, str]]:
     return reads
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="the registry is the change's")
 def test_every_type_env_field_names_its_source() -> None:
-    """red under: adding a field to `TypeEnv` the table lacks."""
+    """red under: adding a field to `TypeEnv` the table lacks (executed
+    2026-10-15)."""
     env_fields = {f.name for f in fields(typecheck_module.TypeEnv)}
-    assert set(getattr(typecheck_module, "TYPE_ENV_FIELD_SOURCES")) == env_fields
+    assert set(typecheck_module.TYPE_ENV_FIELD_SOURCES) == env_fields
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="the registry is the change's")
 def test_every_clause_read_is_registered() -> None:
-    """red under: reading `env.max_players` in a function `CLAUSE_READS` lacks."""
-    assert set(getattr(typecheck_module, "CLAUSE_READS")) == _clause_reads()
+    """red under: a new function reading `env.max_players`, which
+    `CLAUSE_READS` lacks (executed 2026-10-15)."""
+    assert set(typecheck_module.CLAUSE_READS) == _clause_reads()
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="the registry is the change's")
 def test_every_clause_read_has_an_env_receiver() -> None:
     """A clause field read through a receiver the scan does not name would
     escape the registry: every read of such a field is on an `env` or on the
-    game itself. red under: `e2 = env` then `e2.max_players` in any function."""
-    sources = getattr(typecheck_module, "TYPE_ENV_FIELD_SOURCES")
+    game itself. red under: `e2 = env` then `e2.max_players` in a new
+    function (executed 2026-10-15)."""
+    sources = typecheck_module.TYPE_ENV_FIELD_SOURCES
     clause = {f for f, kind in sources.items() if kind == "clause"}
     escapes = [
         node.lineno
@@ -1244,12 +1210,11 @@ def _references(function: str, name: str) -> bool:
     raise AssertionError(f"{function} not in typecheck.py")
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="the registry is the change's")
 def test_every_refusing_clause_read_asks_the_stamp() -> None:
     """A row whose verdict is told to its owner reads the stamp in the gate it
-    names. red under: deleting the `env.origins` lookup from
-    `_check_role_literal`."""
-    for (function, field), row in getattr(typecheck_module, "CLAUSE_READS").items():
+    names. red under: replacing the `env.origins` lookup in
+    `_check_role_literal` with `origin = None` (executed 2026-10-15)."""
+    for (function, field), row in typecheck_module.CLAUSE_READS.items():
         if row.verdict in ("library", "uses_line"):
             assert row.gate is not None, (function, field)
             assert _references(row.gate, "origins"), (function, field, row.gate)

@@ -501,13 +501,19 @@ _TRICK_ORDER_TWINS = RANKING_TRICK_ORDER_TWINS
 _TRICK_ORDER_WINNER = min(TRICK_ORDER_GATED_WINNERS)
 
 
-def _trick_round(winner: str) -> str:
-    return f"round play_to_trick from 0 over all players source hand into pile winner {winner}"
-
-
-def _climb_round(lead: str, follows: str) -> str:
+def _trick_round(winner: str, leader: str = "0") -> str:
+    """A trick round naming `winner`, led by `leader`: a seat in a game's own
+    phase, the acting seat in a move type's effect, since a library names no
+    seat."""
     return (
-        "round climb play_combination from 0 over all players source hand into pile "
+        f"round play_to_trick from {leader} over all players source hand into pile "
+        f"winner {winner}"
+    )
+
+
+def _climb_round(lead: str, follows: str, leader: str = "0") -> str:
+    return (
+        f"round climb play_combination from {leader} over all players source hand into pile "
         f"combinations {lead} follows {follows} "
         "until (number of players where hand[player] is not empty) <= 1"
     )
@@ -1249,7 +1255,7 @@ def _round_members() -> list[NodeMember]:
     no_order = replace(_CARD, trick_order=False)
     with_order = replace(_CARD, trick_order=True)
     for winner in sorted(TRICK_WINNER_NAMES):
-        definition = _round_definition(_trick_round(winner))
+        definition = _round_definition(_trick_round(winner, "actor"))
         trump = winner in TRUMP_READING_WINNERS
         members.append(
             NodeMember(
@@ -1285,7 +1291,9 @@ def _round_members() -> list[NodeMember]:
     members.append(
         NodeMember(
             "trick_order_replaced", "round_trump_clause",
-            _round_definition(_trick_round("highest_trump_or_led_suit") + " trump s", "s : Suit"),
+            _round_definition(
+                _trick_round("highest_trump_or_led_suit", "actor") + " trump s", "s : Suit"
+            ),
             "`trump` clause", "trick_order", NodeGame(no_order), NodeGame(with_order),
             requires=_ROUND_ZONES,
         )
@@ -1293,7 +1301,7 @@ def _round_members() -> list[NodeMember]:
     for query in sorted(PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS):
         family = query.split("_")[0]
         definition = _round_definition(
-            _climb_round(f"{family}_lead_options", f"{family}_follows")
+            _climb_round(f"{family}_lead_options", f"{family}_follows", "actor")
         )
         members.append(
             NodeMember(

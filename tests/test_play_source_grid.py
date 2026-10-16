@@ -81,7 +81,7 @@ NO_TRICK = "this game plays no trick round"
 CLAUSES: tuple[str, ...] = tuple(
     f.name
     for f in dataclasses.fields(n.RuleDef)
-    if not str(f.type).startswith(("str", "tuple", "Span"))
+    if not str(f.type).startswith(("str", "tuple", "Span", "LibraryOrigin"))
 )
 
 #: How each clause is written when it reads bare `hand`, and how a game-local
