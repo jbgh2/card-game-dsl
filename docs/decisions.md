@@ -2319,11 +2319,15 @@ source (`cards in hand`), and membership — explicitly.
 **Rank and suit values.** Suits and name-form ranks are bare enum values
 (`card.suit is hearts`, `card.rank is K`, `card.rank is Duke`); the rank
 namespace comes from the deck, not `ranking:` (Coup and Tarot declare no
-ranking). Numeric ranks spell as validated strings (`card.rank is "10"`) —
-a bare `10` is an Integer literal — and the checker rejects every
-silently-false comparison shape: Rank vs Integer, a name-form rank written
-as a string, a string outside the deck's rank set, and cross-enum
-comparisons.
+ranking). Numeric ranks spell as validated strings wherever a rank is
+expected -- a comparison (`card.rank is "10"`), an argument (`is_rank(card,
+"10")`), a state's first value, an assignment -- and a bare `10` is an Integer
+literal. One spelling rule judges every such literal: a numeric rank the deck
+holds is admitted, a name-form value written as a string is refused with its
+bare spelling, and a string outside the deck's values is refused. The string
+spelling belongs to the literal: a String-valued name or expression is never a
+rank. The checker also rejects every silently-false comparison shape: Rank vs
+Integer and cross-enum comparisons.
 
 **Transfer and reveal filters** are ordinary predicates with `card` bound
 per candidate (`move chosen 6 cards from hand[p] where is_pref_discard(card)
@@ -4961,10 +4965,14 @@ Resolution is flat and two-level: game, then the named libraries, then the
 stdlib. There is no library-imports-library. Imports are pure name resolution —
 `resolve` splices each named library's move types, functions, procedures and
 provided state into the game before any other name check runs, so what flows on
-is one flat game. No later pass knows imports exist, with one recorded fact as
-the exception: where a Definition Contract crosses the splice (below), the
+is one flat game. No later pass knows imports exist, with two recorded facts as
+the exceptions. Where a Definition Contract crosses the splice (below), the
 answering definition and the library's calls of it carry the row, so `typecheck`
-can check the row's result type and report it on the game's `uses` line. A
+can check the row's result type and report it on the game's `uses` line. And
+every piece of library text the splice brings in carries its origin -- the
+library, the definition holding it and the game's `uses` line
+(`n.LibraryOrigin`) -- so a type-layer verdict that reads a game clause is told
+to the author who owns its fact. A
 library's rules splice
 where a game's `active_rules:` names them instead, after the game's own rules —
 one splice, driven by activation, for every tier's rules alike. A rule template
@@ -5024,6 +5032,11 @@ what it writes and the clause. That covers a Builtin call (`ranking:` for
 keyed by team, `for each cell`, a card form in a piece game, a round's winner.
 The gates are `resolve._CLAUSE_GATES`, and each row's test is the one its gate
 asks of the game's own text. The rules judged are the ones the game activates.
+A gate that needs an operand's type speaks after the splice and reads the
+origin stamp instead: a card field the game's component set lacks (`c.suit` in
+a game played with pieces) is refused on the `uses` line the same way, by the
+type layer (`typecheck.CLAUSE_READS` names every type-layer read of a game
+clause, and what each tells library text).
 
 ```text
 requires {
@@ -5242,7 +5255,19 @@ the back door, and it is why the check reports to the LIBRARY's author — the
 library author is the only one who can fix it. The same rule makes a library
 deck-agnostic: it names no rank, no suit and no card, because those exist only
 once an including game names a deck, and a family's members do not share one
-(Kuhn's holds three cards).
+(Kuhn's holds three cards). A rank or suit written as a string (`c.rank is
+"10"`) is named all the same, and is refused to the library's author in every
+game, with the fix of taking it as a parameter (`r : Rank`) the game passes.
+And the same rule makes a library seat-agnostic: it names no seat and no team,
+seat 0 included, because those exist only once an including game says
+`players:` and `teams:`, and a family's members do not seat one table
+(`poker_betting` is played heads-up and at a full table). A definition that
+needs a particular player reads it from state its contract requires (`dealer :
+Player`); a provided variable that needs a first seat moves into `requires {
+}`, so the game declares it and picks it. The refusal reaches every position
+the seat and team range check does; a number compared by `is` (issue #803) or
+reaching a seat through another expression's value (issue #805) is held there
+for library and game alike.
 
 The check enforces this for every name the resolver classifies **and** for every
 name a construct holds as a bare string instead — a `turns … again <var>`, a

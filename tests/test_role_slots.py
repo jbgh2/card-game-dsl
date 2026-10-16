@@ -255,7 +255,7 @@ def _run_require_index(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
     library = parse_library(
         f"""library probe_lib {{
   requires {{ q[{value}] : Integer }}
-  procedure bump() {{ q[0] := 1 }}
+  procedure bump() {{ for each player s: q[s] := 1 }}
 }}""",
         "probe_lib.cardlang",
     )

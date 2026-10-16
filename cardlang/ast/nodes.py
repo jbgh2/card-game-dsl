@@ -964,6 +964,7 @@ class StateDecl:
     optional: bool
     default: Expr
     span: Span | None = None
+    origin: LibraryOrigin | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1117,6 +1118,7 @@ class RuleDef:
     # `params == ()`.
     params: tuple[Parameter, ...] = ()
     span: Span | None = None
+    origin: LibraryOrigin | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1223,6 +1225,7 @@ class MoveTypeDef:
     params: tuple[Parameter, ...] = ()
     stake: Stake | None = None
     span: Span | None = None
+    origin: LibraryOrigin | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1240,6 +1243,7 @@ class FunctionDef:
     body: Expr
     span: Span | None = None
     contracts: tuple[ContractStamp, ...] = ()
+    origin: LibraryOrigin | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1262,6 +1266,7 @@ class ProcedureDef:
     body: tuple[Stmt, ...]
     span: Span | None = None
     contracts: tuple[ContractStamp, ...] = ()
+    origin: LibraryOrigin | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1410,6 +1415,24 @@ class ContractStamp:
 
 
 @dataclass(frozen=True, slots=True)
+class LibraryOrigin:
+    """What `resolve` records on each piece of library text it splices into a
+    game: on a family library's move types, functions, procedures and provided
+    state declarations, and on every library rule, the standard library's
+    included, a game activates. ``where`` is the definition holding the text in
+    the designer's words (``function `f` ``, ``its provided state``),
+    ``provided`` the variable a provided declaration declares, and
+    ``uses_span`` the game's `uses` line (None for the standard library, which
+    has none). The type layer reads it to tell a verdict on library text to
+    the author who owns its fact (decisions.md, "Family libraries")."""
+
+    library: str
+    where: str
+    uses_span: Span | None = None
+    provided: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Library:
     """A family library: the definition forms of a game, minus the game. Held
     only between parse and resolve — `resolve` splices each used library's
@@ -1530,6 +1553,7 @@ Node = (
     | FunctionContract
     | ProcedureContract
     | ContractStamp
+    | LibraryOrigin
     | PlayersSpec
     | Winner
     | Loser
