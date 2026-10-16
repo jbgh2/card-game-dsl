@@ -268,7 +268,17 @@ any part in one relation and not the other on stderr for the review to
 reconcile. The unit's parts are not final until it closes: a read-gated
 unit gains parts from each read, so "the last part" is judged against
 the epic's open sub-issues and the milestone's open members other than
-the epic itself, together, never against the milestone's count alone. The sweep lists each open milestone as one
+the epic itself, together, never against the milestone's count alone.
+**A finding that bears on the finish line is a part, and whoever finds it
+adds it.** The test is the finish-line sentence: if closing the unit with
+the finding open would leave that sentence false, the finding is a part,
+and the finder files it as a sub-issue of the epic and a member of its
+milestone in the act of filing, with the usual kind and reachability, and
+names it on the epic — the finder decides by the sentence and does not
+ask the operator whether it belongs. A finding the sentence does not reach
+is filed loose with its labels and never joins. An epic that is not a
+milestone — an operator's container — takes the same rule against its
+goal sentence: a finding that bears on the goal is filed as its sub-issue. The sweep lists each open milestone as one
 takeable row, the epic's, ahead of every tiered issue — the nearest due
 date first, so the due date is how the review says which of the two is
 taken first — and holds every other issue in the milestone off the front: the epic is taken as a unit,

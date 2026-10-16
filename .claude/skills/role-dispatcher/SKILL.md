@@ -29,7 +29,13 @@ single CI runner; raising it is a charter edit.
    item: Lease the epic, work its held parts on one branch or one short
    series, and each PR closes the parts it completes — a part that needs
    its own planning cycle is named in the PR as the unit's next step,
-   never fragmented into a round of its own. When the PR landing the last
+   never fragmented into a round of its own. A finding made while working
+   the unit that bears on its finish line — closing with it open would
+   leave the sentence false — is filed as a sub-issue of the epic and a
+   member of its milestone in the act of filing, then worked or named as
+   the next step; the Dispatcher decides by the sentence and does not ask
+   (docs/harness.md, "The Ready Front"). A finding the sentence does not
+   reach is filed loose. When the PR landing the last
    part merges — no open sub-issue of the epic and no open member of its
    milestone other than the epic itself remains, the count alone is not
    it — and the milestone's
