@@ -993,14 +993,14 @@ def _held_choices() -> dict[str, tuple[str, str, str, str]]:
             "expects a SeatDirection",
         ),
         "movement-filter-binder-in-a-piece-game": (
-            "issue #114",
+            "issue #900",
             f"library {_LIB} {{ {_FLAVOR_REQUIRES} procedure clear() {{ move all cards "
             "from pile where card is top_of(pile) to box } }",
             _PIECES.format(body="run clear()"),
             "unresolved name 'card'",
         ),
         "procedure-parameter-captured-in-a-piece-game": (
-            "issue #114",
+            "issue #900",
             f"library {_LIB} {{ {_FLAVOR_REQUIRES} procedure give(piece : Player) {{ "
             "move all cards from pile where piece is piece to box } }",
             _PIECES.format(body="run give(0)"),
