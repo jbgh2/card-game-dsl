@@ -258,13 +258,15 @@ def _library_text(pos: Position, expr: str, rows: list[str], lib_defs: list[str]
         for marker, decl in (
             ("from hand", "hand[player] : Hand<player>"),
             ("to pile", "pile : TrickPile"),
+            ("from pile", "pile : TrickPile"),
             ("won[", "won[player] : PlayerPile<player>"),
+            ("each won", "won[player] : PlayerPile<player>"),
             ("secret[", "secret[player] : HiddenPile<player>"),
             ("pick[", "pick[player] : Integer"),
         )
         if marker in text
     ]
-    return text.replace("{rows}", "\n    ".join(rows + used))
+    return text.replace("{rows}", "\n    ".join(dict.fromkeys(rows + used)))
 
 
 _HOST = """game Host {
@@ -586,3 +588,76 @@ def test_an_arrival_record_over_a_concealed_pile_in_an_answer_is_the_games(
     bag = _bag(monkeypatch, library, game)
     assert bag and all(line.startswith(GAME) for line in bag), bag
     assert any(line.startswith(_where(game, defs, "follows_lead(")) for line in bag), bag
+
+
+# --- the other two contracted kinds: the decision is the game's own text -----
+
+_KIND_LIBRARY = """library contractlib {
+  requires {
+    acted[player] : Boolean
+    pick[player] : Integer
+    {row}
+  }
+  procedure ask(first : Player) {
+    turns t from first over players where not acted[player]
+          until (number of players where not acted[player]) is 0 {
+      offer to t one of [{offering}]
+    }
+  }
+  move_type stay { effect { {use} acted[actor] := true } }
+}
+"""
+
+_CONTRACTED_KIND: dict[str, tuple[str, str, str, str]] = {
+    # row, the library's offering, the library's use, the game's answer
+    "procedure": (
+        "settle(p : Player) : Procedure",
+        "stay",
+        "run settle(actor)",
+        "procedure settle(p : Player) {\n"
+        "  pick[p] := choose integer in 0 .. (number of cards in secret[1] where true) up to 3\n}",
+    ),
+    "move_type": (
+        "fold : Move",
+        "stay, fold",
+        "",
+        "move_type fold { when: any card in secret[1] where true effect { acted[actor] := true } }",
+    ),
+}
+
+
+@pytest.mark.parametrize("kind", sorted(_CONTRACTED_KIND))
+def test_a_contracted_procedure_or_move_type_decides_in_the_games_text(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    """A procedure row and a move row hand the library's decision to a
+    definition whose positions are the game's own text, so the refusal is
+    there already, at the game's position.
+
+    red under: report `_HiddenReads._judge`'s refusals at the run site or the
+    offer, in place of the position."""
+    row, offering, use, answer = _CONTRACTED_KIND[kind]
+    library = (
+        _KIND_LIBRARY.replace("{row}", row).replace("{offering}", offering).replace("{use}", use)
+    )
+    game = _game(answer, False)
+    bag = _bag(monkeypatch, library, game)
+    assert len(bag) == 1, bag
+    assert bag[0].startswith(GAME) and "`secret[1]`" in bag[0], bag
+
+
+@_RED
+def test_a_read_every_receiving_seat_decides_is_told_without_the_passed_seat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A chosen movement `to each` is decided by each receiving seat: the
+    answer is told so, and no single seat's instance is offered as the fix."""
+    pos = Position("int", effect="move chosen ({e}) cards from pile to each won")
+    library = _library_text(pos, "count(actor)", ["count(p : Player) : Integer"], [])
+    defs = "function count(p : Player) = number of cards in secret[1] where true"
+    game = _game(defs, False)
+    bag = _bag(monkeypatch, library, game)
+    assert len(bag) == 1, bag
+    assert bag[0].startswith(_where(game, defs, "secret[")), bag
+    assert "not every receiving seat can see" in bag[0], bag
+    assert "the seat the library passes" not in bag[0], bag
