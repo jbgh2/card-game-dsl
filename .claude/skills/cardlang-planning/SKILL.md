@@ -1,6 +1,6 @@
 ---
 name: cardlang-planning
-description: "MANDATORY planning gate for this repo — invoke BEFORE exploring, brainstorming a design, or entering plan mode for ANY new feature, construct, guard, registry, game, or machinery change. Orders the planning motions: find the decision's owner, classify the change, state the acceptance criteria, and (for audit-triggering work) run the surface-totality-audit's Step 1 inside planning so the grid exists red before implementation. Every plan step names the artifact that proves it."
+description: "MANDATORY planning gate for this repo — invoke BEFORE exploring, brainstorming a design, or entering plan mode for ANY new feature, construct, guard, registry, game, or machinery change. Orders the planning motions: find the decision's owner, classify the change, name the existing definition that already covers it (reuse first), state the acceptance criteria, and (for audit-triggering work) run the surface-totality-audit's Step 1 inside planning so the grid exists red before implementation. Every plan step names the artifact that proves it; the third instance of a class is filed against its Destination, not fixed at its site."
 ---
 
 # Cardlang planning
@@ -61,6 +61,32 @@ matches. Unsure is a legal state throughout this process (decisions.md
 "Closed-domain completeness"); what is never legal is resolving it with
 a silent guess.
 
+## Gate 2.5 — Reuse first: name the definition that already covers it
+
+Before the plan names any new definition — a function, a procedure, a
+library entry, a native, a checker arm, an engine table — it names the
+existing one that covers the need, or the probe that shows none does.
+The search is concrete: the stdlib (`cardlang/stdlib/*.cardlang`), the
+family libraries (`docs/libraries/*.cardlang`), the corpus games' own
+definitions (`docs/games/*.cardlang`), and the Builtin registries
+(`cardlang/builtins/functions.py`), each read for the SHAPE the need
+has, not its name. The probe is the sentence written over what exists
+and checked (`cardlang.pipeline.check_dsl`); a probe that checks ends
+the gate with "reuse: <definition>", and a probe that fails names the
+one capability missing, which is then the thing the plan builds — never
+the mechanic that wanted it. This is the Language Owner's library-first
+proof (`.claude/skills/hoyle/SKILL.md`) applied to every change, not
+only to grammar: the grammar pass measured the library tier at a third
+of the grammar's size and found the corpus copying what it could not
+name, and a plan that writes the copy is how that ratio stays.
+
+Its converse binds in the same gate. When the plan would write the
+THIRD copy of a shape the corpus already holds twice (`docs/principles.md`,
+"Three implementations before abstracting"), the plan extracts the
+definition inside this unit and the three sites use it; the copy census
+is the grammar report's seventh finding, and a third copy left standing
+is the construct the next game will ask the grammar for.
+
 ## Gate 3 — State the acceptance criteria before the task list
 
 Three, always, in the plan's header (CLAUDE.md, load-bearing section):
@@ -112,6 +138,21 @@ is not the implementing context's to make:
 - the plan's only justification is that a gate requires it, with no R1/R2
   defect anywhere in sight.
 
+**Class over site, once the class exists.** A finding met inside a unit
+is fixed at its site once and twice. At the THIRD instance of one class
+— the same guard missing at another position, the same refusal landing
+in the wrong file, the same raw exception escaping another builtin — the
+plan stops fixing sites: it files the class as a sub-issue of the epic
+whose Destination owns it (`docs/roadmap.md`, "Destinations"; the
+parts-join rule in `docs/harness.md`, "The Ready Front"), names the
+machinery part that closes it by construction, and leaves the remaining
+sites to that part. The review window of 2026-10-01 to 2026-10-16 is the
+measurement: nine issues of one class closed across seven PRs by hand,
+every one of them closed by construction by the instantiation trace
+that was filed last. A fix that could have been a table row or a
+rewrite rule is the tell; the audit's class ledger (`why missed:`) is
+where the plan writes which part.
+
 ## Gate 4 — For audit-triggering work, the audit's Step 1 happens NOW
 
 Planning is when the surface-totality-audit's Step 1 runs, not
@@ -144,7 +185,10 @@ merges. A counsel line with no artifact is a rule nobody will keep.
 
 Discuss the design in prose first — trade-offs explained, not asked as
 multiple-choice. This skill then shapes the plan; enter plan mode (when
-used) already holding Gates 1–3. An interactive thread working a tracker
+used) already holding Gates 1–3. A change that adds or corrects a corpus
+game runs the `cardlang-new-game` skill, which orders the game path
+(the read, the twin, the libraries, the proofs) and returns here for
+any language gap it files. An interactive thread working a tracker
 issue also retitles itself as it moves — `Issue #<N> - <status>`, the
 closed status set in docs/harness.md, "Thread titles" — with the first
 retitle, to `building`, landing alongside the Lease. Plans that warrant a standing artifact
