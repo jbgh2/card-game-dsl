@@ -76,6 +76,8 @@ Closes #N.
 > seat, team, and score-target values now route through the same domain
 > checks as operands. No behavior change for valid games.
 >
+> **Class:** bug — lane B, witness: `partnerships: 5` in a four-seat game
+> checked clean on main.
 > **Claims:** behavioral delta = the four rejection cases in the grid; all
 > corpus games byte-identical.
 > **Artifacts:** grid + ledger in `tests/test_declaration_clauses.py`;

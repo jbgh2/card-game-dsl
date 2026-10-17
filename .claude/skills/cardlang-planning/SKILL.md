@@ -27,7 +27,12 @@ in the order they decide:
 2. The issue's kind label and body. `bug`, or any issue with a witness
    sentence that misbehaves (a probe, a playout, a seed) -> **bug**. A
    defect is a bug whatever label it was filed under.
-3. The files are under `docs/games/` or `docs/libraries/` only -> **game**.
+3. The files are the game's: `docs/games/`, `docs/libraries/`, and the
+   pins and goldens the `cardlang-new-game` skill has the game join (its
+   proof module under `tests/openspiel_ready/`, its rules differential,
+   its per-seed goldens, the hand-authored tables keyed by its name) ->
+   **game**. A game that also edits `cardlang/` has found a gap, and the
+   gap is filed and classed on its own.
 4. The fix touches `cardlang/`, `tools/` or `tests/` with no new
    designer-facing capability -> **machinery**.
 5. A new designer-facing capability with no grammar change -> **feature**.
