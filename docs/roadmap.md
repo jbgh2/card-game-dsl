@@ -74,6 +74,20 @@ Destination.
   passes does something else". Distance: grammar rules and keywords
   against corpus size at every verdict, and the class's inflow against its
   closure (the review's fourth check).
+- **A refusal lands in the designer's file, in the designer's words, by
+  construction.** Every diagnostic, at check time or at play, is rendered
+  by one renderer from a span that carries its instantiation trace, so a
+  refusal inside a spliced library body or an expanded procedure names the
+  designer's own line first and the definition as a note; no refusal is
+  constructed outside that renderer, and the renderer's vocabulary gate
+  (the parse layer's today) holds for every layer. This is the machinery
+  that makes the message-quality class close as a class instead of one
+  site at a time; a refusal fixed by re-anchoring one site is maintenance,
+  not this Destination. Held by
+  [#893](https://github.com/jbgh2/card-game-dsl/issues/893). Distance: whether
+  `Span` carries a trace, the diagnostic construction sites outside
+  `cardlang/diagnostics.py` by module, and the designer-addressed runtime
+  refusal classes, the refusal census's own set, that carry no span.
 - **Boards.** The topology witness ladder in
   [games/_candidates.md](games/_candidates.md) plays: a board game enters
   the corpus by the same path as a card game, with the two open questions

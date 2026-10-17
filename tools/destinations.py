@@ -32,6 +32,11 @@ What it derives, and from where:
   distinct spelling: the word a `_KW` terminal names, or a compiled plain
   string terminal that spells a word. Rules added per game added is the
   trend to read.
+* **A refusal lands in the designer's file, in the designer's words** --
+  whether `Span` declares its instantiation-trace field, the calls that
+  construct a Diagnostic outside the renderer module (by module, read with
+  `ast`), and the designer-addressed runtime refusal classes (the refusal
+  census's own set) that do not carry a span.
 * **Boards** -- the topology witness ladder in `docs/games/_candidates.md`
   against the corpus games declaring a `grid(` Component Set.
 
@@ -53,14 +58,17 @@ import pathlib
 import re
 import subprocess
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from lark import Lark
 
 from cardlang.builtins import functions as builtin_registries
 from cardlang.openspiel import resample
+from cardlang.runtime.errors import Located
 from tests.keyword_fusion_sweep import code_mask
+from tests.test_runtime_refusal_location import _REFUSALS as REFUSALS
+from tests.test_runtime_refusal_location import engine_exception_classes
 from tools.dead_surface import keyword_axis
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -303,6 +311,56 @@ def grammar_history(files: Sequence[pathlib.Path]) -> list[GrammarPoint]:
     return points
 
 
+# --- A refusal lands in the designer's file ------------------------------------------
+
+DIAGNOSTICS_MODULE = ROOT / "cardlang" / "diagnostics.py"
+PACKAGE = ROOT / "cardlang"
+TRACE_FIELD = "instantiated_at"
+_CONSTRUCTORS = frozenset({"Diagnostic", "DiagnosticError"})
+
+
+def span_has_trace(diagnostics_source: str) -> bool:
+    """Whether the `Span` class declares the instantiation-trace field."""
+    for node in ast.walk(ast.parse(diagnostics_source)):
+        if isinstance(node, ast.ClassDef) and node.name == "Span":
+            return any(
+                isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name) and item.target.id == TRACE_FIELD
+                for item in node.body
+            )
+    return False
+
+
+def diagnostic_sites(package: pathlib.Path = PACKAGE, renderer: pathlib.Path = DIAGNOSTICS_MODULE) -> dict[str, int]:
+    """Module (relative to the package root) -> the calls constructing a
+    Diagnostic or DiagnosticError outside the renderer module."""
+    out: dict[str, int] = {}
+    for path in sorted(package.rglob("*.py")):
+        if path == renderer:
+            continue
+        count = 0
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.Call):
+                fn = node.func
+                name = fn.id if isinstance(fn, ast.Name) else fn.attr if isinstance(fn, ast.Attribute) else ""
+                if name in _CONSTRUCTORS:
+                    count += 1
+        if count:
+            out[path.relative_to(package).as_posix()] = count
+    return out
+
+
+def unlocated_refusals(
+    classes: Mapping[str, type[BaseException]], refusals: Iterable[str], located: type
+) -> list[str]:
+    """The designer-addressed refusal classes that do not carry a span: the
+    refusal census's own set (`tests.test_runtime_refusal_location._REFUSALS`,
+    the classes a game sentence can raise and a designer must act on) that do
+    not derive from the `Located` carrier. Failures the census addresses to
+    the installer, the primitive maintainer or the compile channel are not
+    the designer's and are not counted."""
+    return sorted(name for name in refusals if name in classes and not issubclass(classes[name], located))
+
+
 # --- Boards ---------------------------------------------------------------------------
 
 
@@ -340,6 +398,9 @@ def render(
     history: Sequence[GrammarPoint],
     rungs: Sequence[str],
     boards: Sequence[str],
+    trace: bool,
+    sites: dict[str, int],
+    unlocated: Sequence[str],
 ) -> str:
     out: list[str] = ["# Distance to each Destination -- derived, never maintained", ""]
 
@@ -381,6 +442,15 @@ def render(
         out.append(f"{p.label:<12}{p.sha:<10}{p.games:>6}{p.rules:>7}{p.keywords:>10}")
     out.append("")
 
+    out.append("== A refusal lands in the designer's file, in the designer's words ==")
+    out.append(f"Span carries an instantiation trace ({TRACE_FIELD}): {trace}")
+    out.append(
+        f"diagnostic construction sites outside the renderer: {sum(sites.values())} in {len(sites)} modules -- "
+        + ", ".join(f"{m} {n}" for m, n in sorted(sites.items(), key=lambda kv: -kv[1]))
+    )
+    out.append(f"designer-addressed runtime refusals without a span: {len(unlocated)} -- {', '.join(unlocated) or '-'}")
+    out.append("")
+
     out.append("== Boards ==")
     out.append(f"corpus games on a grid: {', '.join(boards) or '-'}")
     landed = [r for r in rungs if r in boards]
@@ -403,6 +473,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             history=grammar_history(verdict_files()),
             rungs=ladder(CANDIDATES.read_text()),
             boards=board_games(),
+            trace=span_has_trace(DIAGNOSTICS_MODULE.read_text()),
+            sites=diagnostic_sites(),
+            unlocated=unlocated_refusals(engine_exception_classes(), REFUSALS, Located),
         )
     )
     return 0
