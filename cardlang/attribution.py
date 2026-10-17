@@ -91,7 +91,7 @@ _WITNESS_GLOBS: tuple[tuple[str, str], ...] = (
 def witness_sources(library: str) -> tuple[tuple[str, str], ...]:
     """Every game file that `uses` `library`, as (repo-relative path, text),
     in path order: the games whose verdicts can prove the library sound."""
-    line = re.compile(rf"^\s*uses\s+{re.escape(library)}\s*$", re.M)
+    line = re.compile(rf"^\s*uses\s+{re.escape(library)}\b", re.M)
     found: list[tuple[str, str]] = []
     for base, pattern in _WITNESS_GLOBS:
         for path in sorted((_ROOT / base).glob(pattern)):
@@ -294,9 +294,11 @@ _CERTIFICATES: dict[object, _Certificate] = {}
 def _certificate(library: str) -> _Certificate:
     from cardlang import resolve
 
-    text = getattr(resolve, "load_library")(library)
+    load = getattr(resolve, "load_library")
+    # Every library's text, since a Library Witness may use several.
+    texts = tuple(repr(load(name)) for name in sorted(getattr(resolve, "library_names")()))
     sources = witness_sources(library)
-    key = (library, repr(text), sources)
+    key = (library, texts, sources)
     found = _CERTIFICATES.get(key)
     if found is None:
         proven = False
@@ -335,13 +337,16 @@ def _witness_reach(label: str, source: str) -> frozenset[_Key] | None:
         try:
             game = resolve.resolve(parse_text(source, label))
             check_capacity(expand(typecheck(game)))
-        except DiagnosticError:
+        except Exception:
+            # Not clean, whatever the failure: a Library Witness's own crash is
+            # told where that game is checked, never in the game asking here.
             return None
     return _reach(game)
 
 
 def _reach(game: n.Game) -> frozenset[_Key]:
-    """Every spliced definition `game` runs: what its own text names,
+    """Every spliced definition `game` runs: what the text it runs names --
+    its phases, rows, rules and results, never a definition nothing runs --
     followed through the reference namespaces, every rule it activates (a
     library rule is spliced only where it is activated), the Delegated Play
     helpers where it plays a trick round, and the provided state."""
@@ -355,16 +360,10 @@ def _reach(game: n.Game) -> frozenset[_Key]:
         ns: {d.name: d for d in getattr(game, field)}
         for ns, field in resolve.HOSTED_REACH_POOLS.items()
     }
-    own = replace(
-        game,
-        functions=tuple(
-            f for f in game.functions if f.origin is None or f.name in engine_called
-        ),
-        procedures=tuple(p for p in game.procedures if p.origin is None),
-        move_types=tuple(m for m in game.move_types if m.origin is None),
-    )
-    run: list[object] = [t for t, _via in resolve._definition_closure([own], pools).values()]
-    run.extend(own.functions)
+    helpers = tuple(f for f in game.functions if f.name in engine_called)
+    runs = replace(game, functions=helpers, procedures=(), move_types=())
+    run: list[object] = [t for t, _via in resolve._definition_closure([runs], pools).values()]
+    run.extend(helpers)
     run.extend(game.rules)
     if game.state is not None:
         run.extend(game.state.decls)
