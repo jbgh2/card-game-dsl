@@ -72,6 +72,17 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               arguments make is the game's text, located at the `run`. An
               `actor` read and a refusal reached through the game's answer to
               a Definition Contract keep their own locations.
+              A refusal of spliced library text that a
+              game declaration its contract does not name decides -- a
+              ``Card`` parameter's ``CARD_PARAMETER_FAMILY`` absent, not
+              kept per player, or hidden from its owner, a
+              ``BUILTIN_IMPLICIT_READS`` family's shape, a move type
+              spelled like the game's climb engine's action, and a library
+              move type's scoped-read containment -- is told on the game's
+              ``uses`` line, naming the library and its definition
+              (``_game_decides``, ``_UsesLineTeller``); where the contract
+              names the zone (``LibraryOrigin.contracted_zones``), it is
+              the library's own and told where the library wrote it.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -499,6 +510,9 @@ _PRONOUNS = frozenset({"state", "action", "winner", "active_rules", "actor"})
 # turn plays from at the trick round's card decision, the one decision a rule
 # is asked at (decisions.md "Rule demand forms").
 PLAY_SOURCE_NAME = "hand"
+# The zone family a move type's `Card` parameter takes its card from: the
+# acting seat's own instance (`DECISION_POOLS`' Card-parameter row).
+CARD_PARAMETER_FAMILY = "hand"
 _PLAY_SOURCE_READING = (
     "inside a rule, `hand` is the cards the player on turn plays from"
 )
@@ -887,6 +901,7 @@ _METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.LibraryOrigin, "library"),
         (n.LibraryOrigin, "where"),
         (n.LibraryOrigin, "provided"),
+        (n.LibraryOrigin, "contracted_zones"),
     }
 )
 
@@ -1216,6 +1231,35 @@ def _definition_closure(
     return reached
 
 
+def _game_decides(origin: n.LibraryOrigin | None, zone: str | None = None) -> bool:
+    """Whether a refusal of text carrying `origin`, decided by the game's
+    declaration of `zone`, is the game's: library text a `uses` line brought
+    in, whose contract leaves `zone` to the game, so some game meets the
+    library and this one does not (decisions.md "Family libraries"). A
+    contracted zone is fixed for every game meeting the contract, so its
+    refusal is the library's own; `zone` None is a fact no contract names."""
+    return (
+        origin is not None
+        and origin.uses_span is not None
+        and (zone is None or zone not in origin.contracted_zones)
+    )
+
+
+class _UsesLineTeller:
+    """Where a refusal the game's declarations decide in library text is told:
+    on the game's `uses` line, once."""
+
+    def __init__(self, bag: DiagnosticBag) -> None:
+        self.bag = bag
+        self.seen: set[tuple[str, Span | None]] = set()
+
+    def error(self, origin: n.LibraryOrigin, message: str) -> None:
+        at = origin.uses_span
+        if (message, at) not in self.seen:
+            self.seen.add((message, at))
+            self.bag.error(message, at)
+
+
 def _library_functions(game: n.Game) -> dict[str, str]:
     """Each spliced library function, by name, to the library it came from,
     read off its `n.LibraryOrigin`."""
@@ -1445,13 +1489,17 @@ def _apply_uses(
 def _stamp_origin(use: n.UsesDecl, library: n.Library) -> n.Library:
     """`library` with each definition and provided declaration carrying its
     `n.LibraryOrigin`: the library, the definition in the designer's words (as
-    `_library_nodes` names it), and the `uses` line."""
+    `_library_nodes` names it), the `uses` line, and the zones its contract
+    names."""
+    zones = tuple(r.name for r in _keyed_rows(library) if is_zone_contract(r))
     stamped: dict[str, object] = {}
     for field, noun in _LIBRARY_DEF_KINDS:
         stamped[field] = tuple(
             replace(
                 d,
-                origin=n.LibraryOrigin(library.name, f"{noun} `{d.name}`", use.span),
+                origin=n.LibraryOrigin(
+                    library.name, f"{noun} `{d.name}`", use.span, contracted_zones=zones
+                ),
             )
             for d in getattr(library, field)
         )
@@ -1463,7 +1511,7 @@ def _stamp_origin(use: n.UsesDecl, library: n.Library) -> n.Library:
                 replace(
                     decl,
                     origin=n.LibraryOrigin(
-                        library.name, "its provided state", use.span, decl.name
+                        library.name, "its provided state", use.span, decl.name, zones
                     ),
                 )
                 for decl in state.decls
@@ -5509,7 +5557,9 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
     alike to every seat, report one verb, and — for a nullary move an `offer`
     presents — share one action id, so the refusal is by name, whatever
     presents the move type and whether or not anything does. A library move
-    type is judged in the game that imports it, where the climb is."""
+    type is judged in the game that imports it, where the climb is: a library
+    holds no climbing round, so the clash is the game's, told on its `uses`
+    line."""
     from cardlang.runtime import primitives
 
     engines = sorted(
@@ -5517,9 +5567,19 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
         & PRIMITIVE_CLIMB_LEADS
     )
     owner = {action: engine for engine in engines for action in primitives.climb_actions(engine)}
+    on_uses = _UsesLineTeller(bag)
     for mt in game.move_types:
         engine = owner.get(mt.name)
-        if engine is not None:
+        if engine is not None and mt.origin is not None and _game_decides(mt.origin):
+            on_uses.error(
+                mt.origin,
+                f"library '{mt.origin.library}''s {mt.origin.where} is spelled "
+                f"like the climb engine `{engine}`'s own action `{mt.name}`, "
+                f"which this game's climbing round plays — a seat would see the "
+                f"two alike, so a game whose climbing round uses `{engine}` "
+                f"cannot use this library",
+            )
+        elif engine is not None:
             bag.error(
                 f"move type `{mt.name}` is spelled like the climb engine "
                 f"`{engine}`'s own action `{mt.name}` — a seat would see the "
@@ -5589,7 +5649,9 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
     cards it cannot see, a game nobody can play, known from the declaration.
     A pool a designer expression names is `_check_hidden_reads`'. Under
     Delegated Play a trick's routed pool is judged per decision by the runtime
-    Owner Guard `delegation.check_decider_sees`."""
+    Owner Guard `delegation.check_decider_sees`. A library move type's
+    `Card` parameter over a `hand` its contract leaves to the game is the
+    game's, told on its `uses` line (`_game_decides`)."""
     zone_types = {z.name: z.type_ref.name for z in game.zones}
     move_types = {m.name: m for m in game.move_types}
 
@@ -5599,10 +5661,10 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
             return None
         return ztype
 
-    def fix(family: str) -> str:
+    def fix(family: str, opens: bool = False) -> str:
         return (
-            f"Declare `{family}` a type that shows its owner the cards in it "
-            f"(`Hand`, or `PublicHand`)"
+            f"{'D' if opens else 'd'}eclare `{family}` a type that shows its "
+            f"owner the cards in it (`Hand`, or `PublicHand`)"
         )
 
     for node in _walk(game):
@@ -5614,9 +5676,11 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
                     bag.error(
                         f"a {form} round offers each seat the cards of its own "
                         f"`{node.source_zone}`, but `{node.source_zone}` is a "
-                        f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(node.source_zone)}",
+                        f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(node.source_zone, opens=True)}",
                         node.span,
                     )
+    family = CARD_PARAMETER_FAMILY
+    on_uses = _UsesLineTeller(bag)
     for name in sorted(_offered_move_types(game)):
         mt = move_types.get(name)
         if mt is None:
@@ -5624,14 +5688,24 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
         for param in mt.params:
             if param.type_name != "Card":
                 continue
-            ztype = hidden_from_owner("hand")
-            if ztype is not None:
-                bag.error(
-                    f"move type `{mt.name}`'s `{param.name} : Card` offers the "
-                    f"acting seat the cards of its own `hand`, but `hand` is a "
-                    f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix('hand')}",
-                    param.span or mt.span,
+            ztype = hidden_from_owner(family)
+            if ztype is None:
+                continue
+            if mt.origin is not None and _game_decides(mt.origin, family):
+                on_uses.error(
+                    mt.origin,
+                    f"library '{mt.origin.library}''s {mt.origin.where} takes "
+                    f"`{param.name} : Card`, which offers the acting seat the "
+                    f"cards of its own `{family}`, but this game declares "
+                    f"`{family}` a `{ztype}`, which {_OWN_POOL_BLIND} — {fix(family)}",
                 )
+                continue
+            bag.error(
+                f"move type `{mt.name}`'s `{param.name} : Card` offers the "
+                f"acting seat the cards of its own `{family}`, but `{family}` is a "
+                f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(family, opens=True)}",
+                param.span or mt.span,
+            )
 
 
 _OWN_POOL_BLIND = (
@@ -6370,7 +6444,10 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
     round's `source` slot, and a Builtin that reads a family by name and hands
     its keys back as seats (`BUILTIN_IMPLICIT_READS`). A round's `into` slot
     names one pile, so it must be a single zone. `to each <family>` names the
-    family whole and keeps its own Owner Guard (`_validate_refs`).
+    family whole and keeps its own Owner Guard (`_validate_refs`). A Builtin
+    a library calls reads a family no argument names, so where the library's
+    contract leaves it to the game its refusal is the game's, told on the
+    `uses` line (`_game_decides`).
 
     The runtime refusals in `evaluate._name`, `mechanics` (round sources and
     play piles) and `reads.magic_hand` are the Shadow Guards behind this Owner
@@ -6387,6 +6464,8 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
         if isinstance(nd, n.Transfer) and nd.dest_each
     }
     subscripted = {id(nd.obj) for nd in _walk(game) if isinstance(nd, n.Subscript)}
+    origins = n.library_origins(game)
+    on_uses = _UsesLineTeller(bag)
     for nd in _walk(game):
         index = index_of.get(nd.name) if isinstance(nd, n.NameRef) else None
         if (
@@ -6432,7 +6511,20 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                 )
         if isinstance(nd, n.Call) and nd.func in BUILTIN_IMPLICIT_READS:
             family, _need = BUILTIN_IMPLICIT_READS[nd.func]
-            if family in index_of and not seat_keyed(family):
+            if family not in index_of or seat_keyed(family):
+                continue
+            origin = origins.get(id(nd))
+            if origin is not None and _game_decides(origin, family):
+                on_uses.error(
+                    origin,
+                    f"library '{origin.library}''s {origin.where} calls "
+                    f"`{nd.func}`, which finds the player holding a card by "
+                    f"searching `{family}[player]`, but this game declares "
+                    f"`{family}` as {_family_shape(index_of[family])} — declare "
+                    f"`{family}` a zone kept per player, like "
+                    f"`{family}[player] : Hand<player>`",
+                )
+            else:
                 bag.error(
                     f"`{nd.func}` finds the player holding a card by searching "
                     f"`{family}[player]`, so `{family}` must be a zone kept per "
@@ -8072,13 +8164,15 @@ class _ScopedEntry:
     innermost of them, whose subtree IS the intersection of the named subtrees
     and therefore the extent the entry is callable in; `binding` the read
     spelling that ties the entry to that region, which the refusal quotes so
-    the designer can see WHICH declaration made a call illegal. When two reads
+    the designer can see WHICH declaration made a call illegal, and `read` the
+    state variable it names. When two reads
     name the region, clause order picks the binding — a determinism rule
     carrying no meaning, since the tails are a set."""
 
     chain: tuple[str, ...]
     region: str
     binding: str
+    read: str
 
 
 def _scoped_entry_phases(game: n.Game) -> dict[str, _ScopedEntry]:
@@ -8116,14 +8210,12 @@ def _scoped_entry_phases(game: n.Game) -> dict[str, _ScopedEntry]:
         ):
             continue
         region = chain[-1]
+        bound = next(r.name for r in decl.reads if r.phase == region)
         scoped[decl.name] = _ScopedEntry(
             chain=chain,
             region=region,
-            binding=next(
-                f"{r.name} in {r.phase}"
-                for r in decl.reads
-                if r.phase == region
-            ),
+            binding=f"{bound} in {region}",
+            read=bound,
         )
     return scoped
 
@@ -8236,6 +8328,7 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
     bodies = _definition_bodies(game)
     owners = _statement_owners(game, bodies)
     holders = _phase_of_node(game)
+    origins = n.library_origins(game)
     for entry, scope in sorted(scoped.items(), key=lambda item: item[0]):
         phase_name = scope.region
         phase = _find_phase(game, phase_name)
@@ -8254,7 +8347,7 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
         reaching = _procedures_reaching(game, _calls_entry(entry))
         _check_direct_call_positions(game, entry, scope, inside, holders, bag)
         _check_offered_containers(
-            game, entry, phase_name, inside, reaching, owners, bodies, bag
+            game, entry, scope, inside, reaching, owners, bodies, origins, bag
         )
         _check_run_sites(game, entry, phase_name, inside, reaching, owners, bag)
 
@@ -8397,24 +8490,60 @@ def _check_direct_call_positions(
 def _check_offered_containers(
     game: n.Game,
     entry: str,
-    phase_name: str,
+    scope: _ScopedEntry,
     inside: set[int],
     reaching: frozenset[str],
     owners: dict[int, str],
     bodies: dict[int, tuple[str, str]],
+    origins: dict[int, n.LibraryOrigin],
     bag: DiagnosticBag,
 ) -> None:
     """A game move type has no lexical phase, so its body's containment is its
     OFFERING sites': every POSITION that puts it in play must sit inside the
     subtree, and a move type nothing offers is refused rather than passing
-    vacuously."""
+    vacuously.
+
+    Library text reaches a scoped entry only through the game's text, since
+    a library names no Primitive: a library move type runs the game's answer
+    to a `Procedure` row, or a library offers the game's move type. So a
+    refusal standing in library text -- a library move type nothing offers,
+    an offer a library move type makes -- is the game's, told on its `uses`
+    line with the fix the game's text can take."""
+    phase_name = scope.region
+    on_uses = _UsesLineTeller(bag)
+    read = scope.read
     for move_type in game.move_types:
         if not _reaches_scoped_entry(move_type, entry, reaching):
             continue
         positions, walled, from_procedures = _offering_positions(
             game, move_type.name, owners, bodies
         )
+        # The game's text that reaches the entry from this move type: the
+        # move type itself, or the procedure a library move type runs.
+        runs = sorted(
+            nd.name for nd in _walk(move_type)
+            if isinstance(nd, n.RunStmt) and nd.name in reaching
+        )
+        through = (
+            f"move type `{move_type.name}`"
+            if move_type.origin is None or not runs
+            else f"this game's procedure `{runs[0]}`"
+        )
         for site, named, kind in walled:
+            site_origin = origins.get(id(site))
+            if site_origin is not None and _game_decides(site_origin):
+                on_uses.error(
+                    site_origin,
+                    f"library '{site_origin.library}''s {site_origin.where} "
+                    f"offers `{move_type.name}`, which calls `{entry}` through "
+                    f"{through}, and `{entry}` reads state declared in phase "
+                    f"`{phase_name}` — the analysis does not follow offers made "
+                    f"from inside {kind}, so there is no position to judge and "
+                    f"the scope cannot be established; keep `{entry}` out of "
+                    f"{through}, or declare `{read}` at game level and drop "
+                    f"`in {phase_name}` from `{entry}`'s read of it",
+                )
+                continue
             # A wall with a witness, not a decision: coup's move-type effects
             # offer three move types this way, and it migrates when its eviction
             # wall falls (issue #521). Following the offer would mean judging
@@ -8448,6 +8577,18 @@ def _check_offered_containers(
             # never runs, so "every offering site is inside the phase" would be
             # true of it vacuously — a guard that cannot fire. Refusing is what
             # keeps the containment claim about a real containment.
+            if move_type.origin is not None and _game_decides(move_type.origin):
+                on_uses.error(
+                    move_type.origin,
+                    f"library '{move_type.origin.library}''s "
+                    f"{move_type.origin.where} calls `{entry}` through "
+                    f"{through}, and `{entry}` reads state declared in phase "
+                    f"`{phase_name}`, but no statement offers "
+                    f"`{move_type.name}` — an unoffered move type has no phase "
+                    f"to be inside, so the scope cannot be established; offer "
+                    f"`{move_type.name}` inside `{phase_name}`",
+                )
+                continue
             bag.error(
                 f"move type `{move_type.name}` calls `{entry}`, which reads "
                 f"state declared in phase `{phase_name}`, and no statement "
@@ -10435,6 +10576,8 @@ def _check_card_offering(
     game: n.Game,
     bag: DiagnosticBag,
     span: Span | None,
+    origin: n.LibraryOrigin | None,
+    on_uses: _UsesLineTeller,
 ) -> None:
     """The Card domain's constraints on an offering of move types (an
     `offer`, which folds a Card-parameterized move through the
@@ -10445,7 +10588,15 @@ def _check_card_offering(
     cardlang/openspiel/encoding.py), and the actor's
     `hand[player]` zone must exist (`param_domain`'s Card branch enumerates
     it; without one the decision crashes mid-playout). Unknown move names are
-    skipped — the caller's own loop already reports those."""
+    skipped — the caller's own loop already reports those.
+
+    `origin` is the offer's when a library wrote it. Such an offer is the
+    game's to hear on its `uses` line where the game decides it: a second
+    card play that is the game's own move type (its answer to a `Move` row),
+    or a `hand` the library's contract leaves to the game. A game's offer of
+    a library's move type whose contract fixes `hand` is the library's, told
+    at the move type: no game meeting the contract can offer it."""
+    family = CARD_PARAMETER_FAMILY
     card_param_moves = [
         name
         for name in names
@@ -10454,25 +10605,72 @@ def _check_card_offering(
         and move_type_defs[name].params[0].type_name == "Card"
     ]
     if len(card_param_moves) > 1:
-        bag.error(
-            f"offering declares more than one Card-parameterized move "
-            f"({', '.join(card_param_moves)}); a card play's action is the "
-            f"card itself, so a second Card-parameterized move would be "
-            f"indistinguishable — fold them into one move type",
-            span,
-        )
-    if card_param_moves and not any(
+        answers = [m for m in card_param_moves if move_type_defs[m].origin is None]
+        if origin is not None and answers and _game_decides(origin):
+            listed = " and ".join(f"`{m}`" for m in answers)
+            offered = ", ".join(f"`{m}`" for m in card_param_moves)
+            takes = "takes" if len(answers) == 1 else "take"
+            which = "it" if len(answers) == 1 else "one of them"
+            on_uses.error(
+                origin,
+                f"library '{origin.library}''s {origin.where} offers {offered} "
+                f"in one offer, and this game's {listed} {takes} a Card "
+                f"parameter beside the other; a card play's action is the card "
+                f"itself, so the two would be indistinguishable — answer "
+                f"{which} with a move type that takes no Card parameter",
+            )
+        else:
+            bag.error(
+                f"offering declares more than one Card-parameterized move "
+                f"({', '.join(card_param_moves)}); a card play's action is the "
+                f"card itself, so a second Card-parameterized move would be "
+                f"indistinguishable — fold them into one move type",
+                span,
+            )
+    hand = next((z for z in game.zones if z.name == family), None)
+    if not card_param_moves or (
         # Intrinsic: a Card parameter enumerates the ACTOR's hand, which is
         # player-keyed by definition.
-        z.name == "hand" and z.index is not None and role_of(z.index) is Role.PLAYER
-        for z in game.zones
+        hand is not None and hand.index is not None and role_of(hand.index) is Role.PLAYER
     ):
-        bag.error(
-            f"offering move '{card_param_moves[0]}' takes a Card parameter, "
-            f"which enumerates the actor's `hand[player]` zone — this game "
-            f"declares none",
-            span,
+        return
+    move = move_type_defs[card_param_moves[0]]
+    param = move.params[0]
+    if origin is not None and _game_decides(origin, None if move.origin is None else family):
+        whose = "this game's " if move.origin is None else ""
+        shape = "" if hand is None else f" (its `{family}` is {_family_shape(hand.index)})"
+        fix = (
+            f"answer `{move.name}` with a move type that takes no Card "
+            f"parameter, since the library's contract names `{family}` so"
+            if family in origin.contracted_zones
+            else f"declare `{family}` a zone kept per player, like "
+            f"`{family}[player] : Hand<player>`"
         )
+        on_uses.error(
+            origin,
+            f"library '{origin.library}''s {origin.where} offers {whose}move "
+            f"type `{move.name}`, whose `{param.name} : Card` takes a card from "
+            f"the acting seat's `{family}[player]`, but this game declares no "
+            f"`{family}[player]`{shape} — {fix}",
+        )
+        return
+    if origin is None and move.origin is not None and not _game_decides(move.origin, family):
+        shape = "none" if hand is None else _family_shape(hand.index)
+        bag.error(
+            f"move type `{move.name}`'s `{param.name} : Card` takes a card from "
+            f"the acting seat's `{family}[player]`, but this library's contract "
+            f"names `{family}` as {shape}, so no game meeting it can offer "
+            f"`{move.name}` — contract `{family}` per player, like "
+            f"`{family}[player] : Hand<player>`",
+            param.span or move.span,
+        )
+        return
+    bag.error(
+        f"offering move '{card_param_moves[0]}' takes a Card parameter, "
+        f"which enumerates the actor's `{family}[player]` zone — this game "
+        f"declares none",
+        span,
+    )
 
 
 def _check_offering_moves(
@@ -10639,6 +10837,8 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     move_type_defs = {m.name: m for m in game.move_types}
     defined_move_types = set(move_type_defs)
+    origins = n.library_origins(game)
+    on_uses = _UsesLineTeller(bag)
     defined_functions = {f.name for f in game.functions}
     native_namespace = call_namespace(game)
     # Which role (if any) each declared zone family is keyed by — the fact the
@@ -11106,7 +11306,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 )
             case n.Offer():
                 _check_offering_moves(nd.offering, defined_move_types, bag, nd.span)
-                _check_card_offering(nd.offering, move_type_defs, game, bag, nd.span)
+                _check_card_offering(
+                    nd.offering, move_type_defs, game, bag, nd.span, origins.get(id(nd)), on_uses
+                )
             case n.ClimbRound():
                 # Trick zones plus the two combination-engine queries
                 # (`combinations` lead, `follows` legal-follows). The termination

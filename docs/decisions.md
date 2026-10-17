@@ -5182,6 +5182,15 @@ function reading `actor` is one such fault, and a statement a procedure or
 a move type's effect may never hold is another; each is told once, to the
 library's author.
 
+A library's text can also depend on a game declaration its contract does
+not name: the `hand` a `Card` parameter takes its card from, the zone
+`player_holding` searches, the actions of the game's climb engine, and the
+phase a scoped Primitive reached through the game's answer reads. A refusal
+such a declaration decides is the game's, told on its `uses` line, naming
+the library and its definition, with the fix the game can take. Where the
+contract names the zone, every game meeting it is refused alike, so the
+refusal is the library's own, told where the library wrote it.
+
 The spellings do not cross. A zone type carries the `<owner>` argument; a
 state type and `Move` carry none. A `?` is a type's nullability, never a
 row's optionality — no row is optional — so it appears only on a signature
