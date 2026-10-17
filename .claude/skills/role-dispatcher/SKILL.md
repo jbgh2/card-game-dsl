@@ -60,7 +60,10 @@ single CI runner; raising it is a charter edit.
    comment what is missing, add `needs-triage`, release the Lease
    (delete the own, commit-free ref) — and move on.
 5. **Work the item**, full gate chain, no shortcuts:
-   - `cardlang-planning` gates first; for an item under `docs/games/` or
+   - `cardlang-planning` Gate 0 derives the item's class from the lane,
+     the label and the witness, and opens its recipe; a `language` class
+     is a park (the operator's with Hoyle), and `other` is stated with
+     its reason. Then the remaining gates; for an item under `docs/games/` or
      `docs/libraries/`, `cardlang-new-game` orders the game path and
      returns to planning for any gap it files. A Gate 3.5 stop-shape (doctrine
      edit, all-R4 scaffolding, overriding a settled decision) is a

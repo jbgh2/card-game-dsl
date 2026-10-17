@@ -44,7 +44,10 @@ Each check names its query so the answer is derived, not vibed:
    window without changing an outcome — an audit whose findings were all
    R4, a ledger nobody read back — is a candidate for narrowing. Cite the
    instance; propose the narrowing as a doctrine amendment, not a silent
-   lapse.
+   lapse. The same check lists the window's PRs whose `Class:` line reads
+   `other` (`cardlang-planning`, Gate 0) with their reasons: three of one
+   shape is a class without a recipe, and the amendment is the recipe;
+   a PR with no class line is listed too, as the gap it is.
 6. **Surface nobody uses.** `python -m tools.dead_surface` prints every
    grammar rule and keyword that no corpus game, library or stdlib rule
    uses, each with its class. A `sibling` row is a member of a closed

@@ -21,6 +21,8 @@ diff's own docs edits, and the body cross-references it).
 (the R-tag when it fixes a defect). The fix, one or two sentences,
 no mechanism. Compat/behavior note only if one exists.>
 
+**Class:** <bug | feature | game | language | machinery | other — reason,
+as the plan derived it (cardlang-planning, Gate 0); the review re-derives it>
 **Claims:** <only what review must verify: byte-identical | behavioral
 delta named in one line | a stated negative | goldens regenerated because …>
 **Artifacts:** <grid/ledger module paths, named not restated; the class
