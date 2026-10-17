@@ -21,6 +21,8 @@ diff's own docs edits, and the body cross-references it).
 (the R-tag when it fixes a defect). The fix, one or two sentences,
 no mechanism. Compat/behavior note only if one exists.>
 
+**Class:** <bug | feature | game | language | machinery | other — reason,
+as the plan derived it (cardlang-planning, Gate 0); the review re-derives it>
 **Claims:** <only what review must verify: byte-identical | behavioral
 delta named in one line | a stated negative | goldens regenerated because …>
 **Artifacts:** <grid/ledger module paths, named not restated; the class
@@ -74,6 +76,8 @@ Closes #N.
 > seat, team, and score-target values now route through the same domain
 > checks as operands. No behavior change for valid games.
 >
+> **Class:** bug — lane B, witness: `partnerships: 5` in a four-seat game
+> checked clean on main.
 > **Claims:** behavioral delta = the four rejection cases in the grid; all
 > corpus games byte-identical.
 > **Artifacts:** grid + ledger in `tests/test_declaration_clauses.py`;
