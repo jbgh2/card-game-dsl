@@ -613,10 +613,13 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_enum_domain", "value_enums"): ClauseRead("library", "_check_enum_literal"),
     ("_check_enum_literal", "axis_enums"): ClauseRead("library", "_check_enum_literal"),
     ("_library_axis_refusal", "flavor"): ClauseRead("library", "_check_enum_literal"),
-    ("_check_expr", "item_fields"): ClauseRead("uses_line", "_check_expr"),
+    ("_check_expr", "item_fields"): ClauseRead("uses_line", "_library_field_gate"),
     ("_check_expr", "flavor"): ClauseRead(
-        "uses_line", "_check_expr",
+        "uses_line", "_library_field_gate",
         f"the field refusal's words; in the card-form arms {_CARD_CONTENT_ROW}",
+    ),
+    ("_library_field_gate", "flavor"): ClauseRead(
+        "uses_line", "_library_field_gate", "the field refusal's words"
     ),
     ("_check_expr", "deck"): ClauseRead("shadowed", reason=_CARD_CONTENT_ROW),
     ("_check_expr", "has_ranking"): ClauseRead("shadowed", reason=_RANKING_ROWS),
