@@ -241,7 +241,8 @@ def _assert_verdict(text: str, rendered: str | None, verdict: Verdict) -> None:
         assert rendered is None, rendered
         return
     assert rendered is not None, "accepted"
-    lines = rendered.splitlines()
+    # The refusals, without the warning an unproven library's adds.
+    lines = [ln for ln in rendered.splitlines() if ": warning: " not in ln]
     uses = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:" if f"uses {_LIB}" in text else None
     in_library = [ln for ln in lines if ln.startswith(_LIB_FILE) or ln.startswith(_STDLIB_FILE)]
     on_uses = [ln for ln in lines if uses is not None and ln.startswith(uses)]

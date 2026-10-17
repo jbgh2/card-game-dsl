@@ -84,6 +84,7 @@ from dataclasses import dataclass, fields
 import pytest
 
 from cardlang.ast import nodes as n
+from cardlang.attribution import is_unproven_note
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
@@ -275,10 +276,12 @@ def _check(text: str) -> n.Game:
 
 
 def _rendered(exc: DiagnosticError) -> list[str]:
-    """Every diagnostic a stage raised, one rendered line each. A stage that
-    collected more than one attaches the whole bag as a note."""
+    """Every refusal a stage raised, one rendered line each, without the note
+    an unproven library's refusals carry. A stage that collected more than
+    one attaches the whole bag as a note."""
     notes = getattr(exc, "__notes__", [])
-    return notes[0].splitlines() if notes else [str(exc)]
+    lines = notes[0].splitlines() if notes else [str(exc)]
+    return [line for line in lines if not is_unproven_note(line)]
 
 
 def _bag(text: str) -> list[str]:

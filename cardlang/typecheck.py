@@ -102,7 +102,8 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_ROWS,
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
+from cardlang.attribution import raise_if_errors
+from cardlang.diagnostics import DiagnosticBag, Span
 from cardlang.domains import CARD_PARAM_DOMAINS, require_role, role_of, role_type
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
@@ -612,10 +613,13 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_enum_domain", "value_enums"): ClauseRead("library", "_check_enum_literal"),
     ("_check_enum_literal", "axis_enums"): ClauseRead("library", "_check_enum_literal"),
     ("_library_axis_refusal", "flavor"): ClauseRead("library", "_check_enum_literal"),
-    ("_check_expr", "item_fields"): ClauseRead("uses_line", "_check_expr"),
+    ("_check_expr", "item_fields"): ClauseRead("uses_line", "_library_field_gate"),
     ("_check_expr", "flavor"): ClauseRead(
-        "uses_line", "_check_expr",
+        "uses_line", "_library_field_gate",
         f"the field refusal's words; in the card-form arms {_CARD_CONTENT_ROW}",
+    ),
+    ("_library_field_gate", "flavor"): ClauseRead(
+        "uses_line", "_library_field_gate", "the field refusal's words"
     ),
     ("_check_expr", "deck"): ClauseRead("shadowed", reason=_CARD_CONTENT_ROW),
     ("_check_expr", "has_ranking"): ClauseRead("shadowed", reason=_RANKING_ROWS),
@@ -2130,6 +2134,31 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         )
 
 
+def _library_field_gate(
+    e: n.Member, field_list: str, env: TypeEnv, bag: DiagnosticBag
+) -> bool:
+    """The type layer's clause gate for a card field library text reads: the
+    component set is the game's fact, so its author is told on the `uses`
+    line, as for the card forms `_CLAUSE_GATES` refuses. Answers whether
+    the read is library text a `uses` line brought in."""
+    origin = env.origins.get(id(e))
+    if origin is None or origin.uses_span is None:
+        return False
+    if env.flavor == "piece":
+        lacks = f"this game is played with pieces, whose fields are {field_list}"
+        fix = "a game played with pieces cannot use this library"
+    else:
+        lacks = f"this game's cards have the fields {field_list}"
+        fix = "a game played with these cards cannot use this library"
+    message = (
+        f"library '{origin.library}' reads the field `{e.field}` (in "
+        f"{origin.where}), but {lacks} — {fix}"
+    )
+    if not any(d.message == message and d.span == origin.uses_span for d in bag.items):
+        bag.error(message, origin.uses_span)
+    return True
+
+
 def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`offset_by`: rotates a Player around the seating ring by a
     SeatDirection (`runtime.values.Seating.offset_by`) — the left operand must
@@ -2149,10 +2178,24 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
     if isinstance(rbare, TAny):
         return
     if not (isinstance(rbare, TEnum) and rbare.name == "SeatDirection"):
+        origin = env.origins.get(id(e))
+        # Library text spelling a seat direction the game declares a name
+        # for reads the game's declaration: the game's name took the word.
+        taken = (
+            e.right.name
+            if isinstance(e.right, n.NameRef) and e.right.name in SEAT_DIRECTION_VALUES
+            else None
+        )
         bag.error(
             "'offset_by' expects a SeatDirection (left/right/across/hold) on "
             f"the right, got {_type_name(rbare)}",
             e.right.span,
+            for_game=None if origin is None or taken is None else (
+                f"library '{origin.library}''s {origin.where} writes `offset_by "
+                f"{taken}`, which expects a SeatDirection, but this game declares "
+                f"its own `{taken}`, which the library's `{taken}` then reads — "
+                f"rename this game's `{taken}`"
+            ),
         )
 
 
@@ -3142,25 +3185,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             # fail (or worse, not fail) at play time. Noun and fields are
             # flavor-keyed; a card game reproduces the CARD_FIELDS message.
             field_list = " and ".join(f"`{f}`" for f in sorted(env.item_fields))
-            origin = env.origins.get(id(e))
-            if origin is not None and origin.uses_span is not None:
-                # The component set is the game's fact: its author is told on
-                # the `uses` line, as for the card forms `_CLAUSE_GATES` refuses.
-                if env.flavor == "piece":
-                    lacks = f"this game is played with pieces, whose fields are {field_list}"
-                    fix = "a game played with pieces cannot use this library"
-                else:
-                    lacks = f"this game's cards have the fields {field_list}"
-                    fix = "a game played with these cards cannot use this library"
-                message = (
-                    f"library '{origin.library}' reads the field `{e.field}` (in "
-                    f"{origin.where}), but {lacks} — {fix}"
-                )
-                if not any(
-                    d.message == message and d.span == origin.uses_span for d in bag.items
-                ):
-                    bag.error(message, origin.uses_span)
-            else:
+            if not _library_field_gate(e, field_list, env, bag):
                 noun = content_noun(env.flavor, plural=False).capitalize()
                 bag.error(
                     f"{noun} has no field '{e.field}' (its fields are {field_list})",
@@ -4411,9 +4436,5 @@ def typecheck(game: Game) -> Game:
             _check_expr(decl.default, env, bag)
             _check_state_default_type(decl, env, bag)
 
-    if bag.has_errors:
-        error = DiagnosticError(bag.items[0])
-        if len(bag.items) > 1:
-            error.add_note(bag.format())
-        raise error
+    raise_if_errors(bag, game)
     return game
