@@ -62,6 +62,18 @@ allocates backwards.
    `state`), stdlib (`rules.cardlang`) + kernel tables, `docs/games/` corpus,
    docs prose, tests/goldens. The classification selects the conditional
    angles below — do not run angles whose trigger the diff does not match.
+2a. **Class check.** Read the class the plan derived (`cardlang-planning`,
+   Gate 0): from the PR body's `Class:` line when the review is of a PR,
+   else from the plan header or the context the caller supplies — a
+   pre-PR review (the Dispatcher runs this skill before opening the PR)
+   has no body to read and is not faulted for it. Derive the class again
+   from the diff: `tools/lane-of.sh` on its files, a witness test present
+   or not, the directories touched. A disagreement — a `bug` with no
+   witness that fails on main, a `feature` touching a `.lark` file, a
+   `game` PR editing `cardlang/` — is a severity-2 finding reported first,
+   beside a missing artifact: the recipe that ran was the wrong one. A PR
+   whose body states no class is the same finding; a review with no class
+   from any source says so and derives the class itself.
 3. **Artifact gate — run before any finder.** If the diff adds or extends
    grammar surface, a checker Owner Guard or diagnostic, a native registry or kernel table, or any
    closed-domain mechanism (the `surface-totality-audit` trigger) — including

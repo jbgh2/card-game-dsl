@@ -1,6 +1,6 @@
 ---
 name: cardlang-planning
-description: "MANDATORY planning gate for this repo — invoke BEFORE exploring, brainstorming a design, or entering plan mode for ANY new feature, construct, guard, registry, game, or machinery change. Orders the planning motions: find the decision's owner, classify the change, name the existing definition that already covers it (reuse first), state the acceptance criteria, and (for audit-triggering work) run the surface-totality-audit's Step 1 inside planning so the grid exists red before implementation. Every plan step names the artifact that proves it; the third instance of a class is filed against its Destination, not fixed at its site."
+description: "MANDATORY planning gate for this repo — invoke BEFORE exploring, brainstorming a design, or entering plan mode for ANY new feature, construct, guard, registry, game, or machinery change. Orders the planning motions: derive the issue's class and open its recipe (bug, feature, game, language, machinery, other), find the decision's owner, classify the change, name the existing definition that already covers it (reuse first), state the acceptance criteria, and (for audit-triggering work) run the surface-totality-audit's Step 1 inside planning so the grid exists red before implementation. Every plan step names the artifact that proves it; the third instance of a class is filed against its Destination, not fixed at its site."
 ---
 
 # Cardlang planning
@@ -13,6 +13,69 @@ audited the narrowed frame faithfully. The planning stage is where the
 frame is set, so it is where the frame must be checked. This skill orders
 the motions; the content lives with its owners (CLAUDE.md, decisions.md,
 the audit and review skills) — this skill routes, it does not restate.
+
+## Gate 0 — Derive the issue's class, open its recipe
+
+Every item is one of six classes, and the class is DERIVED from facts the
+thread already holds, never chosen: a chosen class is the hole the Gate 2
+tie-breaker exists to close, moved to the top of the process. The facts,
+in the order they decide:
+
+1. `tools/lane-of.sh` on the files the issue names or the fix will touch.
+   Any Merge Lane A file -> **language**, and a fleet thread stops here
+   (docs/harness.md, "The Ready Front": a Lane A part is the operator's).
+2. The issue's kind label and body. `bug`, or any issue with a witness
+   sentence that misbehaves (a probe, a playout, a seed) -> **bug**. A
+   defect is a bug whatever label it was filed under.
+3. The files are the game's: `docs/games/`, `docs/libraries/`, and the
+   pins and goldens the `cardlang-new-game` skill has the game join (its
+   proof module under `tests/openspiel_ready/`, its rules differential,
+   its per-seed goldens, the hand-authored tables keyed by its name) ->
+   **game**. A game that also edits `cardlang/` has found a gap, and the
+   gap is filed and classed on its own.
+4. The fix touches `cardlang/`, `tools/` or `tests/` with no new
+   designer-facing capability -> **machinery**.
+5. A new designer-facing capability with no grammar change -> **feature**.
+6. Nothing above -> **other**, and the plan header says so and why. Other
+   is where circling hides, so it is loud: the direction review lists the
+   window's `other` PRs, and three of one shape is a recipe missing.
+
+The class is stated in the plan's header with the facts it came from
+(`Class: bug — lane C, witness: seed 17 of hearts`) and repeated as one
+line in the PR body (`cardlang-pr-description`); the review's Phase 0
+derives the class again from the diff and reports a disagreement first.
+One spine for every class — Lease, this skill's gates, build, audit where
+triggered, review, PR, close — and the class changes only the recipe the
+plan must follow and the artifacts it must name:
+
+- **bug**: the witness FIRST, as a test that fails on main (a seed, a
+  probe through `check_dsl`, a differential line); then the class sweep
+  (the other members of the same closed domain, decisions.md
+  "Closed-domain completeness") before the instance is touched; then the
+  grid or the class ledger with its `why missed:` row
+  (`surface-totality-audit`, Step 2b); the fix is the LAST step. Gate 3.5's
+  third-instance rule applies: the third site of one class is filed, not
+  fixed.
+- **feature**: Gate 2.5 reuse-first before any definition; Hoyle's
+  counsel if the probe fails on grammar (which makes it **language**);
+  the grid authored red before implementation (Gate 4); the Destination
+  it advances named in the plan header, or `Upkeep`.
+- **game**: the `cardlang-new-game` skill end to end for a game added or
+  corrected; it returns here for every gap it files, each gap re-deriving
+  its own class. A library-only change is `game` by its files and stays
+  in these gates, as that skill's head says: Gate 2.5 with the library as
+  the reuse, and the full-width goldens sweep of its consumer games.
+- **language**: the operator's with Hoyle (`.claude/skills/hoyle`): the
+  library-first proof, the counsel block, the grid; a fleet thread files
+  and parks.
+- **machinery**: the Architect's counsel (`.claude/skills/architect`)
+  where the change is engine-structural; a completeness ledger for any
+  closed domain it touches; the Destination it advances, or `Upkeep`.
+  Harness and tooling changes are machinery too, and a harness change
+  is tested on its witness before it lands (the doctrine-tested-on-the-
+  witness method, docs/harness.md).
+- **other**: Gates 1 through 5 plain, nothing skipped, and the header's
+  reason for `other` is the first line of the PR body.
 
 ## Gate 1 — Find the decision's owner before forming an opinion
 
@@ -185,7 +248,7 @@ merges. A counsel line with no artifact is a rule nobody will keep.
 
 Discuss the design in prose first — trade-offs explained, not asked as
 multiple-choice. This skill then shapes the plan; enter plan mode (when
-used) already holding Gates 1–3. A change that adds or corrects a corpus
+used) already holding Gates 0–3. A change that adds or corrects a corpus
 game runs the `cardlang-new-game` skill, which orders the game path
 (the read, the twin, the libraries, the proofs) and returns here for
 any language gap it files. An interactive thread working a tracker
