@@ -29,8 +29,8 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     The chain lives here rather than in either half so that neither half
     depends on the other — the two are then independently readable, against
     the Primitive REGISTRY that is the elimination metric. Arguments are
-    coerced ONCE, before the chain, because `deep_freeze` dominates playout
-    cost.
+    coerced ONCE, before the chain, because `deep_freeze` is on the playout's
+    hot path.
 
     A game that declares a `primitives { }` block takes the DERIVED route:
     its own table, built at load from the block. A game that declares none

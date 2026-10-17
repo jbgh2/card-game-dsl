@@ -1296,6 +1296,54 @@ def test_deep_freeze_copies_frozen_dataclasses_to_confine_object_setattr() -> No
     assert snap[0][0] is not src[0]
 
 
+def test_deep_freeze_copies_through_the_class_init_on_both_rebuild_paths() -> None:
+    """A frozen+slotted dataclass is rebuilt through its own `__init__`,
+    positionally when every field is positional and through `replace`
+    otherwise — so a `kw_only` field is copied rather than refused, and a
+    `__post_init__` runs on the copy exactly as it does on a `replace`.
+    Reddens if the positional rebuild is taken for a `kw_only` class (a
+    `TypeError` from `__init__`), or if the rebuild bypasses `__init__`."""
+    from dataclasses import dataclass as _dataclass
+
+    @_dataclass(frozen=True, slots=True, kw_only=True)
+    class Keyed:
+        n: int
+        tags: tuple[str, ...] = ()
+
+    inits: list[int] = []
+
+    @_dataclass(frozen=True, slots=True)
+    class Checked:
+        n: int
+
+        def __post_init__(self) -> None:
+            inits.append(self.n)
+
+    keyed = Keyed(n=1, tags=("a",))
+    copy = reads_mod.deep_freeze(keyed)
+    assert copy == keyed and copy is not keyed
+
+    checked = Checked(2)
+    copy_checked = reads_mod.deep_freeze(checked)
+    assert copy_checked == checked and copy_checked is not checked
+    assert inits == [2, 2], "the copy did not run the class's __post_init__"
+
+
+def test_deep_freeze_refuses_a_refused_type_at_every_sight() -> None:
+    """The case `deep_freeze` takes is decided once per type and kept, so a
+    refusal must never be kept as a decision: the second sight of a refused
+    type is refused as loudly as the first. Reddens if the refusal path
+    stores a pass-through for the type."""
+
+    class Opaque:  # neither atomic, container, nor dataclass
+        pass
+
+    for _ in range(2):
+        with pytest.raises(TypeError, match="cannot prove Opaque immutable"):
+            reads_mod.deep_freeze(Opaque())
+    assert Opaque not in reads_mod._FREEZERS
+
+
 def test_deep_freeze_freezes_mapping_keys_not_just_values() -> None:
     """A mapping keyed by a mutable-but-hashable object (a dataclass with
     `unsafe_hash=True`) would hand the live key back through iteration. Freezing

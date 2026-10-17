@@ -67,7 +67,7 @@ Contract:
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
 from collections.abc import Set as AbstractSet
@@ -116,8 +116,8 @@ def coerce_args(sig: Any, args: list[Any]) -> list[Any]:
 
     It lives here, with `deep_freeze`, rather than with either dispatch half:
     the two halves must not depend on each other, and one shared coercion is
-    also the only affordable one — `deep_freeze` dominates playout cost, so
-    coercing per half would double it for every Primitive call.
+    also the only affordable one — `deep_freeze` is on every Primitive call's
+    path, so coercing per half would double it.
     """
     coerced: list[Any] = []
     for p, a in zip(sig.params, args):
@@ -147,41 +147,86 @@ def deep_freeze(value: Any) -> Any:
     a frozen+SLOTTED dataclass is rebuilt (never returned by identity) with
     each field frozen, and the rebuild itself matters because `object.__setattr__` bypasses
     `frozen`, so returning the live `Card`/`Play` would let a primitive mutate
-    the engine's value through that back door; a `replace` copy takes the hit
+    the engine's value through that back door; a copy takes the hit
     on the copy instead. A dataclass that is NOT frozen, or is frozen but NOT
     slotted (so its `__dict__` stays writable and `obj.__dict__[f] = …`
     bypasses frozen), is refused. Anything that is neither a container nor a
     frozen+slotted dataclass must be a known atomic, or `deep_freeze` refuses
     it rather than passing a possibly-mutable object through as a false leaf.
-    (Copying costs an allocation per value; the module-granular bundles make
-    that a per-bind cost that stage 3's per-primitive `reads` will shrink.)"""
+
+    Every primitive call freezes its bundles and its arguments, so this is on
+    the playout's hot path. The case a value falls into depends on its type
+    alone, so it is decided once per concrete type (`_freezer_for`) and the
+    decision is kept in `_FREEZERS`; a refused type is never kept, so it is
+    refused at every sight."""
+    try:
+        freeze = _FREEZERS[type(value)]
+    except KeyError:
+        freeze = _FREEZERS[type(value)] = _freezer_for(value)
+    return freeze(value)
+
+
+_Freezer = Callable[[Any], Any]
+
+# Concrete type -> the case `deep_freeze` takes for it. Filled on first sight
+# of each type by `_freezer_for`, which owns every case and every refusal.
+_FREEZERS: dict[type, _Freezer] = {}
+
+
+def _atomic(value: Any) -> Any:
+    return value
+
+
+def _mapping(value: Any) -> Any:
+    # Keys are frozen too, not just values: a mapping keyed by a
+    # mutable-but-hashable object (a dataclass with `unsafe_hash=True`)
+    # would otherwise hand the live key back through iteration. A frozen
+    # key (int/str/tuple/frozen dataclass) comes back equal with the same
+    # hash, so lookups are unaffected; a mutable one is refused.
+    return MappingProxyType({deep_freeze(k): deep_freeze(v) for k, v in value.items()})
+
+
+def _set(value: Any) -> Any:
+    return frozenset(deep_freeze(v) for v in value)
+
+
+def _bytearray(value: Any) -> Any:
+    return bytes(value)  # a mutable builtin sequence -> immutable snapshot
+
+
+def _tuple(value: Any) -> Any:
+    items = [deep_freeze(v) for v in value]
+    if all(a is b for a, b in zip(items, value)):
+        return value  # already an immutable tuple, unchanged: keep identity
+    return tuple(items)
+
+
+def _sequence(value: Any) -> Any:
+    return tuple(deep_freeze(v) for v in value)
+
+
+def _freezer_for(value: Any) -> _Freezer:
+    """The case `deep_freeze` takes for `value`'s type, or its refusal.
+
+    The arms are tried in this order, so a type that is two things at once
+    (an `Enum` over `str`, a tuple subclass) takes the first."""
     if isinstance(value, _ATOMIC):
-        return value
+        return _atomic
     if isinstance(value, _Mapping):
-        # Keys are frozen too, not just values: a mapping keyed by a
-        # mutable-but-hashable object (a dataclass with `unsafe_hash=True`)
-        # would otherwise hand the live key back through iteration. A frozen
-        # key (int/str/tuple/frozen dataclass) comes back equal with the same
-        # hash, so lookups are unaffected; a mutable one is refused.
-        return MappingProxyType(
-            {deep_freeze(k): deep_freeze(v) for k, v in value.items()}
-        )
+        return _mapping
     if isinstance(value, AbstractSet):
-        return frozenset(deep_freeze(v) for v in value)
+        return _set
     if isinstance(value, bytearray):
-        return bytes(value)  # a mutable builtin sequence -> immutable snapshot
+        return _bytearray
     if isinstance(value, _Sequence):
-        items = [deep_freeze(v) for v in value]
-        if isinstance(value, tuple) and all(a is b for a, b in zip(items, value)):
-            return value  # already an immutable tuple, unchanged: keep identity
-        return tuple(items)
+        return _tuple if isinstance(value, tuple) else _sequence
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         if not getattr(value, "__dataclass_params__").frozen:
             # A non-frozen dataclass cannot be snapshotted: even a field-frozen
-            # `replace` copy stays writable (`box.value = …`), and the identity
-            # fast path below would hand back the live object outright. Refuse,
-            # same as a non-dataclass mutable leaf — the corpus value types are
-            # all frozen, so this only fires on a NEW mutable one.
+            # copy stays writable (`box.value = …`), and returning it by
+            # identity would hand back the live object outright. Refuse, same
+            # as a non-dataclass mutable leaf — the corpus value types are all
+            # frozen, so this only fires on a NEW mutable one.
             raise TypeError(
                 f"deep_freeze cannot snapshot the non-frozen dataclass "
                 f"{type(value).__name__} — its attributes stay reassignable. "
@@ -192,28 +237,51 @@ def deep_freeze(value: Any) -> Any:
             # `__dict__`: `obj.__setattr__` is blocked, but `obj.__dict__[f] =
             # …` bypasses it. Refuse rather than snapshot — the corpus value
             # types are all frozen+slots, so this only fires on a new one.
+            # Whether an instance has a `__dict__` is fixed by its class's
+            # slots, so one instance answers for its type.
             raise TypeError(
                 f"deep_freeze cannot treat {type(value).__name__} as immutable: "
                 f"it is a frozen dataclass WITHOUT slots, so its __dict__ stays "
                 f"writable (obj.__dict__[...] = ... bypasses frozen). Add "
                 f"slots=True to the type."
             )
-        # ALWAYS rebuild, never return by identity: `frozen=True, slots=True`
-        # blocks `obj.field = …` but NOT `object.__setattr__(obj, field, …)`,
-        # so returning the live object would let a primitive mutate the value
-        # in engine state through that back door. A `replace` copy is a
-        # distinct object — the same back door then hits the primitive's copy,
-        # not `rs.mech_state`. (Python cannot fully sandbox a primitive, which
-        # could `import` engine state or use `gc`; this closes the reachable-
-        # through-a-handed-value channel, the one deep_freeze owns.)
-        return dataclasses.replace(
-            value, **{f.name: deep_freeze(getattr(value, f.name)) for f in dataclasses.fields(value)}
-        )
+        return _dataclass_freezer(type(value))
     raise TypeError(
         f"deep_freeze cannot prove {type(value).__name__} immutable — it is "
         f"neither a known atomic, a container, nor a dataclass, so passing it "
         f"through as a leaf could expose mutable engine state. Add a case."
     )
+
+
+def _dataclass_freezer(cls: type) -> _Freezer:
+    """ALWAYS rebuild, never return by identity: `frozen=True, slots=True`
+    blocks `obj.field = …` but NOT `object.__setattr__(obj, field, …)`, so
+    returning the live object would let a primitive mutate the value in
+    engine state through that back door. A copy is a distinct object — the
+    same back door then hits the primitive's copy, not `rs.mech_state`.
+    (Python cannot fully sandbox a primitive, which could `import` engine
+    state or use `gc`; this closes the reachable-through-a-handed-value
+    channel, the one deep_freeze owns.)
+
+    The copy runs the class's own `__init__` (and so its `__post_init__`)
+    over every field frozen, which is what `dataclasses.replace` naming every
+    field does. Positionally where every field is a positional init field;
+    otherwise through `replace` itself, which also refuses an `init=False`
+    field exactly as it would by hand."""
+    fields = dataclasses.fields(cls)
+    names = tuple(f.name for f in fields)
+    if all(f.init and not f.kw_only for f in fields):
+
+        def rebuild(value: Any) -> Any:
+            return cls(*[deep_freeze(getattr(value, n)) for n in names])
+
+    else:
+
+        def rebuild(value: Any) -> Any:
+            return dataclasses.replace(value, **{n: deep_freeze(getattr(value, n)) for n in names})
+
+    return rebuild
+
 
 _REGISTRY_NAME = "PRIMITIVE_READS (cardlang/runtime/reads.py)"
 
