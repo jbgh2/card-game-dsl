@@ -37,7 +37,11 @@ does not prove:  that a certificate's reach is every way a definition runs: the
                  follow names. Nor that a certified refusal's sentence carries
                  a fix the game can take where its check supplies none: the
                  step names the definition and the Library Witness, and the
-                 check's own sentence follows.
+                 check's own sentence follows. Nor that a refusal standing in
+                 a spliced procedure body after `expand` finds its definition:
+                 the step finds a definition by the span it holds, and
+                 deckcheck, the one raise after `expand`, reports at phase
+                 spans.
 """
 
 from __future__ import annotations
