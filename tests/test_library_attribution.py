@@ -55,8 +55,11 @@ import pytest
 
 import cardlang.attribution as attribution
 import cardlang.resolve as R
-from cardlang.diagnostics import DiagnosticBag, Route, Span
+from cardlang.deckcheck import check_capacity
+from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Route, Span
+from cardlang.expand import expand
 from cardlang.parse import parse_library, parse_text
+from cardlang.typecheck import typecheck
 import tests.test_library_boundary_ledger as L
 import tests.test_library_declaration_gates as D
 
@@ -395,6 +398,36 @@ def test_the_step_never_changes_what_is_refused(monkeypatch: pytest.MonkeyPatch)
             mp.setattr(attribution, "tell", keep)
             kept = bool(L._errors(L._cell_bag(mp, cell)))
         assert told == kept, key
+
+
+def test_a_library_no_witness_uses_is_never_loaded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A registered library that neither the game nor any Library Witness uses
+    is never parsed, so its own faults never reach this game's verdict.
+
+    red under: key `attribution._certificate` on every registered library."""
+    for key, cell in _cells().items():
+        told = L._cell_bag(monkeypatch, cell)
+        try:
+            lib = parse_library(cell.library, L._LIB_FILE)
+        except Exception:
+            continue
+
+        def load(name: str) -> object:
+            if name != L._LIB:
+                raise AssertionError(f"library '{name}' is loaded, but nothing uses it")
+            return lib
+
+        sources = tuple((f"witness-{at}.cardlang", text) for at, text in enumerate(cell.witnesses))
+        with monkeypatch.context() as mp:
+            mp.setattr(R, "library_names", lambda: frozenset({L._LIB, "unused"}))
+            mp.setattr(R, "load_library", load)
+            mp.setattr(attribution, "witness_sources", lambda name: sources)
+            try:
+                check_capacity(expand(typecheck(R.resolve(parse_text(cell.game, L._GAME_FILE)))))
+                alone: list[str] = []
+            except DiagnosticError as exc:
+                alone = L._rendered(exc)
+        assert alone == told, key
 
 
 # --- only the step chooses the file ----------------------------------------------

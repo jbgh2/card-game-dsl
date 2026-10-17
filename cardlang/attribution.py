@@ -88,15 +88,17 @@ _WITNESS_GLOBS: tuple[tuple[str, str], ...] = (
 )
 
 
+_USES_LINE = re.compile(r"^\s*uses\s+([A-Za-z_][A-Za-z0-9_]*)\b", re.M)
+
+
 def witness_sources(library: str) -> tuple[tuple[str, str], ...]:
     """Every game file that `uses` `library`, as (repo-relative path, text),
     in path order: the games whose verdicts can prove the library sound."""
-    line = re.compile(rf"^\s*uses\s+{re.escape(library)}\b", re.M)
     found: list[tuple[str, str]] = []
     for base, pattern in _WITNESS_GLOBS:
         for path in sorted((_ROOT / base).glob(pattern)):
             text = path.read_text()
-            if line.search(text):
+            if library in _USES_LINE.findall(text):
                 found.append((path.relative_to(_ROOT).as_posix(), text))
     return tuple(found)
 
@@ -295,10 +297,11 @@ def _certificate(library: str) -> _Certificate:
     from cardlang import resolve
 
     load = getattr(resolve, "load_library")
-    # Every library's text, since a Library Witness may use several.
-    texts = tuple(repr(load(name)) for name in sorted(getattr(resolve, "library_names")()))
     sources = witness_sources(library)
-    key = (library, texts, sources)
+    # The text of every library a Library Witness uses, never one none uses.
+    used = {library} | {m for _label, text in sources for m in _USES_LINE.findall(text)}
+    names = sorted(used & getattr(resolve, "library_names")())
+    key = (library, tuple(repr(load(name)) for name in names), sources)
     found = _CERTIFICATES.get(key)
     if found is None:
         proven = False
