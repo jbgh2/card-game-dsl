@@ -60,8 +60,11 @@ plan must follow and the artifacts it must name:
   counsel if the probe fails on grammar (which makes it **language**);
   the grid authored red before implementation (Gate 4); the Destination
   it advances named in the plan header, or `Upkeep`.
-- **game**: the `cardlang-new-game` skill end to end; it returns here
-  for every gap it files, each gap re-deriving its own class.
+- **game**: the `cardlang-new-game` skill end to end for a game added or
+  corrected; it returns here for every gap it files, each gap re-deriving
+  its own class. A library-only change is `game` by its files and stays
+  in these gates, as that skill's head says: Gate 2.5 with the library as
+  the reuse, and the full-width goldens sweep of its consumer games.
 - **language**: the operator's with Hoyle (`.claude/skills/hoyle`): the
   library-first proof, the counsel block, the grid; a fleet thread files
   and parks.

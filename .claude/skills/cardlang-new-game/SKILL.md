@@ -1,6 +1,6 @@
 ---
 name: cardlang-new-game
-description: "The one path for a corpus game — adding a game to docs/games/, or reading an existing one against its rules source and correcting it. Orders the motions whose owners are scattered across four documents: the live Pagat read first, the rulebook twin, the game written over the family libraries with natives only for scoring, the pins a new game joins, the execution differential, and every language gap filed as a witness rather than worked around. Invoke for ANY change under docs/games/ or docs/libraries/; it routes, it does not restate, and it returns to cardlang-planning for any gap it files."
+description: "The one path for a corpus game — adding a game to docs/games/, or reading an existing one against its rules source and correcting it. Orders the motions whose owners are scattered across four documents: the live Pagat read first, the rulebook twin, the game written over the family libraries with natives only for scoring, the pins a new game joins, the execution differential, and every language gap filed as a witness rather than worked around. Invoke for ANY change that adds or corrects a game under docs/games/; a library-only change under docs/libraries/ stays with cardlang-planning (Gate 2.5 and the consumers' goldens sweep). It routes, it does not restate, and it returns to cardlang-planning for any gap it files."
 ---
 
 # Cardlang new game
@@ -9,6 +9,13 @@ A game thread's job is the game. Everything below it — the kernel, the
 libraries, the proofs, the goldens — exists so the thread never writes a
 mechanic twice or bends a rule to fit an instrument. This skill orders the
 path; the law lives with its owners and is cited, not copied.
+
+A library-only change — `docs/libraries/` with no game file in the diff —
+is not this path: it has no single game, source or twin. It runs the
+planning skill's Gate 2.5 (the library is the reuse) and sweeps every
+consumer game's goldens at full width (CLAUDE.md, "Verifying changes");
+a library change that a consumer's rules source contradicts is that
+game's read, taken here.
 
 ## 1. The read comes first, live
 

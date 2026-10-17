@@ -63,9 +63,12 @@ single CI runner; raising it is a charter edit.
    - `cardlang-planning` Gate 0 derives the item's class from the lane,
      the label and the witness, and opens its recipe; a `language` class
      is a park (the operator's with Hoyle), and `other` is stated with
-     its reason. Then the remaining gates; for an item under `docs/games/` or
-     `docs/libraries/`, `cardlang-new-game` orders the game path and
-     returns to planning for any gap it files. A Gate 3.5 stop-shape (doctrine
+     its reason. Then the remaining gates; for an item that adds or
+     corrects a game under `docs/games/`, `cardlang-new-game` orders the
+     game path and returns to planning for any gap it files, while a
+     library-only item (`docs/libraries/` with no game file) stays in
+     planning: Gate 2.5 and the full-width goldens sweep of its consumer
+     games are its path. A Gate 3.5 stop-shape (doctrine
      edit, all-R4 scaffolding, overriding a settled decision) is a
      **park**: put the question on the issue, release the Lease, next
      item. Parking is a success mode, not a failure.
