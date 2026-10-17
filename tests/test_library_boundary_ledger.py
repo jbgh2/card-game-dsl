@@ -115,11 +115,12 @@ import sys
 import re
 import typing
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
 
+import cardlang.attribution as attribution
 import cardlang.resolve as R
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import (
@@ -158,10 +159,16 @@ def _rendered(exc: DiagnosticError) -> list[str]:
     return notes[0].splitlines() if notes else [str(exc)]
 
 
-def _bag(monkeypatch: pytest.MonkeyPatch, library: str | None, game: str) -> list[str]:
+def _bag(
+    monkeypatch: pytest.MonkeyPatch,
+    library: str | None,
+    game: str,
+    witnesses: tuple[str, ...] = (),
+) -> list[str]:
     """Every diagnostic the library's own parse and then the game's pipeline
-    raise, one rendered line each; [] when both accept. Unmemoized, since the
-    library is patched per cell."""
+    raise, one rendered line each; [] when both accept. `witnesses` are the
+    games that `uses` the library, in place of the corpus glob. Unmemoized,
+    since the library is patched per cell."""
     if library is not None:
         try:
             lib = parse_library(library, _LIB_FILE)
@@ -169,11 +176,17 @@ def _bag(monkeypatch: pytest.MonkeyPatch, library: str | None, game: str) -> lis
             return _rendered(exc)
         monkeypatch.setattr(R, "library_names", lambda: frozenset({_LIB}))
         monkeypatch.setattr(R, "load_library", lambda name: lib)
+        sources = tuple((f"witness-{at}.cardlang", text) for at, text in enumerate(witnesses))
+        monkeypatch.setattr(attribution, "witness_sources", lambda name: sources)
     try:
         check_capacity(expand(typecheck(R.resolve(parse_text(game, _GAME_FILE)))))
     except DiagnosticError as exc:
         return _rendered(exc)
     return []
+
+
+def _cell_bag(monkeypatch: pytest.MonkeyPatch, cell: Crossing) -> list[str]:
+    return _bag(monkeypatch, cell.library, cell.game, cell.witnesses)
 
 
 def _line(text: str, needle: str) -> int:
@@ -203,20 +216,33 @@ class Crossing:
     needles: tuple[str, ...] = ()
     twin: str | None = None
     names_library: bool = True
+    witnesses: tuple[str, ...] = ()
+
+
+# The note an unproven library's refusals carry on the game's `uses` line.
+UNPROVEN = f"no game yet checks clean with {_NAMED}"
+
+
+def _errors(bag: list[str]) -> list[str]:
+    return [line for line in bag if ": warning: " not in line]
 
 
 def _assert_told(cell: Crossing, bag: list[str]) -> None:
     if cell.owner is None:
         assert bag == [], "expected the cell to be accepted:\n" + "\n".join(bag)
         return
-    assert bag, "expected a refusal, but the cell was accepted"
     text = "\n".join(bag)
+    notes = [line for line in bag if ": warning: " in line]
+    bag = _errors(bag)
+    assert bag, "expected a refusal, but the cell was accepted"
     in_library = [line for line in bag if line.startswith(_LIB_FILE)]
     in_game = [line for line in bag if not line.startswith(_LIB_FILE)]
+    uses_at = f"{_GAME_FILE}:{_line(cell.game, f'uses {_LIB}')}:"
+    assert all(line.startswith(uses_at) and UNPROVEN in line for line in notes), text
     if cell.owner == LIBRARY:
         assert in_game == [], text
     else:
-        assert in_library == [], text
+        assert in_library == [] and notes == [], text
         needle = f"uses {_LIB}" if cell.owner == USES else cell.anchor
         assert needle is not None
         at = f"{_GAME_FILE}:{_line(cell.game, needle)}:"
@@ -438,7 +464,7 @@ def test_a_row_reaching_a_library_function(
     monkeypatch: pytest.MonkeyPatch, row: str, arm: str
 ) -> None:
     cell = _row_crossing(row, _row_arms(row)[arm])
-    _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    _assert_told(cell, _cell_bag(monkeypatch, cell))
 
 
 # --- game to library: a decision where no one acts, made in a library function --
@@ -529,9 +555,9 @@ def test_a_decision_no_one_can_make_in_a_library_function(
     monkeypatch: pytest.MonkeyPatch, place: str, need: str
 ) -> None:
     cell = _unacting_crossing(place, need)
-    bag = _bag(monkeypatch, cell.library, cell.game)
+    bag = _cell_bag(monkeypatch, cell)
     _assert_told(cell, bag)
-    assert len(bag) == 1, "\n".join(bag)
+    assert len(_errors(bag)) == 1, "\n".join(bag)
 
 
 # --- game to library: a rule's clause calling a library function that reads `hand`
@@ -610,7 +636,7 @@ def test_a_rule_calling_a_library_function_that_reads_hand(
     monkeypatch: pytest.MonkeyPatch, slot: str
 ) -> None:
     cell = _play_source_crossing(slot)
-    _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    _assert_told(cell, _cell_bag(monkeypatch, cell))
 
 
 # --- lifting a game's definitions into a library --------------------------------
@@ -723,7 +749,7 @@ def test_a_hosted_poll_reaching_library_text(
     monkeypatch: pytest.MonkeyPatch, route: str, payload: str
 ) -> None:
     cell = _poll_crossing(route, payload)
-    _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    _assert_told(cell, _cell_bag(monkeypatch, cell))
 
 
 # --- game to library: a decision a game position reaches through a library function
@@ -776,7 +802,7 @@ def test_a_game_decision_reading_through_a_library_function(
 
     red under: report a refused read at `read.span` in `_HiddenReads._judge`."""
     cell = _hidden_read_crossing(label)
-    _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    _assert_told(cell, _cell_bag(monkeypatch, cell))
 
 
 # --- game to library: a library procedure the game runs ------------------------
@@ -934,7 +960,7 @@ def test_a_library_procedure_run_reading_at_a_judged_position(
     empty `_meeting_callers` the any-player caller, so every refusal is told
     at the `run`."""
     cell = _run_position_crossing(position, reader, site)
-    _assert_run_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    _assert_run_told(cell, _cell_bag(monkeypatch, cell))
 
 
 @dataclass(frozen=True)
@@ -1065,7 +1091,7 @@ def test_a_library_procedure_run_where_it_cannot_decide(
     `False` for a library move type's effect in `_walk_game`; (the argument
     cells): drop the `run_args` arm of `_HiddenReads._tell`."""
     cell = _RUN_CASES[case].crossing()
-    _assert_run_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    _assert_run_told(cell, _cell_bag(monkeypatch, cell))
 
 
 def test_a_library_procedure_run_as_the_seat_it_reads_is_accepted(
@@ -1153,7 +1179,12 @@ _DECLARED_HOST = """game Boundary {{
 _LPLAY = "move_type lplay(c : Card) { effect { score[actor] += 1 } }"
 
 
-def _declared_cases() -> dict[str, tuple[str, str]]:
+_KEPT_HAND = "hand[player] : Hand<player>"
+
+
+def _declared_cases() -> dict[str, tuple[str, str, str]]:
+    """case -> (the library, the game its declarations refuse it in, a game
+    that reaches the same definition and checks clean)."""
     from cardlang.runtime import primitives
 
     action = sorted(primitives.climb_actions("tichu_lead_options"))[0]
@@ -1163,21 +1194,28 @@ def _declared_cases() -> dict[str, tuple[str, str]]:
             f"library {_LIB} {{ requires {{ score[player] : Integer }} {_LPLAY}\n"
             "  procedure lask(p : Player) { offer to p one of [lplay] } }",
             _DECLARED_HOST.format(zones="stock[player] : Hand<player>", body="as 0 { run lask(0) }"),
+            _DECLARED_HOST.format(zones=_KEPT_HAND, body="as 0 { run lask(0) }"),
         ),
         "card-parameter-over-a-hand-its-owner-cannot-see": (
             f"library {_LIB} {{ requires {{ score[player] : Integer }} {_LPLAY} }}",
             _DECLARED_HOST.format(
                 zones="hand[player] : ChipStack<player>", body="as 0 { offer to 0 one of [lplay] }"
             ),
+            _DECLARED_HOST.format(zones=_KEPT_HAND, body="as 0 { offer to 0 one of [lplay] }"),
         ),
         "move-type-spelled-like-the-games-climb-engine-action": (
             f"library {_LIB} {{ move_type {action} {{ effect {{ }} }} }}",
             climb,
+            _DECLARED_HOST.format(zones=_KEPT_HAND, body=f"as 0 {{ offer to 0 one of [{action}] }}"),
         ),
         "player-holding-over-a-single-hand": (
             f"library {_LIB} {{ requires {{ who : Player }} "
             "function lph(c : Card) = player_holding(c) is who }",
             _DECLARED_HOST.format(zones="hand : Discard", body="as 0 { score[0] := 1 }"),
+            _DECLARED_HOST.format(
+                zones=_KEPT_HAND,
+                body="as 0 { score[0] := number of cards in deck where lph(card) }",
+            ),
         ),
     }
 
@@ -1186,9 +1224,21 @@ def _declared_cases() -> dict[str, tuple[str, str]]:
 def test_a_library_construct_the_games_declarations_refuse(
     monkeypatch: pytest.MonkeyPatch, case: str
 ) -> None:
-    library, game = _declared_cases()[case]
-    cell = Crossing(library, game, USES)
-    _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    library, game, witness = _declared_cases()[case]
+    cell = Crossing(library, game, USES, witnesses=(witness,))
+    _assert_told(cell, _cell_bag(monkeypatch, cell))
+
+
+def test_each_declared_case_has_a_witness_that_checks_clean(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The control for the declared cases: some game reaching the same
+    library definition checks clean, so the library is sound for some game.
+
+    red under: have `resolve._check_climb_action_names` refuse a library move
+    type spelled like any climb engine's action, whatever the game plays."""
+    for case, (library, _game, witness) in sorted(_declared_cases().items()):
+        assert _bag(monkeypatch, library, witness) == [], case
 
 
 # A game choice an issue holds: (the issue, the library, the game, a phrase of
@@ -1318,34 +1368,57 @@ def _held_choices() -> dict[str, tuple[str, str, str, str]]:
     }
 
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        pytest.param(
-            c, id=c,
-            marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=f"{issue}: told in the library's file"),
-        )
-        for c, (issue, _l, _g, _s) in sorted(_held_choices().items())
-    ],
-)
-def test_a_game_choice_an_issue_holds(monkeypatch: pytest.MonkeyPatch, case: str) -> None:
-    _issue, library, game, said = _held_choices()[case]
-    bag = _bag(monkeypatch, library, game)
+# The game choices an issue holds as a ruling, not as boundary work: the
+# issue decides who owns the question, so the cell registers no witness.
+_POLICY_HELD = frozenset({"issue #170"})
+
+
+def _choice_params() -> list[object]:
+    params: list[object] = []
+    for c, (issue, _l, _g, _s) in sorted(_held_choices().items()):
+        if issue in _POLICY_HELD:
+            reason = f"{issue}: told in the library's file"
+        else:
+            reason = f"issue #902: certified by the game without the choice ({issue})"
+        params.append(pytest.param(
+            c, id=c, marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=reason),
+        ))
+    return params
+
+
+@pytest.mark.parametrize("case", _choice_params())
+def test_a_game_choice_some_game_meets(monkeypatch: pytest.MonkeyPatch, case: str) -> None:
+    """A library some game meets, refused by this game's choice: told on its
+    `uses` line, naming the library, the game without the choice its
+    witness."""
+    issue, library, game, said = _held_choices()[case]
+    witnesses = () if issue in _POLICY_HELD else (_unchosen()[case],)
+    cell = Crossing(library, game, USES, witnesses=witnesses)
+    bag = _cell_bag(monkeypatch, cell)
     # Refused for this check's own reason, wherever it is told.
     assert bag and any(said in line for line in bag), bag
-    _assert_told(Crossing(library, game, USES), bag)
+    _assert_told(cell, bag)
 
 
-def test_each_game_choice_an_issue_holds_is_accepted_without_the_choice(
+def test_each_game_choice_is_accepted_without_the_choice(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The control for the held cells: without the game's choice, each
+    """The control for the choice cells: without the game's choice, each
     library checks clean, so some game meets it.
 
     red under: have `resolve._check_delegation` refuse a helper whatever the
     game's rounds."""
     held = _held_choices()
-    unchosen = {
+    unchosen = _unchosen()
+    assert set(unchosen) == set(held)
+    for case, (_issue, library, _game, _said) in held.items():
+        assert _bag(monkeypatch, library, unchosen[case]) == [], case
+
+
+def _unchosen() -> dict[str, str]:
+    """Each choice cell's game without the game's choice."""
+    held = _held_choices()
+    return {
         "rule-function-reading-the-round-source": _TRICK_HOST_TWO.format(
             rule="FollowStock", src="hand", extra=""
         ),
@@ -1370,9 +1443,6 @@ def test_each_game_choice_an_issue_holds_is_accepted_without_the_choice(
             content="cards: standard52", deck="deck : Deck  ", body="run give(0)"
         ),
     }
-    assert set(unchosen) == set(held)
-    for case, (_issue, library, _game, _said) in held.items():
-        assert _bag(monkeypatch, library, unchosen[case]) == [], case
 
 
 # --- library text a game activates or runs, judged once the game is known -------
@@ -1457,7 +1527,7 @@ def test_library_text_judged_once_the_game_is_known(
 ) -> None:
     library, game, owner, anchor = _JUDGED_ONCE_KNOWN[case]
     cell = Crossing(library, game, owner, anchor=anchor, names_library=owner == USES)
-    _assert_told(cell, _bag(monkeypatch, cell.library, cell.game))
+    _assert_told(cell, _cell_bag(monkeypatch, cell))
 
 
 # --- library to game: the crossings an owning grid holds -------------------------
@@ -1693,6 +1763,61 @@ def test_a_library_refused_against_itself(monkeypatch: pytest.MonkeyPatch, check
     _assert_told(Crossing(library, _SEAT_HOST, LIBRARY), bag)
 
 
+# --- a library no game checks clean with ------------------------------------------
+
+
+def _unproven_cells() -> dict[str, tuple[Crossing, bool]]:
+    """A refusal the library's own text causes, by the family it arrives
+    through, and whether its library is unproven: no witness, or none that
+    checks clean. A proven library's definition no witness reaches stays the
+    library's, and says nothing on the `uses` line."""
+    two_seats = _RUN_CASES["two-seats"].crossing()
+    idle = _run_game("score[0] := 1")
+    return {
+        "row": (_row_crossing("trump", _row_arms("trump")["pronoun-actor"]), True),
+        "no-one-acts": (_unacting_crossing(R._NO_ACTOR_STATEMENT, "actor"), True),
+        "run": (two_seats, True),
+        "run-refused-witness": (replace(two_seats, witnesses=(two_seats.game,)), True),
+        "run-proven-unreached": (replace(two_seats, witnesses=(idle,)), False),
+        "alone": (
+            Crossing(
+                f"library {_LIB} {{ {_ALONE_WITNESSES['_check_contract_shapes']} }}",
+                _SEAT_HOST, LIBRARY,
+            ),
+            True,
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param(
+            k, id=k,
+            marks=pytest.mark.xfail(
+                strict=True, raises=AssertionError, reason="issue #902: the unproven note"
+            ) if unproven else (),
+        )
+        for k, (_c, unproven) in sorted(_unproven_cells().items())
+    ],
+)
+def test_an_unproven_library_says_so_on_the_uses_line(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """The refusal stays in the library's file, with one warning on the
+    game's `uses` line where no game yet checks clean with the library: a
+    warning, so what is refused does not move.
+
+    red under (the proven cell): note every refusal left in library text,
+    whether or not some witness of the library checks clean."""
+    cell, unproven = _unproven_cells()[name]
+    bag = _cell_bag(monkeypatch, cell)
+    _assert_told(cell, bag)
+    notes = [line for line in bag if UNPROVEN in line]
+    assert len(notes) == (1 if unproven else 0), "\n".join(bag)
+    assert bag[0] not in notes, "\n".join(bag)
+
+
 # --- the sentences a game's author reads ----------------------------------------
 
 _SENTENCES: dict[str, str] = {
@@ -1747,7 +1872,7 @@ def _sentence_cell(name: str) -> Crossing:
 @pytest.mark.parametrize("name", sorted(_SENTENCES))
 def test_the_sentence_a_game_author_reads(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
     cell = _sentence_cell(name)
-    (line,) = _bag(monkeypatch, cell.library, cell.game)
+    (line,) = _cell_bag(monkeypatch, cell)
     assert line.split(": error: ", 1)[1] == _SENTENCES[name]
 
 
@@ -1947,7 +2072,7 @@ def test_who_is_told_never_changes_what_is_refused(monkeypatch: pytest.MonkeyPat
     for cell in _game_to_library_cells():
         if cell.owner not in (GAME, None) or cell.twin is None:
             continue
-        crossed = bool(_bag(monkeypatch, cell.library, cell.game))
+        crossed = bool(_errors(_cell_bag(monkeypatch, cell)))
         inline = bool(_bag(monkeypatch, None, cell.twin))
         assert crossed == inline, (cell.owner, cell.game, cell.library)
 
