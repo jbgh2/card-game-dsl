@@ -53,36 +53,34 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               library's included -- carries its ``n.LibraryOrigin``, and no
               game text carries one: it is the only record of where spliced
               text came from that any check, this pass's included, may read.
-              A refusal that the Trick Order row walk, the play-source walk
-              or the no-acting-seat walk reaches through a call from the
-              game's text into a library function, or that the Hosted Poll
-              walk reaches through a call, `run` or offer into library text,
-              is located at the game's last text on that route (the node
-              ``_library_entry`` names). It names the library and its
-              definition, with a fix the game's text can take; a statement
-              the reached definition may hold in no game (``_NEVER_HELD``)
-              stays its author's. A refusal of a decision's seat the
-              hidden-read walk makes in a library procedure's body, where
-              the game's text runs it, is located at that `run` when some
-              caller meets the procedure (``_HiddenReads._meeting_callers``),
-              with the first meeting caller that passes written in place of
-              that `run` as the fix, and no run where none does; where no
-              caller meets it, it
-              stays at the statement the library wrote. A read the run's own
-              arguments make is the game's text, located at the `run`. An
-              `actor` read and a refusal reached through the game's answer to
-              a Definition Contract keep their own locations.
-              A refusal of spliced library text that a
-              game declaration its contract does not name decides -- a
-              ``Card`` parameter's ``CARD_PARAMETER_FAMILY`` absent, not
-              kept per player, or hidden from its owner, a
-              ``BUILTIN_IMPLICIT_READS`` family's shape, a move type
-              spelled like the game's climb engine's action, and a library
-              move type's scoped-read containment -- is told on the game's
-              ``uses`` line, naming the library and its definition
-              (``_game_decides``, ``_UsesLineTeller``); where the contract
-              names the zone (``LibraryOrigin.contracted_zones``), it is
-              the library's own and told where the library wrote it.
+              No check here decides which file a refusal of library text is
+              told in: every refusal stands where the text it refuses stands,
+              and ``attribution.raise_if_errors`` tells it. A refusal that the
+              Trick Order row walk, the play-source walk or the no-acting-seat
+              walk reaches through a call from the game's text into a library
+              function, that the Hosted Poll walk reaches through a call,
+              `run` or offer into library text, or that a library rule the
+              game activates earns from the game's rounds, carries that
+              crossing (``Route``, at the node ``_library_entry`` names), and
+              names the library and its definition; a statement the reached
+              definition may hold in no game (``_NEVER_HELD``) carries none. A
+              refusal of a decision's seat the hidden-read walk makes in a
+              library procedure's body, where the game's text runs it,
+              carries that `run` when some caller meets the procedure
+              (``_HiddenReads._meeting_callers``), with the first meeting
+              caller that passes written in place of that `run` as its fix,
+              and no run where none does; where no caller meets it, it carries
+              none. A read the run's own arguments make carries the `run`. A
+              refusal of spliced library text that a game declaration its
+              contract does not name decides -- a ``Card`` parameter's
+              ``CARD_PARAMETER_FAMILY`` absent, not kept per player, or
+              hidden from its owner, a ``BUILTIN_IMPLICIT_READS`` family's
+              shape, a move type spelled like the game's climb engine's
+              action, and a library move type's scoped-read containment --
+              carries the sentence the game's author reads (``for_game``),
+              naming the library and its definition. An `actor` read and a
+              refusal reached through the game's answer to a Definition
+              Contract stand at their own locations.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -5516,11 +5514,18 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
             )
     if not any(isinstance(node, n.TrickRound) for node in _walk(game)):
         names = ", ".join(sorted(f.name for f in helpers))
+        origin = helpers[0].origin
         bag.error(
             f"this game defines {names} but holds no trick round for the "
             f"routing to reach — the helpers would be silently ignored "
             f"(routing at other decision points is issue #458)",
             helpers[0].span,
+            for_game=None if origin is None else (
+                f"library '{origin.library}''s {origin.where} routes a trick "
+                f"round's card decision, but this game holds no trick round for "
+                f"the routing to reach — a game with no trick round cannot use "
+                f"library '{origin.library}'"
+            ),
         )
 
 def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
@@ -5531,8 +5536,8 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
     presents — share one action id, so the refusal is by name, whatever
     presents the move type and whether or not anything does. A library move
     type is judged in the game that imports it, where the climb is: a library
-    holds no climbing round, so the clash is the game's, told on its `uses`
-    line."""
+    holds no climbing round, so the clash is the game's, and its refusal
+    carries the sentence the game's author reads (`attribution`)."""
     from cardlang.runtime import primitives
 
     engines = sorted(
@@ -5621,8 +5626,8 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
     A pool a designer expression names is `_check_hidden_reads`'. Under
     Delegated Play a trick's routed pool is judged per decision by the runtime
     Owner Guard `delegation.check_decider_sees`. A library move type's
-    `Card` parameter over a `hand` its contract leaves to the game is the
-    game's, told on its `uses` line (`_game_decides`)."""
+    `Card` parameter over a `hand` the game declares carries the sentence the
+    game's author reads (`attribution`)."""
     zone_types = {z.name: z.type_ref.name for z in game.zones}
     move_types = {m.name: m for m in game.move_types}
 
@@ -6346,7 +6351,20 @@ def _check_play_source(
                         f"which cards those are — {remedy}"
                     )
                     if entry is None:
-                        bag.error(message, nd.span)
+                        # A library's rule calling a library function: the
+                        # game's round decides what the read names.
+                        origin = rule.origin
+                        bag.error(
+                            message,
+                            nd.span,
+                            for_game=None if origin is None else (
+                                f"library '{origin.library}''s {origin.where} calls "
+                                f"function `{fname}` from its clauses, which reads "
+                                f"`{nd.name}`, the cards this game's trick round "
+                                f"plays from, and a function cannot see which cards "
+                                f"those are — take '{rule.name}' out of `active_rules:`"
+                            ),
+                        )
                         continue
                     inner = f", then function `{fname}`" if fname != entry.name else ""
                     bag.error(
@@ -6377,11 +6395,18 @@ def _check_play_source(
             )
     for nd in _walk(game):
         if isinstance(nd, n.StateDecl) and nd.name == PLAY_SOURCE_NAME:
+            rules = " and ".join(f"'{r.name}'" for r in reading)
             bag.error(
                 f"this game declares the state variable `{nd.name}`, but "
                 f"{_PLAY_SOURCE_READING}, so its rules could never read this "
                 f"variable by that name — rename the variable",
                 nd.span,
+                for_game=None if nd.origin is None else (
+                    f"library '{nd.origin.library}' provides the state variable "
+                    f"`{nd.name}`, but this game asks rule {rules}, and "
+                    f"{_PLAY_SOURCE_READING}, so no rule could read the variable "
+                    f"by that name — take {rules} out of `active_rules:`"
+                ),
             )
     if not sources:
         activated: dict[str, Span | None] = {}
@@ -6426,9 +6451,8 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
     its keys back as seats (`BUILTIN_IMPLICIT_READS`). A round's `into` slot
     names one pile, so it must be a single zone. `to each <family>` names the
     family whole and keeps its own Owner Guard (`_validate_refs`). A Builtin
-    a library calls reads a family no argument names, so where the library's
-    contract leaves it to the game its refusal is the game's, told on the
-    `uses` line (`_game_decides`).
+    a library calls reads a family no argument names, so its refusal carries
+    the sentence the game's author reads (`attribution`).
 
     The runtime refusals in `evaluate._name`, `mechanics` (round sources and
     play piles) and `reads.magic_hand` are the Shadow Guards behind this Owner
@@ -11747,6 +11771,9 @@ class _HiddenReads:
         # The crossings of each `run` the walk is inside, for the refusals
         # `_tell` makes there; None for a `run` that crosses into no library.
         self.run_routes: list[_RunRoutes | None] = []
+        # The library definition being judged at a position the game's own
+        # choice decides, and the fix the game can take there.
+        self.game_fix: tuple[n.LibraryOrigin, str] | None = None
         # The bindings of each `run`'s arguments to its procedure's
         # parameters, by identity, innermost last.
         self.run_args: list[frozenset[int]] = []
@@ -12279,19 +12306,37 @@ class _HiddenReads:
                     f"(issue #756)"
                 )
             else:
-                message = (
+                head = (
                     f"{what} is decided by {decider}, so {decider} must be able to "
-                    f"check it, but it reads {needs}{route}, {blind}. Read the "
-                    f"deciding seat's own cards, or have the holder announce or "
-                    f"reveal the fact first"
+                    f"check it, but it reads {needs}{route}, {blind}"
                 )
+                message = (
+                    f"{head}. Read the deciding seat's own cards, or have the holder "
+                    f"announce or reveal the fact first"
+                )
+                self._tell(message, span, read, for_game=self._for_game(head))
+                return
         self._tell(message, span, read)
 
-    def _emit(self, message: str, span: Span | None, route: Route | None = None) -> None:
+    def _for_game(self, head: str) -> str | None:
+        """`head` as the game's author reads it, where the library definition
+        being judged stands at a position the game's choice decides."""
+        if self.game_fix is None:
+            return None
+        origin, fix = self.game_fix
+        return f"library '{origin.library}''s {origin.where}: {head} — {fix}"
+
+    def _emit(
+        self,
+        message: str,
+        span: Span | None,
+        route: Route | None = None,
+        for_game: str | None = None,
+    ) -> None:
         key = (message, span if route is None else route.at)
         if key not in self._reported:
             self._reported.add(key)
-            self.bag.error(message, span, route=route)
+            self.bag.error(message, span, route=route, for_game=for_game)
 
     def _tell(
         self,
@@ -12299,6 +12344,7 @@ class _HiddenReads:
         span: Span | None,
         read: ZoneRead | None = None,
         route: Route | None = None,
+        for_game: str | None = None,
     ) -> None:
         """A refusal of a decision's seat, carrying the crossing it was
         reached by: `route` where the walk entered library text by a call,
@@ -12309,7 +12355,7 @@ class _HiddenReads:
         if route is None and routes is not None:
             argument = read is not None and any(id(b) in self.run_args[-1] for b in read.bindings)
             route = routes.argument if argument else routes.body
-        self._emit(message, span, route)
+        self._emit(message, span, route, for_game)
 
     # --- the positions ------------------------------------------------------
 
@@ -12392,6 +12438,10 @@ class _HiddenReads:
             )
             evaluator_scope = replace(_ACTOR_SCOPE, rerouted=rerouted)
         for rule in self.game.rules:
+            # A library rule is judged where the game activates it.
+            self.game_fix = None if rule.origin is None else (
+                rule.origin, f"take '{rule.name}' out of `active_rules:`"
+            )
             clauses: list[tuple[str, n.Expr | None]] = [
                 ("applies_when", rule.applies_when.pred if rule.applies_when else None),
                 ("demands", rule.demands.expr if rule.demands else None),
@@ -12416,6 +12466,7 @@ class _HiddenReads:
                         "", self.reads_of(expr, evaluator[0]), evaluator[1], expr.span,
                         only_choose=True,
                     )
+        self.game_fix = None
         self._judge_trick_context_positions()
         if self.game.loser is not None:
             self.place = _NO_ACTOR_RESULT
@@ -12442,7 +12493,13 @@ class _HiddenReads:
             for fn in self.game.functions:
                 if fn.name in (CHOOSER_HELPER, SOURCE_HELPER):
                     self.library_text.append(fn.origin is not None)
+                    self.game_fix = None if fn.origin is None else (
+                        fn.origin,
+                        "play this game's trick rounds inside a binder that names "
+                        "who acts (`as <player> { round ... }`)",
+                    )
                     self._refuse_unacting_decisions(fn.body, _ReadScope())
+                    self.game_fix = None
                     self.library_text.pop()
         self.place = _NO_ACTOR_STATEMENT
 
@@ -12595,11 +12652,11 @@ class _HiddenReads:
                     "variable here"
                 ),
             }[self.place]
-            message = (
+            head = (
                 f"{what}{through} is written where no player is acting "
-                f"({where}), so no one can make the decision. {fix}"
+                f"({where}), so no one can make the decision"
             )
-            self._tell(message, span, route=crossing)
+            self._tell(f"{head}. {fix}", span, route=crossing, for_game=self._for_game(head))
             return
         # An `actor` read is told where it is written, never at a `run`: in a
         # procedure body it shadows `_check_procedures`' call-site pronoun

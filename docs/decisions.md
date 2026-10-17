@@ -4965,14 +4965,16 @@ Resolution is flat and two-level: game, then the named libraries, then the
 stdlib. There is no library-imports-library. Imports are pure name resolution —
 `resolve` splices each named library's move types, functions, procedures and
 provided state into the game before any other name check runs, so what flows on
-is one flat game. No later pass knows imports exist, with two recorded facts as
-the exceptions. Where a Definition Contract crosses the splice (below), the
+is one flat game. No later pass knows imports exist, with three recorded facts
+as the exceptions. Where a Definition Contract crosses the splice (below), the
 answering definition and the library's calls of it carry the row, so `typecheck`
-can check the row's result type and report it on the game's `uses` line. And
-every piece of library text the splice brings in carries its origin -- the
-library, the definition holding it and the game's `uses` line
-(`n.LibraryOrigin`) -- so a type-layer verdict that reads a game clause is told
-to the author who owns its fact. A
+can check the row's result type and report it on the game's `uses` line. Every
+piece of library text the splice brings in carries its origin -- the library,
+the definition holding it and the game's `uses` line (`n.LibraryOrigin`) -- so
+a type-layer verdict that reads a game clause is told to the author who owns
+its fact. And a library's Library Witnesses -- the corpus and family games that `uses`
+it -- are read by the one step that decides which file a refusal of library
+text is told in (below), and by nothing else. A
 library's rules splice
 where a game's `active_rules:` names them instead, after the game's own rules —
 one splice, driven by activation, for every tier's rules alike. A rule template
@@ -5190,6 +5192,29 @@ such a declaration decides is the game's, told on its `uses` line, naming
 the library and its definition, with the fix the game can take. Where the
 contract names the zone, every game meeting it is refused alike, so the
 refusal is the library's own, told where the library wrote it.
+
+**One step decides which file a refusal of library text is told in.** No
+check chooses; each refusal stands where the text it refuses stands, and
+`cardlang.attribution` tells it, at every raise after the splice. A check
+that follows the game's text into library text attaches the crossing it
+left by -- a Trick Order row's call, a Hosted Poll's reach, a `run`, a
+decision position's call, a rule's activation -- to every refusal that
+crossing causes, and such a refusal is told at the game's text on that
+crossing, with the crossing kind's fix. A refusal with no crossing, in a
+library definition that some Library Witness reaches and checks clean with, is the
+game's by the law above: some game meets the definition, so this game's
+choice is what refuses it. It is told on the game's `uses` line, naming the
+library, the definition and the Library Witness. A Library Witness reaches what its own text
+names, followed through the definitions it names in turn, the rules it
+activates, the Delegated Play helpers where it plays a trick round, and the
+library's provided state; a definition no Library Witness reaches is not certified,
+so a fault that shows only where the definition runs stays its author's. Any other refusal
+stays in the library's file; where no Library Witness checks clean,
+one warning on the game's `uses` line says that no game yet checks clean
+with the library. A check that knows the sentence a game's author should
+read supplies it beside its own, and the step tells whichever its verdict
+picks. Who is told never changes what is refused: the warning refuses
+nothing, and the step only moves spans.
 
 The spellings do not cross. A zone type carries the `<owner>` argument; a
 state type and `Move` carry none. A `?` is a type's nullability, never a

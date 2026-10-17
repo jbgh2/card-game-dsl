@@ -14,11 +14,17 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 property:        a refusal whose cause is the game's text is reported in the
                  game's file -- at the game's last call into library text,
                  naming the library, or on its `uses` line when a game clause
-                 or declaration decides it -- and a refusal whose cause is the
-                 library's own text is reported in the library's file, in
-                 every game; every crossing not yet told to its owner is a
-                 strict xfail citing its issue; and who is told never changes
-                 what is refused.
+                 or declaration decides it, or when a Library Witness that
+                 checks clean reaches the refused definition -- and a refusal
+                 whose cause is the library's own text is reported in the
+                 library's file, in every game, with a warning on the `uses`
+                 line where no game yet checks clean with the library; every
+                 crossing an issue holds is a strict xfail citing it -- a
+                 missing guard (issue #803, issue #805), a ruling on who owns
+                 the question (issue #183, issue #170), and a wrong line in
+                 the game's own file (issue #872), none of them a question of
+                 which file is told; and who is told never changes what is
+                 refused.
 domain:          two directions. Game to library, the checks that follow a
                  call out of the text they started in (`crossing_walkers`,
                  each classified in `WALKERS`): a Trick Order row, at every
@@ -55,11 +61,16 @@ domain:          two directions. Game to library, the checks that follow a
                  of the type layer's clause reads; the game declarations
                  that no contract row names, one witness per member: a `Card`
                  parameter's `hand`, its type, a climb engine's action and an
-                 implicit read's family; the ones a cited issue holds: a
-                 library rule, Delegated Play helper or provided `hand` the
-                 game's trick play decides, a seat-direction word the game's
-                 state captures, and a procedure parameter a piece game's
-                 filter binder captures; and the library text a game
+                 implicit read's family, each with a Library Witness reaching
+                 it; the game choices some game meets, each with the game
+                 without the choice as its Library Witness and its fix
+                 applied: a library rule, Delegated Play helper or provided
+                 `hand` the game's trick play decides, and a seat-direction
+                 word the game's state captures; a procedure parameter a
+                 piece game's filter binder captures, which a cited issue
+                 holds; a library's own refusal where no Library Witness, a
+                 refused one, and a clean one reaching elsewhere stand
+                 beside it; and the library text a game
                  activates or runs, judged once the game
                  is known (a rule activated, a library round). Beside them,
                  the library's own text: every check
@@ -90,7 +101,9 @@ registry:        walkers: the passes' source, `crossing_walkers`; rows and the
                  positions a procedure holds: `_procedure_positions`; game
                  declarations, each crossed with whether the contract names
                  the zone, and the scoped-read containment arms on a library
-                 move type: tests/test_library_declaration_gates.py.
+                 move type: tests/test_library_declaration_gates.py; the step
+                 that tells each refusal, its crossing kinds and Library
+                 Witnesses: tests/test_library_attribution.py.
 does not prove:  that a check crossing into another definition by an idiom
                  other than the helpers and pool look-ups `crossing_walkers`
                  names is enumerated: such a check is outside the scan. Nor
@@ -956,7 +969,7 @@ def test_a_library_procedure_run_reading_at_a_judged_position(
     """A read some caller can make is the game's to make where it runs the
     procedure; a read no caller can make is the library's, in every game.
 
-    red under (the library cells): make `_HiddenReads._run_sink` give an
+    red under (the library cells): make `_HiddenReads._run_crossing` give an
     empty `_meeting_callers` the any-player caller, so every refusal is told
     at the `run`."""
     cell = _run_position_crossing(position, reader, site)
@@ -1086,7 +1099,7 @@ def _run_game(run: str) -> str:
 def test_a_library_procedure_run_where_it_cannot_decide(
     monkeypatch: pytest.MonkeyPatch, case: str
 ) -> None:
-    """red under (the library cells): make `_HiddenReads._run_sink` give
+    """red under (the library cells): make `_HiddenReads._run_crossing` give
     an empty `_meeting_callers` the any-player caller, or push
     `False` for a library move type's effect in `_walk_game`; (the argument
     cells): drop the `run_args` arm of `_HiddenReads._tell`."""
@@ -1144,7 +1157,7 @@ def test_the_fix_a_run_is_told_passes(
     written in place of the game's own (a `<player>` in it spelled as seat
     0), checks clean; where they offer none, each says why.
 
-    red under: in `_HiddenReads._run_sink`, offer the first of
+    red under: in `_HiddenReads._run_crossing`, offer the first of
     `_meeting_callers` without asking `_passing_fix`."""
     bag = _bag(monkeypatch, library, game)
     text = "\n".join(bag)
@@ -1398,6 +1411,71 @@ def test_a_game_choice_some_game_meets(monkeypatch: pytest.MonkeyPatch, case: st
     # Refused for this check's own reason, wherever it is told.
     assert bag and any(said in line for line in bag), bag
     _assert_told(cell, bag)
+
+
+def _choice_fixes() -> dict[str, tuple[str, str]]:
+    """Each certified choice cell's fix, as its `uses`-line refusal words it,
+    and the game that fix produces."""
+    held = _held_choices()
+
+    def game(case: str) -> str:
+        return held[case][2]
+
+    def unrule(case: str, rule: str) -> str:
+        return game(case).replace(f"active_rules: [{rule}]", "active_rules: []")
+
+    return {
+        "rule-function-reading-the-round-source": (
+            "take 'FollowStock' out of `active_rules:`",
+            unrule("rule-function-reading-the-round-source", "FollowStock"),
+        ),
+        "rule-clause-under-delegated-play": (
+            "take 'StockRule' out of `active_rules:`",
+            unrule("rule-clause-under-delegated-play", "StockRule"),
+        ),
+        "delegated-play-helper-with-no-trick-round": (
+            f"a game with no trick round cannot use {_NAMED}",
+            game("delegated-play-helper-with-no-trick-round").replace(f"  uses {_LIB}\n", ""),
+        ),
+        "delegated-play-helper-deciding-outside-any-binder": (
+            "inside a binder that names who acts (`as <player> { round ... }`)",
+            _unchosen()["delegated-play-helper-deciding-outside-any-binder"],
+        ),
+        "provided-hand-beside-a-rule-reading-the-play-source": (
+            "take 'MustFollowSuit' out of `active_rules:`",
+            unrule("provided-hand-beside-a-rule-reading-the-play-source", "MustFollowSuit"),
+        ),
+        "seat-direction-captured-by-the-games-state": (
+            "rename this game's `left`",
+            game("seat-direction-captured-by-the-games-state").replace(
+                "left : Integer = 0", "lefty : Integer = 0"
+            ),
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    "case", sorted(c for c, (issue, *_r) in _held_choices().items() if issue not in _POLICY_HELD)
+)
+def test_the_fix_a_game_choice_is_told_checks_clean(
+    monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    """The fix the `uses`-line refusal offers, applied to the game, checks
+    clean.
+
+    red under: offer "rename the variable" for a library's provided `hand`."""
+    _issue, library, game, _said = _held_choices()[case]
+    fix, fixed = _choice_fixes()[case]
+    bag = _bag(monkeypatch, library, game, (_unchosen()[case],))
+    assert any(fix in line for line in _errors(bag)), "\n".join(bag)
+    assert fixed != game
+    assert _bag(monkeypatch, library, fixed) == [], fix
+
+
+def test_every_certified_choice_offers_a_fix_that_is_applied() -> None:
+    """red under: add a choice cell citing an issue outside `_POLICY_HELD`."""
+    certified = {c for c, (issue, *_r) in _held_choices().items() if issue not in _POLICY_HELD}
+    assert set(_choice_fixes()) == certified
 
 
 def test_each_game_choice_is_accepted_without_the_choice(

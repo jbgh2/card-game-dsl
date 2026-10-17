@@ -119,7 +119,7 @@ def _accepts(src: str) -> None:
 
 
 def _full_report(exc: DiagnosticError) -> str:
-    """The complete diagnostic text — `_raise_if_errors` (resolve.py) raises
+    """The complete diagnostic text — `attribution.raise_if_errors` raises
     the first diagnostic and, only when there is more than one, attaches
     `bag.format()` (EVERY item, including the first) as a single note.
     `str(exc)` alone would miss the rest; `str(exc) + notes` would DOUBLE the

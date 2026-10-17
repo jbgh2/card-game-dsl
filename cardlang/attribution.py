@@ -21,16 +21,17 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               decided. A refusal carrying a route is told at the route's game
               text, with its crossing kind's sentence (`FIX_TABLE`) or its
               `for_game` sentence. A refusal with no route, standing in a
-              library definition some witness reaches and checks clean with
-              (its certificate), is told on the game's `uses` line, naming the
-              definition and the witness. Any other refusal stays where it
-              stands, and where no witness of its library checks clean, one
-              warning on the `uses` line says so. A library's witnesses are
-              the corpus and family games that `uses` it (`witness_sources`).
-              A witness reaches the definitions its own text names, followed
-              through the reference namespaces, the rules it activates, the
-              Delegated Play helpers where it plays a trick round, and the
-              library's provided state.
+              library definition some Library Witness reaches and checks
+              clean with (its certificate), is told on the game's `uses`
+              line, naming the definition and the Library Witness. Any other
+              refusal stays where it stands, and where no Library Witness of
+              its library checks clean, one warning on the `uses` line says
+              so. A library's Library Witnesses are the corpus and family
+              games that `uses` it (`witness_sources`). A Library Witness
+              reaches the definitions its own text names, followed through
+              the reference namespaces, the rules it activates, the Delegated
+              Play helpers where it plays a trick round, and the library's
+              provided state.
 Now illegal:  a diagnostic leaving a pass with a route or a `for_game`; a
               warning that changes what is refused (the note is told only
               beside a refusal); a check telling a refusal of library text on
@@ -79,7 +80,7 @@ FIX_TABLE: dict[str, str | None] = {
 }
 
 _ROOT = Path(__file__).resolve().parent.parent
-# Where a library's witnesses live: the corpus, and the family-member
+# Where Library Witnesses live: the corpus, and the family-member
 # directories under experiments/.
 _WITNESS_GLOBS: tuple[tuple[str, str], ...] = (
     ("docs/games", "*.cardlang"),
@@ -122,12 +123,12 @@ def keep_where_written(
     bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()
 ) -> None:
     """Every diagnostic told where it stands: what `tell` reduces to while a
-    witness is checked, since a witness's verdict is all that is asked of
+    Library Witness is checked, since its verdict is all that is asked of
     it."""
     bag.items[:] = [_bare(d) for d in bag.items]
 
 
-# Whether a witness is being checked: its verdict only, nothing told.
+# Whether a Library Witness is being checked: its verdict only, nothing told.
 _WITNESSING: ContextVar[bool] = ContextVar("_WITNESSING", default=False)
 
 
@@ -280,8 +281,8 @@ def _key(origin: n.LibraryOrigin | None) -> _Key:
 
 @dataclass(frozen=True)
 class _Certificate:
-    """What a library's witnesses prove: whether any checks clean, and each
-    definition some clean witness reaches, to the first such witness."""
+    """What a library's Library Witnesses prove: whether any checks clean, and each
+    definition some clean Library Witness reaches, to the first such one."""
 
     proven: bool
     reached: dict[_Key, str]

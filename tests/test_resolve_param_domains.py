@@ -38,7 +38,7 @@ def _diags(
     try:
         check_dsl(src, "g.cardlang")
     except DiagnosticError as exc:
-        # `_raise_if_errors` (resolve.py) raises the first diagnostic and, only
+        # `attribution.raise_if_errors` raises the first diagnostic and, only
         # when there is more than one, attaches the rest as a formatted note —
         # collect both so a message isn't missed if it isn't bag.items[0].
         return [exc.diagnostic.message, *getattr(exc, "__notes__", [])]

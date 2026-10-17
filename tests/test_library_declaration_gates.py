@@ -47,8 +47,12 @@ domain:          four families. A `Card`-parameter move type in an offer: the
                  a library's `player_holding` reads is accepted for game and
                  library alike (issue #869), so it is outside the grid. The
                  fix a move type's `player_holding` refusal offers meets the
-                 hidden read a decision makes of every hand, which issue #897
-                 holds, so those fixes are strict xfails citing it.
+                 hidden read a decision makes of every hand, told on the
+                 `uses` line, and that refusal's own fix -- every hand public
+                 -- is applied in turn. Each cell carries the Library
+                 Witnesses that reach its definition: its remedies that edit
+                 only the game, and a game that offers or calls what the
+                 cell's own game does not.
 registry:        zone types: `stdlib.zones.LIBRARY_ZONE_TYPES`, its owner
                  projection `stdlib.zones.reveals`; implicit reads:
                  `builtins.functions.BUILTIN_IMPLICIT_READS`; climb engines:

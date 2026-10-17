@@ -14,8 +14,8 @@ property:        no refusal stands in a routed or certified library span; no
                  after the splice runs the step; every crossing kind's fix,
                  applied, checks clean; every crossing walker reports its
                  crossing or says why it has none; every library has a clean
-                 witness among the games the glob finds; and who is told never
-                 changes what is refused.
+                 Library Witness among the games the glob finds; and who is
+                 told never changes what is refused.
 domain:          the crossing kinds of `attribution.CROSSING_KINDS`; the
                  members of the ledger's `crossing_walkers()`; every library
                  in `docs/libraries/`, against every game outside tests/
@@ -23,18 +23,21 @@ domain:          the crossing kinds of `attribution.CROSSING_KINDS`; the
                  every cell of tests/test_library_boundary_ledger.py's
                  game-to-library families, its choice, declared and unproven
                  cells, and every cell of tests/test_library_declaration_gates.py.
+                 The raises are every `DiagnosticError` a pass after the
+                 splice constructs; a library that does not parse is refused
+                 at its parse, to its author alone, before any game is read.
 registry:        crossing kinds: `attribution.CROSSING_KINDS`; walkers:
                  tests/test_library_boundary_ledger.py::crossing_walkers;
-                 witnesses: `attribution.witness_sources`; cells:
+                 Library Witnesses: `attribution.witness_sources`; cells:
                  tests/test_library_boundary_ledger.py,
                  tests/test_library_declaration_gates.py.
 does not prove:  that a certificate's reach is every way a definition runs: the
-                 relocation pin's own reach is a name scan of the witness's
-                 text, which agrees with the step's only where both follow
-                 names. Nor that a certified refusal's sentence carries a fix
-                 the game can take where its check supplies none: the step
-                 names the crossing and the witness, and the check's own
-                 sentence follows.
+                 relocation pin's own reach is a name scan of each Library
+                 Witness's text, which agrees with the step's only where both
+                 follow names. Nor that a certified refusal's sentence carries
+                 a fix the game can take where its check supplies none: the
+                 step names the definition and the Library Witness, and the
+                 check's own sentence follows.
 """
 
 from __future__ import annotations
@@ -93,7 +96,7 @@ def test_the_witnesses_are_every_game_that_uses_the_library(name: str) -> None:
 def test_every_library_has_a_witness_that_checks_clean(name: str) -> None:
     """A library no game checks clean with has no certificate, and every
     routeless refusal in it stays in its file: this goes red when a library
-    loses its last clean witness.
+    loses its last clean Library Witness.
 
     red under: delete the `uses stud` line of seven-card-stud.cardlang and of
     five-card-stud.cardlang."""
@@ -263,9 +266,9 @@ _HELPERS = ("chooser_for", "play_source_for")
 
 
 def _certified_lines(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[int]:
-    """The library lines some clean witness of `cell` reaches, by a scan of
-    names: every definition a witness's own text names, every definition
-    those name in turn, a Delegated Play helper where the witness plays a
+    """The library lines some clean Library Witness of `cell` reaches, by a scan of
+    names: every definition its own text names, every definition
+    those name in turn, a Delegated Play helper where it plays a
     trick round, and the provided state."""
     try:
         library = parse_library(cell.library, L._LIB_FILE)

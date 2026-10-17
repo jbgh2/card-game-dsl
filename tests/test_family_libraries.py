@@ -2019,7 +2019,7 @@ def test_a_library_may_not_name_what_it_does_not_have(
     _patch_libraries(monkeypatch, {"leaky": _slot_leaky(slot, leaking=True)})
     with pytest.raises(DiagnosticError) as exc:
         resolve(parse_text(_SLOT_GAME, "slot_host.cardlang"))
-    # Every diagnostic, not just the first: `_raise_if_errors` puts the rest in a
+    # Every diagnostic, not just the first: `attribution.raise_if_errors` puts the rest in a
     # note, and the two zone cells share a statement that leaks twice — reading
     # only the first would make the second cell assert the first cell's finding.
     message = "\n".join([str(exc.value), *getattr(exc.value, "__notes__", [])])

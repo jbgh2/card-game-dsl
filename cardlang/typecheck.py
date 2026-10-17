@@ -2150,10 +2150,24 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
     if isinstance(rbare, TAny):
         return
     if not (isinstance(rbare, TEnum) and rbare.name == "SeatDirection"):
+        origin = env.origins.get(id(e))
+        # Library text spelling a seat direction the game declares a name
+        # for reads the game's declaration: the game's name took the word.
+        taken = (
+            e.right.name
+            if isinstance(e.right, n.NameRef) and e.right.name in SEAT_DIRECTION_VALUES
+            else None
+        )
         bag.error(
             "'offset_by' expects a SeatDirection (left/right/across/hold) on "
             f"the right, got {_type_name(rbare)}",
             e.right.span,
+            for_game=None if origin is None or taken is None else (
+                f"library '{origin.library}''s {origin.where} writes `offset_by "
+                f"{taken}`, which expects a SeatDirection, but this game declares "
+                f"its own `{taken}`, which the library's `{taken}` then reads — "
+                f"rename this game's `{taken}`"
+            ),
         )
 
 
