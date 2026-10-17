@@ -191,16 +191,38 @@ _ROUTED: dict[str, dict[str, Callable[[], L.Crossing]]] = {
 }
 
 
+# Why a walker reports no crossing: it refuses nothing; it reports at the
+# game's own text (a position, a game definition, a contract answer's stamp);
+# or what it refuses in library text is no crossing's doing, so the
+# certificate tells it.
+_NO_CROSSING_REASONS = frozenset({"refuses nothing", "game text", "certificate"})
+_UNROUTED: dict[str, str] = {
+    "resolve._row_routes": "refuses nothing",
+    "resolve._HiddenReads._after": "refuses nothing",
+    "expand._expansion": "refuses nothing",
+    "resolve._HiddenReads.reads_of": "game text",
+    "resolve._report_recursion": "game text",
+    "resolve._check_unoffered_move_types": "game text",
+    "resolve._consumption_reachable_nodes": "game text",
+    "resolve._resolve_trump": "game text",
+    "typecheck._check_contracted_results": "game text",
+    "resolve._check_functions": "certificate",
+    "resolve._check_implicit_pools": "certificate",
+    "typecheck._call_sig": "certificate",
+    "typecheck._check_stmt_exprs": "certificate",
+}
+
+
 def test_every_crossing_walker_reports_its_crossing_or_says_why_not() -> None:
     """A walker that follows a crossing out of game text either reports the
-    crossing with each refusal it raises in library text, or is classified
-    in the ledger as one that raises none there.
+    crossing with each refusal it raises in library text, or names why it
+    reports none.
 
     red under: have `resolve._check_arrival_record_pile_args` call
     `_definition_closure`."""
-    unrouted = set(L.WALKERS) - set(_ROUTED)
-    assert set(_ROUTED) <= set(L.WALKERS)
-    assert set(_ROUTED) | unrouted == L.crossing_walkers()
+    assert set(_ROUTED).isdisjoint(_UNROUTED)
+    assert set(_ROUTED) | set(_UNROUTED) == L.crossing_walkers()
+    assert set(_UNROUTED.values()) <= _NO_CROSSING_REASONS
     assert {k for kinds in _ROUTED.values() for k in kinds} == attribution.CROSSING_KINDS
 
 
@@ -384,7 +406,7 @@ _PASSES = ("resolve", "typecheck", "expand", "deckcheck", "ir")
 _USES_SPAN_READERS = frozenset({
     "attribution",
     "typecheck._check_contracted_results",
-    "typecheck._check_expr",
+    "typecheck._library_field_gate",
 })
 
 

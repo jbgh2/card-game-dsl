@@ -2131,6 +2131,31 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         )
 
 
+def _library_field_gate(
+    e: n.Member, field_list: str, env: TypeEnv, bag: DiagnosticBag
+) -> bool:
+    """The type layer's clause gate for a card field library text reads: the
+    component set is the game's fact, so its author is told on the `uses`
+    line, as for the card forms `_CLAUSE_GATES` refuses. Answers whether
+    the read is library text a `uses` line brought in."""
+    origin = env.origins.get(id(e))
+    if origin is None or origin.uses_span is None:
+        return False
+    if env.flavor == "piece":
+        lacks = f"this game is played with pieces, whose fields are {field_list}"
+        fix = "a game played with pieces cannot use this library"
+    else:
+        lacks = f"this game's cards have the fields {field_list}"
+        fix = "a game played with these cards cannot use this library"
+    message = (
+        f"library '{origin.library}' reads the field `{e.field}` (in "
+        f"{origin.where}), but {lacks} — {fix}"
+    )
+    if not any(d.message == message and d.span == origin.uses_span for d in bag.items):
+        bag.error(message, origin.uses_span)
+    return True
+
+
 def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`offset_by`: rotates a Player around the seating ring by a
     SeatDirection (`runtime.values.Seating.offset_by`) — the left operand must
@@ -3157,25 +3182,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             # fail (or worse, not fail) at play time. Noun and fields are
             # flavor-keyed; a card game reproduces the CARD_FIELDS message.
             field_list = " and ".join(f"`{f}`" for f in sorted(env.item_fields))
-            origin = env.origins.get(id(e))
-            if origin is not None and origin.uses_span is not None:
-                # The component set is the game's fact: its author is told on
-                # the `uses` line, as for the card forms `_CLAUSE_GATES` refuses.
-                if env.flavor == "piece":
-                    lacks = f"this game is played with pieces, whose fields are {field_list}"
-                    fix = "a game played with pieces cannot use this library"
-                else:
-                    lacks = f"this game's cards have the fields {field_list}"
-                    fix = "a game played with these cards cannot use this library"
-                message = (
-                    f"library '{origin.library}' reads the field `{e.field}` (in "
-                    f"{origin.where}), but {lacks} — {fix}"
-                )
-                if not any(
-                    d.message == message and d.span == origin.uses_span for d in bag.items
-                ):
-                    bag.error(message, origin.uses_span)
-            else:
+            if not _library_field_gate(e, field_list, env, bag):
                 noun = content_noun(env.flavor, plural=False).capitalize()
                 bag.error(
                     f"{noun} has no field '{e.field}' (its fields are {field_list})",
