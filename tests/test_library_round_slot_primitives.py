@@ -70,6 +70,7 @@ import pytest
 
 from cardlang import pipeline
 from cardlang.ast import nodes as n
+from cardlang.attribution import is_unproven_note
 from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS, VALUE_NAMES
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_library
@@ -224,6 +225,8 @@ def _diagnostics(text: str, name: str) -> list[tuple[str | None, str]]:
             return [(d.span.source_name if d.span else None, d.message)]
         out = []
         for line in "\n".join(notes).splitlines():
+            if is_unproven_note(line):
+                continue
             match = _LOCATED.match(line)
             assert match is not None, line
             out.append((match["source"], match["message"]))

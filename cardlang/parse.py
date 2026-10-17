@@ -2074,7 +2074,7 @@ class _Builder(Transformer[Token, n.Game]):
         # where their absence exists to report — the optionally-representable
         # mandatory clauses (`max_length:`, `winner:`/`loser:`) are guarded in
         # resolve instead. Bag-first so a game missing both hears about both
-        # at once (resolve's `_raise_if_errors` idiom).
+        # at once (`attribution.raise_if_errors`' idiom).
         bag = DiagnosticBag()
         game_span = self._span(meta)
         if players is None:

@@ -53,6 +53,7 @@ from _pytest.mark.structures import ParameterSet
 
 from cardlang import resolve as resolve_mod
 from cardlang.ast import nodes as n
+from cardlang.attribution import is_unproven_note
 from cardlang.diagnostics import DiagnosticError
 from cardlang.domains import Role, role_of
 from cardlang.parse import parse_library, parse_text
@@ -130,7 +131,9 @@ def diagnostics(text: str) -> list[str]:
         notes = getattr(exc, "__notes__", None) or []
         if not notes:
             return [exc.diagnostic.format()]
-        return [line for note in notes for line in note.splitlines()]
+        return [
+            line for note in notes for line in note.splitlines() if not is_unproven_note(line)
+        ]
     return []
 
 

@@ -47,8 +47,12 @@ domain:          four families. A `Card`-parameter move type in an offer: the
                  a library's `player_holding` reads is accepted for game and
                  library alike (issue #869), so it is outside the grid. The
                  fix a move type's `player_holding` refusal offers meets the
-                 hidden read a decision makes of every hand, which issue #897
-                 holds, so those fixes are strict xfails citing it.
+                 hidden read a decision makes of every hand, told on the
+                 `uses` line, and that refusal's own fix -- every hand public
+                 -- is applied in turn. Each cell carries the Library
+                 Witnesses that reach its definition: its remedies that edit
+                 only the game, and a game that offers or calls what the
+                 cell's own game does not.
 registry:        zone types: `stdlib.zones.LIBRARY_ZONE_TYPES`, its owner
                  projection `stdlib.zones.reveals`; implicit reads:
                  `builtins.functions.BUILTIN_IMPLICIT_READS`; climb engines:
@@ -83,6 +87,7 @@ from tests.test_library_boundary_ledger import (
     Crossing,
     _assert_told,
     _bag,
+    _cell_bag,
 )
 
 # --- the hosts --------------------------------------------------------------------
@@ -133,15 +138,24 @@ class Cell:
     anchor: str | None = None
     names_library: bool = True
     remedies: tuple[tuple[str, str], ...] = ()
-    # A fix that meets a second refusal, told in the library's file: the
-    # issue holding it and that refusal's phrase.
-    remedy_held: tuple[str, str] | None = None
+    # A fix that meets a second refusal of the same library text: that
+    # refusal's phrase, and the game its own fix produces.
+    remedy_next: tuple[str, str] | None = None
+    # Games beside the remedies that reach the same library text.
+    witnesses: tuple[str, ...] = ()
+
+    @property
+    def certifying(self) -> tuple[str, ...]:
+        """The games that `uses` this cell's library unchanged: its
+        remedies that edit only the game, and its witnesses."""
+        return tuple(g for lib, g in self.remedies if lib == self.library) + self.witnesses
 
     def crossing(self) -> Crossing:
         return Crossing(
             self.library, self.game, self.owner, anchor=self.anchor,
             needles=(self.said,) if self.said else (),
             names_library=self.names_library,
+            witnesses=self.certifying,
         )
 
 
@@ -206,6 +220,10 @@ def test_the_offering_texts_are_every_library_kind_that_holds_statements() -> No
 
 
 _LPLAY = "move_type lplay(c : Card) { effect { score[actor] += 1 } }"
+# A game statement reaching no library text.
+_IDLE_PLAY = "as 0 { score[0] := 1 }"
+# A `hand` every seat sees, which a decision reading every hand can read.
+_PUBLIC = f"{_FAMILY}[player] : PublicHand<player>"
 _GPLAY = "move_type gplay(c : Card) { effect { score[actor] += 1 } }\n"
 _GPLAY2 = "move_type gplay2(c : Card) { effect { score[actor] += 2 } }\n"
 _LPLAY2 = "move_type lplay2(c : Card) { effect { score[actor] += 2 } }"
@@ -237,7 +255,11 @@ def _card_pool_cell(offerer: str, mover: str, hand: str, contracted: bool) -> Ce
         # No game meeting the contract can offer the move type: "contract
         # `hand` per player".
         fixed = (library.replace(zone, _KEPT), _host(_KEPT, body))
-        return Cell(library, game, LIBRARY, said, remedies=(fixed,) if no_hand else ())
+        idle = _host(zone, _IDLE_PLAY, _GPLAY if mover == "game" else "")
+        return Cell(
+            library, game, LIBRARY, said, remedies=(fixed,) if no_hand else (),
+            witnesses=(idle,),
+        )
     if offerer == "game" and no_hand:
         # The game's own offer names the move type: the game's text.
         return Cell(library, game, GAME, said, anchor=body, names_library=False)
@@ -360,13 +382,23 @@ def _implicit_cell(builtin: str, holder: str, hand: str, contracted: bool) -> Ce
     game = _host(zone, statement.format())
     said = "finds the player holding a card"
     if contracted:
-        return Cell(library, game, LIBRARY, said)
+        return Cell(library, game, LIBRARY, said, witnesses=(_host(zone, _IDLE_PLAY),))
     # "declare `hand` a zone kept per player".
     fixed = (library, _host(_KEPT, statement.format()))
+    if holder == "functions":
+        # The game's statement calls no function, so the witness calls it.
+        called = _host(_KEPT, "as 0 { score[0] := number of cards in pile where lask(card) }")
+        return Cell(library, game, USES, said, remedies=(fixed,), witnesses=(called,))
+    if holder != "move_types":
+        return Cell(library, game, USES, said, remedies=(fixed,))
     # At a decision, `player_holding` then reads every hand, which the
-    # deciding seat cannot see.
-    held = ("issue #897", "cannot see") if holder == "move_types" else None
-    return Cell(library, game, USES, said, remedies=(fixed,), remedy_held=held)
+    # deciding seat sees only where every hand is public: "have the holder
+    # announce or reveal the fact first".
+    public = _host(_PUBLIC, statement.format())
+    return Cell(
+        library, game, USES, said, remedies=(fixed,), remedy_next=("cannot see", public),
+        witnesses=(public,),
+    )
 
 
 def _implicit_cells() -> dict[str, Cell]:
@@ -417,9 +449,10 @@ def _climb_cells() -> dict[str, Cell]:
             library = _library((), f"move_type {action} {{ effect {{ }} }}")
             # "a game whose climbing round uses it cannot use this library".
             dropped = game.replace(f"\n  uses {_LIB}", "", 1)
+            offered = _host(_KEPT, f"as 0 {{ offer to 0 one of [{action}] }}")
             cells[f"{engine}-{action}"] = Cell(
                 library, game, USES, "spelled like the climb engine",
-                remedies=((library, dropped),),
+                remedies=((library, dropped),), witnesses=(offered,),
             )
     # The control: an action of one engine, in a game playing another that
     # owns no such action.
@@ -585,7 +618,8 @@ def test_a_library_construct_a_game_declaration_decides(
     monkeypatch: pytest.MonkeyPatch, key: str
 ) -> None:
     cell = _cells()[key]
-    _assert_told(cell.crossing(), _bag(monkeypatch, cell.library, cell.game))
+    crossing = cell.crossing()
+    _assert_told(crossing, _cell_bag(monkeypatch, crossing))
 
 
 def test_every_uses_line_refusal_offers_a_fix_that_is_applied() -> None:
@@ -599,11 +633,7 @@ def _remedy_params() -> list[object]:
     for key, cell in _cells().items():
         if not cell.remedies:
             continue
-        marks = []
-        if cell.remedy_held is not None:
-            reason = f"{cell.remedy_held[0]}: the fix meets a refusal told in the library's file"
-            marks.append(pytest.mark.xfail(strict=True, raises=AssertionError, reason=reason))
-        params.append(pytest.param(key, id=key, marks=marks))
+        params.append(pytest.param(key, id=key))
     return params
 
 
@@ -613,15 +643,20 @@ def test_the_fix_a_refusal_offers_checks_clean(
 ) -> None:
     """Each fix the refusal names, applied to the cell, is accepted: for the
     game's author an edit to the game alone, for the library's author an
-    edit to the library and the game meeting it. A fix an issue holds meets
-    only that issue's refusal.
+    edit to the library and the game meeting it. A fix that meets a second
+    refusal of the same library text meets it in the game's file, on its
+    `uses` line, and that refusal's own fix, applied, is accepted.
 
     red under: have `_check_card_offering` refuse a library offer whatever
     the game's `hand`."""
     cell = _cells()[key]
     for library, game in cell.remedies:
-        bag = _bag(monkeypatch, library, game)
-        if cell.remedy_held is not None and bag:
-            if not all(cell.remedy_held[1] in line for line in bag):
-                pytest.fail(f"a refusal the issue does not hold: {bag}")
+        bag = _bag(monkeypatch, library, game, cell.certifying)
+        if cell.remedy_next is not None:
+            said, fixed = cell.remedy_next
+            _assert_told(
+                Crossing(library, game, USES, needles=(said,), witnesses=cell.certifying), bag
+            )
+            game = fixed
+            bag = _bag(monkeypatch, library, game)
         assert bag == [], (library, game)

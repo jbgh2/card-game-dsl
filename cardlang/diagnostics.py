@@ -41,12 +41,34 @@ class Severity(Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class Route:
+    """The crossing by which a check left a game's text for a family
+    library's: its kind (`attribution.CROSSING_KINDS`), the game text the walk
+    left by (`at`), the library definition it entered, and the fix the walk
+    computed for the game's author where the kind's sentence takes one."""
+
+    kind: str
+    at: Span | None
+    library: str
+    name: str
+    fix: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Diagnostic:
-    """A single problem found by any stage, located in the source."""
+    """A single problem found by any stage, located in the source.
+
+    `route` and `for_game` are read only by `cardlang.attribution`, which
+    decides which file a refusal of family-library text is told in: the
+    crossing a walk followed into that text, and the sentence the game's
+    author reads when the refusal is told to them. No diagnostic leaves a
+    pass carrying either."""
 
     severity: Severity
     message: str
     span: Span | None = None
+    route: Route | None = None
+    for_game: str | None = None
 
     def format(self) -> str:
         where = ""
@@ -73,8 +95,15 @@ class DiagnosticBag:
 
     items: list[Diagnostic] = field(default_factory=list)
 
-    def error(self, message: str, span: Span | None = None) -> None:
-        self.items.append(Diagnostic(Severity.ERROR, message, span))
+    def error(
+        self,
+        message: str,
+        span: Span | None = None,
+        *,
+        route: Route | None = None,
+        for_game: str | None = None,
+    ) -> None:
+        self.items.append(Diagnostic(Severity.ERROR, message, span, route, for_game))
 
     def warning(self, message: str, span: Span | None = None) -> None:
         self.items.append(Diagnostic(Severity.WARNING, message, span))
