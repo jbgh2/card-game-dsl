@@ -41,7 +41,7 @@ Now illegal:  a diagnostic leaving a pass with a route or a `for_game`; a
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
@@ -301,7 +301,7 @@ def _certificate(library: str) -> _Certificate:
     # The text of every library a Library Witness uses, never one none uses.
     used = {library} | {m for _label, text in sources for m in _USES_LINE.findall(text)}
     names = sorted(used & getattr(resolve, "library_names")())
-    key = (library, tuple(repr(load(name)) for name in names), sources)
+    key = (library, tuple(_fingerprint(load, name) for name in names), sources)
     found = _CERTIFICATES.get(key)
     if found is None:
         proven = False
@@ -316,6 +316,15 @@ def _certificate(library: str) -> _Certificate:
         found = _Certificate(proven, reached)
         _CERTIFICATES[key] = found
     return found
+
+
+def _fingerprint(load: Callable[[str], object], name: str) -> str:
+    """A library's text for the cache key. A library that fails to load fails
+    only the Library Witnesses that use it, where each is checked."""
+    try:
+        return repr(load(name))
+    except Exception as exc:
+        return f"unloadable: {exc!r}"
 
 
 @contextmanager

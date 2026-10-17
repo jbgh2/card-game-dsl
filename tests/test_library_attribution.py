@@ -400,34 +400,58 @@ def test_the_step_never_changes_what_is_refused(monkeypatch: pytest.MonkeyPatch)
         assert told == kept, key
 
 
-def test_a_library_no_witness_uses_is_never_loaded(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A registered library that neither the game nor any Library Witness uses
-    is never parsed, so its own faults never reach this game's verdict.
+def _alone(
+    monkeypatch: pytest.MonkeyPatch, cell: L.Crossing, other: str, witnesses: tuple[str, ...]
+) -> list[str]:
+    """`cell`'s verdict with `other` registered beside its library, failing
+    whenever it is loaded, and `witnesses` as its Library Witnesses."""
+    lib = parse_library(cell.library, L._LIB_FILE)
 
-    red under: key `attribution._certificate` on every registered library."""
-    for key, cell in _cells().items():
-        told = L._cell_bag(monkeypatch, cell)
+    def load(name: str) -> object:
+        if name != L._LIB:
+            raise AssertionError(f"library '{name}' is loaded")
+        return lib
+
+    sources = tuple((f"witness-{at}.cardlang", text) for at, text in enumerate(witnesses))
+    with monkeypatch.context() as mp:
+        mp.setattr(R, "library_names", lambda: frozenset({L._LIB, other}))
+        mp.setattr(R, "load_library", load)
+        mp.setattr(attribution, "witness_sources", lambda name: sources)
         try:
-            lib = parse_library(cell.library, L._LIB_FILE)
+            check_capacity(expand(typecheck(R.resolve(parse_text(cell.game, L._GAME_FILE)))))
+        except DiagnosticError as exc:
+            return L._rendered(exc)
+    return []
+
+
+def _parsed_cells() -> dict[str, L.Crossing]:
+    found: dict[str, L.Crossing] = {}
+    for key, cell in _cells().items():
+        try:
+            parse_library(cell.library, L._LIB_FILE)
         except Exception:
             continue
+        found[key] = cell
+    return found
 
-        def load(name: str) -> object:
-            if name != L._LIB:
-                raise AssertionError(f"library '{name}' is loaded, but nothing uses it")
-            return lib
 
-        sources = tuple((f"witness-{at}.cardlang", text) for at, text in enumerate(cell.witnesses))
-        with monkeypatch.context() as mp:
-            mp.setattr(R, "library_names", lambda: frozenset({L._LIB, "unused"}))
-            mp.setattr(R, "load_library", load)
-            mp.setattr(attribution, "witness_sources", lambda name: sources)
-            try:
-                check_capacity(expand(typecheck(R.resolve(parse_text(cell.game, L._GAME_FILE)))))
-                alone: list[str] = []
-            except DiagnosticError as exc:
-                alone = L._rendered(exc)
-        assert alone == told, key
+def test_a_library_no_witness_uses_is_never_loaded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A registered library that neither the game nor any Library Witness uses
+    never reaches this game's verdict.
+
+    red under: key `attribution._certificate` on every registered library."""
+    for key, cell in _parsed_cells().items():
+        assert _alone(monkeypatch, cell, "unused", cell.witnesses) == L._cell_bag(monkeypatch, cell), key
+
+
+def test_a_witness_whose_library_fails_fails_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A Library Witness using a library that fails to load is not clean, and
+    the other Library Witnesses certify as before.
+
+    red under: have `attribution._fingerprint` let a load failure raise."""
+    for key, cell in _parsed_cells().items():
+        witnesses = (*cell.witnesses, "uses broken\n")
+        assert _alone(monkeypatch, cell, "broken", witnesses) == L._cell_bag(monkeypatch, cell), key
 
 
 # --- only the step chooses the file ----------------------------------------------
