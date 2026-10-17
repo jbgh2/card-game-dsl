@@ -7,7 +7,6 @@ exactly what the deep-resolution pass exists to make possible.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any, assert_never, cast
 
 from cardlang.ast import nodes as n
@@ -189,9 +188,9 @@ def _hermetic_ctx(ctx: Ctx, scope: dict[str, Any], *, keep_actor: bool) -> Ctx:
     Owner Guard in `_name` below — the runtime [[shadow-guard]] behind
     resolve's R11, which owns the class statically."""
     if keep_actor:
-        return replace(ctx, locals=scope, winner=None, action=None, round_source=None)
-    return replace(
-        ctx, locals=scope, winner=None, action=None, current_player=None,
+        return ctx.derive(locals=scope, winner=None, action=None, round_source=None)
+    return ctx.derive(
+        locals=scope, winner=None, action=None, current_player=None,
         round_source=None,
     )
 
