@@ -381,6 +381,10 @@ def _implicit_cell(builtin: str, holder: str, hand: str, contracted: bool) -> Ce
         return Cell(library, game, LIBRARY, said, witnesses=(_host(zone, _IDLE_PLAY),))
     # "declare `hand` a zone kept per player".
     fixed = (library, _host(_KEPT, statement.format()))
+    if holder == "functions":
+        # The game's statement calls no function, so the witness calls it.
+        called = _host(_KEPT, "as 0 { score[0] := number of cards in pile where lask(card) }")
+        return Cell(library, game, USES, said, remedies=(fixed,), witnesses=(called,))
     if holder != "move_types":
         return Cell(library, game, USES, said, remedies=(fixed,))
     # At a decision, `player_holding` then reads every hand, which the
@@ -625,11 +629,7 @@ def _remedy_params() -> list[object]:
     for key, cell in _cells().items():
         if not cell.remedies:
             continue
-        marks = []
-        if cell.remedy_next is not None:
-            reason = "issue #902: the fix's next refusal is certified by a game that meets it"
-            marks.append(pytest.mark.xfail(strict=True, raises=AssertionError, reason=reason))
-        params.append(pytest.param(key, id=key, marks=marks))
+        params.append(pytest.param(key, id=key))
     return params
 
 

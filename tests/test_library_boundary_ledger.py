@@ -1376,13 +1376,13 @@ _POLICY_HELD = frozenset({"issue #170"})
 def _choice_params() -> list[object]:
     params: list[object] = []
     for c, (issue, _l, _g, _s) in sorted(_held_choices().items()):
-        if issue in _POLICY_HELD:
-            reason = f"{issue}: told in the library's file"
-        else:
-            reason = f"issue #902: certified by the game without the choice ({issue})"
-        params.append(pytest.param(
-            c, id=c, marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=reason),
-        ))
+        marks = (
+            pytest.mark.xfail(
+                strict=True, raises=AssertionError, reason=f"{issue}: told in the library's file"
+            )
+            if issue in _POLICY_HELD else ()
+        )
+        params.append(pytest.param(c, id=c, marks=marks))
     return params
 
 
@@ -1789,18 +1789,7 @@ def _unproven_cells() -> dict[str, tuple[Crossing, bool]]:
     }
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
-        pytest.param(
-            k, id=k,
-            marks=pytest.mark.xfail(
-                strict=True, raises=AssertionError, reason="issue #902: the unproven note"
-            ) if unproven else (),
-        )
-        for k, (_c, unproven) in sorted(_unproven_cells().items())
-    ],
-)
+@pytest.mark.parametrize("name", sorted(_unproven_cells()))
 def test_an_unproven_library_says_so_on_the_uses_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:

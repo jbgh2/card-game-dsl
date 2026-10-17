@@ -43,7 +43,8 @@ from __future__ import annotations
 from typing import assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.attribution import raise_if_errors
+from cardlang.diagnostics import DiagnosticBag
 from cardlang.domains import ITERABLE_ROLES, DomainSources, role_static_members
 from cardlang.stdlib.enums import deck_size, rank_names, suit_names
 
@@ -83,11 +84,7 @@ def check_capacity(game: n.Game) -> n.Game:
     bag = DiagnosticBag()
     for phase in game.phases:
         _check_windows(phase, players, counts, deck_zones, capacity, game, bag)
-    if bag.has_errors:
-        error = DiagnosticError(bag.items[0])
-        if len(bag.items) > 1:
-            error.add_note(bag.format())
-        raise error
+    raise_if_errors(bag, game)
     return game
 
 

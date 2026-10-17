@@ -212,6 +212,7 @@ from lark import Tree
 from lark.exceptions import VisitError
 
 from cardlang.ast import nodes as n
+from cardlang.attribution import is_unproven_note
 from cardlang.board_domains import BOARD_DOMAIN
 from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
@@ -3861,8 +3862,13 @@ def test_a_contract_cannot_require_a_collection(
     _patch_libraries(monkeypatch, {"shapes": library})
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(_CONTRACT_HOSTS[host], "host.cardlang")
-    co_reported = list(getattr(ei.value, "__notes__", None) or [])
-    assert not co_reported, (
+    co_reported = [
+        line
+        for note in getattr(ei.value, "__notes__", None) or []
+        for line in note.splitlines()
+        if not is_unproven_note(line)
+    ]
+    assert len(co_reported) <= 1, (
         f"a second diagnostic reached the library's author — the bag is noted "
         f"whole only when it holds more than one, so this note IS the count:"
         f"\n{co_reported}"

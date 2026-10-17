@@ -48,14 +48,13 @@ import pytest
 
 import cardlang.attribution as attribution
 import cardlang.resolve as R
-from cardlang.diagnostics import DiagnosticBag, Span
+from cardlang.diagnostics import DiagnosticBag, Route, Span
 from cardlang.parse import parse_library, parse_text
 import tests.test_library_boundary_ledger as L
 import tests.test_library_declaration_gates as D
 
 _ROOT = Path(__file__).resolve().parent.parent
 _PACKAGE = _ROOT / "cardlang"
-_STEP = "issue #902: the attribution step"
 
 
 # --- the witness registry ---------------------------------------------------------
@@ -151,7 +150,6 @@ def test_every_crossing_kind_has_its_fix_proven() -> None:
     assert set(_FIX_PROOFS) == attribution.CROSSING_KINDS
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason=_STEP)
 def test_the_fix_table_is_keyed_by_every_crossing_kind() -> None:
     table = getattr(attribution, "FIX_TABLE")
     assert set(table) == attribution.CROSSING_KINDS
@@ -203,11 +201,17 @@ def _emitted_routes(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[st
     kinds: set[str] = set()
     original = DiagnosticBag.error
 
-    def spy(self: DiagnosticBag, message: str, span: Span | None = None, **kw: object) -> None:
-        route = kw.get("route")
+    def spy(
+        self: DiagnosticBag,
+        message: str,
+        span: Span | None = None,
+        *,
+        route: Route | None = None,
+        for_game: str | None = None,
+    ) -> None:
         if route is not None:
-            kinds.add(str(getattr(route, "kind")))
-        original(self, message, span, **kw)
+            kinds.add(route.kind)
+        original(self, message, span, route=route, for_game=for_game)
 
     monkeypatch.setattr(DiagnosticBag, "error", spy)
     L._cell_bag(monkeypatch, cell)
@@ -219,7 +223,6 @@ def _emitted_routes(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[st
     [
         pytest.param(
             w, k, id=f"{w}-{k}",
-            marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=_STEP),
         )
         for w, kinds in sorted(_ROUTED.items())
         for k in sorted(kinds)
@@ -312,10 +315,17 @@ def _routed_lines(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[int]
     lines: set[int] = set()
     original = DiagnosticBag.error
 
-    def spy(self: DiagnosticBag, message: str, span: Span | None = None, **kw: object) -> None:
-        if kw.get("route") is not None and span is not None and span.source_name == L._LIB_FILE:
+    def spy(
+        self: DiagnosticBag,
+        message: str,
+        span: Span | None = None,
+        *,
+        route: Route | None = None,
+        for_game: str | None = None,
+    ) -> None:
+        if route is not None and span is not None and span.source_name == L._LIB_FILE:
             lines.add(span.line)
-        original(self, message, span, **kw)
+        original(self, message, span, route=route, for_game=for_game)
 
     with monkeypatch.context() as mp:
         mp.setattr(DiagnosticBag, "error", spy)
@@ -323,7 +333,6 @@ def _routed_lines(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[int]
     return lines
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_STEP)
 def test_no_refusal_stands_in_a_routed_or_certified_library_span(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -345,7 +354,6 @@ def test_no_refusal_stands_in_a_routed_or_certified_library_span(
 # --- who is told never changes what is refused ----------------------------------
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason=_STEP)
 def test_the_step_never_changes_what_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every cell the step can touch is refused exactly when it is with the
     step telling every refusal where it stands.
@@ -369,7 +377,7 @@ _PASSES = ("resolve", "typecheck", "expand", "deckcheck", "ir")
 _USES_SPAN_READERS = frozenset({
     "attribution",
     "typecheck._check_contracted_results",
-    "typecheck._check_field_access",
+    "typecheck._check_expr",
 })
 
 
@@ -385,13 +393,11 @@ def _qualified_reads(attr: str) -> set[str]:
     return found
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_STEP)
 def test_only_the_step_and_the_named_gates_read_the_uses_line() -> None:
     """red under: tell a refusal on `origin.uses_span` in a resolve check."""
     assert _qualified_reads("uses_span") <= _USES_SPAN_READERS
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_STEP)
 def test_no_check_moves_a_refusal_itself() -> None:
     """The per-check movers are gone: no sink class re-spans a refusal and no
     helper tells one on the `uses` line.
@@ -407,7 +413,6 @@ def test_no_check_moves_a_refusal_itself() -> None:
     assert movers == set()
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_STEP)
 def test_every_raise_after_the_splice_runs_the_step() -> None:
     """A pass raising its bag itself would raise refusals the step never
     placed.

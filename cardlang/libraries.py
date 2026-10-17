@@ -58,6 +58,11 @@ def library_names() -> frozenset[str]:
     return frozenset(p.stem for p in _libraries_dir().glob("*.cardlang"))
 
 
+def library_source_name(name: str) -> str:
+    """The source name a library's spans carry: its path from the repo root."""
+    return f"docs/libraries/{name}.cardlang"
+
+
 @cache
 def load_library(name: str) -> n.Library:
     """Parse the named family library. Callers check `name in library_names()`
@@ -67,7 +72,7 @@ def load_library(name: str) -> n.Library:
     if name not in library_names():
         raise KeyError(f"no family library named '{name}'")
     path = _libraries_dir() / f"{name}.cardlang"
-    source_name = f"docs/libraries/{name}.cardlang"
+    source_name = library_source_name(name)
     library = parse_library(path.read_text(), source_name)
     if library.name != name:
         # The file name is what `uses` spells, so a mismatch would mean the

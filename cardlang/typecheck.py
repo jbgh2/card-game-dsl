@@ -102,7 +102,8 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_ROWS,
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
+from cardlang.attribution import raise_if_errors
+from cardlang.diagnostics import DiagnosticBag, Span
 from cardlang.domains import CARD_PARAM_DOMAINS, require_role, role_of, role_type
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
@@ -4411,9 +4412,5 @@ def typecheck(game: Game) -> Game:
             _check_expr(decl.default, env, bag)
             _check_state_default_type(decl, env, bag)
 
-    if bag.has_errors:
-        error = DiagnosticError(bag.items[0])
-        if len(bag.items) > 1:
-            error.add_note(bag.format())
-        raise error
+    raise_if_errors(bag, game)
     return game
