@@ -60,9 +60,11 @@ single CI runner; raising it is a charter edit.
    comment what is missing, add `needs-triage`, release the Lease
    (delete the own, commit-free ref) — and move on.
 5. **Work the item**, full gate chain, no shortcuts:
-   - `cardlang-planning` gates first; for an item under `docs/games/` or
-     `docs/libraries/`, `cardlang-new-game` orders the game path and
-     returns to planning for any gap it files. A Gate 3.5 stop-shape (doctrine
+   - `cardlang-planning` gates first; for an item that adds or corrects a
+     game under `docs/games/`, `cardlang-new-game` orders the game path
+     and returns to planning for any gap it files. A library-only item
+     (`docs/libraries/` with no game file) stays in planning: Gate 2.5
+     and the full-width goldens sweep of its consumer games are its path. A Gate 3.5 stop-shape (doctrine
      edit, all-R4 scaffolding, overriding a settled decision) is a
      **park**: put the question on the issue, release the Lease, next
      item. Parking is a success mode, not a failure.
