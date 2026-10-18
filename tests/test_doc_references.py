@@ -51,7 +51,7 @@ domain:    every ``.py`` under ``cardlang/`` and ``tests/``, every ``.md``
            Files are enumerated by glob, so a new module, doc or game is
            in-domain the day it exists.
            What `EXCLUDED_DIRS` holds out of the walk is a boundary rather
-           than a gap: ``docs/superpowers/plans/`` and ``docs/research/`` are
+           than a gap: ``docs/research/`` is
            dated records of what was true when written -- the
            DATE-don't-DELETE carve-out of decisions.md "Closed-domain
            completeness" -- so rewriting them would falsify the record rather
@@ -99,7 +99,6 @@ ROADMAP = REPO_ROOT / "docs" / "roadmap.md"
 # module, whose every mention of roadmap.md defines the mechanism rather than
 # citing the file (the stale titles in its docstring are the examples it caught).
 EXCLUDED_DIRS = (
-    "docs/superpowers/plans/",
     "docs/research/",
     "tests/test_doc_references.py",
 )

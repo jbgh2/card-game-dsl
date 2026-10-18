@@ -3,7 +3,7 @@
 *Design note for epic #613, covering what a seat's view shows, what answers for
 a seat, and the session `cardlang play` runs. The settled rulings are in
 [decisions.md](../decisions.md), "A seat's knowledge, rendered". The stage
-sequence is the plan, [plans/2026-09-06-terminal-play.md](../plans/2026-09-06-terminal-play.md).*
+sequence is epic #613's, ruled on PR #622.*
 
 ## One derivation, and renderings beside it
 

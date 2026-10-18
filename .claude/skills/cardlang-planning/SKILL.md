@@ -263,9 +263,11 @@ game runs the `cardlang-new-game` skill, which orders the game path
 any language gap it files. An interactive thread working a tracker
 issue also retitles itself as it moves — `Issue #<N> - <status>`, the
 closed status set in docs/harness.md, "Thread titles" — with the first
-retitle, to `building`, landing alongside the Lease. Plans that warrant a standing artifact
-land in `docs/plans/` (dated, one file per plan); existing plan records
-stay where they are. The audit and review skills own their stages — this
+retitle, to `building`, landing alongside the Lease. A plan that warrants a standing record
+lives on the issue it serves — the ruling and the plan are comments
+there — and no plan document is written to the tree; the red grid and
+the proof artifacts Gates 4 and 5 have a plan author are the change's
+own files and land with it. The tree holds spec, never plans. The audit and review skills own their stages — this
 skill only guarantees they fire at the right moment, with an unframed
 domain.
 
