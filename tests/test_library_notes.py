@@ -48,41 +48,6 @@ does not prove:  that the library line a check names is the one its sentence
                  means: a check standing a refusal at the game's text hands
                  the step the library text it read, and the note is that
                  line.
-
-Class ledger (surface-totality-audit Step 2b)
----------------------------------------------
-finding:    the boundary ledger's routed cell `game-to-library-0` renders as
-            one line at the Trick Order row, naming `libf` and never its
-            line (issue #894).
-class:      every refusal told in the game's file that stands on library
-            text, whichever way it got there, at every raise the step is
-            handed, and every refusal standing in a spliced procedure body
-            after `expand`.
-members:    the grid's cells, crossed from `STAGES`, `TELLINGS` and `LIVES`;
-            and every ledger cell `_cells` holds whose owner is the game's
-            text or its `uses` line.
-covered:    all of them.
-residual:   none on the step. Beside it, the checks that refuse the game's
-            text naming library text and hand the step nothing: issue #912;
-            the deck capacity gate's phase refusal: issue #911. The standard
-            library's own load is refused to the language's maintainers
-            before any game, outside the step, and no step input it might
-            carry is rendered.
-why missed: the step's ledger and the destinations count both read "owned by
-            the game's text" as "moved there by the step", and the step's
-            pins asserted only where the primary line stands, never the
-            whole rendered verdict against the library line. Measured
-            2026-10-18 at 7e0f3852: of the 263 ledger cells owned by the
-            game's text or the `uses` line, 198 were moved by the step and 65
-            were stood at the game's text by five checks that name the
-            library definition in their sentence and held no place to hand
-            the step its span -- the hidden-read walk, the clause gates, the
-            card-offering check, the implicit-pool check and the scoped-read
-            offering check. Inside the step, both de-duplications -- the
-            step's, keyed on the told sentence and place, and the hidden-read
-            walk's, keyed on the crossing's game text -- kept the first
-            refusal's library line and dropped the rest, and the raise before
-            the splice was handed no library rule to name.
 """
 
 from __future__ import annotations
