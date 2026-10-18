@@ -95,6 +95,7 @@ _ACCOUNTED = frozenset(
         "PrimitiveReadError",
         "DiagnosticError",
         "ResampleRefusal",
+        "PausedRunStalled",
         # not a defect: the game author wrote `error(...)` and the refusal is
         # the rule working
         "IllegalMove",
@@ -121,6 +122,9 @@ _ACCOUNTED = frozenset(
         # `raise self._raised` — a Seat Policy's own exception, raised again
         # unchanged while the run it ended unwinds
         "self._raised",
+        # `raise got.exc` — a Paused Run's own exception, raised again
+        # unchanged in the caller the run was answering
+        "got.exc",
         # the CLI's exit path
         "SystemExit",
     }

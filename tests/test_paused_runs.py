@@ -24,19 +24,18 @@ domain:          two axes, crossed. The games: `harness.REGISTERED_GAMES`. The
                  implementations from the start and an implementation added
                  later takes the same grid.
 registry:        `tests/openspiel_ready/harness.py::REGISTERED_GAMES`;
-                 `cardlang.openspiel.paused.IMPLEMENTATIONS`.
-oracle:          `replay.run`, called directly. `replay.py` never reaches the
-                 pool (`test_only_the_adapter_reaches_the_pool`), so the oracle
-                 is not the code it judges.
-planted faults:  a resume that leaves the generation where it was turns the
-                 `ThreadedRun` column of the grid red, and so does a node handed
-                 out with another seat's observation log; a lease that never
-                 goes stale turns `test_a_consumed_run_is_never_read` red; a
-                 hand-off that never answers is the raise
-                 `test_a_stalled_hand_off_raises` pins.
+                 `cardlang.openspiel.paused.IMPLEMENTATIONS`; the oracle,
+                 `replay.run`, is called directly, and that `replay.py` never
+                 reaches the pool is `test_only_the_adapter_reaches_the_pool`.
 does not prove:  agreement past each walk's step budget; the long-line witness
                  compares returns at the end of one full Hearts match, not every
                  step of it.
+
+red under: a resume that leaves the generation where it was turns the
+`ThreadedRun` column of the grid red, and so does a node handed out with
+another seat's observation log; a lease that never goes stale turns
+`test_a_consumed_run_is_never_read` red; a hand-off that never answers is the
+raise `test_a_stalled_hand_off_raises` pins.
 """
 
 from __future__ import annotations
