@@ -33,7 +33,7 @@ from typing import Any
 
 import pyspiel
 
-from cardlang.openspiel import replay
+from cardlang.openspiel import paused, replay
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.resample import resample
 from cardlang.runtime.chance import Outcome
@@ -112,6 +112,27 @@ class _Observer:
         return state.information_state_string(player)
 
 
+class _Answer:
+    """The node a state's history last answered, kept for its next query.
+
+    Never carried by a copy: pyspiel copies a Python state with
+    `copy.deepcopy`, and a node read under a lease belongs to a run that may
+    move on, so a copy or an unpickled state starts empty and asks again."""
+
+    __slots__ = ("key", "lease", "node")
+
+    def __init__(self) -> None:
+        self.key: Any = object()
+        self.node: replay.DecisionNode | replay.TerminalNode | None = None
+        self.lease: paused.Lease | None = None
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> _Answer:
+        return _Answer()
+
+    def __reduce__(self) -> tuple[type[_Answer], tuple[()]]:
+        return (_Answer, ())
+
+
 class CardlangState(pyspiel.State):
     """A world as ``(seed, script, history)``: the root chance outcome, the
     Draw Script — the outcomes of the first draws where they are given rather
@@ -141,19 +162,22 @@ class CardlangState(pyspiel.State):
         self._seed: int | None = _CHANCE_FREE_SEED if chance_free else None
         self._script: tuple[Outcome, ...] = ()
         self._history_ids: list[int] = []
-        self._cache_key: Any = object()
-        self._cache: replay.DecisionNode | replay.TerminalNode | None = None
+        self._answer = _Answer()
 
     def _run(self) -> replay.DecisionNode | replay.TerminalNode:
+        """What this state's history answers, as its replay answers it: from
+        a [[paused-run]] where one waits on this line, read only while that
+        run has not moved on (`cardlang.openspiel.paused`)."""
         assert self._seed is not None
         key = (self._seed, self._script, tuple(self._history_ids))
-        if self._cache_key != key:
-            self._cache = replay.run(
-                self._path, self._seed, tuple(self._history_ids), script=self._script
+        answer = self._answer
+        if answer.key != key or (answer.lease is not None and not answer.lease.fresh()):
+            answer.node, answer.lease = paused.node(
+                (self._path, self._seed, self._script), key[2]
             )
-            self._cache_key = key
-        assert self._cache is not None
-        return self._cache
+            answer.key = key
+        assert answer.node is not None
+        return answer.node
 
     def current_player(self) -> int:
         if self._seed is None:

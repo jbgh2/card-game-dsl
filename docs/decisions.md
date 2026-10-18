@@ -2785,16 +2785,21 @@ events compile to per-player projection emissions; OpenSpiel's
 information-state tensors flow through unchanged, generalized to
 projection-shaped events.
 
-Ahead of a true compilation pass, a **runtime adapter** already validates that
-the IR/runtime *can* drive OpenSpiel: Hearts is registered as a `pyspiel.Game`
-and passes OpenSpiel's own consistency tester with leak-free, perfect-recall
-information states. It works by re-simulation — the OpenSpiel state is
-`(seed, action history)`, and every query replays the game through the runtime's
-`chooser` seam, which suspends at the next decision via a `ChooserAbort`
-protocol. This makes the state trivially cloneable (the property OpenSpiel
-exercises most) and confirms the finite-action-space anchor end to end. The
-adapter is per-game and proof-scoped; the general, all-corpus path remains the
-eventual compilation pass (see issue #139).
+Ahead of a true compilation pass, one general **runtime adapter** drives
+OpenSpiel: every corpus game is registered as a `pyspiel.Game`, and the
+readiness proofs (`tests/openspiel_ready/`) hold each to OpenSpiel's own
+consistency tester with leak-free, perfect-recall information states. The
+OpenSpiel state is `(seed, script, action history)`, and every query is answered
+as a replay of that history through the runtime's `chooser` seam answers it — a
+replay that suspends at the next decision via a `ChooserAbort` protocol. This
+makes the state trivially cloneable (the property OpenSpiel exercises most) and
+confirms the finite-action-space anchor end to end. A replay costs the whole
+history, so a bounded pool of [[paused-run]]s, one per line walked, answers a
+query one pick past a waiting run by advancing it rather than replaying; a run
+advanced or closed is never read again, and the replay stays the definition the
+pool is held to (`cardlang/openspiel/paused.py`). Neither the pool nor its
+absence moves an information state. The game-agnostic encoder, explicit chance
+nodes and the rest of the general compilation pass remain issue #139.
 
 A game whose text draws nothing — a Chance-Free Game, see
 [glossary/chance-free-game.md](glossary/chance-free-game.md) — compiles with no
