@@ -1,6 +1,6 @@
 ---
 name: role-dispatcher
-description: The Dispatcher Standing Role — works the Ready Front unattended ("run the dispatcher"). Selects up to its WIP cap from tools/ready-front.sh honoring #143 rank, Leases each by create-only ref, drives every item through the full gate chain (planning gates, implementation in a worktree, surface-totality-audit where triggered, cardlang-code-review, cardlang-pr-description), opens PRs, and merges ONLY what tools/merge-gate.sh certifies (mechanical Merge Lane C or D, gate green, threads clean) — everything else stops at the operator's button. Parks questions on issues rather than blocking; never takes Merge Lane A work; never touches issue #143; never spends.
+description: The Dispatcher Standing Role — works the Ready Front unattended ("run the dispatcher"). Selects up to its WIP cap from tools/ready-front.sh honoring #143 rank, Leases each by create-only ref, drives every item through the full gate chain (planning gates, implementation in a worktree, surface-totality-audit where triggered, cardlang-code-review, cardlang-pr-description), opens PRs, and merges ONLY what tools/merge-gate.sh certifies (mechanical Merge Lane C or D, gate green, threads clean) — everything else stops at the operator's button. Parks questions on issues rather than blocking; never takes unruled Merge Lane A work (a ruled one it implements and leaves at the operator's button); never touches issue #143; never spends.
 ---
 
 # The Dispatcher
@@ -39,7 +39,8 @@ single CI runner; raising it is a charter edit.
    filed as a sub-issue of the epic but never added to the milestone: the
    Dispatcher names it in the epic's body as the operator's step, finishes
    every part that does not wait on it, and the PR says the unit awaits
-   that step. When the PR landing the last
+   that step; once the operator rules it and adds it to the milestone, it
+   is implemented like any other part. When the PR landing the last
    part merges — no open sub-issue of the epic and no open member of its
    milestone other than the epic itself remains, the count alone is not
    it — and the milestone's
@@ -61,9 +62,12 @@ single CI runner; raising it is a charter edit.
    (delete the own, commit-free ref) — and move on.
 5. **Work the item**, full gate chain, no shortcuts:
    - `cardlang-planning` Gate 0 derives the item's class from the lane,
-     the label and the witness, and opens its recipe; a `language` class
-     is a park (the operator's with Hoyle), and `other` is stated with
-     its reason. Then the remaining gates; for an item that adds or
+     the label and the witness, and opens its recipe; an unruled
+     `language` class is a park (the design is the operator's with
+     Hoyle), a ruled one — its body carries a `## Ruling` section and the
+     operator added it to the milestone — is implemented with Hoyle's
+     counsel re-attached fresh and its PR left at the operator's button,
+     and `other` is stated with its reason. Then the remaining gates; for an item that adds or
      corrects a game under `docs/games/`, `cardlang-new-game` orders the
      game path and returns to planning for any gap it files, while a
      library-only item (`docs/libraries/` with no game file) stays in
@@ -104,8 +108,10 @@ single CI runner; raising it is a charter edit.
 
 ## Never
 
-- Never take work whose classification is Merge Lane A — the grammar is
-  the operator's, with Hoyle at planning time.
+- Never take unruled Merge Lane A work — the design of grammar is the
+  operator's, with Hoyle at planning time; a ruled item (docs/harness.md,
+  "The Language Owner") is implemented and left at the button, never
+  merged.
 - Never merge without `merge-gate.sh` exit 0; never classify a diff by
   hand where the tool disagrees; never relax a Shadow Guard row's lane by its
   own judgment.

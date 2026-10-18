@@ -6,11 +6,10 @@ description: "MANDATORY planning gate for this repo — invoke BEFORE exploring,
 # Cardlang planning
 
 Plans in this repo fail in a specific way: not by omitting steps, but by
-inheriting the implementation's frame before any gate can see it. The
-permissive-top branch scoped a five-position type-name axis to the two
-positions its plan happened to guard — and every downstream gate then
-audited the narrowed frame faithfully. The planning stage is where the
-frame is set, so it is where the frame must be checked. This skill orders
+inheriting the implementation's frame before any gate can see it. A plan
+that guards the positions it happens to touch narrows the axis, and every
+downstream gate then audits the narrowed frame faithfully. The planning
+stage is where the frame is set, so it is where the frame must be checked. This skill orders
 the motions; the content lives with its owners (CLAUDE.md, decisions.md,
 the audit and review skills) — this skill routes, it does not restate.
 
@@ -22,8 +21,12 @@ tie-breaker exists to close, moved to the top of the process. The facts,
 in the order they decide:
 
 1. `tools/lane-of.sh` on the files the issue names or the fix will touch.
-   Any Merge Lane A file -> **language**, and a fleet thread stops here
-   (docs/harness.md, "The Ready Front": a Lane A part is the operator's).
+   Any Merge Lane A file -> **language**. An unruled one stops a fleet
+   thread here (docs/harness.md, "The Language Owner": the design is the
+   operator's); a ruled one — its body carries a `## Ruling` section
+   linking the operator's ruling and its plan file, and the operator added
+   it to its milestone — is this thread's to implement, with the counsel
+   re-attached fresh at Gate 1 and the PR left at the operator's button.
 2. The issue's kind label and body. `bug`, or any issue with a witness
    sentence that misbehaves (a probe, a playout, a seed) -> **bug**. A
    defect is a bug whatever label it was filed under.
@@ -65,9 +68,15 @@ plan must follow and the artifacts it must name:
   its own class. A library-only change is `game` by its files and stays
   in these gates, as that skill's head says: Gate 2.5 with the library as
   the reuse, and the full-width goldens sweep of its consumer games.
-- **language**: the operator's with Hoyle (`.claude/skills/hoyle`): the
-  library-first proof, the counsel block, the grid; a fleet thread files
-  and parks.
+- **language**: two stages (docs/harness.md, "The Language Owner"). The
+  design is the operator's with Hoyle (`.claude/skills/hoyle`): the
+  library-first proof, the counsel block, the ruling on the issue; an
+  unruled item is filed and parked. The implementation of a ruled item is
+  the thread's: Gate 1 re-attaches Hoyle's counsel fresh against the tree
+  it lands on, Gate 2.5's result is carried from the ruling, the grid is
+  authored red (Gate 4), and the PR stops at the operator's button; a
+  fresh counsel that disagrees with the ruling is a question for the
+  operator, not a deviation.
 - **machinery**: the Architect's counsel (`.claude/skills/architect`)
   where the change is engine-structural; a completeness ledger for any
   closed domain it touches; the Destination it advances, or `Upkeep`.
@@ -209,12 +218,12 @@ plan stops fixing sites: it files the class as a sub-issue of the epic
 whose Destination owns it (`docs/roadmap.md`, "Destinations"; the
 parts-join rule in `docs/harness.md`, "The Ready Front"), names the
 machinery part that closes it by construction, and leaves the remaining
-sites to that part. The review window of 2026-10-01 to 2026-10-16 is the
-measurement: nine issues of one class closed across seven PRs by hand,
-every one of them closed by construction by the instantiation trace
-that was filed last. A fix that could have been a table row or a
-rewrite rule is the tell; the audit's class ledger (`why missed:`) is
-where the plan writes which part.
+sites to that part. A class fixed site by site costs a change per site
+and leaves the class open; the part that closes it by construction costs
+one change and ends it, which is why the third instance files rather
+than fixes. A fix that could have been a table row or a rewrite rule is
+the tell; the audit's class ledger (`why missed:`) is where the plan
+writes which part.
 
 ## Gate 4 — For audit-triggering work, the audit's Step 1 happens NOW
 
