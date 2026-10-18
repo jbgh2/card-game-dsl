@@ -77,8 +77,8 @@ A short verdict (one screen): the shape the window shows, the two or three
 reallocation moves with the most leverage, and — only where a trend check
 demands it — a doctrine amendment, drafted as the exact edit.
 
-**Then the Active Epics.** The review is the one role that opens or closes
-a milestone (docs/harness.md, "The Ready Front"): at most two open at a
+**Then the Active Epics.** The review opens or closes the milestones of
+the main line (docs/harness.md, "The Ready Front"): at most two open at a
 time, each holding one epic and its parts, its description opening with
 the Destination it advances or `Upkeep` (at most one open milestone is
 Upkeep) and then the finish line — a part is never an epic, and an epic's
@@ -97,6 +97,13 @@ previous verdict: the closing comment names the artifact and it is green
 on main, or the milestone is reopened. Open the next from the head of #143 only when one closes, and make a
 generator issue (a read, a sweep) blocked-by the epic its pick spawned so
 the finding stream drains before it fills again.
+
+The third open milestone, when there is one, is the Operator's Milestone
+(docs/harness.md, "The Ready Front"): the operator's alone to open and
+close, never filled from #143 by the review, and read by the review as an
+instrument. The verdict says what it held, whether and how it closed, and
+whether what it held says the queue is ordered wrong; a class that lands
+there twice is promoted into the review's own slots.
 
 **Then triage.** The review is the one role that sets a Priority Tier
 (docs/harness.md, "The Ready Front"): every designer-reachable issue filed
