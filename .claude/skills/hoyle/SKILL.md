@@ -100,10 +100,10 @@ that binds nothing may be advisory.
 
 A Merge Lane A change has two stages (`docs/harness.md`, "The Language
 Owner"), and this counsel serves both. In the *design* stage it is the
-operator's input, and the stage ends in a ruled design: the counsel, the
-operator's ruling recorded on the issue, and a dated plan file under
-`docs/plans/` naming the productions as they will be cut, the grid's
-axes, the corpus files that move, and the library form that lost. In the
+operator's input, and the stage ends in a ruled design: the counsel and
+the operator's ruling, both recorded on the issue, the ruling naming the
+productions as they will be cut, the grid's axes, the corpus files that
+move, and the library form that lost. In the
 *implementation* stage, which may be any thread's, the implementer
 attaches a counsel produced fresh against the tree the change lands on;
 where that counsel disagrees with the ruling, it says so and stops, and

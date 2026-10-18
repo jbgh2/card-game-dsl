@@ -460,11 +460,11 @@ design note) before the operator merges.
 **A Merge Lane A change has two stages, and only the first is the
 operator's.** The *design* stage is the operator's with the Language
 Owner: the counsel with its library-first proof, then the operator's
-ruling, recorded as a comment on the issue and as a dated plan file under
-`docs/plans/` naming the productions as they will be cut, the grid's
-axes, the corpus files that move in lockstep, and the library form that
-lost. An issue with that record is **ruled**, and its body says so in a
-`## Ruling` section linking both. The *implementation* stage of a ruled
+ruling, recorded as a comment on the issue naming the productions as
+they will be cut, the grid's axes, the corpus files that move in
+lockstep, and the library form that lost. An issue with that record is
+**ruled**, and its body says so in a `## Ruling` section linking the
+comment; nothing is written to the tree until the implementation lands. The *implementation* stage of a ruled
 item is any thread's: the operator adds the ruled item to its milestone
 (that act is the mark the sweep reads), the taker implements it with the
 Language Owner's counsel re-attached fresh at its own planning, and the

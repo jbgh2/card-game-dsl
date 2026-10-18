@@ -70,7 +70,7 @@ plan must follow and the artifacts it must name:
   the reuse, and the full-width goldens sweep of its consumer games.
 - **language**: two stages (docs/harness.md, "The Language Owner"). The
   design is the operator's with Hoyle (`.claude/skills/hoyle`): the
-  library-first proof, the counsel block, the ruling, the plan file; an
+  library-first proof, the counsel block, the ruling on the issue; an
   unruled item is filed and parked. The implementation of a ruled item is
   the thread's: Gate 1 re-attaches Hoyle's counsel fresh against the tree
   it lands on, Gate 2.5's result is carried from the ruling, the grid is
