@@ -6,11 +6,10 @@ description: "MANDATORY planning gate for this repo — invoke BEFORE exploring,
 # Cardlang planning
 
 Plans in this repo fail in a specific way: not by omitting steps, but by
-inheriting the implementation's frame before any gate can see it. The
-permissive-top branch scoped a five-position type-name axis to the two
-positions its plan happened to guard — and every downstream gate then
-audited the narrowed frame faithfully. The planning stage is where the
-frame is set, so it is where the frame must be checked. This skill orders
+inheriting the implementation's frame before any gate can see it. A plan
+that guards the positions it happens to touch narrows the axis, and every
+downstream gate then audits the narrowed frame faithfully. The planning
+stage is where the frame is set, so it is where the frame must be checked. This skill orders
 the motions; the content lives with its owners (CLAUDE.md, decisions.md,
 the audit and review skills) — this skill routes, it does not restate.
 
@@ -209,12 +208,12 @@ plan stops fixing sites: it files the class as a sub-issue of the epic
 whose Destination owns it (`docs/roadmap.md`, "Destinations"; the
 parts-join rule in `docs/harness.md`, "The Ready Front"), names the
 machinery part that closes it by construction, and leaves the remaining
-sites to that part. The review window of 2026-10-01 to 2026-10-16 is the
-measurement: nine issues of one class closed across seven PRs by hand,
-every one of them closed by construction by the instantiation trace
-that was filed last. A fix that could have been a table row or a
-rewrite rule is the tell; the audit's class ledger (`why missed:`) is
-where the plan writes which part.
+sites to that part. A class fixed site by site costs a change per site
+and leaves the class open; the part that closes it by construction costs
+one change and ends it, which is why the third instance files rather
+than fixes. A fix that could have been a table row or a rewrite rule is
+the tell; the audit's class ledger (`why missed:`) is where the plan
+writes which part.
 
 ## Gate 4 — For audit-triggering work, the audit's Step 1 happens NOW
 
