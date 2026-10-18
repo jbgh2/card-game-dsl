@@ -104,7 +104,7 @@ class Diagnostic:
     route: Route | None = None
     for_game: str | None = None
     notes: tuple[Note, ...] = ()
-    stands_on: Span | None = None
+    stands_on: tuple[Span, ...] = ()
 
     def format(self) -> str:
         lines = [_located(self.span, self.severity.value, self.message)]
@@ -137,11 +137,10 @@ class DiagnosticBag:
         *,
         route: Route | None = None,
         for_game: str | None = None,
-        stands_on: Span | None = None,
+        stands_on: Span | tuple[Span, ...] | None = None,
     ) -> None:
-        self.items.append(
-            Diagnostic(Severity.ERROR, message, span, route, for_game, stands_on=stands_on)
-        )
+        on = (stands_on,) if isinstance(stands_on, Span) else stands_on or ()
+        self.items.append(Diagnostic(Severity.ERROR, message, span, route, for_game, stands_on=on))
 
     def warning(self, message: str, span: Span | None = None) -> None:
         self.items.append(Diagnostic(Severity.WARNING, message, span))

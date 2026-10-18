@@ -183,9 +183,9 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                 elif origin is not None:
                     unreached.setdefault((library, origin.where), lines[library])
         if moved is None:
-            told.append(_bare(d, (d.stands_on,), holders, lines))
+            told.append(_bare(d, (), d.stands_on, holders, lines))
             continue
-        noted = _bare(moved, (d.span, d.stands_on), holders, lines)
+        noted = _bare(moved, (d.span,), d.stands_on, holders, lines)
         key = (moved.message, moved.span)
         if key not in seen:
             seen[key] = len(told)
@@ -233,18 +233,27 @@ def is_library_warning(line: str) -> bool:
 
 def _bare(
     d: Diagnostic,
-    library_at: tuple[Span | None, ...] = (),
+    raised_at: tuple[Span | None, ...] = (),
+    stands_on: tuple[Span, ...] = (),
     holders: list[_Holder] | None = None,
     lines: dict[str, Span] | None = None,
 ) -> Diagnostic:
     """`d` told as it stands, with no step input left on it, and the library
-    text it stands on as its note: the first of `library_at` that is library
-    text outside the file `d` is told in."""
-    found = (_note(at, d.span, holders or [], lines or {}) for at in library_at)
-    note = next((nt for nt in found if nt is not None), None)
-    if d.route is None and d.for_game is None and d.stands_on is None and note is None:
+    text it stands on as its notes: where it was raised, when that is library
+    text outside the file `d` is told in, and otherwise each library line of
+    `stands_on`."""
+    def noted(spans: tuple[Span | None, ...]) -> tuple[Note, ...]:
+        found: dict[tuple[str, int], Note] = {}
+        for at in spans:
+            nt = _note(at, d.span, holders or [], lines or {})
+            if nt is not None:
+                found.setdefault((nt.span.source_name, nt.span.line), nt)
+        return tuple(found.values())
+
+    notes = noted(raised_at) or noted(stands_on)
+    if d.route is None and d.for_game is None and not d.stands_on and not notes:
         return d
-    return Diagnostic(d.severity, d.message, d.span, notes=() if note is None else (note,))
+    return Diagnostic(d.severity, d.message, d.span, notes=notes)
 
 
 def _note(

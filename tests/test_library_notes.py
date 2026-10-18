@@ -477,6 +477,41 @@ def test_a_refusal_before_the_splice_names_the_library_rule(monkeypatch: pytest.
     assert len(notes) == 1 and "rule `librule`" in notes[0], text
 
 
+_TWO_DEFINITIONS = (
+    "library boundarylib {\n"
+    "  function high(c : Card) = rank_value(c) > 3\n"
+    "  function low(c : Card) = rank_value(c) < 3\n"
+    "}\n"
+)
+
+
+def test_a_gate_refusing_two_definitions_notes_both(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A clause gate's one refusal naming two library definitions notes each
+    one's line.
+
+    red under: have `_check_library_clause_gates` hand the step only the
+    first construct it refuses."""
+    game = (
+        "game Boundary {\n"
+        "  players: 4\n"
+        "  cards: standard52\n"
+        "  max_length: 200\n"
+        "  uses boundarylib\n"
+        "  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  phase setup { shuffle deck  deal 5 cards from deck to each hand }\n"
+        "  phase play { round play_to_trick from 0 over all players "
+        "source hand into pile winner highest_of_led_suit }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    lines = L._bag(monkeypatch, _TWO_DEFINITIONS, game)
+    text = "\n".join(lines)
+    notes = [ln for ln in lines if line_kind(ln) == "note"]
+    assert any("rank_value" in ln for ln in L._errors(lines)), text
+    assert sorted(_location(ln)[1] for ln in notes) == [2, 3], text
+
+
 def test_no_refusal_leaves_the_step_with_its_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     """red under: have `attribution._bare` keep `stands_on`."""
     for stage, telling, lives in _cell_ids():
@@ -489,7 +524,7 @@ def test_no_refusal_leaves_the_step_with_its_inputs(monkeypatch: pytest.MonkeyPa
             bag.error("the probe refuses this too", span, for_game="the game's sentence")
             attribution.tell(bag, game)
         for d in bag.items:
-            assert (d.route, d.for_game, d.stands_on) == (None, None, None), (stage, telling, lives)
+            assert (d.route, d.for_game, d.stands_on) == (None, None, ()), (stage, telling, lives)
 
 
 # --- every rendered line is an error, a warning or a note -----------------------

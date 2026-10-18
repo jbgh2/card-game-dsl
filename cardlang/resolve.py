@@ -1987,7 +1987,7 @@ def _check_library_clause_gates(
         if not gate.unmet(game):
             continue
         reached: dict[str, list[str]] = {}
-        first: Span | None = None
+        refused: list[Span] = []
         # Claimed once the gate has every occurrence, so a member recurring in
         # a second definition is named there too; a later gate skips it.
         keys: set[object] = set()
@@ -1999,7 +1999,9 @@ def _check_library_clause_gates(
             if key in claimed:
                 continue
             keys.add(key)
-            first = first or getattr(nd, "span", None)
+            at = getattr(nd, "span", None)
+            if at is not None:
+                refused.append(at)
             for phrase in phrases:
                 places = reached.setdefault(phrase, [])
                 if where not in places:
@@ -2016,7 +2018,7 @@ def _check_library_clause_gates(
             f"library '{library.name}' {gate.verb} {listing}, which {reads}, but "
             f"{gate.lacks(game)} — {gate.fix(game)}",
             use.span,
-            stands_on=first,
+            stands_on=tuple(refused),
         )
     _check_library_lines_span(game, use, library, _library_calls(library, game), bag)
 
