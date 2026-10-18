@@ -53,7 +53,7 @@ import pytest
 
 import cardlang.resolve as resolve_module
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.ir import emit
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.parse import parse_library
@@ -427,7 +427,10 @@ def test_a_reader_without_the_clause_is_refused_where_the_designer_wrote(
     needles = ["suit_value", "`suit ranking:`"]
     if position.library:
         needles.append("'probe_lib'")
-        assert "docs/libraries/probe_lib.cardlang" not in rendered, rendered
+        assert not any(
+            line.startswith("docs/libraries/probe_lib.cardlang") and line_kind(line) != "note"
+            for line in rendered.splitlines()
+        ), rendered
     _at(rendered, "probe.cardlang", _line_of(text, position.needle), *needles)
 
 

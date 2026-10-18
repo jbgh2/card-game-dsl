@@ -212,10 +212,10 @@ from lark import Tree
 from lark.exceptions import VisitError
 
 from cardlang.ast import nodes as n
-from cardlang.attribution import is_unproven_note
+from cardlang.attribution import is_library_warning
 from cardlang.board_domains import BOARD_DOMAIN
 from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.diagnostics import DiagnosticBag, DiagnosticError, line_kind
 from cardlang.domains import DOMAINS, SIMULTANEOUS_ROLES, Role, role_names
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import (
@@ -3866,7 +3866,7 @@ def test_a_contract_cannot_require_a_collection(
         line
         for note in getattr(ei.value, "__notes__", None) or []
         for line in note.splitlines()
-        if not is_unproven_note(line)
+        if line_kind(line) != "note" and not is_library_warning(line)
     ]
     assert len(co_reported) <= 1, (
         f"a second diagnostic reached the library's author — the bag is noted "

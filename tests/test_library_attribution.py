@@ -30,18 +30,16 @@ registry:        crossing kinds: `attribution.CROSSING_KINDS`; walkers:
                  tests/test_library_boundary_ledger.py::crossing_walkers;
                  Library Witnesses: `attribution.witness_sources`; cells:
                  tests/test_library_boundary_ledger.py,
-                 tests/test_library_declaration_gates.py.
+                 tests/test_library_declaration_gates.py; the notes and
+                 warnings the step tells beside a refusal:
+                 tests/test_library_notes.py.
 does not prove:  that a certificate's reach is every way a definition runs: the
                  relocation pin's own reach is a name scan of each Library
                  Witness's text, which agrees with the step's only where both
                  follow names. Nor that a certified refusal's sentence carries
                  a fix the game can take where its check supplies none: the
                  step names the definition and the Library Witness, and the
-                 check's own sentence follows. Nor that a refusal standing in
-                 a spliced procedure body after `expand` finds its definition:
-                 the step finds a definition by the span it holds, and
-                 deckcheck, the one raise after `expand`, reports at phase
-                 spans.
+                 check's own sentence follows.
 """
 
 from __future__ import annotations
@@ -240,10 +238,11 @@ def _emitted_routes(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[st
         *,
         route: Route | None = None,
         for_game: str | None = None,
+        stands_on: Span | None = None,
     ) -> None:
         if route is not None:
             kinds.add(route.kind)
-        original(self, message, span, route=route, for_game=for_game)
+        original(self, message, span, route=route, for_game=for_game, stands_on=stands_on)
 
     monkeypatch.setattr(DiagnosticBag, "error", spy)
     L._cell_bag(monkeypatch, cell)
@@ -354,10 +353,11 @@ def _routed_lines(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[int]
         *,
         route: Route | None = None,
         for_game: str | None = None,
+        stands_on: Span | None = None,
     ) -> None:
         if route is not None and span is not None and span.source_name == L._LIB_FILE:
             lines.add(span.line)
-        original(self, message, span, route=route, for_game=for_game)
+        original(self, message, span, route=route, for_game=for_game, stands_on=stands_on)
 
     with monkeypatch.context() as mp:
         mp.setattr(DiagnosticBag, "error", spy)
@@ -452,6 +452,19 @@ def test_a_witness_whose_library_fails_fails_alone(monkeypatch: pytest.MonkeyPat
     for key, cell in _parsed_cells().items():
         witnesses = (*cell.witnesses, "uses broken\n")
         assert _alone(monkeypatch, cell, "broken", witnesses) == L._cell_bag(monkeypatch, cell), key
+
+
+# --- the library line a moved refusal stands on ---------------------------------
+
+
+def test_a_routed_refusal_keeps_its_library_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The witness: a Trick Order row calling a library function that reads a
+    pronoun is told at the row, and the function's line follows as a note."""
+    cell = _cells()["game-to-library-0"]
+    bag = L._cell_bag(monkeypatch, cell)
+    line = L._line(cell.library, "function libf")
+    assert bag[0].startswith(f"{L._GAME_FILE}:"), "\n".join(bag)
+    assert any(at.startswith(f"{L._LIB_FILE}:{line}:") and ": note: " in at for at in bag), "\n".join(bag)
 
 
 # --- only the step chooses the file ----------------------------------------------

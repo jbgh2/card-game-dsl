@@ -10,6 +10,7 @@ first stage rather than bolted on later.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -55,26 +56,60 @@ class Route:
 
 
 @dataclass(frozen=True, slots=True)
-class Diagnostic:
-    """A single problem found by any stage, located in the source.
+class Note:
+    """A second location a diagnostic is told with: the library line a
+    refusal told in the game's file stands on. Made only by
+    `cardlang.attribution`."""
 
-    `route` and `for_game` are read only by `cardlang.attribution`, which
-    decides which file a refusal of family-library text is told in: the
-    crossing a walk followed into that text, and the sentence the game's
-    author reads when the refusal is told to them. No diagnostic leaves a
-    pass carrying either."""
+    span: Span
+    message: str
+
+
+# The kind every rendered line leads with: a diagnostic's severity, or a note
+# under it.
+NOTE = "note"
+LINE_KINDS: tuple[str, ...] = (*(s.value for s in Severity), NOTE)
+
+
+def _located(span: Span | None, kind: str, message: str) -> str:
+    where = "" if span is None else f"{span.source_name}:{span.line}:{span.column}: "
+    return f"{where}{kind}: {message}"
+
+
+_LINE = re.compile(rf"^(?:.+?:\d+:\d+: )?({'|'.join(LINE_KINDS)}): ")
+
+
+def line_kind(line: str) -> str | None:
+    """The kind a rendered line leads with (`LINE_KINDS`), None for a line no
+    diagnostic renders."""
+    found = _LINE.match(line)
+    return None if found is None else found.group(1)
+
+
+@dataclass(frozen=True, slots=True)
+class Diagnostic:
+    """A single problem found by any stage, located in the source, with the
+    notes it is told with.
+
+    `route`, `for_game` and `stands_on` are read only by
+    `cardlang.attribution`, which decides which file a refusal of
+    family-library text is told in: the crossing a walk followed into that
+    text, the sentence the game's author reads when the refusal is told to
+    them, and the library text a refusal standing at the game's text was
+    reached through. No diagnostic leaves a pass carrying any of them."""
 
     severity: Severity
     message: str
     span: Span | None = None
     route: Route | None = None
     for_game: str | None = None
+    notes: tuple[Note, ...] = ()
+    stands_on: tuple[Span, ...] = ()
 
     def format(self) -> str:
-        where = ""
-        if self.span is not None:
-            where = f"{self.span.source_name}:{self.span.line}:{self.span.column}: "
-        return f"{where}{self.severity.value}: {self.message}"
+        lines = [_located(self.span, self.severity.value, self.message)]
+        lines.extend(_located(note.span, NOTE, note.message) for note in self.notes)
+        return "\n".join(lines)
 
 
 class DiagnosticError(Exception):
@@ -102,8 +137,10 @@ class DiagnosticBag:
         *,
         route: Route | None = None,
         for_game: str | None = None,
+        stands_on: Span | tuple[Span, ...] | None = None,
     ) -> None:
-        self.items.append(Diagnostic(Severity.ERROR, message, span, route, for_game))
+        on = (stands_on,) if isinstance(stands_on, Span) else stands_on or ()
+        self.items.append(Diagnostic(Severity.ERROR, message, span, route, for_game, stands_on=on))
 
     def warning(self, message: str, span: Span | None = None) -> None:
         self.items.append(Diagnostic(Severity.WARNING, message, span))
