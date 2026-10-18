@@ -80,8 +80,8 @@ demands it — a doctrine amendment, drafted as the exact edit.
 **Then the Active Epics.** The review opens or closes the milestones of
 the main line (docs/harness.md, "The Ready Front"): at most two open at a
 time, each holding one epic and its parts, its description opening with
-the Destination it advances or `Upkeep` (at most one open milestone is
-Upkeep) and then the finish line — a part is never an epic, and an epic's
+the Destination it advances or `Upkeep` (at most one of the review's
+open milestones is Upkeep) and then the finish line — a part is never an epic, and an epic's
 item wanted as a part gets its own issue, since the sweep refuses a
 milestone holding two — and the epic's body naming each part's Merge Lane (`tools/lane-of.sh`
 on the files the part touches) so a taker knows before Leasing whether the
@@ -99,9 +99,9 @@ generator issue (a read, a sweep) blocked-by the epic its pick spawned so
 the finding stream drains before it fills again.
 
 The third open milestone, when there is one, is the Operator's Milestone
-(docs/harness.md, "The Ready Front"): the operator's alone to open and
-close, never filled from #143 by the review, and read by the review as an
-instrument. The verdict says what it held, whether and how it closed, and
+(docs/harness.md, "The Ready Front"): opened by the operator alone, never
+filled from #143 by the review, closed by the usual rule or by the
+operator at any time, and read by the review as an instrument. The verdict says what it held, whether and how it closed, and
 whether what it held says the queue is ordered wrong; a class that lands
 there twice is promoted into the review's own slots.
 

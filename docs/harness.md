@@ -333,8 +333,8 @@ own; a finding stream that never drains is how a read outran its fixes.
 
 **The Operator's Milestone is the operator's own slot, and the review
 reads it.** Beside the review's two, the operator may hold one open
-milestone of their own, opened and closed by the operator alone, for a
-unit the review did not promote: a tiered issue the front never reaches
+milestone of their own, opened by the operator alone, for a unit the
+review did not promote: a tiered issue the front never reaches
 because an ACTIVE row always stands above it, work that is important and
 not urgent, or a unit the operator simply wants done. It takes the shape
 of any milestone — one epic and its parts, a Destination or `Upkeep`
@@ -348,9 +348,10 @@ operator's mind lands there and nowhere else — the review's two slots and
 #143's order do not move with it — and so the review can read it: every
 verdict says what it held, whether and how it closed, and whether what it
 held says the queue is ordered wrong. A class that lands there twice is a
-class the review promotes into its own slots. The operator may close or
-empty it at any time, naming why on the epic; the closing rule above
-otherwise applies.
+class the review promotes into its own slots. It closes by the rule
+above — the epic's taker on a checkable finish line, the review on a
+judgment one — or the operator closes or empties it at any time, naming
+why on the epic; either way the review reads the closure.
 
 **The tier is triage, and triage is the direction review's.** A filer
 states facts — kind, reachability, the body — and never a tier: the
