@@ -37,7 +37,7 @@ echo "== witness-gated: judge that each body NAMES its witness =="
 gh issue list --repo "$REPO" --state open --label blocked:needs-witness --limit "$LIMIT" \
   --json number,title --jq '.[] | "\(.number) \(.title)"'
 
-echo "== active epics: open milestones, epic and progress (at most two) =="
+echo "== active epics: open milestones, epic and progress (two the review's, one the operator's) =="
 gh api graphql -f query='{ repository(owner: "jbgh2", name: "card-game-dsl") {
   milestones(first: 10, states: [OPEN]) { nodes { number title
     issues(first: 100, states: [OPEN, CLOSED]) { totalCount nodes { number state labels(first: 50) { nodes { name } } } } } } } }' \

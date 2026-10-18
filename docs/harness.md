@@ -258,10 +258,11 @@ milestone is the unit the fleet is finishing: it holds one epic issue and
 that epic's parts, its description opens with the Destination it advances
 (`roadmap.md`, "Destinations") or `Upkeep` when it advances none, then
 carries the finish line in the game's or the designer's terms, and it
-closes against that sentence — never against a count. At most one open
-milestone is Upkeep, so a class of arrivals can hold one slot and never
-both; a #143 row names its Destination the same way, and a unit that
-names none is queued as Upkeep. A part is a sub-issue of the epic or a member of its
+closes against that sentence — never against a count. At most one of
+the review's open milestones is Upkeep, so a class of arrivals can hold
+one of its slots and never both (the Operator's Milestone, below, is
+outside that bound); a #143 row names its Destination the same way, and
+a unit that names none is queued as Upkeep. A part is a sub-issue of the epic or a member of its
 milestone; the two relations are meant to agree, the sweep holds a part
 by either so one filed only one way is never offered loose, and it names
 any part in one relation and not the other on stderr for the review to
@@ -293,12 +294,14 @@ Destination that owns it (`roadmap.md`, "Destinations"), naming the
 machinery part that closes it by construction, and leaves the remaining
 sites to that part — the planning skill's Gate 3.5 says how. The sweep lists each open milestone as one
 takeable row, the epic's, ahead of every tiered issue — the nearest due
-date first, so the due date is how the review says which of the two is
+date first, so the due date is how the role that opened it says which is
 taken first — and holds every other issue in the milestone off the front: the epic is taken as a unit,
-its Lease is the epic's, and one PR or one short series closes it. Only
-the direction review opens a milestone, at most two open at a time, so
-the number of open milestones is the work-in-progress cap and needs no
-label to keep it honest. Who closes one follows from its finish line. A
+its Lease is the epic's, and one PR or one short series closes it. The
+direction review opens at most two milestones at a time, from the head
+of #143, and the third is the Operator's Milestone (below), so three
+open milestones is the work-in-progress cap — two the review's and one
+the operator's — and it needs no label to keep it honest. Who closes one
+follows from its finish line. A
 checkable finish line — a sentence an artifact can hold, such as "a test
 fails when the two routes stop agreeing" or "each sentence is refused at
 check time with a planted-fault witness" — is closed by the epic's taker
@@ -327,6 +330,28 @@ what it spawns**: an issue whose work is to find work — a read against a
 rules source, a sweep of a class — is made blocked-by the epic each pick
 spawns, so it leaves the front until that epic closes and returns on its
 own; a finding stream that never drains is how a read outran its fixes.
+
+**The Operator's Milestone is the operator's own slot, and the review
+reads it.** Beside the review's two, the operator may hold one open
+milestone of their own, opened by the operator alone, for a unit the
+review did not promote: a tiered issue the front never reaches
+because an ACTIVE row always stands above it, work that is important and
+not urgent, or a unit the operator simply wants done. It takes the shape
+of any milestone — one epic and its parts, a Destination or `Upkeep`
+line, a finish line, the parts-join rule, no unruled Merge Lane A part —
+and its description names it `Operator's Milestone` in its first line
+beside the Destination, so the milestones page says whose it is; the
+fleet takes it like any ACTIVE row, in due-date order with the rest. It
+is outside the one-Upkeep bound, which binds the review's two, and
+outside #143, which the review orders. It exists so that a change of the
+operator's mind lands there and nowhere else — the review's two slots and
+#143's order do not move with it — and so the review can read it: every
+verdict says what it held, whether and how it closed, and whether what it
+held says the queue is ordered wrong. A class that lands there twice is a
+class the review promotes into its own slots. It closes by the rule
+above — the epic's taker on a checkable finish line, the review on a
+judgment one — or the operator closes or empties it at any time, naming
+why on the epic; either way the review reads the closure.
 
 **The tier is triage, and triage is the direction review's.** A filer
 states facts — kind, reachability, the body — and never a tier: the

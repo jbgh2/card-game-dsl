@@ -39,7 +39,9 @@ Destinations say what every unit of work builds toward; the milestones and
 [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) say which
 unit is next ([harness.md](harness.md), "The work graph"). Each milestone's
 description opens with the Destination it advances, or `Upkeep` when it
-advances none, and at most one open milestone is Upkeep. The direction
+advances none, and at most one of the direction review's open milestones
+is Upkeep; the Operator's Milestone ([harness.md](harness.md),
+"The Ready Front") is outside that bound. The direction
 review reads the distances every run (`python -m tools.destinations`,
 derived on demand and never checked in) and promotes the next unit of
 whichever Destination has not moved. Only the operator adds or retires a
