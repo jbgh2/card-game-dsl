@@ -81,7 +81,9 @@ demands it — a doctrine amendment, drafted as the exact edit.
 a milestone (docs/harness.md, "The Ready Front"): at most two open at a
 time, each holding one epic and its parts, its description opening with
 the Destination it advances or `Upkeep` (at most one open milestone is
-Upkeep) and then the finish line, and the epic's body naming each part's Merge Lane (`tools/lane-of.sh`
+Upkeep) and then the finish line — a part is never an epic, and an epic's
+item wanted as a part gets its own issue, since the sweep refuses a
+milestone holding two — and the epic's body naming each part's Merge Lane (`tools/lane-of.sh`
 on the files the part touches) so a taker knows before Leasing whether the
 unit stops at the operator's button — and no part is Merge Lane A: that
 part is done by the operator with Hoyle before activation, or excluded

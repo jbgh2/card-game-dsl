@@ -32,10 +32,14 @@ What it derives, and from where:
   distinct spelling: the word a `_KW` terminal names, or a compiled plain
   string terminal that spells a word. Rules added per game added is the
   trend to read.
-* **A refusal lands in the designer's file, in the designer's words** --
-  whether `Span` declares its instantiation-trace field, the calls that
-  construct a Diagnostic outside the renderer module (by module, read with
-  `ast`), and the designer-addressed runtime refusal classes (the refusal
+* **A refusal is told to the author who must act** -- what the attribution
+  step (`cardlang/attribution.py`) leaves: the libraries holding a
+  certificate (a Library Witness that checks clean, read with the step's
+  own `witness_sources`), the boundary ledger's moved cells rendered with
+  no line naming the library, the raise sites in the passes after the
+  splice that the step does not decide, the calls constructing a
+  Diagnostic outside the renderer module (by module, read with `ast`),
+  and the designer-addressed runtime refusal classes (the refusal
   census's own set) that do not carry a span.
 * **Boards** -- the topology witness ladder in `docs/games/_candidates.md`
   against the corpus games declaring a `grid(` Component Set.
@@ -58,15 +62,18 @@ import pathlib
 import re
 import subprocess
 import sys
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from lark import Lark
 
 from cardlang.builtins import functions as builtin_registries
 from cardlang.openspiel import resample
+from cardlang.attribution import witness_sources
+from cardlang.pipeline import check_dsl
 from cardlang.runtime.errors import Located
 from tests.keyword_fusion_sweep import code_mask
+from tests.test_library_attribution import _PASSES as PASSES
 from tests.test_runtime_refusal_location import _REFUSALS as REFUSALS
 from tests.test_runtime_refusal_location import engine_exception_classes
 from tools.dead_surface import keyword_axis
@@ -311,23 +318,13 @@ def grammar_history(files: Sequence[pathlib.Path]) -> list[GrammarPoint]:
     return points
 
 
-# --- A refusal lands in the designer's file ------------------------------------------
+# --- A refusal is told to the author who must act -----------------------------------
 
 DIAGNOSTICS_MODULE = ROOT / "cardlang" / "diagnostics.py"
+ATTRIBUTION_MODULE = ROOT / "cardlang" / "attribution.py"
+LIBRARIES_DIR = ROOT / "docs" / "libraries"
 PACKAGE = ROOT / "cardlang"
-TRACE_FIELD = "instantiated_at"
 _CONSTRUCTORS = frozenset({"Diagnostic", "DiagnosticError"})
-
-
-def span_has_trace(diagnostics_source: str) -> bool:
-    """Whether the `Span` class declares the instantiation-trace field."""
-    for node in ast.walk(ast.parse(diagnostics_source)):
-        if isinstance(node, ast.ClassDef) and node.name == "Span":
-            return any(
-                isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name) and item.target.id == TRACE_FIELD
-                for item in node.body
-            )
-    return False
 
 
 def diagnostic_sites(package: pathlib.Path = PACKAGE, renderer: pathlib.Path = DIAGNOSTICS_MODULE) -> dict[str, int]:
@@ -347,6 +344,71 @@ def diagnostic_sites(package: pathlib.Path = PACKAGE, renderer: pathlib.Path = D
         if count:
             out[path.relative_to(package).as_posix()] = count
     return out
+
+
+def after_splice_sites(sites: Mapping[str, int], passes: Iterable[str], step: str = "attribution.py") -> dict[str, int]:
+    """The construction sites in the passes that run after a library is
+    spliced, other than the attribution step itself: a raise there that the
+    step does not decide is a refusal told where it happens to stand."""
+    names = {f"{p}.py" for p in passes}
+    return {m: n for m, n in sites.items() if m in names and m != step}
+
+
+def clean_witnesses(sources: Iterable[tuple[str, str]], check: Callable[[str, str], object]) -> tuple[int, int]:
+    """(clean, total) over a library's Library Witnesses: the games that
+    `uses` it, each checked; a library with no clean witness has no
+    certificate, and its routeless refusals stay in its file."""
+    clean = total = 0
+    for at, text in sources:
+        total += 1
+        try:
+            check(text, at)
+        except Exception:
+            continue
+        clean += 1
+    return clean, total
+
+
+def library_certificates(
+    libraries: Iterable[str],
+    sources_of: Callable[[str], Iterable[tuple[str, str]]],
+    check: Callable[[str, str], object],
+) -> dict[str, tuple[int, int]]:
+    return {name: clean_witnesses(sources_of(name), check) for name in libraries}
+
+
+def told_without_library_line(owner: str | None, moved_owners: Iterable[str], rendered: Sequence[str], library_file: str) -> bool:
+    """Whether a cell the step moved out of the library's file (its owner is
+    the game text or the `uses` line) renders with no line naming the
+    library: the designer is told their line and not the definition's."""
+    if owner not in set(moved_owners):
+        return False
+    errors = [line for line in rendered if ": warning: " not in line]
+    return bool(errors) and not any(line.startswith(library_file) for line in errors)
+
+
+def moved_cells_without_library_line() -> tuple[list[str], int]:
+    """(the moved cells told without their library line, moved cells in all),
+    rendered through the boundary ledger's own cells and harness."""
+    import pytest
+
+    import tests.test_library_boundary_ledger as L
+    from tests.test_library_attribution import _cells
+
+    moved_owners = (L.GAME, L.USES)
+    missing: list[str] = []
+    moved = 0
+    mp = pytest.MonkeyPatch()
+    try:
+        for key, cell in _cells().items():
+            if cell.owner not in moved_owners:
+                continue
+            moved += 1
+            if told_without_library_line(cell.owner, moved_owners, L._cell_bag(mp, cell), L._LIB_FILE):
+                missing.append(key)
+    finally:
+        mp.undo()
+    return missing, moved
 
 
 def unlocated_refusals(
@@ -398,8 +460,10 @@ def render(
     history: Sequence[GrammarPoint],
     rungs: Sequence[str],
     boards: Sequence[str],
-    trace: bool,
     sites: dict[str, int],
+    after_splice: dict[str, int],
+    certificates: Mapping[str, tuple[int, int]],
+    missing_note: tuple[Sequence[str], int],
     unlocated: Sequence[str],
 ) -> str:
     out: list[str] = ["# Distance to each Destination -- derived, never maintained", ""]
@@ -442,8 +506,22 @@ def render(
         out.append(f"{p.label:<12}{p.sha:<10}{p.games:>6}{p.rules:>7}{p.keywords:>10}")
     out.append("")
 
-    out.append("== A refusal lands in the designer's file, in the designer's words ==")
-    out.append(f"Span carries an instantiation trace ({TRACE_FIELD}): {trace}")
+    out.append("== A refusal is told to the author who must act ==")
+    out.append(
+        f"libraries with a certificate (a Library Witness that checks clean): "
+        f"{sum(1 for c, _ in certificates.values() if c)} of {len(certificates)} -- "
+        + ", ".join(f"{name} {c}/{n}" for name, (c, n) in sorted(certificates.items()))
+    )
+    missing, moved = missing_note
+    shown = ", ".join(missing[:5]) + (", ..." if len(missing) > 5 else "")
+    out.append(
+        f"moved refusals told without their library line: {len(missing)} of {moved} ledger cells"
+        + (f" -- {shown}" if missing else "")
+    )
+    out.append(
+        f"raise sites after the splice outside the attribution step: {sum(after_splice.values())} -- "
+        + (", ".join(f"{m} {n}" for m, n in sorted(after_splice.items())) or "-")
+    )
     out.append(
         f"diagnostic construction sites outside the renderer: {sum(sites.values())} in {len(sites)} modules -- "
         + ", ".join(f"{m} {n}" for m, n in sorted(sites.items(), key=lambda kv: -kv[1]))
@@ -463,6 +541,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--tracker", action="store_true", help="also read the rules-source ledger from the tracker")
     args = parser.parse_args(argv)
     ledger = read_ledger(fetch_issue_body(READ_LEDGER_ISSUE)) if args.tracker else None
+    sites = diagnostic_sites()
     sys.stdout.write(
         render(
             uses=corpus_native_uses(),
@@ -473,8 +552,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             history=grammar_history(verdict_files()),
             rungs=ladder(CANDIDATES.read_text()),
             boards=board_games(),
-            trace=span_has_trace(DIAGNOSTICS_MODULE.read_text()),
-            sites=diagnostic_sites(),
+            sites=sites,
+            after_splice=after_splice_sites(sites, PASSES),
+            certificates=library_certificates(
+                sorted(p.stem for p in LIBRARIES_DIR.glob("*.cardlang")), witness_sources, check_dsl
+            ),
+            missing_note=moved_cells_without_library_line(),
             unlocated=unlocated_refusals(engine_exception_classes(), REFUSALS, Located),
         )
     )

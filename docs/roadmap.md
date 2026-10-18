@@ -74,20 +74,23 @@ Destination.
   passes does something else". Distance: grammar rules and keywords
   against corpus size at every verdict, and the class's inflow against its
   closure (the review's fourth check).
-- **A refusal lands in the designer's file, in the designer's words, by
-  construction.** Every diagnostic, at check time or at play, is rendered
-  by one renderer from a span that carries its instantiation trace, so a
-  refusal inside a spliced library body or an expanded procedure names the
-  designer's own line first and the definition as a note; no refusal is
-  constructed outside that renderer, and the renderer's vocabulary gate
-  (the parse layer's today) holds for every layer. This is the machinery
-  that makes the message-quality class close as a class instead of one
-  site at a time; a refusal fixed by re-anchoring one site is maintenance,
-  not this Destination. Held by
-  [#893](https://github.com/jbgh2/card-game-dsl/issues/893). Distance: whether
-  `Span` carries a trace, the diagnostic construction sites outside
-  `cardlang/diagnostics.py` by module, and the designer-addressed runtime
-  refusal classes, the refusal census's own set, that carry no span.
+- **A refusal is told to the author who must act, in their file and their
+  words, by construction.** Every diagnostic, at check time or at play, is
+  rendered by one renderer, and one step decides whose file it names: a
+  refusal a game causes in spliced library text is told at the game's own
+  line, with the definition's line as a note, once a Library Witness has
+  proved the library sound; a refusal in a library no clean game yet
+  proves stays in the library's file, with a note on the game's `uses`
+  line (`decisions.md`, "Family libraries"). No refusal is constructed
+  outside the renderer, and the renderer's vocabulary gate, the parse
+  layer's today, holds for every layer. This is the machinery that makes
+  the message-quality class close as a class; a refusal fixed by
+  re-anchoring one site is maintenance, not this Destination. Held by
+  [#893](https://github.com/jbgh2/card-game-dsl/issues/893). Distance:
+  the libraries holding a certificate, the moved refusals told without
+  their library line, the raise sites after the splice that the step does
+  not decide, the construction sites outside the renderer, and the
+  designer-addressed runtime refusals that carry no span.
 - **Boards.** The topology witness ladder in
   [games/_candidates.md](games/_candidates.md) plays: a board game enters
   the corpus by the same path as a card game, with the two open questions

@@ -283,7 +283,8 @@ as a sub-issue of the epic so it is not lost, never as a milestone member,
 and named in the epic's body as the operator's step, exactly as a Lane A
 part excluded at activation is (below); the taker finishes every part
 that does not wait on it, and the PR says the unit awaits the operator's
-step. An epic that is not a milestone — an operator's container — takes
+step. Once the operator rules it and adds it to the milestone, it is a
+part like any other, and the unit's taker implements it. An epic that is not a milestone — an operator's container — takes
 the same rule against its goal sentence: a finding that bears on the goal
 is filed as its sub-issue. **The third instance of a class is filed, not
 fixed.** A taker fixes a finding at its site once and twice; at the third
@@ -310,12 +311,14 @@ designer can do X from the docs alone" — is closed only by the review, read
 against the tree, and a finish line with any judgment clause is a judgment
 finish line. The review
 audits every closure since its previous verdict against the artifact the
-closing comment names, and reopens one that names none. An Active Epic holds no Merge Lane A
-part: grammar is the operator's with the Language Owner, and a unit an
-agent takes cannot wait on it — the review has the part done first, or
-activates the epic without it and leaves it on its own issue as the
-operator's step, named in the epic's body; it is not queued in #143,
-whose head must be promotable to a milestone. A milestone holding open issues but no open
+closing comment names, and reopens one that names none. An Active Epic holds no unruled Merge
+Lane A part: the design of grammar is the operator's with the Language
+Owner, and a unit an agent takes cannot wait on it — the review has the
+part ruled first (the two stages under "The Language Owner", below) and
+adds it with its ruling linked, or activates the epic without it and
+leaves it on its own issue as the operator's step, named in the epic's
+body; an unruled one is not queued in #143, whose head must be promotable
+to a milestone. A milestone holding open issues but no open
 epic, or two epics, aborts the sweep rather than sorting somewhere; one
 whose every issue has closed is finished and unclosed — the sweep names
 it on stderr and goes on, since the close is the unit's next step and
@@ -452,7 +455,25 @@ precedent from `decisions.md` and the games, the edge a new production
 cuts against surface totality — and the operator supplies the decision:
 counsel informs intuition and never substitutes for it. The persona
 advises; the operator rules. Counsel attaches to the change (PR body or
-design note) before the operator merges. Its first question is whether
+design note) before the operator merges.
+
+**A Merge Lane A change has two stages, and only the first is the
+operator's.** The *design* stage is the operator's with the Language
+Owner: the counsel with its library-first proof, then the operator's
+ruling, recorded as a comment on the issue naming the productions as
+they will be cut, the grid's axes, the corpus files that move in
+lockstep, and the library form that lost. An issue with that record is
+**ruled**, and its body says so in a `## Ruling` section linking the
+comment; no plan document reaches the tree, and the red grid the ruling
+names is authored by the implementation as its own first file. The *implementation* stage of a ruled
+item is any thread's: the operator adds the ruled item to its milestone
+(that act is the mark the sweep reads), the taker implements it with the
+Language Owner's counsel re-attached fresh at its own planning, and the
+PR stops at the operator's button as every Merge Lane B PR does — the
+merge is the operator's, the work is not. A fresh counsel that disagrees
+with the ruling is a question for the operator, never a license to
+deviate. An unruled Merge Lane A item is never a part and never takeable.
+Its first question is whether
 the surface is grammar at all: a mechanic enters as a definition over the
 kernel (`decisions.md`, "Interactive decisions: a kernel and an in-DSL
 standard library"), and the grammar grows only by the one capability a

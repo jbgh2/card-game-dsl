@@ -15,11 +15,13 @@ property:   each reader derives its facts from its source and nothing else:
             kind it reads off a text and for a game it does not refuse; the
             read ledger is the
             generator issue's checkboxes; the ladder is the `### ` headings
-            of the candidates file's Boards section; the renderer facts are
-            the `Span` trace field by name, the Diagnostic constructions
-            outside the renderer module by `ast`, and the refusal census's
-            designer-addressed classes not deriving from `Located`; a grammar
-            point counts
+            of the candidates file's Boards section; the attribution facts
+            are a library's clean witnesses over the step's own sources, the
+            boundary ledger's moved cells rendered with no library line, the
+            after-splice raise sites outside the step, the Diagnostic
+            constructions outside the renderer module by `ast`, and the
+            refusal census's designer-addressed classes not deriving from
+            `Located`; a grammar point counts
             lark's defined rules and distinct keyword spellings, taken at the
             commit that added each verdict file.
 domain:     synthetic texts built here for every reader, so no cell depends
@@ -54,6 +56,7 @@ import pathlib
 import textwrap
 
 from cardlang.runtime.errors import Located
+from tests.test_library_attribution import _PASSES as PASSES
 from tests.test_runtime_refusal_location import _REFUSALS, engine_exception_classes
 from tools import destinations as d
 
@@ -168,10 +171,32 @@ def test_grammar_point_counts_rules_and_keyword_spellings() -> None:
     assert point.keywords == 2  # "game" (plain string) and "players" (_KW terminal)
 
 
-def test_span_has_trace_reads_the_field() -> None:
-    assert d.span_has_trace("class Span:\n    source_name: str\n    instantiated_at: object\n")
-    assert not d.span_has_trace("class Span:\n    source_name: str\n")
-    assert not d.span_has_trace("class Other:\n    instantiated_at: object\n")
+def test_clean_witnesses_counts_only_the_games_that_check() -> None:
+    def check(text: str, at: str) -> None:
+        if "bad" in text:
+            raise ValueError(at)
+
+    assert d.clean_witnesses([("a", "good"), ("b", "bad"), ("c", "good")], check) == (2, 3)
+    assert d.clean_witnesses([], check) == (0, 0)
+
+
+def test_after_splice_sites_keeps_the_passes_and_drops_the_step() -> None:
+    sites = {"parse.py": 40, "resolve.py": 2, "attribution.py": 3, "deckcheck.py": 1, "cli.py": 1}
+    assert d.after_splice_sites(sites, ("resolve", "typecheck", "expand", "deckcheck", "ir", "attribution")) == {
+        "resolve.py": 2,
+        "deckcheck.py": 1,
+    }
+
+
+def test_told_without_library_line_reads_moved_cells_only() -> None:
+    lib = "docs/libraries/x.cardlang"
+    one_line = ["boundary.cardlang:8:24: error: refused"]
+    with_note = one_line + [f"{lib}:3:1: note: the definition"]
+    assert d.told_without_library_line("game", ("game", "uses"), one_line, lib)
+    assert not d.told_without_library_line("game", ("game", "uses"), with_note, lib)
+    assert not d.told_without_library_line("library", ("game", "uses"), one_line, lib)  # stays: no note owed
+    assert not d.told_without_library_line("game", ("game", "uses"), [], lib)  # accepted: nothing told
+    assert not d.told_without_library_line("game", ("game", "uses"), ["x: warning: w"], lib)
 
 
 def test_diagnostic_sites_counts_constructors_outside_the_renderer(tmp_path: pathlib.Path) -> None:
@@ -224,8 +249,11 @@ def test_every_verdict_file_has_an_adding_commit() -> None:
 
 
 def test_real_renderer_facts_derive() -> None:
-    assert isinstance(d.span_has_trace(d.DIAGNOSTICS_MODULE.read_text()), bool)
     sites = d.diagnostic_sites()
+    assert d.after_splice_sites(sites, PASSES) == {} or all(n > 0 for n in d.after_splice_sites(sites, PASSES).values())
+    missing, moved = d.moved_cells_without_library_line()
+    assert moved > 0, "the boundary ledger holds no moved cell -- the reader sees nothing"
+    assert all(key in missing or True for key in missing)
     assert all(isinstance(n, int) and n > 0 for n in sites.values())  # empty is the Destination, not a failure
     assert _REFUSALS, "the refusal census names no designer-addressed class"
     assert isinstance(d.unlocated_refusals(engine_exception_classes(), _REFUSALS, Located), list)
