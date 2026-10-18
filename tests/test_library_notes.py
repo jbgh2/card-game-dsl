@@ -102,6 +102,7 @@ from cardlang.parse import parse_library, parse_text
 from cardlang.stdlib.rules import stdlib_library
 from cardlang.typecheck import typecheck
 import tests.test_library_boundary_ledger as L
+import tests.test_library_declaration_gates as D
 from tests.test_library_attribution import _cells
 from tests.test_rejections import case_paths
 
@@ -510,6 +511,53 @@ def test_a_gate_refusing_two_definitions_notes_both(monkeypatch: pytest.MonkeyPa
     notes = [ln for ln in lines if line_kind(ln) == "note"]
     assert any("rank_value" in ln for ln in L._errors(lines)), text
     assert sorted(_location(ln)[1] for ln in notes) == [2, 3], text
+
+
+def _noted_lines(lines: list[str]) -> list[int]:
+    return sorted(_location(ln)[1] for ln in lines if line_kind(ln) == "note")
+
+
+def _line_of(text: str, needle: str) -> int:
+    return next(i for i, ln in enumerate(text.splitlines(), start=1) if needle in ln)
+
+
+def test_one_move_offered_by_two_library_lines_notes_both(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A game's Card move type over a `hand` hiding its cards, offered by two
+    library procedures, is refused once at the game's move type and noted at
+    each offer.
+
+    red under: have `_check_implicit_pools` hand the step only the first
+    library offer."""
+    cell = D._card_pool_cell("procedures", "game", "hiding-Burn", False)
+    library = cell.library.replace(
+        "procedure lask(p : Player) { offer to p one of [gplay] }",
+        "procedure lask(p : Player) { offer to p one of [gplay] }\n"
+        "  procedure lask2(p : Player) { offer to p one of [gplay] }",
+    )
+    game = cell.game.replace("as 0 { run lask(0) }", "as 0 { run lask(0) }  as 1 { run lask2(1) }")
+    lines = L._bag(monkeypatch, library, game)
+    text = "\n".join(lines)
+    assert any("does not show its owner the cards" in ln for ln in L._errors(lines)), text
+    want = [_line_of(library, "procedure lask("), _line_of(library, "procedure lask2(")]
+    assert _noted_lines(lines) == want, text
+
+
+def test_one_offer_of_two_library_card_moves_notes_both(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A game's offer of two library Card move types is refused once at the
+    offer and noted at each move type.
+
+    red under: have `_check_card_offering` hand the step only the first
+    library move type."""
+    cell = D._two_card_moves_cell("game", "library-library")
+    lines = L._bag(monkeypatch, cell.library, cell.game)
+    text = "\n".join(lines)
+    assert any("indistinguishable" in ln for ln in L._errors(lines)), text
+    want = [_line_of(cell.library, "move_type lplay("), _line_of(cell.library, "move_type lplay2(")]
+    assert _noted_lines(lines) == want, text
 
 
 def test_no_refusal_leaves_the_step_with_its_inputs(monkeypatch: pytest.MonkeyPatch) -> None:

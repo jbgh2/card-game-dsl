@@ -5670,13 +5670,10 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
             continue
         # The offer written in another file than the move type: the library
         # text a game's move type is offered by.
-        offered_by = next(
-            (
-                o.span for o in offers
-                if name in o.offering and o.span is not None and mt.span is not None
-                and o.span.source_name != mt.span.source_name
-            ),
-            None,
+        offered_by = tuple(
+            o.span for o in offers
+            if name in o.offering and o.span is not None and mt.span is not None
+            and o.span.source_name != mt.span.source_name
         )
         for param in mt.params:
             if param.type_name != "Card":
@@ -10602,9 +10599,9 @@ def _check_card_offering(
             f"indistinguishable — fold them into one move type",
             span,
             for_game=for_game,
-            stands_on=next(
-                (move_type_defs[m].span for m in card_param_moves if move_type_defs[m].origin),
-                None,
+            stands_on=tuple(
+                at for m in card_param_moves
+                if move_type_defs[m].origin and (at := move_type_defs[m].span) is not None
             ),
         )
     hand = next((z for z in game.zones if z.name == family), None)
@@ -12361,7 +12358,7 @@ class _HiddenReads:
         span: Span | None,
         route: Route | None = None,
         for_game: str | None = None,
-        stands_on: Span | None = None,
+        stands_on: tuple[Span, ...] = (),
     ) -> None:
         key = (message, span, None if route is None else route.at)
         if key not in self._reported:
@@ -12387,19 +12384,22 @@ class _HiddenReads:
             route = routes.argument if argument else routes.body
         self._emit(message, span, route, for_game, self._stands_on(read))
 
-    def _stands_on(self, read: ZoneRead | None) -> Span | None:
-        """The library text a refused read reaches: the read itself, or the
+    def _stands_on(self, read: ZoneRead | None) -> tuple[Span, ...]:
+        """The library text a refused read reaches: the read itself, or each
         library function whose call names the instance it reads."""
         if read is None:
-            return None
+            return ()
         if read.span is not None and read.route:
-            return read.span
+            return (read.span,)
         library = {f.name: f.span for f in self.game.functions if f.origin is not None}
         if read.index is not None:
-            for nd in _walk(read.index):
-                if isinstance(nd, n.Call) and nd.func in library:
-                    return library[nd.func]
-        return read.span
+            called = tuple(
+                at for nd in _walk(read.index)
+                if isinstance(nd, n.Call) and (at := library.get(nd.func)) is not None
+            )
+            if called:
+                return called
+        return () if read.span is None else (read.span,)
 
     # --- the positions ------------------------------------------------------
 
