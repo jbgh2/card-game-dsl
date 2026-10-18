@@ -411,7 +411,7 @@ dipping into threads to learn it. The title is one line in one of two
 shapes, by whether the issue is in an open milestone — its epic, which
 `tools/ready-front.sh` lists as the ACTIVE row, or a part it holds:
 
-    m<M> - <N> - <status>
+    m<M> - #<N> - <status>
     Issue #<N> - <status>
 
 The first is for work in milestone `<M>` — the milestone's number, as

@@ -261,7 +261,7 @@ used) already holding Gates 0–3. A change that adds or corrects a corpus
 game runs the `cardlang-new-game` skill, which orders the game path
 (the read, the twin, the libraries, the proofs) and returns here for
 any language gap it files. An interactive thread working a tracker
-issue also retitles itself as it moves — `m<M> - <N> - <status>` for an
+issue also retitles itself as it moves — `m<M> - #<N> - <status>` for an
 open milestone's epic or part, `Issue #<N> - <status>` otherwise, the
 closed status set in docs/harness.md, "Thread titles" — with the first
 retitle, to `building`, landing alongside the Lease. A plan that warrants a standing record
