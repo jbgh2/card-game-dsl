@@ -70,9 +70,9 @@ import pytest
 
 from cardlang import pipeline
 from cardlang.ast import nodes as n
-from cardlang.attribution import is_unproven_note
+from cardlang.attribution import is_library_warning
 from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS, VALUE_NAMES
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import WALLED_NAMESPACES
@@ -225,7 +225,7 @@ def _diagnostics(text: str, name: str) -> list[tuple[str | None, str]]:
             return [(d.span.source_name if d.span else None, d.message)]
         out = []
         for line in "\n".join(notes).splitlines():
-            if is_unproven_note(line):
+            if is_library_warning(line) or line_kind(line) == "note":
                 continue
             match = _LOCATED.match(line)
             assert match is not None, line

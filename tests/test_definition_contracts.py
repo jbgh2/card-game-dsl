@@ -84,14 +84,14 @@ from dataclasses import dataclass, fields
 import pytest
 
 from cardlang.ast import nodes as n
-from cardlang.attribution import is_unproven_note
+from cardlang.attribution import is_library_warning
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
     VALUE_NAMES,
 )
 from cardlang.deckcheck import check_capacity
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.expand import expand
 from cardlang.parse import parse_library, parse_text
 from cardlang.resolve import _LIBRARY_DEF_KINDS, resolve
@@ -276,12 +276,15 @@ def _check(text: str) -> n.Game:
 
 
 def _rendered(exc: DiagnosticError) -> list[str]:
-    """Every refusal a stage raised, one rendered line each, without the note
-    an unproven library's refusals carry. A stage that collected more than
-    one attaches the whole bag as a note."""
+    """Every refusal a stage raised, one rendered line each, without the
+    warning the attribution step adds on a `uses` line or the notes under a
+    refusal. A stage that collected more than one attaches the whole bag as
+    a note."""
     notes = getattr(exc, "__notes__", [])
-    lines = notes[0].splitlines() if notes else [str(exc)]
-    return [line for line in lines if not is_unproven_note(line)]
+    lines = notes[0].splitlines() if notes else str(exc).splitlines()
+    return [
+        line for line in lines if line_kind(line) != "note" and not is_library_warning(line)
+    ]
 
 
 def _bag(text: str) -> list[str]:

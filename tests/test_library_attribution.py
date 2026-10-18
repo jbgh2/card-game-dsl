@@ -30,18 +30,16 @@ registry:        crossing kinds: `attribution.CROSSING_KINDS`; walkers:
                  tests/test_library_boundary_ledger.py::crossing_walkers;
                  Library Witnesses: `attribution.witness_sources`; cells:
                  tests/test_library_boundary_ledger.py,
-                 tests/test_library_declaration_gates.py.
+                 tests/test_library_declaration_gates.py; the notes and
+                 warnings the step tells beside a refusal:
+                 tests/test_library_notes.py.
 does not prove:  that a certificate's reach is every way a definition runs: the
                  relocation pin's own reach is a name scan of each Library
                  Witness's text, which agrees with the step's only where both
                  follow names. Nor that a certified refusal's sentence carries
                  a fix the game can take where its check supplies none: the
                  step names the definition and the Library Witness, and the
-                 check's own sentence follows. Nor that a refusal standing in
-                 a spliced procedure body after `expand` finds its definition:
-                 the step finds a definition by the span it holds, and
-                 deckcheck, the one raise after `expand`, reports at phase
-                 spans.
+                 check's own sentence follows.
 """
 
 from __future__ import annotations

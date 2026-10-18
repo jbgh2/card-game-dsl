@@ -14,28 +14,37 @@ Assumes:      every diagnostic a pass collects carries the span of the text it
               into library text attaches that crossing (`Route`) to every
               refusal it raises there that the crossing causes; a check that
               knows the sentence a game's author should read for a refusal of
-              library text supplies it (`for_game`); every spliced definition
-              carries its `n.LibraryOrigin`.
+              library text supplies it (`for_game`); a check that refuses
+              the game's text for library text it reached supplies that
+              library text (`stands_on`); every spliced definition carries its
+              `n.LibraryOrigin`, and the block a library procedure's `run`
+              becomes carries the procedure's (`expand`).
 Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               its diagnostics, and `tell` the one place a diagnostic's file is
-              decided. A refusal carrying a route is told at the route's game
-              text, with its crossing kind's sentence (`FIX_TABLE`) or its
-              `for_game` sentence. A refusal with no route, standing in a
-              library definition some Library Witness reaches and checks
-              clean with (its certificate), is told on the game's `uses`
-              line, naming the definition and the Library Witness. Any other
-              refusal stays where it stands, and where no Library Witness of
-              its library checks clean, one warning on the `uses` line says
-              so. A library's Library Witnesses are the corpus and family
-              games that `uses` it (`witness_sources`). A Library Witness
-              reaches the definitions its own text names, followed through
-              the reference namespaces, the rules it activates, the Delegated
+              decided and its notes made. A refusal carrying a route is told
+              at the route's game text, with its crossing kind's sentence
+              (`FIX_TABLE`) or its `for_game` sentence. A refusal with no
+              route, standing in a library definition some Library Witness
+              reaches and checks clean with (its certificate), is told on the
+              game's `uses` line, naming the definition and the Library
+              Witness. Either keeps the library text it stood in as its note,
+              naming the definition holding it. A refusal standing at the
+              game's text with library text it reached keeps that text as
+              its note. Any other refusal stays where it stands, with no
+              note; where no Library Witness of its library checks clean, one
+              warning on the `uses` line says so, and where one does but none
+              reaches its definition, one warning names the definition. A
+              library's Library Witnesses are the corpus and family games
+              that `uses` it (`witness_sources`). A Library Witness reaches
+              the definitions its own text names, followed through the
+              reference namespaces, the rules it activates, the Delegated
               Play helpers where it plays a trick round, and the library's
               provided state.
-Now illegal:  a diagnostic leaving a pass with a route or a `for_game`; a
-              warning that changes what is refused (the note is told only
-              beside a refusal); a check telling a refusal of library text on
-              the `uses` line itself, outside the gates decisions.md names.
+Now illegal:  a diagnostic leaving a pass with a route, a `for_game` or a
+              `stands_on`; a note made anywhere but here; a warning that
+              changes what is refused (each is told only beside a refusal); a
+              check telling a refusal of library text on the `uses` line
+              itself, outside the gates decisions.md names.
 """
 
 from __future__ import annotations
@@ -48,7 +57,15 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Note, Severity, Span
+from cardlang.diagnostics import (
+    Diagnostic,
+    DiagnosticBag,
+    DiagnosticError,
+    Note,
+    Severity,
+    Span,
+    line_kind,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.ast import nodes as n
@@ -173,36 +190,36 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
             seen.add(key)
             told.append(_bare(moved, d.span, holders, lines))
     for library, at in unproven.items():
-        told.append(Diagnostic(Severity.WARNING, unproven_note(library), at))
+        told.append(Diagnostic(Severity.WARNING, unproven_warning(library), at))
     for (library, where), at in unreached.items():
-        told.append(Diagnostic(Severity.WARNING, unreached_note(library, where), at))
+        told.append(Diagnostic(Severity.WARNING, unreached_warning(library, where), at))
     bag.items[:] = told
 
 
-# What the note an unproven library's refusals carry begins with.
+# What the warning beside an unproven library's refusals begins with, and the
+# warning beside a refusal of a proven library's definition no clean Library
+# Witness reaches.
 UNPROVEN_PHRASE = "no game yet checks clean with library"
+UNREACHED_PHRASE = "no game yet checks clean reaching library"
 
 
-def unproven_note(library: str) -> str:
+def unproven_warning(library: str) -> str:
     return (
         f"{UNPROVEN_PHRASE} '{library}', so a refusal standing in its file is "
         f"told there"
     )
 
 
-UNREACHED_PHRASE = "no game yet checks clean reaching library"
-
-
-def unreached_note(library: str, where: str) -> str:
+def unreached_warning(library: str, where: str) -> str:
     return (
         f"{UNREACHED_PHRASE} '{library}''s {where}, so its refusal is told in "
         f"the library's file"
     )
 
 
-def is_unproven_note(line: str) -> bool:
-    """Whether a rendered diagnostic line is an unproven library's note."""
-    return ": warning: " in line and UNPROVEN_PHRASE in line
+def is_library_warning(line: str) -> bool:
+    """Whether a rendered line is the step's warning on a `uses` line."""
+    return line_kind(line) == "warning" and (UNPROVEN_PHRASE in line or UNREACHED_PHRASE in line)
 
 
 def _bare(

@@ -18,7 +18,8 @@ property:        a refusal whose cause is the game's text is reported in the
                  checks clean reaches the refused definition -- and a refusal
                  whose cause is the library's own text is reported in the
                  library's file, in every game, with a warning on the `uses`
-                 line where no game yet checks clean with the library; every
+                 line where no game yet checks clean with the library or
+                 none that does reaches the refused definition; every
                  crossing an issue holds is a strict xfail citing it -- a
                  missing guard (issue #803, issue #805), a ruling on who owns
                  the question (issue #183, issue #170), and a wrong line in

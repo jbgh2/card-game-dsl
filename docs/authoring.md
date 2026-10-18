@@ -452,6 +452,13 @@ others". A missing `}` is the usual cause of the first kind, and the line it
 names is the block's opening line, not the line further down where the grammar
 finally ran out of ways to read the file.
 
+A refusal of a library your game `uses` is told in your file wherever your
+game is what refuses it, at your line, with the library's line as a `note:`
+under it naming the definition that holds it. A refusal the library's own text
+causes stays in the library's file, and a warning on your `uses` line says
+why: no game yet checks clean with the library, or none reaches the definition
+refused (decisions.md, "Family libraries").
+
 ## Reaching OpenSpiel with your own game
 
 The corpus registers itself from `docs/games/`, but a file of your own reaches

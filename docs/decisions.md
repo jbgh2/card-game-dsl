@@ -5211,10 +5211,16 @@ library's provided state; a definition no Library Witness reaches is not certifi
 so a fault that shows only where the definition runs stays its author's. Any other refusal
 stays in the library's file; where no Library Witness checks clean,
 one warning on the game's `uses` line says that no game yet checks clean
-with the library. A check that knows the sentence a game's author should
+with the library, and where one does but none reaches the refused
+definition, one warning there names the definition. A check that knows the sentence a game's author should
 read supplies it beside its own, and the step tells whichever its verdict
-picks. Who is told never changes what is refused: the warning refuses
-nothing, and the step only moves spans.
+picks. Every refusal told in the game's file keeps the library line it
+stands on as a note under it, naming the definition that holds the line:
+the library text a moved refusal stood in, or the library text a check
+refusing the game's own text reached. A refusal standing in a library
+procedure's body is told the same way once the `run` is expanded, through
+the definition the expanded body keeps. Who is told never changes what is
+refused: a warning and a note refuse nothing, and the step only moves spans.
 
 The spellings do not cross. A zone type carries the `<owner>` argument; a
 state type and `Move` carry none. A `?` is a type's nullability, never a
