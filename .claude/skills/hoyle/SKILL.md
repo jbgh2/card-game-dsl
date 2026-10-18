@@ -98,6 +98,18 @@ counsel names — a cell the grid must cover, a bound the construct must
 keep — names the artifact the plan carries for it; only an observation
 that binds nothing may be advisory.
 
+A Merge Lane A change has two stages (`docs/harness.md`, "The Language
+Owner"), and this counsel serves both. In the *design* stage it is the
+operator's input, and the stage ends in a ruled design: the counsel, the
+operator's ruling recorded on the issue, and a dated plan file under
+`docs/plans/` naming the productions as they will be cut, the grid's
+axes, the corpus files that move, and the library form that lost. In the
+*implementation* stage, which may be any thread's, the implementer
+attaches a counsel produced fresh against the tree the change lands on;
+where that counsel disagrees with the ruling, it says so and stops, and
+the disagreement goes to the operator as a question — the ruling is not
+re-decided at the bench.
+
 1. **The sentences.** The proposal's designer prose in situ — a real
    game fragment, not a schema — plus at least two alternative surfaces
    Hoyle would weigh instead, each with its plain-English reading, and

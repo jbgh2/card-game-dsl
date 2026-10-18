@@ -21,8 +21,12 @@ tie-breaker exists to close, moved to the top of the process. The facts,
 in the order they decide:
 
 1. `tools/lane-of.sh` on the files the issue names or the fix will touch.
-   Any Merge Lane A file -> **language**, and a fleet thread stops here
-   (docs/harness.md, "The Ready Front": a Lane A part is the operator's).
+   Any Merge Lane A file -> **language**. An unruled one stops a fleet
+   thread here (docs/harness.md, "The Language Owner": the design is the
+   operator's); a ruled one — its body carries a `## Ruling` section
+   linking the operator's ruling and its plan file, and the operator added
+   it to its milestone — is this thread's to implement, with the counsel
+   re-attached fresh at Gate 1 and the PR left at the operator's button.
 2. The issue's kind label and body. `bug`, or any issue with a witness
    sentence that misbehaves (a probe, a playout, a seed) -> **bug**. A
    defect is a bug whatever label it was filed under.
@@ -64,9 +68,15 @@ plan must follow and the artifacts it must name:
   its own class. A library-only change is `game` by its files and stays
   in these gates, as that skill's head says: Gate 2.5 with the library as
   the reuse, and the full-width goldens sweep of its consumer games.
-- **language**: the operator's with Hoyle (`.claude/skills/hoyle`): the
-  library-first proof, the counsel block, the grid; a fleet thread files
-  and parks.
+- **language**: two stages (docs/harness.md, "The Language Owner"). The
+  design is the operator's with Hoyle (`.claude/skills/hoyle`): the
+  library-first proof, the counsel block, the ruling, the plan file; an
+  unruled item is filed and parked. The implementation of a ruled item is
+  the thread's: Gate 1 re-attaches Hoyle's counsel fresh against the tree
+  it lands on, Gate 2.5's result is carried from the ruling, the grid is
+  authored red (Gate 4), and the PR stops at the operator's button; a
+  fresh counsel that disagrees with the ruling is a question for the
+  operator, not a deviation.
 - **machinery**: the Architect's counsel (`.claude/skills/architect`)
   where the change is engine-structural; a completeness ledger for any
   closed domain it touches; the Destination it advances, or `Upkeep`.
