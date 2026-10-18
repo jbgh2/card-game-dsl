@@ -185,6 +185,9 @@ def unproven_note(library: str) -> str:
     )
 
 
+UNREACHED_PHRASE = "no game yet checks clean reaching library"
+
+
 def is_unproven_note(line: str) -> bool:
     """Whether a rendered diagnostic line is an unproven library's note."""
     return ": warning: " in line and UNPROVEN_PHRASE in line
