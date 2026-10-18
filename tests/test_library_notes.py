@@ -330,6 +330,21 @@ def test_who_is_told_never_changes_what_is_refused(
     assert len(told) == len(kept) == 1
 
 
+def test_no_refusal_leaves_the_step_with_its_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """red under: have `attribution._bare` keep `stands_on`."""
+    for stage, telling, lives in _cell_ids():
+        with monkeypatch.context() as mp:
+            game = _spliced(mp, stage, _WITNESSES[telling])
+            span, _where = _refused(lives)
+            bag = DiagnosticBag()
+            bag.error("the probe refuses this", _game_text(game), stands_on=span)
+            bag.error("the probe refuses this", span, route=Route("call", None, L._LIB, "libp"))
+            bag.error("the probe refuses this too", span, for_game="the game's sentence")
+            attribution.tell(bag, game)
+        for d in bag.items:
+            assert (d.route, d.for_game, d.stands_on) == (None, None, None), (stage, telling, lives)
+
+
 # --- every rendered line is an error, a warning or a note -----------------------
 
 
