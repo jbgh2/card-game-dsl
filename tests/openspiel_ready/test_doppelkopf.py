@@ -1,8 +1,8 @@
 """Doppelkopf — OpenSpiel readiness.
 
-Bounded conformance walk (the Skat/Tichu shape): a four-hand session runs to
-several hundred decisions (issue #913 measures the whole sim); full-game-to-
-TerminalNode coverage lives in `test_openspiel_replay.py`'s KERNEL_GAMES list.
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`).
 
 Known swap caveat (the structural-infoset-proofs class): a ♣Q in the hand of
 a player who has already announced Re is logically pinned — physically
@@ -36,7 +36,6 @@ class TestReadiness(ReadinessProofs):
     spec = GameSpec(
         "cardlang_doppelkopf",
         "doppelkopf.cardlang",
-        conformance_steps=120,
         # provenance zones derive from PRIMITIVE_READS.arrival_zones (doko's row)
     )
 

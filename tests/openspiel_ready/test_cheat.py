@@ -61,8 +61,11 @@ pin their own histories. The constructive tests above carry
 the burden the sampled swap cannot: lines where the hidden-function channel
 actually fired. Greedy takes count 1 (the lowest integer id), so seat 0 sheds
 one card per turn and the greedy line terminates at 294 steps, where the
-adapter proof compares terminal returns. Cheat's random lines are long (p95 ~1170 decisions), and conformance uses
-the sanctioned bounded walk until issue #913 measures the whole sim.
+adapter proof compares terminal returns.
+
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`).
 """
 
 from __future__ import annotations
@@ -105,7 +108,6 @@ class TestReadiness(ReadinessProofs):
         hidden_zone="hand",
         depth=13,
         swap_axis="any",
-        conformance_steps=400,
         adapter_terminal_steps=400,  # greedy line measured at 294 steps
     )
 

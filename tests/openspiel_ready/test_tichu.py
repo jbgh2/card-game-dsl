@@ -2,8 +2,8 @@
 
 Bounded conformance walk: Tichu runs to 1000 points (~15-25 hands x ~100-200
 climb decisions plus the 12-pick push), thousands of actions, and a uniform
-draw never finishes one (`tests/playout_policy.py`, `REFERENCE_POLICIES`;
-issue #913).
+draw never finishes one (`tests/playout_policy.py`, `REFERENCE_POLICIES`), so
+the full sim, which draws uniformly, cannot end.
 """
 
 from typing import Any

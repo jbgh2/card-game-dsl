@@ -8,9 +8,10 @@ a card — so ANY hole swap replays legally (and its two-card holes rarely
 share a suit, so the harness's default same-suit filter would starve the
 pool).
 
-Bounded conformance walk: a Stud game runs until one player holds all 400
-chips: ~486 hands x ~21 decisions ~ 10k actions (issue #913 measures the
-whole sim against this bound).
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`). A game runs until
+one player holds all 400 chips.
 """
 
 from typing import Any
@@ -27,7 +28,6 @@ class TestReadiness(ReadinessProofs):
         "cardlang_seven_card_stud",
         "seven-card-stud.cardlang",
         hidden_zone="hole",
-        conformance_steps=120,
         swap_axis="any",
     )
 

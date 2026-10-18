@@ -211,7 +211,10 @@ class GameSpec:
     stock_swap_skip: int = 0
 
     # None = full `pyspiel.random_sim_test`, which plays one whole random game
-    # through the adapter. A game that sets a step count gets a bounded
+    # through the adapter. That is the default, and a game keeps it while one
+    # whole sim fits the whole-sim budget, 60 seconds on the CI runner. A game
+    # past the budget, or one a uniform draw never finishes, sets a step count
+    # and gets a bounded
     # random API walk instead (the sanctioned SP1 bridge-fallback precedent):
     # that many random legal actions checking current_player/legal-actions
     # consistency, info-state string non-crash, chance-node handling, and

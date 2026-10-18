@@ -5,12 +5,9 @@ swappable hidden cards in opponents' hands. The harness's swap pool
 additionally pins the 3♦ in place (`GameSpec.swap_pairs`) because this
 game's opening filter keys on that exact card.
 
-Bounded conformance walk: Big Two plays multiple hands to a target score,
-hundreds of actions each with a large combo action space (issue #913
-measures the whole sim against this bound). This
-game's full-game-to-TerminalNode coverage through the actual pyspiel `State`
-wrapper lives in `test_openspiel_replay.py`'s KERNEL_GAMES list, so
-bounding this walk drops no real coverage.
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`).
 """
 
 from .harness import GameSpec, ReadinessProofs
@@ -21,6 +18,5 @@ class TestReadiness(ReadinessProofs):
         "cardlang_big_two",
         "big-two.cardlang",
         depth=6,
-        conformance_steps=120,
         adapter_terminal_steps=200,  # greedy line measured at 147 steps
     )
