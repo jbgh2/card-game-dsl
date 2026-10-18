@@ -21,9 +21,8 @@ at the node — the decision node is DECLARER's, every seat's information
 state carries dummy's exposed identities, and the `chose` recall lands in
 declarer's log while the played card still moves from dummy's zone.
 
-Bounded conformance walk: the full `pyspiel.random_sim_test` measured 14s
-locally (a rubber plays multiple deals to a target score — the same O(n^2)
-re-simulation cost as Stud/French Tarot/Tichu, just a shorter game). This
+Bounded conformance walk: a rubber plays multiple deals to a target score
+(issue #913 measures the whole sim against this bound). This
 game's full-game-to-TerminalNode coverage through the actual pyspiel `State`
 wrapper lives in `test_openspiel_replay.py`'s KERNEL_GAMES list, so
 bounding this walk drops no real coverage.

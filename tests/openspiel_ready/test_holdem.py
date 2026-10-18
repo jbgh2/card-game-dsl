@@ -29,9 +29,8 @@ configuration this game was added to exercise. That the two coincide is the
 second thing the derivation test pins; they need not, and if a future line
 separates them the test says so rather than silently preferring one.
 
-Bounded conformance walk: full `pyspiel.random_sim_test` re-simulates the whole
-(seed, history) state after every action — O(n^2) in game length (issue #139) —
-and a Hold'em game runs until one player holds all 300 chips: ~60-110 hands.
+Bounded conformance walk: a Hold'em game runs until one player holds all 300
+chips: ~60-110 hands (issue #913 measures the whole sim against this bound).
 Measured, the greedy line does not reach TerminalNode inside ten minutes through the
 adapter, which is why `adapter_terminal_steps` stays unset.
 

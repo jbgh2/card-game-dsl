@@ -30,9 +30,7 @@ carries a 4-step margin.
 
 `conformance_steps` is deliberately UNSET, so this game plays a full
 `pyspiel.random_sim_test`. Three-handed Hold'em must bound its walk because it
-runs until one player holds all 300 chips (~60-110 hands) and the sim's
-whole-state re-simulation after every action is O(n^2) in game length (issue
-#139). One hand is at most 32 decisions, so the same sim is affordable here and
+runs until one player holds all 300 chips (~60-110 hands). One hand is at most 32 decisions, so the same sim is affordable here and
 the game gets the stronger check rather than a budget with a coverage claim
 attached. No `conformance_verbs_unreached` follows from that: the complement pin
 is only meaningful with a bound.

@@ -37,11 +37,9 @@ class TestReadiness(ReadinessProofs):
         "gin-rummy.cardlang",
         depth=9,
         swap_axis="any",
-        # The full random_sim_test re-simulates the whole (seed, history)
-        # state per action — measured ~8 minutes alone for gin's long
-        # matches, which dominates the suite on the 2-vCPU CI runner. The
-        # bounded random API walk is the sanctioned fallback for the
-        # score-target class (harness.py, `conformance_steps`).
+        # Gin's matches are long, and the bounded random API walk is the
+        # sanctioned fallback for the score-target class (harness.py,
+        # `conformance_steps`) until issue #913 measures the whole sim.
         conformance_steps=400,
         # The showdown cluster, the same surface the module caveat above
         # names: a random line knocks about as rarely as the greedy one does,

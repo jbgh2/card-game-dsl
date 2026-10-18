@@ -31,10 +31,9 @@ on every seed of the manifest (measured; the line is seed-independent because
 neither a bet, a call nor `stand` consults a card), so 12 carries a 6-step margin.
 
 `conformance_steps` is deliberately UNSET, so this game plays a full
-`pyspiel.random_sim_test`. The sim re-simulates the whole (seed, history)
-state after every action, which is O(n^2) in game length (issue #139) — but
-this is ONE hand of at most a few dozen decisions, so the same sim that Stud
-and three-handed Hold'em must bound is affordable here and the game gets the
+`pyspiel.random_sim_test`. This is ONE hand of at most a few dozen decisions,
+so the same sim that Stud
+and three-handed Hold'em bound is affordable here and the game gets the
 stronger check rather than a budget with a coverage claim attached. No
 `conformance_verbs_unreached` follows from that: the complement pin is only
 meaningful with a bound.

@@ -210,9 +210,8 @@ class GameSpec:
     # swap pool.
     stock_swap_skip: int = 0
 
-    # None = full `pyspiel.random_sim_test`, which re-simulates the whole
-    # (seed, history) state after every action — O(n^2) in game length. Games
-    # whose full sim is prohibitively long set a step count and get a bounded
+    # None = full `pyspiel.random_sim_test`, which plays one whole random game
+    # through the adapter. A game that sets a step count gets a bounded
     # random API walk instead (the sanctioned SP1 bridge-fallback precedent):
     # that many random legal actions checking current_player/legal-actions
     # consistency, info-state string non-crash, chance-node handling, and
@@ -408,8 +407,8 @@ class GameSpec:
 class BoundedWalk:
     """What one bounded conformance walk observed. Gathering facts rather than
     asserting them lets the API-conformance proof and the bound's coverage grid
-    read the SAME walk — the walk is O(n^2) in its own length, so running it
-    twice is the whole cost of the check."""
+    read the SAME walk — running it twice would be the whole cost of the
+    check twice over."""
 
     # (verb, the step that first applied it), ascending — the derivation a
     # bound is set from, kept as data rather than re-measured by hand: the
@@ -1421,9 +1420,9 @@ class ReadinessProofs:
         algorithms actually consume is the registered game's. Walk one line
         and assert the two renderings agree at every step — current player,
         legal actions, and every player's information-state string. Because
-        the pyspiel state re-simulates independently of this test's own `run`
-        calls, the comparison doubles as a per-game determinism check: two
-        independent replays of the same (seed, history) must render
+        the pyspiel state answers from runs of its own, independent of this
+        test's `run` calls, the comparison doubles as a per-game determinism
+        check: two independent runs of the same (seed, history) must render
         byte-identically.
 
         When the spec sets `adapter_terminal_steps` (games whose greedy line

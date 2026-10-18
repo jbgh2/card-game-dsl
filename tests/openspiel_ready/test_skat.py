@@ -1,9 +1,9 @@
 """Skat (3 players) — OpenSpiel readiness, plus a positive confirmation of
 the Reizen's, pickup's, and discard's shapes.
 
-Bounded conformance walk: the full `pyspiel.random_sim_test` measured 54s
-locally (a Skat rubber plays multiple hands to a target score, hundreds of
-actions — the same O(n^2) re-simulation cost as Stud/French Tarot/Tichu).
+Bounded conformance walk: a Skat rubber plays multiple hands to a target
+score, hundreds of actions (issue #913 measures the whole sim against this
+bound).
 Full-game-to-TerminalNode coverage through the actual pyspiel `State` wrapper
 (is_terminal/returns, not just this project's own replay engine) moves to
 `test_openspiel_replay.py`'s KERNEL_GAMES list instead, so bounding this

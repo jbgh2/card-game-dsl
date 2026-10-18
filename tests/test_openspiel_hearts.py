@@ -7,8 +7,7 @@ not the game, and the registered games with a full-sim proof module under
 `tests/openspiel_ready/` run it there in full (hearts walks a bounded line
 there); hearts' own action-space shape — the bare 52-card block — is pinned by
 `tests/test_openspiel_encoding.py`. A hearts-specific full sim re-bought the
-adapter's conformance at the price of two more quadratic 52-trick
-re-simulations. What is unique to this module stays: the rollout below is the
+adapter's conformance at the price of two more full-match sims. What is unique to this module stays: the rollout below is the
 only test driving hearts to TerminalNode through the pyspiel `State`, and
 `test_perfect_recall_no_duplicate_infostates_in_a_game` holds the suite's only
 no-duplicate-information-state assertion."""

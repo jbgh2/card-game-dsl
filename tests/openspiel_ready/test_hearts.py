@@ -1,8 +1,7 @@
 """Hearts — OpenSpiel readiness.
 
-Bounded conformance walk: the full `pyspiel.random_sim_test` measured 8.1s
-locally (multiple hands to a target score — the same O(n^2) re-simulation
-cost as Stud/French Tarot/Tichu, just a shorter game). This game's
+Bounded conformance walk: a game runs over multiple hands to a target score
+(issue #913 measures the whole sim against this bound). This game's
 full-game-to-TerminalNode coverage through the actual pyspiel `State` wrapper
 lives in `test_openspiel_replay.py`'s KERNEL_GAMES list, so bounding this
 walk drops no real coverage.

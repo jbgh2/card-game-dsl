@@ -29,9 +29,8 @@ boundary names cards that are not in those zones when the swap fires. Inside
 that hand the deepest pause is the strongest: all four up cards are out, so the
 hidden hole card is checked against a public board that is complete.
 
-Bounded conformance walk: full `pyspiel.random_sim_test` re-simulates the whole
-(seed, history) state after every action — O(n^2) in game length (issue #139) —
-and a Five-Card Stud session runs until one player holds all 600 chips.
+Bounded conformance walk: a Five-Card Stud session runs until one player
+holds all 600 chips (issue #913 measures the whole sim against this bound).
 
 `conformance_steps=400` is MEASURED, and it is bought for more than the verb
 claim. On the pinned `Random(7)` line every declared verb is applied by step 7

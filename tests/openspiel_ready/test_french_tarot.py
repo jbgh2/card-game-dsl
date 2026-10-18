@@ -10,8 +10,7 @@ gather-then-shuffle the thrown-in hand's `before_each` runs. Depth 3 stays
 inside the still-open first auction, before that reshuffle.
 
 Bounded conformance walk: 36 hands x ~76 decision-picks/hand (~2,740 total)
-measured at 436s for the full sim (`pyspiel.random_sim_test` is O(n^2) in
-game length) — far past the ~60s keep-it threshold.
+(issue #913 measures the whole sim against this bound).
 """
 
 from cardlang.openspiel.infostate import information_state

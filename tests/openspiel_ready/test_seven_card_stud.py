@@ -8,10 +8,9 @@ a card — so ANY hole swap replays legally (and its two-card holes rarely
 share a suit, so the harness's default same-suit filter would starve the
 pool).
 
-Bounded conformance walk: full `pyspiel.random_sim_test` re-simulates the
-whole (seed, history) state after every action — O(n^2) in game length — and
-a Stud game runs until one player holds all 400 chips: ~486 hands x ~21
-decisions ~ 10k actions, which extrapolates to a ~15-minute median full sim.
+Bounded conformance walk: a Stud game runs until one player holds all 400
+chips: ~486 hands x ~21 decisions ~ 10k actions (issue #913 measures the
+whole sim against this bound).
 """
 
 from typing import Any

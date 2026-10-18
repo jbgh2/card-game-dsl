@@ -1,9 +1,9 @@
 """Tichu — OpenSpiel readiness.
 
 Bounded conformance walk: Tichu runs to 1000 points (~15-25 hands x ~100-200
-climb decisions plus the 12-pick push), thousands of actions — the same
-O(n^2) full-sim guard as Stud and French Tarot (`pyspiel.random_sim_test`
-re-simulates the whole (seed, history) state after every action).
+climb decisions plus the 12-pick push), thousands of actions, and a uniform
+draw never finishes one (`tests/playout_policy.py`, `REFERENCE_POLICIES`;
+issue #913).
 """
 
 from typing import Any
