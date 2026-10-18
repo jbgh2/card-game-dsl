@@ -116,7 +116,7 @@ from cardlang.builtins.functions import (
     TRUMP_READING_WINNERS,
 )
 from cardlang.builtins.signatures import CALL_SIGS
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.domains import (
     CARD_AXIS_ROLES,
     CARD_PARAM_DOMAINS,
@@ -418,6 +418,14 @@ def _check(
     return text, None
 
 
+def _tells_in(rendered: str, path: str) -> bool:
+    """Whether a rendered verdict tells a refusal or a warning in `path`: a
+    note under a refusal names a file and tells nothing there."""
+    return any(
+        line.startswith(path) and line_kind(line) != "note" for line in rendered.splitlines()
+    )
+
+
 def _line_of(text: str, needle: str) -> int:
     for number, line in enumerate(text.splitlines(), start=1):
         if needle in line:
@@ -477,7 +485,7 @@ def test_clause_gate_cell(cell: Cell, monkeypatch: pytest.MonkeyPatch) -> None:
         ]
         assert hits, rendered
         return
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
     hits = [
         line for line in rendered.splitlines()
@@ -712,7 +720,7 @@ def test_every_definition_kind_is_refused_on_the_uses_line(
         assert rendered is None, rendered
         return
     assert rendered is not None
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
     assert any(
         line.startswith(where) and word in line and clause in line
@@ -899,7 +907,7 @@ def test_a_corpus_game_without_its_ranking_is_told_on_its_uses_line(
     )
     rendered = _rendered(stripped.replace("game ", "game Unranked", 1))
     assert rendered is not None
-    assert f"docs/libraries/{library}.cardlang" not in rendered, rendered
+    assert not _tells_in(rendered, f"docs/libraries/{library}.cardlang"), rendered
     where = f"{_GAME_FILE}:{_line_of(stripped, f'uses {library}')}:"
     assert any(
         line.startswith(where) and f"'{library}'" in line and "ranking:" in line
@@ -928,7 +936,7 @@ def test_a_convention_on_a_misspelled_deck_names_the_deck(
     rendered = _rendered(text)
     assert rendered is not None and "standrd52" in rendered, rendered
     assert "declares no `ranking:`" not in rendered, rendered
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
 
 
 def test_a_malformed_teams_clause_is_refused_at_the_clause(
@@ -944,7 +952,7 @@ def test_a_malformed_teams_clause_is_refused_at_the_clause(
     rendered = _rendered(text)
     assert rendered is not None
     assert "seat 3" in rendered, rendered
-    assert _LIB_FILE not in rendered and "probe_lib" not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE) and "probe_lib" not in rendered, rendered
 
 
 def test_two_libraries_are_each_refused_on_their_own_line(
@@ -963,7 +971,7 @@ def test_two_libraries_are_each_refused_on_their_own_line(
     text = text.replace("  max_length: 1000", "  max_length: 1000\n  uses ranks\n  uses points")
     rendered = _rendered(text)
     assert rendered is not None
-    assert "docs/libraries/" not in rendered, rendered
+    assert not _tells_in(rendered, "docs/libraries/"), rendered
     for library, member, clause in (
         ("ranks", "rank_value", "ranking:"), ("points", "card_points", "card_points")
     ):
@@ -990,7 +998,7 @@ def test_one_library_missing_two_clauses_is_told_both(
     )
     rendered = _rendered(text)
     assert rendered is not None
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
     lines = [line for line in rendered.splitlines() if line.startswith(where)]
     assert any("rank_value" in line and "ranking:" in line for line in lines), rendered
@@ -1500,7 +1508,7 @@ def test_node_gate_cell(cell: NodeCell, monkeypatch: pytest.MonkeyPatch) -> None
             line.startswith(where) and word in line for line in rendered.splitlines()
         ), rendered
         return
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
     assert any(
         line.startswith(where) and f"'{_LIB}'" in line and member.word in line
@@ -1634,7 +1642,7 @@ def test_a_held_member_is_refused_on_the_uses_line(
     text = _held_game(held)
     rendered = _rendered(text)
     assert rendered is not None
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
     assert any(
         line.startswith(where) and held.word in line and held.clause in line
@@ -1681,7 +1689,7 @@ def test_a_library_deal_is_judged_at_the_phase_that_runs_it(
         assert rendered is None, rendered
         return
     assert rendered is not None
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
     assert rendered.startswith(f"{_GAME_FILE}:{_line_of(text, 'phase p')}:"), rendered
     assert "deals up to" in rendered, rendered
 
@@ -1691,7 +1699,7 @@ def test_a_library_deal_is_judged_at_the_phase_that_runs_it(
 
 def _uses_line_refusal(text: str, rendered: str | None) -> str:
     assert rendered is not None
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"
     hits = [line for line in rendered.splitlines() if line.startswith(where)]
     assert hits, rendered
@@ -1771,7 +1779,7 @@ def test_a_convention_on_a_misspelled_deck_does_not_ask_for_a_ranking(
     rendered = _rendered(text)
     assert rendered is not None and "standrd52" in rendered, rendered
     assert "declares no `ranking:`" not in rendered, rendered
-    assert _LIB_FILE not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE), rendered
 
 
 def test_a_piece_game_is_told_its_flavor_before_its_ranking(
@@ -1796,7 +1804,7 @@ def test_a_malformed_teams_clause_is_refused_at_the_clause_not_the_range(
     text = text.replace("teams: [[0, 2], [1, 3]]", "teams: [[0, 2], [1]]")
     rendered = _rendered(text)
     assert rendered is not None and "seat 3" in rendered, rendered
-    assert _LIB_FILE not in rendered and "probe_lib" not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE) and "probe_lib" not in rendered, rendered
 
 
 def test_a_board_that_mints_no_cells_is_refused_at_the_board(
@@ -1814,7 +1822,7 @@ def test_a_board_that_mints_no_cells_is_refused_at_the_board(
     )
     rendered = _rendered(text)
     assert rendered is not None and "board family 'grid'" in rendered, rendered
-    assert _LIB_FILE not in rendered and "probe_lib" not in rendered, rendered
+    assert not _tells_in(rendered, _LIB_FILE) and "probe_lib" not in rendered, rendered
 
 
 # --- a piece game is never asked for a clause it cannot declare ---------------
