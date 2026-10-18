@@ -88,7 +88,7 @@ import pytest
 
 import cardlang.resolve as resolve_module
 import cardlang.typecheck as typecheck_module
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
@@ -241,8 +241,9 @@ def _assert_verdict(text: str, rendered: str | None, verdict: Verdict) -> None:
         assert rendered is None, rendered
         return
     assert rendered is not None, "accepted"
-    # The refusals, without the warning an unproven library's adds.
-    lines = [ln for ln in rendered.splitlines() if ": warning: " not in ln]
+    # The refusals, without the warning an unproven library's adds or the
+    # notes under them.
+    lines = [ln for ln in rendered.splitlines() if line_kind(ln) == "error"]
     uses = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:" if f"uses {_LIB}" in text else None
     in_library = [ln for ln in lines if ln.startswith(_LIB_FILE) or ln.startswith(_STDLIB_FILE)]
     on_uses = [ln for ln in lines if uses is not None and ln.startswith(uses)]
@@ -1129,7 +1130,7 @@ def test_a_standard_library_rule_is_held_to_the_same_law(monkeypatch: pytest.Mon
     rendered = _rendered(text)
     assert rendered is not None
     assert any(
-        ln.startswith(_STDLIB_FILE) and "library 'stdlib' names the rank \"10\"" in ln
+        ln.startswith(_STDLIB_FILE) and 'the standard library names the rank "10"' in ln
         for ln in rendered.splitlines()
     ), rendered
 

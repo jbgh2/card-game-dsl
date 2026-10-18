@@ -102,8 +102,8 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_ROWS,
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
-from cardlang.attribution import raise_if_errors
-from cardlang.diagnostics import DiagnosticBag, Span
+from cardlang.attribution import cite_library, cite_origin, cite_where, raise_if_errors
+from cardlang.diagnostics import DiagnosticBag, Said, Span
 from cardlang.domains import CARD_PARAM_DOMAINS, require_role, role_of, role_type
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
@@ -1586,7 +1586,8 @@ def _check_contracted_results(game: Game, env: TypeEnv, bag: DiagnosticBag) -> N
             want = _contract_type(stamp.result_type, env)
             if not coercible(got, want):  # choke-point-exempt: a definition's inferred result against its contract row, no operand
                 bag.error(
-                    f"library '{stamp.library}' requires function `{stamp.row}`, "
+                    cite_library(stamp.library, stamp.row_span)
+                    + f" requires function `{stamp.row}`, "
                     f"but game '{game.name}' defines `{f.name}` returning "
                     f"{_type_name(got)} — the library's calls read it as "
                     f"{_type_name(want)}",
@@ -1660,7 +1661,7 @@ def _check_enum_literal(
     message and span, which the refusal leads with; a comparison has none."""
     origin = env.origins.get(id(lit))
     if origin is not None and enum.name in env.axis_enums:
-        bag.error(_library_axis_refusal(origin, enum, lit.value, env), lit.span)
+        bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span)
         return
     if lit.value not in _enum_domain(env, enum.name):
         problem = f'"{lit.value}" is not a {enum.name} value of this deck'
@@ -1680,8 +1681,8 @@ def _check_enum_literal(
 
 
 def _library_axis_refusal(
-    origin: n.LibraryOrigin, enum: TEnum, value: str, env: TypeEnv
-) -> str:
+    origin: n.LibraryOrigin, enum: TEnum, value: str, env: TypeEnv, at: Span | None
+) -> Said:
     noun = enum.name.lower()
     items = content_noun(env.flavor, plural=True)
     if origin.provided is not None:
@@ -1695,7 +1696,7 @@ def _library_axis_refusal(
             f"the game pass it"
         )
     return (
-        f'library \'{origin.library}\' names the {noun} "{value}" — a library '
+        cite_library(origin.library, at) + f' names the {noun} "{value}" — a library '
         f"names no {noun}, because the games that use it play with different "
         f"{items}; {fix}"
     )
@@ -2150,12 +2151,19 @@ def _library_field_gate(
     else:
         lacks = f"this game's cards have the fields {field_list}"
         fix = "a game played with these cards cannot use this library"
-    message = (
-        f"library '{origin.library}' reads the field `{e.field}` (in "
-        f"{origin.where}), but {lacks} — {fix}"
+    bag.error(
+        cite_library(origin.library, None) + f" reads the field `{e.field}` (in "
+        + cite_where(origin.where, e.span) + f"), but {lacks} — {fix}",
+        origin.uses_span,
     )
-    if not any(d.message == message and d.span == origin.uses_span for d in bag.items):
-        bag.error(message, origin.uses_span)
+    # One refusal per field and definition, standing on each read of it.
+    told = bag.items.pop()
+    for at, d in enumerate(bag.items):
+        if (d.message, d.span) == (told.message, told.span):
+            bag.items[at] = replace(d, stands_on=d.stands_on + told.stands_on)
+            break
+    else:
+        bag.items.append(told)
     return True
 
 
@@ -2191,7 +2199,7 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
             f"the right, got {_type_name(rbare)}",
             e.right.span,
             for_game=None if origin is None or taken is None else (
-                f"library '{origin.library}''s {origin.where} writes `offset_by "
+                cite_origin(origin, e.right.span) + f" writes `offset_by "
                 f"{taken}`, which expects a SeatDirection, but this game declares "
                 f"its own `{taken}`, which the library's `{taken}` then reads — "
                 f"rename this game's `{taken}`"
@@ -2604,7 +2612,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
         return
     origin = env.origins.get(id(index))
     if origin is not None and isinstance(bare, (TPlayer, TTeam)):
-        bag.error(_library_role_refusal(origin, index.value, bare), index.span)
+        bag.error(_library_role_refusal(origin, index.value, bare, index.span), index.span)
         return
     if isinstance(bare, TPlayer):
         # A game always declares `players:`, so `max_players` is the real seat
@@ -2640,7 +2648,9 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
         )
 
 
-def _library_role_refusal(origin: n.LibraryOrigin, value: int, role: Type) -> str:
+def _library_role_refusal(
+    origin: n.LibraryOrigin, value: int, role: Type, at: Span | None
+) -> Said:
     """A seat or team number in library text: the library names none, since
     the games that use it seat different numbers of players and form
     different teams (decisions.md, "Family libraries")."""
@@ -2657,7 +2667,7 @@ def _library_role_refusal(origin: n.LibraryOrigin, value: int, role: Type) -> st
     else:
         fix = f"add `{binder} : {kind}` to `requires {{ }}` and write `{binder}` here"
     return (
-        f"library '{origin.library}' names {noun} {value} — a library names no "
+        cite_library(origin.library, at) + f" names {noun} {value} — a library names no "
         f"{noun}, because the games that use it {why}; {fix}"
     )
 

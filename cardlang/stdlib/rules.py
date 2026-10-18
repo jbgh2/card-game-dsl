@@ -17,7 +17,7 @@ from functools import lru_cache
 from importlib import resources
 
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.diagnostics import DiagnosticBag
 from cardlang.parse import parse_library
 
 #: The standard library's declared name, and the one name a `uses` line may
@@ -45,15 +45,12 @@ def load_stdlib(text: str, source_name: str) -> n.Library:
             f"what every game has"
         )
     # Deferred: `resolve` imports this module for the rule index.
+    from cardlang.attribution import raise_where_written
     from cardlang.resolve import check_library_alone
 
     bag = DiagnosticBag()
     check_library_alone(library, bag)
-    if bag.has_errors:
-        error = DiagnosticError(bag.items[0])
-        if len(bag.items) > 1:
-            error.add_note(bag.format())
-        raise error
+    raise_where_written(bag)
     return library
 
 

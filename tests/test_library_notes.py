@@ -887,14 +887,6 @@ NAMED: dict[str, Named] = {
     ),
 }
 
-# The cells the mechanism turns green; each renders no note on the tree before
-# it.
-_RED = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: a refusal naming library text carries no note of its line",
-)
-
-
 def _source_file(library: str) -> str:
     return _STDLIB_RULES if library == "stdlib" else f"docs/libraries/{library}.cardlang"
 
@@ -925,7 +917,7 @@ def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
     return found[0]
 
 
-@pytest.mark.parametrize("name", [pytest.param(k, marks=_RED) for k in sorted(NAMED)])
+@pytest.mark.parametrize("name", sorted(NAMED))
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
@@ -1026,10 +1018,6 @@ def _spellings(source: str) -> list[str]:
 _THE_STEP = frozenset({"attribution.py", "diagnostics.py"})
 
 
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: the checks spell library text into their sentences",
-)
 def test_no_check_spells_library_text_into_a_sentence() -> None:
     """The words naming a library or its text are made by the attribution
     step alone, from a value carrying the text's span.
@@ -1084,18 +1072,10 @@ def _told_in_the_game(monkeypatch: pytest.MonkeyPatch, witness: L.Witness) -> li
         )
 
     monkeypatch.setattr(attribution, "tell", recording)
-    try:
-        witness(monkeypatch)
-    except BaseException as exc:  # an owning grid's strict xfail is its own record
-        if not isinstance(exc, (AssertionError, pytest.xfail.Exception)):
-            raise
+    witness(monkeypatch)
     return told
 
 
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: library-to-game refusals naming library text carry no note",
-)
 def test_every_library_to_game_refusal_told_in_the_game_names_its_library_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

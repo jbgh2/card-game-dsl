@@ -53,7 +53,7 @@ import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, is_dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -61,6 +61,7 @@ from cardlang.diagnostics import (
     Diagnostic,
     DiagnosticBag,
     DiagnosticError,
+    LibraryCitation,
     Note,
     Severity,
     Span,
@@ -132,6 +133,19 @@ def raise_if_errors(
     if not bag.has_errors:
         return
     tell(bag, game, uses)
+    _raise(bag)
+
+
+def raise_where_written(bag: DiagnosticBag) -> None:
+    """Raise `bag`'s diagnostics, each told where it stands, when it holds an
+    error: a library checked alone, before any game is read."""
+    if not bag.has_errors:
+        return
+    bag.items[:] = [_bare(d) for d in bag.items]
+    _raise(bag)
+
+
+def _raise(bag: DiagnosticBag) -> None:
     error = DiagnosticError(bag.items[0])
     if len(bag.items) > 1:
         error.add_note(bag.format())
@@ -158,6 +172,7 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
         return
     holders = _holders(game)
     lines = _uses_lines(game, uses, holders)
+    substituted = _substituted(game)
     told: list[Diagnostic] = []
     seen: dict[tuple[str, Span | None], int] = {}
     unproven: dict[str, Span] = {}
@@ -181,9 +196,10 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                 elif not certificate.proven:
                     unproven.setdefault(library, lines[library])
                 elif origin is not None:
-                    unreached.setdefault((library, origin.where), lines[library])
+                    unreached.setdefault((library, _where(origin)), lines[library])
         if moved is None:
-            told.append(_bare(d, (), d.stands_on, holders, lines))
+            stands = d.stands_on + substituted.get(_at(d.span), ())
+            told.append(_bare(d, (), stands, holders, lines))
             continue
         noted = _bare(moved, (d.span,), d.stands_on, holders, lines)
         key = (moved.message, moved.span)
@@ -242,9 +258,13 @@ def _bare(
     text it stands on as its notes: where it was raised, when that is library
     text outside the file `d` is told in, and otherwise each library line of
     `stands_on`."""
+    in_library = d.span is not None and (
+        _holder(d.span, holders or []) is not None or _library_of(d.span, lines or {}) is not None
+    )
+
     def noted(spans: tuple[Span | None, ...]) -> tuple[Note, ...]:
         found: dict[tuple[str, int], Note] = {}
-        for at in spans:
+        for at in () if in_library else spans:
             nt = _note(at, d.span, holders or [], lines or {})
             if nt is not None:
                 found.setdefault((nt.span.source_name, nt.span.line), nt)
@@ -266,15 +286,48 @@ def _note(
         return None
     origin = _holder(at, holders)
     if origin is not None:
-        return Note(at, f"in {_library_words(origin.library)}'s {origin.where}")
+        return Note(at, f"in {_library_words(origin.library)}'s {_where(origin)}")
     library = _library_of(at, lines)
     return None if library is None else Note(at, f"in {_library_words(library)}")
+
+
+def _where(origin: n.LibraryOrigin) -> str:
+    """The definition `origin` records, in the designer's words, after its
+    library's name: a provided declaration by the variable it declares."""
+    return origin.where if origin.provided is None else f"provided state `{origin.provided}`"
 
 
 def _library_words(library: str) -> str:
     from cardlang.stdlib.rules import STDLIB_NAME
 
     return "the standard library" if library == STDLIB_NAME else f"library '{library}'"
+
+
+# --- the words a sentence names library text by -----------------------------------
+
+
+def cite_library(library: str, at: Span | None) -> LibraryCitation:
+    """`library` named alone, standing on the library text at `at`: the text
+    the sentence is about, None where it names no text of the library."""
+    return LibraryCitation(_library_words(library), at)
+
+
+def cite_definition(library: str, where: str, at: Span | None) -> LibraryCitation:
+    """`where`, a definition of `library` in the designer's words, standing on
+    the library text at `at`."""
+    return LibraryCitation(f"{_library_words(library)}'s {where}", at)
+
+
+def cite_origin(origin: n.LibraryOrigin, at: Span | None) -> LibraryCitation:
+    """The definition `origin` records, standing on the library text at
+    `at`."""
+    return cite_definition(origin.library, _where(origin), at)
+
+
+def cite_where(where: str, at: Span | None) -> LibraryCitation:
+    """`where`, a definition in the designer's words, in a sentence that has
+    named its library already, standing on the library text at `at`."""
+    return LibraryCitation(where, at)
 
 
 def _routed(d: Diagnostic) -> Diagnostic:
@@ -291,7 +344,7 @@ def _routed(d: Diagnostic) -> Diagnostic:
 
 def _certified(message: str, origin: n.LibraryOrigin, witness: str) -> str:
     return (
-        f"library '{origin.library}''s {origin.where} is refused in this game, "
+        f"library '{origin.library}''s {_where(origin)} is refused in this game, "
         f"though {witness} checks clean with library '{origin.library}': {message}"
     )
 
@@ -328,6 +381,50 @@ def _holders(game: n.Game) -> list[_Holder]:
             at = nd.definition
             found.append(_Holder(at.source_name, at.start, at.end, nd.origin))
     return found
+
+
+_Place = tuple[str, int, int]
+
+
+def _at(span: Span | None) -> _Place | None:
+    return None if span is None else (span.source_name, span.start, span.end)
+
+
+def _substituted(game: n.Game) -> dict[_Place | None, tuple[Span, ...]]:
+    """The game text a spliced definition holds -- a template argument the
+    game wrote, substituted into a library rule -- by its place, to the
+    library text holding it: a refusal standing at that game text stands on
+    that library text."""
+    found: dict[_Place | None, tuple[Span, ...]] = {}
+
+    def visit(node: object, holding: Span) -> None:
+        span = getattr(node, "span", None)
+        if isinstance(span, Span) and span.source_name != holding.source_name:
+            found.setdefault(_at(span), (holding,))
+            return
+        inner = span if isinstance(span, Span) else holding
+        for child in _children(node):
+            visit(child, inner)
+
+    defs: list[object] = [*game.functions, *game.procedures, *game.move_types, *game.rules]
+    for d in defs:
+        span = getattr(d, "span", None)
+        if getattr(d, "origin", None) is not None and isinstance(span, Span):
+            visit(d, span)
+    return found
+
+
+def _children(node: object) -> Iterator[object]:
+    """The nodes one level under `node`, the stamps the splice leaves aside."""
+    if not is_dataclass(node) or isinstance(node, type):
+        return
+    for f in fields(node):
+        if f.name in ("origin", "contract", "contracts"):
+            continue
+        value = getattr(node, f.name)
+        for item in value if isinstance(value, tuple) else (value,):
+            if is_dataclass(item) and not isinstance(item, (Span, type)):
+                yield item
 
 
 def _holder(span: Span | None, holders: list[_Holder]) -> n.LibraryOrigin | None:
