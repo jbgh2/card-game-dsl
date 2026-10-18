@@ -5214,7 +5214,7 @@ one warning on the game's `uses` line says that no game yet checks clean
 with the library, and where one does but none reaches the refused
 definition, one warning there names the definition. A check that knows the sentence a game's author should
 read supplies it beside its own, and the step tells whichever its verdict
-picks. Every refusal told in the game's file keeps the library line it
+picks. Every refusal told in the game's file keeps each library line it
 stands on as a note under it, naming the definition that holds the line:
 the library text a moved refusal stood in, or the library text a check
 refusing the game's own text reached. A refusal standing in a library
