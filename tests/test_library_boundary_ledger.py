@@ -145,7 +145,7 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_ROWS,
 )
 from cardlang.deckcheck import check_capacity
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.expand import expand
 from cardlang.parse import parse_library, parse_text
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
@@ -169,7 +169,7 @@ _NAMED = f"library '{_LIB}'"
 
 def _rendered(exc: DiagnosticError) -> list[str]:
     notes = getattr(exc, "__notes__", [])
-    return notes[0].splitlines() if notes else [str(exc)]
+    return notes[0].splitlines() if notes else str(exc).splitlines()
 
 
 def _bag(
@@ -236,8 +236,15 @@ class Crossing:
 UNPROVEN = f"no game yet checks clean with {_NAMED}"
 
 
+# The note a proven library's refusals carry on the `uses` line where no clean
+# Library Witness reaches their definition.
+UNREACHED = f"no game yet checks clean reaching {_NAMED}"
+
+
 def _errors(bag: list[str]) -> list[str]:
-    return [line for line in bag if ": warning: " not in line]
+    """The refusals of a rendered verdict: neither its warnings nor the notes
+    under its lines."""
+    return [line for line in bag if line_kind(line) == "error"]
 
 
 def _assert_told(cell: Crossing, bag: list[str]) -> None:
@@ -245,17 +252,19 @@ def _assert_told(cell: Crossing, bag: list[str]) -> None:
         assert bag == [], "expected the cell to be accepted:\n" + "\n".join(bag)
         return
     text = "\n".join(bag)
-    notes = [line for line in bag if ": warning: " in line]
+    warnings = [line for line in bag if line_kind(line) == "warning"]
     bag = _errors(bag)
     assert bag, "expected a refusal, but the cell was accepted"
     in_library = [line for line in bag if line.startswith(_LIB_FILE)]
     in_game = [line for line in bag if not line.startswith(_LIB_FILE)]
     uses_at = f"{_GAME_FILE}:{_line(cell.game, f'uses {_LIB}')}:"
-    assert all(line.startswith(uses_at) and UNPROVEN in line for line in notes), text
+    assert all(
+        line.startswith(uses_at) and (UNPROVEN in line or UNREACHED in line) for line in warnings
+    ), text
     if cell.owner == LIBRARY:
         assert in_game == [], text
     else:
-        assert in_library == [] and notes == [], text
+        assert in_library == [] and warnings == [], text
         needle = f"uses {_LIB}" if cell.owner == USES else cell.anchor
         assert needle is not None
         at = f"{_GAME_FILE}:{_line(cell.game, needle)}:"
@@ -1164,7 +1173,8 @@ def test_the_fix_a_run_is_told_passes(
     fixes = {m.group(1) for line in bag for m in _REMEDY.finditer(line)}
     assert len(fixes) <= 1, text
     if not fixes:
-        assert bag and all(_BY_ARGUMENT in line or _NO_RUN_FIX in line for line in bag), text
+        refusals = _errors(bag)
+        assert refusals and all(_BY_ARGUMENT in line or _NO_RUN_FIX in line for line in refusals), text
         return
     fix = fixes.pop().replace("<player>", "0")
     assert game.count(run) == 1, run
@@ -1847,8 +1857,8 @@ def test_a_library_refused_against_itself(monkeypatch: pytest.MonkeyPatch, check
 def _unproven_cells() -> dict[str, tuple[Crossing, bool]]:
     """A refusal the library's own text causes, by the family it arrives
     through, and whether its library is unproven: no witness, or none that
-    checks clean. A proven library's definition no witness reaches stays the
-    library's, and says nothing on the `uses` line."""
+    checks clean. A proven library's definition no clean witness reaches
+    stays the library's, and its own warning on the `uses` line names it."""
     two_seats = _RUN_CASES["two-seats"].crossing()
     idle = _run_game("score[0] := 1")
     return {
@@ -1872,17 +1882,20 @@ def test_an_unproven_library_says_so_on_the_uses_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
     """The refusal stays in the library's file, with one warning on the
-    game's `uses` line where no game yet checks clean with the library: a
-    warning, so what is refused does not move.
+    game's `uses` line: that no game yet checks clean with the library, or,
+    where one does, that none reaches the refused definition. A warning, so
+    what is refused does not move.
 
-    red under (the proven cell): note every refusal left in library text,
-    whether or not some witness of the library checks clean."""
+    red under (the proven cell): note every refusal left in library text as
+    unproven, whether or not some witness of the library checks clean."""
     cell, unproven = _unproven_cells()[name]
     bag = _cell_bag(monkeypatch, cell)
     _assert_told(cell, bag)
     notes = [line for line in bag if UNPROVEN in line]
+    unreached = [line for line in bag if UNREACHED in line]
     assert len(notes) == (1 if unproven else 0), "\n".join(bag)
-    assert bag[0] not in notes, "\n".join(bag)
+    assert len(unreached) == (0 if unproven else 1), "\n".join(bag)
+    assert bag[0] not in notes + unreached, "\n".join(bag)
 
 
 # --- the sentences a game's author reads ----------------------------------------
@@ -1939,7 +1952,7 @@ def _sentence_cell(name: str) -> Crossing:
 @pytest.mark.parametrize("name", sorted(_SENTENCES))
 def test_the_sentence_a_game_author_reads(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
     cell = _sentence_cell(name)
-    (line,) = _cell_bag(monkeypatch, cell)
+    (line,) = _errors(_cell_bag(monkeypatch, cell))
     assert line.split(": error: ", 1)[1] == _SENTENCES[name]
 
 

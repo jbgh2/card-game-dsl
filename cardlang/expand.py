@@ -96,7 +96,10 @@ Assumes:      a resolved, typechecked AST — every `run` names a declared
               this pass runs after typecheck, above).
 Establishes:  a procedure-free tree: no `RunStmt`, no `ProcedureDef`;
               `Game.procedures` is empty. Expansion is total — there is
-              nothing left to reject here.
+              nothing left to reject here. The block a library procedure's
+              `run` becomes carries the procedure's `n.LibraryOrigin` and its
+              definition's span, so a refusal standing in the body is told
+              through its definition (`cardlang.attribution`).
 Now illegal:  a `RunStmt` reaching any later stage; the IR emitter
               hard-fails on one (cardlang/ir.py) as its Shadow Guard.
 Verified by:  tests/test_procedures.py; the emitter Shadow Guard above.
@@ -140,7 +143,11 @@ def _expansion(run: n.RunStmt, procs: dict[str, n.ProcedureDef]) -> n.Stmt:
     body = tuple(
         cast(n.Stmt, substitute(stmt, mapping, ref_kind="local")) for stmt in proc.body
     )
-    return n.Block(body=tuple(prologue) + body, span=span)
+    if proc.origin is None:
+        return n.Block(body=tuple(prologue) + body, span=span)
+    return n.Block(
+        body=tuple(prologue) + body, span=span, origin=proc.origin, definition=proc.span
+    )
 
 
 def _rewrite(node: object, procs: dict[str, n.ProcedureDef]) -> object:

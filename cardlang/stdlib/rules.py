@@ -23,7 +23,7 @@ from cardlang.parse import parse_library
 #: The standard library's declared name, and the one name a `uses` line may
 #: never spell.
 STDLIB_NAME = "stdlib"
-_SOURCE_NAME = "cardlang/stdlib/rules.cardlang"
+STDLIB_SOURCE_NAME = "cardlang/stdlib/rules.cardlang"
 
 
 def load_stdlib(text: str, source_name: str) -> n.Library:
@@ -61,7 +61,7 @@ def load_stdlib(text: str, source_name: str) -> n.Library:
 def stdlib_library() -> n.Library:
     """`library stdlib`, loaded once."""
     text = resources.files("cardlang.stdlib").joinpath("rules.cardlang").read_text()
-    return load_stdlib(text, _SOURCE_NAME)
+    return load_stdlib(text, STDLIB_SOURCE_NAME)
 
 
 @lru_cache(maxsize=1)

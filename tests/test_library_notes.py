@@ -264,26 +264,8 @@ def _told(monkeypatch: pytest.MonkeyPatch, stage: str, telling: str, lives: str)
     return L._rendered(exc.value)
 
 
-_RED_FIRST = {
-    (s, t, v)
-    for s in STAGES
-    for t, v in (
-        ("route", "family"), ("route", "stdlib"), ("stands-on", "family"),
-        ("stands-on", "stdlib"), ("certificate", "family"), ("unreached", "family"),
-        ("route", "outside"), ("stands-on", "outside"),
-    )
-} | {("after-expand", "unproven", "family"), ("after-expand", "unproven", "outside")}
-
-
-def _cell_ids() -> list[object]:
-    return [
-        pytest.param(
-            s, t, v, id=f"{s}-{t}-{v}",
-            marks=[pytest.mark.xfail(strict=True, raises=AssertionError, reason="the note is unbuilt")]
-            if (s, t, v) in _RED_FIRST else [],
-        )
-        for s in STAGES for t in TELLINGS for v in LIVES
-    ]
+def _cell_ids() -> list[tuple[str, str, str]]:
+    return [(s, t, v) for s in STAGES for t in TELLINGS for v in LIVES]
 
 
 def _note_names(stage: str, lives: str, where: str) -> str:
@@ -332,7 +314,7 @@ def test_a_refusal_is_told_with_its_library_line(
             assert where in warnings[0], text
 
 
-@pytest.mark.parametrize(("stage", "telling", "lives"), [(s, t, v) for s in STAGES for t in TELLINGS for v in LIVES])
+@pytest.mark.parametrize(("stage", "telling", "lives"), _cell_ids())
 def test_who_is_told_never_changes_what_is_refused(
     monkeypatch: pytest.MonkeyPatch, stage: str, telling: str, lives: str
 ) -> None:

@@ -457,7 +457,6 @@ def test_a_witness_whose_library_fails_fails_alone(monkeypatch: pytest.MonkeyPat
 # --- the library line a moved refusal stands on ---------------------------------
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the note is unbuilt")
 def test_a_routed_refusal_keeps_its_library_line(monkeypatch: pytest.MonkeyPatch) -> None:
     """The witness: a Trick Order row calling a library function that reads a
     pronoun is told at the row, and the function's line follows as a note."""

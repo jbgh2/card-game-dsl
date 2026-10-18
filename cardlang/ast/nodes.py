@@ -755,6 +755,11 @@ class Block:
 
     body: tuple[Stmt, ...]
     span: Span | None = None
+    # The library procedure the body was spliced from, and its definition's
+    # span: what `cardlang.attribution` tells a refusal of the body's library
+    # text through once the procedure itself is gone.
+    origin: LibraryOrigin | None = None
+    definition: Span | None = None
 
 
 @dataclass(frozen=True, slots=True)

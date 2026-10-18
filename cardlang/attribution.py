@@ -48,7 +48,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Severity, Span
+from cardlang.diagnostics import Diagnostic, DiagnosticBag, DiagnosticError, Note, Severity, Span
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.ast import nodes as n
@@ -140,10 +140,11 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
         keep_where_written(bag, game, uses)
         return
     holders = _holders(game)
-    lines = _uses_lines(game, uses)
+    lines = _uses_lines(game, uses, holders)
     told: list[Diagnostic] = []
     seen: set[tuple[str, Span | None]] = set()
     unproven: dict[str, Span] = {}
+    unreached: dict[tuple[str, str], Span] = {}
     for d in bag.items:
         moved = _routed(d) if d.route is not None else None
         if moved is None and d.route is None and d.severity is Severity.ERROR:
@@ -162,15 +163,19 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                     )
                 elif not certificate.proven:
                     unproven.setdefault(library, lines[library])
+                elif origin is not None:
+                    unreached.setdefault((library, origin.where), lines[library])
         if moved is None:
-            told.append(_bare(d))
+            told.append(_bare(d, d.stands_on, holders, lines))
             continue
         key = (moved.message, moved.span)
         if key not in seen:
             seen.add(key)
-            told.append(moved)
+            told.append(_bare(moved, d.span, holders, lines))
     for library, at in unproven.items():
         told.append(Diagnostic(Severity.WARNING, unproven_note(library), at))
+    for (library, where), at in unreached.items():
+        told.append(Diagnostic(Severity.WARNING, unreached_note(library, where), at))
     bag.items[:] = told
 
 
@@ -188,15 +193,52 @@ def unproven_note(library: str) -> str:
 UNREACHED_PHRASE = "no game yet checks clean reaching library"
 
 
+def unreached_note(library: str, where: str) -> str:
+    return (
+        f"{UNREACHED_PHRASE} '{library}''s {where}, so its refusal is told in "
+        f"the library's file"
+    )
+
+
 def is_unproven_note(line: str) -> bool:
     """Whether a rendered diagnostic line is an unproven library's note."""
     return ": warning: " in line and UNPROVEN_PHRASE in line
 
 
-def _bare(d: Diagnostic) -> Diagnostic:
-    if d.route is None and d.for_game is None:
+def _bare(
+    d: Diagnostic,
+    library_at: Span | None = None,
+    holders: list[_Holder] | None = None,
+    lines: dict[str, Span] | None = None,
+) -> Diagnostic:
+    """`d` told as it stands, with no step input left on it, and the library
+    text it stands on (`library_at`) as its note where it is told outside
+    that text's file."""
+    note = _note(library_at, d.span, holders or [], lines or {})
+    if d.route is None and d.for_game is None and d.stands_on is None and note is None:
         return d
-    return Diagnostic(d.severity, d.message, d.span)
+    return Diagnostic(d.severity, d.message, d.span, notes=() if note is None else (note,))
+
+
+def _note(
+    at: Span | None, told_at: Span | None, holders: list[_Holder], lines: dict[str, Span]
+) -> Note | None:
+    """The note naming the library text at `at`, for a refusal told at
+    `told_at`; None where `at` is no library's text or the refusal is told in
+    its file."""
+    if at is None or (told_at is not None and told_at.source_name == at.source_name):
+        return None
+    origin = _holder(at, holders)
+    if origin is not None:
+        return Note(at, f"in {_library_words(origin.library)}'s {origin.where}")
+    library = _library_of(at, lines)
+    return None if library is None else Note(at, f"in {_library_words(library)}")
+
+
+def _library_words(library: str) -> str:
+    from cardlang.stdlib.rules import STDLIB_NAME
+
+    return "the standard library" if library == STDLIB_NAME else f"library '{library}'"
 
 
 def _routed(d: Diagnostic) -> Diagnostic:
@@ -231,7 +273,11 @@ class _Holder:
 
 def _holders(game: n.Game) -> list[_Holder]:
     """Every spliced definition and provided declaration, by the span of the
-    library text it holds, innermost last."""
+    library text it holds, and every block a library procedure's `run`
+    became, by its definition's span."""
+    from cardlang.ast import nodes as n
+    from cardlang.resolve import _walk
+
     found: list[_Holder] = []
     defs: list[object] = [*game.functions, *game.procedures, *game.move_types, *game.rules]
     if game.state is not None:
@@ -241,6 +287,10 @@ def _holders(game: n.Game) -> list[_Holder]:
         span = getattr(d, "span", None)
         if origin is not None and span is not None:
             found.append(_Holder(span.source_name, span.start, span.end, origin))
+    for nd in _walk(game):
+        if isinstance(nd, n.Block) and nd.origin is not None and nd.definition is not None:
+            at = nd.definition
+            found.append(_Holder(at.source_name, at.start, at.end, nd.origin))
     return found
 
 
@@ -254,23 +304,30 @@ def _holder(span: Span | None, holders: list[_Holder]) -> n.LibraryOrigin | None
     return min(inside, key=lambda h: h.end - h.start).origin if inside else None
 
 
-def _uses_lines(game: n.Game, uses: tuple[n.UsesDecl, ...]) -> dict[str, Span]:
+def _uses_lines(
+    game: n.Game, uses: tuple[n.UsesDecl, ...], holders: list[_Holder]
+) -> dict[str, Span]:
     """Each used library's `uses` line, by library name."""
     lines: dict[str, Span] = {}
     for use in (*game.uses, *uses):
         if use.span is not None:
             lines.setdefault(use.name, use.span)
-    for holder in _holders(game):
+    for holder in holders:
         if holder.origin.uses_span is not None:
             lines.setdefault(holder.origin.library, holder.origin.uses_span)
     return lines
 
 
 def _library_of(span: Span | None, lines: dict[str, Span]) -> str | None:
+    """The library whose file `span` stands in: a used library, or the
+    standard library."""
     from cardlang.libraries import library_source_name
+    from cardlang.stdlib.rules import STDLIB_NAME, STDLIB_SOURCE_NAME
 
     if span is None:
         return None
+    if span.source_name == STDLIB_SOURCE_NAME:
+        return STDLIB_NAME
     return next((lib for lib in lines if library_source_name(lib) == span.source_name), None)
 
 
