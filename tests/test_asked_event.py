@@ -69,7 +69,7 @@ from cardlang.runtime.observe import EVENT_PAYLOADS, PAYLOAD_SHAPES
 CARDLANG = Path(__file__).resolve().parent.parent / "cardlang"
 GAMES_DIR = Path(__file__).resolve().parent.parent / "docs" / "games"
 
-# The ruled payload (docs/plans/2026-09-17-decision-identity.md): the phase is
+# The ruled payload (the ruling on PR #716): the phase is
 # the designer's word for the stretch of play, the construct the kernel's word
 # for the kind of sentence asking, the count how many picks it wants, and the
 # destination the zone they land in — None where the site cannot know it before

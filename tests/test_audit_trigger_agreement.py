@@ -7,8 +7,8 @@ property:   the sentence naming WHAT FIRES the completeness gate is spelled
 domain:     every tracked file stating the trigger -- found by its tail phrase
             rather than by a hand-written file list, so a fourth copy joins the
             pin the day it is written. Two kinds of file sit outside, and
-            neither is a gap. Dated snapshots under `docs/plans/` and
-            `docs/superpowers/` record what the trigger said when they were
+            neither is a gap. Dated snapshots under `docs/superpowers/`
+            record what the trigger said when they were
             written, and rule 1 (spec, not history) keeps them frozen. And a
             file carrying the tail phrase without the OPENING is not a copy:
             `decisions.md` uses "a closed-domain mechanism" in the
@@ -52,7 +52,7 @@ _SENTENCE = re.compile(r"adds or extends[^.]*?" + re.escape(_TAIL))
 
 # Frozen records, excluded by rule 1 (spec, not history): they say what the
 # trigger said when they were written and must not be edited to match today.
-_SNAPSHOTS = ("docs/plans/", "docs/superpowers/")
+_SNAPSHOTS = ("docs/superpowers/",)
 
 
 def _normalize(text: str) -> str:

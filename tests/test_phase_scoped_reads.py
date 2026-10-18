@@ -1,7 +1,7 @@
 """The phase-scoped read declaration's coverage grid: `reads X in <phase>`.
 
 A `primitives { }` entry may declare a read of state a PHASE declares, by
-naming that phase (docs/plans/2026-08-30-phase-scoped-reads.md; issue #504).
+naming that phase (PR #522; issue #504).
 The tail is declaration-only surface — nothing new is emitted — and it buys
 one static obligation in exchange: an entry with a scoped read is callable
 only where the innermost named phase runs. This module is that change's grid,

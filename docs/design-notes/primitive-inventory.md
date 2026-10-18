@@ -7,7 +7,7 @@ expressibility verdict: **(a)** expressible in today's DSL · **(b)** needs
 combination/multiset patterns · **(c)** needs contextual ranking · **(d)** needs an
 ordered ladder domain · **(e)** other named gap · **(f)** legitimately engine-side.
 
-Read alongside `docs/plans/` specs; this note is the evidence base that re-shapes the
+Read alongside the rulings on each construct's issue; this note is the evidence base that re-shapes the
 primitive-elimination roadmap (see "How this changes the plan" at the end).
 
 **This is a dated measurement, and the tree has moved under it.** Its figures are the
@@ -212,7 +212,7 @@ the primitives are the requirements, already debugged against real games.
 Everything below was verified 2026-08-01 by three parallel readers over the actual
 modules. **Nothing in this note is ruled** — it is evidence and a recommended order.
 A fresh conversation can pick up any single item: Tier 0 entries are individually
-shippable PRs; each construct gets a `docs/plans/` spec per convention when its turn
+shippable PRs; each construct is ruled on its issue when its turn
 comes; glossary terms (Owner Guard, Transfer, Mode, …) apply throughout. Open
 decisions a pickup session should not re-derive: (i) whether the six red-flag
 legality predicates are grandfathered until Construct C or the doctrine gets an

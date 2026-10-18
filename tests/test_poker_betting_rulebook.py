@@ -22,7 +22,7 @@ does not prove:  nothing about positions the books do not illustrate. This
                  number. That asymmetry is why a case here outranks a cell
                  anywhere else in the suite, and why the standing rule is that
                  every betting finding which turns out to be a misreading closes
-                 by adding its example here (docs/plans/2026-08-26-betting-rules-oracles.md).
+                 by adding its example here (PR #449).
 
 The books are quoted rather than paraphrased because a paraphrase is already a
 reading, and a reading is the thing this module exists to check.

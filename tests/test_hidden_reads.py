@@ -130,8 +130,7 @@ def _lattice() -> tuple[str, ...]:
 
 _LATTICE = _lattice()
 
-# The operator's ruling (docs/plans/2026-09-23-hidden-read-wall.md,
-# "What the wall judges by"): each need maps to the least level that reveals
+# The operator's ruling (the ruling on PR #759): each need maps to the least level that reveals
 # it, and membership is judged at identity. Order is not a level.
 _NEED_LEVEL = {"existence": "existence_only", "count": "count_only", "identity": "identity"}
 
@@ -656,8 +655,7 @@ def test_a_destination_zone_is_named_not_read(
 _BUMP = "move_type bump { effect { leader := 1 } }"
 
 # cell -> (body, defs, zone, teams, the refusal's fragment or None). Each
-# outcome is the ruling's (docs/plans/2026-09-23-hidden-read-wall.md,
-# "What the wall judges by").
+# outcome is the ruling's (the ruling on PR #759).
 _RELATIONS: dict[str, tuple[str, str, str, bool, str | None]] = {
     # Bare-family sugar is the acting seat's own instance by construction.
     "bare-family": (*_take(effect="move chosen 1 card from hand to pile"), "", False, None),

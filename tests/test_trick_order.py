@@ -15,7 +15,7 @@ Architect's PR-1 counsels (issue #250, "Hoyle counsel -- #250 PR 1" and
 open for the operator are named under `provisional` below so a different
 ruling flips a NAMED set of cells, not a guessed one.
 
-The plan this grid is the work list of: docs/superpowers/plans/2026-08-17-trick-order-pr1.md.
+The plan this grid is the work list of is the rulings on issue #250 and PR #371.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
