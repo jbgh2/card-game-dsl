@@ -67,6 +67,7 @@ Contract:
 from __future__ import annotations
 
 import dataclasses
+import inspect
 from collections.abc import Callable, Mapping
 from collections.abc import Mapping as _Mapping
 from collections.abc import Sequence as _Sequence
@@ -265,12 +266,19 @@ def _dataclass_freezer(cls: type) -> _Freezer:
 
     The copy runs the class's own `__init__` (and so its `__post_init__`)
     over every field frozen, which is what `dataclasses.replace` naming every
-    field does. Positionally where every field is a positional init field;
-    otherwise through `replace` itself, which also refuses an `init=False`
-    field exactly as it would by hand."""
+    field does. Positionally where the constructor's parameters are exactly
+    the fields, in order and positional, as the class's own signature says;
+    otherwise through `replace` itself, which refuses an `init=False` field
+    or an unnamed `InitVar` exactly as it would by hand. The signature, not
+    the field list, decides: an `InitVar` or a hand-written `__init__` is a
+    parameter `fields` does not show, and a positional call would shift every
+    value after it into the wrong argument."""
     fields = dataclasses.fields(cls)
     names = tuple(f.name for f in fields)
-    if all(f.init and not f.kw_only for f in fields):
+    params = tuple(inspect.signature(cls).parameters.values())
+    if tuple(p.name for p in params) == names and all(
+        p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD for p in params
+    ):
 
         def rebuild(value: Any) -> Any:
             return cls(*[deep_freeze(getattr(value, n)) for n in names])

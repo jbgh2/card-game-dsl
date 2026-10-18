@@ -1329,6 +1329,47 @@ def test_deep_freeze_copies_through_the_class_init_on_both_rebuild_paths() -> No
     assert inits == [2, 2], "the copy did not run the class's __post_init__"
 
 
+def test_deep_freeze_copies_by_the_constructor_signature_not_the_field_list() -> None:
+    """An `InitVar` is a constructor parameter `dataclasses.fields` does not
+    list, and a hand-written `__init__` can order its parameters unlike the
+    fields. A positional rebuild over the field list would hand the old `y`
+    to the `InitVar` and default `y`, or swap `a` and `b`, silently; both are
+    copied through `replace` instead, value for value. Reddens if the
+    positional path keys on the field list."""
+    import dataclasses as _dc
+    from dataclasses import dataclass as _dataclass
+
+    # Built rather than declared: under this module's postponed annotations a
+    # locally imported `InitVar` would read as an ordinary field.
+    tokened_type: Any = _dc.make_dataclass(
+        "Tokened",
+        [
+            ("x", int),
+            ("token", _dc.InitVar[int], _dc.field(default=0)),
+            ("y", int, _dc.field(default=0)),
+        ],
+        frozen=True,
+        slots=True,
+        namespace={"__post_init__": lambda self, token: None},
+    )
+    tokened = tokened_type(1, 2, 3)
+    copy = reads_mod.deep_freeze(tokened)
+    assert copy == tokened and copy is not tokened
+
+    @_dataclass(frozen=True, slots=True, init=False)
+    class Reversed:
+        a: int
+        b: int
+
+        def __init__(self, b: int, a: int) -> None:
+            object.__setattr__(self, "a", a)
+            object.__setattr__(self, "b", b)
+
+    original = Reversed(b=2, a=1)
+    copy_reversed = reads_mod.deep_freeze(original)
+    assert copy_reversed == original and copy_reversed is not original
+
+
 def test_deep_freeze_refuses_a_refused_type_at_every_sight() -> None:
     """The case `deep_freeze` takes is decided once per type and kept, so a
     refusal must never be kept as a decision: the second sight of a refused
