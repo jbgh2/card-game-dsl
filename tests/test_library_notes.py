@@ -16,9 +16,13 @@ property:        a refusal the step tells in the game's file -- at a
                  refusal left in the library's file renders no
                  note, and where its library is unproven, or its definition
                  is one no clean Library Witness reaches in a proven
-                 library, one warning on the `uses` line says so; every
-                 rendered line is an error, a warning or a note; and who is
-                 told never changes what is refused.
+                 library, one warning on the `uses` line says so; a refusal
+                 of the game's text or its `uses` line naming library text
+                 renders a note at each library line it names; no check but
+                 the step spells a library's name or a definition's library
+                 words into a string; every rendered line is an error, a
+                 warning or a note; and who is told never changes what is
+                 refused.
 domain:          the step's own domain, crossed: the game the step is handed
                  (`STAGES`: the spliced game before the splice's raise, the
                  resolved game, the expanded game), how the step tells the
@@ -38,21 +42,40 @@ domain:          the step's own domain, crossed: the game the step is handed
                  has no definition a Library Witness can reach, so it is
                  certified nowhere and its note names its library. A check
                  that hands the step a node with no span hands it no line,
-                 and the refusal carries no note.
+                 and the refusal carries no note. Library to game, one cell
+                 per check that refuses the game's text or its `uses` line
+                 naming library text (`NAMED`), two libraries where the check
+                 compares two, and a template argument the game wrote,
+                 substituted into a library rule; beside them, every refusal
+                 naming a library that the boundary ledger's library-to-game
+                 witnesses raise in the game's file. The scoped-read
+                 containment's arms on a library move type, offered nowhere
+                 and run outside the phase, are declaration-gate cells and
+                 so ledger cells above. The spelling census reads every
+                 string of the package outside the step, its docstrings and
+                 the messages of an installation's own errors excepted.
 registry:        stages: `STAGES`, pinned against the raises after the splice
                  (`test_the_stages_are_the_raises`); tellings: `TELLINGS`;
                  rendered line kinds: `cardlang.diagnostics.LINE_KINDS`;
                  ledger cells: tests/test_library_attribution.py `_cells`;
-                 rejection goldens: tests/test_rejections.py `case_paths`.
+                 library-to-game witnesses:
+                 tests/test_library_boundary_ledger.py
+                 `_library_to_game_witnesses`; the census's modules: the
+                 `cardlang/` glob; rejection goldens: tests/test_rejections.py
+                 `case_paths`.
 does not prove:  that the library line a check names is the one its sentence
                  means: a check standing a refusal at the game's text hands
                  the step the library text it read, and the note is that
-                 line.
+                 line. Nor that a sentence naming a library definition by its
+                 bare name, with no library word, carries its line: the
+                 census reads spellings, and such a sentence has none to
+                 read, so its cell here is the check.
 """
 
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -61,7 +84,16 @@ import pytest
 import cardlang.attribution as attribution
 import cardlang.resolve as R
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import LINE_KINDS, DiagnosticBag, DiagnosticError, Route, Span, line_kind
+from cardlang.deckcheck import check_capacity
+from cardlang.diagnostics import (
+    LINE_KINDS,
+    Diagnostic,
+    DiagnosticBag,
+    DiagnosticError,
+    Route,
+    Span,
+    line_kind,
+)
 from cardlang.expand import expand
 from cardlang.parse import parse_library, parse_text
 from cardlang.stdlib.rules import stdlib_library
@@ -609,6 +641,481 @@ def test_no_golden_tells_a_library_refusal_in_the_librarys_file_unwarned() -> No
             for ln in lines
         )
         assert not primaries or warned, path.name
+
+
+# --- library to game: a refusal of the game's text naming library text ---------
+#
+# A check refusing the game's text or its `uses` line for library text the game
+# meets names that text in its sentence, and the text's line is its note. One
+# cell per check that names library text there; two libraries where the check
+# compares two.
+
+_OTHER = "otherlib"
+_STDLIB_RULES = "cardlang/stdlib/rules.cardlang"
+
+
+def _host(
+    uses: tuple[str, ...] = (L._LIB,),
+    zones: str = "",
+    state: str = "score[player] : Integer = 0",
+    body: str | None = None,
+    rules: str = "",
+    extra: str = "",
+) -> str:
+    play = body or (
+        f"{rules}round play_to_trick from 0 over all players source hand into pile "
+        "winner highest_of_led_suit"
+    )
+    return (
+        "game Boundary {\n"
+        "  players: 2\n"
+        "  cards: standard52\n"
+        "  max_length: 200\n"
+        "  ranking: aces high\n"
+        + "".join(f"  uses {u}\n" for u in uses)
+        + f"  zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile {zones} }}\n"
+        f"  state {{ {state} }}\n"
+        "  phase setup { shuffle deck  deal 5 cards from deck to each hand }\n"
+        f"  phase play {{ {play} }}\n"
+        "  winner: highest score\n"
+        "}\n"
+        f"{extra}"
+    )
+
+
+def _lib(name: str, body: str) -> str:
+    return f"library {name} {{\n{body}\n}}\n"
+
+
+_TRICK = "round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
+_ROW_G = "  requires { g(c : Card) : Integer }\n  function h(c : Card) = g(c)"
+_TEMPLATE = (
+    "  rule lr(s : Suit) {\n"
+    "    constrains: play_to_trick\n"
+    "    demands: cards in hand where card.suit is s\n"
+    "    if_impossible: hand\n"
+    "  }"
+)
+
+
+@dataclass(frozen=True)
+class Named:
+    """A refusal of the game's text naming library text: the libraries by
+    name, the game, the game text it is told at (`at`, a needle of the game's
+    line), words its sentence carries (`says`), and the library lines its
+    notes stand on, as (library, needle of the line)."""
+
+    libraries: tuple[tuple[str, str], ...]
+    game: str
+    at: str
+    says: str
+    notes: tuple[tuple[str, str], ...]
+
+
+NAMED: dict[str, Named] = {
+    "definition-collision": Named(
+        ((L._LIB, _lib(L._LIB, "  function f(c : Card) = rank_value(c)")),),
+        _host(extra="function f(c : Card) = rank_value(c)\n"),
+        "function f(c : Card)", "is defined by this game and also by",
+        ((L._LIB, "function f("),),
+    ),
+    "two-libraries-define": Named(
+        (
+            (L._LIB, _lib(L._LIB, "  function f(c : Card) = rank_value(c)")),
+            (_OTHER, _lib(_OTHER, "  function f(c : Card) = rank_value(c)")),
+        ),
+        _host(uses=(L._LIB, _OTHER)),
+        f"uses {_OTHER}", "is defined by both",
+        ((L._LIB, "function f("), (_OTHER, "function f(")),
+    ),
+    "brought-in-over-game-name": Named(
+        ((L._LIB, _lib(L._LIB, "  function seen(c : Card) = rank_value(c)")),),
+        _host(zones="seen : Discard"),
+        "seen : Discard", "brings in function 'seen'",
+        ((L._LIB, "function seen("),),
+    ),
+    "brought-in-over-another-contract": Named(
+        (
+            (L._LIB, _lib(L._LIB, "  requires { score[player] : Integer }\n  procedure g() { score[0] += 1 }")),
+            (_OTHER, _lib(_OTHER, _ROW_G)),
+        ),
+        _host(uses=(L._LIB, _OTHER), extra="function g(c : Card) = rank_value(c)\n"),
+        f"uses {L._LIB}", "has this game define 'g'",
+        ((L._LIB, "procedure g("), (_OTHER, "requires { g(")),
+    ),
+    "two-libraries-provide": Named(
+        (
+            (L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),
+            (_OTHER, _lib(_OTHER, "  state { tally : Integer = 0 }")),
+        ),
+        _host(uses=(L._LIB, _OTHER)),
+        f"uses {_OTHER}", "is provided by both",
+        ((L._LIB, "tally"), (_OTHER, "tally")),
+    ),
+    "game-declares-provided": Named(
+        ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
+        _host(state="score[player] : Integer = 0  tally : Integer = 0"),
+        "tally : Integer = 0", "is declared by this game and also provided",
+        ((L._LIB, "tally"),),
+    ),
+    "requires-what-another-provides": Named(
+        (
+            (L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),
+            (_OTHER, _lib(_OTHER, "  requires { tally : Integer }\n  procedure bump() { tally += 1 }")),
+        ),
+        _host(uses=(L._LIB, _OTHER)),
+        f"uses {_OTHER}", "which library 'boundarylib' provides",
+        ((_OTHER, "requires { tally"), (L._LIB, "tally")),
+    ),
+    "write-of-provided-state": Named(
+        ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
+        _host(body=f"tally := 1  {_TRICK}"),
+        "tally := 1", "cannot write 'tally'",
+        ((L._LIB, "tally"),),
+    ),
+    "chosen-binder-over-provided-state": Named(
+        ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
+        _host(body=f"let tally = 1  {_TRICK}"),
+        "let tally = 1", "binder 'tally' is spelled like state",
+        ((L._LIB, "tally"),),
+    ),
+    "unchosen-binder-over-provided-state": Named(
+        ((L._LIB, _lib(L._LIB, "  state { card : Integer = 0 }")),),
+        _host(body=f"score[0] := number of cards in hand where rank_value(card) > 3  {_TRICK}"),
+        "score[0] := number", "and this form binds 'card'",
+        ((L._LIB, "card : Integer"),),
+    ),
+    "requires-zone-undeclared": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { stock : Discard }")),),
+        _host(),
+        f"uses {L._LIB}", "requires zone `stock : Discard`",
+        ((L._LIB, "requires {"),),
+    ),
+    "requires-state-undeclared": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { tally : Integer }")),),
+        _host(),
+        f"uses {L._LIB}", "requires state `tally : Integer`",
+        ((L._LIB, "requires {"),),
+    ),
+    "requires-state-of-another-type": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { score[player] : Boolean }")),),
+        _host(),
+        f"uses {L._LIB}", "but game 'Boundary' declares it as `Integer`",
+        ((L._LIB, "requires {"),),
+    ),
+    "requires-function-undefined": Named(
+        ((L._LIB, _lib(L._LIB, _ROW_G)),),
+        _host(),
+        f"uses {L._LIB}", "which game 'Boundary' does not define",
+        ((L._LIB, "requires {"),),
+    ),
+    "contract-result-type": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { g(c : Card) : Integer }\n  function h(c : Card) = g(c) > 2")),),
+        _host(extra="function g(c : Card) = c.suit is hearts\n"),
+        f"uses {L._LIB}", "returning Boolean",
+        ((L._LIB, "requires {"),),
+    ),
+    "card-field-the-deck-lacks": Named(
+        ((L._LIB, _lib(L._LIB, "  function h(c : Card) = c.colour")),),
+        _host(),
+        f"uses {L._LIB}", "reads the field `colour`",
+        ((L._LIB, "c.colour"),),
+    ),
+    "answer-reads-a-call-site-pronoun": Named(
+        ((L._LIB, _lib(L._LIB, _ROW_G)),),
+        _host(extra="function g(c : Card) = score[actor]\n"),
+        "function g(c : Card)", "calls it under its contract",
+        ((L._LIB, "requires {"),),
+    ),
+    "answer-reads-the-play-source": Named(
+        ((L._LIB, _lib(L._LIB, (
+            "  requires { g(c : Card) : Integer }\n"
+            "  rule lr {\n    constrains: play_to_trick\n"
+            "    demands: cards in hand where g(card) > 0\n    if_impossible: hand\n  }"
+        ))),),
+        _host(rules="active_rules: [lr] ", extra="function g(c : Card) = number of cards in hand\n"),
+        "function g(c : Card)", "calls it under its contract",
+        ((L._LIB, "requires {"),),
+    ),
+    "recursion-through-library-text": Named(
+        ((L._LIB, _lib(L._LIB, _ROW_G)),),
+        _host(extra="function g(c : Card) = h(c)\n"),
+        "function g(c : Card)", "is recursive through",
+        ((L._LIB, "function h("),),
+    ),
+    "template-without-arguments": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE)),),
+        _host(rules="active_rules: [lr] "),
+        "active_rules: [lr]", "is parameterized",
+        ((L._LIB, "rule lr("),),
+    ),
+    "template-of-another-arity": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE)),),
+        _host(rules="active_rules: [lr(hearts, spades)] "),
+        "active_rules: [lr(", "argument(s), got 2",
+        ((L._LIB, "rule lr("),),
+    ),
+    "template-argument-not-a-suit": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE)),),
+        _host(rules="active_rules: [lr(score)] "),
+        "active_rules: [lr(", "must be a suit literal",
+        ((L._LIB, "rule lr("),),
+    ),
+    "rule-taking-no-arguments": Named(
+        ((L._LIB, _lib(L._LIB, (
+            "  rule lr {\n    constrains: play_to_trick\n"
+            "    demands: cards in hand where rank_value(card) > 3\n    if_impossible: hand\n  }"
+        ))),),
+        _host(rules="active_rules: [lr(hearts)] "),
+        "active_rules: [lr(", "takes no parameters",
+        ((L._LIB, "rule lr {"),),
+    ),
+    "substituted-template-argument": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE.replace("card.suit is s", "rank_value(card) > s"))),),
+        _host(rules="active_rules: [lr(hearts)] "),
+        "active_rules: [lr(", "Suit enum values have no arithmetic order",
+        ((L._LIB, "rank_value(card) > s"),),
+    ),
+    "game-rule-over-a-standard-library-rule": Named(
+        ((L._LIB, _lib(L._LIB, "  function z(c : Card) = rank_value(c)")),),
+        _host(extra=(
+            "rule MustFollowSuit {\n  constrains: play_to_trick\n"
+            "  demands: cards in hand where rank_value(card) > 3\n  if_impossible: hand\n}\n"
+        )),
+        "rule MustFollowSuit {", "shadows the standard",
+        (("stdlib", "rule MustFollowSuit"),),
+    ),
+}
+
+# The cells the mechanism turns green; each renders no note on the tree before
+# it.
+_RED = pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="issue #912: a refusal naming library text carries no note of its line",
+)
+
+
+def _source_file(library: str) -> str:
+    return _STDLIB_RULES if library == "stdlib" else f"docs/libraries/{library}.cardlang"
+
+
+def _source_text(cell: Named, library: str) -> str:
+    if library == "stdlib":
+        return (_ROOT / _STDLIB_RULES).read_text()
+    return dict(cell.libraries)[library]
+
+
+def _named_bag(monkeypatch: pytest.MonkeyPatch, cell: Named) -> list[str]:
+    libraries = {
+        name: parse_library(text, f"docs/libraries/{name}.cardlang") for name, text in cell.libraries
+    }
+    monkeypatch.setattr(R, "library_names", lambda: frozenset(libraries))
+    monkeypatch.setattr(R, "load_library", lambda name: libraries[name])
+    monkeypatch.setattr(attribution, "witness_sources", lambda name: ())
+    try:
+        check_capacity(expand(typecheck(R.resolve(parse_text(cell.game, L._GAME_FILE)))))
+    except DiagnosticError as exc:
+        return L._rendered(exc)
+    return []
+
+
+def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
+    found = [(line, notes) for line, notes in _grouped(lines) if cell.says in line]
+    assert len(found) == 1, "\n".join(lines)
+    return found[0]
+
+
+@pytest.mark.parametrize("name", [pytest.param(k, marks=_RED) for k in sorted(NAMED)])
+def test_a_refusal_naming_library_text_notes_its_line(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    cell = NAMED[name]
+    lines = _named_bag(monkeypatch, cell)
+    text = "\n".join(lines)
+    line, notes = _named_refusal(lines, cell)
+    assert line_kind(line) == "error", text
+    assert _location(line) == (L._GAME_FILE, _line_of(cell.game, cell.at)), text
+    want = {
+        (_source_file(lib), _line_of(_source_text(cell, lib), needle)) for lib, needle in cell.notes
+    }
+    assert {_location(nt) for nt in notes} == want, text
+    for nt in notes:
+        assert "library '" in nt or "the standard library" in nt, text
+
+
+@pytest.mark.parametrize("name", sorted(NAMED))
+def test_who_is_told_a_library_named_refusal_never_changes_what_is_refused(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """red under: have `attribution._bare` drop a refusal it notes."""
+    cell = NAMED[name]
+    told = L._errors(_named_bag(monkeypatch, cell))
+    with monkeypatch.context() as mp:
+        mp.setattr(attribution, "tell", attribution.keep_where_written)
+        kept = L._errors(_named_bag(mp, cell))
+    assert told == kept and told
+
+
+# --- no check spells library text into a sentence itself -------------------------
+
+# The words that name a library or its text in a sentence, and the attributes
+# holding a library's name or a definition's words.
+_LIBRARY_WORDS = re.compile(r"\blibrary '|\bthe standard library\b|\bstandard-library\b", re.I)
+_LIBRARY_WORD_BEFORE_VALUE = re.compile(r"\blibrary\s*'?$", re.I)
+_LIBRARY_ATTRS = frozenset({"where", "through", "library"})
+
+
+def _docstrings(tree: ast.AST) -> set[int]:
+    found: set[int] = set()
+    for nd in ast.walk(tree):
+        if isinstance(nd, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            first = nd.body[0] if nd.body else None
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                found.add(id(first.value))
+    return found
+
+
+def _installation_messages(tree: ast.AST) -> set[int]:
+    """The strings inside a `raise` of an exception that is no refusal: an
+    installation's own fault, told to whoever installed it."""
+    found: set[int] = set()
+    for nd in ast.walk(tree):
+        if isinstance(nd, ast.Raise) and isinstance(nd.exc, ast.Call):
+            func = nd.exc.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+            if name != "DiagnosticError":
+                found.update(id(sub) for sub in ast.walk(nd.exc))
+    return found
+
+
+def _spellings(source: str) -> list[str]:
+    """Each line where `source` spells a library's name or a definition's
+    library words into a string itself."""
+    tree = ast.parse(source)
+    skipped = _docstrings(tree) | _installation_messages(tree)
+    skipped |= {
+        id(piece)
+        for nd in ast.walk(tree) if isinstance(nd, ast.JoinedStr)
+        for piece in nd.values
+    }
+    found: list[str] = []
+    for nd in ast.walk(tree):
+        if id(nd) in skipped:
+            continue
+        if isinstance(nd, ast.JoinedStr):
+            pieces = nd.values
+            for at, piece in enumerate(pieces):
+                if isinstance(piece, ast.Constant) and isinstance(piece.value, str):
+                    following = pieces[at + 1] if at + 1 < len(pieces) else None
+                    if _LIBRARY_WORDS.search(piece.value) or (
+                        isinstance(following, ast.FormattedValue)
+                        and _LIBRARY_WORD_BEFORE_VALUE.search(piece.value)
+                    ):
+                        found.append(f"{nd.lineno}: {piece.value!r}")
+                elif (
+                    isinstance(piece, ast.FormattedValue)
+                    and isinstance(piece.value, ast.Attribute)
+                    and piece.value.attr in _LIBRARY_ATTRS
+                ):
+                    found.append(f"{nd.lineno}: {{{ast.unparse(piece.value)}}}")
+        elif isinstance(nd, ast.Constant) and isinstance(nd.value, str) and _LIBRARY_WORDS.search(nd.value):
+            found.append(f"{nd.lineno}: {nd.value!r}")
+    return found
+
+
+_THE_STEP = frozenset({"attribution.py", "diagnostics.py"})
+
+
+@pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="issue #912: the checks spell library text into their sentences",
+)
+def test_no_check_spells_library_text_into_a_sentence() -> None:
+    """The words naming a library or its text are made by the attribution
+    step alone, from a value carrying the text's span.
+
+    red under: write `f"library {name!r}"` into a sentence in resolve."""
+    spelled = [
+        f"{path.relative_to(_ROOT).as_posix()}:{at}"
+        for path in sorted(_PACKAGE.rglob("*.py"))
+        if path.relative_to(_PACKAGE).as_posix() not in _THE_STEP
+        for at in _spellings(path.read_text())
+    ]
+    assert spelled == []
+
+
+def test_the_spelling_census_reads_every_spelling() -> None:
+    """Each arm of `_spellings` finds its spelling, so the census cannot pass
+    by reading nothing.
+
+    red under: drop the `_LIBRARY_WORD_BEFORE_VALUE` arm from `_spellings`."""
+    sources = {
+        "word": "x = f\"library '{name}' requires\"\n",
+        "value": "x = f\"library {name!r} requires\"\n",
+        "standard": "x = 'the standard library holds'\n",
+        "where": "x = f\"in {origin.where}\"\n",
+        "docstring": "def f():\n    \"\"\"library 'x' is quiet here.\"\"\"\n",
+        "installation": "raise ValueError(f\"library '{name}' is broken\")\n",
+    }
+    found = {key: len(_spellings(source)) for key, source in sources.items()}
+    assert found == {
+        "word": 1, "value": 1, "standard": 1, "where": 1, "docstring": 0, "installation": 0,
+    }
+
+
+# --- every library-to-game refusal told in the game names its library line -------
+
+
+def _told_in_the_game(monkeypatch: pytest.MonkeyPatch, witness: L.Witness) -> list[Diagnostic]:
+    """Every error the step tells outside a library's file while `witness`
+    runs a game that uses a library."""
+    told: list[Diagnostic] = []
+    real = attribution.tell
+
+    def recording(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) -> None:
+        real(bag, game, uses)
+        if attribution._WITNESSING.get() or not attribution._holders(game) and not uses:
+            return
+        told.extend(
+            d for d in bag.items
+            if d.severity.value == "error"
+            and d.span is not None
+            and not d.span.source_name.startswith(("docs/libraries/", _STDLIB_RULES))
+        )
+
+    monkeypatch.setattr(attribution, "tell", recording)
+    try:
+        witness(monkeypatch)
+    except BaseException as exc:  # an owning grid's strict xfail is its own record
+        if not isinstance(exc, (AssertionError, pytest.xfail.Exception)):
+            raise
+    return told
+
+
+@pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="issue #912: library-to-game refusals naming library text carry no note",
+)
+def test_every_library_to_game_refusal_told_in_the_game_names_its_library_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Read off every refusal the step tells in the game's file, naming a
+    library, while each witness of the ledger's library-to-game families
+    runs; a sentence naming no library refuses the game's own text.
+
+    red under: have `attribution._bare` drop every note."""
+    missing: list[str] = []
+    read = 0
+    for key, witness in sorted(L._library_to_game_witnesses().items()):
+        with monkeypatch.context() as mp:
+            for d in _told_in_the_game(mp, witness):
+                if not _LIBRARY_WORDS.search(d.message):
+                    continue
+                read += 1
+                if not d.notes:
+                    missing.append(f"{key}: {d.format()}")
+    assert read > 0
+    assert missing == []
 
 
 # --- the step alone makes a note ------------------------------------------------
