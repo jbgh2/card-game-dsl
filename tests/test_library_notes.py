@@ -79,7 +79,7 @@ why missed: the step's ledger and the destinations count both read "owned by
 from __future__ import annotations
 
 import ast
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -355,6 +355,119 @@ def test_who_is_told_never_changes_what_is_refused(
         mp.setattr(attribution, "tell", attribution.keep_where_written)
         kept = [ln for ln in _told(mp, stage, telling, lives) if line_kind(ln) == "error"]
     assert len(told) == len(kept) == 1
+
+
+# --- what the step keeps when it moves and merges refusals ----------------------
+
+_TWICE = (
+    "library boundarylib {\n"
+    "  requires { secret[player] : HiddenPile<player>  hand[player] : Hand<player>  pile : Discard }\n"
+    "  procedure libpr(k : Integer) {\n"
+    "    move chosen k cards from hand to pile\n"
+    "    move chosen k cards from hand to pile\n"
+    "  }\n"
+    "}\n"
+)
+
+
+def _hidden_run(body: str) -> str:
+    return (
+        "game Boundary {\n"
+        "  players: 3\n"
+        "  cards: standard52\n"
+        "  max_length: 200\n"
+        "  ranking: aces high\n"
+        "  uses boundarylib\n"
+        "  zones { deck : Deck  hand[player] : Hand<player>  pile : Discard  secret[player] : HiddenPile<player> }\n"
+        "  state { score[player] : Integer = 0  leader : Player = 0  dealer : Player = 1 }\n"
+        "  phase setup { shuffle deck  deal 5 cards from deck to each hand }\n"
+        f"  phase play {{ {body} }}\n"
+        "  winner: highest score\n"
+        "}\n"
+        "function high(p : Player) = number of cards in secret[p] where rank_value(card) > 3\n"
+    )
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the step drops the note")
+def test_one_refusal_on_two_library_lines_names_both(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A run whose argument reads hidden cards, for two decisions of the
+    procedure's body, is one refusal at the run, standing on both lines."""
+    game = _hidden_run("as leader { run libpr(high(dealer)) }")
+    lines = L._bag(monkeypatch, _TWICE, game)
+    text = "\n".join(lines)
+    assert len(L._errors(lines)) == 1, text
+    noted = {_location(ln) for ln in lines if line_kind(ln) == "note"}
+    assert noted == {(L._LIB_FILE, 4), (L._LIB_FILE, 5)}, text
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the step drops the note")
+def test_merged_refusals_keep_every_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The step tells two refusals with one sentence at one place once, with
+    each library line either stood on."""
+    game = _spliced(monkeypatch, "after-splice", ())
+    span, _where = _refused("family")
+    other = replace(span, start=span.start + 1)
+    at = _game_text(game)
+    bag = DiagnosticBag()
+    for library_at in (span, other):
+        bag.error("the probe refuses this", library_at, route=Route("call", at, L._LIB, "libp"))
+    attribution.tell(bag, game)
+    assert len(bag.items) == 1
+    assert [note.span for note in bag.items[0].notes] == [span, other]
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the step drops the note")
+def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A routed refusal whose own span is the game's text is noted at the
+    library text its check reached."""
+    game = _spliced(monkeypatch, "after-splice", ())
+    span, where = _refused("family")
+    at = _game_text(game)
+    bag = DiagnosticBag()
+    bag.error("the probe refuses this", at, route=Route("call", at, L._LIB, "libp"), stands_on=span)
+    attribution.tell(bag, game)
+    (told,) = bag.items
+    assert [note.span for note in told.notes] == [span]
+    assert where in told.notes[0].message
+
+
+_RULE_LIBRARY = (
+    "library boundarylib {\n"
+    "  rule librule {\n"
+    "    constrains: play_to_trick\n"
+    "    demands: cards in hand where rank_value(card) > 3\n"
+    "    if_impossible: hand\n"
+    "  }\n"
+    "}\n"
+)
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the step drops the note")
+def test_a_refusal_before_the_splice_names_the_library_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A clause gate refusing a library rule the game activates is told on
+    the `uses` line before the rule is spliced, and its note names the
+    rule."""
+    game = (
+        "game Boundary {\n"
+        "  players: 4\n"
+        "  cards: standard52\n"
+        "  max_length: 200\n"
+        "  uses boundarylib\n"
+        "  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  phase setup { shuffle deck  deal 5 cards from deck to each hand }\n"
+        "  phase play { active_rules: [librule] round play_to_trick from 0 over all players "
+        "source hand into pile winner highest_of_led_suit }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    lines = L._bag(monkeypatch, _RULE_LIBRARY, game)
+    text = "\n".join(lines)
+    notes = [ln for ln in lines if line_kind(ln) == "note"]
+    assert any("rank_value" in ln for ln in L._errors(lines)), text
+    assert len(notes) == 1 and "rule `librule`" in notes[0], text
 
 
 def test_no_refusal_leaves_the_step_with_its_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
