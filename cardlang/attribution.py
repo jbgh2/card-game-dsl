@@ -159,7 +159,7 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
     holders = _holders(game)
     lines = _uses_lines(game, uses, holders)
     told: list[Diagnostic] = []
-    seen: set[tuple[str, Span | None]] = set()
+    seen: dict[tuple[str, Span | None], int] = {}
     unproven: dict[str, Span] = {}
     unreached: dict[tuple[str, str], Span] = {}
     for d in bag.items:
@@ -183,12 +183,21 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                 elif origin is not None:
                     unreached.setdefault((library, origin.where), lines[library])
         if moved is None:
-            told.append(_bare(d, d.stands_on, holders, lines))
+            told.append(_bare(d, (d.stands_on,), holders, lines))
             continue
+        noted = _bare(moved, (d.span, d.stands_on), holders, lines)
         key = (moved.message, moved.span)
         if key not in seen:
-            seen.add(key)
-            told.append(_bare(moved, d.span, holders, lines))
+            seen[key] = len(told)
+            told.append(noted)
+            continue
+        # One refusal told once, noted at every library line it was raised at.
+        kept = told[seen[key]]
+        lines_noted = {(nt.span.source_name, nt.span.line) for nt in kept.notes}
+        extra = tuple(
+            nt for nt in noted.notes if (nt.span.source_name, nt.span.line) not in lines_noted
+        )
+        told[seen[key]] = replace(kept, notes=kept.notes + extra)
     for library, at in unproven.items():
         told.append(Diagnostic(Severity.WARNING, unproven_warning(library), at))
     for (library, where), at in unreached.items():
@@ -224,14 +233,15 @@ def is_library_warning(line: str) -> bool:
 
 def _bare(
     d: Diagnostic,
-    library_at: Span | None = None,
+    library_at: tuple[Span | None, ...] = (),
     holders: list[_Holder] | None = None,
     lines: dict[str, Span] | None = None,
 ) -> Diagnostic:
     """`d` told as it stands, with no step input left on it, and the library
-    text it stands on (`library_at`) as its note where it is told outside
-    that text's file."""
-    note = _note(library_at, d.span, holders or [], lines or {})
+    text it stands on as its note: the first of `library_at` that is library
+    text outside the file `d` is told in."""
+    found = (_note(at, d.span, holders or [], lines or {}) for at in library_at)
+    note = next((nt for nt in found if nt is not None), None)
     if d.route is None and d.for_game is None and d.stands_on is None and note is None:
         return d
     return Diagnostic(d.severity, d.message, d.span, notes=() if note is None else (note,))

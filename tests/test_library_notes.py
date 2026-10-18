@@ -11,8 +11,9 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 property:        a refusal the step tells in the game's file -- at a
                  crossing's game text, on the `uses` line by a certificate,
                  or where a check stood it at the game's text on library
-                 text -- renders exactly one `note:` at the library line it
-                 stands on; a refusal left in the library's file renders no
+                 text -- renders one `note:` at each library line it stands
+                 on, once for a refusal raised at several and told once; a
+                 refusal left in the library's file renders no
                  note, and where its library is unproven, or its definition
                  is one no clean Library Witness reaches in a proven
                  library, one warning on the `uses` line says so; every
@@ -35,7 +36,9 @@ domain:          the step's own domain, crossed: the game the step is handed
                  game activates them, so a note on one before the splice
                  names the standard library. Text outside any definition
                  has no definition a Library Witness can reach, so it is
-                 certified nowhere and its note names its library.
+                 certified nowhere and its note names its library. A check
+                 that hands the step a node with no span hands it no line,
+                 and the refusal carries no note.
 registry:        stages: `STAGES`, pinned against the raises after the splice
                  (`test_the_stages_are_the_raises`); tellings: `TELLINGS`;
                  rendered line kinds: `cardlang.diagnostics.LINE_KINDS`;
@@ -59,10 +62,12 @@ members:    the grid's cells, crossed from `STAGES`, `TELLINGS` and `LIVES`;
             and every ledger cell `_cells` holds whose owner is the game's
             text or its `uses` line.
 covered:    all of them.
-residual:   none on the step. Beside it: issue #910, issue #911. The
-            standard library's own load is refused to the language's
-            maintainers before any game, outside the step, and no step input
-            it might carry is rendered.
+residual:   none on the step. Beside it, the checks that refuse the game's
+            text naming library text and hand the step nothing: issue #912;
+            the deck capacity gate's phase refusal: issue #911. The standard
+            library's own load is refused to the language's maintainers
+            before any game, outside the step, and no step input it might
+            carry is rendered.
 why missed: the step's ledger and the destinations count both read "owned by
             the game's text" as "moved there by the step", and the step's
             pins asserted only where the primary line stands, never the
@@ -73,7 +78,11 @@ why missed: the step's ledger and the destinations count both read "owned by
             library definition in their sentence and held no place to hand
             the step its span -- the hidden-read walk, the clause gates, the
             card-offering check, the implicit-pool check and the scoped-read
-            offering check.
+            offering check. Inside the step, both de-duplications -- the
+            step's, keyed on the told sentence and place, and the hidden-read
+            walk's, keyed on the crossing's game text -- kept the first
+            refusal's library line and dropped the rest, and the raise before
+            the splice was handed no library rule to name.
 """
 
 from __future__ import annotations
@@ -388,7 +397,6 @@ def _hidden_run(body: str) -> str:
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the step drops the note")
 def test_one_refusal_on_two_library_lines_names_both(monkeypatch: pytest.MonkeyPatch) -> None:
     """A run whose argument reads hidden cards, for two decisions of the
     procedure's body, is one refusal at the run, standing on both lines."""
@@ -400,23 +408,23 @@ def test_one_refusal_on_two_library_lines_names_both(monkeypatch: pytest.MonkeyP
     assert noted == {(L._LIB_FILE, 4), (L._LIB_FILE, 5)}, text
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the step drops the note")
 def test_merged_refusals_keep_every_note(monkeypatch: pytest.MonkeyPatch) -> None:
     """The step tells two refusals with one sentence at one place once, with
-    each library line either stood on."""
+    each library line either stood on, and one note for a line both stand
+    on."""
     game = _spliced(monkeypatch, "after-splice", ())
     span, _where = _refused("family")
-    other = replace(span, start=span.start + 1)
+    same_line = replace(span, start=span.start + 1)
+    other, _ = _refused("outside")
     at = _game_text(game)
     bag = DiagnosticBag()
-    for library_at in (span, other):
+    for library_at in (span, same_line, other):
         bag.error("the probe refuses this", library_at, route=Route("call", at, L._LIB, "libp"))
     attribution.tell(bag, game)
     assert len(bag.items) == 1
     assert [note.span for note in bag.items[0].notes] == [span, other]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the step drops the note")
 def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -444,7 +452,6 @@ _RULE_LIBRARY = (
 )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the step drops the note")
 def test_a_refusal_before_the_splice_names_the_library_rule(monkeypatch: pytest.MonkeyPatch) -> None:
     """A clause gate refusing a library rule the game activates is told on
     the `uses` line before the rule is spliced, and its note names the
@@ -525,8 +532,11 @@ def test_every_ledger_refusal_told_in_the_game_names_its_library_line(
             library_notes = [nt for nt in notes if nt.startswith((L._LIB_FILE, _STDLIB_FILE))]
             if in_library and notes:
                 missing.append(f"{key}: a note under a refusal in the library's file")
-            if cell.owner in (L.GAME, L.USES) and len(library_notes) != 1:
-                missing.append(f"{key}: {len(library_notes)} library notes")
+            noted_lines = [_location(nt) for nt in library_notes]
+            if cell.owner in (L.GAME, L.USES) and not library_notes:
+                missing.append(f"{key}: no library note")
+            if len(set(noted_lines)) != len(notes):
+                missing.append(f"{key}: a note outside the library, or two on one line")
     assert missing == []
 
 

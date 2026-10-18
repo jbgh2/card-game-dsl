@@ -4165,7 +4165,8 @@ def resolve(game: n.Game) -> n.Game:
     own_rules = frozenset(r.name for r in game.rules)
     uses = game.uses
     game, library_rules = _apply_uses(game, bag)
-    raise_if_errors(bag, game, uses)
+    # Told beside the library rules the splice holds aside until activation.
+    raise_if_errors(bag, replace(game, rules=(*game.rules, *library_rules.values())), uses)
     own_move_types = frozenset(mt.name for mt in game.move_types if mt.origin is None)
     _resolve_component_set(game, bag)
     _reject_card_content_clauses(game, bag)
@@ -11831,7 +11832,7 @@ class _HiddenReads:
         self.running: list[str] = []
         self.seats = 0
         self.verdicts: list[HiddenReadVerdict] = []
-        self._reported: set[tuple[str, Span | None]] = set()
+        self._reported: set[tuple[object, ...]] = set()
         # Where the walk stands when no seat is acting, for the fix a refused
         # decision there is told: a statement, a gate, or the result.
         self.place = _NO_ACTOR_STATEMENT
@@ -12360,7 +12361,7 @@ class _HiddenReads:
         for_game: str | None = None,
         stands_on: Span | None = None,
     ) -> None:
-        key = (message, span if route is None else route.at)
+        key = (message, span, None if route is None else route.at)
         if key not in self._reported:
             self._reported.add(key)
             self.bag.error(message, span, route=route, for_game=for_game, stands_on=stands_on)
