@@ -454,6 +454,19 @@ def test_a_witness_whose_library_fails_fails_alone(monkeypatch: pytest.MonkeyPat
         assert _alone(monkeypatch, cell, "broken", witnesses) == L._cell_bag(monkeypatch, cell), key
 
 
+# --- the library line a moved refusal stands on ---------------------------------
+
+
+def test_a_routed_refusal_keeps_its_library_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The witness: a Trick Order row calling a library function that reads a
+    pronoun is told at the row, and the function's line follows as a note."""
+    cell = _cells()["game-to-library-0"]
+    bag = L._cell_bag(monkeypatch, cell)
+    line = L._line(cell.library, "function libf")
+    assert bag[0].startswith(f"{L._GAME_FILE}:"), "\n".join(bag)
+    assert any(at.startswith(f"{L._LIB_FILE}:{line}:") and ": note: " in at for at in bag), "\n".join(bag)
+
+
 # --- only the step chooses the file ----------------------------------------------
 
 _PASSES = ("resolve", "typecheck", "expand", "deckcheck", "ir")
