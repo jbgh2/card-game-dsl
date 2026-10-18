@@ -1987,6 +1987,7 @@ def _check_library_clause_gates(
         if not gate.unmet(game):
             continue
         reached: dict[str, list[str]] = {}
+        first: Span | None = None
         # Claimed once the gate has every occurrence, so a member recurring in
         # a second definition is named there too; a later gate skips it.
         keys: set[object] = set()
@@ -1998,6 +1999,7 @@ def _check_library_clause_gates(
             if key in claimed:
                 continue
             keys.add(key)
+            first = first or getattr(nd, "span", None)
             for phrase in phrases:
                 places = reached.setdefault(phrase, [])
                 if where not in places:
@@ -2014,6 +2016,7 @@ def _check_library_clause_gates(
             f"library '{library.name}' {gate.verb} {listing}, which {reads}, but "
             f"{gate.lacks(game)} — {gate.fix(game)}",
             use.span,
+            stands_on=first,
         )
     _check_library_lines_span(game, use, library, _library_calls(library, game), bag)
 
@@ -2051,6 +2054,7 @@ def _check_library_lines_span(
                 f"but this game's `board: {board}` has none — declare a board "
                 f"that does",
                 use.span,
+                stands_on=call.span,
             )
 
 
@@ -5656,10 +5660,21 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
                         node.span,
                     )
     family = CARD_PARAMETER_FAMILY
+    offers = [nd for nd in _walk(game) if isinstance(nd, n.Offer) and nd.span is not None]
     for name in sorted(_offered_move_types(game)):
         mt = move_types.get(name)
         if mt is None:
             continue
+        # The offer written in another file than the move type: the library
+        # text a game's move type is offered by.
+        offered_by = next(
+            (
+                o.span for o in offers
+                if name in o.offering and o.span is not None and mt.span is not None
+                and o.span.source_name != mt.span.source_name
+            ),
+            None,
+        )
         for param in mt.params:
             if param.type_name != "Card":
                 continue
@@ -5677,6 +5692,7 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
                     f"cards of its own `{family}`, but this game declares "
                     f"`{family}` a `{ztype}`, which {_OWN_POOL_BLIND} — {fix(family)}"
                 ),
+                stands_on=offered_by,
             )
 
 
@@ -8562,6 +8578,7 @@ def _check_offered_containers(
                     f"{through}, or declare `{read}` at game level and drop "
                     f"`in {phase_name}` from `{entry}`'s read of it"
                 ),
+                stands_on=move_type.span,
             )
         if not positions:
             if walled or from_procedures:
@@ -8608,6 +8625,9 @@ def _check_offered_containers(
                     f"`{phase_name}`, where that state does not stand; run "
                     f"`{site.name}` inside `{phase_name}` only",
                     site.span or game.span,
+                    stands_on=next(
+                        (p.span for p in game.procedures if p.name == site.name), None
+                    ),
                 )
                 continue
             bag.error(
@@ -8617,6 +8637,7 @@ def _check_offered_containers(
                 f"that state does not stand; offer `{move_type.name}` inside "
                 f"`{phase_name}` only",
                 getattr(site, "span", None) or game.span,
+                stands_on=move_type.span,
             )
 
 
@@ -10578,6 +10599,10 @@ def _check_card_offering(
             f"indistinguishable — fold them into one move type",
             span,
             for_game=for_game,
+            stands_on=next(
+                (move_type_defs[m].span for m in card_param_moves if move_type_defs[m].origin),
+                None,
+            ),
         )
     hand = next((z for z in game.zones if z.name == family), None)
     if not card_param_moves or (
@@ -10630,6 +10655,7 @@ def _check_card_offering(
         f"which enumerates the actor's `{family}[player]` zone — this game "
         f"declares none",
         span,
+        stands_on=move.span,
     )
 
 
@@ -12332,11 +12358,12 @@ class _HiddenReads:
         span: Span | None,
         route: Route | None = None,
         for_game: str | None = None,
+        stands_on: Span | None = None,
     ) -> None:
         key = (message, span if route is None else route.at)
         if key not in self._reported:
             self._reported.add(key)
-            self.bag.error(message, span, route=route, for_game=for_game)
+            self.bag.error(message, span, route=route, for_game=for_game, stands_on=stands_on)
 
     def _tell(
         self,
@@ -12355,7 +12382,21 @@ class _HiddenReads:
         if route is None and routes is not None:
             argument = read is not None and any(id(b) in self.run_args[-1] for b in read.bindings)
             route = routes.argument if argument else routes.body
-        self._emit(message, span, route, for_game)
+        self._emit(message, span, route, for_game, self._stands_on(read))
+
+    def _stands_on(self, read: ZoneRead | None) -> Span | None:
+        """The library text a refused read reaches: the read itself, or the
+        library function whose call names the instance it reads."""
+        if read is None:
+            return None
+        if read.span is not None and read.route:
+            return read.span
+        library = {f.name: f.span for f in self.game.functions if f.origin is not None}
+        if read.index is not None:
+            for nd in _walk(read.index):
+                if isinstance(nd, n.Call) and nd.func in library:
+                    return library[nd.func]
+        return read.span
 
     # --- the positions ------------------------------------------------------
 

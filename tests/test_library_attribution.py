@@ -240,10 +240,11 @@ def _emitted_routes(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[st
         *,
         route: Route | None = None,
         for_game: str | None = None,
+        stands_on: Span | None = None,
     ) -> None:
         if route is not None:
             kinds.add(route.kind)
-        original(self, message, span, route=route, for_game=for_game)
+        original(self, message, span, route=route, for_game=for_game, stands_on=stands_on)
 
     monkeypatch.setattr(DiagnosticBag, "error", spy)
     L._cell_bag(monkeypatch, cell)
@@ -354,10 +355,11 @@ def _routed_lines(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[int]
         *,
         route: Route | None = None,
         for_game: str | None = None,
+        stands_on: Span | None = None,
     ) -> None:
         if route is not None and span is not None and span.source_name == L._LIB_FILE:
             lines.add(span.line)
-        original(self, message, span, route=route, for_game=for_game)
+        original(self, message, span, route=route, for_game=for_game, stands_on=stands_on)
 
     with monkeypatch.context() as mp:
         mp.setattr(DiagnosticBag, "error", spy)

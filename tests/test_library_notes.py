@@ -355,7 +355,6 @@ def _grouped(lines: list[str]) -> list[tuple[str, list[str]]]:
     return out
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the note is unbuilt")
 def test_every_ledger_refusal_told_in_the_game_names_its_library_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
