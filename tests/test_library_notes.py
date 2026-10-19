@@ -986,7 +986,7 @@ def test_a_refusal_naming_library_text_notes_its_line(
 def test_who_is_told_a_library_named_refusal_never_changes_what_is_refused(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
-    """red under: have `attribution._bare` drop a refusal it notes."""
+    """red under: have `attribution.tell` drop a refusal it notes."""
     cell = NAMED[name]
     told = L._errors(_named_bag(monkeypatch, cell))
     with monkeypatch.context() as mp:
