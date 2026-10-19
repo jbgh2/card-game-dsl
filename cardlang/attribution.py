@@ -196,7 +196,7 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                 elif not certificate.proven:
                     unproven.setdefault(library, lines[library])
                 elif origin is not None:
-                    unreached.setdefault((library, _where(origin)), lines[library])
+                    unreached.setdefault((library, origin.where), lines[library])
         if moved is None:
             stands = d.stands_on + substituted.get(_at(d.span), ())
             told.append(_bare(d, (), stands, holders, lines))

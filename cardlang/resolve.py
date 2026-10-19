@@ -4710,9 +4710,9 @@ def _instantiate_rules(
                 if not isinstance(arg, n.NameRef) or (
                     suits is not None and arg.name not in suits
                 ):
+                    of: Said = "" if template.origin is None else " of " + named(ref.name, template)
                     bag.error(
-                        f"argument for parameter '{p.name}: Suit' of "
-                        + named(ref.name, template)
+                        f"argument for rule parameter '{p.name}: Suit'" + of
                         + " must be a suit literal (one of the deck's suits)",
                         ref.span,
                     )

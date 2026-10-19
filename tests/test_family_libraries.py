@@ -3013,7 +3013,7 @@ _DECLARATION_LEVEL_NAME: dict[str, str] = {
     "move type": "mt",
     "rule": "r",
     "procedure": "pr",
-    "standard-library value": "highest_of_led_suit",
+    "round callback": "highest_of_led_suit",
 }
 
 
