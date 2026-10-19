@@ -1036,10 +1036,6 @@ _UNSPLICED_RULES = (
 )
 
 
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: a note at a rule the splice never activated names only its library",
-)
 @pytest.mark.parametrize("name", _UNSPLICED_RULES)
 def test_a_note_at_an_unspliced_rule_names_the_rule(
     monkeypatch: pytest.MonkeyPatch, name: str

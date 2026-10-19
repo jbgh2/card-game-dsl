@@ -4206,8 +4206,7 @@ def resolve(game: n.Game) -> n.Game:
     own_rules = frozenset(r.name for r in game.rules)
     uses = game.uses
     game, library_rules = _apply_uses(game, bag)
-    # Told beside the library rules the splice holds aside until activation.
-    raise_if_errors(bag, replace(game, rules=(*game.rules, *library_rules.values())), uses)
+    raise_if_errors(bag, _with_held_rules(game, library_rules), uses)
     own_move_types = frozenset(mt.name for mt in game.move_types if mt.origin is None)
     _resolve_component_set(game, bag)
     _reject_card_content_clauses(game, bag)
@@ -4316,8 +4315,14 @@ def resolve(game: n.Game) -> n.Game:
     # probe one move type's declaration need not also present it.
     _check_unoffered_move_types(game, own_move_types, bag)
 
-    raise_if_errors(bag, game, uses)
+    raise_if_errors(bag, _with_held_rules(game, library_rules), uses)
     return game
+
+
+def _with_held_rules(game: n.Game, library_rules: dict[str, n.RuleDef]) -> n.Game:
+    """`game` beside every library rule the splice holds aside, activated or
+    not, for the step to tell refusals standing on them."""
+    return replace(game, rules=(*game.rules, *library_rules.values()))
 
 
 # The Node union's members, for the runtime gate below. `get_args` reads the
