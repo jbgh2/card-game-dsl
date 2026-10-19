@@ -450,6 +450,57 @@ def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
     assert where in told.notes[0].message
 
 
+# Every library line a refusal stands on, by each way it can stand on one:
+# where it was raised, what its check handed the step, what its sentence or
+# its game's sentence cites, and the definition the game text it is told at
+# names. Each cell crosses two of them; its notes are their union.
+_UNION_RED = pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="issue #912: one way of standing on library text hides another",
+)
+
+
+def _union_cell(name: str, game: n.Game) -> tuple[DiagnosticBag, set[int]]:
+    family, _ = _refused("family")
+    outside, _ = _refused("outside")
+    at = _game_text(game)
+    libp = next(p for p in game.procedures if p.name == "libp")
+    assert libp.span is not None
+    route = Route("call", at, L._LIB, "libp")
+    bag = DiagnosticBag()
+    if name == "raised-and-handed":
+        bag.error("the probe refuses this", family, route=route, stands_on=outside)
+        return bag, {family.line, outside.line}
+    if name == "raised-and-cited-for-the-game":
+        sentence = attribution.cite_library(L._LIB, outside) + " refuses this"
+        bag.error("the probe refuses this", family, route=route, for_game=sentence)
+        return bag, {family.line, outside.line}
+    if name == "named-and-handed-the-game's-text":
+        bag.error("the probe refuses this", at, stands_on=at)
+        return bag, {libp.span.line}
+    assert name == "named-and-handed"
+    bag.error("the probe refuses this", at, stands_on=outside)
+    return bag, {libp.span.line, outside.line}
+
+
+_UNION_CELLS = (
+    "raised-and-handed", "raised-and-cited-for-the-game", "named-and-handed-the-game's-text",
+    "named-and-handed",
+)
+
+
+@pytest.mark.parametrize("name", [pytest.param(c, marks=_UNION_RED) for c in _UNION_CELLS])
+def test_a_refusals_notes_are_every_library_line_it_stands_on(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    game = _spliced(monkeypatch, "after-splice", ())
+    bag, want = _union_cell(name, game)
+    attribution.tell(bag, game)
+    (told,) = bag.items
+    assert {note.span.line for note in told.notes} == want
+    assert all(note.span.source_name == L._LIB_FILE for note in told.notes)
+
+
 _RULE_LIBRARY = (
     "library boundarylib {\n"
     "  rule librule {\n"
