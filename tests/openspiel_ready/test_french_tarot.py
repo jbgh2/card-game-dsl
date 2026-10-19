@@ -9,9 +9,10 @@ depth 12 showed only the later re-dealt hands moved, via the
 gather-then-shuffle the thrown-in hand's `before_each` runs. Depth 3 stays
 inside the still-open first auction, before that reshuffle.
 
-Bounded conformance walk: 36 hands x ~76 decision-picks/hand (~2,740 total)
-measured at 436s for the full sim (`pyspiel.random_sim_test` is O(n^2) in
-game length) — far past the ~60s keep-it threshold.
+Bounded conformance walk: a game runs 36 hands of ~76 decision-picks each
+(~2,740 total), and one full `pyspiel.random_sim_test` is past the whole-sim
+budget (`harness.py`, `conformance_steps`; 47s, measured 2026-10-18). `tests/test_openspiel_replay.py`'s `KERNEL_GAMES` plays one reference game
+to TerminalNode through the replay engine and checks its returns.
 """
 
 from cardlang.openspiel.infostate import information_state

@@ -57,7 +57,7 @@ is the whole of the information. Legal-action agreement is definitionally
 trivial in a singleton partition (one world agrees with itself); it is
 cross-checked NON-vacuously by the inherited adapter proof, whose per-step
 ``state.legal_actions() == r.legal`` compares against an independent pyspiel
-re-simulation.
+run.
 
 Inherited unchanged
 -------------------

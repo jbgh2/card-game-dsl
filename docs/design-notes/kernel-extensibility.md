@@ -592,8 +592,8 @@ parts are proven on paper *before* any code depends on them.
    the pass-only line of their auctions — the harness's greedy replay never
    places a bid, let alone reaches the chien discard or trick play, so French
    Tarot's hidden discard is instead proven derived by a dedicated
-   observational test; Stud's and French Tarot's conformance are bounded random
-   API walks, their full sims being quadratic in game length). This was the payoff
+   observational test; Stud's and French Tarot's conformance is the full random
+   sim). This was the payoff
    that justified the exercise. The four `instantiate` games remain info-set
    debt: the adapter rejects them loudly rather than silently mis-modeling
    them.

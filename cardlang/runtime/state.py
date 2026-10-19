@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field, replace
+import dataclasses
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from cardlang.ast import nodes as n
@@ -491,6 +492,23 @@ class Ctx:
     # `chose` recall, and the Arrival Record stays the attributed seat's.
     round_source: "tuple[str, Zone] | None" = None
 
+    def derive(self, **changes: Any) -> Ctx:
+        """This context with `changes` applied, every other field carried.
+
+        The one way a context is derived, so every derivation copies the same
+        field list: `_CTX_FIELDS`, taken from `dataclasses.fields(Ctx)` once
+        at import, never written by hand. It does what `dataclasses.replace`
+        does for a class with no `__post_init__` and no `init=False` field,
+        which `Ctx` is, without `replace`'s per-call introspection; the copy
+        is on the interpreter's hot path (every query binder, every function
+        call). A name that is not a field is refused by the slots."""
+        new = _NEW(Ctx)
+        for name in _CTX_FIELDS:
+            _SET(new, name, getattr(self, name))
+        for name, value in changes.items():
+            _SET(new, name, value)
+        return new
+
     def trace(self, event: str, data: Any) -> None:
         if self.tracer is not None:
             self.tracer(event, data)
@@ -502,7 +520,7 @@ class Ctx:
             self.observer(player, event)
 
     def with_local(self, name: str, value: Any) -> Ctx:
-        return replace(self, locals={**self.locals, name: value})
+        return self.derive(locals={**self.locals, name: value})
 
     def acting_as(self, player: Player) -> Ctx:
         """Bind the acting player for a body. The player MUST be a real seat.
@@ -525,7 +543,7 @@ class Ctx:
                 f"{len(self.rs.seating.players)}-player game — the player "
                 f"expression bound a non-player value"
             )
-        return replace(self, current_player=player)
+        return self.derive(current_player=player)
 
     def require_actor(self, what: str) -> Player:
         """The acting player at a decision point — never an implicit default. A
@@ -541,13 +559,18 @@ class Ctx:
         return self.current_player
 
     def in_phase(self, phase: n.Phase) -> Ctx:
-        return replace(self, current_phase=phase)
+        return self.derive(current_phase=phase)
 
     def with_winner(self, player: Player) -> Ctx:
-        return replace(self, winner=player)
+        return self.derive(winner=player)
 
     def with_action(self, action: Move) -> Ctx:
-        return replace(self, action=action)
+        return self.derive(action=action)
 
     def with_rules(self, rules: tuple[n.RuleDef, ...]) -> Ctx:
-        return replace(self, active_rules=rules)
+        return self.derive(active_rules=rules)
+
+
+_CTX_FIELDS: tuple[str, ...] = tuple(f.name for f in dataclasses.fields(Ctx))
+_NEW = object.__new__
+_SET = object.__setattr__

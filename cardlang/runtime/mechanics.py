@@ -13,7 +13,6 @@ with an `offer` body (decisions.md "The `turns` form").
 from __future__ import annotations
 
 import itertools
-from dataclasses import replace
 from typing import Any, Final, Protocol
 
 from cardlang.ast import nodes as n
@@ -298,7 +297,7 @@ class TrickForm:
         candidates = rules.legal_cards(
             actor,
             RULE_ENFORCED_MOVE_TYPE,
-            replace(self.trick_ctx, round_source=(self.source_family, src)),
+            self.trick_ctx.derive(round_source=(self.source_family, src)),
         )
         if not candidates:
             # No implicit pass: a player on turn must have a legal play. An empty

@@ -1,8 +1,8 @@
 """Every conformance bound is a budget with a CHECKED coverage claim.
 
-`GameSpec.conformance_steps` bounds the pyspiel API walk for games whose full
-`random_sim_test` is prohibitively long (the adapter re-simulates the whole
-(seed, history) state per action — issue #139 owns that O(n^2)). Every such
+`GameSpec.conformance_steps` bounds the pyspiel API walk for games that do not
+play a full `random_sim_test` (`harness.py`, `conformance_steps`, says which do
+not). Every such
 bound was hand-picked, and the defect that made them worth revisiting is not
 that they were wrong: it is that **a bound set too low under-covers silently**.
 Nothing anywhere noticed when a walk stopped reaching a mechanic, so the

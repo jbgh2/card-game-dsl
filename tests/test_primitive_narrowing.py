@@ -1296,6 +1296,95 @@ def test_deep_freeze_copies_frozen_dataclasses_to_confine_object_setattr() -> No
     assert snap[0][0] is not src[0]
 
 
+def test_deep_freeze_copies_through_the_class_init_on_both_rebuild_paths() -> None:
+    """A frozen+slotted dataclass is rebuilt through its own `__init__`,
+    positionally when every field is positional and through `replace`
+    otherwise — so a `kw_only` field is copied rather than refused, and a
+    `__post_init__` runs on the copy exactly as it does on a `replace`.
+    Reddens if the positional rebuild is taken for a `kw_only` class (a
+    `TypeError` from `__init__`), or if the rebuild bypasses `__init__`."""
+    from dataclasses import dataclass as _dataclass
+
+    @_dataclass(frozen=True, slots=True, kw_only=True)
+    class Keyed:
+        n: int
+        tags: tuple[str, ...] = ()
+
+    inits: list[int] = []
+
+    @_dataclass(frozen=True, slots=True)
+    class Checked:
+        n: int
+
+        def __post_init__(self) -> None:
+            inits.append(self.n)
+
+    keyed = Keyed(n=1, tags=("a",))
+    copy = reads_mod.deep_freeze(keyed)
+    assert copy == keyed and copy is not keyed
+
+    checked = Checked(2)
+    copy_checked = reads_mod.deep_freeze(checked)
+    assert copy_checked == checked and copy_checked is not checked
+    assert inits == [2, 2], "the copy did not run the class's __post_init__"
+
+
+def test_deep_freeze_copies_by_the_constructor_signature_not_the_field_list() -> None:
+    """An `InitVar` is a constructor parameter `dataclasses.fields` does not
+    list, and a hand-written `__init__` can order its parameters unlike the
+    fields. A positional rebuild over the field list would hand the old `y`
+    to the `InitVar` and default `y`, or swap `a` and `b`, silently; both are
+    copied through `replace` instead, value for value. Reddens if the
+    positional path keys on the field list."""
+    import dataclasses as _dc
+    from dataclasses import dataclass as _dataclass
+
+    # Built rather than declared: under this module's postponed annotations a
+    # locally imported `InitVar` would read as an ordinary field.
+    tokened_type: Any = _dc.make_dataclass(
+        "Tokened",
+        [
+            ("x", int),
+            ("token", _dc.InitVar[int], _dc.field(default=0)),
+            ("y", int, _dc.field(default=0)),
+        ],
+        frozen=True,
+        slots=True,
+        namespace={"__post_init__": lambda self, token: None},
+    )
+    tokened = tokened_type(1, 2, 3)
+    copy = reads_mod.deep_freeze(tokened)
+    assert copy == tokened and copy is not tokened
+
+    @_dataclass(frozen=True, slots=True, init=False)
+    class Reversed:
+        a: int
+        b: int
+
+        def __init__(self, b: int, a: int) -> None:
+            object.__setattr__(self, "a", a)
+            object.__setattr__(self, "b", b)
+
+    original = Reversed(b=2, a=1)
+    copy_reversed = reads_mod.deep_freeze(original)
+    assert copy_reversed == original and copy_reversed is not original
+
+
+def test_deep_freeze_refuses_a_refused_type_at_every_sight() -> None:
+    """The case `deep_freeze` takes is decided once per type and kept, so a
+    refusal must never be kept as a decision: the second sight of a refused
+    type is refused as loudly as the first. Reddens if the refusal path
+    stores a pass-through for the type."""
+
+    class Opaque:  # neither atomic, container, nor dataclass
+        pass
+
+    for _ in range(2):
+        with pytest.raises(TypeError, match="cannot prove Opaque immutable"):
+            reads_mod.deep_freeze(Opaque())
+    assert Opaque not in reads_mod._FREEZERS
+
+
 def test_deep_freeze_freezes_mapping_keys_not_just_values() -> None:
     """A mapping keyed by a mutable-but-hashable object (a dataclass with
     `unsafe_hash=True`) would hand the live key back through iteration. Freezing

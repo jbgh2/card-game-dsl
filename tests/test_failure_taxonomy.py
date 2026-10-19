@@ -162,6 +162,11 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # world it wants is one the construction cannot yet build. A harness
     # reporting illegal games must not swallow a capability gap.
     "ResampleRefusal": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: the engine maintainer, at the paused-run seam -------------
+    # A run that never reaches its next decision is a hang in the adapter or
+    # the interpreter; the game's own loops and decisions are bounded by its
+    # Owner Guards, so no game sentence is the reader's place to look.
+    "PausedRunStalled": {"in_game_description_tree": False, "is_runtime_error": True},
     # A proposal leaving the observer's information set: the construction's
     # own control flow, caught where it is raised.
     "_Rejected": {"in_game_description_tree": False, "is_runtime_error": False},

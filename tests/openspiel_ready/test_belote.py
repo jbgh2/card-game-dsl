@@ -15,8 +15,9 @@ swap preserves each hand's suit distribution, so follow/trump-class
 legality of every replayed play is unchanged; rank-sensitive over-trump
 demands can still reject a pair, which the harness skips.
 
-`conformance_steps=150`: a full game to 1000 runs past 400 decisions, the
-O(n^2) re-simulation guard of the score-target class (Bridge, Skat, Tichu).
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`).
 
 `adapter_terminal_steps=500`: the seed-5 greedy line reaches TerminalNode at a
 measured 418 steps.
@@ -94,7 +95,6 @@ class TestReadiness(ReadinessProofs):
     spec = GameSpec(
         "cardlang_belote",
         "belote.cardlang",
-        conformance_steps=150,
         adapter_terminal_steps=500,
         # The plain `legal[0]` line passes at every trump-making ask — `pass`
         # sorts below `take` and `take_suit` — so every hand is thrown in and
@@ -113,18 +113,6 @@ class TestReadiness(ReadinessProofs):
         # take that the preference supplies elsewhere; from there the
         # declarations and the first trick follow within the walk's nodes.
         provenance_opening=(("take", None),),
-        # The seed-7 conformance line declares little, so it never applies:
-        conformance_verbs_unreached=(
-            ("say_belote", ("driven deliberately by test_belote_rebelote_"
-                           "reveals_exactly_the_partner_card below")),
-            ("declare_carre", ("the declaration poll's announce arms are "
-                              "driven by test_declaration_line_derives_"
-                              "announced_content_and_showing below")),
-            ("declare_quarte_trump", "as declare_carre"),
-            ("declare_quinte", "as declare_carre"),
-            ("declare_quinte_trump", "as declare_carre"),
-            ("declare_tierce_trump", "as declare_carre"),
-        ),
     )
 
 

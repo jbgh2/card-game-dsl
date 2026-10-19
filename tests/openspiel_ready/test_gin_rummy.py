@@ -37,11 +37,11 @@ class TestReadiness(ReadinessProofs):
         "gin-rummy.cardlang",
         depth=9,
         swap_axis="any",
-        # The full random_sim_test re-simulates the whole (seed, history)
-        # state per action — measured ~8 minutes alone for gin's long
-        # matches, which dominates the suite on the 2-vCPU CI runner. The
-        # bounded random API walk is the sanctioned fallback for the
-        # score-target class (harness.py, `conformance_steps`).
+        # A whole match is past the whole-sim budget (harness.py,
+        # `conformance_steps`): the full sim applies ~13,000 random actions,
+        # 150s measured 2026-10-18. tests/test_openspiel_replay.py's
+        # KERNEL_GAMES plays one reference game to TerminalNode through the
+        # replay engine and checks its returns.
         conformance_steps=400,
         # The showdown cluster, the same surface the module caveat above
         # names: a random line knocks about as rarely as the greedy one does,

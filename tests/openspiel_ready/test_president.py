@@ -6,10 +6,9 @@ suit swap between hidden hands are the exact indistinguishability class
 (a cross-rank swap would change the swapped players' legal sets and what
 their recorded plays reveal).
 
-Bounded conformance walk (the Tichu/Doppelkopf shape): a game runs to the
-11-point target over ~10-16 hands, thousands of actions — the same O(n^2)
-full-sim guard; full-game-to-TerminalNode coverage through the replay engine
-lives in `test_openspiel_replay.py`'s KERNEL_GAMES list.
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`).
 
 The dedicated derivation test drives the greedy line across the first
 hand boundary into the between-hands exchange — the one moment hidden
@@ -34,13 +33,6 @@ class TestReadiness(ReadinessProofs):
         "cardlang_president",
         "president.cardlang",
         swap_axis="rank",
-        # 190, not the 120 default: the card-exchange between president and
-        # scum is the game's only card-VALUED decision (`_hand_to_hand` below),
-        # and it happens between hands — first reached at step 131 on the
-        # seed-7 line, worst 143 across rngs 0-6, so 190 clears the worst
-        # observed with margin. Costs ~0.5s; below 150 the exchange drops out
-        # of the walk entirely and test_conformance_bounds.py says so.
-        conformance_steps=190,
     )
 
 

@@ -405,8 +405,8 @@ _SIGNALS: frozenset[str] = frozenset(
 # whoever installed the checkout, whoever chose the files a process registers,
 # whoever supplied a recorded history, whoever named the file a session saves
 # to, whoever edited the grammar, the engine maintainer when no Constructed
-# World can be built, and the compile channel, which already carries its own
-# span.
+# World can be built or a Paused Run stalls, and the compile channel, which
+# already carries its own span.
 _ADDRESSED_ELSEWHERE: frozenset[str] = frozenset(
     {
         "PrimitiveReadError",
@@ -417,6 +417,7 @@ _ADDRESSED_ELSEWHERE: frozenset[str] = frozenset(
         "UnrenderableTerminal",
         "DiagnosticError",
         "ResampleRefusal",
+        "PausedRunStalled",
     }
 )
 

@@ -212,8 +212,8 @@ def test_adapter_agrees_over_two_whole_leduc_deals() -> None:
     two complete deals — a paired one and an unpaired one — comparing the
     registered pyspiel game and the DSL replay on the current player, the
     legal actions, both players' information-state strings, and the terminal
-    returns. Because the pyspiel state re-simulates independently of these
-    `run` calls, it doubles as a determinism check over the same trees."""
+    returns. Because the pyspiel state answers from runs of its own, independent
+    of these `run` calls, it doubles as a determinism check over the same trees."""
     game = pyspiel.load_game(SHORT_NAME)
     seeds = [
         _seed_for(lambda d: d[0][0] == d[2][0]),

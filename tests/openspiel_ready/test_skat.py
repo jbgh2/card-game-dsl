@@ -1,13 +1,9 @@
 """Skat (3 players) — OpenSpiel readiness, plus a positive confirmation of
 the Reizen's, pickup's, and discard's shapes.
 
-Bounded conformance walk: the full `pyspiel.random_sim_test` measured 54s
-locally (a Skat rubber plays multiple hands to a target score, hundreds of
-actions — the same O(n^2) re-simulation cost as Stud/French Tarot/Tichu).
-Full-game-to-TerminalNode coverage through the actual pyspiel `State` wrapper
-(is_terminal/returns, not just this project's own replay engine) moves to
-`test_openspiel_replay.py`'s KERNEL_GAMES list instead, so bounding this
-walk drops no real coverage.
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`).
 """
 
 from cardlang.openspiel.infostate import information_state
@@ -20,7 +16,6 @@ class TestReadiness(ReadinessProofs):
     spec = GameSpec(
         "cardlang_skat",
         "skat.cardlang",
-        conformance_steps=120,
         # The swap pauses on the first decider: the deck is empty once the
         # ten-card hands and the skat are dealt, so the single-opponent
         # branch has no stock to swap against, and only a pause whose seat
@@ -37,55 +32,6 @@ class TestReadiness(ReadinessProofs):
         # provenance zones derive from the checked AST's Arrival-Record calls
         # (`follows_lead` / `highest_by_trick_order` over `trick_pile`)
         provenance_depth=126,  # the greedy line first plays to the trick at 127
-
-        conformance_verbs_unreached=(
-            (
-                "throw_in",
-                ("the hand is thrown in only when all three players pass the "
-                "Reizen, which the seed-7 line does not do (and no bound makes "
-                "reliable — the outcome is a property of the deal, not of "
-                "depth); the 50-seed sweep in tests/test_playout_skat.py plays "
-                "enough deals to hit it"),
-            ),
-            (
-                "play_at_eighteen",
-                ("the other arm of the same all-pass hand, first applied on the "
-                "seed-7 line at step 415, past any bound this walk affords; "
-                "the same sweep plays it"),
-            ),
-            (
-                "declare_null",
-                ("one arm of the four-way game type, chosen at the few "
-                "declarations the walk's first hands reach (first applied at "
-                "step 227); tests/test_skat_rules_differential.py's reach "
-                "floor plays it (`hands.null`, `hands.null_hand`)"),
-            ),
-            (
-                "no_announcement",
-                ("offered only in a Suit or Grand hand game, which the walk "
-                "first declares past this bound (first applied at step 148); "
-                "the read's referee asks it at every such declaration "
-                "(`declare.announcement_choices`)"),
-            ),
-            (
-                "announce_schneider",
-                ("the same hand-game announcement offer, first applied at step "
-                "259; the referee's reach floor scores it "
-                "(`hands.announced_schneider`)"),
-            ),
-            (
-                "announce_schwarz",
-                ("the same offer's Schwarz arm, unapplied within 800 steps; "
-                "the referee's reach floor scores it "
-                "(`hands.announced_schwarz`)"),
-            ),
-            (
-                "announce_ouvert",
-                ("the same offer's open arm, first applied at step 762; the "
-                "referee's reach floor scores it and checks the exposure "
-                "(`hands.announced_ouvert`, `info.ouvert_first_leads`)"),
-            ),
-        ),
     )
 
 

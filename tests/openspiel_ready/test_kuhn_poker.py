@@ -91,7 +91,7 @@ def test_adapter_agrees_over_the_whole_kuhn_tree() -> None:
     the legal actions, BOTH players' information-state strings, and the
     terminal returns. This is the non-vacuous replacement for the harness's
     depth-0 walk (see the module docstring) and, because the pyspiel state
-    re-simulates independently of these `run` calls, doubles as a
+    answers from runs of its own, independent of these `run` calls, doubles as a
     whole-tree determinism check."""
     _, space = load(PATH)
     game = pyspiel.load_game(SHORT_NAME)
