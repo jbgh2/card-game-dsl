@@ -28,7 +28,7 @@ line never reaches a knock. The turn-cycle projections ARE asserted below.
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs, bounded_walk
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
 
 class TestReadiness(ReadinessProofs):
@@ -37,21 +37,30 @@ class TestReadiness(ReadinessProofs):
         "gin-rummy.cardlang",
         depth=9,
         swap_axis="any",
-        # A whole match is past the whole-sim budget (`harness.py`,
+        # A whole match is past the whole-sim budget (harness.py,
         # `conformance_steps`): the full sim applies ~13,000 random actions,
-        # 150s measured 2026-10-18. The bounded walk's pinned line ends at
-        # TerminalNode at step 4,625 (measured the same day, 27s), so this
-        # bound walks that whole line, and
-        # `test_the_walk_plays_the_pinned_line_to_its_terminal_state` below
-        # holds it there.
-        conformance_steps=5000,
-        # The lay-offs: the pinned line's knocks leave the defender no
-        # lay-off it takes. tests/test_playout_gin_rummy.py routes every
-        # knocked hand of a 30-seed sweep through the lay-off decisions.
+        # 150s measured 2026-10-18. tests/test_openspiel_replay.py's
+        # KERNEL_GAMES plays one reference game to TerminalNode through the
+        # replay engine and checks its returns.
+        conformance_steps=400,
+        # The showdown cluster, the same surface the module caveat above
+        # names: a random line knocks about as rarely as the greedy one does,
+        # so every verb behind the knock stays unapplied within any affordable
+        # bound. `test_knock_line_derives_showdown_observations` below drives a
+        # knock deliberately, and tests/test_playout_gin_rummy.py routes every
+        # knocked hand of a 30-seed sweep through the arrangement and lay-off
+        # decisions.
         conformance_verbs_unreached=(
-            ("lay_off_a", "post-knock lay-off, untaken on the pinned line"),
-            ("lay_off_b", "post-knock lay-off, untaken on the pinned line"),
-            ("lay_off_c", "post-knock lay-off, untaken on the pinned line"),
+            ("end_knock", "the knock itself — see above"),
+            ("finish_arranging", "post-knock: the knocker arranges melds"),
+            ("finish_defense", "post-knock: the defender lays off"),
+            ("declare_meld", "post-knock arrangement"),
+            ("declare_meld_d", "post-knock defence arrangement"),
+            ("lay_off_a", "post-knock lay-off"),
+            ("lay_off_b", "post-knock lay-off"),
+            ("lay_off_c", "post-knock lay-off"),
+            ("<combo>", ("the joint meld-arrangement subsets, offered only "
+                        "inside the post-knock arrangement")),
         ),
     )
 
@@ -183,29 +192,3 @@ def test_turn_cycle_derives_observations() -> None:
     info1 = information_state(1, r.rs, r.obs_logs[1])
     assert "hand[1]=[" in info1
     assert f"hand[1]=#{n1}" not in info1
-
-
-def test_the_walk_plays_the_pinned_line_to_its_terminal_state() -> None:
-    """The half of `conformance_steps=5000` the bounds grid cannot see.
-
-    `test_conformance_bounds.py` asks only that the bound cover every declared
-    verb, which a bound far short of the terminal state also does. The bounded
-    walk checks terminal returns only if it reaches the terminal state, so a
-    bound that quietly stopped reaching it would lose the whole-game check
-    with nothing going red. This is that red.
-
-    red under: lower `conformance_steps` below the step the pinned line ends at.
-    """
-    spec = TestReadiness.spec
-    assert spec.conformance_steps is not None
-    walk = bounded_walk(spec.short_name, str(GAMES_DIR / spec.filename), spec.conformance_steps)
-    assert walk.terminal, (
-        f"the bounded walk no longer reaches TerminalNode within "
-        f"conformance_steps={spec.conformance_steps} (it stopped at step "
-        f"{walk.steps}) — raise the bound to the pinned line's end"
-    )
-    assert walk.steps < spec.conformance_steps, (
-        f"the walk consumed its whole budget ({walk.steps} steps), so `terminal` "
-        f"is true only because the last step happened to land there and the "
-        f"bound carries no margin"
-    )

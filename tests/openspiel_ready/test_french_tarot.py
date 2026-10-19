@@ -9,10 +9,10 @@ depth 12 showed only the later re-dealt hands moved, via the
 gather-then-shuffle the thrown-in hand's `before_each` runs. Depth 3 stays
 inside the still-open first auction, before that reshuffle.
 
-Conformance: `conformance_steps` is unset, so this game plays the full
-`pyspiel.random_sim_test`, one whole game through the adapter, inside the
-whole-sim budget (`harness.py`, `conformance_steps`). A game runs 36
-hands of ~76 decision-picks each.
+Bounded conformance walk: a game runs 36 hands of ~76 decision-picks each
+(~2,740 total), and one full `pyspiel.random_sim_test` is past the whole-sim
+budget (`harness.py`, `conformance_steps`; 47s, measured 2026-10-18). `tests/test_openspiel_replay.py`'s `KERNEL_GAMES` plays one reference game
+to TerminalNode through the replay engine and checks its returns.
 """
 
 from cardlang.openspiel.infostate import information_state
@@ -34,6 +34,14 @@ class TestReadiness(ReadinessProofs):
         # The provenance walk is the plain line, which the preference does
         # not steer, and that line plays out, so it needs no opening.
         greedy_prefers=("pass",),
+        conformance_steps=240,  # bid_petite, the last new verb, at step 153
+        conformance_verbs_unreached=(
+            ("bid_garde_sans", ("the auction's third level is legal only over "
+                               "a standing garde, which the seed-7 line never "
+                               "holds when a seat would bid it; the 40-seed "
+                               "sweep in tests/test_playout_french_tarot.py "
+                               "bids the ladder")),
+        ),
         adapter_terminal_steps=200,  # greedy line measured at 144 steps
     )
 

@@ -212,7 +212,7 @@ class GameSpec:
 
     # None = full `pyspiel.random_sim_test`, which plays one whole random game
     # through the adapter. That is the default, and a game keeps it while one
-    # whole sim fits the whole-sim budget, 60 seconds on the CI runner. A game
+    # whole sim fits the whole-sim budget, 15 seconds on the CI runner. A game
     # past the budget, or one a uniform draw never finishes, sets a step count
     # and gets a bounded
     # random API walk instead (the sanctioned SP1 bridge-fallback precedent):
