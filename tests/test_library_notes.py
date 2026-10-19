@@ -1003,6 +1003,30 @@ NAMED: dict[str, Named] = {
         "function g(c : Card)", "then function `g`",
         ((L._LIB, "function libf("),),
     ),
+    "removal-of-a-library-rule": Named(
+        ((L._LIB, _lib(L._LIB, (
+            "  rule lr {\n    constrains: play_to_trick\n"
+            "    demands: cards in hand where rank_value(card) > 3\n    if_impossible: hand\n  }"
+        ))),),
+        _host(rules="active_rules: [-lr] "),
+        "active_rules: [-lr]", "removes a rule that is never added",
+        ((L._LIB, "rule lr {"),),
+    ),
+    "override-of-a-library-rule": Named(
+        ((L._LIB, _lib(L._LIB, (
+            "  rule lr {\n    constrains: play_to_trick\n"
+            "    demands: cards in hand where rank_value(card) > 3\n    if_impossible: hand\n  }"
+        ))),),
+        _host(rules="active_rules: [override lr] "),
+        "active_rules: [override lr]", "is not yet supported by the runtime",
+        ((L._LIB, "rule lr {"),),
+    ),
+    "result-against-a-contract-only-library": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { g(c : Card) : Integer }")),),
+        _host(extra="function g(c : Card) = c.suit is hearts\n"),
+        f"uses {L._LIB}", "returning Boolean",
+        ((L._LIB, "requires {"),),
+    ),
     "game-rule-over-a-standard-library-rule": Named(
         ((L._LIB, _lib(L._LIB, "  function z(c : Card) = rank_value(c)")),),
         _host(extra=(
@@ -1063,7 +1087,20 @@ def test_a_note_at_an_unspliced_rule_names_the_rule(
     assert notes and all("rule `lr`" in nt for nt in notes), "\n".join(lines)
 
 
-@pytest.mark.parametrize("name", sorted(NAMED))
+# A library contributing no definition to the splice, only contract rows.
+_CONTRACT_ONLY_RED = pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="issue #912: a contract-only library is unknown to the step after the splice",
+)
+
+
+@pytest.mark.parametrize(
+    "name", [
+        pytest.param(k, marks=_CONTRACT_ONLY_RED)
+        if k == "result-against-a-contract-only-library" else k
+        for k in sorted(NAMED)
+    ]
+)
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
