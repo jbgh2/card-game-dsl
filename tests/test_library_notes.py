@@ -876,6 +876,30 @@ NAMED: dict[str, Named] = {
         "active_rules: [lr(", "Suit enum values have no arithmetic order",
         ((L._LIB, "rank_value(card) > s"),),
     ),
+    "call-of-another-arity": Named(
+        ((L._LIB, _lib(L._LIB, "  function h(c : Card) = rank_value(c)")),),
+        _host(body=f"score[0] := h()  {_TRICK}"),
+        "score[0] := h()", "h() expects 1 argument(s), got 0",
+        ((L._LIB, "function h("),),
+    ),
+    "call-argument-of-another-type": Named(
+        ((L._LIB, _lib(L._LIB, "  function h(c : Card) = rank_value(c)")),),
+        _host(body=f"score[0] := h(3)  {_TRICK}"),
+        "score[0] := h(3)", "h() expects Card, got Integer",
+        ((L._LIB, "function h("),),
+    ),
+    "run-of-another-arity": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { score[player] : Integer }\n  procedure p(x : Player) { score[x] += 1 }")),),
+        _host(body=f"run p()  {_TRICK}"),
+        "run p()", "procedure 'p' expects 1 argument(s), got 0",
+        ((L._LIB, "procedure p("),),
+    ),
+    "run-argument-of-another-type": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { score[player] : Integer }\n  procedure p(x : Player) { score[x] += 1 }")),),
+        _host(body=f"run p(true)  {_TRICK}"),
+        "run p(true)", "procedure 'p' expects Player, got Boolean",
+        ((L._LIB, "procedure p("),),
+    ),
     "game-rule-over-a-standard-library-rule": Named(
         ((L._LIB, _lib(L._LIB, "  function z(c : Card) = rank_value(c)")),),
         _host(extra=(
@@ -917,7 +941,21 @@ def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
     return found[0]
 
 
-@pytest.mark.parametrize("name", sorted(NAMED))
+# The cells a sentence naming library text by its bare name holds, whose line
+# the step finds from the game text the refusal stands at.
+_BARE = frozenset({
+    "call-of-another-arity", "call-argument-of-another-type", "run-of-another-arity",
+    "run-argument-of-another-type",
+})
+_BARE_RED = pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="issue #912: a game call of library text, refused, carries no note of its line",
+)
+
+
+@pytest.mark.parametrize(
+    "name", [pytest.param(k, marks=_BARE_RED) if k in _BARE else k for k in sorted(NAMED)]
+)
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
