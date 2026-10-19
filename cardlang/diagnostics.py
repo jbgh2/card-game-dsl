@@ -212,13 +212,15 @@ class DiagnosticBag:
         for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
     ) -> None:
-        """`stands_on` is library text the refusal reached that its sentence
-        does not name; the library text it names stands on its citations. A
-        `for_game` sentence is told only where the step moves the refusal, at
-        the library text it stood in, so its citations add none."""
+        """`stands_on` is library text the refusal reached that its sentences
+        do not name; the library text they name, in `message` and in
+        `for_game`, stands on their citations."""
         on = (stands_on,) if isinstance(stands_on, Span) else stands_on or ()
         words, cited = rendered(message)
-        game_words = None if for_game is None else rendered(for_game)[0]
+        game_words: str | None = None
+        if for_game is not None:
+            game_words, game_cited = rendered(for_game)
+            cited += game_cited
         self.items.append(
             Diagnostic(Severity.ERROR, words, span, route, game_words, stands_on=on + cited)
         )

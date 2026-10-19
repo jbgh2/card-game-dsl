@@ -213,12 +213,11 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                 elif origin is not None:
                     unreached.setdefault((library, origin.where), lines[library])
         if moved is None:
-            # The library text a check hands the step, else the library text
-            # the game text it stands at stands on.
-            stands = d.stands_on or standing.get(_at(d.span), ())
+            stands = d.stands_on + standing.get(_at(d.span), ())
             told.append(_bare(d, (), stands, holders, lines))
             continue
-        noted = _bare(moved, (d.span,), d.stands_on, holders, lines)
+        stands = d.stands_on + standing.get(_at(moved.span), ())
+        noted = _bare(moved, (d.span,), stands, holders, lines)
         key = (moved.message, moved.span)
         if key not in seen:
             seen[key] = len(told)
@@ -272,9 +271,9 @@ def _bare(
     lines: dict[str, Span] | None = None,
 ) -> Diagnostic:
     """`d` told as it stands, with no step input left on it, and the library
-    text it stands on as its notes: where it was raised, when that is library
-    text outside the file `d` is told in, and otherwise each library line of
-    `stands_on`."""
+    text it stands on as its notes: each distinct library line of where it
+    was raised and of `stands_on`, in that order, outside the file `d` is
+    told in; none where `d` is told in a library's file."""
     in_library = d.span is not None and (
         _holder(d.span, holders or []) is not None or _library_of(d.span, lines or {}) is not None
     )
@@ -287,7 +286,7 @@ def _bare(
                 found.setdefault((nt.span.source_name, nt.span.line), nt)
         return tuple(found.values())
 
-    notes = noted(raised_at) or noted(stands_on)
+    notes = noted(raised_at + stands_on)
     if d.route is None and d.for_game is None and not d.stands_on and not notes:
         return d
     return Diagnostic(d.severity, d.message, d.span, notes=notes)

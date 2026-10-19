@@ -345,9 +345,14 @@ def test_a_refusal_is_told_with_its_library_line(
     else:
         assert primary.startswith(f"{L._GAME_FILE}:") and not primary.startswith(uses_at), text
     if expected.note:
-        assert len(notes) == 1, text
-        assert _location(notes[0]) == (span.source_name, span.line), text
-        assert _note_names(stage, lives, where) in notes[0], text
+        # Told at the game's `run` of `libp`, the refusal stands on `libp`
+        # too; once expanded, the block the run became names nothing.
+        runs = expected.primary == "game" and stage != "after-expand"
+        libp = _line_of(_LIBRARY, "procedure libp")
+        want = {(span.source_name, span.line)} | ({(L._LIB_FILE, libp)} if runs else set())
+        assert {_location(nt) for nt in notes} == want, text
+        refused = next(nt for nt in notes if _location(nt) == (span.source_name, span.line))
+        assert _note_names(stage, lives, where) in refused, text
     else:
         assert notes == [], text
     if expected.warning is None:
@@ -408,13 +413,14 @@ def _hidden_run(body: str) -> str:
 
 def test_one_refusal_on_two_library_lines_names_both(monkeypatch: pytest.MonkeyPatch) -> None:
     """A run whose argument reads hidden cards, for two decisions of the
-    procedure's body, is one refusal at the run, standing on both lines."""
+    procedure's body, is one refusal at the run, standing on both lines and
+    on the procedure the run names."""
     game = _hidden_run("as leader { run libpr(high(dealer)) }")
     lines = L._bag(monkeypatch, _TWICE, game)
     text = "\n".join(lines)
     assert len(L._errors(lines)) == 1, text
     noted = {_location(ln) for ln in lines if line_kind(ln) == "note"}
-    assert noted == {(L._LIB_FILE, 4), (L._LIB_FILE, 5)}, text
+    assert noted == {(L._LIB_FILE, 3), (L._LIB_FILE, 4), (L._LIB_FILE, 5)}, text
 
 
 def test_merged_refusals_keep_every_note(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -431,7 +437,8 @@ def test_merged_refusals_keep_every_note(monkeypatch: pytest.MonkeyPatch) -> Non
         bag.error("the probe refuses this", library_at, route=Route("call", at, L._LIB, "libp"))
     attribution.tell(bag, game)
     assert len(bag.items) == 1
-    assert [note.span for note in bag.items[0].notes] == [span, other]
+    libp = next(p.span for p in game.procedures if p.name == "libp")
+    assert [note.span for note in bag.items[0].notes] == [span, libp, other]
 
 
 def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
@@ -446,7 +453,8 @@ def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
     bag.error("the probe refuses this", at, route=Route("call", at, L._LIB, "libp"), stands_on=span)
     attribution.tell(bag, game)
     (told,) = bag.items
-    assert [note.span for note in told.notes] == [span]
+    libp = next(p.span for p in game.procedures if p.name == "libp")
+    assert [note.span for note in told.notes] == [span, libp]
     assert where in told.notes[0].message
 
 
@@ -454,12 +462,6 @@ def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
 # where it was raised, what its check handed the step, what its sentence or
 # its game's sentence cites, and the definition the game text it is told at
 # names. Each cell crosses two of them; its notes are their union.
-_UNION_RED = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: one way of standing on library text hides another",
-)
-
-
 def _union_cell(name: str, game: n.Game) -> tuple[DiagnosticBag, set[int]]:
     family, _ = _refused("family")
     outside, _ = _refused("outside")
@@ -470,11 +472,11 @@ def _union_cell(name: str, game: n.Game) -> tuple[DiagnosticBag, set[int]]:
     bag = DiagnosticBag()
     if name == "raised-and-handed":
         bag.error("the probe refuses this", family, route=route, stands_on=outside)
-        return bag, {family.line, outside.line}
+        return bag, {family.line, outside.line, libp.span.line}
     if name == "raised-and-cited-for-the-game":
         sentence = attribution.cite_library(L._LIB, outside) + " refuses this"
         bag.error("the probe refuses this", family, route=route, for_game=sentence)
-        return bag, {family.line, outside.line}
+        return bag, {family.line, outside.line, libp.span.line}
     if name == "named-and-handed-the-game's-text":
         bag.error("the probe refuses this", at, stands_on=at)
         return bag, {libp.span.line}
@@ -489,7 +491,7 @@ _UNION_CELLS = (
 )
 
 
-@pytest.mark.parametrize("name", [pytest.param(c, marks=_UNION_RED) for c in _UNION_CELLS])
+@pytest.mark.parametrize("name", _UNION_CELLS)
 def test_a_refusals_notes_are_every_library_line_it_stands_on(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
@@ -897,7 +899,7 @@ NAMED: dict[str, Named] = {
         ))),),
         _host(rules="active_rules: [lr] ", extra="function g(c : Card) = number of cards in hand\n"),
         "function g(c : Card)", "calls it under its contract",
-        ((L._LIB, "requires {"),),
+        ((L._LIB, "requires {"), (L._LIB, "rule lr {")),
     ),
     "recursion-through-library-text": Named(
         ((L._LIB, _lib(L._LIB, _ROW_G)),),
