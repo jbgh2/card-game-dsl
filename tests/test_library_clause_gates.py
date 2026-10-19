@@ -1750,7 +1750,7 @@ def test_the_board_refusal_offers_a_board_only_where_one_is_legal(
     assert len(refusals) == 2, rendered
     for refusal in refusals:
         assert ("declare one" in refusal) == pieces, refusal
-        assert ("a card game cannot use this library" in refusal) == (not pieces), refusal
+        assert ("a card game cannot use library" in refusal) == (not pieces), refusal
     if pieces:
         remedied = text.replace("  max_length: 1000", "  board: grid(3, 3)\n  max_length: 1000")
         assert _rendered(remedied.replace("game Cells", "game Remedied", 1)) is None

@@ -86,6 +86,7 @@ from cardlang.diagnostics import (
     DiagnosticError,
     LibraryCitation,
     Note,
+    Said,
     Severity,
     Span,
     line_kind,
@@ -355,6 +356,13 @@ def cite_named(definition: object, words: str) -> LibraryCitation:
     file the refusal is told in."""
     at = getattr(definition, "span", None)
     return LibraryCitation(words, at if isinstance(at, Span) else None)
+
+
+def naming_library(text: str, library: str, at: Span | None) -> Said:
+    """`text` with its "this library" naming `library`, standing on the
+    library text at `at`: a fix phrased for any library, told about one."""
+    before, found, after = text.partition("this library")
+    return text if not found else before + cite_library(library, at) + after
 
 
 def cite_where(where: str, at: Span | None) -> LibraryCitation:

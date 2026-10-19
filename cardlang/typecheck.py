@@ -102,7 +102,14 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_ROWS,
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
-from cardlang.attribution import cite_library, cite_named, cite_origin, cite_where, raise_if_errors
+from cardlang.attribution import (
+    cite_library,
+    cite_named,
+    cite_origin,
+    cite_where,
+    naming_library,
+    raise_if_errors,
+)
 from cardlang.diagnostics import DiagnosticBag, Said, Span
 from cardlang.domains import CARD_PARAM_DOMAINS, require_role, role_of, role_type
 from cardlang.primitives_block import (
@@ -580,6 +587,7 @@ TYPE_ENV_FIELD_SOURCES: dict[str, Literal["clause", "declaration", "scope", "spl
     "play_source": "clause",
     "axis_enums": "clause",
     "origins": "splice",
+    "definitions": "declaration",
 }
 
 
@@ -1701,8 +1709,8 @@ def _library_axis_refusal(
     noun = enum.name.lower()
     items = content_noun(env.flavor, plural=True)
     if origin.provided is not None:
-        fix = (
-            f"declare `{origin.provided}` in `requires {{ }}` instead of "
+        fix: Said = (
+            "declare " + cite_where(f"`{origin.provided}`", at) + " in `requires { }` instead of "
             f"`state {{ }}`, so the game declares it and picks its first {noun}"
         )
     else:
@@ -1713,7 +1721,7 @@ def _library_axis_refusal(
     return (
         cite_library(origin.library, at) + f' names the {noun} "{value}" — a library '
         f"names no {noun}, because the games that use it play with different "
-        f"{items}; {fix}"
+        f"{items}; " + fix
     )
 
 
@@ -2168,7 +2176,8 @@ def _library_field_gate(
         fix = "a game played with these cards cannot use this library"
     bag.error(
         cite_library(origin.library, None) + f" reads the field `{e.field}` (in "
-        + cite_where(origin.where, e.span) + f"), but {lacks} — {fix}",
+        + cite_where(origin.where, e.span) + f"), but {lacks} — "
+        + naming_library(fix, origin.library, None),
         origin.uses_span,
     )
     # One refusal per field and definition, standing on each read of it.
@@ -2246,9 +2255,26 @@ def _spell_operand(e: n.Expr) -> str:
 _UNKEYED_COLLECTION = TCollection(TAny())
 
 
+def _quoted_operand(env: TypeEnv, e: n.Expr) -> Said:
+    """`e` quoted as the game wrote it, cited at the first defined function
+    a call in it names."""
+    words = f"`{_spell_operand(e)}`"
+    def exprs(x: n.Expr) -> Iterator[n.Expr]:
+        yield x
+        for child in _child_exprs(x):
+            yield from exprs(child)
+
+    called = next(
+        (nd.func for nd in exprs(e)
+         if isinstance(nd, n.Call) and ("function", nd.func) in env.definitions),
+        None,
+    )
+    return words if called is None else _named(env, "function", called, words)
+
+
 def _card_field_hint(
-    got: Type, want: Type, got_name: str | None, call: n.Call | None
-) -> str:
+    got: Type, want: Type, got_name: str | None, call: n.Call | None, env: TypeEnv
+) -> Said:
     """The fix a refusal appends when a Card stands where one of a card's
     fields is wanted: the field spelling, read off `CARD_FIELDS`, written out
     as the whole call when the operand is a one-argument call's named
@@ -2263,7 +2289,7 @@ def _card_field_hint(
     if got_name is None:
         return f" — a card's {field} is its `.{field}`"
     if call is not None and len(call.args) == 1:
-        return f" — write `{call.func}({got_name}.{field})`"
+        return " — write `" + _named(env, "function", call.func, call.func) + f"({got_name}.{field})`"
     return f" — a card's {field} is `{got_name}.{field}`"
 
 
@@ -2675,15 +2701,15 @@ def _library_role_refusal(
     else:
         noun, why, binder = kind.lower(), "form different teams", "side"
     if origin.provided is not None:
-        fix = (
-            f"declare `{origin.provided}` in `requires {{ }}` instead of "
+        fix: Said = (
+            "declare " + cite_where(f"`{origin.provided}`", at) + " in `requires { }` instead of "
             f"`state {{ }}`, so the game declares it and picks its first {noun}"
         )
     else:
         fix = f"add `{binder} : {kind}` to `requires {{ }}` and write `{binder}` here"
     return (
         cite_library(origin.library, at) + f" names {noun} {value} — a library names no "
-        f"{noun}, because the games that use it {why}; {fix}"
+        f"{noun}, because the games that use it {why}; " + fix
     )
 
 
@@ -2734,7 +2760,7 @@ def _check_operand(
         bag.error(
             msg
             + _key_hint(got, expected, _name_of(node), expected_name)
-            + _card_field_hint(got, expected, _name_of(node), call)
+            + _card_field_hint(got, expected, _name_of(node), call, env)
             + _numeric_rank_hint(node, got, bare, env),
             span,
         )
@@ -3131,21 +3157,21 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # runtime that indexes the map directly and requires the key
                 # to be one it actually holds.
                 idx_t = infer(e.index, env)
-                what = (
+                what: Said = (
                     f"`{obj_ref.name}`"
                     if isinstance(obj_ref, n.NameRef)
                     else "this map"
                 )
                 _check_operand(
                     e.index, idx_t, obj.key, env, bag,
-                    f"{what} is keyed by {_type_name(obj.key)} — got "
+                    f"" + what + f" is keyed by {_type_name(obj.key)} — got "
                     f"{_type_name(idx_t)}",
                     e.span,
                 )
             elif isinstance(obj, TCollection) and obj.zone:
-                what = f"`{_spell_operand(e.obj)}`"
+                what = _quoted_operand(env, e.obj)
                 bag.error(
-                    f"{what} is a zone, and a zone's cards are not addressed by "
+                    f"" + what + f" is a zone, and a zone's cards are not addressed by "
                     f"position — read them with a card query (`cards in ... "
                     f"where ...`) or `top_of(...)`",
                     e.span,
@@ -3157,16 +3183,16 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # (`_check_positional_index_range`); a computed index is the
                 # runtime's (`evaluate._subscript`).
                 idx_t = infer(e.index, env)
-                what = f"`{_spell_operand(e.obj)}`"
+                what = _quoted_operand(env, e.obj)
                 _check_operand(
                     e.index, idx_t, TInteger(), env, bag,
-                    f"a position in {what} is an Integer counted from 0 — got "
+                    f"a position in " + what + f" is an Integer counted from 0 — got "
                     f"{_type_name(idx_t)}",
                     e.index.span or e.span,
                 )
                 if isinstance(_bare(idx_t), TAny):
                     bag.error(
-                        f"a position in {what} types as `Any`, the permissive "
+                        f"a position in " + what + f" types as `Any`, the permissive "
                         f"top (a value the checker cannot type -- a "
                         f"mixed-branch `if`, an untyped read); it must type "
                         f"exactly Integer, because a wrong position is "
@@ -3176,7 +3202,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 if isinstance(e.index, n.IntLit) and e.index.value < 0:
                     bag.error(
                         f"position {e.index.value} is before the first: a "
-                        f"position in {what} counts from 0",
+                        f"position in " + what + f" counts from 0",
                         e.index.span or e.span,
                     )
     elif isinstance(e, n.Member):
@@ -3542,7 +3568,8 @@ def _check_state_default_type(
     got = infer(decl.default, env)
     _check_operand(
         decl.default, got, declared, env, bag,
-        f"state variable '{decl.name}' is declared {_type_name(declared)}, "
+        "state variable " + cite_named(decl, f"'{decl.name}'")
+        + f" is declared {_type_name(declared)}, "
         f"but its default has type {_type_name(got)}",
         decl.span,
     )
@@ -4441,7 +4468,10 @@ def typecheck(game: Game) -> Game:
                 env, _parameter_binders(move_type, env.positions, env.directions)
             )
             _check_expr(move_type.when, mt_env, bag)
-            _check_bool(move_type.when, mt_env, bag, f"move '{move_type.name}' `when:` guard")
+            _check_bool(
+                move_type.when, mt_env, bag,
+                "move " + cite_named(move_type, f"'{move_type.name}'") + " `when:` guard",
+            )
     for rule in game.rules:
         if rule.applies_when is not None and rule.applies_when.pred is not None:
             _check_expr(rule.applies_when.pred, env, bag)

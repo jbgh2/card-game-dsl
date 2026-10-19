@@ -374,6 +374,7 @@ from cardlang.attribution import (
     cite_library,
     cite_named,
     cite_origin,
+    naming_library,
     cite_where,
     raise_if_errors,
 )
@@ -2059,7 +2060,8 @@ def _check_library_clause_gates(
         # refuses at several places stands on each.
         bag.error(
             cite_library(library.name, None) + f" {gate.verb} " + listing
-            + f", which {reads}, but {gate.lacks(game)} — {gate.fix(game)}",
+            + f", which {reads}, but {gate.lacks(game)} — "
+            + naming_library(gate.fix(game), library.name, None),
             use.span,
             stands_on=tuple(refused),
         )
@@ -3330,11 +3332,14 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 ref.span,
             )
         else:
-            call_it = f" — call it: `{ref.name}(...)`" if what.kind == "function" else ""
+            call_it: Said = (
+                " — call it: `" + _cite_own(library, ref.name, ref.name) + "(...)`"
+                if what.kind == "function" else ""
+            )
             bag.error(
                 cite_library(library.name, ref.span) + " reads "
                 + _cite_own(library, ref.name, f"'{ref.name}'") + ", which is "
-                f"{what.phrase}, not a value{call_it}",
+                f"{what.phrase}, not a value" + call_it,
                 ref.span,
             )
     for call in reach.refused_calls:
@@ -3568,18 +3573,21 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
             why = "a move type has no index"
         else:
             why = "a move type contract takes no type argument"
-        message = head + f", but {why} — write `{want.name} : {n.MOVE_CONTRACT_TYPE}`"
+        message = (
+            head + f", but {why} — write `" + cite_named(want, want.name)
+            + f" : {n.MOVE_CONTRACT_TYPE}`"
+        )
     elif field == "functions":
         message = (
             head + f", but a function the game defines is contracted by its "
-            f"signature, not by a kind word — write `{want.name}(<parameter> : "
-            f"<type>, …) : <result type>`"
+            f"signature, not by a kind word — write `" + cite_named(want, want.name)
+            + "(<parameter> : <type>, …) : <result type>`"
         )
     elif field == "procedures":
         message = (
             head + f", but a procedure the game defines is contracted by its "
-            f"signature, not by a kind word — write `{want.name}(<parameter> : "
-            f"<type>, …) : {n.PROCEDURE_CONTRACT_TYPE}`"
+            f"signature, not by a kind word — write `" + cite_named(want, want.name)
+            + f"(<parameter> : <type>, …) : {n.PROCEDURE_CONTRACT_TYPE}`"
         )
     else:
         message = (
@@ -3667,12 +3675,12 @@ def _check_signature_result(
     if bare == n.PROCEDURE_CONTRACT_TYPE:
         message = (
             head + f", but a procedure returns no value, so its row carries no "
-            f"`?` — write `{want.name}(…) : {n.PROCEDURE_CONTRACT_TYPE}`"
+            f"`?` — write `" + cite_named(want, want.name) + f"(…) : {n.PROCEDURE_CONTRACT_TYPE}`"
         )
     elif bare == n.MOVE_CONTRACT_TYPE:
         message = (
             head + f", but a move type is offered by name and passed no "
-            f"arguments — write `{want.name} : {n.MOVE_CONTRACT_TYPE}`"
+            f"arguments — write `" + cite_named(want, want.name) + f" : {n.MOVE_CONTRACT_TYPE}`"
         )
     elif bare in _DEFINITION_KIND_WORDS:
         message = (
@@ -3789,14 +3797,15 @@ def _game_declarations_of(game: n.Game, name: str) -> list[str]:
     return found
 
 
-def _definition_template(want: n.DefinitionContract) -> str:
-    """The definition that answers a row, as the game would write it."""
+def _definition_template(want: n.DefinitionContract) -> Said:
+    """The definition that answers a row, as the game would write it, cited
+    at the row."""
     if isinstance(want, n.MoveContract):
-        return f"a `move_type {want.name} {{ effect {{ ... }} }}` block"
+        return "a " + cite_named(want, f"`move_type {want.name} {{ effect {{ ... }} }}`") + " block"
     listed = ", ".join(f"{p.name} : {p.type_name}" for p in want.params)
     if isinstance(want, n.FunctionContract):
-        return f"`function {want.name}({listed}) = …`"
-    return f"`procedure {want.name}({listed}) {{ … }}`"
+        return cite_named(want, f"`function {want.name}({listed}) = …`")
+    return cite_named(want, f"`procedure {want.name}({listed}) {{ … }}`")
 
 
 def _check_definition_requirement(
@@ -3842,13 +3851,13 @@ def _check_definition_requirement(
             bag.error(
                 head + f", which game '{game.name}' declares as {others[0]} — the "
                 f"row names a {noun}, so the definition belongs in "
-                f"{_definition_template(want)}",
+                + _definition_template(want),
                 use.span,
             )
         else:
             bag.error(
                 head + f", which game '{game.name}' does not define — add "
-                f"{_definition_template(want)}",
+                + _definition_template(want),
                 use.span,
             )
         return None
@@ -3858,7 +3867,7 @@ def _check_definition_requirement(
     if len(have.params) != len(want.params):
         count = len(have.params)
         bag.error(
-            head + f", but game '{game.name}' defines " + cite_where(f"`{want.name}`", want.span) + f" with {count} "
+            head + f", but game '{game.name}' defines " + cite_named(have, f"`{want.name}`") + f" with {count} "
             f"parameter{'' if count == 1 else 's'}",
             use.span,
         )
@@ -3866,7 +3875,7 @@ def _check_definition_requirement(
     for i, (got, wanted) in enumerate(zip(have.params, want.params), start=1):
         if got.type_name != wanted.type_name:
             bag.error(
-                head + f", but game '{game.name}' defines " + cite_where(f"`{want.name}`", want.span) + f" whose "
+                head + f", but game '{game.name}' defines " + cite_named(have, f"`{want.name}`") + f" whose "
                 f"parameter {i} is `{got.type_name}`",
                 use.span,
             )
@@ -4949,7 +4958,8 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                 elif isinstance(node, n.Call):
                     bag.error(
                         "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
-                        f"call '{node.func}': a default is evaluated while the "
+                        "call " + _cite_in(game, "function", node.func, f"'{node.func}'")
+                        + ": a default is evaluated while the "
                         f"`state {{ }}` block is still being declared, and a "
                         f"function body can reach a variable that does not "
                         f"exist yet — use a literal here and compute the value "
@@ -5638,10 +5648,12 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
                 fn.span,
             )
     if not any(isinstance(node, n.TrickRound) for node in _walk(game)):
-        names = ", ".join(sorted(f.name for f in helpers))
+        names = Sentence.join(
+            ", ", (cite_named(f, f.name) for f in sorted(helpers, key=lambda h: h.name))
+        )
         origin = helpers[0].origin
         bag.error(
-            f"this game defines {names} but holds no trick round for the "
+            "this game defines " + names + " but holds no trick round for the "
             f"routing to reach — the helpers would be silently ignored "
             f"(routing at other decision points is issue #458)",
             helpers[0].span,
@@ -5684,7 +5696,7 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
                 f"like the climb engine `{engine}`'s own action " + cite_named(mt, f"`{mt.name}`") + f", "
                 f"which this game's climbing round plays — a seat would see the "
                 f"two alike, so a game whose climbing round uses `{engine}` "
-                f"cannot use this library"
+                "cannot use " + cite_library(mt.origin.library, mt.span)
             ),
         )
 
@@ -5855,19 +5867,20 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
     )
     if decl is None:
         return game
-    what = f"`winner:` ranks the game on state variable '{decl.name}', "
+    what = "`winner:` ranks the game on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
     if decl.index is None:
         bag.error(
-            f"{what}which is not indexed — a game is ranked by a score each "
+            f"" + what + f"which is not indexed — a game is ranked by a score each "
             f"player or team holds, so the target is declared "
-            f"`{decl.name}[player]` or `{decl.name}[team]`. A scalar has no "
+            "`" + cite_named(decl, decl.name) + "[player]` or `"
+            + cite_named(decl, decl.name) + "[team]`. A scalar has no "
             f"per-member value to rank",
             game.winner.span,
         )
         return game
     if decl.optional:
         bag.error(
-            f"{what}declared `{decl.type_name}?` — an optional score may be "
+            f"" + what + f"declared `{decl.type_name}?` — an optional score may be "
             f"`none`, which cannot be ranked against a number",
             game.winner.span,
         )
@@ -5875,7 +5888,7 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
     if decl.type_name not in _RANKABLE_TYPES:
         rankable = ", ".join(sorted(_RANKABLE_TYPES))
         bag.error(
-            f"{what}declared `{decl.type_name}` — a game is ranked by a "
+            f"" + what + f"declared `{decl.type_name}` — a game is ranked by a "
             f"score, so the target must be {rankable}. Its values become "
             f"the game's OpenSpiel returns",
             game.winner.span,
@@ -10139,7 +10152,19 @@ _WRITE_TARGET_KINDS: dict[str, str] = {
 }
 
 
-def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
+def _named_ref(game: n.Game, ref: n.NameRef) -> Said:
+    """`ref` quoted, cited at the provided state it reads where it reads
+    some."""
+    words = f"'{ref.name}'"
+    if ref.ref_kind != "state_var" or game.state is None:
+        return words
+    provided = next(
+        (d for d in game.state.decls if d.name == ref.name and d.origin is not None), None
+    )
+    return words if provided is None else cite_named(provided, words)
+
+
+def _bad_write_target(game: n.Game, node: n.AssignStmt | n.RotateStmt) -> Said | None:
     """Why this write target is illegal, or None if it is a state variable."""
     verb = "assign to" if isinstance(node, n.AssignStmt) else "rotate"
     kind = node.target.ref_kind
@@ -10149,14 +10174,14 @@ def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
         return None  # unresolved: `_classify` has already reported it, by name
     what = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     return (
-        f"cannot {verb} '{node.target.name}': it is {what}, and only a declared state "
+        f"cannot {verb} " + _named_ref(game, node.target) + f": it is {what}, and only a declared state "
         f"variable can be written. A binder is a bound value, not a variable — and if "
         f"a state variable of the same name exists, the two would not agree anyway "
         f"(a read here means the binder; a write always goes to state)"
     )
 
 
-def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
+def _bad_zone_endpoint(game: n.Game, expr: n.Expr | None, what: str) -> Said | None:
     """Why this zone-position expression (a movement's `from <here>` /
     `to <here>`, an epistemic op's target) is illegal, or None. The same move
     as `_bad_write_target`, one grammar position over: the position is
@@ -10184,7 +10209,7 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     what_it_is = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     if kind == "state_var":
         what_it_is = "a state variable"
-    return f"cannot {what} '{root.name}': it is {what_it_is}, not a zone"
+    return f"cannot {what} " + _named_ref(game, root) + f": it is {what_it_is}, not a zone"
 
 
 def _check_hosted_binder(poll: n.HostedPoll, cats: _Categories, bag: DiagnosticBag) -> None:
@@ -10539,8 +10564,8 @@ def _check_procedures(
                         remedy = (
                             _contracted_remedy(proc.contracts)
                             if proc.contracts
-                            else f"pass the value in as a parameter (`run "
-                            f"{proc.name}({nd.name})`)"
+                            else "pass the value in as a parameter (`run "
+                            + cite_named(proc, proc.name) + f"({nd.name})`)"
                         )
                         bag.error(
                             f"procedure " + cite_named(proc, f"'{proc.name}'") + f" reads the call-site pronoun "
@@ -10566,8 +10591,8 @@ def _check_procedures(
     for proc in game.procedures:
         if proc.name not in invoked and (own is None or proc.name in own):
             bag.error(
-                f"procedure " + cite_named(proc, f"'{proc.name}'") + f" is never run — invoke it with `run "
-                f"{proc.name}(…)`, or delete it (its body would otherwise be "
+                f"procedure " + cite_named(proc, f"'{proc.name}'") + " is never run — invoke it with `run "
+                + cite_named(proc, proc.name) + "(…)`, or delete it (its body would otherwise be "
                 f"spliced nowhere, and go entirely unchecked downstream)",
                 proc.span,
             )
@@ -11315,14 +11340,14 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # Both checks in ONE arm: a bare `case n.RotateStmt():` above a guarded
                 # one consumes the node, so the guarded arm never runs. (It did exactly
                 # that, and `tests/test_binder_scoping.py` caught it.)
-                bad = _bad_write_target(nd)
+                bad = _bad_write_target(game, nd)
                 if bad is not None:
                     bag.error(bad, nd.span)
                 for value in nd.values:
                     if value not in cats.enums:
                         bag.error(f"rotate through unknown value '{value}'", nd.span)
             case n.AssignStmt():
-                bad = _bad_write_target(nd)
+                bad = _bad_write_target(game, nd)
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Transfer():
@@ -11330,7 +11355,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     (nd.source, "move cards from"),
                     (nd.dest, "move cards to"),
                 ):
-                    bad = _bad_zone_endpoint(endpoint, direction)
+                    bad = _bad_zone_endpoint(game, endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
                 # The joint-selection matrix (decisions.md "Joint-predicate
@@ -11446,7 +11471,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # `reveal one card from turn` checked clean and then reached an
                 # executor that requires an actual Zone as the op's target and
                 # refuses anything else, exactly like the movement endpoints.
-                bad = _bad_zone_endpoint(nd.zone, nd.op)
+                bad = _bad_zone_endpoint(game, nd.zone, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Winner() if nd.state_var not in cats.state_vars:

@@ -1252,7 +1252,7 @@ _UNSPANNED_CITATIONS: dict[tuple[str, str], str] = {
     ("resolve.py", "_check_card_offering"): "the owner of a contract; the move type it "
     "fixes is cited at its text",
 }
-_CITES = frozenset({"cite_library", "cite_definition", "cite_origin", "cite_where"})
+_CITES = frozenset({"cite_library", "cite_definition", "cite_origin", "cite_where", "naming_library"})
 
 
 def test_a_citation_handed_no_span_says_why() -> None:
