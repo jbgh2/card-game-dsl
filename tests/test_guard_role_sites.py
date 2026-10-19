@@ -188,6 +188,16 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         "step — there is nothing to convert it to. Where the class sits: "
         "tests/test_failure_taxonomy.py; who must act: the class's own docstring."),
     ),
+    # --- check authors ---------------------------------------------------------
+    ("cardlang/diagnostics.py", "TypeError"): (
+        4,
+        ("A Library Citation or Sentence formatted into a `str`. Author is whoever "
+        "writes a check in cardlang/ and spells a citation's words into a plain "
+        "string, which would drop the span its Library Note comes from; no "
+        ".cardlang file reaches it. TypeError is Python's own word for an "
+        "operation a type does not support, so not a role type. Pinned by "
+        "tests/test_library_notes.py::test_a_library_citation_is_never_spelled_into_a_str."),
+    ),
     # --- primitive-module maintainer -----------------------------------------
     ("cardlang/runtime/reads.py", "TypeError"): (
         3,
