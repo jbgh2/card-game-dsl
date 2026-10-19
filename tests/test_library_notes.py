@@ -67,7 +67,15 @@ domain:          the step's own domain, crossed: the game the step is handed
                  so ledger cells above. A sentence naming no library text --
                  a Hosted Poll binder shadowing "a function", a removal of a
                  rule this phase never added -- refuses the game's own text,
-                 and its cell is the game's. The spelling census reads every
+                 and its cell is the game's. A repeated `uses` line, the
+                 standard library's `uses` line and an unknown library name
+                 a library, not a line of it: a library has no single line,
+                 so their refusals carry none. A refusal standing at text
+                 that holds game text naming a library definition -- a
+                 statement around a call -- is not noted by what it holds,
+                 since the statement's refusal may be about other text. The
+                 game text inside a substituted template argument is a bare
+                 suit name, which holds no other node. The spelling census reads every
                  string of the package outside the step, f-string pieces and
                  the operands of an addition, its docstrings and the messages
                  of an installation's own errors excepted.
@@ -986,6 +994,15 @@ NAMED: dict[str, Named] = {
         "active_rules: [lr(", "Suit enum values have no arithmetic order",
         ((L._LIB, "rank_value(card) > s"), (L._LIB, "rule lr(")),
     ),
+    "row-through-a-library-function-to-the-answer": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { g(c : Card) : Boolean }\n  function libf(c : Card) = g(c)")),),
+        L._TRICK_HOST.format(
+            clauses="", rows="trump: libf(card)  follow_class: card.suit  card_strength: rank_value(card)",
+            zones="secret[player] : HiddenPile<player>",
+        ) + "function g(c : Card) = (number of cards in secret[1]) > 0\n",
+        "function g(c : Card)", "through function `g`",
+        ((L._LIB, "function libf("),),
+    ),
     "game-rule-over-a-standard-library-rule": Named(
         ((L._LIB, _lib(L._LIB, "  function z(c : Card) = rank_value(c)")),),
         _host(extra=(
@@ -1046,7 +1063,19 @@ def test_a_note_at_an_unspliced_rule_names_the_rule(
     assert notes and all("rule `lr`" in nt for nt in notes), "\n".join(lines)
 
 
-@pytest.mark.parametrize("name", sorted(NAMED))
+# A cell an issue holds: the refusal names no library text and stands at no
+# game text naming it.
+_HELD = {
+    "row-through-a-library-function-to-the-answer": pytest.mark.xfail(
+        strict=True, raises=AssertionError,
+        reason="issue #923: a row reaching the answer through a library function shows no line of it",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "name", [pytest.param(k, marks=_HELD[k]) if k in _HELD else k for k in sorted(NAMED)]
+)
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
