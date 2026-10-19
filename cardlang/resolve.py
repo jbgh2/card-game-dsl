@@ -386,6 +386,7 @@ from cardlang.diagnostics import (
     Sentence,
     Severity,
     Span,
+    rendered,
 )
 from cardlang.domains import (
     CARD_AXIS_ROLES,
@@ -6441,8 +6442,9 @@ def _check_play_source(
                 ):
                     reported.add(id(nd))
                     message = (
-                        f"function '{fname}' reads `{nd.name}`, and rule "
-                        f"'{rule.name}' calls it from its clauses: "
+                        "function " + cite_named(fn, f"'{fname}'")
+                        + f" reads `{nd.name}`, and rule "
+                        + cite_named(rule, f"'{rule.name}'") + " calls it from its clauses: "
                         f"{_PLAY_SOURCE_READING}, and a function cannot see "
                         f"which cards those are — " + remedy
                     )
@@ -6454,24 +6456,28 @@ def _check_play_source(
                             message,
                             nd.span,
                             for_game=None if origin is None else (
-                                cite_origin(origin, rule.span) + f" calls "
-                                f"function `{fname}` from its clauses, which reads "
+                                cite_origin(origin, rule.span) + " calls function "
+                                + cite_named(fn, f"`{fname}`") + " from its clauses, which reads "
                                 f"`{nd.name}`, the cards this game's trick round "
                                 f"plays from, and a function cannot see which cards "
                                 f"those are — take " + cite_named(rule, f"'{rule.name}'") + f" out of `active_rules:`"
                             ),
                         )
                         continue
-                    inner = f", then function `{fname}`" if fname != entry.name else ""
+                    inner: Said = (
+                        ", then function " + cite_named(fn, f"`{fname}`")
+                        if fname != entry.name else ""
+                    )
                     bag.error(
                         message,
                         nd.span,
                         route=_entry_route("call", entry, rule.span),
                         for_game=(
-                            f"rule " + cite_named(rule, f"'{rule.name}'") + f" calls " + entry.through + f"{inner} from its "
+                            f"rule " + cite_named(rule, f"'{rule.name}'") + " calls " + entry.through
+                            + inner + " from its "
                             f"clauses, which reads `{nd.name}`: {_PLAY_SOURCE_READING}, "
                             f"and a function cannot see which cards those are — "
-                            f"`{entry.name}` is "
+                            + cite_where(f"`{entry.name}`", entry.definition) + " is "
                             + cite_library(entry.origin.library, entry.definition)
                             + "'s, so "
                             f"write the filter in the rule's own clause "
@@ -6493,17 +6499,18 @@ def _check_play_source(
             )
     for nd in _walk(game):
         if isinstance(nd, n.StateDecl) and nd.name == PLAY_SOURCE_NAME:
-            rules = " and ".join(f"'{r.name}'" for r in reading)
+            rules = Sentence.join(" and ", (cite_named(r, f"'{r.name}'") for r in reading))
+            variable = cite_named(nd, f"`{nd.name}`")
             bag.error(
-                f"this game declares the state variable `{nd.name}`, but "
+                "this game declares the state variable " + variable + ", but "
                 f"{_PLAY_SOURCE_READING}, so its rules could never read this "
                 f"variable by that name — rename the variable",
                 nd.span,
                 for_game=None if nd.origin is None else (
                     cite_library(nd.origin.library, nd.span) + " provides the state variable "
-                    f"`{nd.name}`, but this game asks rule {rules}, and "
+                    + variable + ", but this game asks rule " + rules + ", and "
                     f"{_PLAY_SOURCE_READING}, so no rule could read the variable "
-                    f"by that name — take {rules} out of `active_rules:`"
+                    f"by that name — take " + rules + " out of `active_rules:`"
                 ),
             )
     if not sources:
@@ -6514,7 +6521,8 @@ def _check_play_source(
                     activated.setdefault(ref.name, ref.span)
         for rule in reading:
             said = (
-                f"rule '{rule.name}' reads `{PLAY_SOURCE_NAME}`, the cards the "
+                "rule " + cite_named(rule, f"'{rule.name}'")
+                + f" reads `{PLAY_SOURCE_NAME}`, the cards the "
                 f"player on turn plays to a trick, but this game plays no trick "
                 f"round (`round <move> from ... source ... into ...`); a rule is "
                 f"asked only when a trick round offers a card, so it would "
@@ -9059,16 +9067,32 @@ def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
                 sites.extend((nd, name) for nd in _walk(fns[name].body))
         # A function reached through library text is the library's, sound
         # where the library calls it: the row's call of it is what fails.
+        routes = _row_routes(row, fns)
         entries = {
             name: entry
-            for name, steps in _row_routes(row, fns).items()
+            for name, steps in routes.items()
             if (entry := _library_entry(steps)) is not None
         }
         def through(fn: str | None) -> Said:
-            entry = entries.get(fn) if fn else None
+            if not fn:
+                return ""
+            named = _cite_in(game, "function", fn, f"`{fn}`")
+            entry = entries.get(fn)
             if entry is None:
-                return f" through function `{fn}`" if fn else ""
-            inner = f", then function `{fn}`" if fn != entry.name else ""
+                # A route back into the game's text names the library
+                # definitions it crossed on the way.
+                crossed = [
+                    cite_origin(origin, getattr(d, "span", None))
+                    for _at, d in routes.get(fn, [])[:-1]
+                    if (origin := getattr(d, "origin", None)) is not None
+                ]
+                if crossed:
+                    return (
+                        " through " + Sentence.join(", then ", crossed)
+                        + ", then function " + named
+                    )
+                return " through function " + named
+            inner: Said = ", then function " + named if fn != entry.name else ""
             return " through " + entry.through + inner
 
         def sink(fn: str | None) -> _ErrorSink:
@@ -11666,7 +11690,7 @@ class _Binding:
 
     value: n.Expr
     scope: _ReadScope
-    via: str
+    via: Said
     index_binder: str | None = None
 
 
@@ -11741,7 +11765,7 @@ class _Crossing:
     function: n.FunctionDef
     args: tuple[n.Expr, ...]
     scope: _ReadScope
-    inner_route: tuple[str, ...]
+    inner_route: tuple[Said, ...]
     anchor: Span | None
 
 
@@ -11774,7 +11798,7 @@ class ZoneRead:
     index_scope: _ReadScope
     every: bool
     need: str
-    route: tuple[str, ...]
+    route: tuple[Said, ...]
     span: Span | None
     choose: str | None = None
     exit: n.Call | None = None
@@ -11939,7 +11963,7 @@ class _HiddenReads:
         expr: object,
         scope: _ReadScope,
         need: str = "identity",
-        route: tuple[str, ...] = (),
+        route: tuple[Said, ...] = (),
         choose: str | None = None,
         calls: tuple[str, ...] = (),
     ) -> Iterator[ZoneRead]:
@@ -12044,7 +12068,7 @@ class _HiddenReads:
         call: n.Call,
         scope: _ReadScope,
         need: str,
-        route: tuple[str, ...],
+        route: tuple[Said, ...],
         choose: str | None,
         calls: tuple[str, ...],
     ) -> Iterator[ZoneRead]:
@@ -12052,7 +12076,7 @@ class _HiddenReads:
         if fn is not None:
             if call.func in calls:
                 return  # recursion: `_check_functions` reports it
-            via = f"function `{fn.name}`"
+            via: Said = "function " + cite_named(fn, f"`{fn.name}`")
             # A function body is hermetic: it names no binder of the caller's,
             # and inherits the acting seat.
             body_scope = replace(scope, names=(), aliases=_ActorAliases(frozenset()))
@@ -12246,7 +12270,7 @@ class _HiddenReads:
         return f"`{read.zone}[{_spell(index)}]`"
 
     def _judge(
-        self, what: str, reads: Iterator[ZoneRead], decider: _Seat, span: Span | None,
+        self, what: Said, reads: Iterator[ZoneRead], decider: _Seat, span: Span | None,
         only_choose: bool = False, source: bool = False, evaluator: _Seat | None = None,
         skip_choose: bool = False,
     ) -> None:
@@ -12284,7 +12308,9 @@ class _HiddenReads:
                     accepted, reason = True, own
                 else:
                     accepted, reason = False, ""
-            self.verdicts.append(HiddenReadVerdict(position, read, accepted, reason, span))
+            self.verdicts.append(
+                HiddenReadVerdict(rendered(position)[0], read, accepted, reason, span)
+            )
             if accepted:
                 continue
             if read.crossing is not None:
@@ -12292,7 +12318,7 @@ class _HiddenReads:
                 continue
             self._report(position, read, seat, to_owner, span or read.span, source and not in_choose)
 
-    def _report_crossed(self, what: str, read: ZoneRead, seat: _Seat, to_owner: bool) -> None:
+    def _report_crossed(self, what: Said, read: ZoneRead, seat: _Seat, to_owner: bool) -> None:
         """A refused read the game's answer to a Definition Contract makes,
         told to the game's author at the last text the game wrote on the way
         to it (decisions.md "Family libraries"): a library is sound when some
@@ -12306,10 +12332,11 @@ class _HiddenReads:
         written, passed = self._game_spelling(read, crossing)
         needs = _NEED_PHRASE[read.need].format(z=written)
         through = (
-            f" (through {', then '.join(crossing.inner_route)})" if crossing.inner_route else ""
+            " (through " + Sentence.join(", then ", crossing.inner_route) + ")"
+            if crossing.inner_route else ""
         )
         library = cite_library(crossing.stamp.library, crossing.stamp.row_span)
-        calls = library + f" calls it under its contract " + cite_where(f"`{crossing.stamp.row}`", crossing.stamp.row_span) + f" in {what}"
+        calls = library + f" calls it under its contract " + cite_where(f"`{crossing.stamp.row}`", crossing.stamp.row_span) + f" in " + what
         decider = seat.label
         decides = (
             "which each receiving seat decides, so every receiving seat"
@@ -12325,9 +12352,9 @@ class _HiddenReads:
                 f"a seat it does not show to be {decider}" if "..." in value else f"`{value}`"
             )
             message: Said = (
-                f"function `{fn.name}` reads {needs}{through}, and " + library
+                f"function `{fn.name}` reads {needs}" + through + f", and " + library
                 + f" passes {argument} as `{param}` when it "
-                f"calls it under its contract " + cite_where(f"`{crossing.stamp.row}`", crossing.stamp.row_span) + f" in {what}, "
+                f"calls it under its contract " + cite_where(f"`{crossing.stamp.row}`", crossing.stamp.row_span) + f" in " + what + f", "
                 f"{decides} must be able to check it, but {cannot}"
             )
         else:
@@ -12336,7 +12363,7 @@ class _HiddenReads:
                 else f"which {decider} cannot see{self._why_not_owned(read.index, read.index_scope)}"
             )
             message = (
-                f"function `{fn.name}` reads {needs}{through}, {blind}, but " + calls
+                f"function `{fn.name}` reads {needs}" + through + f", {blind}, but " + calls
                 + f", {decides} must be able to check it"
             )
         own = (
@@ -12392,21 +12419,21 @@ class _HiddenReads:
         return None
 
     def _report(
-        self, what: str, read: ZoneRead, seat: _Seat, to_owner: bool,
+        self, what: Said, read: ZoneRead, seat: _Seat, to_owner: bool,
         span: Span | None, source: bool,
     ) -> None:
         zone = self._zone_text(read)
         needs = _NEED_PHRASE[read.need].format(z=zone)
-        route = f" (through {', then '.join(read.route)})" if read.route else ""
+        route: Said = " (through " + Sentence.join(", then ", read.route) + ")" if read.route else ""
         if seat is _NO_SEAT:
             who = "only its owner can see" if to_owner else "no seat can see"
             extra = (
                 "; or read the card as it is played (`action.card`), as Hearts breaks "
                 "hearts on the card played"
-                if what.endswith("`transition_to` trigger") else ""
+                if rendered(what)[0].endswith("`transition_to` trigger") else ""
             )
             message = (
-                f"{what} is a fact every seat can check, but it reads {needs}{route}, "
+                f"" + what + f" is a fact every seat can check, but it reads {needs}" + route + f", "
                 f"which {who}. Make the holder announce it, as Gin Rummy's knock sets "
                 f"`knocked`, and read the announcement{extra}"
             )
@@ -12419,7 +12446,7 @@ class _HiddenReads:
             if source:
                 message = (
                     f"a chosen movement's source is the pool {decider} picks from, but "
-                    f"it reads {needs}{route}, {blind}, so the pick would name cards "
+                    f"it reads {needs}" + route + f", {blind}, so the pick would name cards "
                     f"the chooser cannot see. Pick from cards the chooser can see; a "
                     f"blind pick from cards the chooser cannot see (Old Maid's draw) "
                     f"needs a pick by position, which the language does not have yet "
@@ -12427,8 +12454,8 @@ class _HiddenReads:
                 )
             else:
                 head = (
-                    f"{what} is decided by {decider}, so {decider} must be able to "
-                    f"check it, but it reads {needs}{route}, {blind}"
+                    f"" + what + f" is decided by {decider}, so {decider} must be able to "
+                    f"check it, but it reads {needs}" + route + f", {blind}"
                 )
                 message = (
                     head + f". Read the deciding seat's own cards, or have the holder "
@@ -12537,7 +12564,7 @@ class _HiddenReads:
             scope = _ACTOR_SCOPE.shadow(tuple(p.name for p in mt.params))
             if mt.when is not None:
                 self._judge(
-                    f"move type `{mt.name}`'s `when:`",
+                    "move type " + cite_named(mt, f"`{mt.name}`") + "'s `when:`",
                     self.reads_of(mt.when, scope), _Seat("the acting seat"), mt.when.span,
                 )
             self.library_text.append(mt.origin is not None)
@@ -12595,7 +12622,7 @@ class _HiddenReads:
                 }
                 decider, evaluator = (seats[seat] for seat in RULE_CLAUSE_SEATS[clause])
                 self._judge(
-                    f"rule `{rule.name}`'s `{clause}:`",
+                    "rule " + cite_named(rule, f"`{rule.name}`") + f"'s `{clause}:`",
                     self.reads_of(expr, decider[0]), decider[1], expr.span,
                     skip_choose=evaluator_scope is not None,
                 )
@@ -12693,14 +12720,16 @@ class _HiddenReads:
         entered: _LibraryEntry | None = None,
         in_library: bool = False,
     ) -> Iterator[
-        tuple[n.Choose | n.NameRef, tuple[str, ...], _Answered | None, _LibraryEntry | None]
+        tuple[n.Choose | n.NameRef, tuple[Said, ...], _Answered | None, _LibraryEntry | None]
     ]:
         """Each `choose` and each `actor` read `expr` evaluates, with the
         functions it is reached through; when the route crossed a library's
         call of the game's answer to a Definition Contract, that crossing; and
         when it left the game's text for a library function, that entry."""
         for node in _child_nodes(expr):
-            route = tuple(f"function `{c}`" for c in calls)
+            route = tuple(
+                "function " + _cite_in(self.game, "function", c, f"`{c}`") for c in calls
+            )
             if isinstance(node, n.Choose):
                 yield node, route, answered, entered
             elif isinstance(node, n.NameRef) and node.ref_kind == "pronoun" and node.name == "actor":
@@ -12726,17 +12755,17 @@ class _HiddenReads:
                 )
 
     def _report_unacting_answer(
-        self, route: tuple[str, ...], answered: _Answered, span: Span | None
+        self, route: tuple[Said, ...], answered: _Answered, span: Span | None
     ) -> None:
         """A `choose` the game's answer to a Definition Contract makes where
         the library reads it with no player acting: told to the game's author,
         at the last text the game wrote on the way to it, with the fix the
         answer can take."""
         inner = route[answered.depth:]
-        through = f" (through {', then '.join(inner)})" if inner else ""
+        through: Said = " (through " + Sentence.join(", then ", inner) + ")" if inner else ""
         where = _NO_ACTOR_WHERE[self.place]
         message = (
-            f"function `{answered.function}` makes a `choose`{through}, but "
+            f"function `{answered.function}` makes a `choose`" + through + f", but "
             + cite_library(answered.stamp.library, answered.stamp.row_span)
             + " calls it under its contract "
             f"" + cite_where(f"`{answered.stamp.row}`", answered.stamp.row_span) + f" where no player is acting ({where}), so no "
@@ -12751,7 +12780,7 @@ class _HiddenReads:
 
     def _report_no_actor(
         self,
-        what: str,
+        what: Said,
         route: tuple[Said, ...],
         span: Span | None,
         reads: bool = False,
@@ -13124,7 +13153,7 @@ class _HiddenReads:
     def _run_body(
         self, proc: n.ProcedureDef, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat
     ) -> None:
-        via = f"procedure `{proc.name}`"
+        via: Said = "procedure " + cite_named(proc, f"`{proc.name}`")
         # The body is spliced in at the run site: the acting seat and the
         # `as` State Variable carry in; the caller's binders do not.
         body_scope = replace(scope, names=(), aliases=_ActorAliases(frozenset()))
@@ -13163,7 +13192,7 @@ class _HiddenReads:
             SEAT_EACH_RECEIVER: _Seat("each receiving seat", every=True),
         }
 
-        def judge(field: str, what: str, reads: Iterator[ZoneRead], span: Span | None) -> None:
+        def judge(field: str, what: Said, reads: Iterator[ZoneRead], span: Span | None) -> None:
             decider, evaluator = CHOSEN_MOVEMENT_SEATS[(field, stmt.dest_each)]
             self._judge(
                 what, reads, seats[decider], span,

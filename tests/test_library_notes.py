@@ -1000,7 +1000,7 @@ NAMED: dict[str, Named] = {
             clauses="", rows="trump: libf(card)  follow_class: card.suit  card_strength: rank_value(card)",
             zones="secret[player] : HiddenPile<player>",
         ) + "function g(c : Card) = (number of cards in secret[1]) > 0\n",
-        "function g(c : Card)", "through function `g`",
+        "function g(c : Card)", "then function `g`",
         ((L._LIB, "function libf("),),
     ),
     "game-rule-over-a-standard-library-rule": Named(
@@ -1063,19 +1063,7 @@ def test_a_note_at_an_unspliced_rule_names_the_rule(
     assert notes and all("rule `lr`" in nt for nt in notes), "\n".join(lines)
 
 
-# A cell an issue holds: the refusal names no library text and stands at no
-# game text naming it.
-_HELD = {
-    "row-through-a-library-function-to-the-answer": pytest.mark.xfail(
-        strict=True, raises=AssertionError,
-        reason="issue #923: a row reaching the answer through a library function shows no line of it",
-    ),
-}
-
-
-@pytest.mark.parametrize(
-    "name", [pytest.param(k, marks=_HELD[k]) if k in _HELD else k for k in sorted(NAMED)]
-)
+@pytest.mark.parametrize("name", sorted(NAMED))
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
