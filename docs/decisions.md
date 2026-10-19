@@ -5220,7 +5220,8 @@ the library text a moved refusal stood in, or the library text a check
 refusing the game's own text names or reached. Game text naming a library
 definition -- a call, a `run`, an offer, an activation -- and a template
 argument the game passes into a library rule stand on that definition, so a
-refusal there with no other library text keeps the definition's line. A
+refusal there keeps the definition's line beside every other line it stands
+on. A
 sentence names library text only through the step's words for it, which
 carry that text's line. A refusal standing in a library
 procedure's body is told the same way once the `run` is expanded, through

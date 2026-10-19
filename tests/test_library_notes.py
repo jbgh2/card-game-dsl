@@ -18,10 +18,13 @@ property:        a refusal the step tells in the game's file -- at a
                  is one no clean Library Witness reaches in a proven
                  library, one warning on the `uses` line says so; a refusal
                  of the game's text or its `uses` line naming library text
-                 renders a note at each library line it names, and one
-                 standing at game text that names a library definition, or
-                 at a template argument substituted into one, renders a note
-                 at that definition when no other library text is handed it;
+                 renders a note at each library line it names; a refusal's
+                 notes are every distinct library line it stands on --
+                 where it was raised, what its check handed the step, what
+                 its sentences cite, and, at game text naming a library
+                 definition or provided state (the innermost naming node at
+                 the refusal, or one whose argument stands there) or at a
+                 template argument substituted into one, that definition;
                  no check but the step spells a library's name or a
                  definition's library words into a string, and a citation
                  handed no line says why; every rendered line is an error, a
@@ -50,8 +53,12 @@ domain:          the step's own domain, crossed: the game the step is handed
                  per check that refuses the game's text or its `uses` line
                  naming library text (`NAMED`), two libraries where the check
                  compares two, a template argument the game wrote,
-                 substituted into a library rule, and a game's call and `run`
-                 of a library definition refused against its signature;
+                 substituted into a library rule, at its clause and inside a
+                 nested one, a game's read of provided state, and a game's
+                 call and `run` of a library definition refused against its
+                 signature, at the call and at an argument; each way of
+                 standing on library text crossed with another
+                 (`_UNION_CELLS`);
                  beside them, every refusal
                  naming a library that the boundary ledger's library-to-game
                  witnesses raise in the game's file. The scoped-read
@@ -938,7 +945,7 @@ NAMED: dict[str, Named] = {
         ((L._LIB, _lib(L._LIB, _TEMPLATE.replace("card.suit is s", "rank_value(card) > s"))),),
         _host(rules="active_rules: [lr(hearts)] "),
         "active_rules: [lr(", "Suit enum values have no arithmetic order",
-        ((L._LIB, "rank_value(card) > s"),),
+        ((L._LIB, "rank_value(card) > s"), (L._LIB, "rule lr(")),
     ),
     "call-of-another-arity": Named(
         ((L._LIB, _lib(L._LIB, "  function h(c : Card) = rank_value(c)")),),
@@ -977,7 +984,7 @@ NAMED: dict[str, Named] = {
         ))),),
         _host(rules="active_rules: [lr(hearts)] "),
         "active_rules: [lr(", "Suit enum values have no arithmetic order",
-        ((L._LIB, "rank_value(card) > s"),),
+        ((L._LIB, "rank_value(card) > s"), (L._LIB, "rule lr(")),
     ),
     "game-rule-over-a-standard-library-rule": Named(
         ((L._LIB, _lib(L._LIB, "  function z(c : Card) = rank_value(c)")),),
@@ -1020,29 +1027,7 @@ def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
     return found[0]
 
 
-# A `run`'s argument of the wrong type stands at the argument, not at the game
-# text naming the procedure, and the type layer holds no line of the
-# procedure's to hand the step.
-_BARE = frozenset({"run-argument-of-another-type"})
-# Game text standing on library text the walk of it does not reach.
-_STANDING = frozenset({"read-of-provided-state", "template-argument-in-a-nested-clause"})
-_STANDING_RED = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: game text standing on library text the walk does not reach carries no note",
-)
-_BARE_RED = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #919: a run's argument refused against a library procedure carries no note",
-)
-
-
-@pytest.mark.parametrize(
-    "name", [
-        pytest.param(k, marks=_BARE_RED) if k in _BARE
-        else pytest.param(k, marks=_STANDING_RED) if k in _STANDING else k
-        for k in sorted(NAMED)
-    ]
-)
+@pytest.mark.parametrize("name", sorted(NAMED))
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:

@@ -38,10 +38,13 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               Witness. Either keeps the library text it stood in as its note,
               naming the definition holding it. A refusal standing at the
               game's text with library text it names or reached keeps that
-              text as its note; with none, one standing at game text naming
-              a spliced library definition (resolve's naming slots) or at a
-              template argument substituted into one keeps that definition's
-              text (`_standing`). A refusal told in a library's file keeps no
+              text as its note. A refusal's notes are every distinct library
+              line it stands on, in one union: where it was raised, its
+              `stands_on`, its sentences' citations, and the definition or
+              provided state the game text it is told at names (the
+              innermost naming node there, or one whose argument stands
+              there) or a template argument there was substituted into
+              (`_Standing`). A refusal told in a library's file keeps no
               note. Any other refusal stays where it stands, with no
               note; where no Library Witness of its library checks clean, one
               warning on the `uses` line says so, and where one does but none
@@ -213,10 +216,10 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                 elif origin is not None:
                     unreached.setdefault((library, origin.where), lines[library])
         if moved is None:
-            stands = d.stands_on + standing.get(_at(d.span), ())
+            stands = d.stands_on + standing.at(d.span)
             told.append(_bare(d, (), stands, holders, lines))
             continue
-        stands = d.stands_on + standing.get(_at(moved.span), ())
+        stands = d.stands_on + standing.at(moved.span)
         noted = _bare(moved, (d.span,), stands, holders, lines)
         key = (moved.message, moved.span)
         if key not in seen:
@@ -406,66 +409,117 @@ def _at(span: Span | None) -> _Place | None:
     return None if span is None else (span.source_name, span.start, span.end)
 
 
-def _standing(
-    game: n.Game, holders: list[_Holder], lines: dict[str, Span]
-) -> dict[_Place | None, tuple[Span, ...]]:
-    """The game text that stands on library text, by its place, to that
-    library text: a template argument the game wrote, substituted into a
-    library definition, stands on the library text holding it; and game text
-    naming a spliced library definition -- by `resolve`'s naming slots, a
-    call, a `run`, an offer, an activation -- stands on that definition. A
-    refusal standing at such game text stands on that library text."""
+@dataclass(frozen=True)
+class _Standing:
+    """The game text that stands on library text. A template argument the
+    game wrote, substituted into a library definition, stands on the library
+    text holding it, and so does every node inside it. Game text naming a
+    spliced library definition or provided state -- by `resolve`'s naming
+    slots and a classified state read, a call, a `run`, an offer, an
+    activation, a read -- stands on that definition, and so does an argument
+    of it standing at no naming of its own."""
+
+    substituted: dict[_Place | None, tuple[Span, ...]]
+    # Each node naming something, by its place: what it names in library
+    # text, and the places of its direct children.
+    naming: tuple[tuple[Span, tuple[Span, ...], frozenset[_Place | None]], ...]
+    named_at: frozenset[_Place | None]
+
+    def at(self, span: Span | None) -> tuple[Span, ...]:
+        """The library text a refusal standing at `span` stands on: the
+        innermost naming node standing at `span` itself, or else one whose
+        argument stands there."""
+        if span is None:
+            return ()
+        place = _at(span)
+        found = self.substituted.get(place, ())
+        if place in self.named_at:
+            own = [defined for at, defined, _ in self.naming if _at(at) == place]
+            return found + tuple(d for named in own for d in named)
+        parents = [(at, defined) for at, defined, children in self.naming if place in children]
+        if parents:
+            _at_span, defined = min(parents, key=lambda entry: entry[0].end - entry[0].start)
+            found += defined
+        return found
+
+
+def _standing(game: n.Game, holders: list[_Holder], lines: dict[str, Span]) -> _Standing:
     from cardlang import resolve
+    from cardlang.ast import nodes as ast_nodes
 
-    found: dict[_Place | None, tuple[Span, ...]] = {}
+    substituted: dict[_Place | None, tuple[Span, ...]] = {}
 
-    def visit(node: object, holding: Span) -> None:
+    def visit(node: object, holding: Span, inside: bool) -> None:
         span = getattr(node, "span", None)
-        if isinstance(span, Span) and span.source_name != holding.source_name:
-            found.setdefault(_at(span), (holding,))
-            return
-        inner = span if isinstance(span, Span) else holding
+        here = isinstance(span, Span) and span.source_name != holding.source_name
+        if here or inside:
+            substituted.setdefault(_at(span) if isinstance(span, Span) else None, (holding,))
+        inner = holding if here or inside or not isinstance(span, Span) else span
         for child in _children(node):
-            visit(child, inner)
+            visit(child, inner, here or inside)
 
     pools: dict[str, dict[str, object]] = {
         ns: {d.name: d for d in getattr(game, field)}
         for ns, field in (*resolve.HOSTED_REACH_POOLS.items(), ("rule", "rules"))
     }
-    for pool in pools.values():
+    pools["state"] = {
+        d.name: d for d in (game.state.decls if game.state is not None else ())
+    }
+    for ns, pool in pools.items():
         for d in pool.values():
             span = getattr(d, "span", None)
-            if getattr(d, "origin", None) is not None and isinstance(span, Span):
-                visit(d, span)
-    naming = getattr(resolve, "_NAMING_SLOTS_BY_TYPE")
+            if ns != "state" and getattr(d, "origin", None) is not None and isinstance(span, Span):
+                visit(d, span, False)
+    substituted.pop(None, None)
+    slots = getattr(resolve, "_NAMING_SLOTS_BY_TYPE")
+    naming: list[tuple[Span, tuple[Span, ...], frozenset[_Place | None]]] = []
     for node in resolve._walk(game):
         span = getattr(node, "span", None)
         if not isinstance(span, Span) or _holder(span, holders) or _library_of(span, lines):
             continue
-        for field_name in naming.get(type(node), ()):
-            pool = pools.get(resolve.slot_namespace(node, field_name) or "", {})
-            named = [pool.get(name) for name in resolve.slot_strings(node, field_name)]
-            at = tuple(
-                defined for d in named
-                if getattr(d, "origin", None) is not None
-                and isinstance(defined := getattr(d, "span", None), Span)
-            )
-            if at:
-                found[_at(span)] = found.get(_at(span), ()) + at
-    return found
+        names: list[tuple[str, str]] = []
+        if isinstance(node, ast_nodes.NameRef):
+            # A read names state, or nothing yet resolved; a value, a binder or
+            # a pronoun names no text a refusal could stand on.
+            if node.ref_kind == "state_var":
+                names.append(("state", node.name))
+            elif node.ref_kind is not None:
+                continue
+        elif type(node) in slots:
+            for field_name in slots[type(node)]:
+                ns = resolve.slot_namespace(node, field_name) or ""
+                names.extend((ns, name) for name in resolve.slot_strings(node, field_name))
+        else:
+            continue
+        defined = tuple(
+            at for ns, name in names
+            if getattr(d := pools.get(ns, {}).get(name), "origin", None) is not None
+            and isinstance(at := getattr(d, "span", None), Span)
+        )
+        children = frozenset(
+            _at(child_span) for child in _children(node)
+            if isinstance(child_span := getattr(child, "span", None), Span)
+        )
+        naming.append((span, defined, children))
+    return _Standing(substituted, tuple(naming), frozenset(_at(at) for at, _, _ in naming))
 
 
 def _children(node: object) -> Iterator[object]:
-    """The nodes one level under `node`, the stamps the splice leaves aside."""
+    """The nodes one level under `node`, through nested tuples, the stamps
+    the splice leaves aside."""
     if not is_dataclass(node) or isinstance(node, type):
         return
     for f in fields(node):
-        if f.name in ("origin", "contract", "contracts"):
-            continue
-        value = getattr(node, f.name)
-        for item in value if isinstance(value, tuple) else (value,):
-            if is_dataclass(item) and not isinstance(item, (Span, type)):
-                yield item
+        if f.name not in ("origin", "contract", "contracts"):
+            yield from _nodes_in(getattr(node, f.name))
+
+
+def _nodes_in(value: object) -> Iterator[object]:
+    if isinstance(value, tuple):
+        for item in value:
+            yield from _nodes_in(item)
+    elif is_dataclass(value) and not isinstance(value, (Span, type)):
+        yield value
 
 
 def _holder(span: Span | None, holders: list[_Holder]) -> n.LibraryOrigin | None:
