@@ -36,7 +36,12 @@ domain:          the executed census: every refusal raised while every
                  anywhere in `cardlang/` outside the step. A refusal whose
                  sentence names only types -- an operand whose type a
                  library function's result or provided state gives -- names
-                 no definition and stands on none.
+                 no definition and stands on none. The definitions are the
+                 kinds the law names: a Primitive, a Builtin, a zone, a
+                 phase, a parameter, a binder and a state variable the game
+                 itself declares are none of them. A refusal of a library's
+                 own text names that library once, by citation, and a later
+                 "the library" in it refers back to the subject it cited.
 registry:        definition namespaces: `_DEFINITION_NAMESPACES`; reference
                  slots: `resolve._REFERENCE_SLOTS`, `resolve._CONTEXTUAL_SLOTS`;
                  cells: the four families above.
@@ -44,7 +49,9 @@ does not prove:  that a refusal no cell raises cites what it names: the
                  executed census reads only sentences a cell raises, and the
                  static arm only the slots that always name a definition --
                  a `.name` is shared with zones, phases and parameters, so a
-                 source scan cannot tell a definition's name from theirs.
+                 source scan cannot tell a definition's name from theirs. Nor
+                 that a quoted expression calling two definitions notes both:
+                 a citation carries one span, and the first call's is cited.
 """
 
 from __future__ import annotations
