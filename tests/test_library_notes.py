@@ -964,6 +964,21 @@ NAMED: dict[str, Named] = {
         "run p(true)", "procedure 'p' expects Player, got Boolean",
         ((L._LIB, "procedure p("),),
     ),
+    "read-of-provided-state": Named(
+        ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
+        _host(body=f"score[0] := number of cards in hand where tally  {_TRICK}"),
+        "score[0] := number", "card-query predicate must be Boolean, got Integer",
+        ((L._LIB, "tally"),),
+    ),
+    "template-argument-in-a-nested-clause": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE.replace(
+            "card.suit is s",
+            "(if rank_value(card) > 9 then true elif rank_value(card) > s then true else false)",
+        ))),),
+        _host(rules="active_rules: [lr(hearts)] "),
+        "active_rules: [lr(", "Suit enum values have no arithmetic order",
+        ((L._LIB, "rank_value(card) > s"),),
+    ),
     "game-rule-over-a-standard-library-rule": Named(
         ((L._LIB, _lib(L._LIB, "  function z(c : Card) = rank_value(c)")),),
         _host(extra=(
@@ -1009,6 +1024,12 @@ def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
 # text naming the procedure, and the type layer holds no line of the
 # procedure's to hand the step.
 _BARE = frozenset({"run-argument-of-another-type"})
+# Game text standing on library text the walk of it does not reach.
+_STANDING = frozenset({"read-of-provided-state", "template-argument-in-a-nested-clause"})
+_STANDING_RED = pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="issue #912: game text standing on library text the walk does not reach carries no note",
+)
 _BARE_RED = pytest.mark.xfail(
     strict=True, raises=AssertionError,
     reason="issue #919: a run's argument refused against a library procedure carries no note",
@@ -1016,7 +1037,11 @@ _BARE_RED = pytest.mark.xfail(
 
 
 @pytest.mark.parametrize(
-    "name", [pytest.param(k, marks=_BARE_RED) if k in _BARE else k for k in sorted(NAMED)]
+    "name", [
+        pytest.param(k, marks=_BARE_RED) if k in _BARE
+        else pytest.param(k, marks=_STANDING_RED) if k in _STANDING else k
+        for k in sorted(NAMED)
+    ]
 )
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
