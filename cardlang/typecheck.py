@@ -1587,7 +1587,7 @@ def _check_contracted_results(game: Game, env: TypeEnv, bag: DiagnosticBag) -> N
             if not coercible(got, want):  # choke-point-exempt: a definition's inferred result against its contract row, no operand
                 bag.error(
                     cite_library(stamp.library, stamp.row_span)
-                    + f" requires function `{stamp.row}`, "
+                    + f" requires function " + cite_where(f"`{stamp.row}`", stamp.row_span) + f", "
                     f"but game '{game.name}' defines `{f.name}` returning "
                     f"{_type_name(got)} — the library's calls read it as "
                     f"{_type_name(want)}",
