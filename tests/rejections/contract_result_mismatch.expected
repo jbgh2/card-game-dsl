@@ -1,2 +1,2 @@
-contract_result_mismatch.cardlang:9:3: error: library 'smuggling' requires function `is_contraband(card : Card) : Boolean`, but game 'GreenLaneMini' defines `is_contraband` returning Integer — the library's calls read it as Boolean
+contract_result_mismatch.cardlang:9:3: error: library 'smuggling' requires function `is_contraband(card : Card) : Boolean`, but game 'GreenLaneMini' defines `is_contraband` returning Integer — library 'smuggling''s calls read it as Boolean
 docs/libraries/smuggling.cardlang:50:5: note: in library 'smuggling'

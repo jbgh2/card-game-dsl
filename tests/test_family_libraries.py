@@ -2949,7 +2949,7 @@ def test_a_game_introduced_name_may_not_shadow_provided_state(
         assert "rename the" in message, message
     else:
         assert "provides state" in message, message
-        assert "rename the library's variable" in message, message
+        assert "rename library 'provider''s variable" in message, message
 
 
 def _declaration_level_nouns() -> list[str]:

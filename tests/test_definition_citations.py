@@ -24,7 +24,9 @@ domain:          the executed census: every refusal raised while every
                  tests/test_library_notes.py runs, against the definitions
                  of the game and libraries the cell checks -- functions,
                  procedures, move types, rules and templates, the standard
-                 library's rules, and the libraries' provided state. A name
+                 library's rules, and the libraries' provided state, less the
+                 language's own words (the Play Source, the reserved values),
+                 which a sentence quotes as the language's. A name
                  is named where it is a quoted token of the sentence's plain
                  text, or an identifier inside a backquoted snippet. The
                  static arm: the reference-slot fields every row of which
@@ -84,7 +86,12 @@ def _definitions(game: n.Game | None, libraries: tuple[n.Library, ...]) -> froze
     for library in libraries:
         if library.state is not None:
             names.update(d.name for d in library.state.decls)
-    return frozenset(names)
+    # The language's own words: a sentence quoting the Play Source or a
+    # reserved value speaks of the language, whatever a definition shares it.
+    return frozenset(names - _LANGUAGE_WORDS)
+
+
+_LANGUAGE_WORDS = frozenset({R.PLAY_SOURCE_NAME}) | R.RESERVED_VALUE_NAMES
 
 
 _QUOTED = re.compile(r"'([^'\s]+)'|`([^`]+)`")
@@ -275,13 +282,6 @@ def _uncited(monkeypatch: pytest.MonkeyPatch, family: str) -> dict[str, str]:
     return found
 
 
-_CENSUS_RED = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: refusals name definitions in plain text",
-)
-
-
-@_CENSUS_RED
 @pytest.mark.parametrize("family", sorted(_FAMILIES))
 def test_no_refusal_names_a_definition_in_plain_text(
     monkeypatch: pytest.MonkeyPatch, family: str

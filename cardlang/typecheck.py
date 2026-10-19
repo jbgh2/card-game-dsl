@@ -545,6 +545,9 @@ class TypeEnv:
     # Every node of library text, by identity, to the origin the splice stamped
     # on the definition holding it (`library_origins`). Game text is absent.
     origins: Mapping[int, n.LibraryOrigin] = field(default_factory=dict)
+    # Each function and procedure the game defines, its own or spliced, by
+    # (namespace, name): what a refusal naming it cites.
+    definitions: Mapping[tuple[str, str], object] = field(default_factory=dict)
 
     def with_local(self, name: str, t: Type) -> TypeEnv:
         return replace(self, locals={**self.locals, name: t})
@@ -1222,6 +1225,10 @@ def _ambient_env(game: Game) -> TypeEnv:
         play_source=_play_source_type(game, zones),
         axis_enums=_axis_enum_names(game),
         origins=library_origins(game),
+        definitions={
+            **{("function", f.name): f for f in game.functions},
+            **{("procedure", p.name): p for p in game.procedures},
+        },
     )
 
 
@@ -1588,11 +1595,19 @@ def _check_contracted_results(game: Game, env: TypeEnv, bag: DiagnosticBag) -> N
                 bag.error(
                     cite_library(stamp.library, stamp.row_span)
                     + f" requires function " + cite_where(f"`{stamp.row}`", stamp.row_span) + f", "
-                    f"but game '{game.name}' defines `{f.name}` returning "
-                    f"{_type_name(got)} — the library's calls read it as "
-                    f"{_type_name(want)}",
+                    f"but game '{game.name}' defines " + cite_named(f, f"`{f.name}`")
+                    + f" returning {_type_name(got)} — "
+                    + cite_library(stamp.library, stamp.row_span)
+                    + f"'s calls read it as {_type_name(want)}",
                     stamp.uses_span,
                 )
+
+
+def _named(env: TypeEnv, namespace: str, name: str, words: str) -> Said:
+    """`words` naming `name` of `namespace`: a citation of the game's
+    definition, the bare words for a Builtin or a Primitive."""
+    found = env.definitions.get((namespace, name))
+    return words if found is None else cite_named(found, words)
 
 
 def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
@@ -1650,7 +1665,7 @@ def _check_enum_literal(
     lit: n.StrLit,
     env: TypeEnv,
     bag: DiagnosticBag,
-    site: tuple[str, Span | None] | None = None,
+    site: tuple[Said, Span | None] | None = None,
 ) -> None:
     """A string literal where a value of `enum` is wanted: the one spelling
     rule, at a comparison and at every operand alike (decisions.md, "Rank and
@@ -1677,7 +1692,7 @@ def _check_enum_literal(
         bag.error(problem, lit.span)
     else:
         msg, span = site
-        bag.error(f"{msg}: {problem}", span)
+        bag.error(msg + f": {problem}", span)
 
 
 def _library_axis_refusal(
@@ -2678,7 +2693,7 @@ def _check_operand(
     expected: Type,
     env: TypeEnv,
     bag: DiagnosticBag,
-    msg: str,
+    msg: Said,
     span: Span | None,
     *,
     expected_name: str | None = None,
@@ -3053,7 +3068,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             args = list(e.args)
             if len(args) != len(sig.params):
                 bag.error(
-                    f"{e.func}() expects {len(sig.params)} argument(s), got {len(args)}",
+                    _named(env, "function", e.func, f"{e.func}()")
+                    + f" expects {len(sig.params)} argument(s), got {len(args)}",
                     e.span,
                 )
             else:
@@ -3061,7 +3077,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     got = infer(arg, env)
                     _check_operand(
                         arg, got, param, env, bag,
-                        f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
+                        _named(env, "function", e.func, f"{e.func}()")
+                        + f" expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
                         call=e,
                     )
@@ -3302,7 +3319,7 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
         )
         return
     message = (
-        f"rule '{rule.name}' `if_impossible:` must be a set of cards (a zone "
+        "rule " + cite_named(rule, f"'{rule.name}'") + " `if_impossible:` must be a set of cards (a zone "
         f"like `hand`, or a card query) or an `error(...)`, got "
         f"{_type_name(got)}"
     )
@@ -3436,8 +3453,8 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             )
         if len(s.args) != len(sig.params):
             bag.error(
-                f"procedure '{s.name}' expects {len(sig.params)} argument(s), "
-                f"got {len(s.args)}",
+                "procedure " + _named(env, "procedure", s.name, f"'{s.name}'")
+                + f" expects {len(sig.params)} argument(s), got {len(s.args)}",
                 s.span,
             )
         else:
@@ -3449,8 +3466,8 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # call-arg and subscript sites check, reached one construct later.
                 _check_operand(
                     arg, got, param, env, bag,
-                    f"procedure '{s.name}' expects {_type_name(param)}, got "
-                    f"{_type_name(got)}",
+                    "procedure " + _named(env, "procedure", s.name, f"'{s.name}'")
+                    + f" expects {_type_name(param)}, got {_type_name(got)}",
                     arg.span,
                 )
     for expr in _stmt_exprs(s):
