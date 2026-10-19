@@ -102,7 +102,7 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_ROWS,
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
-from cardlang.attribution import cite_library, cite_origin, cite_where, raise_if_errors
+from cardlang.attribution import cite_library, cite_named, cite_origin, cite_where, raise_if_errors
 from cardlang.diagnostics import DiagnosticBag, Said, Span
 from cardlang.domains import CARD_PARAM_DOMAINS, require_role, role_of, role_type
 from cardlang.primitives_block import (
@@ -3293,7 +3293,7 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
     got = infer(expr, env)
     if isinstance(got, TAny):
         bag.error(
-            f"rule '{rule.name}' `if_impossible:` types as `Any`, the permissive "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" `if_impossible:` types as `Any`, the permissive "
             f"top (a value the checker cannot type -- a mixed-branch `if`, an "
             f"untyped read); it must type exactly a card set, because the "
             f"runtime drops a fallback it cannot recognise instead of refusing "

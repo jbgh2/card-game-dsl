@@ -343,6 +343,15 @@ def cite_origin(origin: n.LibraryOrigin, at: Span | None) -> LibraryCitation:
     return cite_definition(origin.library, _where(origin), at)
 
 
+def cite_named(definition: object, words: str) -> LibraryCitation:
+    """`words` naming `definition` -- a function, procedure, move type, rule
+    or template, or a state declaration -- standing on its text. The game's
+    own definition is cited alike and makes no note, its text being in the
+    file the refusal is told in."""
+    at = getattr(definition, "span", None)
+    return LibraryCitation(words, at if isinstance(at, Span) else None)
+
+
 def cite_where(where: str, at: Span | None) -> LibraryCitation:
     """`where`, a definition in the designer's words, in a sentence that has
     named its library already, standing on the library text at `at`."""

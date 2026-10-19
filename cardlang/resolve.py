@@ -372,6 +372,7 @@ from cardlang import primitives_block
 from cardlang.attribution import (
     cite_definition,
     cite_library,
+    cite_named,
     cite_origin,
     cite_where,
     raise_if_errors,
@@ -2143,7 +2144,7 @@ def _check_library_collisions(
                 shadowed = stdlib_rule_index[rule.name]
                 bag.error(
                     cite_library(library.name, rule.span)
-                    + f" defines rule '{rule.name}', which shadows "
+                    + f" defines rule " + cite_named(rule, f"'{rule.name}'") + f", which shadows "
                     + cite_definition(STDLIB_NAME, f"rule `{rule.name}`", shadowed.span)
                     + " — delete it (`active_rules` resolves it from the stdlib), or "
                     "rename it if the body genuinely differs",
@@ -2159,7 +2160,7 @@ def _check_library_collisions(
             # one here, and it reports to the library's own author.
             if fn.name in CALL_FUNCS:
                 bag.error(
-                    cite_library(library.name, fn.span) + f" defines function '{fn.name}', "
+                    cite_library(library.name, fn.span) + f" defines function " + cite_named(fn, f"'{fn.name}'") + f", "
                     f"which shadows the native function of the same name; rename "
                     f"it (a call would type-check against the native signature "
                     f"but run this one instead)",
@@ -3717,7 +3718,7 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
         for nd in _walk(proc):
             if isinstance(nd, n.RunStmt) and nd.name in rows:
                 bag.error(
-                    cite_library(library.name, nd.span) + f": procedure '{proc.name}' runs "
+                    cite_library(library.name, nd.span) + f": procedure " + cite_named(proc, f"'{proc.name}'") + f" runs "
                     f"'{nd.name}', which the including game defines under this "
                     f"library's contract — a procedure may not run another, so "
                     f"run it from a move type's effect",
@@ -4499,7 +4500,7 @@ def _refuse_play_source_params(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
             bag.error(
                 f"a rule's parameter cannot be named `{PLAY_SOURCE_NAME}`: "
                 f"{_PLAY_SOURCE_READING} — rename the parameter of rule "
-                f"'{rule.name}'",
+                f"" + cite_named(rule, f"'{rule.name}'"),
                 p.span or rule.span,
             )
             fired = True
@@ -4515,7 +4516,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool
     names = [p.name for p in rule.params]
     for dup in sorted({nm for nm in names if names.count(nm) > 1}):
         bag.error(
-            f"rule '{rule.name}' declares more than one parameter named "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" declares more than one parameter named "
             f"'{dup}' — substitution binds by name, so one would silently "
             f"shadow the other",
             rule.span,
@@ -4533,7 +4534,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool
             ok = False
         if p.name in binders:
             bag.error(
-                f"rule '{rule.name}' introduces a binder named '{p.name}', "
+                f"rule " + cite_named(rule, f"'{rule.name}'") + f" introduces a binder named '{p.name}', "
                 f"shadowing its own parameter — rename one",
                 rule.span,
             )
@@ -4646,7 +4647,7 @@ def _instantiate_rules(
             shadowed = lib[r.name]
             assert shadowed.origin is not None
             bag.error(
-                f"rule '{r.name}' shadows " + cite_origin(shadowed.origin, shadowed.span)
+                f"rule " + cite_named(r, f"'{r.name}'") + f" shadows " + cite_origin(shadowed.origin, shadowed.span)
                 + " — delete the local definition (`active_rules` resolves it "
                 "from the library), or rename it if the body genuinely differs",
                 r.span,
@@ -4752,7 +4753,7 @@ def _instantiate_rules(
         else:
             check_template_once(r.name, r)  # surface declaration defects even here
             bag.error(
-                f"rule '{r.name}' is parameterized but never instantiated — "
+                f"rule " + cite_named(r, f"'{r.name}'") + f" is parameterized but never instantiated — "
                 f"reference it from `active_rules` with arguments, or delete it "
                 f"(its body would otherwise go entirely unchecked)",
                 r.span,
@@ -5569,7 +5570,7 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
         if len(fn.params) != 1 or fn.params[0].type_name != "Player":
             got = ", ".join(f"{q.name} : {q.type_name}" for q in fn.params) or "none"
             bag.error(
-                f"'{fn.name}' is a Delegated Play helper and must take exactly "
+                f"" + cite_named(fn, f"'{fn.name}'") + f" is a Delegated Play helper and must take exactly "
                 f"one Player parameter (the seat whose move is routed); it "
                 f"takes ({got})",
                 fn.span,
@@ -5612,13 +5613,13 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
         if engine is None:
             continue
         bag.error(
-            f"move type `{mt.name}` is spelled like the climb engine "
-            f"`{engine}`'s own action `{mt.name}` — a seat would see the "
+            f"move type " + cite_named(mt, f"`{mt.name}`") + f" is spelled like the climb engine "
+            f"`{engine}`'s own action " + cite_named(mt, f"`{mt.name}`") + f" — a seat would see the "
             f"two alike; rename the move type",
             mt.span,
             for_game=None if mt.origin is None else (
                 cite_origin(mt.origin, mt.span) + f" is spelled "
-                f"like the climb engine `{engine}`'s own action `{mt.name}`, "
+                f"like the climb engine `{engine}`'s own action " + cite_named(mt, f"`{mt.name}`") + f", "
                 f"which this game's climbing round plays — a seat would see the "
                 f"two alike, so a game whose climbing round uses `{engine}` "
                 f"cannot use this library"
@@ -5660,14 +5661,14 @@ def _check_unoffered_move_types(
             continue
         if mt.stake is not None:
             bag.error(
-                f"`{mt.stake}` on move type `{mt.name}`, which no reachable "
+                f"`{mt.stake}` on move type " + cite_named(mt, f"`{mt.name}`") + f", which no reachable "
                 f"`offer` presents: nothing reads the row. "
                 f"Delete it, or present the move at an offering the game reaches",
                 mt.span,
             )
             continue
         bag.error(
-            f"move type `{mt.name}` is never offered: no reachable `offer` "
+            f"move type " + cite_named(mt, f"`{mt.name}`") + f" is never offered: no reachable `offer` "
             f"presents it, so no seat can ever play it. "
             f"Present it at an offering the game reaches, or delete it",
             mt.span,
@@ -5737,7 +5738,7 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
             if ztype is None:
                 continue
             bag.error(
-                f"move type `{mt.name}`'s `{param.name} : Card` offers the "
+                f"move type " + cite_named(mt, f"`{mt.name}`") + f"'s `{param.name} : Card` offers the "
                 f"acting seat the cards of its own `{family}`, but `{family}` is a "
                 f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(family, opens=True)}",
                 param.span or mt.span,
@@ -6434,7 +6435,7 @@ def _check_play_source(
                                 f"function `{fname}` from its clauses, which reads "
                                 f"`{nd.name}`, the cards this game's trick round "
                                 f"plays from, and a function cannot see which cards "
-                                f"those are — take '{rule.name}' out of `active_rules:`"
+                                f"those are — take " + cite_named(rule, f"'{rule.name}'") + f" out of `active_rules:`"
                             ),
                         )
                         continue
@@ -6444,7 +6445,7 @@ def _check_play_source(
                         nd.span,
                         route=_entry_route("call", entry, rule.span),
                         for_game=(
-                            f"rule '{rule.name}' calls " + entry.through + f"{inner} from its "
+                            f"rule " + cite_named(rule, f"'{rule.name}'") + f" calls " + entry.through + f"{inner} from its "
                             f"clauses, which reads `{nd.name}`: {_PLAY_SOURCE_READING}, "
                             f"and a function cannot see which cards those are — "
                             f"`{entry.name}` is "
@@ -6498,7 +6499,7 @@ def _check_play_source(
             )
             if rule.name in own_rules:
                 bag.error(
-                    said + f"play the hand with a trick round, or delete rule '{rule.name}'",
+                    said + f"play the hand with a trick round, or delete rule " + cite_named(rule, f"'{rule.name}'"),
                     rule.span,
                 )
                 continue
@@ -6506,12 +6507,12 @@ def _check_play_source(
             # rounds: the activation is the crossing.
             library = rule.origin.library if rule.origin is not None else ""
             bag.error(
-                said + f"a game with no trick round cannot ask rule '{rule.name}'",
+                said + f"a game with no trick round cannot ask rule " + cite_named(rule, f"'{rule.name}'"),
                 rule.span,
                 route=Route(
                     "activation", activated.get(rule.name, rule.span), library, rule.name
                 ),
-                for_game=said + f"take '{rule.name}' out of `active_rules:`",
+                for_game=said + f"take " + cite_named(rule, f"'{rule.name}'") + f" out of `active_rules:`",
             )
 
 
@@ -6634,7 +6635,7 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
             else "no move type (the `constrains:` clause is absent)"
         )
         bag.error(
-            f"rule '{rule.name}' constrains {named}, which no decision site "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" constrains {named}, which no decision site "
             f"consults: rules are applied at exactly one place — the trick "
             f"round's card decision, which asks about "
             f"`{RULE_ENFORCED_MOVE_TYPE}` — so this rule would never fire. "
@@ -6647,7 +6648,7 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
         return  # the clause Owner Guard below would pile onto the same broken rule
     if rule.demands is None and rule.exempts is None:
         bag.error(
-            f"rule '{rule.name}' enforces nothing: it declares neither a "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" enforces nothing: it declares neither a "
             f"`demands:` card set nor an `exempts:` set, so activating it "
             f"cannot change which cards are legal. Give it a `demands:` (with "
             f"its `if_impossible:` fallback) or an `exempts:`, or delete it — "
@@ -6660,7 +6661,7 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
 def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
     if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
         bag.error(
-            f"rule '{rule.name}' constrains unknown move type '{rule.constrains}'",
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" constrains unknown move type '{rule.constrains}'",
             rule.span,
         )
     _check_rule_reaches_a_reader(rule, bag)
@@ -6668,7 +6669,7 @@ def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
     # happens then (`if_impossible`) rather than relying on a silent default.
     if rule.demands is not None and rule.if_impossible is None:
         bag.error(
-            f"rule '{rule.name}' has a card-set `demands` but no `if_impossible`: "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" has a card-set `demands` but no `if_impossible`: "
             f"declare the fallback when no card satisfies it (`if_impossible: hand` "
             f"to play any card, or `error(...)` to reject the move)",
             rule.span,
@@ -8619,16 +8620,16 @@ def _check_offered_containers(
                 else f"this offer of `{move_type.name}`"
             )
             bag.error(
-                f"move type `{move_type.name}` calls `{entry}`, which reads "
+                f"move type " + cite_named(move_type, f"`{move_type.name}`") + f" calls `{entry}`, which reads "
                 f"state declared in phase `{phase_name}`, and {made} sits "
                 f"inside {named} — the analysis does not follow offers made "
                 f"from inside {kind}, so there is no "
                 f"position to judge and the scope cannot be established; offer "
-                f"`{move_type.name}` from a statement inside `{phase_name}`",
+                f"" + cite_named(move_type, f"`{move_type.name}`") + f" from a statement inside `{phase_name}`",
                 getattr(site, "span", None) or game.span,
                 for_game=None if site_origin is None else (
                     cite_origin(site_origin, getattr(site, "span", None) or game.span) + f" "
-                    f"offers `{move_type.name}`, which calls `{entry}` through "
+                    f"offers " + cite_named(move_type, f"`{move_type.name}`") + f", which calls `{entry}` through "
                     f"{through}, and `{entry}` reads state declared in phase "
                     f"`{phase_name}` — the analysis does not follow offers made "
                     f"from inside {kind}, so there is no position to judge and "
@@ -8652,9 +8653,9 @@ def _check_offered_containers(
             # keeps the containment claim about a real containment.
             origin = move_type.origin
             bag.error(
-                f"move type `{move_type.name}` calls `{entry}`, which reads "
+                f"move type " + cite_named(move_type, f"`{move_type.name}`") + f" calls `{entry}`, which reads "
                 f"state declared in phase `{phase_name}`, and no statement "
-                f"offers `{move_type.name}` — an unoffered move type has no "
+                f"offers " + cite_named(move_type, f"`{move_type.name}`") + f" — an unoffered move type has no "
                 f"phase to be inside, so the scope cannot be established; "
                 f"offer it inside `{phase_name}`",
                 move_type.span or game.span,
@@ -8662,9 +8663,9 @@ def _check_offered_containers(
                     cite_origin(origin, move_type.span or game.span) + f" calls `{entry}` "
                     f"through {through}, and `{entry}` reads state declared in "
                     f"phase `{phase_name}`, but no statement offers "
-                    f"`{move_type.name}` — an unoffered move type has no phase "
+                    f"" + cite_named(move_type, f"`{move_type.name}`") + f" — an unoffered move type has no phase "
                     f"to be inside, so the scope cannot be established; offer "
-                    f"`{move_type.name}` inside `{phase_name}`"
+                    f"" + cite_named(move_type, f"`{move_type.name}`") + f" inside `{phase_name}`"
                 ),
             )
             continue
@@ -8676,20 +8677,20 @@ def _check_offered_containers(
             # wrote the entry.
             if isinstance(site, n.RunStmt):
                 bag.error(
-                    f"move type `{move_type.name}` calls `{entry}`, which reads "
+                    f"move type " + cite_named(move_type, f"`{move_type.name}`") + f" calls `{entry}`, which reads "
                     f"state declared in phase `{phase_name}`, and procedure "
-                    f"`{site.name}` offers `{move_type.name}` wherever it is "
-                    f"run — this `run` puts `{move_type.name}` in play outside "
+                    f"`{site.name}` offers " + cite_named(move_type, f"`{move_type.name}`") + f" wherever it is "
+                    f"run — this `run` puts " + cite_named(move_type, f"`{move_type.name}`") + f" in play outside "
                     f"`{phase_name}`, where that state does not stand; run "
                     f"`{site.name}` inside `{phase_name}` only",
                     site.span or game.span,
                 )
                 continue
             bag.error(
-                f"move type `{move_type.name}` calls `{entry}`, which reads "
+                f"move type " + cite_named(move_type, f"`{move_type.name}`") + f" calls `{entry}`, which reads "
                 f"state declared in phase `{phase_name}` — this offer puts "
-                f"`{move_type.name}` in play outside `{phase_name}`, where "
-                f"that state does not stand; offer `{move_type.name}` inside "
+                f"" + cite_named(move_type, f"`{move_type.name}`") + f" in play outside `{phase_name}`, where "
+                f"that state does not stand; offer " + cite_named(move_type, f"`{move_type.name}`") + f" inside "
                 f"`{phase_name}` only",
                 getattr(site, "span", None) or game.span,
             )
@@ -9792,7 +9793,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                         f"into the row, or rename"
                     )
             bag.error(
-                f"function '{fn.name}' shadows the native function of the same name; "
+                f"function " + cite_named(fn, f"'{fn.name}'") + f" shadows the native function of the same name; "
                 f"rename it (a call would type-check against the native signature but "
                 f"run this function instead){hint}",
                 fn.span,
@@ -9805,7 +9806,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 continue
             if nd.ref_kind == "local" and nd.name not in allowed:
                 bag.error(
-                    f"function '{fn.name}' references '{nd.name}', which is not one of "
+                    f"function " + cite_named(fn, f"'{fn.name}'") + f" references '{nd.name}', which is not one of "
                     f"its parameters or a binding in its body",
                     nd.span,
                 )
@@ -9815,7 +9816,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 # moves, and a diagnostic that names the wrong words misdirects the
                 # designer it is meant to repair.
                 bag.error(
-                    f"function '{fn.name}' reads the call-site pronoun '{nd.name}'; a "
+                    f"function " + cite_named(fn, f"'{fn.name}'") + f" reads the call-site pronoun '{nd.name}'; a "
                     f"function is hermetic and may not read "
                     f"{'/'.join(sorted(_CALL_SITE_PRONOUNS))} — "
                     + (
@@ -9865,7 +9866,7 @@ def _report_recursion(
     imported = sorted(name for name in cycle if name in library_functions)
     if not imported or len(imported) == len(cycle):
         bag.error(
-            f"function '{fn.name}' is recursive; functions must be non-recursive",
+            f"function " + cite_named(fn, f"'{fn.name}'") + f" is recursive; functions must be non-recursive",
             fn.span,
         )
         return
@@ -9877,7 +9878,7 @@ def _report_recursion(
         if (origin := library_functions[name].origin) is not None
     ))
     bag.error(
-        f"function '{fn.name}' is recursive through " + through + ", which calls it "
+        f"function " + cite_named(fn, f"'{fn.name}'") + f" is recursive through " + through + ", which calls it "
         "back; functions must be non-recursive, and this game's definition "
         "closes the cycle",
         fn.span,
@@ -9924,7 +9925,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
             if base_of(p.type_name) not in known:
                 bag.error(
                     f"unknown type '{p.type_name}' in parameter '{p.name}' of "
-                    f"function '{fn.name}'",
+                    f"function " + cite_named(fn, f"'{fn.name}'"),
                     fn.span,
                 )
     for phase in _walk(game):
@@ -10338,7 +10339,7 @@ def _check_procedures(
         names = [p.name for p in proc.params]
         for dup in sorted({nm for nm in names if names.count(nm) > 1}):
             bag.error(
-                f"procedure '{proc.name}' declares more than one parameter named "
+                f"procedure " + cite_named(proc, f"'{proc.name}'") + f" declares more than one parameter named "
                 f"'{dup}' — substitution binds by name, so one would silently "
                 f"shadow the other",
                 proc.span,
@@ -10363,14 +10364,14 @@ def _check_procedures(
         for p in proc.params:
             if p.name in binders:
                 bag.error(
-                    f"procedure '{proc.name}' introduces a binder named "
+                    f"procedure " + cite_named(proc, f"'{proc.name}'") + f" introduces a binder named "
                     f"'{p.name}', shadowing its own parameter — rename one",
                     proc.span,
                 )
 
         if not proc.body:
             bag.error(
-                f"procedure '{proc.name}' has an empty body — it would splice "
+                f"procedure " + cite_named(proc, f"'{proc.name}'") + f" has an empty body — it would splice "
                 f"nothing at every site that runs it; give it statements or delete it",
                 proc.span,
             )
@@ -10385,7 +10386,7 @@ def _check_procedures(
                         n.SkipToNextHand: "`skip to next hand`",
                     }[type(nd)]
                     bag.error(
-                        f"procedure '{proc.name}' uses {what}, which unwinds past "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + f" uses {what}, which unwinds past "
                         f"the statement it is written at; a procedure body is "
                         f"spliced into its call sites, which may sit in different "
                         f"enclosing constructs, so it may not contain non-local "
@@ -10394,7 +10395,7 @@ def _check_procedures(
                     )
                 elif isinstance(nd, _WINNER_BINDING_STMTS):
                     bag.error(
-                        f"procedure '{proc.name}' contains a `round`, which binds "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + f" contains a `round`, which binds "
                         f"its own `winner` for the statements after it; a "
                         f"procedure body may not yet hold one, because the body's "
                         f"`winner` Owner Guard cannot distinguish a round-local binding "
@@ -10403,7 +10404,7 @@ def _check_procedures(
                     )
                 elif isinstance(nd, n.Produces) and nd.phase in outcome_phases:
                     bag.error(
-                        f"procedure '{proc.name}' consumes the phase outcome of "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + f" consumes the phase outcome of "
                         f"'{nd.phase}'. A phase outcome's consumer must be an "
                         f"EARLIER-executed sibling of the producing phase, and there "
                         f"must be exactly ONE of them — both are facts about where "
@@ -10416,7 +10417,7 @@ def _check_procedures(
                     )
                 elif isinstance(nd, n.RunStmt):
                     bag.error(
-                        f"procedure '{proc.name}' runs procedure '{nd.name}'; a "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + f" runs procedure '{nd.name}'; a "
                         f"procedure may not invoke another (v1 — expansion is a "
                         f"single splice, not a call graph)",
                         nd.span,
@@ -10424,7 +10425,7 @@ def _check_procedures(
                 elif isinstance(nd, n.NameRef):
                     if nd.ref_kind == "local" and nd.name not in allowed:
                         bag.error(
-                            f"procedure '{proc.name}' references '{nd.name}', which "
+                            f"procedure " + cite_named(proc, f"'{proc.name}'") + f" references '{nd.name}', which "
                             f"is not one of its parameters or a binding in its body",
                             nd.span,
                         )
@@ -10436,7 +10437,7 @@ def _check_procedures(
                             f"{proc.name}({nd.name})`)"
                         )
                         bag.error(
-                            f"procedure '{proc.name}' reads the call-site pronoun "
+                            f"procedure " + cite_named(proc, f"'{proc.name}'") + f" reads the call-site pronoun "
                             f"'{nd.name}'; a procedure body is spliced into call "
                             f"sites that need not share a call-site context — "
                             + remedy,
@@ -10459,7 +10460,7 @@ def _check_procedures(
     for proc in game.procedures:
         if proc.name not in invoked and (own is None or proc.name in own):
             bag.error(
-                f"procedure '{proc.name}' is never run — invoke it with `run "
+                f"procedure " + cite_named(proc, f"'{proc.name}'") + f" is never run — invoke it with `run "
                 f"{proc.name}(…)`, or delete it (its body would otherwise be "
                 f"spliced nowhere, and go entirely unchecked downstream)",
                 proc.span,
@@ -10533,7 +10534,7 @@ def _check_move_params(
         if offending:
             bag.error(
                 f"{content_kind_clause(game.content_flavor, game.deck)} -- "
-                f"move '{mt.name}' has a "
+                f"move " + cite_named(mt, f"'{mt.name}'") + f" has a "
                 f"{offending[0]} parameter, whose domain is the deck's "
                 f"suits/ranks; a piece set enumerates neither",
                 span,
@@ -10541,14 +10542,14 @@ def _check_move_params(
             return
     if "Card" in types and mt.stake is not None:
         bag.error(
-            f"`{mt.stake}` on move type `{mt.name}`: a card play is offered as "
+            f"`{mt.stake}` on move type " + cite_named(mt, f"`{mt.name}`") + f": a card play is offered as "
             f"its card, and its action id is the card's, naming no move type, "
             f"so no seat can read the row — delete it (issue #770)",
             span,
         )
     if "Card" in types and len(types) > 1:
         bag.error(
-            f"move '{mt.name}' combines a Card parameter with another parameter; "
+            f"move " + cite_named(mt, f"'{mt.name}'") + f" combines a Card parameter with another parameter; "
             f"Card's domain is the live hand and its actions are the card block, "
             f"so a Card parameter cannot be combined with another parameter "
             f"(fold into one parameter)",
@@ -10558,7 +10559,7 @@ def _check_move_params(
     dup_names = sorted({name for name in names if names.count(name) > 1})
     if dup_names:
         bag.error(
-            f"move '{mt.name}' declares more than one parameter named "
+            f"move " + cite_named(mt, f"'{mt.name}'") + f" declares more than one parameter named "
             f"{', '.join(dup_names)}; `bind_params` binds parameters by name, "
             f"so a repeated name silently shadows the earlier parameter instead "
             f"of binding both (rename one)",
@@ -10567,7 +10568,7 @@ def _check_move_params(
     for t in types:
         if t.rstrip("?") == "Integer":
             bag.error(
-                f"move '{mt.name}' has parameter domain '{t}'; bounded-Integer "
+                f"move " + cite_named(mt, f"'{mt.name}'") + f" has parameter domain '{t}'; bounded-Integer "
                 f"parameter domains are deferred (see "
                 f"open-questions/move-parameter-domains.md)",
                 span,
@@ -10588,7 +10589,7 @@ def _check_move_params(
                     + ")"
                 )
             bag.error(
-                f"move '{mt.name}' has unsupported parameter domain '{t}' "
+                f"move " + cite_named(mt, f"'{mt.name}'") + f" has unsupported parameter domain '{t}' "
                 f"(expected {expected})",
                 span,
             )
@@ -10598,7 +10599,7 @@ def _check_move_params(
         # — only bare `Rank` needs the non-empty-`ranking:` gate.
         elif t == "Rank" and _refuses(_RANK_PARAMETER_GATE, mt, game):
             bag.error(
-                f"move '{mt.name}' has a Rank parameter, but the game declares "
+                f"move " + cite_named(mt, f"'{mt.name}'") + f" has a Rank parameter, but the game declares "
                 f"no ranking: — Rank enumerates the declared ranking, so it "
                 f"needs a non-empty one",
                 span,
@@ -10640,24 +10641,31 @@ def _check_card_offering(
     ]
     if len(card_param_moves) > 1:
         answers = [m for m in card_param_moves if move_type_defs[m].origin is None]
+
+        def quoted(m: str) -> LibraryCitation:
+            return cite_named(move_type_defs[m], f"`{m}`")
+
         for_game: Said | None = None
         if origin is not None and answers:
-            listed = " and ".join(f"`{m}`" for m in answers)
-            offered = ", ".join(f"`{m}`" for m in card_param_moves)
+            listed = Sentence.join(" and ", map(quoted, answers))
+            offered = Sentence.join(", ", map(quoted, card_param_moves))
             takes = "takes" if len(answers) == 1 else "take"
             which = "it" if len(answers) == 1 else "one of them"
             for_game = (
-                cite_origin(origin, span) + f" offers {offered} "
-                f"in one offer, and this game's {listed} {takes} a Card "
+                cite_origin(origin, span) + " offers " + offered
+                + " in one offer, and this game's " + listed + f" {takes} a Card "
                 f"parameter beside the other; a card play's action is the card "
                 f"itself, so the two would be indistinguishable — answer "
                 f"{which} with a move type that takes no Card parameter"
             )
+        moves = Sentence.join(
+            ", ", (cite_named(move_type_defs[m], m) for m in card_param_moves)
+        )
         bag.error(
-            f"offering declares more than one Card-parameterized move "
-            f"({', '.join(card_param_moves)}); a card play's action is the "
-            f"card itself, so a second Card-parameterized move would be "
-            f"indistinguishable — fold them into one move type",
+            "offering declares more than one Card-parameterized move ("
+            + moves + "); a card play's action is the "
+            "card itself, so a second Card-parameterized move would be "
+            "indistinguishable — fold them into one move type",
             span,
             for_game=for_game,
         )
@@ -10670,26 +10678,29 @@ def _check_card_offering(
         return
     move = move_type_defs[card_param_moves[0]]
     param = move.params[0]
+    offering_move = "offering move " + cite_named(move, f"'{move.name}'")
     if origin is not None:
         whose = "this game's " if move.origin is None else ""
         shape = "" if hand is None else f" (its `{family}` is {_family_shape(hand.index)})"
-        fix = (
-            f"answer `{move.name}` with a move type that takes no Card "
-            f"parameter, since the library's contract names `{family}` so"
+        fix: Said = (
+            "answer " + cite_named(move, f"`{move.name}`") + " with a move type that "
+            "takes no Card parameter, since "
+            + cite_library(origin.library, None) + f"'s contract names `{family}` so"
             if family in origin.contracted_zones
             else f"declare `{family}` a zone kept per player, like "
             f"`{family}[player] : Hand<player>`"
         )
         bag.error(
-            f"offering move '{card_param_moves[0]}' takes a Card parameter, "
+            offering_move + " takes a Card parameter, "
             f"which enumerates the actor's `{family}[player]` zone — this game "
             f"declares none",
             span,
             for_game=(
-                cite_origin(origin, span) + f" offers {whose}move "
-                f"type `{move.name}`, whose `{param.name} : Card` takes a card from "
+                cite_origin(origin, span) + f" offers {whose}move type "
+                + cite_named(move, f"`{move.name}`")
+                + f", whose `{param.name} : Card` takes a card from "
                 f"the acting seat's `{family}[player]`, but this game declares no "
-                f"`{family}[player]`{shape} — {fix}"
+                f"`{family}[player]`{shape} — " + fix
             ),
         )
         return
@@ -10699,16 +10710,18 @@ def _check_card_offering(
     if move.origin is not None and family in move.origin.contracted_zones:
         shape = "none" if hand is None else _family_shape(hand.index)
         bag.error(
-            f"move type `{move.name}`'s `{param.name} : Card` takes a card from "
-            f"the acting seat's `{family}[player]`, but this library's contract "
-            f"names `{family}` as {shape}, so no game meeting it can offer "
-            f"`{move.name}` — contract `{family}` per player, like "
+            "move type " + cite_named(move, f"`{move.name}`")
+            + f"'s `{param.name} : Card` takes a card from "
+            f"the acting seat's `{family}[player]`, but "
+            + cite_library(move.origin.library, None)
+            + f"'s contract names `{family}` as {shape}, so no game meeting it can offer "
+            + cite_named(move, f"`{move.name}`") + f" — contract `{family}` per player, like "
             f"`{family}[player] : Hand<player>`",
             param.span or move.span,
         )
         return
     bag.error(
-        f"offering move '{card_param_moves[0]}' takes a Card parameter, "
+        offering_move + " takes a Card parameter, "
         f"which enumerates the actor's `{family}[player]` zone — this game "
         f"declares none",
         span,
