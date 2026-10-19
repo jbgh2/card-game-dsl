@@ -5,14 +5,11 @@ swappable hidden cards in opponents' hands. The harness's swap pool
 additionally pins the 3♦ in place (`GameSpec.swap_pairs`) because this
 game's opening filter keys on that exact card.
 
-Bounded conformance walk: the full `pyspiel.random_sim_test` measured 122s
-locally — by far the slowest single test in this suite (Big Two plays
-multiple hands to a target score, hundreds of actions each with a large
-combo action space, the same O(n^2) re-simulation cost as Stud/French
-Tarot/Tichu, compounded by a bigger per-decision branching factor). This
-game's full-game-to-TerminalNode coverage through the actual pyspiel `State`
-wrapper lives in `test_openspiel_replay.py`'s KERNEL_GAMES list, so
-bounding this walk drops no real coverage.
+Bounded conformance walk: Big Two plays multiple hands to a target score,
+hundreds of actions each with a large combo action space, and one full
+`pyspiel.random_sim_test` is past the whole-sim budget (`harness.py`,
+`conformance_steps`; 30s, measured 2026-10-18). `tests/test_openspiel_replay.py`'s `KERNEL_GAMES` plays one reference game
+to TerminalNode through the replay engine and checks its returns.
 """
 
 from .harness import GameSpec, ReadinessProofs

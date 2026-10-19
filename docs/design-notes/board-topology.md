@@ -744,8 +744,8 @@ parse them.
 
 Cross-cutting honesty: the adapter still provides no tensors
 (information-state strings carry CFR; the Representation domain is
-unmoved); replay stays O(n²) re-simulation, which the ladder's episode
-lengths tolerate; tabular-CFR work on battleship needs a shrunk
+unmoved); a branch of a search still pays one replay of its history,
+which the ladder's episode lengths tolerate; tabular-CFR work on battleship needs a shrunk
 variant, which would be its own pinned game file, not a parameter of
 the corpus one.
 

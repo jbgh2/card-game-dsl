@@ -310,8 +310,7 @@ amount syntax" / "Resource transfer failure").
   sequence; the per-hand stack golden pinned its payouts byte-identically
   across the migration. With it, Stud is fully kernel: registered in
   `cardlang/openspiel/game.py:GAMES` with derived info sets proven in the
-  readiness harness (its conformance check is a bounded random API walk —
-  a full random sim of a ~10k-action chip-migration game is quadratic).
+  readiness harness (its conformance check is the full random sim).
 
 **Checkpoint (event-indexed pots) — confirmed closed.** The settlement
 reconciles purely from per-player committed running totals + fold flags (sorted

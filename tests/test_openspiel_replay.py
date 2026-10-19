@@ -34,6 +34,7 @@ KERNEL_GAMES = [
     "president.cardlang",
     "gops.cardlang",
     "belote.cardlang",
+    "gin-rummy.cardlang",
 ]
 
 

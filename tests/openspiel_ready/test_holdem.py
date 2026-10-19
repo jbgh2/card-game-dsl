@@ -29,20 +29,12 @@ configuration this game was added to exercise. That the two coincide is the
 second thing the derivation test pins; they need not, and if a future line
 separates them the test says so rather than silently preferring one.
 
-Bounded conformance walk: full `pyspiel.random_sim_test` re-simulates the whole
-(seed, history) state after every action — O(n^2) in game length (issue #139) —
-and a Hold'em game runs until one player holds all 300 chips: ~60-110 hands.
-Measured, the greedy line does not reach TerminalNode inside ten minutes through the
-adapter, which is why `adapter_terminal_steps` stays unset.
-
-`conformance_steps=120` is INHERITED from Stud's number, not derived: on the
-pinned `Random(7)` line every betting verb is applied by step 7 (measured, and
-unchanged at 60/120/200 steps), so 120 carries a 113-step margin over the
-smallest bound that covers this line. A future reader should treat it as
-"Stud's precedent, comfortably sufficient here" rather than as a measured
-worst-case across rngs — the harness's own recipe (worst last-new-verb over
-several rngs, plus margin) was not run, because the margin already dwarfs any
-plausible spread.
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`). A game runs until
+one player holds all 300 chips: ~60-110 hands. Measured, the greedy line does
+not reach TerminalNode inside ten minutes through the adapter, which is why
+`adapter_terminal_steps` stays unset.
 """
 
 from __future__ import annotations
@@ -60,18 +52,6 @@ class TestReadiness(ReadinessProofs):
         "holdem.cardlang",
         hidden_zone="hole",
         depth=11,
-        conformance_steps=120,
-        # The family library's street offers its whole vocabulary on every
-        # street, and this game opens no street at two sizes, so the two big
-        # wagers are never legal at any node: inert ids the bound cannot
-        # reach. The two-size street is exercised where it exists —
-        # seven-card-stud's open-pair street, and tests/test_poker_betting_
-        # sizing.py, test_poker_betting_reopening.py and
-        # test_poker_betting_offers.py drive both wagers directly.
-        conformance_verbs_unreached=(
-            ("bet_big", "no street here carries a second size; the big wager is never legal"),
-            ("raise_big", "same: never legal in a one-size game"),
-        ),
         swap_axis="any",
     )
 

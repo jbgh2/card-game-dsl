@@ -29,23 +29,15 @@ boundary names cards that are not in those zones when the swap fires. Inside
 that hand the deepest pause is the strongest: all four up cards are out, so the
 hidden hole card is checked against a public board that is complete.
 
-Bounded conformance walk: full `pyspiel.random_sim_test` re-simulates the whole
-(seed, history) state after every action — O(n^2) in game length (issue #139) —
-and a Five-Card Stud session runs until one player holds all 600 chips.
-
-`conformance_steps=400` is MEASURED, and it is bought for more than the verb
-claim. On the pinned `Random(7)` line every declared verb is applied by step 7
-and the walk reaches TerminalNode at step 368 (measured 2026-09-06; a walk
-budgeted 500 stops at the same 368). A bound sized to the verb claim alone would
-sit near 7 and never see a terminal state. This is the only session-length poker
-game in the corpus whose random line ends inside an affordable bound — its
-greedy `legal[0]` line does not, on any manifest seed within 4000 steps
-(measured), which is why `adapter_terminal_steps` stays unset and the terminal
-returns have nowhere else to be checked. So the bound is set past the terminal
-rather than past the last verb, and
-`test_the_bound_reaches_the_terminal_state_it_is_bought_for` asserts it lands
-there — without that assertion the extra steps would be a cost carrying a claim
-that cannot fail.
+Conformance: `conformance_steps` is unset, so this game plays the full
+`pyspiel.random_sim_test`, one whole game through the adapter, inside the
+whole-sim budget (`harness.py`, `conformance_steps`). A session runs
+until one player holds all 600 chips, and the full sim is where this game's
+terminal returns are checked: its greedy `legal[0]` line does not end on any
+manifest seed within 4000 steps (measured), which is why
+`adapter_terminal_steps` stays unset.
+`test_the_conformance_proof_plays_to_the_terminal_state` pins the mode, since a
+bound would lose that check without anything going red.
 
 What none of the harness proofs reach is the SHOWDOWN, because every one of them
 pauses at the spec's depth, inside the betting. That is the one place a hidden
@@ -64,7 +56,7 @@ import pytest
 
 from cardlang.openspiel.replay import DecisionNode, load, run
 
-from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _advance, bounded_walk, manifest
+from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _advance, manifest
 
 
 class TestReadiness(ReadinessProofs):
@@ -73,7 +65,6 @@ class TestReadiness(ReadinessProofs):
         "five-card-stud.cardlang",
         hidden_zone="hole",
         depth=11,
-        conformance_steps=400,
         swap_axis="any",
     )
 
@@ -134,31 +125,18 @@ def test_the_depth_is_the_last_decision_of_the_first_hand(seed: int) -> None:
     )
 
 
-def test_the_bound_reaches_the_terminal_state_it_is_bought_for() -> None:
-    """The half of `conformance_steps=400` the bounds grid cannot see.
+def test_the_conformance_proof_plays_to_the_terminal_state() -> None:
+    """This game's terminal returns are checked by the full `random_sim_test`
+    and nowhere else, since its greedy line does not end. A bound would turn
+    the proof into a walk that stops where the bound says, and the check would
+    go with nothing red.
 
-    `test_conformance_bounds.py` asks only that the bound cover every declared
-    verb, and this game's verbs are all applied by step 7 — so that grid stays
-    green at any bound above single digits, including one stopping well short
-    of the terminal state this bound is sized for. The bounded walk checks
-    terminal returns only `if reached`, so a bound that quietly stopped reaching
-    one would lose the check with nothing going red. This is that red.
-
-    red under: lower `conformance_steps` below the terminal step recorded here.
+    red under: set `conformance_steps` on the spec.
     """
-    spec = TestReadiness.spec
-    assert spec.conformance_steps is not None
-    walk = bounded_walk(spec.short_name, str(GAMES_DIR / spec.filename), spec.conformance_steps)
-    assert walk.terminal, (
-        f"the bounded walk no longer reaches TerminalNode within "
-        f"conformance_steps={spec.conformance_steps} (it stopped at step "
-        f"{walk.steps}) — this game's terminal returns are checked nowhere "
-        f"else, so raise the bound rather than dropping the claim"
-    )
-    assert walk.steps < spec.conformance_steps, (
-        f"the walk consumed its whole budget ({walk.steps} steps), so `terminal` "
-        f"is true only because the last step happened to land there and the "
-        f"bound carries no margin"
+    assert TestReadiness.spec.conformance_steps is None, (
+        "Five-Card Stud's conformance proof is bounded, so nothing checks its "
+        "terminal returns any more: play the full sim, or bound it past the "
+        "pinned line's terminal state and assert the walk reaches it"
     )
 
 
