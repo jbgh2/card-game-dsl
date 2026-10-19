@@ -15,10 +15,13 @@ Assumes:      every diagnostic a pass collects carries the span of the text it
               refusal it raises there that the crossing causes; a check that
               knows the sentence a game's author should read for a refusal of
               library text supplies it (`for_game`); a sentence names a
-              library or its text only by a Library Citation made here
+              library, its text, or any function, procedure, move type,
+              rule, template or provided state variable, the game's own
+              included, only by a Library Citation made here
               (`cite_library`, `cite_definition`, `cite_origin`,
-              `cite_where`), handed the span of the text it names, and the
-              bag hands that span on as library text the refusal stands on;
+              `cite_named`, `cite_where`), handed the span of the text it
+              names, and the bag hands that span on as text the refusal
+              stands on (a game's own makes no note);
               a check that refuses the game's text for library text it
               reached and does not name supplies that text (`stands_on`);
               every spliced definition carries its `n.LibraryOrigin`, and the
@@ -58,8 +61,10 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
 Now illegal:  a diagnostic leaving a pass with a route, a `for_game` or a
               `stands_on`; a note made anywhere but here; a check spelling a
               library's name or a definition's library words into a sentence
-              itself (tests/test_library_notes.py census), or a Library
-              Citation spelled into a str (it raises); a warning that
+              itself (tests/test_library_notes.py census), a refusal
+              naming a definition in plain text
+              (tests/test_definition_citations.py), or a Library Citation
+              spelled into a str (it raises); a warning that
               changes what is refused (each is told only beside a refusal); a
               check telling a refusal of library text on the `uses` line
               itself, outside the gates decisions.md names.

@@ -5222,8 +5222,11 @@ definition -- a call, a `run`, an offer, an activation -- and a template
 argument the game passes into a library rule stand on that definition, so a
 refusal there keeps the definition's line beside every other line it stands
 on. A
-sentence names library text only through the step's words for it, which
-carry that text's line. A refusal standing in a library
+sentence names library text, and every function, procedure, move type,
+rule, template or provided state variable, the game's own included, only
+through a citation carrying the definition's line: the step words a
+library's, and the game's own renders as written and makes no note, its
+line being in the file told. A refusal standing in a library
 procedure's body is told the same way once the `run` is expanded, through
 the definition the expanded body keeps. Who is told never changes what is
 refused: a warning and a note refuse nothing, and the step only moves spans.

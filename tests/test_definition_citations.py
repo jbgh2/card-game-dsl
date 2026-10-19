@@ -33,7 +33,10 @@ domain:          the executed census: every refusal raised while every
                  names a definition namespace (`_DEFINITION_FIELDS`,
                  derived from `resolve._REFERENCE_SLOTS` and
                  `resolve._CONTEXTUAL_SLOTS`), interpolated into a string
-                 anywhere in `cardlang/` outside the step.
+                 anywhere in `cardlang/` outside the step. A refusal whose
+                 sentence names only types -- an operand whose type a
+                 library function's result or provided state gives -- names
+                 no definition and stands on none.
 registry:        definition namespaces: `_DEFINITION_NAMESPACES`; reference
                  slots: `resolve._REFERENCE_SLOTS`, `resolve._CONTEXTUAL_SLOTS`;
                  cells: the four families above.
