@@ -302,7 +302,7 @@ Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import (
     Literal,
@@ -3173,6 +3173,19 @@ class _LibraryNameIs:
 _LIBRARY_OWN_NAMESPACES: tuple[str, ...] = ("state", "zone", "move_type", "enum_value")
 
 
+def _cite_own(library: n.Library, name: str, words: str) -> Said:
+    """`words` naming `name` in `library`: a citation of its own definition,
+    provided declaration or contract row of that name, and the bare words
+    where it holds none."""
+    held: list[object] = [
+        *(d for field, _noun in _LIBRARY_DEF_KINDS for d in getattr(library, field)),
+        *(library.state.decls if library.state is not None else ()),
+        *library.requires,
+    ]
+    found = next((d for d in held if getattr(d, "name", None) == name), None)
+    return words if found is None else cite_named(found, words)
+
+
 def _library_own_name_is(library: n.Library, name: str) -> _LibraryNameIs | None:
     """What `name` is in the library itself: one of its own definitions, or a
     name its contract or the direction values hold — or None. Every answer is
@@ -3302,8 +3315,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     available "fix" — declaring the extra name — is the accident that hid the
     leak in the first place."""
     reach = _library_reach(library)
-    for refusal in reach.always_refused:
-        bag.error(refusal.message, refusal.span)
+    bag.items.extend(reach.always_refused)
     # A bare read is answered only from the library itself: every language-wide
     # spelling (`_language_name_is`, the trick winners) is one an importing
     # game may declare as state, which the library then reaches by contract.
@@ -3320,7 +3332,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
         else:
             call_it = f" — call it: `{ref.name}(...)`" if what.kind == "function" else ""
             bag.error(
-                cite_library(library.name, ref.span) + f" reads '{ref.name}', which is "
+                cite_library(library.name, ref.span) + " reads "
+                + _cite_own(library, ref.name, f"'{ref.name}'") + ", which is "
                 f"{what.phrase}, not a value{call_it}",
                 ref.span,
             )
@@ -3344,7 +3357,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span)
         else:
             bag.error(
-                cite_library(library.name, call.span) + f" calls '{call.func}', which is "
+                cite_library(library.name, call.span) + " calls "
+                + _cite_own(library, call.func, f"'{call.func}'") + ", which is "
                 f"{what.phrase}, not a function",
                 call.span,
             )
@@ -3369,7 +3383,8 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
         )
         if own is not None:
             bag.error(
-                cite_library(library.name, getattr(leak.node, "span", None)) + f" names '{leak.name}' as a "
+                cite_library(library.name, getattr(leak.node, "span", None)) + " names "
+                + _cite_own(library, leak.name, f"'{leak.name}'") + " as a "
                 f"{_NAMESPACE_NOUN[leak.namespace]}, but it is {own.phrase}, not "
                 f"a {_NAMESPACE_NOUN[leak.namespace]}",
                 getattr(leak.node, "span", None),
@@ -3401,13 +3416,15 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             # unreachable from a default worth writing.
             if isinstance(node, n.NameRef) and node.name in required:
                 bag.error(
-                    cite_library(library.name, node.span or decl.span) + f" initialises provided state "
-                    f"'{decl.name}' from '{node.name}', which its `requires` "
-                    f"contract asks the game to declare — so '{node.name}' does "
+                    cite_library(library.name, node.span or decl.span)
+                    + " initialises provided state " + cite_named(decl, f"'{decl.name}'")
+                    + " from " + _cite_own(library, node.name, f"'{node.name}'")
+                    + ", which its `requires` contract asks the game to declare — so "
+                    + _cite_own(library, node.name, f"'{node.name}'") + " does "
                     f"not exist yet when this default runs: provided state is "
                     f"declared before the game's own, never after. Give "
-                    f"'{decl.name}' a literal default and set it from "
-                    f"'{node.name}' in a phase",
+                    + cite_named(decl, f"'{decl.name}'") + " a literal default and set it from "
+                    + _cite_own(library, node.name, f"'{node.name}'") + " in a phase",
                     node.span or decl.span,
                 )
 
@@ -3742,9 +3759,10 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
         for nd in _walk(proc):
             if isinstance(nd, n.RunStmt) and nd.name in rows:
                 bag.error(
-                    cite_library(library.name, nd.span) + f": procedure " + cite_named(proc, f"'{proc.name}'") + f" runs "
-                    f"'{nd.name}', which the including game defines under this "
-                    f"library's contract — a procedure may not run another, so "
+                    cite_library(library.name, nd.span) + f": procedure " + cite_named(proc, f"'{proc.name}'") + " runs "
+                    + _cite_own(library, nd.name, f"'{nd.name}'") + ", which the including game "
+                    "defines under " + cite_library(library.name, nd.span) + "'s contract — a "
+                    "procedure may not run another, so "
                     f"run it from a move type's effect",
                     nd.span,
                 )
@@ -4030,7 +4048,8 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
             continue
         roles = ", ".join(role_names(ZONE_INDEX_ROLES))
         bag.error(
-            cite_library(library.name, decl.span) + f" {verb} state '{decl.name}' indexed by "
+            cite_library(library.name, decl.span) + f" {verb} state "
+            + cite_named(decl, f"'{decl.name}'") + " indexed by "
             f"'{decl.index}', which is not an indexable role ({roles}) — a "
             f"library indexes by a seat or a team, and a game may not declare "
             f"that index either",
@@ -4284,7 +4303,9 @@ def resolve(game: n.Game) -> n.Game:
     # instantiation attempt hit some OTHER, already-separately-reported
     # mismatch (arity, missing arguments, …) — that conflation would pile a
     # spurious "undefined rule" note onto every such mismatch.
-    known_rule_names = {r.name for r in game.rules} | set(library_rules) | set(stdlib_rules())
+    known_rule_names: dict[str, n.RuleDef] = {
+        **stdlib_rules(), **library_rules, **{r.name: r for r in game.rules}
+    }
 
     # Library-rule splice and template instantiation: after this, every rule in
     # `game.rules` is a concrete (parameter-free) definition the runtime can
@@ -4294,7 +4315,7 @@ def resolve(game: n.Game) -> n.Game:
     for rule in game.rules:
         _resolve_rule(rule, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
-    _check_rule_removes(game.phases, bag)
+    _check_rule_removes(game.phases, known_rule_names, bag)
 
     # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
     # (`any cel where square[cell] …`) changes the binder name, so the body's
@@ -4681,7 +4702,7 @@ def _instantiate_rules(
         """The rule a reference names: the game's by its name, a library's in
         the designer's words, standing on its text."""
         if template.origin is None:
-            return f"rule '{name}'"
+            return cite_named(template, f"rule '{name}'")
         return cite_origin(template.origin, template.span)
 
     suits = suit_names(game.deck) if _deck_known(game.deck) else None
@@ -4786,7 +4807,9 @@ def _instantiate_rules(
     return replace(game, rules=tuple(rules)) if tuple(rules) != game.rules else game
 
 
-def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None:
+def _check_rule_removes(
+    phases: tuple[n.Phase, ...], rules: Mapping[str, n.RuleDef], bag: DiagnosticBag
+) -> None:
     """`-X` remove reachability, over a phase and its modes.
 
     `-X` and (unsupported today) `override X` can never instantiate a rule
@@ -4815,25 +4838,32 @@ def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None
             ref for item in phase.items if isinstance(item, n.ActiveRules) for ref in item.refs
         ]
         own_added = {r.name for r in own_refs if r.delta in ("plain", "add")}
-        _validate_removes(own_refs, own_added, bag)
+        _validate_removes(own_refs, own_added, rules, bag)
 
         for mode in (i for i in phase.items if isinstance(i, n.Mode)):
             mode_refs = [ref for block in mode.active_rules for ref in block.refs]
             cluster_added = own_added | {r.name for r in mode_refs if r.delta in ("plain", "add")}
-            _validate_removes(mode_refs, cluster_added, bag)
+            _validate_removes(mode_refs, cluster_added, rules, bag)
 
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
-        _check_rule_removes(children, bag)
+        _check_rule_removes(children, rules, bag)
 
 
-def _validate_removes(refs: list[n.RuleRef], added: set[str], bag: DiagnosticBag) -> None:
+def _validate_removes(
+    refs: list[n.RuleRef], added: set[str], rules: Mapping[str, n.RuleDef], bag: DiagnosticBag
+) -> None:
     for ref in refs:
         if ref.delta == "remove" and ref.name not in added:
+            rule = rules.get(ref.name)
+
+            def named(words: str) -> Said:
+                return words if rule is None else cite_named(rule, words)
+
             bag.error(
-                f"`-{ref.name}` removes a rule that is never added in scope "
-                f"here (this phase's own `active_rules:`, or one of its "
-                f"mode's) — add `{ref.name}` or `+{ref.name}` "
-                f"there, or delete this removal",
+                named(f"`-{ref.name}`") + " removes a rule that is never added in scope "
+                "here (this phase's own `active_rules:`, or one of its "
+                "mode's) — add " + named(f"`{ref.name}`") + " or " + named(f"`+{ref.name}`")
+                + " there, or delete this removal",
                 ref.span,
             )
 
@@ -4888,7 +4918,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
             for node in _walk(decl.default):
                 if isinstance(node, n.Choose):
                     bag.error(
-                        f"the default of state variable '{decl.name}' cannot "
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
                         f"`choose`: a default is evaluated where it is written, "
                         f"outside any player's turn, so there is no one to make "
                         f"the decision — and a decision with no actor has no "
@@ -4901,7 +4931,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                     and node.name == "actor"
                 ):
                     bag.error(
-                        f"the default of state variable '{decl.name}' cannot "
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
                         f"read `actor`: a default is evaluated where it is "
                         f"written, outside any player's turn, so `actor` names "
                         f"no one. Use a seat number, or set the variable during "
@@ -4910,7 +4940,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                     )
                 elif isinstance(node, n.Call):
                     bag.error(
-                        f"the default of state variable '{decl.name}' cannot "
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
                         f"call '{node.func}': a default is evaluated while the "
                         f"`state {{ }}` block is still being declared, and a "
                         f"function body can reach a variable that does not "
@@ -4924,7 +4954,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                     and node.name not in in_scope
                 ):
                     bag.error(
-                        f"the default of state variable '{decl.name}' reads "
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" reads "
                         f"'{node.name}', which is not declared yet: a default "
                         f"can only read state declared before it — earlier in "
                         f"the same `state {{ }}` block, or in an enclosing one",
@@ -6719,7 +6749,7 @@ def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
 
 
 def _resolve_phase_level(
-    phases: tuple[n.Phase, ...], known_rule_names: set[str], bag: DiagnosticBag
+    phases: tuple[n.Phase, ...], known_rule_names: Mapping[str, n.RuleDef], bag: DiagnosticBag
 ) -> None:
     """Resolve a set of sibling phases, then recurse into each one's children.
 
@@ -6851,7 +6881,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
 def _resolve_phase_item(
     item: n.PhaseItem,
     sibling_names: set[str],
-    known_rule_names: set[str],
+    known_rule_names: Mapping[str, n.RuleDef],
     bag: DiagnosticBag,
 ) -> None:
     if isinstance(item, n.ActiveRules):
@@ -6859,9 +6889,12 @@ def _resolve_phase_item(
             if ref.name not in known_rule_names:
                 bag.error(f"active_rules names undefined rule '{ref.name}'", ref.span)
             if ref.delta == "override":
+                overridden = known_rule_names.get(ref.name)
+                words = f"`override {ref.name}`"
                 bag.error(
-                    f"`override {ref.name}` is not yet supported by the runtime "
-                    f"(roadmap.md) — use `add`/`remove` deltas",
+                    (words if overridden is None else cite_named(overridden, words))
+                    + " is not yet supported by the runtime "
+                    "(roadmap.md) — use `add`/`remove` deltas",
                     ref.span,
                 )
     elif isinstance(item, n.LegalMoves):
@@ -8774,11 +8807,13 @@ def _check_run_sites(
         if owner == "phases" and id(run) in inside:
             continue
         where = "in another phase" if owner == "phases" else f"in this game's `{owner}`"
+        procedure = _cite_in(game, "procedure", run.name, f"`{run.name}`")
         bag.error(
-            f"procedure `{run.name}` calls `{entry}`, which reads state "
+            "procedure " + procedure + " calls "
+            + _cite_in(game, "function", entry, f"`{entry}`") + ", which reads state "
             f"declared in phase `{phase_name}`, and a procedure body runs where "
             f"its `run` site sits — this one is {where}, which runs outside "
-            f"`{phase_name}`; run `{run.name}` inside `{phase_name}` only",
+            f"`{phase_name}`; run " + procedure + f" inside `{phase_name}` only",
             run.span or game.span,
         )
 
@@ -10479,7 +10514,8 @@ def _check_procedures(
                     )
                 elif isinstance(nd, n.RunStmt):
                     bag.error(
-                        f"procedure " + cite_named(proc, f"'{proc.name}'") + f" runs procedure '{nd.name}'; a "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + " runs procedure "
+                        + _cite_in(game, "procedure", nd.name, f"'{nd.name}'") + "; a "
                         f"procedure may not invoke another (v1 — expansion is a "
                         f"single splice, not a call graph)",
                         nd.span,
@@ -11113,7 +11149,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if nd.type_name not in KNOWN_TYPE_NAMES:
                     bag.error(
                         f"unknown type '{nd.type_name}' in declaration of "
-                        f"'{nd.name}'",
+                        + cite_named(nd, f"'{nd.name}'"),
                         nd.span,
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
@@ -11124,7 +11160,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # to seats) — the declared index was accepted and ignored.
                     roles = ", ".join(role_names(ZONE_INDEX_ROLES))
                     bag.error(
-                        f"state variable '{nd.name}' is indexed by "
+                        "state variable " + cite_named(nd, f"'{nd.name}'") + f" is indexed by "
                         f"'{nd.index}', which is not an indexable role "
                         f"({roles}) — a value domain has no per-member store "
                         f"(roadmap.md records the extension)",
@@ -11136,7 +11172,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # every later `x[…] := …` hits the runtime key guard far
                     # from the real mistake (the missing `teams:`).
                     bag.error(
-                        f"state variable '{nd.name}' is indexed by 'team' but "
+                        "state variable " + cite_named(nd, f"'{nd.name}'") + " is indexed by 'team' but "
                         f"the game declares no `teams:` — there are no "
                         f"teams to key it by",
                         nd.span,

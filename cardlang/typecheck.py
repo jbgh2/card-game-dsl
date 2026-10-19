@@ -3269,7 +3269,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_is_check(e, env, bag)
 
 
-def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:
+def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: Said) -> None:
     """A Boolean position, checked TOTALLY: the permissive top is refused here
     as well as a concrete wrong type.
 
@@ -3283,14 +3283,14 @@ def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None
     t = infer(e, env)
     if isinstance(t, TAny):
         bag.error(
-            f"{where} types as `Any`, the permissive top (a value the checker "
+            f"" + where + f" types as `Any`, the permissive top (a value the checker "
             f"cannot type -- a mixed-branch `if`, an untyped read); it must "
             f"type exactly Boolean, because nothing downstream catches a "
             f"non-Boolean here: every value is truthy and the game plays on",
             e.span,
         )
     elif not isinstance(t, TBoolean):
-        bag.error(f"{where} must be Boolean, got {_type_name(t)}", e.span)
+        bag.error(where + f" must be Boolean, got {_type_name(t)}", e.span)
 
 
 def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -4446,7 +4446,8 @@ def typecheck(game: Game) -> Game:
         if rule.applies_when is not None and rule.applies_when.pred is not None:
             _check_expr(rule.applies_when.pred, env, bag)
             _check_bool(
-                rule.applies_when.pred, env, bag, f"rule '{rule.name}' `applies_when:`"
+                rule.applies_when.pred, env, bag,
+                "rule " + cite_named(rule, f"'{rule.name}'") + " `applies_when:`",
             )
         if rule.demands is not None:
             _check_expr(rule.demands.expr, env, bag)
