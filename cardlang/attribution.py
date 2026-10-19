@@ -90,6 +90,7 @@ from cardlang.diagnostics import (
     Severity,
     Span,
     line_kind,
+    rendered,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -379,7 +380,8 @@ def _routed(d: Diagnostic) -> Diagnostic:
     sentence = FIX_TABLE[route.kind]
     message = d.message
     if sentence is not None:
-        message += ". " + sentence.format(name=route.name, library=route.library, fix=route.fix)
+        fix = None if route.fix is None else rendered(route.fix)[0]
+        message += ". " + sentence.format(name=route.name, library=route.library, fix=fix)
     return Diagnostic(d.severity, message, route.at)
 
 

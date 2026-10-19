@@ -53,7 +53,7 @@ class Route:
     at: Span | None
     library: str
     name: str
-    fix: str | None = None
+    fix: Said | None = None
 
 
 _UNSPELLED = (

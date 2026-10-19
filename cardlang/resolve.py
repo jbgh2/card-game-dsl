@@ -10390,7 +10390,7 @@ def _made_up_run(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.Expr) -> n.RunSt
     return replace(stmt, args=args)
 
 
-def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled: str) -> str:
+def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled: str) -> Said:
     """A run of `_meeting_callers`, as the game's author writes it: the
     seat to every Player parameter, the run's own argument to each other
     one, named by its parameter (`<k>`) where `_spell` cannot quote it."""
@@ -10400,7 +10400,7 @@ def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled
         else text
         for param, arg in zip(proc.params, stmt.args)
     ]
-    call = f"{stmt.name}({', '.join(spelled_args)})"
+    call = cite_named(proc, stmt.name) + f"({', '.join(spelled_args)})"
     passed = [f"`{p.name}`" for p in proc.params if p.type_name == "Player"]
     if seat.name == _ANY_PLAYER:
         lead = "run it as one player"
@@ -10410,7 +10410,7 @@ def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled
         given = f"`{spelled}`"
     if passed:
         lead += f" and pass {given} as {', '.join(passed)}"
-    return f"{lead}: `as {spelled} {{ run {call} }}`"
+    return f"{lead}: `as {spelled} {{ run " + call + " }`"
 
 
 def _check_hosted_node(
