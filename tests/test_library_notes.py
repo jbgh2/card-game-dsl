@@ -16,9 +16,20 @@ property:        a refusal the step tells in the game's file -- at a
                  refusal left in the library's file renders no
                  note, and where its library is unproven, or its definition
                  is one no clean Library Witness reaches in a proven
-                 library, one warning on the `uses` line says so; every
-                 rendered line is an error, a warning or a note; and who is
-                 told never changes what is refused.
+                 library, one warning on the `uses` line says so; a refusal
+                 of the game's text or its `uses` line naming library text
+                 renders a note at each library line it names; a refusal's
+                 notes are every distinct library line it stands on --
+                 where it was raised, what its check handed the step, what
+                 its sentences cite, and, at game text naming a library
+                 definition or provided state (the innermost naming node at
+                 the refusal, or one whose argument stands there) or at a
+                 template argument substituted into one, that definition;
+                 no check but the step spells a library's name or a
+                 definition's library words into a string, and a citation
+                 handed no line says why; every rendered line is an error, a
+                 warning or a note; and who is told never changes what is
+                 refused.
 domain:          the step's own domain, crossed: the game the step is handed
                  (`STAGES`: the spliced game before the splice's raise, the
                  resolved game, the expanded game), how the step tells the
@@ -38,21 +49,59 @@ domain:          the step's own domain, crossed: the game the step is handed
                  has no definition a Library Witness can reach, so it is
                  certified nowhere and its note names its library. A check
                  that hands the step a node with no span hands it no line,
-                 and the refusal carries no note.
+                 and the refusal carries no note. Library to game, one cell
+                 per check that refuses the game's text or its `uses` line
+                 naming library text (`NAMED`), two libraries where the check
+                 compares two, a template argument the game wrote,
+                 substituted into a library rule, at its clause and inside a
+                 nested one, a game's read of provided state, and a game's
+                 call and `run` of a library definition refused against its
+                 signature, at the call and at an argument; each way of
+                 standing on library text crossed with another
+                 (`_UNION_CELLS`);
+                 beside them, every refusal
+                 naming a library that the boundary ledger's library-to-game
+                 witnesses raise in the game's file. The scoped-read
+                 containment's arms on a library move type, offered nowhere
+                 and run outside the phase, are declaration-gate cells and
+                 so ledger cells above. A sentence naming no library text --
+                 a Hosted Poll binder shadowing "a function", a removal of a
+                 rule this phase never added -- refuses the game's own text,
+                 and its cell is the game's. A repeated `uses` line, the
+                 standard library's `uses` line and an unknown library name
+                 a library, not a line of it: a library has no single line,
+                 so their refusals carry none. A refusal standing at text
+                 that holds game text naming a library definition -- a
+                 statement around a call -- is not noted by what it holds,
+                 since the statement's refusal may be about other text. The
+                 game text inside a substituted template argument is a bare
+                 suit name, which holds no other node. The spelling census reads every
+                 string of the package outside the step, f-string pieces and
+                 the operands of an addition, its docstrings and the messages
+                 of an installation's own errors excepted.
 registry:        stages: `STAGES`, pinned against the raises after the splice
                  (`test_the_stages_are_the_raises`); tellings: `TELLINGS`;
                  rendered line kinds: `cardlang.diagnostics.LINE_KINDS`;
                  ledger cells: tests/test_library_attribution.py `_cells`;
-                 rejection goldens: tests/test_rejections.py `case_paths`.
+                 library-to-game witnesses:
+                 tests/test_library_boundary_ledger.py
+                 `_library_to_game_witnesses`; the census's modules: the
+                 `cardlang/` glob; rejection goldens: tests/test_rejections.py
+                 `case_paths`.
 does not prove:  that the library line a check names is the one its sentence
                  means: a check standing a refusal at the game's text hands
                  the step the library text it read, and the note is that
-                 line.
+                 line. Nor that a sentence naming a library definition by its
+                 bare name, with no library word, carries its line where it
+                 stands at text other than the game's naming of it: the
+                 census reads spellings, and such a sentence has none to
+                 read, so its cell here is the check.
 """
 
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -61,7 +110,16 @@ import pytest
 import cardlang.attribution as attribution
 import cardlang.resolve as R
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import LINE_KINDS, DiagnosticBag, DiagnosticError, Route, Span, line_kind
+from cardlang.deckcheck import check_capacity
+from cardlang.diagnostics import (
+    LINE_KINDS,
+    Diagnostic,
+    DiagnosticBag,
+    DiagnosticError,
+    Route,
+    Span,
+    line_kind,
+)
 from cardlang.expand import expand
 from cardlang.parse import parse_library, parse_text
 from cardlang.stdlib.rules import stdlib_library
@@ -302,9 +360,14 @@ def test_a_refusal_is_told_with_its_library_line(
     else:
         assert primary.startswith(f"{L._GAME_FILE}:") and not primary.startswith(uses_at), text
     if expected.note:
-        assert len(notes) == 1, text
-        assert _location(notes[0]) == (span.source_name, span.line), text
-        assert _note_names(stage, lives, where) in notes[0], text
+        # Told at the game's `run` of `libp`, the refusal stands on `libp`
+        # too; once expanded, the block the run became names nothing.
+        runs = expected.primary == "game" and stage != "after-expand"
+        libp = _line_of(_LIBRARY, "procedure libp")
+        want = {(span.source_name, span.line)} | ({(L._LIB_FILE, libp)} if runs else set())
+        assert {_location(nt) for nt in notes} == want, text
+        refused = next(nt for nt in notes if _location(nt) == (span.source_name, span.line))
+        assert _note_names(stage, lives, where) in refused, text
     else:
         assert notes == [], text
     if expected.warning is None:
@@ -365,13 +428,14 @@ def _hidden_run(body: str) -> str:
 
 def test_one_refusal_on_two_library_lines_names_both(monkeypatch: pytest.MonkeyPatch) -> None:
     """A run whose argument reads hidden cards, for two decisions of the
-    procedure's body, is one refusal at the run, standing on both lines."""
+    procedure's body, is one refusal at the run, standing on both lines and
+    on the procedure the run names."""
     game = _hidden_run("as leader { run libpr(high(dealer)) }")
     lines = L._bag(monkeypatch, _TWICE, game)
     text = "\n".join(lines)
     assert len(L._errors(lines)) == 1, text
     noted = {_location(ln) for ln in lines if line_kind(ln) == "note"}
-    assert noted == {(L._LIB_FILE, 4), (L._LIB_FILE, 5)}, text
+    assert noted == {(L._LIB_FILE, 3), (L._LIB_FILE, 4), (L._LIB_FILE, 5)}, text
 
 
 def test_merged_refusals_keep_every_note(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -388,7 +452,8 @@ def test_merged_refusals_keep_every_note(monkeypatch: pytest.MonkeyPatch) -> Non
         bag.error("the probe refuses this", library_at, route=Route("call", at, L._LIB, "libp"))
     attribution.tell(bag, game)
     assert len(bag.items) == 1
-    assert [note.span for note in bag.items[0].notes] == [span, other]
+    libp = next(p.span for p in game.procedures if p.name == "libp")
+    assert [note.span for note in bag.items[0].notes] == [span, libp, other]
 
 
 def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
@@ -403,8 +468,54 @@ def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
     bag.error("the probe refuses this", at, route=Route("call", at, L._LIB, "libp"), stands_on=span)
     attribution.tell(bag, game)
     (told,) = bag.items
-    assert [note.span for note in told.notes] == [span]
+    libp = next(p.span for p in game.procedures if p.name == "libp")
+    assert [note.span for note in told.notes] == [span, libp]
     assert where in told.notes[0].message
+
+
+# Every library line a refusal stands on, by each way it can stand on one:
+# where it was raised, what its check handed the step, what its sentence or
+# its game's sentence cites, and the definition the game text it is told at
+# names. Each cell crosses two of them; its notes are their union.
+def _union_cell(name: str, game: n.Game) -> tuple[DiagnosticBag, set[int]]:
+    family, _ = _refused("family")
+    outside, _ = _refused("outside")
+    at = _game_text(game)
+    libp = next(p for p in game.procedures if p.name == "libp")
+    assert libp.span is not None
+    route = Route("call", at, L._LIB, "libp")
+    bag = DiagnosticBag()
+    if name == "raised-and-handed":
+        bag.error("the probe refuses this", family, route=route, stands_on=outside)
+        return bag, {family.line, outside.line, libp.span.line}
+    if name == "raised-and-cited-for-the-game":
+        sentence = attribution.cite_library(L._LIB, outside) + " refuses this"
+        bag.error("the probe refuses this", family, route=route, for_game=sentence)
+        return bag, {family.line, outside.line, libp.span.line}
+    if name == "named-and-handed-the-game's-text":
+        bag.error("the probe refuses this", at, stands_on=at)
+        return bag, {libp.span.line}
+    assert name == "named-and-handed"
+    bag.error("the probe refuses this", at, stands_on=outside)
+    return bag, {libp.span.line, outside.line}
+
+
+_UNION_CELLS = (
+    "raised-and-handed", "raised-and-cited-for-the-game", "named-and-handed-the-game's-text",
+    "named-and-handed",
+)
+
+
+@pytest.mark.parametrize("name", _UNION_CELLS)
+def test_a_refusals_notes_are_every_library_line_it_stands_on(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    game = _spliced(monkeypatch, "after-splice", ())
+    bag, want = _union_cell(name, game)
+    attribution.tell(bag, game)
+    (told,) = bag.items
+    assert {note.span.line for note in told.notes} == want
+    assert all(note.span.source_name == L._LIB_FILE for note in told.notes)
 
 
 _RULE_LIBRARY = (
@@ -609,6 +720,672 @@ def test_no_golden_tells_a_library_refusal_in_the_librarys_file_unwarned() -> No
             for ln in lines
         )
         assert not primaries or warned, path.name
+
+
+# --- library to game: a refusal of the game's text naming library text ---------
+#
+# A check refusing the game's text or its `uses` line for library text the game
+# meets names that text in its sentence, and the text's line is its note. One
+# cell per check that names library text there; two libraries where the check
+# compares two.
+
+_OTHER = "otherlib"
+_STDLIB_RULES = "cardlang/stdlib/rules.cardlang"
+
+
+def _host(
+    uses: tuple[str, ...] = (L._LIB,),
+    zones: str = "",
+    state: str = "score[player] : Integer = 0",
+    body: str | None = None,
+    rules: str = "",
+    extra: str = "",
+) -> str:
+    play = body or (
+        f"{rules}round play_to_trick from 0 over all players source hand into pile "
+        "winner highest_of_led_suit"
+    )
+    return (
+        "game Boundary {\n"
+        "  players: 2\n"
+        "  cards: standard52\n"
+        "  max_length: 200\n"
+        "  ranking: aces high\n"
+        + "".join(f"  uses {u}\n" for u in uses)
+        + f"  zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile {zones} }}\n"
+        f"  state {{ {state} }}\n"
+        "  phase setup { shuffle deck  deal 5 cards from deck to each hand }\n"
+        f"  phase play {{ {play} }}\n"
+        "  winner: highest score\n"
+        "}\n"
+        f"{extra}"
+    )
+
+
+def _lib(name: str, body: str) -> str:
+    return f"library {name} {{\n{body}\n}}\n"
+
+
+_TRICK = "round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
+_ROW_G = "  requires { g(c : Card) : Integer }\n  function h(c : Card) = g(c)"
+_TEMPLATE = (
+    "  rule lr(s : Suit) {\n"
+    "    constrains: play_to_trick\n"
+    "    demands: cards in hand where card.suit is s\n"
+    "    if_impossible: hand\n"
+    "  }"
+)
+
+
+@dataclass(frozen=True)
+class Named:
+    """A refusal of the game's text naming library text: the libraries by
+    name, the game, the game text it is told at (`at`, a needle of the game's
+    line), words its sentence carries (`says`), and the library lines its
+    notes stand on, as (library, needle of the line)."""
+
+    libraries: tuple[tuple[str, str], ...]
+    game: str
+    at: str
+    says: str
+    notes: tuple[tuple[str, str], ...]
+
+
+NAMED: dict[str, Named] = {
+    "definition-collision": Named(
+        ((L._LIB, _lib(L._LIB, "  function f(c : Card) = rank_value(c)")),),
+        _host(extra="function f(c : Card) = rank_value(c)\n"),
+        "function f(c : Card)", "is defined by this game and also by",
+        ((L._LIB, "function f("),),
+    ),
+    "two-libraries-define": Named(
+        (
+            (L._LIB, _lib(L._LIB, "  function f(c : Card) = rank_value(c)")),
+            (_OTHER, _lib(_OTHER, "  function f(c : Card) = rank_value(c)")),
+        ),
+        _host(uses=(L._LIB, _OTHER)),
+        f"uses {_OTHER}", "is defined by both",
+        ((L._LIB, "function f("), (_OTHER, "function f(")),
+    ),
+    "brought-in-over-game-name": Named(
+        ((L._LIB, _lib(L._LIB, "  function seen(c : Card) = rank_value(c)")),),
+        _host(zones="seen : Discard"),
+        "seen : Discard", "brings in function 'seen'",
+        ((L._LIB, "function seen("),),
+    ),
+    "brought-in-over-another-contract": Named(
+        (
+            (L._LIB, _lib(L._LIB, "  requires { score[player] : Integer }\n  procedure g() { score[0] += 1 }")),
+            (_OTHER, _lib(_OTHER, _ROW_G)),
+        ),
+        _host(uses=(L._LIB, _OTHER), extra="function g(c : Card) = rank_value(c)\n"),
+        f"uses {L._LIB}", "has this game define 'g'",
+        ((L._LIB, "procedure g("), (_OTHER, "requires { g(")),
+    ),
+    "two-libraries-provide": Named(
+        (
+            (L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),
+            (_OTHER, _lib(_OTHER, "  state { tally : Integer = 0 }")),
+        ),
+        _host(uses=(L._LIB, _OTHER)),
+        f"uses {_OTHER}", "is provided by both",
+        ((L._LIB, "tally"), (_OTHER, "tally")),
+    ),
+    "game-declares-provided": Named(
+        ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
+        _host(state="score[player] : Integer = 0  tally : Integer = 0"),
+        "tally : Integer = 0", "is declared by this game and also provided",
+        ((L._LIB, "tally"),),
+    ),
+    "requires-what-another-provides": Named(
+        (
+            (L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),
+            (_OTHER, _lib(_OTHER, "  requires { tally : Integer }\n  procedure bump() { tally += 1 }")),
+        ),
+        _host(uses=(L._LIB, _OTHER)),
+        f"uses {_OTHER}", "which library 'boundarylib' provides",
+        ((_OTHER, "requires { tally"), (L._LIB, "tally")),
+    ),
+    "write-of-provided-state": Named(
+        ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
+        _host(body=f"tally := 1  {_TRICK}"),
+        "tally := 1", "cannot write 'tally'",
+        ((L._LIB, "tally"),),
+    ),
+    "chosen-binder-over-provided-state": Named(
+        ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
+        _host(body=f"let tally = 1  {_TRICK}"),
+        "let tally = 1", "binder 'tally' is spelled like state",
+        ((L._LIB, "tally"),),
+    ),
+    "unchosen-binder-over-provided-state": Named(
+        ((L._LIB, _lib(L._LIB, "  state { card : Integer = 0 }")),),
+        _host(body=f"score[0] := number of cards in hand where rank_value(card) > 3  {_TRICK}"),
+        "score[0] := number", "and this form binds 'card'",
+        ((L._LIB, "card : Integer"),),
+    ),
+    "requires-zone-undeclared": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { stock : Discard }")),),
+        _host(),
+        f"uses {L._LIB}", "requires zone `stock : Discard`",
+        ((L._LIB, "requires {"),),
+    ),
+    "requires-state-undeclared": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { tally : Integer }")),),
+        _host(),
+        f"uses {L._LIB}", "requires state `tally : Integer`",
+        ((L._LIB, "requires {"),),
+    ),
+    "requires-state-of-another-type": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { score[player] : Boolean }")),),
+        _host(),
+        f"uses {L._LIB}", "but game 'Boundary' declares it as `Integer`",
+        ((L._LIB, "requires {"),),
+    ),
+    "requires-function-undefined": Named(
+        ((L._LIB, _lib(L._LIB, _ROW_G)),),
+        _host(),
+        f"uses {L._LIB}", "which game 'Boundary' does not define",
+        ((L._LIB, "requires {"),),
+    ),
+    "contract-result-type": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { g(c : Card) : Integer }\n  function h(c : Card) = g(c) > 2")),),
+        _host(extra="function g(c : Card) = c.suit is hearts\n"),
+        f"uses {L._LIB}", "returning Boolean",
+        ((L._LIB, "requires {"),),
+    ),
+    "card-field-the-deck-lacks": Named(
+        ((L._LIB, _lib(L._LIB, "  function h(c : Card) = c.colour")),),
+        _host(),
+        f"uses {L._LIB}", "reads the field `colour`",
+        ((L._LIB, "c.colour"),),
+    ),
+    "answer-reads-a-call-site-pronoun": Named(
+        ((L._LIB, _lib(L._LIB, _ROW_G)),),
+        _host(extra="function g(c : Card) = score[actor]\n"),
+        "function g(c : Card)", "calls it under its contract",
+        ((L._LIB, "requires {"),),
+    ),
+    "answer-reads-the-play-source": Named(
+        ((L._LIB, _lib(L._LIB, (
+            "  requires { g(c : Card) : Integer }\n"
+            "  rule lr {\n    constrains: play_to_trick\n"
+            "    demands: cards in hand where g(card) > 0\n    if_impossible: hand\n  }"
+        ))),),
+        _host(rules="active_rules: [lr] ", extra="function g(c : Card) = number of cards in hand\n"),
+        "function g(c : Card)", "calls it under its contract",
+        ((L._LIB, "requires {"), (L._LIB, "rule lr {")),
+    ),
+    "recursion-through-library-text": Named(
+        ((L._LIB, _lib(L._LIB, _ROW_G)),),
+        _host(extra="function g(c : Card) = h(c)\n"),
+        "function g(c : Card)", "is recursive through",
+        ((L._LIB, "function h("),),
+    ),
+    "template-without-arguments": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE)),),
+        _host(rules="active_rules: [lr] "),
+        "active_rules: [lr]", "is parameterized",
+        ((L._LIB, "rule lr("),),
+    ),
+    "template-of-another-arity": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE)),),
+        _host(rules="active_rules: [lr(hearts, spades)] "),
+        "active_rules: [lr(", "argument(s), got 2",
+        ((L._LIB, "rule lr("),),
+    ),
+    "template-argument-not-a-suit": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE)),),
+        _host(rules="active_rules: [lr(score)] "),
+        "active_rules: [lr(", "must be a suit literal",
+        ((L._LIB, "rule lr("),),
+    ),
+    "rule-taking-no-arguments": Named(
+        ((L._LIB, _lib(L._LIB, (
+            "  rule lr {\n    constrains: play_to_trick\n"
+            "    demands: cards in hand where rank_value(card) > 3\n    if_impossible: hand\n  }"
+        ))),),
+        _host(rules="active_rules: [lr(hearts)] "),
+        "active_rules: [lr(", "takes no parameters",
+        ((L._LIB, "rule lr {"),),
+    ),
+    "substituted-template-argument": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE.replace("card.suit is s", "rank_value(card) > s"))),),
+        _host(rules="active_rules: [lr(hearts)] "),
+        "active_rules: [lr(", "Suit enum values have no arithmetic order",
+        ((L._LIB, "rank_value(card) > s"), (L._LIB, "rule lr(")),
+    ),
+    "call-of-another-arity": Named(
+        ((L._LIB, _lib(L._LIB, "  function h(c : Card) = rank_value(c)")),),
+        _host(body=f"score[0] := h()  {_TRICK}"),
+        "score[0] := h()", "h() expects 1 argument(s), got 0",
+        ((L._LIB, "function h("),),
+    ),
+    "call-argument-of-another-type": Named(
+        ((L._LIB, _lib(L._LIB, "  function h(c : Card) = rank_value(c)")),),
+        _host(body=f"score[0] := h(3)  {_TRICK}"),
+        "score[0] := h(3)", "h() expects Card, got Integer",
+        ((L._LIB, "function h("),),
+    ),
+    "run-of-another-arity": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { score[player] : Integer }\n  procedure p(x : Player) { score[x] += 1 }")),),
+        _host(body=f"run p()  {_TRICK}"),
+        "run p()", "procedure 'p' expects 1 argument(s), got 0",
+        ((L._LIB, "procedure p("),),
+    ),
+    "run-argument-of-another-type": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { score[player] : Integer }\n  procedure p(x : Player) { score[x] += 1 }")),),
+        _host(body=f"run p(true)  {_TRICK}"),
+        "run p(true)", "procedure 'p' expects Player, got Boolean",
+        ((L._LIB, "procedure p("),),
+    ),
+    "read-of-provided-state": Named(
+        ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
+        _host(body=f"score[0] := number of cards in hand where tally  {_TRICK}"),
+        "score[0] := number", "card-query predicate must be Boolean, got Integer",
+        ((L._LIB, "tally"),),
+    ),
+    "template-argument-in-a-nested-clause": Named(
+        ((L._LIB, _lib(L._LIB, _TEMPLATE.replace(
+            "card.suit is s",
+            "(if rank_value(card) > 9 then true elif rank_value(card) > s then true else false)",
+        ))),),
+        _host(rules="active_rules: [lr(hearts)] "),
+        "active_rules: [lr(", "Suit enum values have no arithmetic order",
+        ((L._LIB, "rank_value(card) > s"), (L._LIB, "rule lr(")),
+    ),
+    "row-through-a-library-function-to-the-answer": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { g(c : Card) : Boolean }\n  function libf(c : Card) = g(c)")),),
+        L._TRICK_HOST.format(
+            clauses="", rows="trump: libf(card)  follow_class: card.suit  card_strength: rank_value(card)",
+            zones="secret[player] : HiddenPile<player>",
+        ) + "function g(c : Card) = (number of cards in secret[1]) > 0\n",
+        "function g(c : Card)", "then function `g`",
+        ((L._LIB, "function libf("),),
+    ),
+    "removal-of-a-library-rule": Named(
+        ((L._LIB, _lib(L._LIB, (
+            "  rule lr {\n    constrains: play_to_trick\n"
+            "    demands: cards in hand where rank_value(card) > 3\n    if_impossible: hand\n  }"
+        ))),),
+        _host(rules="active_rules: [-lr] "),
+        "active_rules: [-lr]", "removes a rule that is never added",
+        ((L._LIB, "rule lr {"),),
+    ),
+    "override-of-a-library-rule": Named(
+        ((L._LIB, _lib(L._LIB, (
+            "  rule lr {\n    constrains: play_to_trick\n"
+            "    demands: cards in hand where rank_value(card) > 3\n    if_impossible: hand\n  }"
+        ))),),
+        _host(rules="active_rules: [override lr] "),
+        "active_rules: [override lr]", "is not yet supported by the runtime",
+        ((L._LIB, "rule lr {"),),
+    ),
+    "result-against-a-contract-only-library": Named(
+        ((L._LIB, _lib(L._LIB, "  requires { g(c : Card) : Integer }")),),
+        _host(extra="function g(c : Card) = c.suit is hearts\n"),
+        f"uses {L._LIB}", "returning Boolean",
+        ((L._LIB, "requires {"),),
+    ),
+    "game-rule-over-a-standard-library-rule": Named(
+        ((L._LIB, _lib(L._LIB, "  function z(c : Card) = rank_value(c)")),),
+        _host(extra=(
+            "rule MustFollowSuit {\n  constrains: play_to_trick\n"
+            "  demands: cards in hand where rank_value(card) > 3\n  if_impossible: hand\n}\n"
+        )),
+        "rule MustFollowSuit {", "shadows the standard",
+        (("stdlib", "rule MustFollowSuit"),),
+    ),
+}
+
+def _source_file(library: str) -> str:
+    return _STDLIB_RULES if library == "stdlib" else f"docs/libraries/{library}.cardlang"
+
+
+def _source_text(cell: Named, library: str) -> str:
+    if library == "stdlib":
+        return (_ROOT / _STDLIB_RULES).read_text()
+    return dict(cell.libraries)[library]
+
+
+def _named_bag(monkeypatch: pytest.MonkeyPatch, cell: Named) -> list[str]:
+    libraries = {
+        name: parse_library(text, f"docs/libraries/{name}.cardlang") for name, text in cell.libraries
+    }
+    monkeypatch.setattr(R, "library_names", lambda: frozenset(libraries))
+    monkeypatch.setattr(R, "load_library", lambda name: libraries[name])
+    monkeypatch.setattr(attribution, "witness_sources", lambda name: ())
+    try:
+        check_capacity(expand(typecheck(R.resolve(parse_text(cell.game, L._GAME_FILE)))))
+    except DiagnosticError as exc:
+        return L._rendered(exc)
+    return []
+
+
+def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
+    found = [(line, notes) for line, notes in _grouped(lines) if cell.says in line]
+    assert len(found) == 1, "\n".join(lines)
+    return found[0]
+
+
+# A library rule the game names but that the splice never activated -- a
+# template its reference does not instantiate -- is a definition all the same,
+# and its note names it.
+# cell -> the rule its notes name.
+_UNSPLICED_RULES = {
+    "template-without-arguments": "rule `lr`", "template-of-another-arity": "rule `lr`",
+    "template-argument-not-a-suit": "rule `lr`", "rule-taking-no-arguments": "rule `lr`",
+    "game-rule-over-a-standard-library-rule": "rule `MustFollowSuit`",
+}
+@pytest.mark.parametrize("name", sorted(_UNSPLICED_RULES))
+def test_a_note_at_an_unspliced_rule_names_the_rule(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    cell = NAMED[name]
+    lines = _named_bag(monkeypatch, cell)
+    _line, notes = _named_refusal(lines, cell)
+    assert notes and all(_UNSPLICED_RULES[name] in nt for nt in notes), "\n".join(lines)
+
+
+@pytest.mark.parametrize("name", sorted(NAMED))
+def test_a_refusal_naming_library_text_notes_its_line(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    cell = NAMED[name]
+    lines = _named_bag(monkeypatch, cell)
+    text = "\n".join(lines)
+    line, notes = _named_refusal(lines, cell)
+    assert line_kind(line) == "error", text
+    assert _location(line) == (L._GAME_FILE, _line_of(cell.game, cell.at)), text
+    want = {
+        (_source_file(lib), _line_of(_source_text(cell, lib), needle)) for lib, needle in cell.notes
+    }
+    assert {_location(nt) for nt in notes} == want, text
+    for nt in notes:
+        assert "library '" in nt or "the standard library" in nt, text
+
+
+@pytest.mark.parametrize("name", sorted(NAMED))
+def test_who_is_told_a_library_named_refusal_never_changes_what_is_refused(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """red under: have `attribution.tell` drop a refusal it notes."""
+    cell = NAMED[name]
+    told = L._errors(_named_bag(monkeypatch, cell))
+    with monkeypatch.context() as mp:
+        mp.setattr(attribution, "tell", attribution.keep_where_written)
+        kept = L._errors(_named_bag(mp, cell))
+    assert told == kept and told
+
+
+# --- no check spells library text into a sentence itself -------------------------
+
+# The words that name a library or its text in a sentence, and the attributes
+# holding a library's name or a definition's words.
+_LIBRARY_WORDS = re.compile(r"\blibrary '|\bthe standard library\b|\bstandard-library\b", re.I)
+_LIBRARY_WORD_BEFORE_VALUE = re.compile(r"\blibrary\s*'?$", re.I)
+_LIBRARY_ATTRS = frozenset({"where", "through", "library"})
+# The attributes holding a library's name or a definition's words as a str;
+# an entry's `through` is a Library Citation, which a sentence adds.
+_SPELLED_ATTRS = frozenset({"where", "library"})
+
+
+def _docstrings(tree: ast.AST) -> set[int]:
+    found: set[int] = set()
+    for nd in ast.walk(tree):
+        if isinstance(nd, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            first = nd.body[0] if nd.body else None
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                found.add(id(first.value))
+    return found
+
+
+def _installation_messages(tree: ast.AST) -> set[int]:
+    """The strings inside a `raise` of an exception that is no refusal: an
+    installation's own fault, told to whoever installed it."""
+    found: set[int] = set()
+    for nd in ast.walk(tree):
+        if isinstance(nd, ast.Raise) and isinstance(nd.exc, ast.Call):
+            func = nd.exc.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+            if name != "DiagnosticError":
+                found.update(id(sub) for sub in ast.walk(nd.exc))
+    return found
+
+
+def _spellings(source: str) -> list[str]:
+    """Each line where `source` spells a library's name or a definition's
+    library words into a string itself."""
+    tree = ast.parse(source)
+    skipped = _docstrings(tree) | _installation_messages(tree)
+    skipped |= {
+        id(piece)
+        for nd in ast.walk(tree) if isinstance(nd, ast.JoinedStr)
+        for piece in nd.values
+    }
+    found: list[str] = []
+    for nd in ast.walk(tree):
+        if id(nd) in skipped:
+            continue
+        if isinstance(nd, ast.JoinedStr):
+            pieces = nd.values
+            for at, piece in enumerate(pieces):
+                if isinstance(piece, ast.Constant) and isinstance(piece.value, str):
+                    following = pieces[at + 1] if at + 1 < len(pieces) else None
+                    if _LIBRARY_WORDS.search(piece.value) or (
+                        isinstance(following, ast.FormattedValue)
+                        and _LIBRARY_WORD_BEFORE_VALUE.search(piece.value)
+                    ):
+                        found.append(f"{nd.lineno}: {piece.value!r}")
+                elif (
+                    isinstance(piece, ast.FormattedValue)
+                    and isinstance(piece.value, ast.Attribute)
+                    and piece.value.attr in _LIBRARY_ATTRS
+                ):
+                    found.append(f"{nd.lineno}: {{{ast.unparse(piece.value)}}}")
+        elif isinstance(nd, ast.Constant) and isinstance(nd.value, str) and _LIBRARY_WORDS.search(nd.value):
+            found.append(f"{nd.lineno}: {nd.value!r}")
+        elif isinstance(nd, ast.BinOp) and isinstance(nd.op, ast.Add):
+            for operand in (nd.left, nd.right):
+                if isinstance(operand, ast.Attribute) and operand.attr in _SPELLED_ATTRS:
+                    found.append(f"{nd.lineno}: + {ast.unparse(operand)}")
+            left = nd.left
+            if (
+                isinstance(left, ast.Constant) and isinstance(left.value, str)
+                and _LIBRARY_WORD_BEFORE_VALUE.search(left.value)
+            ):
+                found.append(f"{nd.lineno}: {left.value!r} +")
+    return found
+
+
+_THE_STEP = frozenset({"attribution.py", "diagnostics.py"})
+
+
+def test_no_check_spells_library_text_into_a_sentence() -> None:
+    """The words naming a library or its text are made by the attribution
+    step alone, from a value carrying the text's span.
+
+    red under: write `f"library {name!r}"` into a sentence in resolve."""
+    spelled = [
+        f"{path.relative_to(_ROOT).as_posix()}:{at}"
+        for path in sorted(_PACKAGE.rglob("*.py"))
+        if path.relative_to(_PACKAGE).as_posix() not in _THE_STEP
+        for at in _spellings(path.read_text())
+    ]
+    assert spelled == []
+
+
+def test_the_spelling_census_reads_every_spelling() -> None:
+    """Each arm of `_spellings` finds its spelling, so the census cannot pass
+    by reading nothing.
+
+    red under: drop the `_LIBRARY_WORD_BEFORE_VALUE` arm from `_spellings`."""
+    sources = {
+        "word": "x = f\"library '{name}' requires\"\n",
+        "value": "x = f\"library {name!r} requires\"\n",
+        "standard": "x = 'the standard library holds'\n",
+        "where": "x = f\"in {origin.where}\"\n",
+        "added-name": "x = \"library \" + origin.library\n",
+        "added-where": "x = origin.where + \" reads\"\n",
+        "docstring": "def f():\n    \"\"\"library 'x' is quiet here.\"\"\"\n",
+        "installation": "raise ValueError(f\"library '{name}' is broken\")\n",
+    }
+    found = {key: len(_spellings(source)) for key, source in sources.items()}
+    assert found == {
+        "word": 1, "value": 1, "standard": 1, "where": 1, "added-name": 2, "added-where": 1,
+        "docstring": 0, "installation": 0,
+    }
+
+
+# Each check citing library text with no span, and why its sentence stands on
+# no line there: no library text stands behind the name, or another citation
+# in the same sentence carries the line.
+_UNSPANNED_CITATIONS: dict[tuple[str, str], str] = {
+    ("resolve.py", "_apply_uses"): "a repeated or unknown `uses` line, or the standard "
+    "library's: no library text is in question",
+    ("resolve.py", "_check_library_clause_gates"): "the subject; each definition the "
+    "gate lists is cited at its refused text",
+    ("resolve.py", "_check_library_lines_span"): "the subject; the definition holding "
+    "the call is cited at it",
+    ("typecheck.py", "_library_field_gate"): "the subject; the definition holding the "
+    "read is cited at it",
+    ("resolve.py", "_check_card_offering"): "the owner of a contract; the move type it "
+    "fixes is cited at its text",
+}
+_CITES = frozenset({"cite_library", "cite_definition", "cite_origin", "cite_where", "naming_library"})
+
+
+def test_a_citation_handed_no_span_says_why() -> None:
+    """red under: cite `library.name` with `None` in `_check_state_claims`."""
+    found: set[tuple[str, str]] = set()
+    for path in sorted(_PACKAGE.rglob("*.py")):
+        tree = ast.parse(path.read_text())
+        for top in ast.walk(tree):
+            if not isinstance(top, ast.FunctionDef):
+                continue
+            for nd in ast.walk(top):
+                if (
+                    isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name)
+                    and nd.func.id in _CITES and nd.args
+                    and isinstance(nd.args[-1], ast.Constant) and nd.args[-1].value is None
+                ):
+                    found.add((path.relative_to(_PACKAGE).as_posix(), top.name))
+    assert found == set(_UNSPANNED_CITATIONS)
+
+
+def test_a_library_checked_alone_raises_with_no_step_input() -> None:
+    """The standard library's own check raises through the step, which keeps
+    no input on what it raises.
+
+    red under: have `attribution.raise_where_written` raise the bag as it
+    stands."""
+    bag = DiagnosticBag()
+    span = Span(_STDLIB_RULES, 0, 1, 1, 1)
+    bag.error(attribution.cite_library("stdlib", span) + " refuses this", span)
+    with pytest.raises(DiagnosticError) as exc:
+        attribution.raise_where_written(bag)
+    told = exc.value.diagnostic
+    assert (told.message, told.route, told.for_game, told.stands_on) == (
+        "the standard library refuses this", None, None, (),
+    )
+
+
+def test_only_the_step_raises_a_bag_after_parse() -> None:
+    """A bag a check fills reaches a raise only through the step; the
+    parser's bag never holds a Library Citation.
+
+    red under: raise `DiagnosticError(bag.items[0])` in `stdlib/rules.py`."""
+    raisers: set[str] = set()
+    for path in sorted(_PACKAGE.rglob("*.py")):
+        for nd in ast.walk(ast.parse(path.read_text())):
+            if (
+                isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name)
+                and nd.func.id == "DiagnosticError" and nd.args
+                and isinstance(nd.args[0], ast.Subscript)
+                and isinstance(nd.args[0].value, ast.Attribute)
+                and nd.args[0].value.attr == "items"
+            ):
+                raisers.add(path.relative_to(_PACKAGE).as_posix())
+    assert raisers == {"attribution.py", "parse.py"}
+
+
+def test_a_quoted_operand_calling_two_library_functions_notes_both(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refusal quoting game text that calls two library functions notes
+    each one's line.
+
+    red under: have `typecheck._quoted_operand` cite only the first function
+    a call in the quote names."""
+    library = D._library(
+        ("score[player] : Integer",),
+        "function inner(a : Integer) = a + 1\n  function outer(a : Integer) = [a, a]",
+    )
+    zone = "hand[player] : Hand<player>"
+    game = D._host(zone, "as 0 { score[0] := outer(inner(1))[true] }")
+    witness = D._host(zone, "as 0 { score[0] := outer(inner(1))[0] }")
+    lines = L._bag(monkeypatch, library, game, (witness,))
+    text = "\n".join(lines)
+    assert any("outer(inner(1))" in ln for ln in L._errors(lines)), text
+    want = [_line_of(library, "function inner("), _line_of(library, "function outer(")]
+    assert _noted_lines(lines) == want, text
+
+
+def test_a_library_citation_is_never_spelled_into_a_str() -> None:
+    """red under: give `LibraryCitation` a `__format__` that returns its
+    words."""
+    cited = attribution.cite_library(L._LIB, None)
+    with pytest.raises(TypeError):
+        f"{cited}"
+    with pytest.raises(TypeError):
+        str(cited + " reads")
+
+
+# --- every library-to-game refusal told in the game names its library line -------
+
+
+def _told_in_the_game(monkeypatch: pytest.MonkeyPatch, witness: L.Witness) -> list[Diagnostic]:
+    """Every error the step tells outside a library's file while `witness`
+    runs a game that uses a library."""
+    told: list[Diagnostic] = []
+    real = attribution.tell
+
+    def recording(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) -> None:
+        real(bag, game, uses)
+        if attribution._WITNESSING.get() or not attribution._holders(game) and not uses:
+            return
+        told.extend(
+            d for d in bag.items
+            if d.severity.value == "error"
+            and d.span is not None
+            and not d.span.source_name.startswith(("docs/libraries/", _STDLIB_RULES))
+        )
+
+    monkeypatch.setattr(attribution, "tell", recording)
+    witness(monkeypatch)
+    return told
+
+
+def test_every_library_to_game_refusal_told_in_the_game_names_its_library_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Read off every refusal the step tells in the game's file, naming a
+    library, while each witness of the ledger's library-to-game families
+    runs; a sentence naming no library refuses the game's own text.
+
+    red under: have `attribution._bare` drop every note."""
+    missing: list[str] = []
+    read = 0
+    for key, witness in sorted(L._library_to_game_witnesses().items()):
+        with monkeypatch.context() as mp:
+            for d in _told_in_the_game(mp, witness):
+                if not _LIBRARY_WORDS.search(d.message):
+                    continue
+                read += 1
+                if not d.notes:
+                    missing.append(f"{key}: {d.format()}")
+    assert read > 0
+    assert missing == []
 
 
 # --- the step alone makes a note ------------------------------------------------

@@ -102,8 +102,16 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_ROWS,
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
-from cardlang.attribution import raise_if_errors
-from cardlang.diagnostics import DiagnosticBag, Span
+from cardlang.attribution import (
+    cite_library,
+    cite_all,
+    cite_named,
+    cite_origin,
+    cite_where,
+    naming_library,
+    raise_if_errors,
+)
+from cardlang.diagnostics import DiagnosticBag, Said, Span
 from cardlang.domains import CARD_PARAM_DOMAINS, require_role, role_of, role_type
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
@@ -545,6 +553,9 @@ class TypeEnv:
     # Every node of library text, by identity, to the origin the splice stamped
     # on the definition holding it (`library_origins`). Game text is absent.
     origins: Mapping[int, n.LibraryOrigin] = field(default_factory=dict)
+    # Each function and procedure the game defines, its own or spliced, by
+    # (namespace, name): what a refusal naming it cites.
+    definitions: Mapping[tuple[str, str], object] = field(default_factory=dict)
 
     def with_local(self, name: str, t: Type) -> TypeEnv:
         return replace(self, locals={**self.locals, name: t})
@@ -577,6 +588,7 @@ TYPE_ENV_FIELD_SOURCES: dict[str, Literal["clause", "declaration", "scope", "spl
     "play_source": "clause",
     "axis_enums": "clause",
     "origins": "splice",
+    "definitions": "declaration",
 }
 
 
@@ -1222,6 +1234,10 @@ def _ambient_env(game: Game) -> TypeEnv:
         play_source=_play_source_type(game, zones),
         axis_enums=_axis_enum_names(game),
         origins=library_origins(game),
+        definitions={
+            **{("function", f.name): f for f in game.functions},
+            **{("procedure", p.name): p for p in game.procedures},
+        },
     )
 
 
@@ -1586,12 +1602,21 @@ def _check_contracted_results(game: Game, env: TypeEnv, bag: DiagnosticBag) -> N
             want = _contract_type(stamp.result_type, env)
             if not coercible(got, want):  # choke-point-exempt: a definition's inferred result against its contract row, no operand
                 bag.error(
-                    f"library '{stamp.library}' requires function `{stamp.row}`, "
-                    f"but game '{game.name}' defines `{f.name}` returning "
-                    f"{_type_name(got)} — the library's calls read it as "
-                    f"{_type_name(want)}",
+                    cite_library(stamp.library, stamp.row_span)
+                    + f" requires function " + cite_where(f"`{stamp.row}`", stamp.row_span) + f", "
+                    f"but game '{game.name}' defines " + cite_named(f, f"`{f.name}`")
+                    + f" returning {_type_name(got)} — "
+                    + cite_library(stamp.library, stamp.row_span)
+                    + f"'s calls read it as {_type_name(want)}",
                     stamp.uses_span,
                 )
+
+
+def _named(env: TypeEnv, namespace: str, name: str, words: str) -> Said:
+    """`words` naming `name` of `namespace`: a citation of the game's
+    definition, the bare words for a Builtin or a Primitive."""
+    found = env.definitions.get((namespace, name))
+    return words if found is None else cite_named(found, words)
 
 
 def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
@@ -1649,7 +1674,7 @@ def _check_enum_literal(
     lit: n.StrLit,
     env: TypeEnv,
     bag: DiagnosticBag,
-    site: tuple[str, Span | None] | None = None,
+    site: tuple[Said, Span | None] | None = None,
 ) -> None:
     """A string literal where a value of `enum` is wanted: the one spelling
     rule, at a comparison and at every operand alike (decisions.md, "Rank and
@@ -1660,7 +1685,7 @@ def _check_enum_literal(
     message and span, which the refusal leads with; a comparison has none."""
     origin = env.origins.get(id(lit))
     if origin is not None and enum.name in env.axis_enums:
-        bag.error(_library_axis_refusal(origin, enum, lit.value, env), lit.span)
+        bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span)
         return
     if lit.value not in _enum_domain(env, enum.name):
         problem = f'"{lit.value}" is not a {enum.name} value of this deck'
@@ -1676,17 +1701,17 @@ def _check_enum_literal(
         bag.error(problem, lit.span)
     else:
         msg, span = site
-        bag.error(f"{msg}: {problem}", span)
+        bag.error(msg + f": {problem}", span)
 
 
 def _library_axis_refusal(
-    origin: n.LibraryOrigin, enum: TEnum, value: str, env: TypeEnv
-) -> str:
+    origin: n.LibraryOrigin, enum: TEnum, value: str, env: TypeEnv, at: Span | None
+) -> Said:
     noun = enum.name.lower()
     items = content_noun(env.flavor, plural=True)
     if origin.provided is not None:
-        fix = (
-            f"declare `{origin.provided}` in `requires {{ }}` instead of "
+        fix: Said = (
+            "declare " + cite_where(f"`{origin.provided}`", at) + " in `requires { }` instead of "
             f"`state {{ }}`, so the game declares it and picks its first {noun}"
         )
     else:
@@ -1695,9 +1720,9 @@ def _library_axis_refusal(
             f"the game pass it"
         )
     return (
-        f'library \'{origin.library}\' names the {noun} "{value}" — a library '
+        cite_library(origin.library, at) + f' names the {noun} "{value}" — a library '
         f"names no {noun}, because the games that use it play with different "
-        f"{items}; {fix}"
+        f"{items}; " + fix
     )
 
 
@@ -2150,12 +2175,20 @@ def _library_field_gate(
     else:
         lacks = f"this game's cards have the fields {field_list}"
         fix = "a game played with these cards cannot use this library"
-    message = (
-        f"library '{origin.library}' reads the field `{e.field}` (in "
-        f"{origin.where}), but {lacks} — {fix}"
+    bag.error(
+        cite_library(origin.library, None) + f" reads the field `{e.field}` (in "
+        + cite_where(origin.where, e.span) + f"), but {lacks} — "
+        + naming_library(fix, origin.library, None),
+        origin.uses_span,
     )
-    if not any(d.message == message and d.span == origin.uses_span for d in bag.items):
-        bag.error(message, origin.uses_span)
+    # One refusal per field and definition, standing on each read of it.
+    told = bag.items.pop()
+    for at, d in enumerate(bag.items):
+        if (d.message, d.span) == (told.message, told.span):
+            bag.items[at] = replace(d, stands_on=d.stands_on + told.stands_on)
+            break
+    else:
+        bag.items.append(told)
     return True
 
 
@@ -2191,7 +2224,7 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
             f"the right, got {_type_name(rbare)}",
             e.right.span,
             for_game=None if origin is None or taken is None else (
-                f"library '{origin.library}''s {origin.where} writes `offset_by "
+                cite_origin(origin, e.right.span) + f" writes `offset_by "
                 f"{taken}`, which expects a SeatDirection, but this game declares "
                 f"its own `{taken}`, which the library's `{taken}` then reads — "
                 f"rename this game's `{taken}`"
@@ -2223,9 +2256,25 @@ def _spell_operand(e: n.Expr) -> str:
 _UNKEYED_COLLECTION = TCollection(TAny())
 
 
+def _quoted_operand(env: TypeEnv, e: n.Expr) -> Said:
+    """`e` quoted as the game wrote it, cited at every defined function a
+    call in it names."""
+    words = f"`{_spell_operand(e)}`"
+    def exprs(x: n.Expr) -> Iterator[n.Expr]:
+        yield x
+        for child in _child_exprs(x):
+            yield from exprs(child)
+
+    called: dict[str, object] = {}
+    for nd in exprs(e):
+        if isinstance(nd, n.Call) and (found := env.definitions.get(("function", nd.func))):
+            called.setdefault(nd.func, found)
+    return cite_all(tuple(called.values()), words)
+
+
 def _card_field_hint(
-    got: Type, want: Type, got_name: str | None, call: n.Call | None
-) -> str:
+    got: Type, want: Type, got_name: str | None, call: n.Call | None, env: TypeEnv
+) -> Said:
     """The fix a refusal appends when a Card stands where one of a card's
     fields is wanted: the field spelling, read off `CARD_FIELDS`, written out
     as the whole call when the operand is a one-argument call's named
@@ -2240,7 +2289,7 @@ def _card_field_hint(
     if got_name is None:
         return f" — a card's {field} is its `.{field}`"
     if call is not None and len(call.args) == 1:
-        return f" — write `{call.func}({got_name}.{field})`"
+        return " — write `" + _named(env, "function", call.func, call.func) + f"({got_name}.{field})`"
     return f" — a card's {field} is `{got_name}.{field}`"
 
 
@@ -2604,7 +2653,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
         return
     origin = env.origins.get(id(index))
     if origin is not None and isinstance(bare, (TPlayer, TTeam)):
-        bag.error(_library_role_refusal(origin, index.value, bare), index.span)
+        bag.error(_library_role_refusal(origin, index.value, bare, index.span), index.span)
         return
     if isinstance(bare, TPlayer):
         # A game always declares `players:`, so `max_players` is the real seat
@@ -2640,7 +2689,9 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
         )
 
 
-def _library_role_refusal(origin: n.LibraryOrigin, value: int, role: Type) -> str:
+def _library_role_refusal(
+    origin: n.LibraryOrigin, value: int, role: Type, at: Span | None
+) -> Said:
     """A seat or team number in library text: the library names none, since
     the games that use it seat different numbers of players and form
     different teams (decisions.md, "Family libraries")."""
@@ -2650,15 +2701,15 @@ def _library_role_refusal(origin: n.LibraryOrigin, value: int, role: Type) -> st
     else:
         noun, why, binder = kind.lower(), "form different teams", "side"
     if origin.provided is not None:
-        fix = (
-            f"declare `{origin.provided}` in `requires {{ }}` instead of "
+        fix: Said = (
+            "declare " + cite_where(f"`{origin.provided}`", at) + " in `requires { }` instead of "
             f"`state {{ }}`, so the game declares it and picks its first {noun}"
         )
     else:
         fix = f"add `{binder} : {kind}` to `requires {{ }}` and write `{binder}` here"
     return (
-        f"library '{origin.library}' names {noun} {value} — a library names no "
-        f"{noun}, because the games that use it {why}; {fix}"
+        cite_library(origin.library, at) + f" names {noun} {value} — a library names no "
+        f"{noun}, because the games that use it {why}; " + fix
     )
 
 
@@ -2668,7 +2719,7 @@ def _check_operand(
     expected: Type,
     env: TypeEnv,
     bag: DiagnosticBag,
-    msg: str,
+    msg: Said,
     span: Span | None,
     *,
     expected_name: str | None = None,
@@ -2709,7 +2760,7 @@ def _check_operand(
         bag.error(
             msg
             + _key_hint(got, expected, _name_of(node), expected_name)
-            + _card_field_hint(got, expected, _name_of(node), call)
+            + _card_field_hint(got, expected, _name_of(node), call, env)
             + _numeric_rank_hint(node, got, bare, env),
             span,
         )
@@ -3043,7 +3094,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             args = list(e.args)
             if len(args) != len(sig.params):
                 bag.error(
-                    f"{e.func}() expects {len(sig.params)} argument(s), got {len(args)}",
+                    _named(env, "function", e.func, f"{e.func}()")
+                    + f" expects {len(sig.params)} argument(s), got {len(args)}",
                     e.span,
                 )
             else:
@@ -3051,7 +3103,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     got = infer(arg, env)
                     _check_operand(
                         arg, got, param, env, bag,
-                        f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
+                        _named(env, "function", e.func, f"{e.func}()")
+                        + f" expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
                         call=e,
                     )
@@ -3104,21 +3157,21 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # runtime that indexes the map directly and requires the key
                 # to be one it actually holds.
                 idx_t = infer(e.index, env)
-                what = (
+                what: Said = (
                     f"`{obj_ref.name}`"
                     if isinstance(obj_ref, n.NameRef)
                     else "this map"
                 )
                 _check_operand(
                     e.index, idx_t, obj.key, env, bag,
-                    f"{what} is keyed by {_type_name(obj.key)} — got "
+                    f"" + what + f" is keyed by {_type_name(obj.key)} — got "
                     f"{_type_name(idx_t)}",
                     e.span,
                 )
             elif isinstance(obj, TCollection) and obj.zone:
-                what = f"`{_spell_operand(e.obj)}`"
+                what = _quoted_operand(env, e.obj)
                 bag.error(
-                    f"{what} is a zone, and a zone's cards are not addressed by "
+                    f"" + what + f" is a zone, and a zone's cards are not addressed by "
                     f"position — read them with a card query (`cards in ... "
                     f"where ...`) or `top_of(...)`",
                     e.span,
@@ -3130,16 +3183,16 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # (`_check_positional_index_range`); a computed index is the
                 # runtime's (`evaluate._subscript`).
                 idx_t = infer(e.index, env)
-                what = f"`{_spell_operand(e.obj)}`"
+                what = _quoted_operand(env, e.obj)
                 _check_operand(
                     e.index, idx_t, TInteger(), env, bag,
-                    f"a position in {what} is an Integer counted from 0 — got "
+                    f"a position in " + what + f" is an Integer counted from 0 — got "
                     f"{_type_name(idx_t)}",
                     e.index.span or e.span,
                 )
                 if isinstance(_bare(idx_t), TAny):
                     bag.error(
-                        f"a position in {what} types as `Any`, the permissive "
+                        f"a position in " + what + f" types as `Any`, the permissive "
                         f"top (a value the checker cannot type -- a "
                         f"mixed-branch `if`, an untyped read); it must type "
                         f"exactly Integer, because a wrong position is "
@@ -3149,7 +3202,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 if isinstance(e.index, n.IntLit) and e.index.value < 0:
                     bag.error(
                         f"position {e.index.value} is before the first: a "
-                        f"position in {what} counts from 0",
+                        f"position in " + what + f" counts from 0",
                         e.index.span or e.span,
                     )
     elif isinstance(e, n.Member):
@@ -3242,7 +3295,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_is_check(e, env, bag)
 
 
-def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:
+def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: Said) -> None:
     """A Boolean position, checked TOTALLY: the permissive top is refused here
     as well as a concrete wrong type.
 
@@ -3256,14 +3309,14 @@ def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None
     t = infer(e, env)
     if isinstance(t, TAny):
         bag.error(
-            f"{where} types as `Any`, the permissive top (a value the checker "
+            f"" + where + f" types as `Any`, the permissive top (a value the checker "
             f"cannot type -- a mixed-branch `if`, an untyped read); it must "
             f"type exactly Boolean, because nothing downstream catches a "
             f"non-Boolean here: every value is truthy and the game plays on",
             e.span,
         )
     elif not isinstance(t, TBoolean):
-        bag.error(f"{where} must be Boolean, got {_type_name(t)}", e.span)
+        bag.error(where + f" must be Boolean, got {_type_name(t)}", e.span)
 
 
 def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -3283,7 +3336,7 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
     got = infer(expr, env)
     if isinstance(got, TAny):
         bag.error(
-            f"rule '{rule.name}' `if_impossible:` types as `Any`, the permissive "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" `if_impossible:` types as `Any`, the permissive "
             f"top (a value the checker cannot type -- a mixed-branch `if`, an "
             f"untyped read); it must type exactly a card set, because the "
             f"runtime drops a fallback it cannot recognise instead of refusing "
@@ -3292,7 +3345,7 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
         )
         return
     message = (
-        f"rule '{rule.name}' `if_impossible:` must be a set of cards (a zone "
+        "rule " + cite_named(rule, f"'{rule.name}'") + " `if_impossible:` must be a set of cards (a zone "
         f"like `hand`, or a card query) or an `error(...)`, got "
         f"{_type_name(got)}"
     )
@@ -3426,8 +3479,8 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             )
         if len(s.args) != len(sig.params):
             bag.error(
-                f"procedure '{s.name}' expects {len(sig.params)} argument(s), "
-                f"got {len(s.args)}",
+                "procedure " + _named(env, "procedure", s.name, f"'{s.name}'")
+                + f" expects {len(sig.params)} argument(s), got {len(s.args)}",
                 s.span,
             )
         else:
@@ -3439,8 +3492,8 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
                 # call-arg and subscript sites check, reached one construct later.
                 _check_operand(
                     arg, got, param, env, bag,
-                    f"procedure '{s.name}' expects {_type_name(param)}, got "
-                    f"{_type_name(got)}",
+                    "procedure " + _named(env, "procedure", s.name, f"'{s.name}'")
+                    + f" expects {_type_name(param)}, got {_type_name(got)}",
                     arg.span,
                 )
     for expr in _stmt_exprs(s):
@@ -3515,7 +3568,8 @@ def _check_state_default_type(
     got = infer(decl.default, env)
     _check_operand(
         decl.default, got, declared, env, bag,
-        f"state variable '{decl.name}' is declared {_type_name(declared)}, "
+        "state variable " + cite_named(decl, f"'{decl.name}'")
+        + f" is declared {_type_name(declared)}, "
         f"but its default has type {_type_name(got)}",
         decl.span,
     )
@@ -4414,12 +4468,16 @@ def typecheck(game: Game) -> Game:
                 env, _parameter_binders(move_type, env.positions, env.directions)
             )
             _check_expr(move_type.when, mt_env, bag)
-            _check_bool(move_type.when, mt_env, bag, f"move '{move_type.name}' `when:` guard")
+            _check_bool(
+                move_type.when, mt_env, bag,
+                "move " + cite_named(move_type, f"'{move_type.name}'") + " `when:` guard",
+            )
     for rule in game.rules:
         if rule.applies_when is not None and rule.applies_when.pred is not None:
             _check_expr(rule.applies_when.pred, env, bag)
             _check_bool(
-                rule.applies_when.pred, env, bag, f"rule '{rule.name}' `applies_when:`"
+                rule.applies_when.pred, env, bag,
+                "rule " + cite_named(rule, f"'{rule.name}'") + " `applies_when:`",
             )
         if rule.demands is not None:
             _check_expr(rule.demands.expr, env, bag)

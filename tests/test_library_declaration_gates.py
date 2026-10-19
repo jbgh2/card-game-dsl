@@ -447,7 +447,7 @@ def _climb_cells() -> dict[str, Cell]:
         game = _with_uses(games[engine])
         for action in primitives.climb_actions(engine):
             library = _library((), f"move_type {action} {{ effect {{ }} }}")
-            # "a game whose climbing round uses it cannot use this library".
+            # "a game whose climbing round uses it cannot use" the library.
             dropped = game.replace(f"\n  uses {_LIB}", "", 1)
             offered = _host(_KEPT, f"as 0 {{ offer to 0 one of [{action}] }}")
             cells[f"{engine}-{action}"] = Cell(

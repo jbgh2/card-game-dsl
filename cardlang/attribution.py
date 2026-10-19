@@ -14,14 +14,25 @@ Assumes:      every diagnostic a pass collects carries the span of the text it
               into library text attaches that crossing (`Route`) to every
               refusal it raises there that the crossing causes; a check that
               knows the sentence a game's author should read for a refusal of
-              library text supplies it (`for_game`); a check that refuses
-              the game's text for library text it reached supplies that
-              library text (`stands_on`); every spliced definition carries its
-              `n.LibraryOrigin`, and the block a library procedure's `run`
-              becomes carries the procedure's (`expand`).
+              library text supplies it (`for_game`); a sentence names a
+              library, its text, or any function, procedure, move type,
+              rule, template or provided state variable, the game's own
+              included, only by a Library Citation made here
+              (`cite_library`, `cite_definition`, `cite_origin`,
+              `cite_named`, `cite_where`), handed the span of the text it
+              names, and the bag hands that span on as text the refusal
+              stands on (a game's own makes no note);
+              a check that refuses the game's text for library text it
+              reached and does not name supplies that text (`stands_on`);
+              every spliced definition carries its `n.LibraryOrigin`, and the
+              block a library procedure's `run` becomes carries the
+              procedure's (`expand`).
 Establishes:  `raise_if_errors` is the only way a pass after the splice raises
-              its diagnostics, and `tell` the one place a diagnostic's file is
-              decided and its notes made. A refusal carrying a route is told
+              its diagnostics, `raise_where_written` the only way a library
+              checked alone raises its own, and `tell` the one place a
+              diagnostic's file is decided and its notes made. The words
+              naming a library or its definitions in any sentence are made
+              here. A refusal carrying a route is told
               at the route's game text, with its crossing kind's sentence
               (`FIX_TABLE`) or its `for_game` sentence. A refusal with no
               route, standing in a library definition some Library Witness
@@ -29,8 +40,15 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               game's `uses` line, naming the definition and the Library
               Witness. Either keeps the library text it stood in as its note,
               naming the definition holding it. A refusal standing at the
-              game's text with library text it reached keeps that text as
-              its note. Any other refusal stays where it stands, with no
+              game's text with library text it names or reached keeps that
+              text as its note. A refusal's notes are every distinct library
+              line it stands on, in one union: where it was raised, its
+              `stands_on`, its sentences' citations, and the definition or
+              provided state the game text it is told at names (the
+              innermost naming node there, or one whose argument stands
+              there) or a template argument there was substituted into
+              (`_Standing`). A refusal told in a library's file keeps no
+              note. Any other refusal stays where it stands, with no
               note; where no Library Witness of its library checks clean, one
               warning on the `uses` line says so, and where one does but none
               reaches its definition, one warning names the definition. A
@@ -41,7 +59,12 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               Play helpers where it plays a trick round, and the library's
               provided state.
 Now illegal:  a diagnostic leaving a pass with a route, a `for_game` or a
-              `stands_on`; a note made anywhere but here; a warning that
+              `stands_on`; a note made anywhere but here; a check spelling a
+              library's name or a definition's library words into a sentence
+              itself (tests/test_library_notes.py census), a refusal
+              naming a definition in plain text
+              (tests/test_definition_citations.py), or a Library Citation
+              spelled into a str (it raises); a warning that
               changes what is refused (each is told only beside a refusal); a
               check telling a refusal of library text on the `uses` line
               itself, outside the gates decisions.md names.
@@ -50,10 +73,10 @@ Now illegal:  a diagnostic leaving a pass with a route, a `for_game` or a
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, is_dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -61,10 +84,13 @@ from cardlang.diagnostics import (
     Diagnostic,
     DiagnosticBag,
     DiagnosticError,
+    LibraryCitation,
     Note,
+    Said,
     Severity,
     Span,
     line_kind,
+    rendered,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -132,6 +158,19 @@ def raise_if_errors(
     if not bag.has_errors:
         return
     tell(bag, game, uses)
+    _raise(bag)
+
+
+def raise_where_written(bag: DiagnosticBag) -> None:
+    """Raise `bag`'s diagnostics, each told where it stands, when it holds an
+    error: a library checked alone, before any game is read."""
+    if not bag.has_errors:
+        return
+    bag.items[:] = [_bare(d) for d in bag.items]
+    _raise(bag)
+
+
+def _raise(bag: DiagnosticBag) -> None:
     error = DiagnosticError(bag.items[0])
     if len(bag.items) > 1:
         error.add_note(bag.format())
@@ -158,6 +197,7 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
         return
     holders = _holders(game)
     lines = _uses_lines(game, uses, holders)
+    standing = _standing(game, holders, lines)
     told: list[Diagnostic] = []
     seen: dict[tuple[str, Span | None], int] = {}
     unproven: dict[str, Span] = {}
@@ -183,9 +223,11 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                 elif origin is not None:
                     unreached.setdefault((library, origin.where), lines[library])
         if moved is None:
-            told.append(_bare(d, (), d.stands_on, holders, lines))
+            stands = d.stands_on + standing.at(d.span)
+            told.append(_bare(d, (), stands, holders, lines))
             continue
-        noted = _bare(moved, (d.span,), d.stands_on, holders, lines)
+        stands = d.stands_on + standing.at(moved.span)
+        noted = _bare(moved, (d.span,), stands, holders, lines)
         key = (moved.message, moved.span)
         if key not in seen:
             seen[key] = len(told)
@@ -239,18 +281,22 @@ def _bare(
     lines: dict[str, Span] | None = None,
 ) -> Diagnostic:
     """`d` told as it stands, with no step input left on it, and the library
-    text it stands on as its notes: where it was raised, when that is library
-    text outside the file `d` is told in, and otherwise each library line of
-    `stands_on`."""
+    text it stands on as its notes: each distinct library line of where it
+    was raised and of `stands_on`, in that order, outside the file `d` is
+    told in; none where `d` is told in a library's file."""
+    in_library = d.span is not None and (
+        _holder(d.span, holders or []) is not None or _library_of(d.span, lines or {}) is not None
+    )
+
     def noted(spans: tuple[Span | None, ...]) -> tuple[Note, ...]:
         found: dict[tuple[str, int], Note] = {}
-        for at in spans:
+        for at in () if in_library else spans:
             nt = _note(at, d.span, holders or [], lines or {})
             if nt is not None:
                 found.setdefault((nt.span.source_name, nt.span.line), nt)
         return tuple(found.values())
 
-    notes = noted(raised_at) or noted(stands_on)
+    notes = noted(raised_at + stands_on)
     if d.route is None and d.for_game is None and not d.stands_on and not notes:
         return d
     return Diagnostic(d.severity, d.message, d.span, notes=notes)
@@ -266,15 +312,76 @@ def _note(
         return None
     origin = _holder(at, holders)
     if origin is not None:
-        return Note(at, f"in {_library_words(origin.library)}'s {origin.where}")
+        return Note(at, f"in {_library_words(origin.library)}'s {_where(origin)}")
     library = _library_of(at, lines)
     return None if library is None else Note(at, f"in {_library_words(library)}")
+
+
+def _where(origin: n.LibraryOrigin) -> str:
+    """The definition `origin` records, in the designer's words, after its
+    library's name: a provided declaration by the variable it declares."""
+    return origin.where if origin.provided is None else f"provided state `{origin.provided}`"
 
 
 def _library_words(library: str) -> str:
     from cardlang.stdlib.rules import STDLIB_NAME
 
     return "the standard library" if library == STDLIB_NAME else f"library '{library}'"
+
+
+# --- the words a sentence names library text by -----------------------------------
+
+
+def cite_library(library: str, at: Span | None) -> LibraryCitation:
+    """`library` named alone, standing on the library text at `at`: the text
+    the sentence is about, None where it names no text of the library."""
+    return LibraryCitation(_library_words(library), at)
+
+
+def cite_definition(library: str, where: str, at: Span | None) -> LibraryCitation:
+    """`where`, a definition of `library` in the designer's words, standing on
+    the library text at `at`."""
+    return LibraryCitation(f"{_library_words(library)}'s {where}", at)
+
+
+def cite_origin(origin: n.LibraryOrigin, at: Span | None) -> LibraryCitation:
+    """The definition `origin` records, standing on the library text at
+    `at`."""
+    return cite_definition(origin.library, _where(origin), at)
+
+
+def cite_named(definition: object, words: str) -> LibraryCitation:
+    """`words` naming `definition` -- a function, procedure, move type, rule
+    or template, or a state declaration -- standing on its text. The game's
+    own definition is cited alike and makes no note, its text being in the
+    file the refusal is told in."""
+    at = getattr(definition, "span", None)
+    return LibraryCitation(words, at if isinstance(at, Span) else None)
+
+
+def cite_all(definitions: Sequence[object], words: str) -> Said:
+    """`words` naming every one of `definitions`, each standing on its text:
+    a quote calling several, its words cited once and each other definition
+    by a citation of no words."""
+    if not definitions:
+        return words
+    out: Said = cite_named(definitions[0], words)
+    for definition in definitions[1:]:
+        out = out + cite_named(definition, "")
+    return out
+
+
+def naming_library(text: str, library: str, at: Span | None) -> Said:
+    """`text` with its "this library" naming `library`, standing on the
+    library text at `at`: a fix phrased for any library, told about one."""
+    before, found, after = text.partition("this library")
+    return text if not found else before + cite_library(library, at) + after
+
+
+def cite_where(where: str, at: Span | None) -> LibraryCitation:
+    """`where`, a definition in the designer's words, in a sentence that has
+    named its library already, standing on the library text at `at`."""
+    return LibraryCitation(where, at)
 
 
 def _routed(d: Diagnostic) -> Diagnostic:
@@ -285,13 +392,14 @@ def _routed(d: Diagnostic) -> Diagnostic:
     sentence = FIX_TABLE[route.kind]
     message = d.message
     if sentence is not None:
-        message += ". " + sentence.format(name=route.name, library=route.library, fix=route.fix)
+        fix = None if route.fix is None else rendered(route.fix)[0]
+        message += ". " + sentence.format(name=route.name, library=route.library, fix=fix)
     return Diagnostic(d.severity, message, route.at)
 
 
 def _certified(message: str, origin: n.LibraryOrigin, witness: str) -> str:
     return (
-        f"library '{origin.library}''s {origin.where} is refused in this game, "
+        f"library '{origin.library}''s {_where(origin)} is refused in this game, "
         f"though {witness} checks clean with library '{origin.library}': {message}"
     )
 
@@ -330,6 +438,126 @@ def _holders(game: n.Game) -> list[_Holder]:
     return found
 
 
+_Place = tuple[str, int, int]
+
+
+def _at(span: Span | None) -> _Place | None:
+    return None if span is None else (span.source_name, span.start, span.end)
+
+
+@dataclass(frozen=True)
+class _Standing:
+    """The game text that stands on library text. A template argument the
+    game wrote, substituted into a library definition, stands on the library
+    text holding it, and so does every node inside it. Game text naming a
+    spliced library definition or provided state -- by `resolve`'s naming
+    slots and a classified state read, a call, a `run`, an offer, an
+    activation, a read -- stands on that definition, and so does an argument
+    of it standing at no naming of its own."""
+
+    substituted: dict[_Place | None, tuple[Span, ...]]
+    # Each node naming something, by its place: what it names in library
+    # text, and the places of its direct children.
+    naming: tuple[tuple[Span, tuple[Span, ...], frozenset[_Place | None]], ...]
+    named_at: frozenset[_Place | None]
+
+    def at(self, span: Span | None) -> tuple[Span, ...]:
+        """The library text a refusal standing at `span` stands on: the
+        innermost naming node standing at `span` itself, or else one whose
+        argument stands there."""
+        if span is None:
+            return ()
+        place = _at(span)
+        found = self.substituted.get(place, ())
+        if place in self.named_at:
+            own = [defined for at, defined, _ in self.naming if _at(at) == place]
+            return found + tuple(d for named in own for d in named)
+        parents = [(at, defined) for at, defined, children in self.naming if place in children]
+        if parents:
+            _at_span, defined = min(parents, key=lambda entry: entry[0].end - entry[0].start)
+            found += defined
+        return found
+
+
+def _standing(game: n.Game, holders: list[_Holder], lines: dict[str, Span]) -> _Standing:
+    from cardlang import resolve
+    from cardlang.ast import nodes as ast_nodes
+
+    substituted: dict[_Place | None, tuple[Span, ...]] = {}
+
+    def visit(node: object, holding: Span, inside: bool) -> None:
+        span = getattr(node, "span", None)
+        here = isinstance(span, Span) and span.source_name != holding.source_name
+        if here or inside:
+            substituted.setdefault(_at(span) if isinstance(span, Span) else None, (holding,))
+        inner = holding if here or inside or not isinstance(span, Span) else span
+        for child in _children(node):
+            visit(child, inner, here or inside)
+
+    pools: dict[str, dict[str, object]] = {
+        ns: {d.name: d for d in getattr(game, field)}
+        for ns, field in (*resolve.HOSTED_REACH_POOLS.items(), ("rule", "rules"))
+    }
+    pools["state"] = {
+        d.name: d for d in (game.state.decls if game.state is not None else ())
+    }
+    for ns, pool in pools.items():
+        for d in pool.values():
+            span = getattr(d, "span", None)
+            if ns != "state" and getattr(d, "origin", None) is not None and isinstance(span, Span):
+                visit(d, span, False)
+    substituted.pop(None, None)
+    slots = getattr(resolve, "_NAMING_SLOTS_BY_TYPE")
+    naming: list[tuple[Span, tuple[Span, ...], frozenset[_Place | None]]] = []
+    for node in resolve._walk(game):
+        span = getattr(node, "span", None)
+        if not isinstance(span, Span) or _holder(span, holders) or _library_of(span, lines):
+            continue
+        names: list[tuple[str, str]] = []
+        if isinstance(node, ast_nodes.NameRef):
+            # A read names state, or nothing yet resolved; a value, a binder or
+            # a pronoun names no text a refusal could stand on.
+            if node.ref_kind == "state_var":
+                names.append(("state", node.name))
+            elif node.ref_kind is not None:
+                continue
+        elif type(node) in slots:
+            for field_name in slots[type(node)]:
+                ns = resolve.slot_namespace(node, field_name) or ""
+                names.extend((ns, name) for name in resolve.slot_strings(node, field_name))
+        else:
+            continue
+        defined = tuple(
+            at for ns, name in names
+            if getattr(d := pools.get(ns, {}).get(name), "origin", None) is not None
+            and isinstance(at := getattr(d, "span", None), Span)
+        )
+        children = frozenset(
+            _at(child_span) for child in _children(node)
+            if isinstance(child_span := getattr(child, "span", None), Span)
+        )
+        naming.append((span, defined, children))
+    return _Standing(substituted, tuple(naming), frozenset(_at(at) for at, _, _ in naming))
+
+
+def _children(node: object) -> Iterator[object]:
+    """The nodes one level under `node`, through nested tuples, the stamps
+    the splice leaves aside."""
+    if not is_dataclass(node) or isinstance(node, type):
+        return
+    for f in fields(node):
+        if f.name not in ("origin", "contract", "contracts"):
+            yield from _nodes_in(getattr(node, f.name))
+
+
+def _nodes_in(value: object) -> Iterator[object]:
+    if isinstance(value, tuple):
+        for item in value:
+            yield from _nodes_in(item)
+    elif is_dataclass(value) and not isinstance(value, (Span, type)):
+        yield value
+
+
 def _holder(span: Span | None, holders: list[_Holder]) -> n.LibraryOrigin | None:
     if span is None:
         return None
@@ -343,7 +571,13 @@ def _holder(span: Span | None, holders: list[_Holder]) -> n.LibraryOrigin | None
 def _uses_lines(
     game: n.Game, uses: tuple[n.UsesDecl, ...], holders: list[_Holder]
 ) -> dict[str, Span]:
-    """Each used library's `uses` line, by library name."""
+    """Each used library's `uses` line, by library name: from the game's
+    `uses` lines where it still names them, the definitions the splice
+    stamped, and the Definition Contract stamps on the game's answers, so a
+    library whose contract is all it brings is known after the splice too."""
+    from cardlang.ast import nodes as ast_nodes
+    from cardlang.resolve import _walk
+
     lines: dict[str, Span] = {}
     for use in (*game.uses, *uses):
         if use.span is not None:
@@ -351,6 +585,14 @@ def _uses_lines(
     for holder in holders:
         if holder.origin.uses_span is not None:
             lines.setdefault(holder.origin.library, holder.origin.uses_span)
+    for answer in (*game.functions, *game.procedures):
+        for stamp in getattr(answer, "contracts", ()):
+            if isinstance(stamp, ast_nodes.ContractStamp) and stamp.uses_span is not None:
+                lines.setdefault(stamp.library, stamp.uses_span)
+    for nd in _walk(game):
+        stamp = getattr(nd, "contract", None)
+        if isinstance(stamp, ast_nodes.ContractStamp) and stamp.uses_span is not None:
+            lines.setdefault(stamp.library, stamp.uses_span)
     return lines
 
 

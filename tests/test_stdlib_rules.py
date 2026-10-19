@@ -136,7 +136,7 @@ rule MustFollowSuit {
   if_impossible: hand
 }
 """
-    _rejects(_game("MustFollowSuit", rules=local), "shadows the standard-library rule")
+    _rejects(_game("MustFollowSuit", rules=local), "shadows the standard library's rule")
 
 
 def test_rejects_arguments_on_a_parameter_free_rule() -> None:

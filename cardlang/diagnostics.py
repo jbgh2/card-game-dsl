@@ -11,6 +11,7 @@ first stage rather than bolted on later.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -52,7 +53,79 @@ class Route:
     at: Span | None
     library: str
     name: str
-    fix: str | None = None
+    fix: Said | None = None
+
+
+_UNSPELLED = (
+    "a Library Citation is never spelled into a str; compose the sentence with `+` "
+    "or `Sentence.join` and hand it to the bag"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class LibraryCitation:
+    """Library text a sentence names: the designer words naming it, and the
+    span of that text, None where no library text stands behind the name.
+    Made only by `cardlang.attribution`; the bag renders the words and hands
+    the span to the step as library text the refusal stands on."""
+
+    words: str
+    span: Span | None
+
+    def __str__(self) -> str:
+        raise TypeError(_UNSPELLED)
+
+    def __format__(self, spec: str) -> str:
+        raise TypeError(_UNSPELLED)
+
+    def __add__(self, other: Said) -> Sentence:
+        return Sentence((self,)) + other
+
+    def __radd__(self, other: str) -> Sentence:
+        return Sentence((other, self))
+
+
+@dataclass(frozen=True, slots=True)
+class Sentence:
+    """A sentence naming library text: plain text and Library Citations, in
+    order."""
+
+    parts: tuple[str | LibraryCitation, ...]
+
+    def __str__(self) -> str:
+        raise TypeError(_UNSPELLED)
+
+    def __format__(self, spec: str) -> str:
+        raise TypeError(_UNSPELLED)
+
+    def __add__(self, other: Said) -> Sentence:
+        tail = other.parts if isinstance(other, Sentence) else (other,)
+        return Sentence(self.parts + tail)
+
+    def __radd__(self, other: str) -> Sentence:
+        return Sentence((other, *self.parts))
+
+    @staticmethod
+    def join(separator: str, items: Iterable[Said]) -> Said:
+        """`separator.join(items)`, for items that may name library text."""
+        out: Said = ""
+        for at, item in enumerate(items):
+            out = item if at == 0 else out + separator + item
+        return out
+
+
+# What a sentence may be: plain text, or text naming library text.
+Said = str | LibraryCitation | Sentence
+
+
+def rendered(message: Said) -> tuple[str, tuple[Span, ...]]:
+    """`message`'s words, and the span of each library text it names."""
+    if isinstance(message, str):
+        return message, ()
+    parts = message.parts if isinstance(message, Sentence) else (message,)
+    words = "".join(p if isinstance(p, str) else p.words for p in parts)
+    spans = tuple(p.span for p in parts if isinstance(p, LibraryCitation) and p.span is not None)
+    return words, spans
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,15 +205,25 @@ class DiagnosticBag:
 
     def error(
         self,
-        message: str,
+        message: Said,
         span: Span | None = None,
         *,
         route: Route | None = None,
-        for_game: str | None = None,
+        for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
     ) -> None:
+        """`stands_on` is library text the refusal reached that its sentences
+        do not name; the library text they name, in `message` and in
+        `for_game`, stands on their citations."""
         on = (stands_on,) if isinstance(stands_on, Span) else stands_on or ()
-        self.items.append(Diagnostic(Severity.ERROR, message, span, route, for_game, stands_on=on))
+        words, cited = rendered(message)
+        game_words: str | None = None
+        if for_game is not None:
+            game_words, game_cited = rendered(for_game)
+            cited += game_cited
+        self.items.append(
+            Diagnostic(Severity.ERROR, words, span, route, game_words, stands_on=on + cited)
+        )
 
     def warning(self, message: str, span: Span | None = None) -> None:
         self.items.append(Diagnostic(Severity.WARNING, message, span))

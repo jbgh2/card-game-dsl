@@ -280,7 +280,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               splice records each answer: the game's answering function or
               procedure carries every row it answers (``contracts``), and
               every library call of a contracted function carries its own
-              row (``Call.contract``) —
+              row (``Call.contract``), each stamp with the row's own span
+              (``ContractStamp.row_span``), which a refusal naming the row
+              cites —
               ``typecheck`` reads both, and nothing else about imports;
               ``_check_hidden_reads``, ``_check_play_source`` and the
               no-acting-seat walk read them to tell the game's author. A
@@ -300,7 +302,7 @@ Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import (
     Literal,
@@ -367,8 +369,27 @@ from cardlang.primitives_block import (
     walled_namespace_of,
 )
 from cardlang import primitives_block
-from cardlang.attribution import raise_if_errors
-from cardlang.diagnostics import Diagnostic, DiagnosticBag, Route, Severity, Span
+from cardlang.attribution import (
+    cite_definition,
+    cite_library,
+    cite_all,
+    cite_named,
+    cite_origin,
+    naming_library,
+    cite_where,
+    raise_if_errors,
+)
+from cardlang.diagnostics import (
+    Diagnostic,
+    DiagnosticBag,
+    LibraryCitation,
+    Route,
+    Said,
+    Sentence,
+    Severity,
+    Span,
+    rendered,
+)
 from cardlang.domains import (
     CARD_AXIS_ROLES,
     CARD_PARAM_DOMAINS,
@@ -1240,17 +1261,32 @@ def _library_functions(game: n.Game) -> dict[str, str]:
 class _LibraryEntry:
     """Where a route from the game's text last entered a library's: the game
     text naming the library definition (a call, a `run`, an offer), that
-    definition's origin, and how many definitions deep the entry stands."""
+    definition's origin, how many definitions deep the entry stands, and the
+    definition's own text."""
 
     span: Span | None
     origin: n.LibraryOrigin
     depth: int
     name: str
+    definition: Span | None = None
 
     @property
-    def through(self) -> str:
+    def through(self) -> LibraryCitation:
         """The entered definition, in the game's author's words."""
-        return f"library '{self.origin.library}''s {self.origin.where}"
+        return cite_origin(self.origin, self.definition)
+
+
+_DEFINITION_POOLS: dict[str, str] = {
+    "function": "functions", "procedure": "procedures", "move_type": "move_types", "rule": "rules",
+}
+
+
+def _cite_in(game: n.Game, namespace: str, name: str, words: str) -> Said:
+    """`words` naming `name` of `namespace`: a citation of the definition the
+    game holds by that name, and the bare words where it holds none (a
+    Primitive, a Builtin, an engine's own name)."""
+    found = next((d for d in getattr(game, _DEFINITION_POOLS[namespace]) if d.name == name), None)
+    return words if found is None else cite_named(found, words)
 
 
 def _library_entry(steps: Sequence[tuple[Span | None, object]]) -> _LibraryEntry | None:
@@ -1263,7 +1299,10 @@ def _library_entry(steps: Sequence[tuple[Span | None, object]]) -> _LibraryEntry
     for depth, (span, definition) in enumerate(steps, start=1):
         origin = getattr(definition, "origin", None)
         if origin is not None and not in_library:
-            entry = _LibraryEntry(span, origin, depth, str(getattr(definition, "name", "")))
+            entry = _LibraryEntry(
+                span, origin, depth, str(getattr(definition, "name", "")),
+                getattr(definition, "span", None),
+            )
         in_library = origin is not None
     return entry if in_library else None
 
@@ -1322,7 +1361,7 @@ class _StateClaims:
     claim collision has already been reported for, which `_check_requires` skips
     so one bad name yields one diagnostic instead of two."""
 
-    provided: dict[str, str]
+    provided: dict[str, LibraryCitation]
     contested: frozenset[str]
 
 
@@ -1351,24 +1390,26 @@ def _apply_uses(
     for use in game.uses:
         if use.name in seen_uses:
             bag.error(
-                f"game '{game.name}' already uses library '{use.name}' — the "
-                f"repeat imports nothing further; delete it",
+                f"game '{game.name}' already uses " + cite_library(use.name, None)
+                + " — the repeat imports nothing further; delete it",
                 use.span,
             )
             continue
         seen_uses[use.name] = use
         if use.name == STDLIB_NAME:
             bag.error(
-                "the standard library needs no `uses` line; its rules are "
-                "switched on by name in `active_rules:` — delete this line",
+                cite_library(STDLIB_NAME, None)
+                + " needs no `uses` line; its rules are switched on by name in "
+                "`active_rules:` — delete this line",
                 use.span,
             )
             continue
         if use.name not in available:
             known = ", ".join(sorted(available)) or "none"
             bag.error(
-                f"unknown library '{use.name}' — `uses` names a family library "
-                f"in docs/libraries/ (available: {known})",
+                "unknown " + cite_library(use.name, None)
+                + f" — `uses` names a family library in docs/libraries/ "
+                f"(available: {known})",
                 use.span,
             )
             continue
@@ -1504,6 +1545,7 @@ def _stamp_contracted_calls(use: n.UsesDecl, library: n.Library) -> n.Library:
             param_types=tuple(p.type_name for p in row.params),
             result_type=row.result_type,
             uses_span=use.span,
+            row_span=row.span,
         )
         for name, row in rows.items()
         if isinstance(row, n.FunctionContract)
@@ -1555,7 +1597,7 @@ class _ClauseGate:
     ..."), and `lacks` and `fix` say what the game has instead and what to
     write."""
 
-    needs: Callable[[object, n.Game], tuple[str, ...]]
+    needs: Callable[[object, n.Game], tuple[Said, ...]]
     unmet: Callable[[n.Game], bool]
     verb: str
     reads: str
@@ -1627,14 +1669,14 @@ def _team_ranges(node: object, game: n.Game) -> tuple[str, ...]:
     return ()
 
 
-def _team_keyed_state(node: object, game: n.Game) -> tuple[str, ...]:
+def _team_keyed_state(node: object, game: n.Game) -> tuple[Said, ...]:
     """A state declaration keyed by team."""
     if (
         isinstance(node, n.StateDecl)
         and node.index is not None
         and role_of(node.index) is Role.TEAM
     ):
-        return (f"`{node.name}[team]`",)
+        return (cite_named(node, f"`{node.name}[team]`"),)
     return ()
 
 
@@ -1986,7 +2028,7 @@ def _check_library_clause_gates(
     for gate in _CLAUSE_GATES:
         if not gate.unmet(game):
             continue
-        reached: dict[str, list[str]] = {}
+        reached: dict[Said, dict[str, Span | None]] = {}
         refused: list[Span] = []
         # Claimed once the gate has every occurrence, so a member recurring in
         # a second definition is named there too; a later gate skips it.
@@ -2003,20 +2045,24 @@ def _check_library_clause_gates(
             if at is not None:
                 refused.append(at)
             for phrase in phrases:
-                places = reached.setdefault(phrase, [])
-                if where not in places:
-                    places.append(where)
+                reached.setdefault(phrase, {}).setdefault(where, at)
         claimed |= keys
         if not reached:
             continue
-        listing = " and ".join(
-            f"{phrase} (in {', '.join(places)})" for phrase, places in reached.items()
-        )
+        listing = Sentence.join(" and ", (
+            phrase + " (in "
+            + Sentence.join(", ", (cite_where(where, at) for where, at in places.items()))
+            + ")"
+            for phrase, places in reached.items()
+        ))
         verb, _, rest = gate.reads.partition(" ")
         reads = f"{verb}s {rest}" if len(reached) == 1 else gate.reads
+        # The sentence names each definition once; a definition the gate
+        # refuses at several places stands on each.
         bag.error(
-            f"library '{library.name}' {gate.verb} {listing}, which {reads}, but "
-            f"{gate.lacks(game)} — {gate.fix(game)}",
+            cite_library(library.name, None) + f" {gate.verb} " + listing
+            + f", which {reads}, but {gate.lacks(game)} — "
+            + naming_library(gate.fix(game), library.name, None),
             use.span,
             stands_on=tuple(refused),
         )
@@ -2051,12 +2097,12 @@ def _check_library_lines_span(
         except OwnerGuardError:
             board = f"{game.board.family}({', '.join(map(str, game.board.args))})"
             bag.error(
-                f"library '{library.name}' calls `lines({arg.value})` (in "
-                f"{where}), which reads lines of {arg.value} cells off the board, "
+                cite_library(library.name, None) + f" calls `lines({arg.value})` (in "
+                + cite_where(where, call.span)
+                + f"), which reads lines of {arg.value} cells off the board, "
                 f"but this game's `board: {board}` has none — declare a board "
                 f"that does",
                 use.span,
-                stands_on=call.span,
             )
 
 
@@ -2079,7 +2125,7 @@ def _check_library_collisions(
     here would reject four games that are correct today."""
     for field, noun in _LIBRARY_DEF_KINDS:
         local = {d.name: d for d in getattr(game, field)}
-        from_libraries: dict[str, str] = {}
+        from_libraries: dict[str, LibraryCitation] = {}
         for use, library in libraries:
             # A definition the library also contracts for is the library's own
             # contradiction (`_check_definition_claims`); the game answering
@@ -2088,34 +2134,39 @@ def _check_library_collisions(
             for definition in getattr(library, field):
                 if definition.name in local and definition.name in contracted:
                     continue
+                defined = cite_library(library.name, definition.span)
                 if definition.name in local:
                     bag.error(
-                        f"{noun} '{definition.name}' is defined by this game and "
-                        f"also by library '{library.name}' — `uses` imports, it "
-                        f"does not inherit, so there is no override: rename the "
-                        f"game's {noun}, or drop it and use the library's",
+                        f"{noun} " + cite_named(local[definition.name], f"'{definition.name}'")
+                        + " is defined by this game and also by " + defined
+                        + " — `uses` imports, it does not inherit, so there is no "
+                        f"override: rename the game's {noun}, or drop it and use "
+                        + defined + "'s",
                         local[definition.name].span,
                     )
                 elif definition.name in from_libraries:
                     bag.error(
-                        f"{noun} '{definition.name}' is defined by both library "
-                        f"'{from_libraries[definition.name]}' and library "
-                        f"'{library.name}' — resolution is flat, so neither wins; "
-                        f"use only one of them, or rename in one library",
+                        f"{noun} " + cite_named(definition, f"'{definition.name}'")
+                        + " is defined by both "
+                        + from_libraries[definition.name] + " and " + defined
+                        + " — resolution is flat, so neither wins; "
+                        "use only one of them, or rename in one library",
                         use.span,
                     )
                 else:
-                    from_libraries[definition.name] = library.name
+                    from_libraries[definition.name] = defined
 
     stdlib_rule_index = stdlib_rules()
     for _, library in libraries:
         for rule in library.rules:
             if rule.name in stdlib_rule_index:
+                shadowed = stdlib_rule_index[rule.name]
                 bag.error(
-                    f"library '{library.name}' defines rule '{rule.name}', which "
-                    f"shadows the standard-library rule of the same name — "
-                    f"delete it (`active_rules` resolves it from the stdlib), or "
-                    f"rename it if the body genuinely differs",
+                    cite_library(library.name, rule.span)
+                    + f" defines rule " + cite_named(rule, f"'{rule.name}'") + f", which shadows "
+                    + cite_definition(STDLIB_NAME, f"rule `{rule.name}`", shadowed.span)
+                    + " — delete it (`active_rules` resolves it from the stdlib), or "
+                    "rename it if the body genuinely differs",
                     rule.span,
                 )
         for fn in library.functions:
@@ -2128,7 +2179,7 @@ def _check_library_collisions(
             # one here, and it reports to the library's own author.
             if fn.name in CALL_FUNCS:
                 bag.error(
-                    f"library '{library.name}' defines function '{fn.name}', "
+                    cite_library(library.name, fn.span) + f" defines function " + cite_named(fn, f"'{fn.name}'") + f", "
                     f"which shadows the native function of the same name; rename "
                     f"it (a call would type-check against the native signature "
                     f"but run this one instead)",
@@ -2190,7 +2241,7 @@ def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
     # library may not bring one in as a definition of its own. Lowest
     # precedence, added last, so a real game binding keeps the reported noun.
     for value_fn in VALUE_NAMES:
-        bindings.setdefault(value_fn, ("standard-library value", None))
+        bindings.setdefault(value_fn, ("round callback", None))
     return bindings
 
 
@@ -2233,8 +2284,8 @@ def _check_library_shadows_game(
     game_names = _game_bindings(game)
     def_nouns = {noun for _, noun in _LIBRARY_DEF_KINDS}
     # The name each library's Definition Contract rows make the game define.
-    contracted_by: dict[str, str] = {
-        r.name: library.name
+    contracted_by: dict[str, LibraryCitation] = {
+        r.name: cite_library(library.name, r.span)
         for _, library in libraries
         for field, _noun, _cls in CONTRACT_KINDS
         for r in _contract_rows(library, field)
@@ -2273,19 +2324,23 @@ def _check_library_shadows_game(
                 # The game's definition answers another library's contract, so
                 # renaming it is not a fix the game's author can take.
                 bag.error(
-                    f"library '{library.name}' brings in {inject_noun} '{name}', "
-                    f"but library '{asked_by}' has this game define '{name}' as a "
+                    cite_library(library.name, inject_span)
+                    + f" brings in {inject_noun} " + cite_where(f"'{name}'", inject_span)
+                    + ", but " + asked_by + " has this game define "
+                    + cite_where(f"'{name}'", game_span) + f" as a "
                     f"{game_noun} — the two libraries cannot both be used: drop "
                     f"one `uses` line",
                     use.span,
                 )
                 continue
             bag.error(
-                f"library '{library.name}' brings in {inject_noun} '{name}', but "
-                f"this game already uses '{name}' as a {game_noun} — a `uses` "
+                cite_library(library.name, inject_span)
+                + f" brings in {inject_noun} " + cite_where(f"'{name}'", inject_span)
+                + ", but this game already uses " + cite_where(f"'{name}'", game_span)
+                + f" as a {game_noun} — a `uses` "
                 f"import adds names without overriding, and the game's author "
-                f"cannot see the library's, so the two would silently mean "
-                f"different things: rename one",
+                f"cannot see " + cite_library(library.name, inject_span)
+                + "'s, so the two would silently mean different things: rename one",
                 game_span if game_span is not None else inject_span,
             )
 
@@ -2327,7 +2382,8 @@ def _check_state_claims(
             for decl in node.decls:
                 declared.setdefault(decl.name, decl)
 
-    provided: dict[str, str] = {}
+    provided: dict[str, LibraryCitation] = {}
+    provider: dict[str, str] = {}
     contested: set[str] = set()
     # A Definition Contract row claims no state name: `_check_definition_claims`
     # owns its collisions, so the state sweep reads the keyed rows alone.
@@ -2337,8 +2393,9 @@ def _check_state_claims(
             if decl.name in required:
                 contested.add(decl.name)
                 bag.error(
-                    f"library '{library.name}' both provides and requires state "
-                    f"'{decl.name}' — `state` owns the variable and its initial "
+                    cite_library(library.name, decl.span)
+                    + " both provides and requires state "
+                    + cite_named(decl, f"'{decl.name}'") + " — `state` owns the variable and its initial "
                     f"value, `requires` leaves both to the including game, so a "
                     f"name can be one or the other: drop it from whichever "
                     f"clause is wrong",
@@ -2347,43 +2404,47 @@ def _check_state_claims(
             elif decl.name in provided:
                 contested.add(decl.name)
                 bag.error(
-                    f"state '{decl.name}' is provided by both library "
-                    f"'{provided[decl.name]}' and library '{library.name}' — "
-                    f"resolution is flat, so neither wins; use only one of them, "
-                    f"or rename in one library",
+                    "state " + cite_named(decl, f"'{decl.name}'") + " is provided by both "
+                    + provided[decl.name] + " and " + cite_library(library.name, decl.span)
+                    + " — resolution is flat, so neither wins; use only one of them, "
+                    "or rename in one library",
                     use.span,
                 )
             elif decl.name in declared:
                 contested.add(decl.name)
                 bag.error(
-                    f"state '{decl.name}' is declared by this game and also "
-                    f"provided by library '{library.name}' — `uses` imports, it "
-                    f"does not inherit, so there is no override: delete the "
-                    f"game's declaration and read the library's, or rename the "
-                    f"game's",
+                    "state " + cite_named(declared[decl.name], f"'{decl.name}'")
+                    + " is declared by this game and also "
+                    "provided by " + cite_library(library.name, decl.span)
+                    + " — `uses` imports, it does not inherit, so there is no override: delete the "
+                    "game's declaration and read " + cite_library(library.name, decl.span)
+                    + "'s, or rename the game's",
                     declared[decl.name].span,
                 )
             else:
-                provided[decl.name] = library.name
+                provided[decl.name] = cite_library(library.name, decl.span)
+                provider[decl.name] = library.name
 
     for use, library in libraries:
         for want in _keyed_rows(library):
-            owner = provided.get(want.name)
+            owner = provider.get(want.name)
             if owner is not None and owner != library.name:
                 contested.add(want.name)
                 bag.error(
-                    f"library '{library.name}' requires state '{want.name}', "
-                    f"which library '{owner}' provides — a requirement names "
-                    f"state the including GAME declares, and is not answered by "
-                    f"another library's provision; declare it in the game and "
-                    f"rename one of the two",
+                    cite_library(library.name, want.span)
+                    + " requires state " + cite_where(f"'{want.name}'", want.span) + ", which "
+                    + provided[want.name]
+                    + " provides — a requirement names "
+                    "state the including GAME declares, and is not answered by "
+                    "another library's provision; declare it in the game and "
+                    "rename one of the two",
                     use.span,
                 )
     return _StateClaims(provided=provided, contested=frozenset(contested))
 
 
 def _check_provided_readonly(
-    game: n.Game, provided: dict[str, str], bag: DiagnosticBag
+    game: n.Game, provided: dict[str, LibraryCitation], bag: DiagnosticBag
 ) -> None:
     """A game may READ library-provided state and may not WRITE it.
 
@@ -2414,12 +2475,14 @@ def _check_provided_readonly(
         name = _written_state_name(node)
         if name is None or name not in provided:
             continue
+        owner = provided[name]
         bag.error(
-            f"cannot write '{name}': library '{provided[name]}' provides it. "
-            f"Provided state belongs to the library — the game may read it, but "
-            f"only the library's own definitions may write it. Keep a state "
-            f"variable of the game's own for what the game must change, or have "
-            f"the library expose a procedure that makes the change",
+            "cannot write " + cite_where(f"'{name}'", owner.span) + ": " + owner
+            + " provides it. Provided state belongs to " + owner
+            + " — the game may read it, but only " + owner + "'s own definitions "
+            "may write it. Keep a state variable of the game's own for what the "
+            "game must change, or have " + owner + " expose a procedure that makes "
+            "the change",
             getattr(node, "span", None),
         )
 
@@ -2454,7 +2517,7 @@ _AUTHOR_CHOSEN_BINDERS: frozenset[type] = frozenset(
 
 
 def _check_provided_shadowed_by_binder(
-    game: n.Game, provided: dict[str, str], bag: DiagnosticBag
+    game: n.Game, provided: dict[str, LibraryCitation], bag: DiagnosticBag
 ) -> None:
     """A name the GAME introduces into a scope narrower than the game may not be
     spelled like a library-provided state variable.
@@ -2515,8 +2578,9 @@ def _check_provided_shadowed_by_binder(
             return
         if chosen:
             bag.error(
-                f"{noun} '{name}' is spelled like state '{name}', which library "
-                f"'{library}' provides — wherever this name is in scope the bare "
+                f"{noun} " + cite_where(f"'{name}'", span) + " is spelled like state "
+                + cite_where(f"'{name}'", library.span) + ", which "
+                + library + " provides — wherever this name is in scope the bare "
                 f"word is the {noun}, so the provided variable cannot be read "
                 f"there, and nothing in this file says the spelling was taken: "
                 f"rename the {noun}",
@@ -2524,11 +2588,12 @@ def _check_provided_shadowed_by_binder(
             )
         else:
             bag.error(
-                f"library '{library}' provides state '{name}', and this form "
-                f"binds '{name}' — inside its scope the bare name is the binder, "
+                library + " provides state " + cite_where(f"'{name}'", library.span)
+                + f", and this form "
+                "binds " + cite_where(f"'{name}'", span) + " — inside its scope the bare name is the binder, "
                 f"so the provided variable cannot be read here. The spelling is "
                 f"not this game's to choose, so there is nothing here to rename: "
-                f"rename the library's variable",
+                f"rename " + library + "'s variable",
                 span,
             )
 
@@ -3111,6 +3176,19 @@ class _LibraryNameIs:
 _LIBRARY_OWN_NAMESPACES: tuple[str, ...] = ("state", "zone", "move_type", "enum_value")
 
 
+def _cite_own(library: n.Library, name: str, words: str) -> Said:
+    """`words` naming `name` in `library`: a citation of its own definition,
+    provided declaration or contract row of that name, and the bare words
+    where it holds none."""
+    held: list[object] = [
+        *(d for field, _noun in _LIBRARY_DEF_KINDS for d in getattr(library, field)),
+        *(library.state.decls if library.state is not None else ()),
+        *library.requires,
+    ]
+    found = next((d for d in held if getattr(d, "name", None) == name), None)
+    return words if found is None else cite_named(found, words)
+
+
 def _library_own_name_is(library: n.Library, name: str) -> _LibraryNameIs | None:
     """What `name` is in the library itself: one of its own definitions, or a
     name its contract or the direction values hold — or None. Every answer is
@@ -3181,7 +3259,9 @@ _PRIMITIVE_POSITIONS: dict[_PrimitivePosition, tuple[str, str, str]] = {
 }
 
 
-def _primitive_in_library(library: n.Library, position: _PrimitivePosition, name: str) -> str:
+def _primitive_in_library(
+    library: n.Library, position: _PrimitivePosition, name: str, at: Span | None
+) -> Said:
     """The refusal for a Primitive library text names. The library's
     `function` namespace is `BUILTIN_CALL_FUNCS` (`_library_slot_names`) and
     its round slots admit no Primitive (`_round_slot_primitives`), so this is
@@ -3189,7 +3269,7 @@ def _primitive_in_library(library: n.Library, position: _PrimitivePosition, name
     Primitive in the one game that declares it."""
     verb, act, fix = _PRIMITIVE_POSITIONS[position]
     return (
-        f"library '{library.name}' {verb} '{name}', which is a Primitive — a "
+        cite_library(library.name, at) + f" {verb} '{name}', which is a Primitive — a "
         f"Primitive belongs to the one game that declares it, so a library that "
         f"several games import may not {act} one: {fix}"
     )
@@ -3238,8 +3318,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     available "fix" — declaring the extra name — is the accident that hid the
     leak in the first place."""
     reach = _library_reach(library)
-    for refusal in reach.always_refused:
-        bag.error(refusal.message, refusal.span)
+    bag.items.extend(reach.always_refused)
     # A bare read is answered only from the library itself: every language-wide
     # spelling (`_language_name_is`, the trick winners) is one an importing
     # game may declare as state, which the library then reaches by contract.
@@ -3247,17 +3326,21 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
         what = _library_own_name_is(library, ref.name)
         if what is None:
             bag.error(
-                f"library '{library.name}' reads '{ref.name}', which is neither in "
+                cite_library(library.name, ref.span) + f" reads '{ref.name}', which is neither in "
                 f"its `requires` contract nor defined in the library — add it to "
                 f"`requires {{ }}` if the including game must declare it, or move "
                 f"the definition that needs it into the game",
                 ref.span,
             )
         else:
-            call_it = f" — call it: `{ref.name}(...)`" if what.kind == "function" else ""
+            call_it: Said = (
+                " — call it: `" + _cite_own(library, ref.name, ref.name) + "(...)`"
+                if what.kind == "function" else ""
+            )
             bag.error(
-                f"library '{library.name}' reads '{ref.name}', which is "
-                f"{what.phrase}, not a value{call_it}",
+                cite_library(library.name, ref.span) + " reads "
+                + _cite_own(library, ref.name, f"'{ref.name}'") + ", which is "
+                f"{what.phrase}, not a value" + call_it,
                 ref.span,
             )
     for call in reach.refused_calls:
@@ -3269,7 +3352,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
         )
         if what is None:
             bag.error(
-                f"library '{library.name}' calls '{call.func}', which is neither "
+                cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
                 f"defined in the library nor a native function — contract for it "
                 f"with `{call.func}(<parameter> : <type>, …) : <result type>` in "
                 f"`requires {{ }}` so the including game defines it, or keep the "
@@ -3277,20 +3360,20 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 call.span,
             )
         elif what.kind == "primitive":
-            bag.error(_primitive_in_library(library, "call", call.func), call.span)
+            bag.error(_primitive_in_library(library, "call", call.func, call.span), call.span)
         else:
             bag.error(
-                f"library '{library.name}' calls '{call.func}', which is "
+                cite_library(library.name, call.span) + " calls "
+                + _cite_own(library, call.func, f"'{call.func}'") + ", which is "
                 f"{what.phrase}, not a function",
                 call.span,
             )
     for node, name in _round_slot_primitives(library):
-        bag.error(
-            _primitive_in_library(library, "round slot", name), getattr(node, "span", None)
-        )
+        at = getattr(node, "span", None)
+        bag.error(_primitive_in_library(library, "round slot", name, at), at)
     for card in reach.card_literals:
         bag.error(
-            f"library '{library.name}' names the card `{card.rank} of "
+            cite_library(library.name, card.span) + f" names the card `{card.rank} of "
             f"{card.suit}`, but a family library is deck-agnostic — its members "
             f"do not share a deck, and Kuhn's holds three cards. Take the card "
             f"as a parameter, or keep the definition that needs it in the game",
@@ -3306,14 +3389,15 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
         )
         if own is not None:
             bag.error(
-                f"library '{library.name}' names '{leak.name}' as a "
+                cite_library(library.name, getattr(leak.node, "span", None)) + " names "
+                + _cite_own(library, leak.name, f"'{leak.name}'") + " as a "
                 f"{_NAMESPACE_NOUN[leak.namespace]}, but it is {own.phrase}, not "
                 f"a {_NAMESPACE_NOUN[leak.namespace]}",
                 getattr(leak.node, "span", None),
             )
             continue
         bag.error(
-            f"library '{library.name}' names the "
+            cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
             f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
             f"does not have — it would resolve against whichever game imports "
             f"this, so the library is not self-contained: "
@@ -3338,13 +3422,15 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             # unreachable from a default worth writing.
             if isinstance(node, n.NameRef) and node.name in required:
                 bag.error(
-                    f"library '{library.name}' initialises provided state "
-                    f"'{decl.name}' from '{node.name}', which its `requires` "
-                    f"contract asks the game to declare — so '{node.name}' does "
+                    cite_library(library.name, node.span or decl.span)
+                    + " initialises provided state " + cite_named(decl, f"'{decl.name}'")
+                    + " from " + _cite_own(library, node.name, f"'{node.name}'")
+                    + ", which its `requires` contract asks the game to declare — so "
+                    + _cite_own(library, node.name, f"'{node.name}'") + " does "
                     f"not exist yet when this default runs: provided state is "
                     f"declared before the game's own, never after. Give "
-                    f"'{decl.name}' a literal default and set it from "
-                    f"'{node.name}' in a phase",
+                    + cite_named(decl, f"'{decl.name}'") + " a literal default and set it from "
+                    + _cite_own(library, node.name, f"'{node.name}'") + " in a phase",
                     node.span or decl.span,
                 )
 
@@ -3421,7 +3507,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
             # collection contract so the author does not first meet a sweep
             # calling a word the language owns a name the library lacks.
             bag.error(
-                f"library '{library.name}' requires `{spelled}`, and a "
+                cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", and a "
                 f"collection type (`Collection<Card>`) is spellable in a "
                 f"`primitives {{ }}` entry only — a contract names a "
                 f"`state {{ }}` or a `zones {{ }}` declaration, or a definition "
@@ -3435,7 +3521,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
         if not is_zone_contract(want):
             if want.type_args:
                 bag.error(
-                    f"library '{library.name}' requires `{spelled}`, but "
+                    cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", but "
                     f"'{want.type_name}' is a state type and takes no type "
                     f"argument — the `<…>` form belongs to zone types",
                     want.span,
@@ -3444,21 +3530,21 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
         takes_owner = LIBRARY_ZONE_TYPES[want.type_name]
         if takes_owner and len(want.type_args) != 1:
             bag.error(
-                f"library '{library.name}' requires `{spelled}`, but zone type "
+                cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", but zone type "
                 f"'{want.type_name}' takes one owner argument, got "
                 f"{len(want.type_args)}",
                 want.span,
             )
         elif not takes_owner and want.type_args:
             bag.error(
-                f"library '{library.name}' requires `{spelled}`, but zone type "
+                cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", but zone type "
                 f"'{want.type_name}' takes no type arguments",
                 want.span,
             )
         for arg in want.type_args:
             if want.index is None:
                 bag.error(
-                    f"library '{library.name}' requires `{spelled}`, an owned "
+                    cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", an owned "
                     f"zone type with no index — the runtime keys a zone family "
                     f"by its index, so the owner would be silently ignored; "
                     f"write `{want.name}[{arg.name}] : {want.type_name}"
@@ -3467,7 +3553,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 )
             elif arg.name != want.index:
                 bag.error(
-                    f"library '{library.name}' requires `{spelled}`, whose "
+                    cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", whose "
                     f"owner argument names a different domain than its index — "
                     f"write `{want.type_name}<{want.index}>`",
                     want.span,
@@ -3480,7 +3566,7 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
     (`_DEFINITION_KIND_WORDS`): each kind is told the row to write."""
     spelled = _spelled_contract(want)
     field = _DEFINITION_KIND_WORDS[want.type_name]
-    head = f"library '{library.name}' requires `{spelled}`"
+    head = cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span)
     if field == "move_types":
         if want.type_name != n.MOVE_CONTRACT_TYPE:
             why = f"`{want.type_name}` names the kind, not the row's type word"
@@ -3488,22 +3574,25 @@ def _refuse_kind_word(library: n.Library, want: n.RequireDecl, bag: DiagnosticBa
             why = "a move type has no index"
         else:
             why = "a move type contract takes no type argument"
-        message = f"{head}, but {why} — write `{want.name} : {n.MOVE_CONTRACT_TYPE}`"
+        message = (
+            head + f", but {why} — write `" + cite_named(want, want.name)
+            + f" : {n.MOVE_CONTRACT_TYPE}`"
+        )
     elif field == "functions":
         message = (
-            f"{head}, but a function the game defines is contracted by its "
-            f"signature, not by a kind word — write `{want.name}(<parameter> : "
-            f"<type>, …) : <result type>`"
+            head + f", but a function the game defines is contracted by its "
+            f"signature, not by a kind word — write `" + cite_named(want, want.name)
+            + "(<parameter> : <type>, …) : <result type>`"
         )
     elif field == "procedures":
         message = (
-            f"{head}, but a procedure the game defines is contracted by its "
-            f"signature, not by a kind word — write `{want.name}(<parameter> : "
-            f"<type>, …) : {n.PROCEDURE_CONTRACT_TYPE}`"
+            head + f", but a procedure the game defines is contracted by its "
+            f"signature, not by a kind word — write `" + cite_named(want, want.name)
+            + f"(<parameter> : <type>, …) : {n.PROCEDURE_CONTRACT_TYPE}`"
         )
     else:
         message = (
-            f"{head}, but a rule cannot be contracted: only a game's "
+            head + f", but a rule cannot be contracted: only a game's "
             f"`active_rules:` names a rule, and a library has no `active_rules:`, "
             f"so no library text could use one — keep the definition that needs "
             f"it in the game"
@@ -3519,24 +3608,24 @@ def _check_signature_row(
     """A function or procedure row's own spelling: a name the language does not
     already hold, parameters a definition of that kind could declare, and — for
     a function — a result type a value can have."""
-    head = f"library '{library.name}' requires `{_spelled_contract(want)}`"
+    head = cite_library(library.name, want.span) + f" requires " + cite_where(f"`{_spelled_contract(want)}`", want.span)
     if isinstance(want, n.FunctionContract):
         if want.name in VALUE_NAMES:
             bag.error(
-                f"{head}, but '{want.name}' is a round's callback, named in its "
+                head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a round's callback, named in its "
                 f"slot and never called — no game defines it as a function, so "
                 f"rename the row",
                 want.span,
             )
         elif want.name in BUILTIN_CALL_FUNCS:
             bag.error(
-                f"{head}, but '{want.name}' is a function every game has — call "
+                head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a function every game has — call "
                 f"it directly; it needs no contract row",
                 want.span,
             )
         elif want.name in PRIMITIVE_CALL_FUNCS:
             bag.error(
-                f"{head}, but '{want.name}' is a Primitive, which belongs to the "
+                head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a Primitive, which belongs to the "
                 f"one game that declares it — a library several games import may "
                 f"not reach one, so name a function each game defines in the "
                 f"language",
@@ -3547,14 +3636,14 @@ def _check_signature_row(
     for p in want.params:
         if p.name in seen:
             bag.error(
-                f"{head}, which names more than one parameter named '{p.name}' — "
+                head + f", which names more than one parameter named '{p.name}' — "
                 f"rename one",
                 want.span,
             )
         seen.add(p.name)
         if p.name in RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS:
             bag.error(
-                f"{head}, whose parameter '{p.name}' is spelled like a word the "
+                head + f", whose parameter '{p.name}' is spelled like a word the "
                 f"language reserves — the game's definition could not take it, "
                 f"so rename it",
                 want.span,
@@ -3568,7 +3657,7 @@ def _check_signature_row(
         if not admitted:
             noun = "function" if isinstance(want, n.FunctionContract) else "procedure"
             bag.error(
-                f"{head}, whose parameter `{p.name} : {p.type_name}` no {noun} "
+                head + f", whose parameter `{p.name} : {p.type_name}` no {noun} "
                 f"could declare — a {noun} parameter is {domains}",
                 want.span,
             )
@@ -3580,28 +3669,28 @@ def _check_signature_result(
     """A function row's result: a value type, with or without `?`. An unknown
     word is the slot sweep's (`_slot_leaks`, the `type` namespace); every
     spelling the language gives another meaning is refused here, naming it."""
-    head = f"library '{library.name}' requires `{_spelled_contract(want)}`"
+    head = cite_library(library.name, want.span) + f" requires " + cite_where(f"`{_spelled_contract(want)}`", want.span)
     bare = want.result_type.removesuffix("?")
     if bare in KNOWN_TYPE_NAMES:
         return
     if bare == n.PROCEDURE_CONTRACT_TYPE:
         message = (
-            f"{head}, but a procedure returns no value, so its row carries no "
-            f"`?` — write `{want.name}(…) : {n.PROCEDURE_CONTRACT_TYPE}`"
+            head + f", but a procedure returns no value, so its row carries no "
+            f"`?` — write `" + cite_named(want, want.name) + f"(…) : {n.PROCEDURE_CONTRACT_TYPE}`"
         )
     elif bare == n.MOVE_CONTRACT_TYPE:
         message = (
-            f"{head}, but a move type is offered by name and passed no "
-            f"arguments — write `{want.name} : {n.MOVE_CONTRACT_TYPE}`"
+            head + f", but a move type is offered by name and passed no "
+            f"arguments — write `" + cite_named(want, want.name) + f" : {n.MOVE_CONTRACT_TYPE}`"
         )
     elif bare in _DEFINITION_KIND_WORDS:
         message = (
-            f"{head}, but '{want.result_type}' names a kind of definition, not "
+            head + f", but '{want.result_type}' names a kind of definition, not "
             f"the type the function returns — write the result's type"
         )
     elif bare in LIBRARY_ZONE_TYPES:
         message = (
-            f"{head}, but '{bare}' is a zone type — a function returns a value, "
+            head + f", but '{bare}' is a zone type — a function returns a value, "
             f"and a zone the game declares is contracted as a keyed row"
         )
     else:
@@ -3620,7 +3709,7 @@ def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:
     for want in library.requires:
         if want.name in seen:
             bag.error(
-                f"library '{library.name}' requires '{want.name}' in more than "
+                cite_library(library.name, want.span) + f" requires " + cite_where(f"'{want.name}'", want.span) + f" in more than "
                 f"one row — a contract names each thing once; keep one row",
                 want.span,
             )
@@ -3636,7 +3725,7 @@ def _check_contract_names(library: n.Library, bag: DiagnosticBag) -> None:
         ] + (["provided state"] if want.name in provided else [])
         for noun in clashes:
             bag.error(
-                f"library '{library.name}' requires '{want.name}' as a "
+                cite_library(library.name, want.span) + f" requires " + cite_where(f"'{want.name}'", want.span) + f" as a "
                 f"{_CONTRACT_KIND_OF[type(want)][1]} and also holds a {noun} of "
                 f"that name — rename one",
                 want.span,
@@ -3660,16 +3749,16 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
             continue
         if isinstance(want, n.MoveContract):
             bag.error(
-                f"library '{library.name}' requires `{_spelled_contract(want)}` "
-                f"but never offers it — a game's `{want.name}` would be refused "
+                cite_library(library.name, want.span) + f" requires " + cite_where(f"`{_spelled_contract(want)}`", want.span) + f" "
+                f"but never offers it — a game's " + cite_where(f"`{want.name}`", want.span) + f" would be refused "
                 f"as never offered, so no game could answer the row: offer it, "
                 f"or drop the row",
                 want.span,
             )
         elif isinstance(want, n.ProcedureContract):
             bag.error(
-                f"library '{library.name}' requires `{_spelled_contract(want)}` "
-                f"but never runs it — a game's `{want.name}` would be refused as "
+                cite_library(library.name, want.span) + f" requires " + cite_where(f"`{_spelled_contract(want)}`", want.span) + f" "
+                f"but never runs it — a game's " + cite_where(f"`{want.name}`", want.span) + f" would be refused as "
                 f"never run, so no game could answer the row: run it from a "
                 f"move type's effect, or drop the row",
                 want.span,
@@ -3679,9 +3768,10 @@ def _check_contract_reach(library: n.Library, bag: DiagnosticBag) -> None:
         for nd in _walk(proc):
             if isinstance(nd, n.RunStmt) and nd.name in rows:
                 bag.error(
-                    f"library '{library.name}': procedure '{proc.name}' runs "
-                    f"'{nd.name}', which the including game defines under this "
-                    f"library's contract — a procedure may not run another, so "
+                    cite_library(library.name, nd.span) + f": procedure " + cite_named(proc, f"'{proc.name}'") + " runs "
+                    + _cite_own(library, nd.name, f"'{nd.name}'") + ", which the including game "
+                    "defines under " + cite_library(library.name, nd.span) + "'s contract — a "
+                    "procedure may not run another, so "
                     f"run it from a move type's effect",
                     nd.span,
                 )
@@ -3708,14 +3798,15 @@ def _game_declarations_of(game: n.Game, name: str) -> list[str]:
     return found
 
 
-def _definition_template(want: n.DefinitionContract) -> str:
-    """The definition that answers a row, as the game would write it."""
+def _definition_template(want: n.DefinitionContract) -> Said:
+    """The definition that answers a row, as the game would write it, cited
+    at the row."""
     if isinstance(want, n.MoveContract):
-        return f"a `move_type {want.name} {{ effect {{ ... }} }}` block"
+        return "a " + cite_named(want, f"`move_type {want.name} {{ effect {{ ... }} }}`") + " block"
     listed = ", ".join(f"{p.name} : {p.type_name}" for p in want.params)
     if isinstance(want, n.FunctionContract):
-        return f"`function {want.name}({listed}) = …`"
-    return f"`procedure {want.name}({listed}) {{ … }}`"
+        return cite_named(want, f"`function {want.name}({listed}) = …`")
+    return cite_named(want, f"`procedure {want.name}({listed}) {{ … }}`")
 
 
 def _check_definition_requirement(
@@ -3743,14 +3834,14 @@ def _check_definition_requirement(
     it."""
     field, noun = _CONTRACT_KIND_OF[type(want)]
     spelled = want.name if isinstance(want, n.MoveContract) else _spelled_contract(want)
-    head = f"library '{library.name}' requires {noun} `{spelled}`"
+    head = cite_library(library.name, want.span) + f" requires {noun} " + cite_where(f"`{spelled}`", want.span)
     found = [d for d in getattr(game, field) if d.name == want.name]
     if len(found) > 1:
         # Shadow Guard of `_check_duplicate_names`, which refuses the duplicate
         # after the splice; counted here so the contract's guarantee does not
         # depend on that guard's coverage.
         bag.error(
-            f"{head}, which game '{game.name}' defines {len(found)} times — a "
+            head + f", which game '{game.name}' defines {len(found)} times — a "
             f"requirement must name ONE definition",
             use.span,
         )
@@ -3759,15 +3850,15 @@ def _check_definition_requirement(
         others = _game_declarations_of(game, want.name)
         if others:
             bag.error(
-                f"{head}, which game '{game.name}' declares as {others[0]} — the "
+                head + f", which game '{game.name}' declares as {others[0]} — the "
                 f"row names a {noun}, so the definition belongs in "
-                f"{_definition_template(want)}",
+                + _definition_template(want),
                 use.span,
             )
         else:
             bag.error(
-                f"{head}, which game '{game.name}' does not define — add "
-                f"{_definition_template(want)}",
+                head + f", which game '{game.name}' does not define — add "
+                + _definition_template(want),
                 use.span,
             )
         return None
@@ -3777,7 +3868,7 @@ def _check_definition_requirement(
     if len(have.params) != len(want.params):
         count = len(have.params)
         bag.error(
-            f"{head}, but game '{game.name}' defines `{want.name}` with {count} "
+            head + f", but game '{game.name}' defines " + cite_named(have, f"`{want.name}`") + f" with {count} "
             f"parameter{'' if count == 1 else 's'}",
             use.span,
         )
@@ -3785,7 +3876,7 @@ def _check_definition_requirement(
     for i, (got, wanted) in enumerate(zip(have.params, want.params), start=1):
         if got.type_name != wanted.type_name:
             bag.error(
-                f"{head}, but game '{game.name}' defines `{want.name}` whose "
+                head + f", but game '{game.name}' defines " + cite_named(have, f"`{want.name}`") + f" whose "
                 f"parameter {i} is `{got.type_name}`",
                 use.span,
             )
@@ -3796,6 +3887,7 @@ def _check_definition_requirement(
         param_types=tuple(p.type_name for p in want.params),
         result_type=want.result_type if isinstance(want, n.FunctionContract) else None,
         uses_span=use.span,
+        row_span=want.span,
     )
 
 
@@ -3817,18 +3909,18 @@ def _check_definition_claims(
     contested: set[tuple[str, str]] = set()
     for field, noun, _cls in CONTRACT_KINDS:
         keyword = _DEFINITION_KEYWORDS[field]
-        defined_by: dict[str, str] = {}
+        defined_by: dict[str, LibraryCitation] = {}
         for _, library in libraries:
             for d in getattr(library, field):
-                defined_by.setdefault(d.name, library.name)
+                defined_by.setdefault(d.name, cite_library(library.name, d.span))
         for use, library in libraries:
             own = {d.name: d for d in getattr(library, field)}
             for want in _contract_rows(library, field):
                 if want.name in own:
                     contested.add((field, want.name))
                     bag.error(
-                        f"library '{library.name}' both defines and requires "
-                        f"{noun} '{want.name}' — `{keyword}` makes it the "
+                        cite_library(library.name, own[want.name].span) + f" both defines and requires "
+                        f"{noun} " + cite_where(f"'{want.name}'", want.span) + f" — `{keyword}` makes it the "
                         f"library's and `requires` leaves it to the including "
                         f"game, so a name can be one or the other: drop it from "
                         f"whichever clause is wrong",
@@ -3837,8 +3929,8 @@ def _check_definition_claims(
                 elif want.name in defined_by:
                     contested.add((field, want.name))
                     bag.error(
-                        f"library '{library.name}' requires {noun} `{want.name}`, "
-                        f"which library '{defined_by[want.name]}' defines — a "
+                        cite_library(library.name, want.span) + f" requires {noun} " + cite_where(f"`{want.name}`", want.span) + f", "
+                        "which " + defined_by[want.name] + " defines — a "
                         f"requirement names a {noun} the including GAME defines, "
                         f"and is not answered by another library's definition; "
                         f"define it in the game and rename one of the two",
@@ -3881,14 +3973,14 @@ def _check_zone_requirement(
         )
         if as_state:
             bag.error(
-                f"library '{library.name}' requires zone `{spelled}`, which "
+                cite_library(library.name, want.span) + f" requires zone " + cite_where(f"`{spelled}`", want.span) + f", which "
                 f"game '{game.name}' declares as state — '{want.type_name}' is "
                 f"a zone type, so the declaration belongs in `zones {{ }}`",
                 use.span,
             )
         else:
             bag.error(
-                f"library '{library.name}' requires zone `{spelled}`, which "
+                cite_library(library.name, want.span) + f" requires zone " + cite_where(f"`{spelled}`", want.span) + f", which "
                 f"game '{game.name}' does not declare — add it to the game's "
                 f"`zones {{ }}` block",
                 use.span,
@@ -3896,7 +3988,7 @@ def _check_zone_requirement(
         return
     if len(found) > 1:
         bag.error(
-            f"library '{library.name}' requires zone `{spelled}`, which game "
+            cite_library(library.name, want.span) + f" requires zone " + cite_where(f"`{spelled}`", want.span) + f", which game "
             f"'{game.name}' declares {len(found)} times — a requirement must "
             f"name ONE declaration",
             use.span,
@@ -3906,7 +3998,7 @@ def _check_zone_requirement(
     if have.index != want.index:
         shown_index = f"'{have.index}'" if have.index else "nothing"
         bag.error(
-            f"library '{library.name}' requires zone `{spelled}`, but game "
+            cite_library(library.name, want.span) + f" requires zone " + cite_where(f"`{spelled}`", want.span) + f", but game "
             f"'{game.name}' declares it indexed by {shown_index}",
             use.span,
         )
@@ -3917,7 +4009,7 @@ def _check_zone_requirement(
             f"<{', '.join(have_args)}>" if have_args else ""
         )
         bag.error(
-            f"library '{library.name}' requires zone `{spelled}`, but game "
+            cite_library(library.name, want.span) + f" requires zone " + cite_where(f"`{spelled}`", want.span) + f", but game "
             f"'{game.name}' declares it as `{shown}` — a zone type fixes the "
             f"per-observer projection, so the contract names the type the "
             f"library's definitions were written against",
@@ -3966,7 +4058,8 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
             continue
         roles = ", ".join(role_names(ZONE_INDEX_ROLES))
         bag.error(
-            f"library '{library.name}' {verb} state '{decl.name}' indexed by "
+            cite_library(library.name, decl.span) + f" {verb} state "
+            + cite_named(decl, f"'{decl.name}'") + " indexed by "
             f"'{decl.index}', which is not an indexable role ({roles}) — a "
             f"library indexes by a seat or a team, and a game may not declare "
             f"that index either",
@@ -4098,14 +4191,14 @@ def _check_requires(
             others = _game_declarations_of(game, want.name)
             if others:
                 bag.error(
-                    f"library '{library.name}' requires state `{spelled}`, which "
+                    cite_library(library.name, want.span) + f" requires state " + cite_where(f"`{spelled}`", want.span) + f", which "
                     f"game '{game.name}' declares as {others[0]} — the row names "
                     f"a `state {{ }}` variable, so the declaration belongs there",
                     use.span,
                 )
                 continue
             bag.error(
-                f"library '{library.name}' requires state `{spelled}`, which "
+                cite_library(library.name, want.span) + f" requires state " + cite_where(f"`{spelled}`", want.span) + f", which "
                 f"game '{game.name}' does not declare — add it to the game's "
                 f"`state {{ }}` block with the initial value the game wants",
                 use.span,
@@ -4113,11 +4206,11 @@ def _check_requires(
             continue
         if len(found) > 1:
             bag.error(
-                f"library '{library.name}' requires state `{spelled}`, which "
+                cite_library(library.name, want.span) + f" requires state " + cite_where(f"`{spelled}`", want.span) + f", which "
                 f"game '{game.name}' declares {len(found)} times — a requirement "
                 f"must name ONE declaration, or which one the library's "
                 f"definitions read depends on where they run; keep a single "
-                f"declaration of '{want.name}'",
+                f"declaration of " + cite_where(f"'{want.name}'", want.span),
                 use.span,
             )
             continue
@@ -4134,13 +4227,13 @@ def _check_requires(
             got = index_phrase(role_of(have.index) if have.index else None)
             need = index_phrase(role_of(want.index) if want.index else None)
             bag.error(
-                f"library '{library.name}' requires state `{spelled}` to be "
+                cite_library(library.name, want.span) + f" requires state " + cite_where(f"`{spelled}`", want.span) + f" to be "
                 f"{need}, but game '{game.name}' declares it as {got}",
                 use.span,
             )
         if (have.type_name, have.optional) != (want.type_name, False):
             bag.error(
-                f"library '{library.name}' requires state `{spelled}`, but game "
+                cite_library(library.name, want.span) + f" requires state " + cite_where(f"`{spelled}`", want.span) + f", but game "
                 f"'{game.name}' declares it as "
                 f"`{have.type_name}{'?' if have.optional else ''}`",
                 use.span,
@@ -4167,8 +4260,7 @@ def resolve(game: n.Game) -> n.Game:
     own_rules = frozenset(r.name for r in game.rules)
     uses = game.uses
     game, library_rules = _apply_uses(game, bag)
-    # Told beside the library rules the splice holds aside until activation.
-    raise_if_errors(bag, replace(game, rules=(*game.rules, *library_rules.values())), uses)
+    raise_if_errors(bag, _with_held_rules(game, library_rules), uses)
     own_move_types = frozenset(mt.name for mt in game.move_types if mt.origin is None)
     _resolve_component_set(game, bag)
     _reject_card_content_clauses(game, bag)
@@ -4221,7 +4313,9 @@ def resolve(game: n.Game) -> n.Game:
     # instantiation attempt hit some OTHER, already-separately-reported
     # mismatch (arity, missing arguments, …) — that conflation would pile a
     # spurious "undefined rule" note onto every such mismatch.
-    known_rule_names = {r.name for r in game.rules} | set(library_rules) | set(stdlib_rules())
+    known_rule_names: dict[str, n.RuleDef] = {
+        **stdlib_rules(), **library_rules, **{r.name: r for r in game.rules}
+    }
 
     # Library-rule splice and template instantiation: after this, every rule in
     # `game.rules` is a concrete (parameter-free) definition the runtime can
@@ -4231,7 +4325,7 @@ def resolve(game: n.Game) -> n.Game:
     for rule in game.rules:
         _resolve_rule(rule, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
-    _check_rule_removes(game.phases, bag)
+    _check_rule_removes(game.phases, known_rule_names, bag)
 
     # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
     # (`any cel where square[cell] …`) changes the binder name, so the body's
@@ -4277,8 +4371,25 @@ def resolve(game: n.Game) -> n.Game:
     # probe one move type's declaration need not also present it.
     _check_unoffered_move_types(game, own_move_types, bag)
 
-    raise_if_errors(bag, game, uses)
+    raise_if_errors(bag, _with_held_rules(game, library_rules), uses)
     return game
+
+
+def _with_held_rules(game: n.Game, library_rules: dict[str, n.RuleDef]) -> n.Game:
+    """`game` beside every library rule the splice holds aside and every
+    standard library rule, activated or not, for the step to tell refusals
+    standing on them."""
+    held = (*library_rules.values(), *_stamped_stdlib_rules().values())
+    return replace(game, rules=(*game.rules, *held))
+
+
+def _stamped_stdlib_rules() -> dict[str, n.RuleDef]:
+    """The standard library's rules, each stamped with its origin as the
+    splice stamps the rules a game activates."""
+    return {
+        name: replace(rule, origin=n.LibraryOrigin(STDLIB_NAME, f"rule `{name}`"))
+        for name, rule in stdlib_rules().items()
+    }
 
 
 # The Node union's members, for the runtime gate below. `get_args` reads the
@@ -4455,7 +4566,7 @@ def _refuse_play_source_params(rule: n.RuleDef, bag: DiagnosticBag) -> bool:
             bag.error(
                 f"a rule's parameter cannot be named `{PLAY_SOURCE_NAME}`: "
                 f"{_PLAY_SOURCE_READING} — rename the parameter of rule "
-                f"'{rule.name}'",
+                f"" + cite_named(rule, f"'{rule.name}'"),
                 p.span or rule.span,
             )
             fired = True
@@ -4471,7 +4582,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool
     names = [p.name for p in rule.params]
     for dup in sorted({nm for nm in names if names.count(nm) > 1}):
         bag.error(
-            f"rule '{rule.name}' declares more than one parameter named "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" declares more than one parameter named "
             f"'{dup}' — substitution binds by name, so one would silently "
             f"shadow the other",
             rule.span,
@@ -4489,7 +4600,7 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool
             ok = False
         if p.name in binders:
             bag.error(
-                f"rule '{rule.name}' introduces a binder named '{p.name}', "
+                f"rule " + cite_named(rule, f"'{rule.name}'") + f" introduces a binder named '{p.name}', "
                 f"shadowing its own parameter — rename one",
                 rule.span,
             )
@@ -4592,19 +4703,26 @@ def _instantiate_rules(
     `_resolve_phase_item` — this loop skips it so that is the only diagnostic
     a game ever sees for it, not a second, unsatisfiable "pass arguments"
     alongside "not yet supported"."""
-    lib = {
-        name: replace(rule, origin=n.LibraryOrigin(STDLIB_NAME, f"rule `{name}`"))
-        for name, rule in stdlib_rules().items()
-    }
+    lib = _stamped_stdlib_rules()
     local = {r.name: r for r in game.rules}
     for r in game.rules:
         if r.name in lib:
+            shadowed = lib[r.name]
+            assert shadowed.origin is not None
             bag.error(
-                f"rule '{r.name}' shadows the standard-library rule of the same "
-                f"name — delete the local definition (`active_rules` resolves it "
-                f"from the library), or rename it if the body genuinely differs",
+                f"rule " + cite_named(r, f"'{r.name}'") + f" shadows " + cite_origin(shadowed.origin, shadowed.span)
+                + " — delete the local definition (`active_rules` resolves it "
+                "from the library), or rename it if the body genuinely differs",
                 r.span,
             )
+
+    def named(name: str, template: n.RuleDef) -> Said:
+        """The rule a reference names: the game's by its name, a library's in
+        the designer's words, standing on its text."""
+        if template.origin is None:
+            return cite_named(template, f"rule '{name}'")
+        return cite_origin(template.origin, template.span)
+
     suits = suit_names(game.deck) if _deck_known(game.deck) else None
     # rule name -> (argument key, concrete instance)
     instances: dict[str, tuple[tuple[str, ...], n.RuleDef]] = {}
@@ -4633,8 +4751,8 @@ def _instantiate_rules(
             if not template.params:
                 if ref.args:
                     bag.error(
-                        f"rule '{ref.name}' takes no parameters — drop the "
-                        f"argument list",
+                        named(ref.name, template)
+                        + " takes no parameters — drop the argument list",
                         ref.span,
                     )
                 elif ref.name not in local and ref.name not in instances:
@@ -4643,15 +4761,15 @@ def _instantiate_rules(
                 continue
             if not ref.args:
                 bag.error(
-                    f"rule '{ref.name}' is parameterized "
+                    named(ref.name, template) + " is parameterized "
                     f"({', '.join(f'{p.name}: {p.type_name}' for p in template.params)}) "
-                    f"— pass arguments: `{ref.name}(…)`",
+                    "— pass arguments: " + cite_named(template, f"`{ref.name}(…)`"),
                     ref.span,
                 )
                 continue
             if len(ref.args) != len(template.params):
                 bag.error(
-                    f"rule '{ref.name}' takes {len(template.params)} "
+                    named(ref.name, template) + f" takes {len(template.params)} "
                     f"argument(s), got {len(ref.args)}",
                     ref.span,
                 )
@@ -4663,9 +4781,10 @@ def _instantiate_rules(
                 if not isinstance(arg, n.NameRef) or (
                     suits is not None and arg.name not in suits
                 ):
+                    of: Said = "" if template.origin is None else " of " + named(ref.name, template)
                     bag.error(
-                        f"argument for rule parameter '{p.name}: Suit' must be "
-                        f"a suit literal (one of the deck's suits)",
+                        f"argument for rule parameter '{p.name}: Suit'" + of
+                        + " must be a suit literal (one of the deck's suits)",
                         ref.span,
                     )
                     args_ok = False
@@ -4675,7 +4794,7 @@ def _instantiate_rules(
             if ref.name in instances:
                 if instances[ref.name][0] != key:
                     bag.error(
-                        f"rule '{ref.name}' is instantiated with different "
+                        named(ref.name, template) + " is instantiated with different "
                         f"arguments elsewhere in this game — one instantiation "
                         f"per rule name (activate under distinct names when a "
                         f"game needs two)",
@@ -4697,7 +4816,7 @@ def _instantiate_rules(
         else:
             check_template_once(r.name, r)  # surface declaration defects even here
             bag.error(
-                f"rule '{r.name}' is parameterized but never instantiated — "
+                f"rule " + cite_named(r, f"'{r.name}'") + f" is parameterized but never instantiated — "
                 f"reference it from `active_rules` with arguments, or delete it "
                 f"(its body would otherwise go entirely unchecked)",
                 r.span,
@@ -4706,7 +4825,9 @@ def _instantiate_rules(
     return replace(game, rules=tuple(rules)) if tuple(rules) != game.rules else game
 
 
-def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None:
+def _check_rule_removes(
+    phases: tuple[n.Phase, ...], rules: Mapping[str, n.RuleDef], bag: DiagnosticBag
+) -> None:
     """`-X` remove reachability, over a phase and its modes.
 
     `-X` and (unsupported today) `override X` can never instantiate a rule
@@ -4735,25 +4856,32 @@ def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None
             ref for item in phase.items if isinstance(item, n.ActiveRules) for ref in item.refs
         ]
         own_added = {r.name for r in own_refs if r.delta in ("plain", "add")}
-        _validate_removes(own_refs, own_added, bag)
+        _validate_removes(own_refs, own_added, rules, bag)
 
         for mode in (i for i in phase.items if isinstance(i, n.Mode)):
             mode_refs = [ref for block in mode.active_rules for ref in block.refs]
             cluster_added = own_added | {r.name for r in mode_refs if r.delta in ("plain", "add")}
-            _validate_removes(mode_refs, cluster_added, bag)
+            _validate_removes(mode_refs, cluster_added, rules, bag)
 
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
-        _check_rule_removes(children, bag)
+        _check_rule_removes(children, rules, bag)
 
 
-def _validate_removes(refs: list[n.RuleRef], added: set[str], bag: DiagnosticBag) -> None:
+def _validate_removes(
+    refs: list[n.RuleRef], added: set[str], rules: Mapping[str, n.RuleDef], bag: DiagnosticBag
+) -> None:
     for ref in refs:
         if ref.delta == "remove" and ref.name not in added:
+            rule = rules.get(ref.name)
+
+            def named(words: str) -> Said:
+                return words if rule is None else cite_named(rule, words)
+
             bag.error(
-                f"`-{ref.name}` removes a rule that is never added in scope "
-                f"here (this phase's own `active_rules:`, or one of its "
-                f"mode's) — add `{ref.name}` or `+{ref.name}` "
-                f"there, or delete this removal",
+                named(f"`-{ref.name}`") + " removes a rule that is never added in scope "
+                "here (this phase's own `active_rules:`, or one of its "
+                "mode's) — add " + named(f"`{ref.name}`") + " or " + named(f"`+{ref.name}`")
+                + " there, or delete this removal",
                 ref.span,
             )
 
@@ -4808,7 +4936,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
             for node in _walk(decl.default):
                 if isinstance(node, n.Choose):
                     bag.error(
-                        f"the default of state variable '{decl.name}' cannot "
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
                         f"`choose`: a default is evaluated where it is written, "
                         f"outside any player's turn, so there is no one to make "
                         f"the decision — and a decision with no actor has no "
@@ -4821,7 +4949,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                     and node.name == "actor"
                 ):
                     bag.error(
-                        f"the default of state variable '{decl.name}' cannot "
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
                         f"read `actor`: a default is evaluated where it is "
                         f"written, outside any player's turn, so `actor` names "
                         f"no one. Use a seat number, or set the variable during "
@@ -4830,8 +4958,9 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                     )
                 elif isinstance(node, n.Call):
                     bag.error(
-                        f"the default of state variable '{decl.name}' cannot "
-                        f"call '{node.func}': a default is evaluated while the "
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
+                        "call " + _cite_in(game, "function", node.func, f"'{node.func}'")
+                        + ": a default is evaluated while the "
                         f"`state {{ }}` block is still being declared, and a "
                         f"function body can reach a variable that does not "
                         f"exist yet — use a literal here and compute the value "
@@ -4844,7 +4973,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
                     and node.name not in in_scope
                 ):
                     bag.error(
-                        f"the default of state variable '{decl.name}' reads "
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" reads "
                         f"'{node.name}', which is not declared yet: a default "
                         f"can only read state declared before it — earlier in "
                         f"the same `state {{ }}` block, or in an enclosing one",
@@ -5514,24 +5643,26 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
         if len(fn.params) != 1 or fn.params[0].type_name != "Player":
             got = ", ".join(f"{q.name} : {q.type_name}" for q in fn.params) or "none"
             bag.error(
-                f"'{fn.name}' is a Delegated Play helper and must take exactly "
+                f"" + cite_named(fn, f"'{fn.name}'") + f" is a Delegated Play helper and must take exactly "
                 f"one Player parameter (the seat whose move is routed); it "
                 f"takes ({got})",
                 fn.span,
             )
     if not any(isinstance(node, n.TrickRound) for node in _walk(game)):
-        names = ", ".join(sorted(f.name for f in helpers))
+        names = Sentence.join(
+            ", ", (cite_named(f, f.name) for f in sorted(helpers, key=lambda h: h.name))
+        )
         origin = helpers[0].origin
         bag.error(
-            f"this game defines {names} but holds no trick round for the "
+            "this game defines " + names + " but holds no trick round for the "
             f"routing to reach — the helpers would be silently ignored "
             f"(routing at other decision points is issue #458)",
             helpers[0].span,
             for_game=None if origin is None else (
-                f"library '{origin.library}''s {origin.where} routes a trick "
+                cite_origin(origin, helpers[0].span) + f" routes a trick "
                 f"round's card decision, but this game holds no trick round for "
                 f"the routing to reach — a game with no trick round cannot use "
-                f"library '{origin.library}'"
+                + cite_library(origin.library, helpers[0].span)
             ),
         )
 
@@ -5557,16 +5688,16 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
         if engine is None:
             continue
         bag.error(
-            f"move type `{mt.name}` is spelled like the climb engine "
-            f"`{engine}`'s own action `{mt.name}` — a seat would see the "
+            f"move type " + cite_named(mt, f"`{mt.name}`") + f" is spelled like the climb engine "
+            f"`{engine}`'s own action " + cite_named(mt, f"`{mt.name}`") + f" — a seat would see the "
             f"two alike; rename the move type",
             mt.span,
             for_game=None if mt.origin is None else (
-                f"library '{mt.origin.library}''s {mt.origin.where} is spelled "
-                f"like the climb engine `{engine}`'s own action `{mt.name}`, "
+                cite_origin(mt.origin, mt.span) + f" is spelled "
+                f"like the climb engine `{engine}`'s own action " + cite_named(mt, f"`{mt.name}`") + f", "
                 f"which this game's climbing round plays — a seat would see the "
                 f"two alike, so a game whose climbing round uses `{engine}` "
-                f"cannot use this library"
+                "cannot use " + cite_library(mt.origin.library, mt.span)
             ),
         )
 
@@ -5605,14 +5736,14 @@ def _check_unoffered_move_types(
             continue
         if mt.stake is not None:
             bag.error(
-                f"`{mt.stake}` on move type `{mt.name}`, which no reachable "
+                f"`{mt.stake}` on move type " + cite_named(mt, f"`{mt.name}`") + f", which no reachable "
                 f"`offer` presents: nothing reads the row. "
                 f"Delete it, or present the move at an offering the game reaches",
                 mt.span,
             )
             continue
         bag.error(
-            f"move type `{mt.name}` is never offered: no reachable `offer` "
+            f"move type " + cite_named(mt, f"`{mt.name}`") + f" is never offered: no reachable `offer` "
             f"presents it, so no seat can ever play it. "
             f"Present it at an offering the game reaches, or delete it",
             mt.span,
@@ -5682,12 +5813,12 @@ def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
             if ztype is None:
                 continue
             bag.error(
-                f"move type `{mt.name}`'s `{param.name} : Card` offers the "
+                f"move type " + cite_named(mt, f"`{mt.name}`") + f"'s `{param.name} : Card` offers the "
                 f"acting seat the cards of its own `{family}`, but `{family}` is a "
                 f"`{ztype}`, which {_OWN_POOL_BLIND}. {fix(family, opens=True)}",
                 param.span or mt.span,
                 for_game=None if mt.origin is None else (
-                    f"library '{mt.origin.library}''s {mt.origin.where} takes "
+                    cite_origin(mt.origin, param.span or mt.span) + f" takes "
                     f"`{param.name} : Card`, which offers the acting seat the "
                     f"cards of its own `{family}`, but this game declares "
                     f"`{family}` a `{ztype}`, which {_OWN_POOL_BLIND} — {fix(family)}"
@@ -5737,19 +5868,20 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
     )
     if decl is None:
         return game
-    what = f"`winner:` ranks the game on state variable '{decl.name}', "
+    what = "`winner:` ranks the game on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
     if decl.index is None:
         bag.error(
-            f"{what}which is not indexed — a game is ranked by a score each "
+            f"" + what + f"which is not indexed — a game is ranked by a score each "
             f"player or team holds, so the target is declared "
-            f"`{decl.name}[player]` or `{decl.name}[team]`. A scalar has no "
+            "`" + cite_named(decl, decl.name) + "[player]` or `"
+            + cite_named(decl, decl.name) + "[team]`. A scalar has no "
             f"per-member value to rank",
             game.winner.span,
         )
         return game
     if decl.optional:
         bag.error(
-            f"{what}declared `{decl.type_name}?` — an optional score may be "
+            f"" + what + f"declared `{decl.type_name}?` — an optional score may be "
             f"`none`, which cannot be ranked against a number",
             game.winner.span,
         )
@@ -5757,7 +5889,7 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
     if decl.type_name not in _RANKABLE_TYPES:
         rankable = ", ".join(sorted(_RANKABLE_TYPES))
         bag.error(
-            f"{what}declared `{decl.type_name}` — a game is ranked by a "
+            f"" + what + f"declared `{decl.type_name}` — a game is ranked by a "
             f"score, so the target must be {rankable}. Its values become "
             f"the game's OpenSpiel returns",
             game.winner.span,
@@ -6340,8 +6472,9 @@ def _check_play_source(
             remedy = (
                 _FUNCTION_TAKES_A_CARD if answer is None
                 else (
-                    f"library '{answer.library}' calls it under its contract "
-                    f"`{answer.row}`, from text this game cannot edit, so the "
+                    cite_library(answer.library, answer.row_span)
+                    + f" calls it under its contract "
+                    f"" + cite_where(f"`{answer.row}`", answer.row_span) + f", from text this game cannot edit, so the "
                     f"filter cannot move into the rule: read the card the row "
                     f"passes, or the game's own state"
                 )
@@ -6360,11 +6493,23 @@ def _check_play_source(
                     and id(nd) not in reported
                 ):
                     reported.add(id(nd))
+                    # The read names provided state where a library provides
+                    # the name.
+                    provided_as = next(
+                        (d for d in (game.state.decls if game.state is not None else ())
+                         if d.name == nd.name and d.origin is not None),
+                        None,
+                    )
+                    read: Said = (
+                        f"`{nd.name}`" if provided_as is None
+                        else cite_named(provided_as, f"`{nd.name}`")
+                    )
                     message = (
-                        f"function '{fname}' reads `{nd.name}`, and rule "
-                        f"'{rule.name}' calls it from its clauses: "
+                        "function " + cite_named(fn, f"'{fname}'")
+                        + " reads " + read + ", and rule "
+                        + cite_named(rule, f"'{rule.name}'") + " calls it from its clauses: "
                         f"{_PLAY_SOURCE_READING}, and a function cannot see "
-                        f"which cards those are — {remedy}"
+                        f"which cards those are — " + remedy
                     )
                     if entry is None:
                         # A library's rule calling a library function: the
@@ -6374,24 +6519,30 @@ def _check_play_source(
                             message,
                             nd.span,
                             for_game=None if origin is None else (
-                                f"library '{origin.library}''s {origin.where} calls "
-                                f"function `{fname}` from its clauses, which reads "
-                                f"`{nd.name}`, the cards this game's trick round "
+                                cite_origin(origin, rule.span) + " calls function "
+                                + cite_named(fn, f"`{fname}`") + " from its clauses, which reads "
+                                + read + ", the cards this game's trick round "
                                 f"plays from, and a function cannot see which cards "
-                                f"those are — take '{rule.name}' out of `active_rules:`"
+                                f"those are — take " + cite_named(rule, f"'{rule.name}'") + f" out of `active_rules:`"
                             ),
                         )
                         continue
-                    inner = f", then function `{fname}`" if fname != entry.name else ""
+                    inner: Said = (
+                        ", then function " + cite_named(fn, f"`{fname}`")
+                        if fname != entry.name else ""
+                    )
                     bag.error(
                         message,
                         nd.span,
                         route=_entry_route("call", entry, rule.span),
                         for_game=(
-                            f"rule '{rule.name}' calls {entry.through}{inner} from its "
-                            f"clauses, which reads `{nd.name}`: {_PLAY_SOURCE_READING}, "
+                            f"rule " + cite_named(rule, f"'{rule.name}'") + " calls " + entry.through
+                            + inner + " from its clauses, which reads " + read
+                            + f": {_PLAY_SOURCE_READING}, "
                             f"and a function cannot see which cards those are — "
-                            f"`{entry.name}` is library '{entry.origin.library}''s, so "
+                            + cite_where(f"`{entry.name}`", entry.definition) + " is "
+                            + cite_library(entry.origin.library, entry.definition)
+                            + "'s, so "
                             f"write the filter in the rule's own clause "
                             f"(`cards in {nd.name} where ...`) instead of calling it"
                         ),
@@ -6411,17 +6562,18 @@ def _check_play_source(
             )
     for nd in _walk(game):
         if isinstance(nd, n.StateDecl) and nd.name == PLAY_SOURCE_NAME:
-            rules = " and ".join(f"'{r.name}'" for r in reading)
+            rules = Sentence.join(" and ", (cite_named(r, f"'{r.name}'") for r in reading))
+            variable = cite_named(nd, f"`{nd.name}`")
             bag.error(
-                f"this game declares the state variable `{nd.name}`, but "
+                "this game declares the state variable " + variable + ", but "
                 f"{_PLAY_SOURCE_READING}, so its rules could never read this "
                 f"variable by that name — rename the variable",
                 nd.span,
                 for_game=None if nd.origin is None else (
-                    f"library '{nd.origin.library}' provides the state variable "
-                    f"`{nd.name}`, but this game asks rule {rules}, and "
+                    cite_library(nd.origin.library, nd.span) + " provides the state variable "
+                    + variable + ", but this game asks rule " + rules + ", and "
                     f"{_PLAY_SOURCE_READING}, so no rule could read the variable "
-                    f"by that name — take {rules} out of `active_rules:`"
+                    f"by that name — take " + rules + " out of `active_rules:`"
                 ),
             )
     if not sources:
@@ -6432,7 +6584,8 @@ def _check_play_source(
                     activated.setdefault(ref.name, ref.span)
         for rule in reading:
             said = (
-                f"rule '{rule.name}' reads `{PLAY_SOURCE_NAME}`, the cards the "
+                "rule " + cite_named(rule, f"'{rule.name}'")
+                + f" reads `{PLAY_SOURCE_NAME}`, the cards the "
                 f"player on turn plays to a trick, but this game plays no trick "
                 f"round (`round <move> from ... source ... into ...`); a rule is "
                 f"asked only when a trick round offers a card, so it would "
@@ -6440,7 +6593,7 @@ def _check_play_source(
             )
             if rule.name in own_rules:
                 bag.error(
-                    said + f"play the hand with a trick round, or delete rule '{rule.name}'",
+                    said + f"play the hand with a trick round, or delete rule " + cite_named(rule, f"'{rule.name}'"),
                     rule.span,
                 )
                 continue
@@ -6448,12 +6601,12 @@ def _check_play_source(
             # rounds: the activation is the crossing.
             library = rule.origin.library if rule.origin is not None else ""
             bag.error(
-                said + f"a game with no trick round cannot ask rule '{rule.name}'",
+                said + f"a game with no trick round cannot ask rule " + cite_named(rule, f"'{rule.name}'"),
                 rule.span,
                 route=Route(
                     "activation", activated.get(rule.name, rule.span), library, rule.name
                 ),
-                for_game=said + f"take '{rule.name}' out of `active_rules:`",
+                for_game=said + f"take " + cite_named(rule, f"'{rule.name}'") + f" out of `active_rules:`",
             )
 
 
@@ -6541,7 +6694,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                 f"{_family_shape(index_of[family])}",
                 nd.span,
                 for_game=None if origin is None else (
-                    f"library '{origin.library}''s {origin.where} calls "
+                    cite_origin(origin, nd.span) + f" calls "
                     f"`{nd.func}`, which finds the player holding a card by "
                     f"searching `{family}[player]`, but this game declares "
                     f"`{family}` as {_family_shape(index_of[family])} — declare "
@@ -6576,7 +6729,7 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
             else "no move type (the `constrains:` clause is absent)"
         )
         bag.error(
-            f"rule '{rule.name}' constrains {named}, which no decision site "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" constrains {named}, which no decision site "
             f"consults: rules are applied at exactly one place — the trick "
             f"round's card decision, which asks about "
             f"`{RULE_ENFORCED_MOVE_TYPE}` — so this rule would never fire. "
@@ -6589,7 +6742,7 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
         return  # the clause Owner Guard below would pile onto the same broken rule
     if rule.demands is None and rule.exempts is None:
         bag.error(
-            f"rule '{rule.name}' enforces nothing: it declares neither a "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" enforces nothing: it declares neither a "
             f"`demands:` card set nor an `exempts:` set, so activating it "
             f"cannot change which cards are legal. Give it a `demands:` (with "
             f"its `if_impossible:` fallback) or an `exempts:`, or delete it — "
@@ -6602,7 +6755,7 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
 def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
     if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
         bag.error(
-            f"rule '{rule.name}' constrains unknown move type '{rule.constrains}'",
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" constrains unknown move type '{rule.constrains}'",
             rule.span,
         )
     _check_rule_reaches_a_reader(rule, bag)
@@ -6610,7 +6763,7 @@ def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
     # happens then (`if_impossible`) rather than relying on a silent default.
     if rule.demands is not None and rule.if_impossible is None:
         bag.error(
-            f"rule '{rule.name}' has a card-set `demands` but no `if_impossible`: "
+            f"rule " + cite_named(rule, f"'{rule.name}'") + f" has a card-set `demands` but no `if_impossible`: "
             f"declare the fallback when no card satisfies it (`if_impossible: hand` "
             f"to play any card, or `error(...)` to reject the move)",
             rule.span,
@@ -6618,7 +6771,7 @@ def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
 
 
 def _resolve_phase_level(
-    phases: tuple[n.Phase, ...], known_rule_names: set[str], bag: DiagnosticBag
+    phases: tuple[n.Phase, ...], known_rule_names: Mapping[str, n.RuleDef], bag: DiagnosticBag
 ) -> None:
     """Resolve a set of sibling phases, then recurse into each one's children.
 
@@ -6750,7 +6903,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
 def _resolve_phase_item(
     item: n.PhaseItem,
     sibling_names: set[str],
-    known_rule_names: set[str],
+    known_rule_names: Mapping[str, n.RuleDef],
     bag: DiagnosticBag,
 ) -> None:
     if isinstance(item, n.ActiveRules):
@@ -6758,9 +6911,12 @@ def _resolve_phase_item(
             if ref.name not in known_rule_names:
                 bag.error(f"active_rules names undefined rule '{ref.name}'", ref.span)
             if ref.delta == "override":
+                overridden = known_rule_names.get(ref.name)
+                words = f"`override {ref.name}`"
                 bag.error(
-                    f"`override {ref.name}` is not yet supported by the runtime "
-                    f"(roadmap.md) — use `add`/`remove` deltas",
+                    (words if overridden is None else cite_named(overridden, words))
+                    + " is not yet supported by the runtime "
+                    "(roadmap.md) — use `add`/`remove` deltas",
                     ref.span,
                 )
     elif isinstance(item, n.LegalMoves):
@@ -6892,8 +7048,8 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
             name = getattr(decl, "name")
             if name in seen:
                 bag.error(
-                    f"duplicate {kind} '{name}' — the later declaration would "
-                    f"silently shadow the earlier one",
+                    f"duplicate {kind} " + cite_named(decl, f"'{name}'")
+                    + " — the later declaration would silently shadow the earlier one",
                     getattr(decl, "span", None),
                 )
             seen[name] = decl
@@ -8271,17 +8427,17 @@ _UNPOSITIONED_CONTAINERS: dict[str, str] = {
 }
 
 
-def _definition_bodies(game: n.Game) -> dict[int, tuple[str, str]]:
+def _definition_bodies(game: n.Game) -> dict[int, tuple[str, Said]]:
     """id(node) -> (the `n.Game` field of the definition whose body holds it, a
     phrase naming that definition).
 
     Finer than `_statement_owners`' attribution, because a wall on an offer
     made inside a definition body must NAME the definition: an addressee told
     only "inside a move type" is left to find which."""
-    bodies: dict[int, tuple[str, str]] = {}
+    bodies: dict[int, tuple[str, Said]] = {}
     for move_type in game.move_types:
         for node in _walk(move_type):
-            bodies[id(node)] = ("move_types", f"move type `{move_type.name}`")
+            bodies[id(node)] = ("move_types", "move type " + cite_named(move_type, f"`{move_type.name}`"))
     return bodies
 
 
@@ -8289,8 +8445,8 @@ def _offering_positions(
     game: n.Game,
     move_type: str,
     owners: dict[int, str],
-    bodies: dict[int, tuple[str, str]],
-) -> tuple[list[object], list[tuple[object, str, str]], frozenset[str]]:
+    bodies: dict[int, tuple[str, Said]],
+) -> tuple[list[object], list[tuple[object, Said, str]], frozenset[str]]:
     """Where `move_type` is put IN PLAY, which is not always where the offer's
     text sits — with the offers this analysis declines to position, and the
     procedures that offer.
@@ -8305,7 +8461,7 @@ def _offering_positions(
     offers = _offers_move_type(move_type)
     from_procedures = _procedures_reaching(game, offers)
     positions: list[object] = []
-    walled: list[tuple[object, str, str]] = []
+    walled: list[tuple[object, Said, str]] = []
     for node in _walk(game):
         if not (
             offers(node)
@@ -8511,7 +8667,7 @@ def _check_offered_containers(
     inside: set[int],
     reaching: frozenset[str],
     owners: dict[int, str],
-    bodies: dict[int, tuple[str, str]],
+    bodies: dict[int, tuple[str, Said]],
     origins: dict[int, n.LibraryOrigin],
     bag: DiagnosticBag,
 ) -> None:
@@ -8541,11 +8697,12 @@ def _check_offered_containers(
             nd.name for nd in _walk(move_type)
             if isinstance(nd, n.RunStmt) and nd.name in reaching
         )
-        through = (
-            f"move type `{move_type.name}`"
+        through: Said = (
+            "move type " + cite_named(move_type, f"`{move_type.name}`")
             if move_type.origin is None or not runs
-            else f"this game's procedure `{runs[0]}`"
+            else "this game's procedure " + _cite_in(game, "procedure", runs[0], f"`{runs[0]}`")
         )
+        entry_named = _cite_in(game, "function", entry, f"`{entry}`")
         for site, named, kind in walled:
             site_origin = origins.get(id(site))
             # A wall with a witness, not a decision: coup's move-type effects
@@ -8554,29 +8711,30 @@ def _check_offered_containers(
             # the offering CONTAINER's own containment, and so on up a chain the
             # flow analysis does not walk — so the refusal says exactly that,
             # rather than a false thing about where state stands.
-            made = (
-                f"the `run` of procedure `{site.name}`, which offers "
-                f"`{move_type.name}`,"
+            made: Said = (
+                "the `run` of procedure "
+                + _cite_in(game, "procedure", site.name, f"`{site.name}`")
+                + ", which offers " + cite_named(move_type, f"`{move_type.name}`") + ","
                 if isinstance(site, n.RunStmt)
-                else f"this offer of `{move_type.name}`"
+                else "this offer of " + cite_named(move_type, f"`{move_type.name}`")
             )
             bag.error(
-                f"move type `{move_type.name}` calls `{entry}`, which reads "
-                f"state declared in phase `{phase_name}`, and {made} sits "
-                f"inside {named} — the analysis does not follow offers made "
+                f"move type " + cite_named(move_type, f"`{move_type.name}`") + f" calls " + entry_named + f", which reads "
+                f"state declared in phase `{phase_name}`, and " + made + f" sits "
+                f"inside " + named + f" — the analysis does not follow offers made "
                 f"from inside {kind}, so there is no "
                 f"position to judge and the scope cannot be established; offer "
-                f"`{move_type.name}` from a statement inside `{phase_name}`",
+                f"" + cite_named(move_type, f"`{move_type.name}`") + f" from a statement inside `{phase_name}`",
                 getattr(site, "span", None) or game.span,
                 for_game=None if site_origin is None else (
-                    f"library '{site_origin.library}''s {site_origin.where} "
-                    f"offers `{move_type.name}`, which calls `{entry}` through "
-                    f"{through}, and `{entry}` reads state declared in phase "
+                    cite_origin(site_origin, getattr(site, "span", None) or game.span) + f" "
+                    f"offers " + cite_named(move_type, f"`{move_type.name}`") + f", which calls " + entry_named + f" through "
+                    f"" + through + f", and " + entry_named + f" reads state declared in phase "
                     f"`{phase_name}` — the analysis does not follow offers made "
                     f"from inside {kind}, so there is no position to judge and "
-                    f"the scope cannot be established; keep `{entry}` out of "
-                    f"{through}, or declare `{read}` at game level and drop "
-                    f"`in {phase_name}` from `{entry}`'s read of it"
+                    f"the scope cannot be established; keep " + entry_named + f" out of "
+                    f"" + through + f", or declare `{read}` at game level and drop "
+                    f"`in {phase_name}` from " + entry_named + f"'s read of it"
                 ),
                 stands_on=move_type.span,
             )
@@ -8594,19 +8752,19 @@ def _check_offered_containers(
             # keeps the containment claim about a real containment.
             origin = move_type.origin
             bag.error(
-                f"move type `{move_type.name}` calls `{entry}`, which reads "
+                f"move type " + cite_named(move_type, f"`{move_type.name}`") + f" calls " + entry_named + f", which reads "
                 f"state declared in phase `{phase_name}`, and no statement "
-                f"offers `{move_type.name}` — an unoffered move type has no "
+                f"offers " + cite_named(move_type, f"`{move_type.name}`") + f" — an unoffered move type has no "
                 f"phase to be inside, so the scope cannot be established; "
                 f"offer it inside `{phase_name}`",
                 move_type.span or game.span,
                 for_game=None if origin is None else (
-                    f"library '{origin.library}''s {origin.where} calls `{entry}` "
-                    f"through {through}, and `{entry}` reads state declared in "
+                    cite_origin(origin, move_type.span or game.span) + f" calls " + entry_named + f" "
+                    f"through " + through + f", and " + entry_named + f" reads state declared in "
                     f"phase `{phase_name}`, but no statement offers "
-                    f"`{move_type.name}` — an unoffered move type has no phase "
+                    f"" + cite_named(move_type, f"`{move_type.name}`") + f" — an unoffered move type has no phase "
                     f"to be inside, so the scope cannot be established; offer "
-                    f"`{move_type.name}` inside `{phase_name}`"
+                    f"" + cite_named(move_type, f"`{move_type.name}`") + f" inside `{phase_name}`"
                 ),
             )
             continue
@@ -8617,27 +8775,25 @@ def _check_offered_containers(
             # addressee is whoever put the move type in play there, not whoever
             # wrote the entry.
             if isinstance(site, n.RunStmt):
+                run_named = _cite_in(game, "procedure", site.name, f"`{site.name}`")
                 bag.error(
-                    f"move type `{move_type.name}` calls `{entry}`, which reads "
+                    f"move type " + cite_named(move_type, f"`{move_type.name}`") + f" calls " + entry_named + f", which reads "
                     f"state declared in phase `{phase_name}`, and procedure "
-                    f"`{site.name}` offers `{move_type.name}` wherever it is "
-                    f"run — this `run` puts `{move_type.name}` in play outside "
+                    + run_named + " offers " + cite_named(move_type, f"`{move_type.name}`")
+                    + " wherever it is run — this `run` puts "
+                    + cite_named(move_type, f"`{move_type.name}`") + f" in play outside "
                     f"`{phase_name}`, where that state does not stand; run "
-                    f"`{site.name}` inside `{phase_name}` only",
+                    + run_named + f" inside `{phase_name}` only",
                     site.span or game.span,
-                    stands_on=next(
-                        (p.span for p in game.procedures if p.name == site.name), None
-                    ),
                 )
                 continue
             bag.error(
-                f"move type `{move_type.name}` calls `{entry}`, which reads "
+                f"move type " + cite_named(move_type, f"`{move_type.name}`") + f" calls " + entry_named + f", which reads "
                 f"state declared in phase `{phase_name}` — this offer puts "
-                f"`{move_type.name}` in play outside `{phase_name}`, where "
-                f"that state does not stand; offer `{move_type.name}` inside "
+                f"" + cite_named(move_type, f"`{move_type.name}`") + f" in play outside `{phase_name}`, where "
+                f"that state does not stand; offer " + cite_named(move_type, f"`{move_type.name}`") + f" inside "
                 f"`{phase_name}` only",
                 getattr(site, "span", None) or game.span,
-                stands_on=move_type.span,
             )
 
 
@@ -8673,17 +8829,19 @@ def _check_run_sites(
         if owner == "phases" and id(run) in inside:
             continue
         where = "in another phase" if owner == "phases" else f"in this game's `{owner}`"
+        procedure = _cite_in(game, "procedure", run.name, f"`{run.name}`")
         bag.error(
-            f"procedure `{run.name}` calls `{entry}`, which reads state "
+            "procedure " + procedure + " calls "
+            + _cite_in(game, "function", entry, f"`{entry}`") + ", which reads state "
             f"declared in phase `{phase_name}`, and a procedure body runs where "
             f"its `run` site sits — this one is {where}, which runs outside "
-            f"`{phase_name}`; run `{run.name}` inside `{phase_name}` only",
+            f"`{phase_name}`; run " + procedure + f" inside `{phase_name}` only",
             run.span or game.span,
         )
 
 
 def _statement_owners(
-    game: n.Game, bodies: dict[int, tuple[str, str]]
+    game: n.Game, bodies: dict[int, tuple[str, Said]]
 ) -> dict[int, str]:
     """id(node) -> the `n.Game` field whose subtree holds it. Built once per
     containment check so a `run` or an offer can be attributed to the container
@@ -8880,7 +9038,7 @@ def _gated_calls(game: n.Game) -> list[n.Call]:
 
 
 class _ErrorSink(Protocol):
-    def error(self, message: str, span: Span | None) -> None: ...
+    def error(self, message: Said, span: Span | None) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -8891,7 +9049,7 @@ class _RouteSink:
     bag: DiagnosticBag
     route: Route
 
-    def error(self, message: str, span: Span | None) -> None:
+    def error(self, message: Said, span: Span | None) -> None:
         self.bag.error(message, span, route=self.route)
 
 
@@ -8977,17 +9135,33 @@ def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
                 sites.extend((nd, name) for nd in _walk(fns[name].body))
         # A function reached through library text is the library's, sound
         # where the library calls it: the row's call of it is what fails.
+        routes = _row_routes(row, fns)
         entries = {
             name: entry
-            for name, steps in _row_routes(row, fns).items()
+            for name, steps in routes.items()
             if (entry := _library_entry(steps)) is not None
         }
-        def through(fn: str | None) -> str:
-            entry = entries.get(fn) if fn else None
+        def through(fn: str | None) -> Said:
+            if not fn:
+                return ""
+            named = _cite_in(game, "function", fn, f"`{fn}`")
+            entry = entries.get(fn)
             if entry is None:
-                return f" through function `{fn}`" if fn else ""
-            inner = f", then function `{fn}`" if fn != entry.name else ""
-            return f" through {entry.through}{inner}"
+                # A route back into the game's text names the library
+                # definitions it crossed on the way.
+                crossed = [
+                    cite_origin(origin, getattr(d, "span", None))
+                    for _at, d in routes.get(fn, [])[:-1]
+                    if (origin := getattr(d, "origin", None)) is not None
+                ]
+                if crossed:
+                    return (
+                        " through " + Sentence.join(", then ", crossed)
+                        + ", then function " + named
+                    )
+                return " through function " + named
+            inner: Said = ", then function " + named if fn != entry.name else ""
+            return " through " + entry.through + inner
 
         def sink(fn: str | None) -> _ErrorSink:
             entry = entries.get(fn) if fn else None
@@ -9034,7 +9208,7 @@ def _check_row_zone_read(
     nd: n.NameRef,
     fn: str | None,
     bag: _ErrorSink,
-    through: Callable[[str | None], str],
+    through: Callable[[str | None], Said],
     is_subscripted: bool,
 ) -> None:
     decl = next((z for z in game.zones if z.name == nd.name), None)
@@ -9089,7 +9263,7 @@ def _check_row_call(
     nd: n.Call,
     fn: str | None,
     bag: _ErrorSink,
-    through: Callable[[str | None], str],
+    through: Callable[[str | None], Said],
 ) -> None:
     if nd.func in declared_names(game):
         # A [[primitive]] this game's own `primitives { }` block declares.
@@ -9738,7 +9912,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                         f"into the row, or rename"
                     )
             bag.error(
-                f"function '{fn.name}' shadows the native function of the same name; "
+                f"function " + cite_named(fn, f"'{fn.name}'") + f" shadows the native function of the same name; "
                 f"rename it (a call would type-check against the native signature but "
                 f"run this function instead){hint}",
                 fn.span,
@@ -9751,7 +9925,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 continue
             if nd.ref_kind == "local" and nd.name not in allowed:
                 bag.error(
-                    f"function '{fn.name}' references '{nd.name}', which is not one of "
+                    f"function " + cite_named(fn, f"'{fn.name}'") + f" references '{nd.name}', which is not one of "
                     f"its parameters or a binding in its body",
                     nd.span,
                 )
@@ -9761,7 +9935,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 # moves, and a diagnostic that names the wrong words misdirects the
                 # designer it is meant to repair.
                 bag.error(
-                    f"function '{fn.name}' reads the call-site pronoun '{nd.name}'; a "
+                    f"function " + cite_named(fn, f"'{fn.name}'") + f" reads the call-site pronoun '{nd.name}'; a "
                     f"function is hermetic and may not read "
                     f"{'/'.join(sorted(_CALL_SITE_PRONOUNS))} — "
                     + (
@@ -9772,28 +9946,30 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                     nd.span,
                 )
         if _reaches(fn.name, fn.name, calls):
-            _report_recursion(fn, calls, _library_functions(game), bag)
+            library_functions = {f.name: f for f in game.functions if f.origin is not None}
+            _report_recursion(fn, calls, library_functions, bag)
 
 
-def _contracted_remedy(contracts: tuple[n.ContractStamp, ...]) -> str:
+def _contracted_remedy(contracts: tuple[n.ContractStamp, ...]) -> Said:
     """The fix for a definition answering a Definition Contract that reads a
     call-site pronoun. Its call sites are in the text of every library whose
     row it answers, which the game's author cannot edit, so the fix named is
     one they can take."""
-    callers = " and ".join(
-        f"library '{c.library}' calls it under its contract `{c.row}`" for c in contracts
-    )
+    callers = Sentence.join(" and ", (
+        cite_library(c.library, c.row_span) + f" calls it under its contract " + cite_where(f"`{c.row}`", c.row_span)
+        for c in contracts
+    ))
     return (
-        f"{callers}, from text this game cannot edit, so no argument can "
-        f"be added there: read the value from the parameter the row passes, or "
-        f"from the game's own state"
+        callers + ", from text this game cannot edit, so no argument can "
+        "be added there: read the value from the parameter the row passes, or "
+        "from the game's own state"
     )
 
 
 def _report_recursion(
     fn: n.FunctionDef,
     calls: dict[str, set[str]],
-    library_functions: dict[str, str],
+    library_functions: dict[str, n.FunctionDef],
     bag: DiagnosticBag,
 ) -> None:
     """A recursive function, told to the Author who closed the cycle. A cycle
@@ -9809,19 +9985,21 @@ def _report_recursion(
     imported = sorted(name for name in cycle if name in library_functions)
     if not imported or len(imported) == len(cycle):
         bag.error(
-            f"function '{fn.name}' is recursive; functions must be non-recursive",
+            f"function " + cite_named(fn, f"'{fn.name}'") + f" is recursive; functions must be non-recursive",
             fn.span,
         )
         return
     if fn.name in library_functions:
         return
-    through = ", ".join(
-        f"library '{library_functions[name]}''s function '{name}'" for name in imported
-    )
+    through = Sentence.join(", ", (
+        cite_origin(origin, library_functions[name].span)
+        for name in imported
+        if (origin := library_functions[name].origin) is not None
+    ))
     bag.error(
-        f"function '{fn.name}' is recursive through {through}, which calls it "
-        f"back; functions must be non-recursive, and this game's definition "
-        f"closes the cycle",
+        f"function " + cite_named(fn, f"'{fn.name}'") + f" is recursive through " + through + ", which calls it "
+        "back; functions must be non-recursive, and this game's definition "
+        "closes the cycle",
         fn.span,
     )
 
@@ -9866,7 +10044,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
             if base_of(p.type_name) not in known:
                 bag.error(
                     f"unknown type '{p.type_name}' in parameter '{p.name}' of "
-                    f"function '{fn.name}'",
+                    f"function " + cite_named(fn, f"'{fn.name}'"),
                     fn.span,
                 )
     for phase in _walk(game):
@@ -9975,7 +10153,19 @@ _WRITE_TARGET_KINDS: dict[str, str] = {
 }
 
 
-def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
+def _named_ref(game: n.Game, ref: n.NameRef) -> Said:
+    """`ref` quoted, cited at the provided state it reads where it reads
+    some."""
+    words = f"'{ref.name}'"
+    if ref.ref_kind != "state_var" or game.state is None:
+        return words
+    provided = next(
+        (d for d in game.state.decls if d.name == ref.name and d.origin is not None), None
+    )
+    return words if provided is None else cite_named(provided, words)
+
+
+def _bad_write_target(game: n.Game, node: n.AssignStmt | n.RotateStmt) -> Said | None:
     """Why this write target is illegal, or None if it is a state variable."""
     verb = "assign to" if isinstance(node, n.AssignStmt) else "rotate"
     kind = node.target.ref_kind
@@ -9985,14 +10175,14 @@ def _bad_write_target(node: n.AssignStmt | n.RotateStmt) -> str | None:
         return None  # unresolved: `_classify` has already reported it, by name
     what = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     return (
-        f"cannot {verb} '{node.target.name}': it is {what}, and only a declared state "
+        f"cannot {verb} " + _named_ref(game, node.target) + f": it is {what}, and only a declared state "
         f"variable can be written. A binder is a bound value, not a variable — and if "
         f"a state variable of the same name exists, the two would not agree anyway "
         f"(a read here means the binder; a write always goes to state)"
     )
 
 
-def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
+def _bad_zone_endpoint(game: n.Game, expr: n.Expr | None, what: str) -> Said | None:
     """Why this zone-position expression (a movement's `from <here>` /
     `to <here>`, an epistemic op's target) is illegal, or None. The same move
     as `_bad_write_target`, one grammar position over: the position is
@@ -10020,7 +10210,7 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     what_it_is = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     if kind == "state_var":
         what_it_is = "a state variable"
-    return f"cannot {what} '{root.name}': it is {what_it_is}, not a zone"
+    return f"cannot {what} " + _named_ref(game, root) + f": it is {what_it_is}, not a zone"
 
 
 def _check_hosted_binder(poll: n.HostedPoll, cats: _Categories, bag: DiagnosticBag) -> None:
@@ -10120,20 +10310,23 @@ def _check_hosted_polls(game: n.Game, bag: DiagnosticBag) -> None:
         clause = f"the Hosted Poll (`before asking {poll.binder}`)"
         reached = _definition_closure([poll], pools)
 
-        def path(key: tuple[str, str] | None, part: str) -> str:
-            segments: list[str] = []
+        def path(key: tuple[str, str] | None, part: str) -> Said:
+            segments: list[Said] = []
             while key is not None:
                 ns, name = key
-                origin = getattr(reached[key][0], "origin", None)
-                owner = f"library '{origin.library}''s " if origin is not None else ""
-                segments.append(
-                    f"{owner}{_HOSTED_REACH_NOUN[ns]} '{name}' ({_HOSTED_REACH_VERB[ns]})"
+                target = reached[key][0]
+                origin = getattr(target, "origin", None)
+                noun = f"{_HOSTED_REACH_NOUN[ns]} '{name}'"
+                named: Said = (
+                    cite_named(target, noun) if origin is None
+                    else cite_definition(origin.library, noun, getattr(target, "span", None))
                 )
+                segments.append(named + f" ({_HOSTED_REACH_VERB[ns]})")
                 key = reached[key][1]
-            text = " → ".join(reversed(segments))
-            return f", reached through {text}{', ' + part if part else ''}"
+            text = Sentence.join(" → ", reversed(segments))
+            return ", reached through " + text + (", " + part if part else "")
 
-        units: list[tuple[object, str, _ErrorSink, object]] = [(poll.body, "", bag, poll)]
+        units: list[tuple[object, Said, _ErrorSink, object]] = [(poll.body, "", bag, poll)]
         for key, (target, _via) in reached.items():
             # Library text the poll reaches is sound where the library runs
             # it: the poll's reach into it is what fails.
@@ -10198,7 +10391,7 @@ def _made_up_run(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.Expr) -> n.RunSt
     return replace(stmt, args=args)
 
 
-def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled: str) -> str:
+def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled: str) -> Said:
     """A run of `_meeting_callers`, as the game's author writes it: the
     seat to every Player parameter, the run's own argument to each other
     one, named by its parameter (`<k>`) where `_spell` cannot quote it."""
@@ -10208,7 +10401,7 @@ def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled
         else text
         for param, arg in zip(proc.params, stmt.args)
     ]
-    call = f"{stmt.name}({', '.join(spelled_args)})"
+    call = cite_named(proc, stmt.name) + f"({', '.join(spelled_args)})"
     passed = [f"`{p.name}`" for p in proc.params if p.type_name == "Player"]
     if seat.name == _ANY_PLAYER:
         lead = "run it as one player"
@@ -10218,11 +10411,11 @@ def _meeting_fix(proc: n.ProcedureDef, stmt: n.RunStmt, seat: n.NameRef, spelled
         given = f"`{spelled}`"
     if passed:
         lead += f" and pass {given} as {', '.join(passed)}"
-    return f"{lead}: `as {spelled} {{ run {call} }}`"
+    return f"{lead}: `as {spelled} {{ run " + call + " }`"
 
 
 def _check_hosted_node(
-    nd: object, clause: str, via: str, primitives: set[str], bag: _ErrorSink
+    nd: object, clause: str, via: Said, primitives: set[str], bag: _ErrorSink
 ) -> None:
     """One node of a Hosted Poll's closure against the four refusals."""
     why_live = (
@@ -10231,19 +10424,19 @@ def _check_hosted_node(
     )
     if isinstance(nd, _STMT_KINDS) and type(nd) not in HOSTED_POLL_ALLOWED:
         bag.error(
-            f"{clause} may not hold {HOSTED_POLL_REFUSED[type(nd)]}{via}: {why_live}",
+            f"{clause} may not hold {HOSTED_POLL_REFUSED[type(nd)]}" + via + f": {why_live}",
             cast(n.Stmt, nd).span,
         )
         return
     if isinstance(nd, n.NameRef) and nd.name == "state" and nd.ref_kind == "pronoun":
         bag.error(
-            f"{clause} may not read `state`{via}: the round's state is "
-            f"published only once the round has ended",
+            f"{clause} may not read `state`" + via + ": the round's state is "
+            "published only once the round has ended",
             nd.span,
         )
     elif isinstance(nd, n.Call) and nd.func in primitives:
         bag.error(
-            f"{clause} may not call the Primitive `{nd.func}`{via}: a game "
+            f"{clause} may not call the Primitive `{nd.func}`" + via + ": a game "
             f"module reads the round's live, unpublished state through its "
             f"engine facts",
             nd.span,
@@ -10277,7 +10470,7 @@ def _check_procedures(
         names = [p.name for p in proc.params]
         for dup in sorted({nm for nm in names if names.count(nm) > 1}):
             bag.error(
-                f"procedure '{proc.name}' declares more than one parameter named "
+                f"procedure " + cite_named(proc, f"'{proc.name}'") + f" declares more than one parameter named "
                 f"'{dup}' — substitution binds by name, so one would silently "
                 f"shadow the other",
                 proc.span,
@@ -10302,14 +10495,14 @@ def _check_procedures(
         for p in proc.params:
             if p.name in binders:
                 bag.error(
-                    f"procedure '{proc.name}' introduces a binder named "
+                    f"procedure " + cite_named(proc, f"'{proc.name}'") + f" introduces a binder named "
                     f"'{p.name}', shadowing its own parameter — rename one",
                     proc.span,
                 )
 
         if not proc.body:
             bag.error(
-                f"procedure '{proc.name}' has an empty body — it would splice "
+                f"procedure " + cite_named(proc, f"'{proc.name}'") + f" has an empty body — it would splice "
                 f"nothing at every site that runs it; give it statements or delete it",
                 proc.span,
             )
@@ -10324,7 +10517,7 @@ def _check_procedures(
                         n.SkipToNextHand: "`skip to next hand`",
                     }[type(nd)]
                     bag.error(
-                        f"procedure '{proc.name}' uses {what}, which unwinds past "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + f" uses {what}, which unwinds past "
                         f"the statement it is written at; a procedure body is "
                         f"spliced into its call sites, which may sit in different "
                         f"enclosing constructs, so it may not contain non-local "
@@ -10333,7 +10526,7 @@ def _check_procedures(
                     )
                 elif isinstance(nd, _WINNER_BINDING_STMTS):
                     bag.error(
-                        f"procedure '{proc.name}' contains a `round`, which binds "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + f" contains a `round`, which binds "
                         f"its own `winner` for the statements after it; a "
                         f"procedure body may not yet hold one, because the body's "
                         f"`winner` Owner Guard cannot distinguish a round-local binding "
@@ -10342,7 +10535,7 @@ def _check_procedures(
                     )
                 elif isinstance(nd, n.Produces) and nd.phase in outcome_phases:
                     bag.error(
-                        f"procedure '{proc.name}' consumes the phase outcome of "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + f" consumes the phase outcome of "
                         f"'{nd.phase}'. A phase outcome's consumer must be an "
                         f"EARLIER-executed sibling of the producing phase, and there "
                         f"must be exactly ONE of them — both are facts about where "
@@ -10355,7 +10548,8 @@ def _check_procedures(
                     )
                 elif isinstance(nd, n.RunStmt):
                     bag.error(
-                        f"procedure '{proc.name}' runs procedure '{nd.name}'; a "
+                        f"procedure " + cite_named(proc, f"'{proc.name}'") + " runs procedure "
+                        + _cite_in(game, "procedure", nd.name, f"'{nd.name}'") + "; a "
                         f"procedure may not invoke another (v1 — expansion is a "
                         f"single splice, not a call graph)",
                         nd.span,
@@ -10363,7 +10557,7 @@ def _check_procedures(
                 elif isinstance(nd, n.NameRef):
                     if nd.ref_kind == "local" and nd.name not in allowed:
                         bag.error(
-                            f"procedure '{proc.name}' references '{nd.name}', which "
+                            f"procedure " + cite_named(proc, f"'{proc.name}'") + f" references '{nd.name}', which "
                             f"is not one of its parameters or a binding in its body",
                             nd.span,
                         )
@@ -10371,14 +10565,14 @@ def _check_procedures(
                         remedy = (
                             _contracted_remedy(proc.contracts)
                             if proc.contracts
-                            else f"pass the value in as a parameter (`run "
-                            f"{proc.name}({nd.name})`)"
+                            else "pass the value in as a parameter (`run "
+                            + cite_named(proc, proc.name) + f"({nd.name})`)"
                         )
                         bag.error(
-                            f"procedure '{proc.name}' reads the call-site pronoun "
+                            f"procedure " + cite_named(proc, f"'{proc.name}'") + f" reads the call-site pronoun "
                             f"'{nd.name}'; a procedure body is spliced into call "
                             f"sites that need not share a call-site context — "
-                            f"{remedy}",
+                            + remedy,
                             nd.span,
                         )
 
@@ -10398,8 +10592,8 @@ def _check_procedures(
     for proc in game.procedures:
         if proc.name not in invoked and (own is None or proc.name in own):
             bag.error(
-                f"procedure '{proc.name}' is never run — invoke it with `run "
-                f"{proc.name}(…)`, or delete it (its body would otherwise be "
+                f"procedure " + cite_named(proc, f"'{proc.name}'") + " is never run — invoke it with `run "
+                + cite_named(proc, proc.name) + "(…)`, or delete it (its body would otherwise be "
                 f"spliced nowhere, and go entirely unchecked downstream)",
                 proc.span,
             )
@@ -10472,7 +10666,7 @@ def _check_move_params(
         if offending:
             bag.error(
                 f"{content_kind_clause(game.content_flavor, game.deck)} -- "
-                f"move '{mt.name}' has a "
+                f"move " + cite_named(mt, f"'{mt.name}'") + f" has a "
                 f"{offending[0]} parameter, whose domain is the deck's "
                 f"suits/ranks; a piece set enumerates neither",
                 span,
@@ -10480,14 +10674,14 @@ def _check_move_params(
             return
     if "Card" in types and mt.stake is not None:
         bag.error(
-            f"`{mt.stake}` on move type `{mt.name}`: a card play is offered as "
+            f"`{mt.stake}` on move type " + cite_named(mt, f"`{mt.name}`") + f": a card play is offered as "
             f"its card, and its action id is the card's, naming no move type, "
             f"so no seat can read the row — delete it (issue #770)",
             span,
         )
     if "Card" in types and len(types) > 1:
         bag.error(
-            f"move '{mt.name}' combines a Card parameter with another parameter; "
+            f"move " + cite_named(mt, f"'{mt.name}'") + f" combines a Card parameter with another parameter; "
             f"Card's domain is the live hand and its actions are the card block, "
             f"so a Card parameter cannot be combined with another parameter "
             f"(fold into one parameter)",
@@ -10497,7 +10691,7 @@ def _check_move_params(
     dup_names = sorted({name for name in names if names.count(name) > 1})
     if dup_names:
         bag.error(
-            f"move '{mt.name}' declares more than one parameter named "
+            f"move " + cite_named(mt, f"'{mt.name}'") + f" declares more than one parameter named "
             f"{', '.join(dup_names)}; `bind_params` binds parameters by name, "
             f"so a repeated name silently shadows the earlier parameter instead "
             f"of binding both (rename one)",
@@ -10506,7 +10700,7 @@ def _check_move_params(
     for t in types:
         if t.rstrip("?") == "Integer":
             bag.error(
-                f"move '{mt.name}' has parameter domain '{t}'; bounded-Integer "
+                f"move " + cite_named(mt, f"'{mt.name}'") + f" has parameter domain '{t}'; bounded-Integer "
                 f"parameter domains are deferred (see "
                 f"open-questions/move-parameter-domains.md)",
                 span,
@@ -10527,7 +10721,7 @@ def _check_move_params(
                     + ")"
                 )
             bag.error(
-                f"move '{mt.name}' has unsupported parameter domain '{t}' "
+                f"move " + cite_named(mt, f"'{mt.name}'") + f" has unsupported parameter domain '{t}' "
                 f"(expected {expected})",
                 span,
             )
@@ -10537,7 +10731,7 @@ def _check_move_params(
         # — only bare `Rank` needs the non-empty-`ranking:` gate.
         elif t == "Rank" and _refuses(_RANK_PARAMETER_GATE, mt, game):
             bag.error(
-                f"move '{mt.name}' has a Rank parameter, but the game declares "
+                f"move " + cite_named(mt, f"'{mt.name}'") + f" has a Rank parameter, but the game declares "
                 f"no ranking: — Rank enumerates the declared ranking, so it "
                 f"needs a non-empty one",
                 span,
@@ -10579,30 +10773,33 @@ def _check_card_offering(
     ]
     if len(card_param_moves) > 1:
         answers = [m for m in card_param_moves if move_type_defs[m].origin is None]
-        for_game: str | None = None
+
+        def quoted(m: str) -> LibraryCitation:
+            return cite_named(move_type_defs[m], f"`{m}`")
+
+        for_game: Said | None = None
         if origin is not None and answers:
-            listed = " and ".join(f"`{m}`" for m in answers)
-            offered = ", ".join(f"`{m}`" for m in card_param_moves)
+            listed = Sentence.join(" and ", map(quoted, answers))
+            offered = Sentence.join(", ", map(quoted, card_param_moves))
             takes = "takes" if len(answers) == 1 else "take"
             which = "it" if len(answers) == 1 else "one of them"
             for_game = (
-                f"library '{origin.library}''s {origin.where} offers {offered} "
-                f"in one offer, and this game's {listed} {takes} a Card "
+                cite_origin(origin, span) + " offers " + offered
+                + " in one offer, and this game's " + listed + f" {takes} a Card "
                 f"parameter beside the other; a card play's action is the card "
                 f"itself, so the two would be indistinguishable — answer "
                 f"{which} with a move type that takes no Card parameter"
             )
+        moves = Sentence.join(
+            ", ", (cite_named(move_type_defs[m], m) for m in card_param_moves)
+        )
         bag.error(
-            f"offering declares more than one Card-parameterized move "
-            f"({', '.join(card_param_moves)}); a card play's action is the "
-            f"card itself, so a second Card-parameterized move would be "
-            f"indistinguishable — fold them into one move type",
+            "offering declares more than one Card-parameterized move ("
+            + moves + "); a card play's action is the "
+            "card itself, so a second Card-parameterized move would be "
+            "indistinguishable — fold them into one move type",
             span,
             for_game=for_game,
-            stands_on=tuple(
-                at for m in card_param_moves
-                if move_type_defs[m].origin and (at := move_type_defs[m].span) is not None
-            ),
         )
     hand = next((z for z in game.zones if z.name == family), None)
     if not card_param_moves or (
@@ -10613,26 +10810,29 @@ def _check_card_offering(
         return
     move = move_type_defs[card_param_moves[0]]
     param = move.params[0]
+    offering_move = "offering move " + cite_named(move, f"'{move.name}'")
     if origin is not None:
         whose = "this game's " if move.origin is None else ""
         shape = "" if hand is None else f" (its `{family}` is {_family_shape(hand.index)})"
-        fix = (
-            f"answer `{move.name}` with a move type that takes no Card "
-            f"parameter, since the library's contract names `{family}` so"
+        fix: Said = (
+            "answer " + cite_named(move, f"`{move.name}`") + " with a move type that "
+            "takes no Card parameter, since "
+            + cite_library(origin.library, None) + f"'s contract names `{family}` so"
             if family in origin.contracted_zones
             else f"declare `{family}` a zone kept per player, like "
             f"`{family}[player] : Hand<player>`"
         )
         bag.error(
-            f"offering move '{card_param_moves[0]}' takes a Card parameter, "
+            offering_move + " takes a Card parameter, "
             f"which enumerates the actor's `{family}[player]` zone — this game "
             f"declares none",
             span,
             for_game=(
-                f"library '{origin.library}''s {origin.where} offers {whose}move "
-                f"type `{move.name}`, whose `{param.name} : Card` takes a card from "
+                cite_origin(origin, span) + f" offers {whose}move type "
+                + cite_named(move, f"`{move.name}`")
+                + f", whose `{param.name} : Card` takes a card from "
                 f"the acting seat's `{family}[player]`, but this game declares no "
-                f"`{family}[player]`{shape} — {fix}"
+                f"`{family}[player]`{shape} — " + fix
             ),
         )
         return
@@ -10642,20 +10842,21 @@ def _check_card_offering(
     if move.origin is not None and family in move.origin.contracted_zones:
         shape = "none" if hand is None else _family_shape(hand.index)
         bag.error(
-            f"move type `{move.name}`'s `{param.name} : Card` takes a card from "
-            f"the acting seat's `{family}[player]`, but this library's contract "
-            f"names `{family}` as {shape}, so no game meeting it can offer "
-            f"`{move.name}` — contract `{family}` per player, like "
+            "move type " + cite_named(move, f"`{move.name}`")
+            + f"'s `{param.name} : Card` takes a card from "
+            f"the acting seat's `{family}[player]`, but "
+            + cite_library(move.origin.library, None)
+            + f"'s contract names `{family}` as {shape}, so no game meeting it can offer "
+            + cite_named(move, f"`{move.name}`") + f" — contract `{family}` per player, like "
             f"`{family}[player] : Hand<player>`",
             param.span or move.span,
         )
         return
     bag.error(
-        f"offering move '{card_param_moves[0]}' takes a Card parameter, "
+        offering_move + " takes a Card parameter, "
         f"which enumerates the actor's `{family}[player]` zone — this game "
         f"declares none",
         span,
-        stands_on=move.span,
     )
 
 
@@ -10982,7 +11183,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if nd.type_name not in KNOWN_TYPE_NAMES:
                     bag.error(
                         f"unknown type '{nd.type_name}' in declaration of "
-                        f"'{nd.name}'",
+                        + cite_named(nd, f"'{nd.name}'"),
                         nd.span,
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
@@ -10993,7 +11194,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # to seats) — the declared index was accepted and ignored.
                     roles = ", ".join(role_names(ZONE_INDEX_ROLES))
                     bag.error(
-                        f"state variable '{nd.name}' is indexed by "
+                        "state variable " + cite_named(nd, f"'{nd.name}'") + f" is indexed by "
                         f"'{nd.index}', which is not an indexable role "
                         f"({roles}) — a value domain has no per-member store "
                         f"(roadmap.md records the extension)",
@@ -11005,7 +11206,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # every later `x[…] := …` hits the runtime key guard far
                     # from the real mistake (the missing `teams:`).
                     bag.error(
-                        f"state variable '{nd.name}' is indexed by 'team' but "
+                        "state variable " + cite_named(nd, f"'{nd.name}'") + " is indexed by 'team' but "
                         f"the game declares no `teams:` — there are no "
                         f"teams to key it by",
                         nd.span,
@@ -11140,14 +11341,14 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # Both checks in ONE arm: a bare `case n.RotateStmt():` above a guarded
                 # one consumes the node, so the guarded arm never runs. (It did exactly
                 # that, and `tests/test_binder_scoping.py` caught it.)
-                bad = _bad_write_target(nd)
+                bad = _bad_write_target(game, nd)
                 if bad is not None:
                     bag.error(bad, nd.span)
                 for value in nd.values:
                     if value not in cats.enums:
                         bag.error(f"rotate through unknown value '{value}'", nd.span)
             case n.AssignStmt():
-                bad = _bad_write_target(nd)
+                bad = _bad_write_target(game, nd)
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Transfer():
@@ -11155,7 +11356,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     (nd.source, "move cards from"),
                     (nd.dest, "move cards to"),
                 ):
-                    bad = _bad_zone_endpoint(endpoint, direction)
+                    bad = _bad_zone_endpoint(game, endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
                 # The joint-selection matrix (decisions.md "Joint-predicate
@@ -11271,7 +11472,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # `reveal one card from turn` checked clean and then reached an
                 # executor that requires an actual Zone as the op's target and
                 # refuses anything else, exactly like the movement endpoints.
-                bad = _bad_zone_endpoint(nd.zone, nd.op)
+                bad = _bad_zone_endpoint(game, nd.zone, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Winner() if nd.state_var not in cats.state_vars:
@@ -11570,7 +11771,7 @@ class _Binding:
 
     value: n.Expr
     scope: _ReadScope
-    via: str
+    via: Said
     index_binder: str | None = None
 
 
@@ -11645,7 +11846,7 @@ class _Crossing:
     function: n.FunctionDef
     args: tuple[n.Expr, ...]
     scope: _ReadScope
-    inner_route: tuple[str, ...]
+    inner_route: tuple[Said, ...]
     anchor: Span | None
 
 
@@ -11678,7 +11879,7 @@ class ZoneRead:
     index_scope: _ReadScope
     every: bool
     need: str
-    route: tuple[str, ...]
+    route: tuple[Said, ...]
     span: Span | None
     choose: str | None = None
     exit: n.Call | None = None
@@ -11707,6 +11908,12 @@ _NEED_PHRASE: dict[str, str] = {
 }
 
 
+def _needs(need: str, zone: Said) -> Said:
+    """What a read needs of `zone`, in the designer's words."""
+    before, _, after = _NEED_PHRASE[need].partition("{z}")
+    return before + zone + after
+
+
 def _spell(expr: object) -> str:
     """An expression as a diagnostic quotes it: the shapes an index takes."""
     match expr:
@@ -11730,7 +11937,7 @@ class _Seat:
     """Who decides at a judged position: the acting seat (named by `label`),
     every receiving seat of a chosen movement `to each`, or nobody."""
 
-    def __init__(self, label: str, every: bool = False) -> None:
+    def __init__(self, label: Said, every: bool = False) -> None:
         self.label = label
         self.every = every
 
@@ -11799,7 +12006,7 @@ class _HiddenReads:
         self.run_routes: list[_RunRoutes | None] = []
         # The library definition being judged at a position the game's own
         # choice decides, and the fix the game can take there.
-        self.game_fix: tuple[n.LibraryOrigin, str] | None = None
+        self.game_fix: tuple[n.LibraryOrigin, Said, Span | None] | None = None
         # The bindings of each `run`'s arguments to its procedure's
         # parameters, by identity, innermost last.
         self.run_args: list[frozenset[int]] = []
@@ -11843,7 +12050,7 @@ class _HiddenReads:
         expr: object,
         scope: _ReadScope,
         need: str = "identity",
-        route: tuple[str, ...] = (),
+        route: tuple[Said, ...] = (),
         choose: str | None = None,
         calls: tuple[str, ...] = (),
     ) -> Iterator[ZoneRead]:
@@ -11948,7 +12155,7 @@ class _HiddenReads:
         call: n.Call,
         scope: _ReadScope,
         need: str,
-        route: tuple[str, ...],
+        route: tuple[Said, ...],
         choose: str | None,
         calls: tuple[str, ...],
     ) -> Iterator[ZoneRead]:
@@ -11956,7 +12163,7 @@ class _HiddenReads:
         if fn is not None:
             if call.func in calls:
                 return  # recursion: `_check_functions` reports it
-            via = f"function `{fn.name}`"
+            via: Said = "function " + cite_named(fn, f"`{fn.name}`")
             # A function body is hermetic: it names no binder of the caller's,
             # and inherits the acting seat.
             body_scope = replace(scope, names=(), aliases=_ActorAliases(frozenset()))
@@ -12061,12 +12268,17 @@ class _HiddenReads:
                 return f"the State Variable `{spelled.name}` names the seat `as` binds"
         return None
 
-    def _why_not_owned(self, index: n.Expr | None, scope: _ReadScope) -> str:
+    def _chooser(self) -> Said:
+        """The Delegated Play helper naming the deciding seat, as a refusal
+        names it."""
+        return _cite_in(self.game, "function", CHOOSER_HELPER, f"`{CHOOSER_HELPER}(actor)`")
+
+    def _why_not_owned(self, index: n.Expr | None, scope: _ReadScope) -> Said:
         if scope.routed is not None:
             return (
-                f" (under Delegated Play `actor` is the seat whose card is played, "
-                f"and `{CHOOSER_HELPER}(actor)` chooses it; the bare `hand` reads the "
-                f"pool the chooser plays from)"
+                " (under Delegated Play `actor` is the seat whose card is played, and "
+                + self._chooser() + " chooses it; the bare `hand` reads the "
+                "pool the chooser plays from)"
             )
         if (
             isinstance(index, n.NameRef)
@@ -12141,16 +12353,27 @@ class _HiddenReads:
             out.append((index, scope))
         return out
 
-    def _zone_text(self, read: ZoneRead) -> str:
+    def _zone_text(self, read: ZoneRead) -> Said:
         if read.every:
             return f"every `{read.zone}`"
         if read.index is None:
             return f"`{read.zone}`"
         index, _ = self._spellings(read.index, read.index_scope)[-1]
-        return f"`{read.zone}[{_spell(index)}]`"
+        return self._quoted(index, f"`{read.zone}[{_spell(index)}]`")
+
+    def _quoted(self, expr: object, words: str) -> Said:
+        """`words` quoting `expr`: a citation of every definition a call in
+        it names, the bare words where it calls none."""
+        called: dict[str, object] = {}
+        for nd in _walk(expr):
+            if isinstance(nd, n.Call) and nd.func in self.functions:
+                found = next((f for f in self.game.functions if f.name == nd.func), None)
+                if found is not None:
+                    called.setdefault(nd.func, found)
+        return cite_all(tuple(called.values()), words)
 
     def _judge(
-        self, what: str, reads: Iterator[ZoneRead], decider: _Seat, span: Span | None,
+        self, what: Said, reads: Iterator[ZoneRead], decider: _Seat, span: Span | None,
         only_choose: bool = False, source: bool = False, evaluator: _Seat | None = None,
         skip_choose: bool = False,
     ) -> None:
@@ -12188,7 +12411,9 @@ class _HiddenReads:
                     accepted, reason = True, own
                 else:
                     accepted, reason = False, ""
-            self.verdicts.append(HiddenReadVerdict(position, read, accepted, reason, span))
+            self.verdicts.append(
+                HiddenReadVerdict(rendered(position)[0], read, accepted, reason, span)
+            )
             if accepted:
                 continue
             if read.crossing is not None:
@@ -12196,7 +12421,7 @@ class _HiddenReads:
                 continue
             self._report(position, read, seat, to_owner, span or read.span, source and not in_choose)
 
-    def _report_crossed(self, what: str, read: ZoneRead, seat: _Seat, to_owner: bool) -> None:
+    def _report_crossed(self, what: Said, read: ZoneRead, seat: _Seat, to_owner: bool) -> None:
         """A refused read the game's answer to a Definition Contract makes,
         told to the game's author at the last text the game wrote on the way
         to it (decisions.md "Family libraries"): a library is sound when some
@@ -12208,42 +12433,43 @@ class _HiddenReads:
         assert crossing is not None
         fn = crossing.function
         written, passed = self._game_spelling(read, crossing)
-        needs = _NEED_PHRASE[read.need].format(z=written)
+        needs = _needs(read.need, written)
         through = (
-            f" (through {', then '.join(crossing.inner_route)})" if crossing.inner_route else ""
+            " (through " + Sentence.join(", then ", crossing.inner_route) + ")"
+            if crossing.inner_route else ""
         )
-        calls = (
-            f"library '{crossing.stamp.library}' calls it under its contract "
-            f"`{crossing.stamp.row}` in {what}"
-        )
+        library = cite_library(crossing.stamp.library, crossing.stamp.row_span)
+        calls = library + f" calls it under its contract " + cite_where(f"`{crossing.stamp.row}`", crossing.stamp.row_span) + f" in " + what
         decider = seat.label
         decides = (
             "which each receiving seat decides, so every receiving seat"
             if seat.every
-            else f"which {decider} decides, so {decider}"
+            else f"which " + decider + f" decides, so " + decider
         )
         if passed is not None:
             value, param = passed
-            cannot = "not every receiving seat can see them" if seat.every else f"{decider} cannot see them"
+            cannot = "not every receiving seat can see them" if seat.every else f"" + decider + f" cannot see them"
             # `_spell` quotes the shapes an index takes; any other argument is
             # named by what it is not.
             argument = (
-                f"a seat it does not show to be {decider}" if "..." in value else f"`{value}`"
+                f"a seat it does not show to be " + decider if "..." in value else f"`{value}`"
             )
-            message = (
-                f"function `{fn.name}` reads {needs}{through}, and library "
-                f"'{crossing.stamp.library}' passes {argument} as `{param}` when it "
-                f"calls it under its contract `{crossing.stamp.row}` in {what}, "
-                f"{decides} must be able to check it, but {cannot}"
+            message: Said = (
+                "function " + cite_named(fn, f"`{fn.name}`") + f" reads " + needs + through
+                + ", and " + library
+                + f" passes " + argument + f" as `{param}` when it "
+                f"calls it under its contract " + cite_where(f"`{crossing.stamp.row}`", crossing.stamp.row_span) + f" in " + what + f", "
+                f"" + decides + f" must be able to check it, but " + cannot
             )
         else:
             blind = (
                 "which not every receiving seat can see" if seat.every
-                else f"which {decider} cannot see{self._why_not_owned(read.index, read.index_scope)}"
+                else f"which " + decider + f" cannot see" + self._why_not_owned(read.index, read.index_scope)
             )
             message = (
-                f"function `{fn.name}` reads {needs}{through}, {blind}, but {calls}, "
-                f"{decides} must be able to check it"
+                "function " + cite_named(fn, f"`{fn.name}`") + f" reads " + needs + through
+                + ", " + blind + ", but " + calls
+                + f", " + decides + f" must be able to check it"
             )
         own = (
             self._passed_deciding_seat(read, crossing)
@@ -12262,7 +12488,7 @@ class _HiddenReads:
 
     def _game_spelling(
         self, read: ZoneRead, crossing: _Crossing
-    ) -> tuple[str, tuple[str, str] | None]:
+    ) -> tuple[Said, tuple[str, str] | None]:
         """The zone as the game's text spells it, and -- where the instance
         read is named by one of the library's arguments -- that argument and
         the parameter it binds."""
@@ -12284,7 +12510,7 @@ class _HiddenReads:
             if passed is not None:
                 break
         index, _ = chain[start]
-        return f"`{read.zone}[{_spell(index)}]`", passed
+        return self._quoted(index, f"`{read.zone}[{_spell(index)}]`"), passed
 
     def _passed_deciding_seat(self, read: ZoneRead, crossing: _Crossing) -> str | None:
         """The parameter the library binds to the deciding seat, where the
@@ -12298,21 +12524,21 @@ class _HiddenReads:
         return None
 
     def _report(
-        self, what: str, read: ZoneRead, seat: _Seat, to_owner: bool,
+        self, what: Said, read: ZoneRead, seat: _Seat, to_owner: bool,
         span: Span | None, source: bool,
     ) -> None:
         zone = self._zone_text(read)
-        needs = _NEED_PHRASE[read.need].format(z=zone)
-        route = f" (through {', then '.join(read.route)})" if read.route else ""
+        needs = _needs(read.need, zone)
+        route: Said = " (through " + Sentence.join(", then ", read.route) + ")" if read.route else ""
         if seat is _NO_SEAT:
             who = "only its owner can see" if to_owner else "no seat can see"
             extra = (
                 "; or read the card as it is played (`action.card`), as Hearts breaks "
                 "hearts on the card played"
-                if what.endswith("`transition_to` trigger") else ""
+                if rendered(what)[0].endswith("`transition_to` trigger") else ""
             )
             message = (
-                f"{what} is a fact every seat can check, but it reads {needs}{route}, "
+                f"" + what + f" is a fact every seat can check, but it reads " + needs + route + f", "
                 f"which {who}. Make the holder announce it, as Gin Rummy's knock sets "
                 f"`knocked`, and read the announcement{extra}"
             )
@@ -12320,12 +12546,12 @@ class _HiddenReads:
             decider = seat.label
             blind = (
                 "which not every receiving seat can see" if seat.every
-                else f"which {decider} cannot see{self._why_not_owned(read.index, read.index_scope)}"
+                else f"which " + decider + f" cannot see" + self._why_not_owned(read.index, read.index_scope)
             )
             if source:
                 message = (
-                    f"a chosen movement's source is the pool {decider} picks from, but "
-                    f"it reads {needs}{route}, {blind}, so the pick would name cards "
+                    f"a chosen movement's source is the pool " + decider + f" picks from, but "
+                    f"it reads " + needs + route + f", " + blind + f", so the pick would name cards "
                     f"the chooser cannot see. Pick from cards the chooser can see; a "
                     f"blind pick from cards the chooser cannot see (Old Maid's draw) "
                     f"needs a pick by position, which the language does not have yet "
@@ -12333,31 +12559,31 @@ class _HiddenReads:
                 )
             else:
                 head = (
-                    f"{what} is decided by {decider}, so {decider} must be able to "
-                    f"check it, but it reads {needs}{route}, {blind}"
+                    f"" + what + f" is decided by " + decider + f", so " + decider + f" must be able to "
+                    f"check it, but it reads " + needs + route + f", " + blind
                 )
                 message = (
-                    f"{head}. Read the deciding seat's own cards, or have the holder "
+                    head + f". Read the deciding seat's own cards, or have the holder "
                     f"announce or reveal the fact first"
                 )
                 self._tell(message, span, read, for_game=self._for_game(head))
                 return
         self._tell(message, span, read)
 
-    def _for_game(self, head: str) -> str | None:
+    def _for_game(self, head: Said) -> Said | None:
         """`head` as the game's author reads it, where the library definition
         being judged stands at a position the game's choice decides."""
         if self.game_fix is None:
             return None
-        origin, fix = self.game_fix
-        return f"library '{origin.library}''s {origin.where}: {head} — {fix}"
+        origin, fix, at = self.game_fix
+        return cite_origin(origin, at) + ": " + head + " — " + fix
 
     def _emit(
         self,
-        message: str,
+        message: Said,
         span: Span | None,
         route: Route | None = None,
-        for_game: str | None = None,
+        for_game: Said | None = None,
         stands_on: tuple[Span, ...] = (),
     ) -> None:
         key = (message, span, None if route is None else route.at)
@@ -12367,11 +12593,11 @@ class _HiddenReads:
 
     def _tell(
         self,
-        message: str,
+        message: Said,
         span: Span | None,
         read: ZoneRead | None = None,
         route: Route | None = None,
-        for_game: str | None = None,
+        for_game: Said | None = None,
     ) -> None:
         """A refusal of a decision's seat, carrying the crossing it was
         reached by: `route` where the walk entered library text by a call,
@@ -12443,7 +12669,7 @@ class _HiddenReads:
             scope = _ACTOR_SCOPE.shadow(tuple(p.name for p in mt.params))
             if mt.when is not None:
                 self._judge(
-                    f"move type `{mt.name}`'s `when:`",
+                    "move type " + cite_named(mt, f"`{mt.name}`") + "'s `when:`",
                     self.reads_of(mt.when, scope), _Seat("the acting seat"), mt.when.span,
                 )
             self.library_text.append(mt.origin is not None)
@@ -12474,7 +12700,7 @@ class _HiddenReads:
                 seat=-3,
                 routed=every_round,
             )
-            rule_seat = _Seat(f"`{CHOOSER_HELPER}(actor)`")
+            rule_seat = _Seat(self._chooser())
             rerouted = (
                 every_round | self.play_sources
                 if any(f.name == SOURCE_HELPER for f in self.game.functions)
@@ -12484,7 +12710,9 @@ class _HiddenReads:
         for rule in self.game.rules:
             # A library rule is judged where the game activates it.
             self.game_fix = None if rule.origin is None else (
-                rule.origin, f"take '{rule.name}' out of `active_rules:`"
+                rule.origin,
+                "take " + cite_named(rule, f"'{rule.name}'") + " out of `active_rules:`",
+                rule.span,
             )
             clauses: list[tuple[str, n.Expr | None]] = [
                 ("applies_when", rule.applies_when.pred if rule.applies_when else None),
@@ -12501,7 +12729,7 @@ class _HiddenReads:
                 }
                 decider, evaluator = (seats[seat] for seat in RULE_CLAUSE_SEATS[clause])
                 self._judge(
-                    f"rule `{rule.name}`'s `{clause}:`",
+                    "rule " + cite_named(rule, f"`{rule.name}`") + f"'s `{clause}:`",
                     self.reads_of(expr, decider[0]), decider[1], expr.span,
                     skip_choose=evaluator_scope is not None,
                 )
@@ -12541,6 +12769,7 @@ class _HiddenReads:
                         fn.origin,
                         "play this game's trick rounds inside a binder that names "
                         "who acts (`as <player> { round ... }`)",
+                        fn.span,
                     )
                     self._refuse_unacting_decisions(fn.body, _ReadScope())
                     self.game_fix = None
@@ -12598,14 +12827,16 @@ class _HiddenReads:
         entered: _LibraryEntry | None = None,
         in_library: bool = False,
     ) -> Iterator[
-        tuple[n.Choose | n.NameRef, tuple[str, ...], _Answered | None, _LibraryEntry | None]
+        tuple[n.Choose | n.NameRef, tuple[Said, ...], _Answered | None, _LibraryEntry | None]
     ]:
         """Each `choose` and each `actor` read `expr` evaluates, with the
         functions it is reached through; when the route crossed a library's
         call of the game's answer to a Definition Contract, that crossing; and
         when it left the game's text for a library function, that entry."""
         for node in _child_nodes(expr):
-            route = tuple(f"function `{c}`" for c in calls)
+            route = tuple(
+                "function " + _cite_in(self.game, "function", c, f"`{c}`") for c in calls
+            )
             if isinstance(node, n.Choose):
                 yield node, route, answered, entered
             elif isinstance(node, n.NameRef) and node.ref_kind == "pronoun" and node.name == "actor":
@@ -12623,25 +12854,29 @@ class _HiddenReads:
                 ):
                     inner = replace(inner, anchor=node.span)
                 elif inner is None and into is None and not in_library and callee.origin is not None:
-                    into = _LibraryEntry(node.span, callee.origin, len(calls) + 1, callee.name)
+                    into = _LibraryEntry(
+                        node.span, callee.origin, len(calls) + 1, callee.name, callee.span
+                    )
                 yield from self._actor_needs_in(
                     callee.body, calls + (node.func,), inner, into, callee.origin is not None
                 )
 
     def _report_unacting_answer(
-        self, route: tuple[str, ...], answered: _Answered, span: Span | None
+        self, route: tuple[Said, ...], answered: _Answered, span: Span | None
     ) -> None:
         """A `choose` the game's answer to a Definition Contract makes where
         the library reads it with no player acting: told to the game's author,
         at the last text the game wrote on the way to it, with the fix the
         answer can take."""
         inner = route[answered.depth:]
-        through = f" (through {', then '.join(inner)})" if inner else ""
+        through: Said = " (through " + Sentence.join(", then ", inner) + ")" if inner else ""
         where = _NO_ACTOR_WHERE[self.place]
         message = (
-            f"function `{answered.function}` makes a `choose`{through}, but "
-            f"library '{answered.stamp.library}' calls it under its contract "
-            f"`{answered.stamp.row}` where no player is acting ({where}), so no "
+            "function " + _cite_in(self.game, "function", answered.function, f"`{answered.function}`")
+            + " makes a `choose`" + through + ", but "
+            + cite_library(answered.stamp.library, answered.stamp.row_span)
+            + " calls it under its contract "
+            f"" + cite_where(f"`{answered.stamp.row}`", answered.stamp.row_span) + f" where no player is acting ({where}), so no "
             f"one can make the decision. Compute the answer from the parameters "
             f"the row passes, or from the game's own state"
         )
@@ -12653,13 +12888,13 @@ class _HiddenReads:
 
     def _report_no_actor(
         self,
-        what: str,
-        route: tuple[str, ...],
+        what: Said,
+        route: tuple[Said, ...],
         span: Span | None,
         reads: bool = False,
         crossing: Route | None = None,
     ) -> None:
-        through = f" (through {', then '.join(route)})" if route else ""
+        through: Said = " (through " + Sentence.join(", then ", route) + ")" if route else ""
         where = _NO_ACTOR_WHERE[self.place]
         if reads:
             fix = (
@@ -12670,7 +12905,7 @@ class _HiddenReads:
                 "variable during play and read that variable here"
             )
             message = (
-                f"{what}{through} names the acting player, but it is read where "
+                what + through + " names the acting player, but it is read where "
                 f"no player is acting ({where}), so it names no one. {fix}"
             )
         else:
@@ -12697,10 +12932,10 @@ class _HiddenReads:
                 ),
             }[self.place]
             head = (
-                f"{what}{through} is written where no player is acting "
+                what + through + " is written where no player is acting "
                 f"({where}), so no one can make the decision"
             )
-            self._tell(f"{head}. {fix}", span, route=crossing, for_game=self._for_game(head))
+            self._tell(head + f". {fix}", span, route=crossing, for_game=self._for_game(head))
             return
         # An `actor` read is told where it is written, never at a `run`: in a
         # procedure body it shadows `_check_procedures`' call-site pronoun
@@ -13026,7 +13261,7 @@ class _HiddenReads:
     def _run_body(
         self, proc: n.ProcedureDef, stmt: n.RunStmt, scope: _ReadScope, seat: _Seat
     ) -> None:
-        via = f"procedure `{proc.name}`"
+        via: Said = "procedure " + cite_named(proc, f"`{proc.name}`")
         # The body is spliced in at the run site: the acting seat and the
         # `as` State Variable carry in; the caller's binders do not.
         body_scope = replace(scope, names=(), aliases=_ActorAliases(frozenset()))
@@ -13065,7 +13300,7 @@ class _HiddenReads:
             SEAT_EACH_RECEIVER: _Seat("each receiving seat", every=True),
         }
 
-        def judge(field: str, what: str, reads: Iterator[ZoneRead], span: Span | None) -> None:
+        def judge(field: str, what: Said, reads: Iterator[ZoneRead], span: Span | None) -> None:
             decider, evaluator = CHOSEN_MOVEMENT_SEATS[(field, stmt.dest_each)]
             self._judge(
                 what, reads, seats[decider], span,

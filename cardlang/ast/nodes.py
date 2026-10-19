@@ -1409,14 +1409,15 @@ class ContractStamp:
     splice: on the game's answering definition, and on each library call of a
     contracted function. Every field is a fact the pass stamps, never a name
     any sweep resolves: the library, the row as written, the row's parameter
-    type spellings and result spelling (None for a procedure), and the `uses`
-    line the game's author is told on."""
+    type spellings and result spelling (None for a procedure), the `uses`
+    line the game's author is told on, and the row's own text."""
 
     library: str
     row: str
     param_types: tuple[str, ...]
     result_type: str | None
     uses_span: Span | None = None
+    row_span: Span | None = None
 
 
 @dataclass(frozen=True, slots=True)
