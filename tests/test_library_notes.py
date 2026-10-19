@@ -1027,6 +1027,29 @@ def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
     return found[0]
 
 
+# A library rule the game names but that the splice never activated -- a
+# template its reference does not instantiate -- is a definition all the same,
+# and its note names it.
+_UNSPLICED_RULES = (
+    "template-without-arguments", "template-of-another-arity", "template-argument-not-a-suit",
+    "rule-taking-no-arguments",
+)
+
+
+@pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="issue #912: a note at a rule the splice never activated names only its library",
+)
+@pytest.mark.parametrize("name", _UNSPLICED_RULES)
+def test_a_note_at_an_unspliced_rule_names_the_rule(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    cell = NAMED[name]
+    lines = _named_bag(monkeypatch, cell)
+    _line, notes = _named_refusal(lines, cell)
+    assert notes and all("rule `lr`" in nt for nt in notes), "\n".join(lines)
+
+
 @pytest.mark.parametrize("name", sorted(NAMED))
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
