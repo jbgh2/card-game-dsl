@@ -5217,7 +5217,12 @@ read supplies it beside its own, and the step tells whichever its verdict
 picks. Every refusal told in the game's file keeps each library line it
 stands on as a note under it, naming the definition that holds the line:
 the library text a moved refusal stood in, or the library text a check
-refusing the game's own text reached. A refusal standing in a library
+refusing the game's own text names or reached. Game text naming a library
+definition -- a call, a `run`, an offer, an activation -- and a template
+argument the game passes into a library rule stand on that definition, so a
+refusal there with no other library text keeps the definition's line. A
+sentence names library text only through the step's words for it, which
+carry that text's line. A refusal standing in a library
 procedure's body is told the same way once the `run` is expanded, through
 the definition the expanded body keeps. Who is told never changes what is
 refused: a warning and a note refuse nothing, and the step only moves spans.

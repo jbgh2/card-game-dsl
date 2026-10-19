@@ -1,6 +1,6 @@
 ---
 term: Library Note
-definition: The `note:` line under a refusal told in the game's file, located at the library line the refusal stands on and naming the definition that holds it. Made only by the attribution step, beside a refusal it moves out of library text or one a check stands at the game's text for library text it reached. A refusal left in the library's file carries none; the step's `uses`-line warnings are warnings, never notes.
+definition: The `note:` line under a refusal told in the game's file, located at the library line the refusal stands on and naming the definition that holds it. Made only by the attribution step, beside a refusal it moves out of library text or one a check stands at the game's text for library text it names or reached. A refusal left in the library's file carries none; the step's `uses`-line warnings are warnings, never notes.
 layer: check
 status: canonical
 reserved: false

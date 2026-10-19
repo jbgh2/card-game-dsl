@@ -280,7 +280,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               splice records each answer: the game's answering function or
               procedure carries every row it answers (``contracts``), and
               every library call of a contracted function carries its own
-              row (``Call.contract``) —
+              row (``Call.contract``), each stamp with the row's own span
+              (``ContractStamp.row_span``), which a refusal naming the row
+              cites —
               ``typecheck`` reads both, and nothing else about imports;
               ``_check_hidden_reads``, ``_check_play_source`` and the
               no-acting-seat walk read them to tell the game's author. A

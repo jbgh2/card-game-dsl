@@ -18,9 +18,13 @@ property:        a refusal the step tells in the game's file -- at a
                  is one no clean Library Witness reaches in a proven
                  library, one warning on the `uses` line says so; a refusal
                  of the game's text or its `uses` line naming library text
-                 renders a note at each library line it names; no check but
-                 the step spells a library's name or a definition's library
-                 words into a string; every rendered line is an error, a
+                 renders a note at each library line it names, and one
+                 standing at game text that names a library definition, or
+                 at a template argument substituted into one, renders a note
+                 at that definition when no other library text is handed it;
+                 no check but the step spells a library's name or a
+                 definition's library words into a string, and a citation
+                 handed no line says why; every rendered line is an error, a
                  warning or a note; and who is told never changes what is
                  refused.
 domain:          the step's own domain, crossed: the game the step is handed
@@ -45,15 +49,21 @@ domain:          the step's own domain, crossed: the game the step is handed
                  and the refusal carries no note. Library to game, one cell
                  per check that refuses the game's text or its `uses` line
                  naming library text (`NAMED`), two libraries where the check
-                 compares two, and a template argument the game wrote,
-                 substituted into a library rule; beside them, every refusal
+                 compares two, a template argument the game wrote,
+                 substituted into a library rule, and a game's call and `run`
+                 of a library definition refused against its signature;
+                 beside them, every refusal
                  naming a library that the boundary ledger's library-to-game
                  witnesses raise in the game's file. The scoped-read
                  containment's arms on a library move type, offered nowhere
                  and run outside the phase, are declaration-gate cells and
-                 so ledger cells above. The spelling census reads every
-                 string of the package outside the step, its docstrings and
-                 the messages of an installation's own errors excepted.
+                 so ledger cells above. A sentence naming no library text --
+                 a Hosted Poll binder shadowing "a function", a removal of a
+                 rule this phase never added -- refuses the game's own text,
+                 and its cell is the game's. The spelling census reads every
+                 string of the package outside the step, f-string pieces and
+                 the operands of an addition, its docstrings and the messages
+                 of an installation's own errors excepted.
 registry:        stages: `STAGES`, pinned against the raises after the splice
                  (`test_the_stages_are_the_raises`); tellings: `TELLINGS`;
                  rendered line kinds: `cardlang.diagnostics.LINE_KINDS`;
@@ -67,7 +77,8 @@ does not prove:  that the library line a check names is the one its sentence
                  means: a check standing a refusal at the game's text hands
                  the step the library text it read, and the note is that
                  line. Nor that a sentence naming a library definition by its
-                 bare name, with no library word, carries its line: the
+                 bare name, with no library word, carries its line where it
+                 stands at text other than the game's naming of it: the
                  census reads spellings, and such a sentence has none to
                  read, so its cell here is the check.
 """
@@ -941,12 +952,13 @@ def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
     return found[0]
 
 
-# The cells a sentence naming library text by its bare name holds, whose line
-# the step finds from the game text the refusal stands at.
+# A `run`'s argument of the wrong type stands at the argument, not at the game
+# text naming the procedure, and the type layer holds no line of the
+# procedure's to hand the step.
 _BARE = frozenset({"run-argument-of-another-type"})
 _BARE_RED = pytest.mark.xfail(
     strict=True, raises=AssertionError,
-    reason="issue #912: a game call of library text, refused, carries no note of its line",
+    reason="issue #919: a run's argument refused against a library procedure carries no note",
 )
 
 
@@ -990,6 +1002,9 @@ def test_who_is_told_a_library_named_refusal_never_changes_what_is_refused(
 _LIBRARY_WORDS = re.compile(r"\blibrary '|\bthe standard library\b|\bstandard-library\b", re.I)
 _LIBRARY_WORD_BEFORE_VALUE = re.compile(r"\blibrary\s*'?$", re.I)
 _LIBRARY_ATTRS = frozenset({"where", "through", "library"})
+# The attributes holding a library's name or a definition's words as a str;
+# an entry's `through` is a Library Citation, which a sentence adds.
+_SPELLED_ATTRS = frozenset({"where", "library"})
 
 
 def _docstrings(tree: ast.AST) -> set[int]:
@@ -1047,6 +1062,16 @@ def _spellings(source: str) -> list[str]:
                     found.append(f"{nd.lineno}: {{{ast.unparse(piece.value)}}}")
         elif isinstance(nd, ast.Constant) and isinstance(nd.value, str) and _LIBRARY_WORDS.search(nd.value):
             found.append(f"{nd.lineno}: {nd.value!r}")
+        elif isinstance(nd, ast.BinOp) and isinstance(nd.op, ast.Add):
+            for operand in (nd.left, nd.right):
+                if isinstance(operand, ast.Attribute) and operand.attr in _SPELLED_ATTRS:
+                    found.append(f"{nd.lineno}: + {ast.unparse(operand)}")
+            left = nd.left
+            if (
+                isinstance(left, ast.Constant) and isinstance(left.value, str)
+                and _LIBRARY_WORD_BEFORE_VALUE.search(left.value)
+            ):
+                found.append(f"{nd.lineno}: {left.value!r} +")
     return found
 
 
@@ -1077,13 +1102,96 @@ def test_the_spelling_census_reads_every_spelling() -> None:
         "value": "x = f\"library {name!r} requires\"\n",
         "standard": "x = 'the standard library holds'\n",
         "where": "x = f\"in {origin.where}\"\n",
+        "added-name": "x = \"library \" + origin.library\n",
+        "added-where": "x = origin.where + \" reads\"\n",
         "docstring": "def f():\n    \"\"\"library 'x' is quiet here.\"\"\"\n",
         "installation": "raise ValueError(f\"library '{name}' is broken\")\n",
     }
     found = {key: len(_spellings(source)) for key, source in sources.items()}
     assert found == {
-        "word": 1, "value": 1, "standard": 1, "where": 1, "docstring": 0, "installation": 0,
+        "word": 1, "value": 1, "standard": 1, "where": 1, "added-name": 2, "added-where": 1,
+        "docstring": 0, "installation": 0,
     }
+
+
+# Each check citing library text with no span, and why its sentence stands on
+# no line there: no library text stands behind the name, or another citation
+# in the same sentence carries the line.
+_UNSPANNED_CITATIONS: dict[tuple[str, str], str] = {
+    ("resolve.py", "_apply_uses"): "a repeated or unknown `uses` line, or the standard "
+    "library's: no library text is in question",
+    ("resolve.py", "_check_library_clause_gates"): "the subject; each definition the "
+    "gate lists is cited at its refused text",
+    ("resolve.py", "_check_library_lines_span"): "the subject; the definition holding "
+    "the call is cited at it",
+    ("typecheck.py", "_library_field_gate"): "the subject; the definition holding the "
+    "read is cited at it",
+}
+_CITES = frozenset({"cite_library", "cite_definition", "cite_origin", "cite_where"})
+
+
+def test_a_citation_handed_no_span_says_why() -> None:
+    """red under: cite `library.name` with `None` in `_check_state_claims`."""
+    found: set[tuple[str, str]] = set()
+    for path in sorted(_PACKAGE.rglob("*.py")):
+        tree = ast.parse(path.read_text())
+        for top in ast.walk(tree):
+            if not isinstance(top, ast.FunctionDef):
+                continue
+            for nd in ast.walk(top):
+                if (
+                    isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name)
+                    and nd.func.id in _CITES and nd.args
+                    and isinstance(nd.args[-1], ast.Constant) and nd.args[-1].value is None
+                ):
+                    found.add((path.relative_to(_PACKAGE).as_posix(), top.name))
+    assert found == set(_UNSPANNED_CITATIONS)
+
+
+def test_a_library_checked_alone_raises_with_no_step_input() -> None:
+    """The standard library's own check raises through the step, which keeps
+    no input on what it raises.
+
+    red under: have `attribution.raise_where_written` raise the bag as it
+    stands."""
+    bag = DiagnosticBag()
+    span = Span(_STDLIB_RULES, 0, 1, 1, 1)
+    bag.error(attribution.cite_library("stdlib", span) + " refuses this", span)
+    with pytest.raises(DiagnosticError) as exc:
+        attribution.raise_where_written(bag)
+    told = exc.value.diagnostic
+    assert (told.message, told.route, told.for_game, told.stands_on) == (
+        "the standard library refuses this", None, None, (),
+    )
+
+
+def test_only_the_step_raises_a_bag_after_parse() -> None:
+    """A bag a check fills reaches a raise only through the step; the
+    parser's bag never holds a Library Citation.
+
+    red under: raise `DiagnosticError(bag.items[0])` in `stdlib/rules.py`."""
+    raisers: set[str] = set()
+    for path in sorted(_PACKAGE.rglob("*.py")):
+        for nd in ast.walk(ast.parse(path.read_text())):
+            if (
+                isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name)
+                and nd.func.id == "DiagnosticError" and nd.args
+                and isinstance(nd.args[0], ast.Subscript)
+                and isinstance(nd.args[0].value, ast.Attribute)
+                and nd.args[0].value.attr == "items"
+            ):
+                raisers.add(path.relative_to(_PACKAGE).as_posix())
+    assert raisers == {"attribution.py", "parse.py"}
+
+
+def test_a_library_citation_is_never_spelled_into_a_str() -> None:
+    """red under: give `LibraryCitation` a `__format__` that returns its
+    words."""
+    cited = attribution.cite_library(L._LIB, None)
+    with pytest.raises(TypeError):
+        f"{cited}"
+    with pytest.raises(TypeError):
+        str(cited + " reads")
 
 
 # --- every library-to-game refusal told in the game names its library line -------

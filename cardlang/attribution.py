@@ -14,14 +14,22 @@ Assumes:      every diagnostic a pass collects carries the span of the text it
               into library text attaches that crossing (`Route`) to every
               refusal it raises there that the crossing causes; a check that
               knows the sentence a game's author should read for a refusal of
-              library text supplies it (`for_game`); a check that refuses
-              the game's text for library text it reached supplies that
-              library text (`stands_on`); every spliced definition carries its
-              `n.LibraryOrigin`, and the block a library procedure's `run`
-              becomes carries the procedure's (`expand`).
+              library text supplies it (`for_game`); a sentence names a
+              library or its text only by a Library Citation made here
+              (`cite_library`, `cite_definition`, `cite_origin`,
+              `cite_where`), handed the span of the text it names, and the
+              bag hands that span on as library text the refusal stands on;
+              a check that refuses the game's text for library text it
+              reached and does not name supplies that text (`stands_on`);
+              every spliced definition carries its `n.LibraryOrigin`, and the
+              block a library procedure's `run` becomes carries the
+              procedure's (`expand`).
 Establishes:  `raise_if_errors` is the only way a pass after the splice raises
-              its diagnostics, and `tell` the one place a diagnostic's file is
-              decided and its notes made. A refusal carrying a route is told
+              its diagnostics, `raise_where_written` the only way a library
+              checked alone raises its own, and `tell` the one place a
+              diagnostic's file is decided and its notes made. The words
+              naming a library or its definitions in any sentence are made
+              here. A refusal carrying a route is told
               at the route's game text, with its crossing kind's sentence
               (`FIX_TABLE`) or its `for_game` sentence. A refusal with no
               route, standing in a library definition some Library Witness
@@ -29,8 +37,12 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               game's `uses` line, naming the definition and the Library
               Witness. Either keeps the library text it stood in as its note,
               naming the definition holding it. A refusal standing at the
-              game's text with library text it reached keeps that text as
-              its note. Any other refusal stays where it stands, with no
+              game's text with library text it names or reached keeps that
+              text as its note; with none, one standing at game text naming
+              a spliced library definition (resolve's naming slots) or at a
+              template argument substituted into one keeps that definition's
+              text (`_standing`). A refusal told in a library's file keeps no
+              note. Any other refusal stays where it stands, with no
               note; where no Library Witness of its library checks clean, one
               warning on the `uses` line says so, and where one does but none
               reaches its definition, one warning names the definition. A
@@ -41,7 +53,10 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               Play helpers where it plays a trick round, and the library's
               provided state.
 Now illegal:  a diagnostic leaving a pass with a route, a `for_game` or a
-              `stands_on`; a note made anywhere but here; a warning that
+              `stands_on`; a note made anywhere but here; a check spelling a
+              library's name or a definition's library words into a sentence
+              itself (tests/test_library_notes.py census), or a Library
+              Citation spelled into a str (it raises); a warning that
               changes what is refused (each is told only beside a refusal); a
               check telling a refusal of library text on the `uses` line
               itself, outside the gates decisions.md names.
@@ -432,8 +447,9 @@ def _standing(
             pool = pools.get(resolve.slot_namespace(node, field_name) or "", {})
             named = [pool.get(name) for name in resolve.slot_strings(node, field_name)]
             at = tuple(
-                d.span for d in named
-                if getattr(d, "origin", None) is not None and isinstance(getattr(d, "span", None), Span)
+                defined for d in named
+                if getattr(d, "origin", None) is not None
+                and isinstance(defined := getattr(d, "span", None), Span)
             )
             if at:
                 found[_at(span)] = found.get(_at(span), ()) + at
