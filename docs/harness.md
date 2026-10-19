@@ -407,12 +407,18 @@ Standing Role exists it is anyone's, manually.
 
 An interactive thread working an issue renames itself so the operator's
 session list reads as a work board — state visible at a glance, no
-dipping into threads to learn it. The title is one line in one shape:
+dipping into threads to learn it. The title is one line in one of two
+shapes, by whether the issue is in an open milestone — its epic, which
+`tools/ready-front.sh` lists as the ACTIVE row, or a part it holds:
 
+    m<M> - #<N> - <status>
     Issue #<N> - <status>
 
-with `<status>` drawn from a closed set, updated by the thread at the
-moment it enters each phase:
+The first is for work in milestone `<M>` — the milestone's number, as
+the milestones page gives it — so the board groups by unit; `<N>` is the
+issue the thread holds: the epic when the Lease is the epic's, else the
+part. The second is for loose work. `<status>` is drawn from a closed
+set, updated by the thread at the moment it enters each phase:
 
 - `building` — set with the Lease; work is under way.
 - `review` — the PR is open and review requested; the round (CI, the
