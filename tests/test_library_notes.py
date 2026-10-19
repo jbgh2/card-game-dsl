@@ -943,10 +943,7 @@ def _named_refusal(lines: list[str], cell: Named) -> tuple[str, list[str]]:
 
 # The cells a sentence naming library text by its bare name holds, whose line
 # the step finds from the game text the refusal stands at.
-_BARE = frozenset({
-    "call-of-another-arity", "call-argument-of-another-type", "run-of-another-arity",
-    "run-argument-of-another-type",
-})
+_BARE = frozenset({"run-argument-of-another-type"})
 _BARE_RED = pytest.mark.xfail(
     strict=True, raises=AssertionError,
     reason="issue #912: a game call of library text, refused, carries no note of its line",

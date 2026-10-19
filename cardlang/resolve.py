@@ -8676,9 +8676,6 @@ def _check_offered_containers(
                     f"`{phase_name}`, where that state does not stand; run "
                     f"`{site.name}` inside `{phase_name}` only",
                     site.span or game.span,
-                    stands_on=next(
-                        (p.span for p in game.procedures if p.name == site.name), None
-                    ),
                 )
                 continue
             bag.error(
@@ -8688,7 +8685,6 @@ def _check_offered_containers(
                 f"that state does not stand; offer `{move_type.name}` inside "
                 f"`{phase_name}` only",
                 getattr(site, "span", None) or game.span,
-                stands_on=move_type.span,
             )
 
 
@@ -10657,10 +10653,6 @@ def _check_card_offering(
             f"indistinguishable — fold them into one move type",
             span,
             for_game=for_game,
-            stands_on=tuple(
-                at for m in card_param_moves
-                if move_type_defs[m].origin and (at := move_type_defs[m].span) is not None
-            ),
         )
     hand = next((z for z in game.zones if z.name == family), None)
     if not card_param_moves or (
@@ -10713,7 +10705,6 @@ def _check_card_offering(
         f"which enumerates the actor's `{family}[player]` zone — this game "
         f"declares none",
         span,
-        stands_on=move.span,
     )
 
 

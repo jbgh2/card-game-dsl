@@ -172,7 +172,7 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
         return
     holders = _holders(game)
     lines = _uses_lines(game, uses, holders)
-    substituted = _substituted(game)
+    standing = _standing(game, holders, lines)
     told: list[Diagnostic] = []
     seen: dict[tuple[str, Span | None], int] = {}
     unproven: dict[str, Span] = {}
@@ -198,7 +198,9 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                 elif origin is not None:
                     unreached.setdefault((library, origin.where), lines[library])
         if moved is None:
-            stands = d.stands_on + substituted.get(_at(d.span), ())
+            # The library text a check hands the step, else the library text
+            # the game text it stands at stands on.
+            stands = d.stands_on or standing.get(_at(d.span), ())
             told.append(_bare(d, (), stands, holders, lines))
             continue
         noted = _bare(moved, (d.span,), d.stands_on, holders, lines)
@@ -390,11 +392,17 @@ def _at(span: Span | None) -> _Place | None:
     return None if span is None else (span.source_name, span.start, span.end)
 
 
-def _substituted(game: n.Game) -> dict[_Place | None, tuple[Span, ...]]:
-    """The game text a spliced definition holds -- a template argument the
-    game wrote, substituted into a library rule -- by its place, to the
-    library text holding it: a refusal standing at that game text stands on
-    that library text."""
+def _standing(
+    game: n.Game, holders: list[_Holder], lines: dict[str, Span]
+) -> dict[_Place | None, tuple[Span, ...]]:
+    """The game text that stands on library text, by its place, to that
+    library text: a template argument the game wrote, substituted into a
+    library definition, stands on the library text holding it; and game text
+    naming a spliced library definition -- by `resolve`'s naming slots, a
+    call, a `run`, an offer, an activation -- stands on that definition. A
+    refusal standing at such game text stands on that library text."""
+    from cardlang import resolve
+
     found: dict[_Place | None, tuple[Span, ...]] = {}
 
     def visit(node: object, holding: Span) -> None:
@@ -406,11 +414,29 @@ def _substituted(game: n.Game) -> dict[_Place | None, tuple[Span, ...]]:
         for child in _children(node):
             visit(child, inner)
 
-    defs: list[object] = [*game.functions, *game.procedures, *game.move_types, *game.rules]
-    for d in defs:
-        span = getattr(d, "span", None)
-        if getattr(d, "origin", None) is not None and isinstance(span, Span):
-            visit(d, span)
+    pools: dict[str, dict[str, object]] = {
+        ns: {d.name: d for d in getattr(game, field)}
+        for ns, field in (*resolve.HOSTED_REACH_POOLS.items(), ("rule", "rules"))
+    }
+    for pool in pools.values():
+        for d in pool.values():
+            span = getattr(d, "span", None)
+            if getattr(d, "origin", None) is not None and isinstance(span, Span):
+                visit(d, span)
+    naming = getattr(resolve, "_NAMING_SLOTS_BY_TYPE")
+    for node in resolve._walk(game):
+        span = getattr(node, "span", None)
+        if not isinstance(span, Span) or _holder(span, holders) or _library_of(span, lines):
+            continue
+        for field_name in naming.get(type(node), ()):
+            pool = pools.get(resolve.slot_namespace(node, field_name) or "", {})
+            named = [pool.get(name) for name in resolve.slot_strings(node, field_name)]
+            at = tuple(
+                d.span for d in named
+                if getattr(d, "origin", None) is not None and isinstance(getattr(d, "span", None), Span)
+            )
+            if at:
+                found[_at(span)] = found.get(_at(span), ()) + at
     return found
 
 
