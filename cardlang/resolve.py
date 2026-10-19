@@ -4366,9 +4366,20 @@ def resolve(game: n.Game) -> n.Game:
 
 
 def _with_held_rules(game: n.Game, library_rules: dict[str, n.RuleDef]) -> n.Game:
-    """`game` beside every library rule the splice holds aside, activated or
-    not, for the step to tell refusals standing on them."""
-    return replace(game, rules=(*game.rules, *library_rules.values()))
+    """`game` beside every library rule the splice holds aside and every
+    standard library rule, activated or not, for the step to tell refusals
+    standing on them."""
+    held = (*library_rules.values(), *_stamped_stdlib_rules().values())
+    return replace(game, rules=(*game.rules, *held))
+
+
+def _stamped_stdlib_rules() -> dict[str, n.RuleDef]:
+    """The standard library's rules, each stamped with its origin as the
+    splice stamps the rules a game activates."""
+    return {
+        name: replace(rule, origin=n.LibraryOrigin(STDLIB_NAME, f"rule `{name}`"))
+        for name, rule in stdlib_rules().items()
+    }
 
 
 # The Node union's members, for the runtime gate below. `get_args` reads the
@@ -4682,10 +4693,7 @@ def _instantiate_rules(
     `_resolve_phase_item` — this loop skips it so that is the only diagnostic
     a game ever sees for it, not a second, unsatisfiable "pass arguments"
     alongside "not yet supported"."""
-    lib = {
-        name: replace(rule, origin=n.LibraryOrigin(STDLIB_NAME, f"rule `{name}`"))
-        for name, rule in stdlib_rules().items()
-    }
+    lib = _stamped_stdlib_rules()
     local = {r.name: r for r in game.rules}
     for r in game.rules:
         if r.name in lib:

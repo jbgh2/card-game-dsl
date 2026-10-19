@@ -1077,16 +1077,7 @@ _UNSPLICED_RULES = {
     "template-argument-not-a-suit": "rule `lr`", "rule-taking-no-arguments": "rule `lr`",
     "game-rule-over-a-standard-library-rule": "rule `MustFollowSuit`",
 }
-_STDLIB_HELD_RED = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: a standard library rule the game never activates is no holder",
-)
-
-
-@pytest.mark.parametrize("name", [
-    pytest.param(k, marks=_STDLIB_HELD_RED) if "standard-library" in k else k
-    for k in sorted(_UNSPLICED_RULES)
-])
+@pytest.mark.parametrize("name", sorted(_UNSPLICED_RULES))
 def test_a_note_at_an_unspliced_rule_names_the_rule(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
