@@ -544,7 +544,13 @@ def _holder(span: Span | None, holders: list[_Holder]) -> n.LibraryOrigin | None
 def _uses_lines(
     game: n.Game, uses: tuple[n.UsesDecl, ...], holders: list[_Holder]
 ) -> dict[str, Span]:
-    """Each used library's `uses` line, by library name."""
+    """Each used library's `uses` line, by library name: from the game's
+    `uses` lines where it still names them, the definitions the splice
+    stamped, and the Definition Contract stamps on the game's answers, so a
+    library whose contract is all it brings is known after the splice too."""
+    from cardlang.ast import nodes as ast_nodes
+    from cardlang.resolve import _walk
+
     lines: dict[str, Span] = {}
     for use in (*game.uses, *uses):
         if use.span is not None:
@@ -552,6 +558,14 @@ def _uses_lines(
     for holder in holders:
         if holder.origin.uses_span is not None:
             lines.setdefault(holder.origin.library, holder.origin.uses_span)
+    for answer in (*game.functions, *game.procedures):
+        for stamp in getattr(answer, "contracts", ()):
+            if isinstance(stamp, ast_nodes.ContractStamp) and stamp.uses_span is not None:
+                lines.setdefault(stamp.library, stamp.uses_span)
+    for nd in _walk(game):
+        stamp = getattr(nd, "contract", None)
+        if isinstance(stamp, ast_nodes.ContractStamp) and stamp.uses_span is not None:
+            lines.setdefault(stamp.library, stamp.uses_span)
     return lines
 
 

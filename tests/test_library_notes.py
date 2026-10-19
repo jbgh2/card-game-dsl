@@ -1087,20 +1087,7 @@ def test_a_note_at_an_unspliced_rule_names_the_rule(
     assert notes and all("rule `lr`" in nt for nt in notes), "\n".join(lines)
 
 
-# A library contributing no definition to the splice, only contract rows.
-_CONTRACT_ONLY_RED = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="issue #912: a contract-only library is unknown to the step after the splice",
-)
-
-
-@pytest.mark.parametrize(
-    "name", [
-        pytest.param(k, marks=_CONTRACT_ONLY_RED)
-        if k == "result-against-a-contract-only-library" else k
-        for k in sorted(NAMED)
-    ]
-)
+@pytest.mark.parametrize("name", sorted(NAMED))
 def test_a_refusal_naming_library_text_notes_its_line(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
