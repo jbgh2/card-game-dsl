@@ -49,9 +49,7 @@ does not prove:  that a refusal no cell raises cites what it names: the
                  executed census reads only sentences a cell raises, and the
                  static arm only the slots that always name a definition --
                  a `.name` is shared with zones, phases and parameters, so a
-                 source scan cannot tell a definition's name from theirs. Nor
-                 that a quoted expression calling two definitions notes both:
-                 a citation carries one span, and the first call's is cited.
+                 source scan cannot tell a definition's name from theirs.
 """
 
 from __future__ import annotations

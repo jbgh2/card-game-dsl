@@ -372,6 +372,7 @@ from cardlang import primitives_block
 from cardlang.attribution import (
     cite_definition,
     cite_library,
+    cite_all,
     cite_named,
     cite_origin,
     naming_library,
@@ -12361,13 +12362,15 @@ class _HiddenReads:
         return self._quoted(index, f"`{read.zone}[{_spell(index)}]`")
 
     def _quoted(self, expr: object, words: str) -> Said:
-        """`words` quoting `expr`: a citation of the first definition a call
-        in it names, the bare words where it calls none."""
-        called = next(
-            (nd.func for nd in _walk(expr) if isinstance(nd, n.Call) and nd.func in self.functions),
-            None,
-        )
-        return words if called is None else _cite_in(self.game, "function", called, words)
+        """`words` quoting `expr`: a citation of every definition a call in
+        it names, the bare words where it calls none."""
+        called: dict[str, object] = {}
+        for nd in _walk(expr):
+            if isinstance(nd, n.Call) and nd.func in self.functions:
+                found = next((f for f in self.game.functions if f.name == nd.func), None)
+                if found is not None:
+                    called.setdefault(nd.func, found)
+        return cite_all(tuple(called.values()), words)
 
     def _judge(
         self, what: Said, reads: Iterator[ZoneRead], decider: _Seat, span: Span | None,

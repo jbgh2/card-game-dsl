@@ -104,6 +104,7 @@ from cardlang.builtins.functions import (
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.attribution import (
     cite_library,
+    cite_all,
     cite_named,
     cite_origin,
     cite_where,
@@ -2256,20 +2257,19 @@ _UNKEYED_COLLECTION = TCollection(TAny())
 
 
 def _quoted_operand(env: TypeEnv, e: n.Expr) -> Said:
-    """`e` quoted as the game wrote it, cited at the first defined function
-    a call in it names."""
+    """`e` quoted as the game wrote it, cited at every defined function a
+    call in it names."""
     words = f"`{_spell_operand(e)}`"
     def exprs(x: n.Expr) -> Iterator[n.Expr]:
         yield x
         for child in _child_exprs(x):
             yield from exprs(child)
 
-    called = next(
-        (nd.func for nd in exprs(e)
-         if isinstance(nd, n.Call) and ("function", nd.func) in env.definitions),
-        None,
-    )
-    return words if called is None else _named(env, "function", called, words)
+    called: dict[str, object] = {}
+    for nd in exprs(e):
+        if isinstance(nd, n.Call) and (found := env.definitions.get(("function", nd.func))):
+            called.setdefault(nd.func, found)
+    return cite_all(tuple(called.values()), words)
 
 
 def _card_field_hint(

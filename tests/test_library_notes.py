@@ -1309,6 +1309,28 @@ def test_only_the_step_raises_a_bag_after_parse() -> None:
     assert raisers == {"attribution.py", "parse.py"}
 
 
+def test_a_quoted_operand_calling_two_library_functions_notes_both(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refusal quoting game text that calls two library functions notes
+    each one's line.
+
+    red under: have `typecheck._quoted_operand` cite only the first function
+    a call in the quote names."""
+    library = D._library(
+        ("score[player] : Integer",),
+        "function inner(a : Integer) = a + 1\n  function outer(a : Integer) = [a, a]",
+    )
+    zone = "hand[player] : Hand<player>"
+    game = D._host(zone, "as 0 { score[0] := outer(inner(1))[true] }")
+    witness = D._host(zone, "as 0 { score[0] := outer(inner(1))[0] }")
+    lines = L._bag(monkeypatch, library, game, (witness,))
+    text = "\n".join(lines)
+    assert any("outer(inner(1))" in ln for ln in L._errors(lines)), text
+    want = [_line_of(library, "function inner("), _line_of(library, "function outer(")]
+    assert _noted_lines(lines) == want, text
+
+
 def test_a_library_citation_is_never_spelled_into_a_str() -> None:
     """red under: give `LibraryCitation` a `__format__` that returns its
     words."""

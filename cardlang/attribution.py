@@ -73,7 +73,7 @@ Now illegal:  a diagnostic leaving a pass with a route, a `for_game` or a
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, fields, is_dataclass, replace
@@ -357,6 +357,18 @@ def cite_named(definition: object, words: str) -> LibraryCitation:
     file the refusal is told in."""
     at = getattr(definition, "span", None)
     return LibraryCitation(words, at if isinstance(at, Span) else None)
+
+
+def cite_all(definitions: Sequence[object], words: str) -> Said:
+    """`words` naming every one of `definitions`, each standing on its text:
+    a quote calling several, its words cited once and each other definition
+    by a citation of no words."""
+    if not definitions:
+        return words
+    out: Said = cite_named(definitions[0], words)
+    for definition in definitions[1:]:
+        out = out + cite_named(definition, "")
+    return out
 
 
 def naming_library(text: str, library: str, at: Span | None) -> Said:
