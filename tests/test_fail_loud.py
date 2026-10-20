@@ -344,12 +344,11 @@ game G {
 """
 
 
-def test_bare_family_read_without_an_actor_raises() -> None:
+def test_bare_family_read_without_an_actor_is_refused_at_check_time() -> None:
     # `hand` bare is the acting player's hand — sugar with no referent in a
-    # phase body, where nobody is acting. The static guard needs
-    # statement-position context resolve does not thread yet, so the runtime
-    # error carries the fix instead.
-    with pytest.raises(OwnerGuardError, match="no acting player"):
+    # phase body, where nobody is acting; refused where it is written, with
+    # the subscript to write.
+    with pytest.raises(DiagnosticError, match=r"named bare where no player is acting"):
         _run(BARE_FAMILY_WITHOUT_AN_ACTOR)
 
 
