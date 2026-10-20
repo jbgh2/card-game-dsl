@@ -2390,6 +2390,14 @@ error. The body's type is inferred — a function whose body is a `Player` used
 where a `Boolean` is expected is caught at the call site — and a function may call
 another (`pending` calls `can_act` and `owes`).
 
+A function's name is its own. It may not take a native function's name — a call
+would type-check against the native signature and run the function instead — nor
+a name one of the game's round slots names (`winner`, `early`, `combinations`,
+`follows`), since that slot always runs the language's own and never calls a
+function. Both are refused at the definition. A family library cannot know which
+game's rounds will name a slot callback, so its functions and its `requires`
+function rows may take no slot callback's name at all.
+
 This is a deliberate, authorized general construct: factoring predicates is a need
 the corpus has as games grow more advanced, not a Stud-only convenience. It
 resolves the *named-predicate* half of
@@ -2651,7 +2659,8 @@ check time. So the instance a bare name reads is always one the acting
 seat owns under its zone type's projection, and the information state
 derives from that ownership. The rule holds wherever the engine keys a
 family by the acting seat: a round's `source` names a family indexed by
-player, and `player_holding` searches `hand[player]`. A round's `into`
+player, and `player_holding` searches `hand[player]`, which a game calling
+it must declare. A round's `into`
 names the one pile every play lands on, so it is a single zone.
 A bare team family is not read as the acting player's side's instance,
 though the ownership the projection uses could key it so: no game asks

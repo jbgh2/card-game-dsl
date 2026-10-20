@@ -1251,6 +1251,8 @@ _UNSPANNED_CITATIONS: dict[tuple[str, str], str] = {
     "read is cited at it",
     ("resolve.py", "_check_card_offering"): "the owner of a contract; the move type it "
     "fixes is cited at its text",
+    ("resolve.py", "_check_bare_family_refs"): "the owner of a contract; the call it "
+    "leaves unanswerable is cited at its text",
 }
 _CITES = frozenset({"cite_library", "cite_definition", "cite_origin", "cite_where", "naming_library"})
 

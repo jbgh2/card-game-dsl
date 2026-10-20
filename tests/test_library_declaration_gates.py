@@ -33,8 +33,9 @@ domain:          four families. A `Card`-parameter move type in an offer: the
                  parameter move types in one offer, every pair of owners at
                  every offering text. Every Builtin reading a zone family no
                  argument names, called from every library definition kind,
-                 over each `hand` that is not kept per player, crossed with
-                 whether the contract names it. Every action of every climb
+                 over each `hand` that is absent or not kept per player,
+                 each declared one crossed with whether the contract names
+                 it. Every action of every climb
                  engine, spelled as a library move type in a corpus game
                  playing that engine, with a control a game of another
                  engine accepts. A move type reaching a scoped Primitive
@@ -43,10 +44,7 @@ domain:          four families. A `Card`-parameter move type in an offer: the
                  offered from inside another move type, offered outside the
                  region, and run outside it from a library procedure, with
                  the move type the library's or the game's and the offering
-                 text the game's or the library's. A `hand` absent from a game
-                 a library's `player_holding` reads is accepted for game and
-                 library alike (issue #869), so it is outside the grid. The
-                 fix a move type's `player_holding` refusal offers meets the
+                 text the game's or the library's. The fix a move type's `player_holding` refusal offers meets the
                  hidden read a decision makes of every hand, told on the
                  `uses` line, and that refusal's own fix -- every hand public
                  -- is applied in turn. Each cell carries the Library
@@ -374,7 +372,7 @@ def _implicit_cell(builtin: str, holder: str, hand: str, contracted: bool) -> Ce
     assert family == _FAMILY, family
     definition, statement = _IMPLICIT_HOLDERS[holder]
     asked = _IMPLICIT_SPELLINGS[builtin].format(c="c" if holder == "functions" else "card")
-    zone = _NOT_PER_PLAYER[hand]
+    zone = _UNKEPT_OR_NONE[hand]
     requires = ["who : Player", "stock[player] : Hand<player>"]
     if contracted:
         requires.append(zone)
@@ -382,7 +380,11 @@ def _implicit_cell(builtin: str, holder: str, hand: str, contracted: bool) -> Ce
     game = _host(zone, statement.format())
     said = "finds the player holding a card"
     if contracted:
-        return Cell(library, game, LIBRARY, said, witnesses=(_host(zone, _IDLE_PLAY),))
+        # "contract `hand` per player": the contract, not the game, decides.
+        return Cell(
+            library, game, LIBRARY, f"'s contract names `{_FAMILY}`",
+            witnesses=(_host(zone, _IDLE_PLAY),),
+        )
     # "declare `hand` a zone kept per player".
     fixed = (library, _host(_KEPT, statement.format()))
     if holder == "functions":
@@ -407,9 +409,14 @@ def _implicit_cells() -> dict[str, Cell]:
             _implicit_cell(builtin, holder, hand, contracted)
         for builtin in sorted(BUILTIN_IMPLICIT_READS)
         for holder in _IMPLICIT_HOLDERS
-        for hand in _NOT_PER_PLAYER
-        for contracted in (False, True)
+        for hand in _UNKEPT_OR_NONE
+        for contracted in ((False, True) if hand != "none" else (False,))
     }
+
+
+# hand -> its declaration: absent, or declared but not kept per player. A
+# contract names a declaration, so an absent `hand` is never contracted.
+_UNKEPT_OR_NONE: dict[str, str] = {"none": "", **_NOT_PER_PLAYER}
 
 
 # --- family 3: a library move type spelled like the game's climb engine's action --

@@ -61,7 +61,7 @@ registry:        kinds: `resolve._LIBRARY_DEF_KINDS` through
                  spellings: `typecheck.KNOWN_TYPE_NAMES`,
                  `stdlib.zones.LIBRARY_ZONE_TYPES`; native names:
                  `builtins.functions.BUILTIN_CALL_FUNCS`,
-                 `PRIMITIVE_CALL_FUNCS`, `VALUE_NAMES`; compared fields:
+                 `PRIMITIVE_CALL_FUNCS`, `resolve._ROUND_QUERY_NAMES`; compared fields:
                  `dataclasses.fields` of the row nodes; the whole-bag
                  rendering of a wrong result:
                  tests/rejections/contract_result_mismatch.expected; the
@@ -88,13 +88,12 @@ from cardlang.attribution import is_library_warning
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
-    VALUE_NAMES,
 )
 from cardlang.deckcheck import check_capacity
 from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.expand import expand
 from cardlang.parse import parse_library, parse_text
-from cardlang.resolve import _LIBRARY_DEF_KINDS, resolve
+from cardlang.resolve import _LIBRARY_DEF_KINDS, _ROUND_QUERY_NAMES, resolve
 from cardlang.runtime.driver import play_game
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import KNOWN_TYPE_NAMES, typecheck
@@ -772,7 +771,7 @@ def test_a_procedure_rows_parameter_is_refused_exactly_when_the_definition_would
 
 
 @pytest.mark.parametrize(
-    "name", sorted(BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS | VALUE_NAMES)
+    "name", sorted(BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS | _ROUND_QUERY_NAMES)
 )
 def test_a_function_row_named_like_a_native_function(name: str) -> None:
     """A Builtin needs no contract — the library calls it directly — a
@@ -781,10 +780,10 @@ def test_a_function_row_named_like_a_native_function(name: str) -> None:
     spellings. That is also why a game's `primitives { }` entry never answers a
     function row."""
     bag = _alone(lambda: _library("functions", rows=f"{name}(p : Player) : Boolean", use=""))
-    if name in VALUE_NAMES:
-        needle = "callback"
-    elif name in BUILTIN_CALL_FUNCS:
+    if name in BUILTIN_CALL_FUNCS:
         needle = "call it directly"
+    elif name in _ROUND_QUERY_NAMES:
+        needle = "callback"
     else:
         needle = "Primitive"
     _assert(bag, Reject(LIBRARY, (f"'{name}'", needle)))
