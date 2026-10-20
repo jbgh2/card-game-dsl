@@ -636,6 +636,10 @@ _SITES: dict[tuple[str, str, int], tuple[Placement, ...] | str] = {
         ),
     ),
     ("_check_assign", "TInteger()", 0): "`+=` and `-=` expect an Integer",
+    ("_check_rotate", "target", 0): (
+        "a rotate value is an enum name: a library names no deck value, and a seat "
+        "direction is the same value in every game"
+    ),
     ("_check_assign", "target", 0): (
         Placement("Player", "procedure probe_pr() { probe_x := {v} }", state="probe_x : Player? = none"),
         Placement("Team", "procedure probe_pr() { probe_x := {v} }", state="probe_x : Team? = none"),

@@ -623,6 +623,11 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_check_role_literal", "max_players"): ClauseRead("library", "_check_role_literal"),
     ("_check_role_literal", "max_teams"): ClauseRead("library", "_check_role_literal"),
     ("_enum_domain", "value_enums"): ClauseRead("library", "_check_enum_literal"),
+    ("_check_rotate", "value_enums"): ClauseRead(
+        "shadowed",
+        reason="a library names no deck value (resolve refuses it in the library's "
+        "text), and a seat direction types alike in every game",
+    ),
     ("_check_enum_literal", "axis_enums"): ClauseRead("library", "_check_enum_literal"),
     ("_library_axis_refusal", "flavor"): ClauseRead("library", "_check_enum_literal"),
     ("_check_expr", "item_fields"): ClauseRead("uses_line", "_library_field_gate"),
@@ -3604,14 +3609,14 @@ def _check_rotate(stmt: n.RotateStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
         return
     for value in stmt.values:
         held = env.value_enums.get(value)
-        if held is not None and not coercible(held, target):
-            bag.error(
+        if held is not None:
+            _check_operand(
+                n.NameRef(name=value, ref_kind="enum_value", span=stmt.span), held, target, env, bag,
                 f"rotate through `{value}` ({_type_name(held)}), which `{name}` "
                 f"({_type_name(target)}) cannot hold — list values of "
                 f"{_type_name(target)}",
                 stmt.span,
             )
-            return
 
 
 def _check_state_default_type(

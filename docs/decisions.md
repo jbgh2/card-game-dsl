@@ -1607,6 +1607,15 @@ readable, passable, not writable. A name that resolves to none of them is unreso
 which makes the ordinary typo — `totaly_score := 1` — a compile error like any other
 misspelling, rather than a runtime one.
 
+**A write fits the shape of what it writes.** `+=` and `-=` add to an Integer; an
+`Integer?` reads as its base, and adding to its `none` is refused at play, since what
+it holds is a fact of play. An index (`score[p] := …`) writes one value of a variable
+kept per seat or team, so a variable holding one value takes no index, and a variable
+kept per seat needs one to add to. `rotate` cycles a variable holding one value
+through values it can hold. Each mismatch is refused at the write, naming the
+spelling that fits: `flag := true` rather than `flag += 1`, and a seat moved with
+`p := p offset_by left` rather than `p += 1`.
+
 That uniformity is the point, and it is worth saying why. A **read** resolves lexical
 binders *before* state variables. If a write target were not resolved the same way,
 a binder shadowing a state variable would make one name mean two things — a read of
