@@ -2094,6 +2094,10 @@ WALKERS: dict[str, str] = {
     "resolve._check_functions": "test_a_library_reaching_the_games_text[call-cycle, call-site-pronoun-*]",
     "resolve._report_recursion": "test_a_library_reaching_the_games_text[call-cycle]",
     "resolve._check_unoffered_move_types": "reports the game's own move type, at its declaration",
+    "resolve._inner_ring_sharing": (
+        "reports the inner ring where it is written; one in library text is told by "
+        "the library's certificate"
+    ),
     "resolve._check_implicit_pools": (
         "test_a_library_construct_the_games_declarations_refuse; crossed in "
         "tests/test_library_declaration_gates.py"

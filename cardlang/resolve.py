@@ -6787,29 +6787,32 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
+def _inner_ring_sharing(
+    body: object, flag: str, procedures: Mapping[str, n.ProcedureDef], running: frozenset[str]
+) -> n.Turns | None:
+    """The first `turns` inside `body` -- written there, or in a procedure it
+    runs, which expands in place -- that names `flag` as its go-again flag."""
+    for node in _child_nodes(body):
+        if isinstance(node, n.Turns) and node.again == flag:
+            return node
+        if isinstance(node, n.RunStmt) and node.name not in running:
+            proc = procedures.get(node.name)
+            if proc is not None:
+                found = _inner_ring_sharing(proc.body, flag, procedures, running | {node.name})
+                if found is not None:
+                    return found
+    return None
+
+
 def _check_nested_ring_flags(game: n.Game, bag: DiagnosticBag) -> None:
-    """A `turns` ring holding another -- written inside it, or in a procedure
-    it runs, which expands in place -- that names the same go-again flag: a
+    """A `turns` ring holding another that names the same go-again flag: a
     write to the flag would keep the inner turn and the outer one at once,
     and the ring that exits first consumes it for both."""
     procedures = {p.name: p for p in game.procedures}
-
-    def sharing(body: object, flag: str, running: frozenset[str]) -> n.Turns | None:
-        for node in _child_nodes(body):
-            if isinstance(node, n.Turns) and node.again == flag:
-                return node
-            if isinstance(node, n.RunStmt) and node.name not in running:
-                proc = procedures.get(node.name)
-                if proc is not None:
-                    found = sharing(proc.body, flag, running | {node.name})
-                    if found is not None:
-                        return found
-        return None
-
     for ring in _walk(game):
         if not isinstance(ring, n.Turns) or ring.again is None:
             continue
-        inner = sharing(ring.body, ring.again, frozenset())
+        inner = _inner_ring_sharing(ring.body, ring.again, procedures, frozenset())
         if inner is not None:
             bag.error(
                 f"a ring inside this ring names the same go-again flag "
