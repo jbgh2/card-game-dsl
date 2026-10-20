@@ -780,10 +780,10 @@ def test_a_function_row_named_like_a_native_function(name: str) -> None:
     spellings. That is also why a game's `primitives { }` entry never answers a
     function row."""
     bag = _alone(lambda: _library("functions", rows=f"{name}(p : Player) : Boolean", use=""))
-    if name in _ROUND_QUERY_NAMES:
-        needle = "callback"
-    elif name in BUILTIN_CALL_FUNCS:
+    if name in BUILTIN_CALL_FUNCS:
         needle = "call it directly"
+    elif name in _ROUND_QUERY_NAMES:
+        needle = "callback"
     else:
         needle = "Primitive"
     _assert(bag, Reject(LIBRARY, (f"'{name}'", needle)))

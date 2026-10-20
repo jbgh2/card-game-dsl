@@ -2212,8 +2212,8 @@ def _check_library_collisions(
                 bag.error(
                     cite_library(library.name, fn.span) + f" defines function " + cite_named(fn, f"'{fn.name}'") + f", "
                     f"which has the name of the language's own `{fn.name}` that {slot} "
-                    f"names; that slot always runs the language's `{fn.name}` and never "
-                    f"calls this function — rename it",
+                    f"names; in a game whose round names it, that slot runs the "
+                    f"language's `{fn.name}` and never calls this function — rename it",
                     fn.span,
                 )
 
@@ -2345,6 +2345,10 @@ def _check_library_shadows_game(
             if inject_noun == game_noun and inject_noun in def_nouns:
                 continue
             if inject_noun == "provided state" and game_noun == "state variable":
+                continue
+            # A library function taking a round callback's name is
+            # `_check_library_collisions`'s, which names the slot.
+            if inject_noun == "function" and game_noun == "round callback":
                 continue
             # A name the library both holds and contracts for is its own
             # contradiction, told to its author by `_check_contract_names`.
@@ -3641,17 +3645,18 @@ def _check_signature_row(
     a function — a result type a value can have."""
     head = cite_library(library.name, want.span) + f" requires " + cite_where(f"`{_spelled_contract(want)}`", want.span)
     if isinstance(want, n.FunctionContract):
-        if want.name in _ROUND_QUERY_NAMES:
-            bag.error(
-                head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a round's callback, named in its "
-                f"slot and never called — no game defines it as a function, so "
-                f"rename the row",
-                want.span,
-            )
-        elif want.name in BUILTIN_CALL_FUNCS:
+        if want.name in BUILTIN_CALL_FUNCS:
             bag.error(
                 head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a function every game has — call "
                 f"it directly; it needs no contract row",
+                want.span,
+            )
+        elif want.name in _ROUND_QUERY_NAMES:
+            bag.error(
+                head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is the language's own callback "
+                f"that {_round_query_slot(want.name)} names, and a game whose "
+                f"round names it may not define a function of that name — rename "
+                f"the row",
                 want.span,
             )
         elif want.name in PRIMITIVE_CALL_FUNCS:
@@ -9918,14 +9923,25 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
     them); and the call graph must be acyclic (a cycle would loop forever at runtime).
     A function may not reuse a native call name: a call would type-check against the
     native signature but dispatch to the user function at run time. Nor may it take a
-    name a round slot reads (`_ROUND_QUERY_NAMES`): the slot runs the native, so the
-    function would never be called."""
+    name one of the game's round slots writes: the slot runs the native, so the
+    function would never be what it means there."""
     fn_names = {f.name for f in game.functions}
     calls: dict[str, set[str]] = {
         f.name: {c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names}
         for f in game.functions
     }
     native = call_namespace(game)
+    # The names this game's own rounds write in a slot: a function sharing one
+    # is never what that slot runs, while a function no slot here names is
+    # simply called (the native arm's rule: the game's namespace, not the
+    # corpus-wide registry).
+    slot_written = {
+        name
+        for nd in _walk(game)
+        for form, field_name in _ROUND_QUERY_REGISTRIES
+        if isinstance(nd, form)
+        for name in slot_strings(nd, field_name)
+    }
     for fn in game.functions:
         # The GAME's namespace, not the corpus-wide registry: a Primitive this
         # game cannot call shadows nothing here, and refusing the name anyway
@@ -9950,7 +9966,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 f"run this function instead){hint}",
                 fn.span,
             )
-        elif (slot := _round_query_slot(fn.name)) is not None:
+        elif fn.name in slot_written and (slot := _round_query_slot(fn.name)) is not None:
             bag.error(
                 f"function " + cite_named(fn, f"'{fn.name}'") + f" has the name of the "
                 f"language's own `{fn.name}`, which {slot} names; that slot always runs "

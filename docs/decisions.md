@@ -2387,10 +2387,11 @@ another (`pending` calls `can_act` and `owes`).
 
 A function's name is its own. It may not take a native function's name — a call
 would type-check against the native signature and run the function instead — nor
-a name a round slot reads (`winner`, `early`, `combinations`, `follows`), since
-the slot always runs the language's own and never calls a function. Both are
-refused at the definition; a family library's function and a `requires` function
-row are held to the same names.
+a name one of the game's round slots names (`winner`, `early`, `combinations`,
+`follows`), since that slot always runs the language's own and never calls a
+function. Both are refused at the definition. A family library cannot know which
+game's rounds will name a slot callback, so its functions and its `requires`
+function rows may take no slot callback's name at all.
 
 This is a deliberate, authorized general construct: factoring predicates is a need
 the corpus has as games grow more advanced, not a Stud-only convenience. It
