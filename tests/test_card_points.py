@@ -12,7 +12,9 @@ Completeness ledger
 property:  every table the clause accepts loads as the game's card points —
            the `card_points(card)` Builtin and the driver's census sum read
            the same materialized table (rank rows verbatim, unlisted ranks at
-           the `else:` value, or 0 with no else row) — and every plausible
+           the `else:` value, or 0 with no else row); a table no
+           `card_points(card)` call in the written text reads is refused, the
+           census being an instrument and no reader — and every plausible
            wrong sentence fails loud in its owning layer's currency: block
            shapes as parse-layer DiagnosticErrors (the wrong spellings
            `card_points:` and `card_values` naming the one block spelling),
@@ -217,7 +219,8 @@ def test_value_grid(case_id: str, table: str, literal: str, expected: int) -> No
 
 def test_census_total_reads_the_sparse_table() -> None:
     # standard52: four aces at 1, everything else unlisted -> 0.
-    assert _census(_game("card_points { A: 1 }"))["total_value"] == 4
+    src = _game("card_points { A: 1 }", body="s[0] := card_points(2 of spades)")
+    assert _census(src)["total_value"] == 4
 
 
 def test_census_total_materializes_the_else_row() -> None:
@@ -294,11 +297,19 @@ def test_call_with_no_clause_is_a_resolve_diagnostic() -> None:
     assert "card_points" in message and "clause" in message, message
 
 
-def test_clause_with_no_call_is_accepted() -> None:
-    # The `ranking:` precedent: a declared-but-unread table is legal (the
-    # census consumes it), never accepted-but-ignored — the census cell above
-    # proves the load.
-    _accepts(_game("card_points { A: 1 }"))
+def test_clause_with_no_call_is_refused_naming_its_reader() -> None:
+    """A table no `card_points(card)` call reads prices nothing the game
+    scores: the driver's census reads it as an instrument, never as a
+    reader.
+
+    red under: drop the `_CARD_POINTS_CALLS` row's `role="reader"`."""
+    _rejects(_game("card_points { A: 1 }"), "card_points { } is read by nothing")
+
+
+def test_a_call_anywhere_in_the_written_text_reads_the_table() -> None:
+    """Written, not reached: a reader in a function nothing calls still reads
+    the table, as the call gate refuses that call wherever it is written."""
+    _accepts(_game("card_points { A: 1 }") + "\nfunction pts(c : Card) = card_points(c)\n")
 
 
 # =============================================================================
@@ -510,7 +521,9 @@ game Mini {
 
 
 def test_ir_emits_the_table_only_when_declared() -> None:
-    with_clause = _accepts(_game("card_points { A: 1  else: 2 }"))
+    with_clause = _accepts(
+        _game("card_points { A: 1  else: 2 }", body="s[0] := card_points(2 of spades)")
+    )
     blob = json.dumps(ir.emit(with_clause))
     assert '"card_points_table"' in blob
     assert '"A"' in blob

@@ -509,7 +509,8 @@ winner and `highest_trump_or_led_suit(...)` are all refused — each describes a
 different order from the one the block declares, and admitting both would
 leave the engine quietly running one of them. Without a block, every gated
 name is refused, because it would read a table the game never declared. A
-block that nothing reads is refused too. The round-configured order states its
+block that nothing reads is refused too ("Surface totality", "A clause nothing
+reads is refused"). The round-configured order states its
 trump as the block does: a round whose winner reads a trump
 (`highest_trump_or_led_suit`) names it in its own `trump` clause or inherits
 the game's `trump:`, and a round with neither is refused, since it would play
@@ -700,8 +701,8 @@ order, so a Suit parameter's OpenSpiel action ids are the same with the clause
 and without it (Bridge's `submit_bid(strain : Suit?)` is the witness). The
 order is public and static, so it moves no information set.
 
-A clause nothing reads is refused (the `trump:` rule): some `suit_value` call
-must be written in the game or a library it uses. A `suit_value` call in a game
+A clause nothing reads is refused ("Surface totality", "A clause nothing reads
+is refused"); `suit_value` is its reader. A `suit_value` call in a game
 declaring no clause is refused at the call, or on the `uses` line when a
 library makes it ("Family libraries"). A game whose strength order depends on
 the trick's context, the trump suit above all, declares a `trick_order { }`;
@@ -3517,8 +3518,10 @@ key and a key that is not a rank of the declared deck are resolve
 errors naming the deck. Unlisted ranks read the `else:` value, or
 0 with no else row (Tichu's sparse table prices five ranks; the
 rest read 0). Negative rows are ordinary (`Phoenix: -25`). The
-`card_points(card)` Builtin reads the declared table, and calling
-it in a game that declares no clause is a resolve error — the
+`card_points(card)` Builtin reads the declared table; a table no
+`card_points(card)` call reads is refused ("Surface totality", "A
+clause nothing reads is refused"), and calling the Builtin in a game
+that declares no clause is a resolve error — the
 table has ONE source, the game's own clause: the deck registry
 carries composition only, never points (`values.Deck`), so one
 deck serves games that price it differently, and a piece game is
@@ -4307,6 +4310,20 @@ goal it is the worst failure mode: a designer who writes a legal sentence must
 get either the behavior or an error, never a silent misread. When a cell is not
 worth implementing, prefer static rejection over a runtime error, and never
 silence.
+
+**A clause nothing reads is refused.** A game clause whose readers are
+constructs the game writes — `card_points { }`, read by `card_points(card)`;
+`suit ranking:`, read by `suit_value`; a `trick_order { }` block, read by
+`highest_by_trick_order` on a round or by a call of its readers outside the
+block; `trump:`, read by a trick round whose winner reads a trump and that
+states none of its own — is refused at the clause when nothing the game writes
+reads it: its own text, every definition a library splices in, and every
+library rule it activates. Judged on written text, not on the code that runs:
+each reader is refused wherever it is written when its clause is absent, so
+judging the same text is what keeps a sentence from being refused both with
+the clause and without it. A clause's own body never reads it, and an
+instrument is no reader: the end-of-game card census and the OpenSpiel ranked
+policy's trump fallback read clauses without making a game read them.
 
 **An accounted outcome is not enough: the outcome must be the one the surface
 plainly says.** A combination that parses to *defined but unintended*
