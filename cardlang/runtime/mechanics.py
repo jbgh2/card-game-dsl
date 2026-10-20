@@ -179,6 +179,7 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
     # Popping first would silently feed it `last_round_state` instead.
     if published:
         ctx.rs.last_round_state = ctx.rs.mech_state.pop()
+        ctx.rs.last_round_depth = len(ctx.rs.frames)
     return result
 
 

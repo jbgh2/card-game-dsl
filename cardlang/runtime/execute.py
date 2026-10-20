@@ -38,6 +38,7 @@ from cardlang.runtime.chooser import decide
 from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
+    ChooserAbort,
     Ctx,
     IllegalMove,
     Zone,
@@ -440,6 +441,7 @@ def _select_from(
     player: Player,
     destination: str | None = None,
 ) -> list[Card]:
+    ctx.rs.end_round_window()
     # The joint form is its own branch above the per-card filter: the
     # selection unit is a SUBSET, not a card (decisions.md "Joint-predicate
     # selection"). The `where` filter is a fully separate branch (not folded
@@ -496,6 +498,7 @@ def _select_joint(
     `subsets.sized`'s order — sizes ascending, combinations in source order
     — so the action-space encoder and
     the chooser see the same list."""
+    ctx.rs.end_round_window()
     pool = list(source.cards)
     # The bound is `runtime/subsets`': one home for every enumeration of a card
     # pool's subsets, so the number and the refusal cannot drift between the
@@ -558,6 +561,7 @@ def _select_filtered(
     like the unfiltered form does from the whole source; the default (dealt)
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
+    ctx.rs.end_round_window()
     assert stmt.where is not None  # Shadow Guard of _select_from's dispatch: only the filtered branch lands here
     pred = _card_pred(stmt.where, ctx)
     pool = [c for c in source.cards if pred(c)]
@@ -761,56 +765,60 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     order = ctx.rs.seating.players
     step = 1 if ctx.rs.seating.clockwise else -1
     # A ring is a run of decisions, not a round: entering one ends the
-    # just-completed round's window, so a `state.` read inside it fails
-    # loudly (`evaluate._pronoun`'s "no active or just-completed round")
-    # instead of serving that round's frame — which round ran last is
-    # runtime data, so this is the window's Owner Guard, at the one site
-    # every ring converges on. A live round's frame (`mech_state`) is
-    # untouched: a ring hosted inside a poll reads the live trick. A lone
-    # `offer` or a `repeat until` leaves the frame as it is
-    # (open-questions/round-state-in-information-states.md).
-    if not ctx.rs.mech_state:
-        ctx.rs.last_round_state = None
-    current: Player | None = None
-    guard = 0
-    while not bool(evaluate(stmt.until, ctx)):
-        # The same non-termination Owner Guard as `_repeat_until` (one loop
-        # class, one guard): a body that makes no decisions is invisible to
-        # the max_length DECISION counter, so the turn count itself is
-        # bounded too.
-        guard += 1
-        if guard > ctx.rs.max_length:
-            raise OwnerGuardError(
-                f"turns exceeded the game's declared max_length "
-                f"({ctx.rs.max_length}) turns — non-termination, or raise "
-                "max_length if this game genuinely runs this long"
-            )
-        if current is None:
-            leader = evaluate(stmt.leader, ctx)
-            if leader not in order:
+    # just-completed round's window (`RuntimeState.end_round_window`).
+    ctx.rs.end_round_window()
+    # The go-again flag dies with its ring: whatever ends the ring -- its
+    # `until`, a `produce`, a hand skip, a jump -- consumes a flag its last
+    # turn wrote, so it never buys the next ring's leader a turn. A decision
+    # suspended mid-turn (`ChooserAbort`) leaves the paused world as it is.
+    suspended = False
+    try:
+        current: Player | None = None
+        guard = 0
+        while not bool(evaluate(stmt.until, ctx)):
+            # The same non-termination Owner Guard as `_repeat_until` (one loop
+            # class, one guard): a body that makes no decisions is invisible to
+            # the max_length DECISION counter, so the turn count itself is
+            # bounded too.
+            guard += 1
+            if guard > ctx.rs.max_length:
                 raise OwnerGuardError(
-                    f"turns: cannot start from {leader!r}: not a seat of "
-                    f"this {len(order)}-player game — the `from` expression "
-                    f"bound a non-player value"
+                    f"turns exceeded the game's declared max_length "
+                    f"({ctx.rs.max_length}) turns — non-termination, or raise "
+                    "max_length if this game genuinely runs this long"
                 )
-            candidate_seq = [leader, *_next_seats(order, leader, step)]
-        elif stmt.again is not None and bool(ctx.rs.get(stmt.again)):
-            ctx.rs.set(stmt.again, False)  # consumed: one write, one repeat
-            candidate_seq = [current, *_next_seats(order, current, step)]
-        else:
-            candidate_seq = _next_seats(order, current, step)
-        participants = set(elements(evaluate(stmt.participants, ctx)))
-        player = next((p for p in candidate_seq if p in participants), None)
-        if player is None:
-            raise OwnerGuardError(
-                "turns: no eligible participant — every seat fails the "
-                "`over` predicate; make the `until` condition cover this "
-                "state so the form is never asked to find a turn nobody "
-                "can take"
-            )
-        body_ctx = ctx.with_local(stmt.binder, player).acting_as(player)
-        run_body(stmt.body, body_ctx)
-        current = player
+            if current is None:
+                leader = evaluate(stmt.leader, ctx)
+                if leader not in order:
+                    raise OwnerGuardError(
+                        f"turns: cannot start from {leader!r}: not a seat of "
+                        f"this {len(order)}-player game — the `from` expression "
+                        f"bound a non-player value"
+                    )
+                candidate_seq = [leader, *_next_seats(order, leader, step)]
+            elif stmt.again is not None and bool(ctx.rs.get(stmt.again)):
+                ctx.rs.set(stmt.again, False)  # consumed: one write, one repeat
+                candidate_seq = [current, *_next_seats(order, current, step)]
+            else:
+                candidate_seq = _next_seats(order, current, step)
+            participants = set(elements(evaluate(stmt.participants, ctx)))
+            player = next((p for p in candidate_seq if p in participants), None)
+            if player is None:
+                raise OwnerGuardError(
+                    "turns: no eligible participant — every seat fails the "
+                    "`over` predicate; make the `until` condition cover this "
+                    "state so the form is never asked to find a turn nobody "
+                    "can take"
+                )
+            body_ctx = ctx.with_local(stmt.binder, player).acting_as(player)
+            run_body(stmt.body, body_ctx)
+            current = player
+    except ChooserAbort:
+        suspended = True
+        raise
+    finally:
+        if stmt.again is not None and not suspended:
+            ctx.rs.set(stmt.again, False)
 
 
 def _next_seats(order: tuple[Player, ...], frm: Player, step: int) -> list[Player]:
@@ -821,6 +829,7 @@ def _next_seats(order: tuple[Player, ...], frm: Player, step: int) -> list[Playe
 
 
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:
+    ctx.rs.end_round_window()
     player = evaluate(stmt.player, ctx)
     pctx = ctx.acting_as(player)
     # Presents an offering to one player: every named move type's guard-filtered
@@ -925,6 +934,7 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
 
 
 def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
+    ctx.rs.end_round_window()
     # One Shadow Guard against the SAME predicate resolve rejects with, rather
     # than a hand-written set of asserts that the checker then has to mirror —
     # the mirroring is what let `move chosen one card …` through the Owner

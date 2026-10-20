@@ -357,6 +357,9 @@ class RuntimeState:
         # `None` means no round has completed yet — reading `state` then is an
         # error, not a silent empty frame.
         self.last_round_state: dict[str, Any] | None = None
+        # The frame depth of the phase whose round left `last_round_state`:
+        # when that phase ends, so does the window (`end_round_window`).
+        self.last_round_depth: int = 0
         # True while a Hosted Poll's body runs (`mechanics._run_hosted_poll`):
         # the climbing round's frame is live and unpublished, and the Shadow
         # Guards in cardlang/stdlib/hosted_poll.py's docstring refuse what the
@@ -427,6 +430,15 @@ class RuntimeState:
         self.axis_attr: dict[str, str] = {"suit": "suit", "rank": "rank"}
 
     # --- scope frames ---
+
+    def end_round_window(self) -> None:
+        """A finished round's frame is read only until a decision other than a
+        round's is asked, or the phase that ran the round ends; a read after
+        that is `evaluate._pronoun`'s no-frame refusal, never the old frame.
+        A live round's frame (`mech_state`) is untouched, so a decision inside
+        a round reads its own trick."""
+        if not self.mech_state:
+            self.last_round_state = None
 
     def push_frame(self) -> None:
         self.frames.append({})

@@ -399,9 +399,17 @@ phase play {
 ```
 
 The body reads the round's `winner` (the selected player) and its terminal
-`state` (e.g. `state.trick_terminated_early`): a finished round's state stays
-readable as `state.x` until the next round runs. Routing is just body
+`state` (e.g. `state.trick_terminated_early`). Routing is just body
 statements — there is no separate routing construct.
+
+**A finished round's `state.` is read until its window closes.** The window
+closes when a decision other than a round's is asked — an `offer`, a `choose`,
+a chosen movement, a `turns` ring, a poll — or when the phase that ran the
+round ends. A read past it is refused at play, never served the old frame, so a
+poll after the tricks, or the next hand's bid, cannot read the last trick. A
+value a later decision needs is copied into a declared state variable directly
+after the round, where every seat's information state renders it. A decision
+inside a round reads that round's live frame, which no window closes.
 
 **Contextual card properties are the game's Trick Order.** Some games
 interpret card properties contextually rather than from the card's intrinsic
@@ -1054,7 +1062,12 @@ write; a turn ending with it true repeats the same player — Go Fish's
 hit-or-matching-draw. The form CONSUMES the flag, resetting it to false as it
 reads it at the boundary, so a stale write buys at most one repeat and can
 never silently monopolize the loop — only a write during the turn keeps the
-turn). The leader expression is read once, at the first turn, and must name a
+turn. The flag also dies with its ring: whatever ends the ring — its `until`,
+a `produce`, a hand skip, a jump — consumes a flag its last turn wrote, so it
+never buys the next ring's leader a turn, while a decision suspended mid-turn
+leaves the paused world as it is. A ring inside a ring, written there or in a
+procedure it runs, names its own flag: one shared would be the inner turn's and
+the outer turn's at once, and is refused). The leader expression is read once, at the first turn, and must name a
 real seat — a non-seat value (an out-of-range Integer, a loose pronoun) is a
 typed runtime error at the bind, the same seat guard `as` and `offer` carry. A
 full lap finding no eligible participant is a loud runtime error, the `offer`

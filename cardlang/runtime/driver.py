@@ -654,6 +654,9 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
         # frame standing and no `after_each` run past it.
         if not suspended:
             ctx.rs.pop_frame()
+            # The phase that ran a round ends that round's window.
+            if ctx.rs.last_round_depth > len(ctx.rs.frames):
+                ctx.rs.end_round_window()
 
 
 def _run_phase_body(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
