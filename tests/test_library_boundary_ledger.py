@@ -510,7 +510,7 @@ _UNACTING_HOST = """game Boundary {{
 _DEAL = "shuffle deck\n    deal 1 card from deck to each hand"
 _TRICK = (
     "round play_to_trick from 0 over all players source hand into pile "
-    "winner highest_trump_or_led_suit"
+    "winner highest_trump_or_led_suit trump none"
 )
 
 # place -> (phase, result, the game text a refusal stands at)
@@ -1284,7 +1284,7 @@ _TRICK_HOST_TWO = """game Boundary {{
     deal 5 cards from deck to each stock
     repeat until (all players where {src}[player] is empty) {{
       round play_to_trick from leader over all players source {src} into trick_pile
-            winner highest_trump_or_led_suit
+            winner highest_trump_or_led_suit trump none
       move all cards from trick_pile to captured[winner]
       score[winner] += 1
       leader := winner
@@ -1520,7 +1520,8 @@ def _unchosen() -> dict[str, str]:
         "delegated-play-helper-deciding-outside-any-binder": _TRICK_HOST_TWO.replace(
             "      round play_to_trick", "      as leader {{ round play_to_trick"
         ).replace(
-            "winner highest_trump_or_led_suit\n", "winner highest_trump_or_led_suit }}\n"
+            "winner highest_trump_or_led_suit trump none\n",
+            "winner highest_trump_or_led_suit trump none }}\n",
         ).format(rule="MustFollowSuit", src="hand", extra=""),
         "provided-hand-beside-a-rule-reading-the-play-source": _NO_HAND.replace(
             "    active_rules: [{rule}]\n", ""

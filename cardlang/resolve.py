@@ -1713,6 +1713,18 @@ def _round_trump_clauses(node: object, game: n.Game) -> tuple[str, ...]:
     return ()
 
 
+def _unstated_trump_slots(node: object, game: n.Game) -> tuple[str, ...]:
+    """A trick round naming a winner that reads a trump, with no `trump`
+    clause of its own: its trump is the game's `trump:`."""
+    if (
+        isinstance(node, n.TrickRound)
+        and node.winner_fn in TRUMP_READING_WINNERS
+        and node.trump is None
+    ):
+        return (f"round winner `{node.winner_fn}`",)
+    return ()
+
+
 def _trick_order_excluded_winners(node: object, game: n.Game) -> tuple[str, ...]:
     """A trick round naming a winner a `trick_order { }` block replaces."""
     if isinstance(node, n.TrickRound) and node.winner_fn in TRICK_ORDER_EXCLUDED_WINNERS:
@@ -1789,6 +1801,14 @@ _TRICK_ORDER_READING_GATE = _ClauseGate(
     "read the game's `trick_order { }` block",
     lambda g: "this game declares none",
     lambda g: "declare one",
+)
+_TRUMP_STATED_GATE = _ClauseGate(
+    _unstated_trump_slots,
+    lambda g: g.content_flavor == "card" and g.trick_order is None and g.trump is None,
+    "writes",
+    "read the game's trump",
+    lambda g: "this game states none",
+    lambda g: "state it with `trump: <suit>`",
 )
 _TRICK_ORDER_REPLACED_GATE = _ClauseGate(
     _trick_order_replaced_slots,
@@ -1898,6 +1918,7 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         lambda g: "declare one",
     ),
     _TRICK_ORDER_READING_GATE,
+    _TRUMP_STATED_GATE,
     _builtin_gate(
         TRICK_ORDER_EXCLUDED_FUNCS,
         lambda g: g.trick_order is not None,
@@ -8897,6 +8918,19 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                     + f"), or name {others}",
                     rnd.span,
                 )
+            elif game.trump is None and _unstated_trump_slots(rnd, game):
+                # The round-configured twin of the block's required `trump:`
+                # row: a winner reading a trump the game never states would
+                # play no-trump. `trump: none` is `_resolve_trump`'s.
+                bag.error(
+                    f"round winner {rnd.winner_fn} reads a trump, but none is "
+                    f"stated — write it on the round (`... winner "
+                    f"{rnd.winner_fn} trump <suit>`) or as the game's "
+                    f"`trump: <suit>`, or declare a `trick_order {{ }}` and name "
+                    f"highest_by_trick_order; a no-trump trick names "
+                    f"highest_of_led_suit",
+                    rnd.span,
+                )
         # A call spliced from a library is `_check_library_clause_gates`'s,
         # which this loop and the excluded-call loop below shadow.
         for call in _gated_calls(game):
@@ -9464,9 +9498,10 @@ def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
         return
     if game.trump == "none":
         bag.error(
-            "trump: none — no trump is the ABSENT clause: drop `trump: none` "
-            "(a round that turns a trump per hand writes `trump <expr>` on the "
-            "round, where `none` means no trump)",
+            "trump: none — no trump is the ABSENT clause: drop `trump: none`, "
+            "and give a no-trump trick a winner that reads none "
+            "(highest_of_led_suit); a round that turns a trump per hand writes "
+            "`trump <expr>` on the round, where `none` means no trump",
             game.span,
         )
         return

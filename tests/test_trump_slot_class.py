@@ -193,6 +193,7 @@ import inspect
 import random
 import textwrap
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from types import MappingProxyType
 
 import pytest
@@ -389,6 +390,7 @@ _DEAD = "is read by no trick round"
 _UNKNOWN_SUIT = "names unknown suit"
 _BLIND = "round `trump` clause on winner"  # the round-clause refusal, not the dead-clause one
 _TYPE = "round `trump` names the trump suit"
+_UNSTATED = "reads a trump, but none is stated"
 
 
 def _game_trump_value_cells() -> list[tuple[str, str, str]]:
@@ -721,7 +723,11 @@ def _round_clause_cells() -> list[tuple[str, str]]:
 def test_round_trump_clause(winner: str, shape: str) -> None:
     spelling, suit_typed = _TRUMP_SPELLINGS[shape]
     src = _source(body=_ROUND.format(winner=winner, trump=spelling))
-    if shape == "absent":
+    if shape == "absent" and reads_trump(winner):
+        # No round clause, no game `trump:`, no Trick Order: the winner reads
+        # a trump the game never states, so it would play no-trump silently.
+        _expect(src, _UNSTATED, "`trump: <suit>`", "trick_order", "highest_of_led_suit")
+    elif shape == "absent":
         _expect(src)
     elif not reads_trump(winner):
         _expect(src, _BLIND, winner)
@@ -729,6 +735,26 @@ def test_round_trump_clause(winner: str, shape: str) -> None:
         _expect(src)
     else:
         _expect(src, _TYPE, "expected Suit?")
+
+
+def test_a_game_trump_states_the_trump_a_round_reads() -> None:
+    """The control for the unstated cell: the same round, the trump stated
+    once at the game level.
+
+    red under: refuse the unstated trump whatever the game's `trump:`."""
+    _expect(_source(clause="trump: spades", body=_ROUND.format(
+        winner="highest_trump_or_led_suit", trump="",
+    )))
+
+
+def test_spades_without_its_trump_is_refused() -> None:
+    """The planted-fault witness: Spades with its `trump: spades` line
+    deleted.
+
+    red under: drop the unstated-trump arm of `_check_trick_order_partition`."""
+    text = (Path(__file__).resolve().parent.parent / "docs" / "games" / "spades.cardlang").read_text()
+    assert text.count("  trump: spades\n") == 1
+    _expect(text.replace("  trump: spades\n", ""), _UNSTATED)
 
 
 # --- (c) the call form's trump argument -------------------------------------
@@ -762,7 +788,7 @@ def test_state_trump_is_unpublished() -> None:
         _ROUND.format(winner="highest_trump_or_led_suit", trump="")
         + "\n    if state.trump is none { won[1] += 1 }"
     )
-    _expect(_source(body=body), "a round publishes no `trump`")
+    _expect(_source(clause="trump: spades", body=body), "a round publishes no `trump`")
 
 
 # --- the rank-to-order-table class ------------------------------------------
@@ -806,7 +832,8 @@ def _drive_slot(winner: str) -> Callable[[], None]:
     def drive() -> None:
         _play(
             f"round play_to_trick from 0 over all players source hand into pile "
-            f"winner {winner}\n    score[winner] += 1"
+            f"winner {winner}{' trump none' if reads_trump(winner) else ''}\n"
+            f"    score[winner] += 1"
         )
 
     return drive

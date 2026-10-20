@@ -19,7 +19,7 @@ game RoundSourceTeamFamily {
   phase play {
     legal_moves: [play_to_trick]
     round play_to_trick from 0 over all players source shared into trick_pile
-          winner highest_trump_or_led_suit
+          winner highest_trump_or_led_suit trump spades
   }
   winner: highest score
 }

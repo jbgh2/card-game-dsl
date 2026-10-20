@@ -65,11 +65,11 @@ from tests import round_axes as axes
 # `clause_settings` return rows whose substitution key no template has, and the
 # `KeyError` is the fixture telling you it no longer covers its own axis.
 #
-# The trick template names `highest_trump_or_led_suit`, the winner whose body
-# READS the round's `trump` clause: on `highest_of_led_suit` the clause is
-# accepted-but-ignored and resolve refuses it (`TRUMP_READING_WINNERS`,
-# tests/test_trump_slot_class.py), so the `trump=present` cells need a
-# reading winner to be legal cells at all.
+# The trick template's `trump=present` cells name `highest_trump_or_led_suit`,
+# the winner whose body READS the round's `trump` clause: on
+# `highest_of_led_suit` the clause is accepted-but-ignored and resolve refuses
+# it (`TRUMP_READING_WINNERS`, tests/test_trump_slot_class.py), so a present
+# clause needs a reading winner to be a legal cell at all.
 
 _TRICK = """
 game G {{
@@ -84,7 +84,7 @@ game G {{
   phase play {{
     repeat until (all players where hand[player] is empty) {{
       round play_to_trick from 0 over all players source hand into trick_pile
-            winner highest_trump_or_led_suit{trump}{early}
+            winner {winner}{trump}{early}
       won[winner] += 1
       move all cards from trick_pile to deck
     }}
@@ -152,8 +152,13 @@ CELLS = [pytest.param(p, s, id=_label(p, s)) for p, s in _cells()]
 
 
 def _source(production: str, setting: tuple[tuple[str, str], ...]) -> str:
+    # A reading winner with no `trump` clause would read the game's `trump:`,
+    # which the template does not state, so the absent cells name a winner
+    # that reads none.
+    reads = ("trump", "present") in setting
     return _TEMPLATES[production].format(
-        **{clause: _SPELLINGS[(clause, value)] for clause, value in setting}
+        winner="highest_trump_or_led_suit" if reads else "highest_of_led_suit",
+        **{clause: _SPELLINGS[(clause, value)] for clause, value in setting},
     )
 
 
