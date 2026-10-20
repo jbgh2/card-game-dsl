@@ -852,6 +852,29 @@ _ROUND_QUERY_REGISTRIES: dict[tuple[type, str], frozenset[str]] = {
     (n.ClimbRound, "follows_fn"): PRIMITIVE_CLIMB_FOLLOWS,
 }
 
+# Each `primitive_query` slot as a designer writes it, with `{name}` the
+# callback, for a refusal that names the slot a name belongs to.
+_ROUND_QUERY_SLOT_SPELLINGS: dict[tuple[type, str], str] = {
+    (n.TrickRound, "winner_fn"): "a trick round's `winner` slot (`... winner {name}`)",
+    (n.TrickRound, "early_termination"): "a trick round's `early` slot (`... early {name}`)",
+    (n.ClimbRound, "combos_fn"): (
+        "a climb round's `combinations` slot (`... combinations {name}`)"
+    ),
+    (n.ClimbRound, "follows_fn"): "a climb round's `follows` slot (`... follows {name}`)",
+}
+
+# Every name a round slot reads. A definition taking one is refused wherever a
+# designer introduces it: the slot always runs the native, never the definition.
+_ROUND_QUERY_NAMES: frozenset[str] = frozenset().union(*_ROUND_QUERY_REGISTRIES.values())
+
+
+def _round_query_slot(name: str) -> str | None:
+    """The slot that reads `name`, as a designer writes it, or None."""
+    for key, names in _ROUND_QUERY_REGISTRIES.items():
+        if name in names:
+            return _ROUND_QUERY_SLOT_SPELLINGS[key].format(name=name)
+    return None
+
 # Closed grammar keyword: a word the parser puts there from a fixed set of
 # productions. Not a name, so no namespace supplies it and nothing shadows it.
 _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
@@ -2183,6 +2206,14 @@ def _check_library_collisions(
                     f"which shadows the native function of the same name; rename "
                     f"it (a call would type-check against the native signature "
                     f"but run this one instead)",
+                    fn.span,
+                )
+            elif (slot := _round_query_slot(fn.name)) is not None:
+                bag.error(
+                    cite_library(library.name, fn.span) + f" defines function " + cite_named(fn, f"'{fn.name}'") + f", "
+                    f"which has the name of the language's own `{fn.name}` that {slot} "
+                    f"names; that slot always runs the language's `{fn.name}` and never "
+                    f"calls this function — rename it",
                     fn.span,
                 )
 
@@ -3610,7 +3641,7 @@ def _check_signature_row(
     a function — a result type a value can have."""
     head = cite_library(library.name, want.span) + f" requires " + cite_where(f"`{_spelled_contract(want)}`", want.span)
     if isinstance(want, n.FunctionContract):
-        if want.name in VALUE_NAMES:
+        if want.name in _ROUND_QUERY_NAMES:
             bag.error(
                 head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a round's callback, named in its "
                 f"slot and never called — no game defines it as a function, so "
@@ -9626,7 +9657,7 @@ def _callback_outside_slot(name: str) -> str:
     round slot that takes it (`TrickRound.winner_fn`), a name the round calls,
     never a value, so no expression position classifies it. `VALUE_NAMES` is
     exactly the trick winners, pinned by tests/test_bare_callback_names.py."""
-    slot = "a trick round's `winner` slot (`... winner " + name + "`)"
+    slot = _ROUND_QUERY_SLOT_SPELLINGS[(n.TrickRound, "winner_fn")].format(name=name)
     return (
         f"`{name}` is a trick winner, read only in {slot}; it is not a value an "
         f"expression can hold — name it in its round"
@@ -9886,7 +9917,9 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
     and not the call-site pronouns (`_CALL_SITE_PRONOUNS` — the runtime clears
     them); and the call graph must be acyclic (a cycle would loop forever at runtime).
     A function may not reuse a native call name: a call would type-check against the
-    native signature but dispatch to the user function at run time."""
+    native signature but dispatch to the user function at run time. Nor may it take a
+    name a round slot reads (`_ROUND_QUERY_NAMES`): the slot runs the native, so the
+    function would never be called."""
     fn_names = {f.name for f in game.functions}
     calls: dict[str, set[str]] = {
         f.name: {c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names}
@@ -9915,6 +9948,13 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 f"function " + cite_named(fn, f"'{fn.name}'") + f" shadows the native function of the same name; "
                 f"rename it (a call would type-check against the native signature but "
                 f"run this function instead){hint}",
+                fn.span,
+            )
+        elif (slot := _round_query_slot(fn.name)) is not None:
+            bag.error(
+                f"function " + cite_named(fn, f"'{fn.name}'") + f" has the name of the "
+                f"language's own `{fn.name}`, which {slot} names; that slot always runs "
+                f"the language's `{fn.name}` and never calls this function — rename it",
                 fn.span,
             )
         allowed = {p.name for p in fn.params}
