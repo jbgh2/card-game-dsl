@@ -257,7 +257,8 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               out of the round, and reads no live Round State.
               And, wherever the engine keys a zone family by the acting seat
               -- a bare zone ``NameRef``, a round's ``source``, a Builtin in
-              ``BUILTIN_IMPLICIT_READS`` -- a family not indexed by player;
+              ``BUILTIN_IMPLICIT_READS`` -- a family not indexed by player,
+              and for such a Builtin a family the game does not declare;
               and a round's ``into`` naming a family
               (``_check_bare_family_refs``). ``runtime/evaluate``'s ``_name``,
               ``runtime/mechanics``' round forms and ``runtime/reads``'
@@ -6656,8 +6657,11 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
     its keys back as seats (`BUILTIN_IMPLICIT_READS`). A round's `into` slot
     names one pile, so it must be a single zone. `to each <family>` names the
     family whole and keeps its own Owner Guard (`_validate_refs`). A Builtin
-    a library calls reads a family no argument names, so its refusal carries
-    the sentence the game's author reads (`attribution`).
+    reading a family the game does not declare at all is refused the same
+    way, since it has no seat to hand back. A Builtin a library calls reads a
+    family no argument names, so its refusal carries the sentence the game's
+    author reads (`attribution`), unless the library's own contract names the
+    family, which makes the refusal the library's.
 
     The runtime refusals in `evaluate._name`, `mechanics` (round sources and
     play piles) and `reads.magic_hand` are the Shadow Guards behind this Owner
@@ -6720,22 +6724,43 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                 )
         if isinstance(nd, n.Call) and nd.func in BUILTIN_IMPLICIT_READS:
             family, _need = BUILTIN_IMPLICIT_READS[nd.func]
-            if family not in index_of or seat_keyed(family):
+            if family in index_of and seat_keyed(family):
                 continue
             origin = origins.get(id(nd))
-            bag.error(
+            searches = (
                 f"`{nd.func}` finds the player holding a card by searching "
-                f"`{family}[player]`, so `{family}` must be a zone kept per "
-                f"player -- this game declares it as "
-                f"{_family_shape(index_of[family])}",
+                f"`{family}[player]`"
+            )
+            declared = (
+                f"declares no `{family}`"
+                if family not in index_of
+                else f"declares `{family}` as {_family_shape(index_of[family])}"
+            )
+            kept = f"`{family}[player] : Hand<player>`"
+            if origin is not None and family in origin.contracted_zones:
+                # The contract fixes `hand`, so no game meeting it can answer
+                # the call: the library's fact, told where it wrote the call.
+                bag.error(
+                    cite_library(origin.library, nd.span) + f" calls {searches}, but "
+                    + cite_library(origin.library, None) + f"'s contract names "
+                    f"`{family}` as {_family_shape(index_of[family])}, so no game "
+                    f"meeting it can answer the call — contract `{family}` per "
+                    f"player, like {kept}",
+                    nd.span,
+                )
+                continue
+            bag.error(
+                f"{searches}, so `{family}` must be a zone kept per player -- "
+                + (
+                    f"this game declares none"
+                    if family not in index_of
+                    else f"this game declares it as {_family_shape(index_of[family])}"
+                ),
                 nd.span,
                 for_game=None if origin is None else (
-                    cite_origin(origin, nd.span) + f" calls "
-                    f"`{nd.func}`, which finds the player holding a card by "
-                    f"searching `{family}[player]`, but this game declares "
-                    f"`{family}` as {_family_shape(index_of[family])} — declare "
-                    f"`{family}` a zone kept per player, like "
-                    f"`{family}[player] : Hand<player>`"
+                    cite_origin(origin, nd.span) + f" calls {searches}, but this "
+                    f"game {declared} — declare `{family}` a zone kept per "
+                    f"player, like {kept}"
                 ),
             )
 

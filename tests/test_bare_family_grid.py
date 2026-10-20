@@ -440,6 +440,34 @@ def test_unguarded_implicit_read_fails_typed(
     assert failure.leaked == OWNER
 
 
+def _undeclared_source(fn: str, family: str) -> str:
+    assert family not in ("deck", "pile"), family
+    return _IMPLICIT_TEMPLATE.format(decl="pile : Discard", target="pile", call=fn)
+
+
+@pytest.mark.parametrize("fn,family", IMPLICIT_READS)
+def test_implicit_read_of_an_undeclared_family(fn: str, family: str) -> None:
+    """A Builtin reading a family the game never declares is refused at the
+    call, naming the declaration it needs.
+
+    red under: skip an undeclared family in `_check_bare_family_refs`'s
+    implicit-read arm."""
+    found = diagnostics(_undeclared_source(fn, family))
+    assert len(found) == 1, found
+    assert f"`{family}[player]`" in found[0] and "declares none" in found[0], found[0]
+
+
+@pytest.mark.expects_shadow_guard
+@pytest.mark.parametrize("fn,family", IMPLICIT_READS)
+def test_unguarded_implicit_read_of_an_undeclared_family_fails_typed(
+    fn: str, family: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _static_off(monkeypatch)
+    failure = unguarded_play_failure(_undeclared_source(fn, family))
+    assert isinstance(failure, ShadowGuardError), repr(failure)
+    assert failure.leaked == OWNER
+
+
 # --- whole-family positions with their own guards: one diagnostic each -------
 
 

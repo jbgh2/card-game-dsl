@@ -2654,7 +2654,8 @@ check time. So the instance a bare name reads is always one the acting
 seat owns under its zone type's projection, and the information state
 derives from that ownership. The rule holds wherever the engine keys a
 family by the acting seat: a round's `source` names a family indexed by
-player, and `player_holding` searches `hand[player]`. A round's `into`
+player, and `player_holding` searches `hand[player]`, which a game calling
+it must declare. A round's `into`
 names the one pile every play lands on, so it is a single zone.
 A bare team family is not read as the acting player's side's instance,
 though the ownership the projection uses could key it so: no game asks

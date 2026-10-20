@@ -64,6 +64,7 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.resolve import _walk as _resolve_walk
 from cardlang.runtime import reads
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReadError, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
@@ -633,10 +634,15 @@ def test_instance_key_miss_fails_typed() -> None:
         reads.instance(rs, _PROBE_ROW, "influence", 7)
 
 
+@pytest.mark.expects_shadow_guard
 def test_magic_hand_guard() -> None:
+    """A game declaring no `hand` is refused at the call by
+    `_check_bare_family_refs`, so reaching `magic_hand` without one is a
+    Shadow Guard naming it."""
     rs = _bare_state()
-    with pytest.raises(PrimitiveReadError, match="Declared parameter domains"):
+    with pytest.raises(ShadowGuardError, match="not declared") as exc:
         reads.magic_hand(rs)
+    assert exc.value.leaked == "resolve._check_bare_family_refs"
     decls = (n.ZoneDecl(name="hand", index="player", type_ref=n.TypeRef(name="Hand")),)
     rs2 = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     assert set(reads.magic_hand(rs2)) == {0, 1}

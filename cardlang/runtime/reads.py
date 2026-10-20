@@ -708,9 +708,9 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     (decisions.md "Declared parameter domains"). Not registry-keyed — the
     coupling is to the language rule, not to any one game file — but held to
     the same [[failure-channel]]: a game that declares no `hand[player]` family
-    gets a typed error naming the rule, not a `KeyError`. (resolve's magic-
-    name check only covers games with `Card`-typed move parameters, so this
-    is an [[owner-guard]], not a [[shadow-guard]].)
+    gets a typed error naming the rule, not a `KeyError`. Both refusals are
+    [[shadow-guard]]s behind resolve's `_check_bare_family_refs`, which
+    refuses the call where it is written.
 
     Returns player-keyed instances: `hand` is a `hand[player]` family by the
     magic-name rule, so its keys are seats even though the generic zone store
@@ -719,20 +719,17 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     the rule is known, so `player_holding` returns a `Player` without a
     per-caller narrowing."""
     index = rs.zones.zone_index.get("hand")
-    if "hand" in rs.zones.zone_index and (index is None or role_of(index) is not Role.PLAYER):
-        # Shadow Guard behind resolve's `_check_bare_family_refs`: a `hand`
-        # kept per team or as one zone has no seat keys to hand back.
+    fam = rs.zones.families.get("hand")
+    if fam is None or index is None or role_of(index) is not Role.PLAYER:
+        # A `hand` absent, kept per team or kept as one zone has no seat keys
+        # to hand back.
+        shape = (
+            "not declared"
+            if "hand" not in rs.zones.zone_index
+            else (f"one zone per {index}" if index else "a single zone")
+        )
         raise ShadowGuardError(
             "resolve._check_bare_family_refs",
-            "player_holding: `hand` is "
-            + (f"one zone per {index}" if index else "a single zone")
-            + ", not kept per player",
-        )
-    fam = rs.zones.families.get("hand")
-    if fam is None:
-        raise PrimitiveReadError(
-            "player_holding: the game declares no `hand[player]` zone family "
-            "— `hand` is the language-wide magic name (decisions.md "
-            '"Declared parameter domains") this native function reads'
+            f"player_holding: `hand` is {shape}, not kept per player",
         )
     return cast("dict[int, Zone]", fam)
