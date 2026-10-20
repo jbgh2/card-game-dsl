@@ -509,7 +509,11 @@ winner and `highest_trump_or_led_suit(...)` are all refused — each describes a
 different order from the one the block declares, and admitting both would
 leave the engine quietly running one of them. Without a block, every gated
 name is refused, because it would read a table the game never declared. A
-block that nothing reads is refused too.
+block that nothing reads is refused too. The round-configured order states its
+trump as the block does: a round whose winner reads a trump
+(`highest_trump_or_led_suit`) names it in its own `trump` clause or inherits
+the game's `trump:`, and a round with neither is refused, since it would play
+no-trump without saying so. A no-trump trick names a winner that reads none.
 
 **Provenance.** Every Arrival Record read names a fully public zone,
 statically: the pile argument of each of these calls is a zone reference whose

@@ -71,7 +71,7 @@ import pytest
 from cardlang import pipeline
 from cardlang.ast import nodes as n
 from cardlang.attribution import is_library_warning
-from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS, VALUE_NAMES
+from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS, TRUMP_READING_WINNERS, VALUE_NAMES
 from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
@@ -132,10 +132,15 @@ class _Host:
 
     def round(self, fills: dict[str, str | None]) -> str:
         early = fills.get("early_termination")
-        return self.round_text.format(
+        text = self.round_text.format(
             **{k: v for k, v in fills.items() if k != "early_termination"},
             early="" if early is None else f" early {early}",
         )
+        # A winner reading a trump states it on the round, so the cell's
+        # verdict is the slot's and not the unstated-trump refusal.
+        if fills.get("winner_fn") in TRUMP_READING_WINNERS:
+            text += " trump none"
+        return text
 
     def game_text(self, *, uses: bool, game_local_round: str | None) -> str:
         text = (_GAMES / self.game).read_text()

@@ -448,13 +448,13 @@ def test_rejects_the_trump_winner_slot_with_no_declared_ranking() -> None:
     # winner-slot member is consulted from RANKING_GATED_WINNERS at the round
     # check, not from the Call gate, so each position needs its own cell.
     _rejects(
-        _game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit"), ranking=""),
+        _game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit") + " trump none", ranking=""),
         "round winner highest_trump_or_led_suit reads a card's rank strength from ranking:",
     )
 
 
 def test_accepts_the_trump_winner_slot_with_a_declared_ranking() -> None:
-    _accepts(_game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit")))
+    _accepts(_game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit") + " trump none"))
 
 
 def test_accepts_the_trick_order_winner_with_no_declared_ranking() -> None:

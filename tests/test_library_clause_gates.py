@@ -803,7 +803,12 @@ def test_a_library_cannot_spell_a_cell_or_direction(
 
 
 _SLOT_ROUNDS: dict[str, str] = {
-    **{w: _trick_round(w) for w in sorted(RANKING_GATED_WINNERS | TRICK_ORDER_GATED_WINNERS)},
+    # A trump-reading winner states its trump on the round, so the probe
+    # game meets every gate the round asks.
+    **{
+        w: _trick_round(w) + (" trump none" if w in TRUMP_READING_WINNERS else "")
+        for w in sorted(RANKING_GATED_WINNERS | TRICK_ORDER_GATED_WINNERS)
+    },
     **{
         q: (
             _climb_round(q, "bigtwo_follows")
@@ -1288,6 +1293,13 @@ def _round_members() -> list[NodeMember]:
                     requires=_ROUND_ZONES,
                 )
             )
+        if winner in TRUMP_READING_WINNERS:
+            members.append(
+                NodeMember(
+                    "trump_stated", f"winner_{winner}", definition, winner, "trump:",
+                    NodeGame(no_order, True), NodeGame(no_order), requires=_ROUND_ZONES,
+                )
+            )
         if winner in RANKING_GATED_WINNERS:
             members.append(
                 NodeMember(
@@ -1381,6 +1393,7 @@ NODE_GATES: dict[str, str] = {
     "board_position": "_BOARD_POSITION_GATE",
     "rank_parameter": "_RANK_PARAMETER_GATE",
     "ranking_slot": "_RANKING_SLOT_GATE",
+    "trump_stated": "_TRUMP_STATED_GATE",
 }
 
 # Members the `uses` check does not hold, each with its record.
@@ -1550,6 +1563,8 @@ def _homes(gate: str) -> list[tuple[object, str, object]]:
             return [(resolve_module, "_position_past_end", lambda nd, g: None)]
         case "ranking_slot":
             return [(typecheck_module, "ranking_gated_slots", lambda nd: ())]
+        case "trump_stated":
+            return [(resolve_module, "_unstated_trump_slots", lambda nd, g: ())]
     return [_no_needs(NODE_GATES[gate])]
 
 
@@ -1564,6 +1579,7 @@ _GATE_REFUSALS: dict[str, str] = {
     "board_position": "is past the end",
     "rank_parameter": "has a Rank parameter",
     "ranking_slot": "reads a card's rank strength",
+    "trump_stated": "reads a trump, but none is stated",
 }
 
 

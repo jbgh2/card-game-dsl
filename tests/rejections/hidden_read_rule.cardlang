@@ -23,7 +23,7 @@ game HiddenReadRule {
     active_rules: [NoLeadIntoHearts]
     repeat until (all players where hand[player] is empty) {
       round play_to_trick from 0 over all players source hand into trick_pile
-            winner highest_trump_or_led_suit
+            winner highest_trump_or_led_suit trump spades
       move all cards from trick_pile to captured[winner]
     }
   }

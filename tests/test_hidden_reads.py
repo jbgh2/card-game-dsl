@@ -327,7 +327,7 @@ game Probe {{
 _TEAMS = "teams: [[0, 2], [1]]"
 _TRICK = (
     "round play_to_trick from 0 over all players source hand into pile "
-    "winner highest_trump_or_led_suit"
+    "winner highest_trump_or_led_suit trump none"
 )
 _OFFER_TAKE = "phase play { offer to 0 one of [take] }"
 
