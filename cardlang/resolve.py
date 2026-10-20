@@ -12938,7 +12938,14 @@ class _HiddenReads:
         in_library = bool(self.library_text) and self.library_text[-1]
         for node, route, answered, entered in self._actor_needs_in(expr, (), in_library=in_library):
             found = True
-            if isinstance(node, n.NameRef) and node.ref_kind == "zone":
+            if isinstance(node, n.NameRef) and node.ref_kind == "zone" and answered is not None:
+                self._report_unacting_answer(
+                    route, answered, node.span,
+                    f"names `{node.name}` bare (the acting player's own)",
+                    "so it names no player's. Name whose from the parameters the "
+                    "row passes, or read the game's own state",
+                )
+            elif isinstance(node, n.NameRef) and node.ref_kind == "zone":
                 crossing = None if entered is None else _entry_route("call", entered, node.span)
                 self._report_bare_family(node.name, route, node.span, crossing)
             elif answered is not None and isinstance(node, n.Choose):
@@ -13019,23 +13026,30 @@ class _HiddenReads:
                 )
 
     def _report_unacting_answer(
-        self, route: tuple[Said, ...], answered: _Answered, span: Span | None
+        self,
+        route: tuple[Said, ...],
+        answered: _Answered,
+        span: Span | None,
+        does: str = "makes a `choose`",
+        then: str = (
+            "so no one can make the decision. Compute the answer from the "
+            "parameters the row passes, or from the game's own state"
+        ),
     ) -> None:
-        """A `choose` the game's answer to a Definition Contract makes where
-        the library reads it with no player acting: told to the game's author,
-        at the last text the game wrote on the way to it, with the fix the
-        answer can take."""
+        """What the game's answer to a Definition Contract needs an acting
+        player for -- a `choose`, a per-player zone named bare -- where the
+        library reads it with no player acting: told to the game's author, at
+        the last text the game wrote on the way to it, with the fix the answer
+        can take."""
         inner = route[answered.depth:]
         through: Said = " (through " + Sentence.join(", then ", inner) + ")" if inner else ""
         where = _NO_ACTOR_WHERE[self.place]
         message = (
             "function " + _cite_in(self.game, "function", answered.function, f"`{answered.function}`")
-            + " makes a `choose`" + through + ", but "
+            + f" {does}" + through + ", but "
             + cite_library(answered.stamp.library, answered.stamp.row_span)
             + " calls it under its contract "
-            f"" + cite_where(f"`{answered.stamp.row}`", answered.stamp.row_span) + f" where no player is acting ({where}), so no "
-            f"one can make the decision. Compute the answer from the parameters "
-            f"the row passes, or from the game's own state"
+            f"" + cite_where(f"`{answered.stamp.row}`", answered.stamp.row_span) + f" where no player is acting ({where}), {then}"
         )
         at = answered.anchor or span
         key = (message, at)
