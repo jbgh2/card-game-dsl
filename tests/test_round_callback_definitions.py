@@ -69,7 +69,7 @@ _HOST = """game H {{
   state {{ score[player] : Integer = 0 }}
   phase play {{
     round play_to_trick from 0 over all players source hand into pile
-      winner highest_trump_or_led_suit
+      winner highest_trump_or_led_suit trump spades
     score[0] := 1
   }}
   winner: highest score
