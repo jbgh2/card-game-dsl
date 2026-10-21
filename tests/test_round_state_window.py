@@ -80,6 +80,10 @@ ENDED: dict[str, str] = {
     "offer in the same phase reading it in `when:`": _play_phase(
         "offer to 0 one of [peek_when, skip]"
     ),
+    "chosen movement in the same phase filtering by it": _play_phase(
+        "deal 1 card from deck to each hand\n"
+        "    as 0 { move chosen 1 card from hand[0] where card.suit is state.led_suit to waste }"
+    ),
     "plain read in a later phase": _play_phase()
     + "\n  phase after { if state.led_suit is not none { won[0] += 1 } }",
     "the next hand's bid": (
@@ -110,6 +114,30 @@ def test_a_read_directly_after_the_round_sees_it() -> None:
         "w.cardlang",
     )
     assert play_game(game, random.Random(0)).scores[0] == 1
+
+
+def test_a_movement_that_asks_no_one_keeps_the_window_open() -> None:
+    """A `move all` after the round is no decision: the read after it still
+    sees the round.
+
+    red under: end the window at every movement, chosen or not."""
+    game = check_dsl(
+        _game(
+            "phase play {\n" + _TRICK
+            + "    move all cards from trick_pile to waste\n"
+            "    if state.led_suit is not none { won[0] += 1 }\n  }"
+        ),
+        "w.cardlang",
+    )
+    assert play_game(game, random.Random(0)).scores[0] == 1
+
+
+# The transfer sites decide inside a movement; `execute._movement` ends the
+# window at a CHOSEN movement's entry, before its clauses are read, and no
+# other movement asks anyone.
+_ENDED_BY_MOVEMENT = frozenset(
+    {"execute._select_from", "execute._select_filtered", "execute._select_joint"}
+)
 
 
 def _decide_callers() -> set[tuple[str, str]]:
@@ -143,5 +171,15 @@ def test_every_non_round_decision_site_ends_the_window() -> None:
     callers = _decide_callers()
     assert {site for site, _ in callers} == set(DECISION_POINTS)
     for site, verdict in callers:
-        want = "keeps" if DECISION_POINTS[site].construct in ("trick",) else "ends"
+        construct = DECISION_POINTS[site].construct
+        want = "keeps" if construct == "trick" or site in _ENDED_BY_MOVEMENT else "ends"
         assert verdict == want, (site, verdict)
+    movement = next(
+        fn for fn in ast.walk(ast.parse(Path("cardlang/runtime/execute.py").read_text()))
+        if isinstance(fn, ast.FunctionDef) and fn.name == "_movement"
+    )
+    assert any(
+        isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+        and c.func.attr == "end_round_window"
+        for c in ast.walk(movement)
+    )

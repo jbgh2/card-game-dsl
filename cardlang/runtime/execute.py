@@ -245,6 +245,11 @@ def _deposit(
 
 
 def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
+    if stmt.selection_mode == "chosen":
+        # A chosen movement is a decision: it ends a finished round's window
+        # before its source, filter and destination are read. A dealt, random
+        # or `all` movement asks no one and leaves the window open.
+        ctx.rs.end_round_window()
     if stmt.source is None:
         _gather(stmt, ctx)  # `move all cards to <zone>` — collect from everywhere
         return
@@ -441,7 +446,6 @@ def _select_from(
     player: Player,
     destination: str | None = None,
 ) -> list[Card]:
-    ctx.rs.end_round_window()
     # The joint form is its own branch above the per-card filter: the
     # selection unit is a SUBSET, not a card (decisions.md "Joint-predicate
     # selection"). The `where` filter is a fully separate branch (not folded
@@ -498,7 +502,6 @@ def _select_joint(
     `subsets.sized`'s order — sizes ascending, combinations in source order
     — so the action-space encoder and
     the chooser see the same list."""
-    ctx.rs.end_round_window()
     pool = list(source.cards)
     # The bound is `runtime/subsets`': one home for every enumeration of a card
     # pool's subsets, so the number and the refusal cannot drift between the
@@ -561,7 +564,6 @@ def _select_filtered(
     like the unfiltered form does from the whole source; the default (dealt)
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
-    ctx.rs.end_round_window()
     assert stmt.where is not None  # Shadow Guard of _select_from's dispatch: only the filtered branch lands here
     pred = _card_pred(stmt.where, ctx)
     pool = [c for c in source.cards if pred(c)]
