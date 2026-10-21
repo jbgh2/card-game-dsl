@@ -84,8 +84,8 @@ and lifts the cap entirely on one that opens two-handed.
 Hold'em is the family library's first consumer whose street shape **differs**
 from Stud's. Stud opens every street with no standing bet; Hold'em opens pre-flop
 with the blinds already posted, and its action order is *positional* rather than
-derived from the visible cards. Both fit `open_street(<size>, 0)` followed by a
-forced post — the pattern Stud's bring-in established — so the library needed no
+derived from the visible cards. Both fit `betting_street(<first>, <size>, 0)` with a
+forced post before it — the pattern Stud's bring-in established — so the library needed no
 change to take a fourth consumer of a new shape.
 
 **Simplifications.** The deal starts at seat 0 rather than left of the button.

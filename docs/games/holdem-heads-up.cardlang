@@ -135,7 +135,6 @@ game HoldemHeadsUp {
     // street's opening bet, taking the first of the four aggressions the cap
     // allows. Neither post can be partial (the 48-chip bound), so neither needs
     // the short-stack conditional three-handed Hold'em carries.
-    run open_street(2, 0)
     bet_by[button] := 1
     stack[button] := stack[button] - 1
     committed[button] := committed[button] + 1
@@ -169,7 +168,7 @@ game HoldemHeadsUp {
   // owes; here nobody can be all-in, so both seats are `pending` the moment the
   // street opens and the round always has work to do.
   phase preflop {
-    run betting_street(button)
+    run betting_street(button, 2, 0)
   }
 
   // Flop, turn and river: burn, deal, then a betting round opened by the big
@@ -181,8 +180,7 @@ game HoldemHeadsUp {
     if (number of players where not folded[player]) > 1 {
       deal 1 card from deck to burn
       deal 3 cards from deck to board
-      run open_street(2, 0)
-      run betting_street(big_blind)
+      run betting_street(big_blind, 2, 0)
     }
   }
 
@@ -190,8 +188,7 @@ game HoldemHeadsUp {
     if (number of players where not folded[player]) > 1 {
       deal 1 card from deck to burn
       deal 1 card from deck to board
-      run open_street(4, 0)
-      run betting_street(big_blind)
+      run betting_street(big_blind, 4, 0)
     }
   }
 
@@ -199,8 +196,7 @@ game HoldemHeadsUp {
     if (number of players where not folded[player]) > 1 {
       deal 1 card from deck to burn
       deal 1 card from deck to board
-      run open_street(4, 0)
-      run betting_street(big_blind)
+      run betting_street(big_blind, 4, 0)
     }
   }
 

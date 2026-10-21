@@ -55,7 +55,7 @@ pure read, the side-pot query (`pot_share`); the poker evaluator behind it is
 unit-tested.
 From 4th street on, a pair showing opens the **big bet** to every active
 player — as an option beside the small bet, so a player choosing to bet picks
-between the two sizes. The street opens at both: `open_street` takes a second
+between the two sizes. The street opens at both: `betting_street` takes a second
 size, and `bet_big` / `raise_big` are the two actions it puts at the node. 5th
 street on is big-bet-only in this variant, so 4th is the only street the rule
 changes. Once a big wager is *placed*, the small raise is withdrawn for the
@@ -87,5 +87,5 @@ that answers it spend none of them — where Leduc declares 2. Stud sets it PER
 STREET rather than once, because Pagat caps only a street that began with more
 than two active players and leaves a heads-up street uncapped; "uncapped" is a
 bound no street can reach, derived at the third street where it is written.
-Every street opens with the library's `open_street(<size>, <big>)`, which is
-where Stud's 5 / 5 / 10 / 10 / 10 limits are written.
+Every street is the library's `betting_street(<first>, <size>, <big>)`, which
+is where Stud's 5 / 5 / 10 / 10 / 10 limits are written.

@@ -254,6 +254,9 @@ _SOURCE_PROBES: dict[str, _SourceProbe] = {
     # not conditional on anything a game declares — so the plain recipe is the
     # whole recipe.
     "a collection type constructor": _SourceProbe(),
+    # The procedure parameter domain word reserves for every game, as the
+    # constructor word does.
+    "a procedure parameter domain": _SourceProbe(),
 }
 
 assert _SOURCE_PROBES.keys() == {s.label for s in POSITION_NAME_SOURCES}, (

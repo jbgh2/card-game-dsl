@@ -622,8 +622,9 @@ turns bidder from dealer over all players
   leave the pile empty; a seat asked once is a plain `offer` (Pinochle's
   trump declaration, each half of its exchange, its concession).
 - **A betting street is the family library's.** `poker_betting`'s
-  `betting_street(first)` is the ring written once, with the family's whole
-  vocabulary, and every poker game runs it; `fold` is the game's own by
+  `betting_street(first, bet_size, big_size)` is the ring written once, with
+  the family's whole vocabulary, opening the street on entry and closing it
+  on exit, and every poker game runs it; `fold` is the game's own by
   contract ("Family libraries"), because folding touches the game's zones.
 
 A ring's only decision points are these per-turn draws, and the statements
@@ -2487,8 +2488,14 @@ takes it as a parameter, and because arguments are evaluated in the caller's
 context, `run lose_influence(actor)` passes the *move's* actor even into a body
 that rebinds the acting player. Coup depends on that at four sites.
 
-Parameter domains are a closed set — `Player`, `Rank`, `Rank?` — and any other
-domain is rejected. A procedure may not run another procedure, hold a `round`
+Parameter domains are a closed set (`resolve._PROCEDURE_PARAM_DOMAINS`), and
+any other domain is rejected. One member is not a value type: a **`Positive`**
+parameter takes a whole number of 1 or more, and the `run` passes it as a
+written number (`run betting_street(first_actor, 2, 0)`). A computed argument
+is refused, not checked at play: expansion binds the argument as a plain `let`
+past every check, so a written number is the one form whose membership is
+decided before the game runs. The body reads the parameter as an Integer. A
+size the rules compute from play is an `Integer` parameter. A procedure may not run another procedure, hold a `round`
 (which binds its own `outcome`), or contain non-local control flow (`produce`,
 `continue to`, `skip to next hand`), and one that is never run is an error, since
 its body would be spliced nowhere and checked by nothing. Every one of those is a
@@ -5291,7 +5298,10 @@ procedure the game runs. Nothing in either family wanted a definition hidden
 from its importer. Adding a marker system now would be designing against
 imagined pressure, and this paragraph exists so the question is not silently
 reopened — reopen it when a family produces a case these two mechanisms cannot
-express, and name that case.
+express, and name that case. One case is named: a family move type whose
+meaning holds only inside the library's own procedure, as `poker_betting`'s
+`bet` posts a street size that only `betting_street` sets, can still be
+offered by the importing game (issue #938).
 
 A requirement's own index is checked first, and reported to the LIBRARY's author:
 `requires { seen[rank] : Integer }` is refused where the library wrote it,
@@ -5452,7 +5462,7 @@ declares: Stud allows three raises per street and Leduc two, so `raise_cap` is
 `requires`d. A per-OCCASION constant belongs to the occasion, so it is a
 procedure argument: a poker bet size is a property of a street, not of a game
 (Stud runs 5/5/10/10/10), so `limit` is provided state that the library's
-`open_street(bet_size, big_size)` sets, and each street names its own sizes
+`betting_street(first, bet_size, big_size)` sets, and each street names its own sizes
 where the street is written — the second being the street's other legal wager,
 or 0 where its rules give only one. Neither difference reaches the import surface, which stays a bare
 name.
@@ -5499,7 +5509,7 @@ by each game's own `fold`. Four of the nine required variables — `acted`,
 `raises`, `limit`, `raise_cap` — were never READ by any of the three games. (Nine is what the
 contract held then; it holds seven now, which is what the survey bought.) And
 all five street-reset sites (one in Leduc, four in Stud) were one shape differing
-in a single integer. That is what forced provided state and `open_street`: writes
+in a single integer. That is what forced provided state and a street procedure that sets it: writes
 that cluster at boundaries are absorbable by a procedure, and a variable no game
 reads or writes has no business in a contract. Only two of the four moved,
 though, and the two that did not are as informative as the two that did —

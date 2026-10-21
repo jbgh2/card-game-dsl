@@ -43,10 +43,21 @@ from typing import Any, Iterator, NamedTuple
 
 import pytest
 
+from tests.poker_probe import probe_betting
+
 from cardlang.ast import nodes as n
 from cardlang.libraries import load_library
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+
+
+@pytest.fixture(autouse=True)
+def _probe_library() -> Iterator[None]:
+    """The probes open their street with `probe_open_street`, which only the
+    probe library holds (tests/poker_probe.py)."""
+    with probe_betting():
+        yield
+
 
 LIBRARY = load_library("poker_betting")
 
@@ -221,7 +232,7 @@ game Reopening {{
     big_raise_only    : Boolean = false
   }}
   phase play {{
-    run open_street({limit}, {big})
+    run probe_open_street({limit}, {big})
     turns t from 1
           over players where player is witness and not acted[player]
           until (number of players where acted[player]) is 1 {{

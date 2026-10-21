@@ -365,18 +365,9 @@ ROUNDS: dict[str, Rounds] = {
         # `turns` ring over the seats still to draw, whose bookkeeping is the
         # draw phase's own and ends with it. The two betting rounds are one
         # window at two sites over the same street bookkeeping, which
-        # `open_street` zeroes — and the game opens the second street where
-        # the first CLOSES, at the top of the draw, so the exchange's
-        # decisions see no standing bet, no aggression and nobody acted
-        # rather than the closed round's residue.
-        # `limit` is persistent because no game can make it anything else: the
-        # library PROVIDES it, so only the library's own definitions may write
-        # it, and the only one that does is `open_street`, which sets it to the
-        # coming street's size rather than clearing it. `acted` reaches an idle
-        # value through that same procedure; `limit` has no such path, and it
-        # reads correctly as the size the street about to be bet is played at.
-        # `big_limit` and `floor` are the same shape: `open_street` sets both to
-        # the coming street's sizes rather than clearing them. `big_raise_only`
+        # `betting_street` sets on entry and clears on exit, so the exchange's
+        # decisions see no standing bet, no aggression, nobody acted and no
+        # street size rather than the closed round's residue. `big_raise_only`
         # is a per-game constant the game declares once and nothing writes.
         windows=(
             Window(
@@ -385,7 +376,10 @@ ROUNDS: dict[str, Rounds] = {
                     ("acted", Indexed(False)),
                     ("bet_by", Indexed(0)),
                     ("bet_to_match", 0),
+                    ("big_limit", 0),
+                    ("floor", 0),
                     ("level", 0),
+                    ("limit", 0),
                     ("raises", 0),
                 ),
             ),
@@ -397,9 +391,8 @@ ROUNDS: dict[str, Rounds] = {
         ),
         persistent=frozenset(
             {
-                "big_limit", "big_raise_only", "committed",
-                "first_actor", "floor", "folded", "in_hand", "limit",
-                "net", "raise_cap", "stack",
+                "big_raise_only", "committed", "first_actor", "folded",
+                "in_hand", "net", "raise_cap", "stack",
             }
         ),
         # One hand: after the exchange only the second betting round decides,

@@ -33,7 +33,7 @@
 // opens the post-draw round "with the player who opened the betting on the
 // first round" — the seat that made the first round's opening AGGRESSION, not
 // its first-to-act. That seat is not derivable from anything this game can
-// read: `bet_by` is cleared by `open_street`, and equal `committed` totals do
+// read: `bet_by` is cleared when a street closes, and equal `committed` totals do
 // not say who bet first. The family library (docs/libraries/
 // poker_betting.cardlang) owns `bet` and `raise` and writes no opener, so a
 // game cannot observe the aggression without changing the library, and `uses`
@@ -169,7 +169,6 @@ game FiveCardDraw {
     // game in the corpus writes its own ante, blind or bring-in, and the two
     // shapes a designer would copy differ in whether the post IS the street's
     // bet. This game is that duplication's named witness: issue #548.
-    run open_street(2, 0)
     for each player p: stack[p] := stack[p] - 1
     for each player p: committed[p] := committed[p] + 1
 
@@ -187,7 +186,7 @@ game FiveCardDraw {
   // The first betting round, opened by the seat to the dealer's left. No forced
   // bet stands, so both seats may check it round.
   phase first_betting {
-    run betting_street(first_actor)
+    run betting_street(first_actor, 2, 0)
   }
 
   // The exchange. One seat at a time, in turn order from the dealer's left: it
@@ -208,16 +207,9 @@ game FiveCardDraw {
       more           : Boolean = false
     }
     if (number of players where not folded[player]) > 1 {
-      // The first street is closed and the second opens at the doubled limit
-      // before a card is exchanged — which is where the table opens it: from
-      // the moment the first round closes no bet stands, nobody owes and
-      // nobody has acted on the round to come. Opening it after the exchange
-      // instead, where every other poker game in the corpus has its
-      // `open_street`, would leave the closed round's standing bet and
-      // aggression count reading as a live street all through the draw. The
-      // library opens streets and closes none, so that placement is the
-      // family's to settle rather than this game's: issue #639.
-      run open_street(4, 0)
+      // The first street closed itself when its ring closed, so through the
+      // exchange no bet stands, nobody owes and nobody has acted; the second
+      // opens at the doubled limit when its betting begins.
       turns d from first_actor
             over players where not folded[player] and not drawn[player]
             until (number of players where not folded[player]
@@ -234,7 +226,7 @@ game FiveCardDraw {
   // deviation, issue #544.
   phase second_betting {
     if (number of players where not folded[player]) > 1 {
-      run betting_street(first_actor)
+      run betting_street(first_actor, 4, 0)
     }
   }
 

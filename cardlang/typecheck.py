@@ -181,6 +181,12 @@ _ENUM_TYPES = frozenset({"Suit", "Rank", "SeatDirection"})
 # TAny (closed-domain completeness, decisions.md).
 KNOWN_TYPE_NAMES: frozenset[str] = frozenset(_SCALAR_TYPES) | _ENUM_TYPES
 
+# The procedure parameter domain of whole numbers from 1 up. It is no value
+# type, since a procedure body reads the parameter as an Integer; the domain
+# lives at the `run` site, where resolve admits only a written number of 1 or
+# more (`resolve._check_positive_arguments`).
+POSITIVE_PARAM_DOMAIN = "Positive"
+
 # A card's fields are a closed pair. One registry, shared by `infer` (typing
 # a known-Card member access) and `_check_expr` (rejecting anything else) —
 # a third field can be added to this dict and both sites see it, rather than
@@ -1436,8 +1442,8 @@ def _parameter_binders(
     `env.directions`. A fresh `TypeEnv()` would leave it `TAny`, so `src is
     hearts` / `along is a1` and other wrong-domain uses would pass —
     accepted-but-ignored, one binder kind over yet again. (Procedure params,
-    by contrast, resolve gates to `Player`, so they never carry a position and
-    their env needs none.)"""
+    by contrast, resolve gates to `_PROCEDURE_PARAM_DOMAINS`, which holds no
+    position domain, so their env needs none.)"""
     env = TypeEnv(positions=positions, directions=directions)
     return tuple((p.name, _param_type(p, env)) for p in move_type.params)
 
@@ -1625,6 +1631,8 @@ def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
     # the bare forms the other five hosts write are read once, in one place.
     # The teaching twins keep a bracket out of every other host's spellings, so
     # those take the collection arm never.
+    if p.type_name == POSITIVE_PARAM_DOMAIN:
+        return TInteger()
     spelled = decompose_type(p.type_name)
     if spelled.element is not None:
         # The element is the block's own closed allow-list, checked at resolve.
@@ -1656,8 +1664,8 @@ def _procedure_sigs(game: Game) -> dict[str, Sig]:
     procedure may not run another — resolve rejects it) and there is no return
     type: `Sig.ret` is `TAny` and never read. The bodies themselves are checked by
     the statement walk, which binds these same parameter types as locals."""
-    env = TypeEnv()  # `type_from_name` needs structs only for struct params, which
-    # the procedure param domain does not admit (resolve gates it to Player).
+    env = TypeEnv()  # resolve gates every parameter to `_PROCEDURE_PARAM_DOMAINS`,
+    # none of which is a position or direction domain.
     return {
         p.name: Sig(tuple(_param_type(x, env) for x in p.params), TAny())
         for p in game.procedures

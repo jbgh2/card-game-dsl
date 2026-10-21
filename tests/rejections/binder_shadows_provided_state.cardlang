@@ -21,7 +21,7 @@ game BinderShadowsProvided {
   }
   phase play {
     for each player limit: stack[limit] += 0
-    run open_street(1, 0)
+    run betting_street(0, 1, 0)
   }
   winner: highest stack
 }

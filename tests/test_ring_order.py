@@ -122,7 +122,7 @@ HOLDEM = Path(__file__).parent.parent / "docs" / "games" / "holdem.cardlang"
 
 # The line, one entry per decision. Three-handed Hold'em opens pre-flop with the
 # blinds already posted, so the check-then-bet shape only arises on a street
-# `open_street` has zeroed: the first three entries limp the pot to the flop, the
+# that opens with nothing bet: the first three entries limp the pot to the flop, the
 # next two are the flop's check and bet, and the decision AFTER them is the one
 # under test.
 LIMP_TO_THE_FLOP_THEN_CHECK_AND_BET = ("call", "call", "check", "check", "bet")

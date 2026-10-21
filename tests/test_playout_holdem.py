@@ -150,8 +150,8 @@ def test_heads_up_reverses_the_blinds() -> None:
             button = rs.get("button")
             entrants = [p for p, flag in in_hand.items() if flag]
             # The pre-flop street with only the blinds in front of anyone. The
-            # exact-total filter is what makes that precise: `open_street` zeroes
-            # `bet_by` on every later street, and it also skips the partial-blind
+            # exact-total filter is what makes that precise: every later street
+            # enters with `bet_by` zero, and it also skips the partial-blind
             # case (a seat with one chip posts one), where the amounts asserted
             # below would not be the full 2 and 5.
             if sum(bet_by.values()) == _SMALL_BLIND + _BIG_BLIND:

@@ -139,7 +139,7 @@ in the words of Pagat's
 [betting rules](https://www.pagat.com/poker/rules/betting.html), to protect a
 third player who "has no option but to call", which an all-in seat never is;
 and the second street opens at two sizes,
-`open_street(10, if (number of players where shows_pair(player)) > 0 then 20 else 0)`.
+`betting_street(best_showing_seat(), 10, if (number of players where shows_pair(player)) > 0 then 20 else 0)`.
 Sizing the STREET rather than one seat's move is what makes the big bet reach
 every seat rather than only the seat showing the pair; carrying BOTH sizes is
 what keeps the small bet available beside it, which is the half of the rule the

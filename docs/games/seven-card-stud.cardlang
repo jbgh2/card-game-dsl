@@ -153,10 +153,9 @@ game SevenCardStud {
       state {
         // Per-hand betting state, reset each hand on phase re-entry. `acted`
         // and `limit` are not here because poker_betting provides them: they
-        // live at game level and carry across hands, which is harmless because
-        // every street opens with `open_street`, and a hand that opens no
-        // street (everyone all-in on the ante) runs no round and reads
-        // neither.
+        // live at game level, and `betting_street` sets the sizes as a street
+        // opens and clears both as it closes, so between streets they are at
+        // their defaults.
         in_hand[player]   : Boolean = false   // entered the hand holding chips
         committed[player] : Integer = 0       // chips put in this hand (for side pots)
         folded[player]    : Boolean = false
@@ -187,7 +186,6 @@ game SevenCardStud {
       // Bring-in + 3rd street. Skipped only when fewer than two entrants can act
       // (everyone all-in on the ante); then the hand is dealt straight to showdown.
       if (number of players where stack[player] > 0) >= 2 {
-        run open_street(5, 0)
         // The cap is a property of the STREET, not of the game: "Only one bet
         // and a maximum of three raises are allowed in any betting round, IF
         // THERE WERE MORE THAN TWO ACTIVE PLAYERS at the start of the betting
@@ -220,7 +218,7 @@ game SevenCardStud {
         // For example: In $15-$30 stud, the lowcard opens for $5. If the next
         // player increases the bet to $15 (completes the bet), up to three
         // raises are then allowed when using a three-raise limit." So `raises`
-        // stays where `open_street` put it: the library counts the street's
+        // stays at the zero the previous street closed it to: the library counts the street's
         // first FULL wager, which is the completion, and the book's three
         // raises then fit under a cap of four.
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
@@ -245,7 +243,7 @@ game SevenCardStud {
         // ($2) or to fold. Only if someone completes the bet are later players
         // allowed to raise. If the opener chooses to begin with a full bet
         // ($5), subsequent players can raise."
-        run betting_street(bringer)
+        run betting_street(bringer, 5, 0)
       }
 
       // 4th–7th streets: burn, deal one card, then a betting round (limits 5/10/10/10;
@@ -272,9 +270,8 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(5, if (number of players where shows_pair(player)) > 0 then 10 else 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
-          run betting_street(best_showing_seat())
+          run betting_street(best_showing_seat(), 5, if (number of players where shows_pair(player)) > 0 then 10 else 0)
         }
       }
 
@@ -283,9 +280,8 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
-          run betting_street(best_showing_seat())
+          run betting_street(best_showing_seat(), 10, 0)
         }
       }
 
@@ -294,9 +290,8 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
-          run betting_street(best_showing_seat())
+          run betting_street(best_showing_seat(), 10, 0)
         }
       }
 
@@ -305,9 +300,8 @@ game SevenCardStud {
         deal 1 card from deck to burn
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to hole[p] }
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10, 0)
           raise_cap := if (number of players where can_act(player)) > 2 then 4 else 160
-          run betting_street(best_showing_seat())
+          run betting_street(best_showing_seat(), 10, 0)
         }
       }
 

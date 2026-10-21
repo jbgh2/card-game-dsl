@@ -80,15 +80,12 @@ game KuhnPoker {
   }
 
   phase betting {
-    // Kuhn's one street, at a bet size of 1. Opening it is a formality here —
-    // nothing has happened yet, so every value `open_street` clears is already
-    // clear — but it is how the bet size gets set, and it is the same sentence
-    // Leduc and Stud open each of their streets with.
-    run open_street(1, 0)
+    // Kuhn's one street, at a bet size of 1: the same sentence Leduc and Stud
+    // run each of their streets with.
 
     // The street is the library's: every pending seat is asked from the
     // opener until nobody is pending, or a fold leaves one contender.
-    run betting_street(first_actor)
+    run betting_street(first_actor, 1, 0)
   }
 
   phase showdown {
