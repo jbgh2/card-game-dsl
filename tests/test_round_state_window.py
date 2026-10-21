@@ -183,3 +183,68 @@ def test_every_non_round_decision_site_ends_the_window() -> None:
         and c.func.attr == "end_round_window"
         for c in ast.walk(movement)
     )
+
+
+# The Primitives that read a finished round's frame through `EngineFacts`,
+# each with the call that reads it. A Primitive past the window meets the
+# same refusal the `state` pronoun gives, never the previous trick.
+_FRAME_READERS = {
+    "belote_royal_player": ("cardlang.runtime.belote", "belote_royal_player"),
+    "tarot_excuse_player": ("cardlang.runtime.tarot", "tarot_excuse_player"),
+    "tichu_dragon_won": ("cardlang.runtime.tichu", "tichu_dragon_won"),
+    "tichu_wish_after_trick": ("cardlang.runtime.tichu", "tichu_wish_after_trick"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_FRAME_READERS))
+def test_a_primitive_past_the_window_is_refused(name: str) -> None:
+    """red under: read a missing frame as "nothing happened" in
+    `tichu_dragon_won` (it answers False)."""
+    import importlib
+    from types import MappingProxyType
+
+    from cardlang.runtime import reads
+    from cardlang.runtime.narrowing import EngineFacts
+    from cardlang.runtime.values import Seating, TeamOf
+
+    module, attr = _FRAME_READERS[name]
+    facts = EngineFacts(
+        seating=Seating(4), team_of=TeamOf({}), rank_index={},
+        round_state=None, last_round_state=None, actor=None,
+    )
+    gr = reads.GameReads(
+        state=MappingProxyType({"wish": 0}), families=MappingProxyType({}),
+        singles=MappingProxyType({}),
+    )
+    with pytest.raises(OwnerGuardError, match="round"):
+        getattr(importlib.import_module(module), attr)(facts, gr)
+
+
+def test_every_frame_reading_primitive_is_on_the_axis() -> None:
+    """The axis above is every function that reads `facts.round_state` or
+    `facts.last_round_state`, or calls a module's own reader of it;
+    `standing_wish` reads the LIVE frame for the climb queries, which a round
+    always has.
+
+    red under: add a Primitive reading `facts.last_round_state`."""
+    helpers = {"_round_state", "_completed_trick"}
+    live = {"standing_wish"}
+    readers: set[str] = set()
+    for path in sorted(Path("cardlang/runtime").glob("*.py")):
+        tree = ast.parse(path.read_text())
+        for fn in ast.walk(tree):
+            if not isinstance(fn, ast.FunctionDef) or fn.name in helpers | live:
+                continue
+            reads_frame = any(
+                isinstance(a, ast.Attribute)
+                and a.attr in ("round_state", "last_round_state")
+                and isinstance(a.value, ast.Name) and a.value.id == "facts"
+                for a in ast.walk(fn)
+            )
+            calls_reader = any(
+                isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id in helpers
+                for c in ast.walk(fn)
+            )
+            if reads_frame or calls_reader:
+                readers.add(fn.name)
+    assert readers == set(_FRAME_READERS), readers
