@@ -5019,30 +5019,52 @@ def _check_rule_removes(
             cluster_added = own_added | {r.name for r in mode_refs if r.delta in ("plain", "add")}
             _validate_removes(mode_refs, cluster_added, rules, bag)
 
-        handed_down = frozenset(own_added - {r.name for r in own_refs if r.delta == "remove"})
+        # What the list leaves, applied in its own order as the runtime does: a
+        # rule removed and then added again is handed down.
+        kept = list(base)
+        for r in own_refs:
+            if r.delta in ("plain", "add"):
+                kept.append(r.name)
+            elif r.delta == "remove":
+                kept = [name for name in kept if name != r.name]
+        handed_down = frozenset(kept)
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
         _check_rule_removes(children, rules, bag, handed_down)
 
 
 def _reaches_a_trick_round(
-    node: object, move_types: Mapping[str, n.MoveTypeDef], followed: set[str]
+    node: object,
+    move_types: Mapping[str, n.MoveTypeDef],
+    procedures: Mapping[str, n.ProcedureDef],
+    followed: set[tuple[str, str]],
 ) -> bool:
     """Whether a trick round runs anywhere `node` reaches: in its own subtree,
-    or in the effect of a move type an offer in it puts in play, followed
-    through offers within offers. A move type's effect runs at the site that
-    offers it, so a round there is asked with the offering phase's rules.
-    `legal_moves:` is configuration nothing runs, so it offers nothing here."""
+    in the effect of a move type an offer in it puts in play, or in a
+    procedure a `run` in it splices, followed through offers and runs within
+    them. A move type's effect runs at the site that offers it, and a
+    procedure's body at the `run`, so a round there is asked with that site's
+    phase's rules. `legal_moves:` is configuration nothing runs, so it offers
+    nothing here."""
     for nd in _walk(node):
         if isinstance(nd, n.TrickRound):
             return True
+        reached: list[tuple[str, object]] = []
+        if isinstance(nd, n.RunStmt) and nd.name in procedures:
+            reached.append(("procedure", procedures[nd.name]))
         for (cls, field_name), puts_in_play in _MOVE_TYPE_SLOT_OFFERS.items():
             if not puts_in_play or cls is n.LegalMoves or not isinstance(nd, cls):
                 continue
-            for name in slot_strings(nd, field_name):
-                if name in move_types and name not in followed:
-                    followed.add(name)
-                    if _reaches_a_trick_round(move_types[name], move_types, followed):
-                        return True
+            reached += [
+                ("move_type", move_types[name])
+                for name in slot_strings(nd, field_name)
+                if name in move_types
+            ]
+        for kind, definition in reached:
+            key = (kind, getattr(definition, "name"))
+            if key not in followed:
+                followed.add(key)
+                if _reaches_a_trick_round(definition, move_types, procedures, followed):
+                    return True
     return False
 
 
@@ -5055,12 +5077,13 @@ def _check_rules_reach_a_trick(game: n.Game, bag: DiagnosticBag) -> None:
     is refused, naming the holder: its rules would never apply. A climbing
     round asks no rule, so it does not count."""
     move_types = {m.name: m for m in game.move_types}
+    procedures = {p.name: p for p in game.procedures}
     for phase in (nd for nd in _walk(game) if isinstance(nd, n.Phase)):
         slots = [
             item for item in phase.items if isinstance(item, n.ActiveRules) and item.refs
         ]
         modes = [item for item in phase.items if isinstance(item, n.Mode)]
-        if not (slots or modes) or _reaches_a_trick_round(phase, move_types, set()):
+        if not (slots or modes) or _reaches_a_trick_round(phase, move_types, procedures, set()):
             continue
         holds: list[Said] = []
         if slots:

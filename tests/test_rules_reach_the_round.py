@@ -25,7 +25,9 @@ domain:     four axes.
             nested phase, a sibling, a parent), crossed with the two holders
             (`active_rules:`, a mode), and the two round forms, of which only
             the trick form asks rules. A round in an offered move type's effect
-            runs at the offering site, so it counts for the phase that offers.
+            runs at the offering site, so it counts for the phase that offers;
+            a `run` splices its procedure there too, and a procedure body
+            holding a round meets its own wall.
             A trigger's decisions are judged against every trick round that
             reads it.
             A `-X` removal reaches what its ancestors add, and takes every
@@ -377,6 +379,21 @@ def test_rules_are_refused_where_no_trick_round_can_ask_them(holder: str, placem
     assert "'holder'" in message and "trick round" in message
 
 
+def test_a_round_in_a_run_procedure_is_judged_by_the_procedure_s_own_wall() -> None:
+    """A `run` splices its procedure's body at the call, so the reach walk
+    follows it; a procedure body holding a round is refused by its own wall,
+    which names the round, and the phase's rules are not blamed."""
+    src = _game(f"    active_rules: [MustFollow]\n{DEAL}\n    run play_trick()") + (
+        f"\nprocedure play_trick() {{\n  {ROUND_STMT}\n}}\n"
+    )
+    pipeline._check.cache_clear()
+    with pytest.raises(DiagnosticError) as excinfo:
+        check_dsl(src, "reach.cardlang")
+    message = str(excinfo.value)
+    assert "procedure 'play_trick' contains a `round`" in message
+    assert "no trick round runs" not in message
+
+
 def test_a_climbing_round_asks_no_rule() -> None:
     src = (GAMES / "big-two.cardlang").read_text()
     climbing = src.replace(
@@ -443,6 +460,17 @@ def test_a_child_removes_a_rule_its_parent_adds() -> None:
     )
     pipeline._check.cache_clear()
     check_dsl(src, "reach.cardlang")
+
+
+def test_a_child_removes_a_rule_its_parent_re_adds_after_removing() -> None:
+    """The parent's list ends with `AlsoRule` active, applied in order."""
+    src = _game(
+        f"    active_rules: [MustFollow, AlsoRule, - AlsoRule, + AlsoRule]\n{DEAL}\n"
+        f"    phase tricks {{\n      active_rules: [- AlsoRule]\n{TRICKS}\n    }}"
+    )
+    pipeline._check.cache_clear()
+    check_dsl(src, "reach.cardlang")
+    assert {asked for asked, _f, _p in _play(src)} == {("MustFollow",)}
 
 
 def test_a_child_removing_a_rule_nothing_adds_is_refused() -> None:
