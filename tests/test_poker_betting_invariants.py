@@ -34,14 +34,27 @@ does not prove:  that any move pays the RIGHT amount or is offered to the RIGHT
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import random
 from typing import Any
 
 import pytest
 
+from tests.poker_probe import probe_betting
+
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import RuntimeState
+
+
+@pytest.fixture(autouse=True)
+def _probe_library() -> Iterator[None]:
+    """The probes open their street with `probe_open_street`, which only the
+    probe library holds (tests/poker_probe.py)."""
+    with probe_betting():
+        yield
+
 
 LIMIT = 4
 """The street's bet size — 4 so half of it is a whole chip and the half-bet
@@ -83,7 +96,7 @@ game Invariants {{
     snapped           : Boolean = false
   }}
   phase play {{
-    run open_street({limit}, 0)
+    run probe_open_street({limit}, 0)
 {stacks}    turns t from 0
           over players where pending(player)
           until (number of players where pending(player)) is 0 {{

@@ -185,7 +185,7 @@ a new game reddens them rather than going quietly uncovered.
   post. Such a game also joins the recorded gap held by
   `test_the_library_procedure_games_are_pinned_as_uncovered`
   (`tests/metamorphic/test_inline.py`), because the library brings
-  `open_street` with it and a source-text splice cannot reach an imported
+  `betting_street` with it and a source-text splice cannot reach an imported
   body.
 - **`_POLICIES`** (`tests/metamorphic/test_inline.py`) — for a game
   declaring a `procedure` of its own: the deterministic chooser policies

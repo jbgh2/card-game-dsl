@@ -40,15 +40,28 @@ does not prove:  a cell drives one move from a hand-built state, so nothing
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import random
 from pathlib import Path
 from typing import Any, NamedTuple
 
 import pytest
 
+from tests.poker_probe import probe_betting
+
 from cardlang.libraries import load_library
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+
+
+@pytest.fixture(autouse=True)
+def _probe_library() -> Iterator[None]:
+    """The probes open their street with `probe_open_street`, which only the
+    probe library holds (tests/poker_probe.py)."""
+    with probe_betting():
+        yield
+
 
 LIBRARY = load_library("poker_betting")
 
@@ -225,7 +238,7 @@ game Sizing {{
     big_raise_only    : Boolean = false
   }}
   phase play {{
-    run open_street({limit}, {big})
+    run probe_open_street({limit}, {big})
     bet_to_match := {standing}
     for each player p: bet_by[p] := {bet_by}
     for each player p: stack[p] := {stack}

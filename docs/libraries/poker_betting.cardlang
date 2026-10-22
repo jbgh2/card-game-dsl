@@ -9,8 +9,8 @@
 //
 // What is here is the ZONE-FREE core: check, bet, call, raise, the three ring
 // predicates that keep a betting round's `over` filter and `until` terminator
-// naming the same set, `open_street` — the one procedure a street opens with —
-// and `betting_street`, the ring itself. Every one of them touches chips and
+// naming the same set, and `betting_street`, the street itself, which opens
+// and closes its own bookkeeping. Every one of them touches chips and
 // betting bookkeeping and nothing else, which is why this library's state
 // surface names no zone.
 //
@@ -34,20 +34,16 @@
 // reading the cap as "raises on top of a bet" plays a street one bet longer
 // than it declares. `limit` is not a per-game constant at all but a per-STREET one
 // (Stud runs 5/5/10/10/10), so no declaration could carry it either; it is
-// provided, and `open_street` takes it as an argument, which puts the bet size
-// at the street it belongs to rather than in a state block far away.
+// provided, and `betting_street` takes it as an argument, which puts the bet
+// size at the street it belongs to rather than in a state block far away.
 
 library poker_betting {
 
   // State this library OWNS. The game may read these — and does not, today —
   // but may not write them: they are pure intra-street bookkeeping, maintained
-  // entirely by the move types and `open_street` below. Both start a GAME at
-  // their defaults and are then only ever reset by `open_street`, never by a
-  // game's per-hand `state` block, which cannot write provided state — so
-  // between one hand's last street and the next hand's first, `limit` still
-  // holds the size it was last opened at. Nothing reads it there, because a
-  // street that runs `betting_street` opens first; a game that ran one without
-  // `open_street` would size its bets at the previous hand's street.
+  // entirely by the move types and `betting_street` below, which sets the
+  // sizes as a street opens and clears all of it as the street closes, so
+  // between streets every one of them is at its default.
   state {
     acted[player] : Boolean = false   // has acted since the last aggression
     limit         : Integer = 0       // the open street's small (base) wager
@@ -74,7 +70,7 @@ library poker_betting {
   // raises are allowed in that round. However, many home poker games do not
   // have this rule". Which arm a table plays is a property of the GAME, not of
   // one street, so it sits here beside `raise_cap` rather than riding on
-  // `open_street`. A game with no two-size street declares it and never reaches
+  // `betting_street`. A game with no two-size street declares it and never reaches
   // it: nothing reads it until a street carries a second size.
   requires {
     stack[player]     : Integer   // chips held
@@ -89,41 +85,6 @@ library poker_betting {
     fold              : Move      // the game's own fold, offered on every street
   }
 
-  // Open a betting street at a bet size of `bet_size`: no standing bet, no
-  // aggression yet, nobody owing and nobody yet acted. Every street in the
-  // family opens exactly this way and differs only in the size, which is what
-  // makes it one procedure rather than a block repeated per street. A game that
-  // opens its street with a forced post (Stud's bring-in) runs this first and
-  // then posts, so the post's own bookkeeping is not undone.
-  //
-  // `big_size` is the street's SECOND legal wager, or 0 where it has only one.
-  // Stud's open-pair street is the rule that wants two: "big bets ($10) are
-  // allowed if any player has a pair (or better) showing. In this case anyone
-  // can place a big bet or raise, even if they do not themselves have a pair."
-  // Allowed, not compulsory — both sizes stay live, which is why the street
-  // carries two rather than switching to one. Sizing the STREET is also what
-  // reaches the whole table: a guard keyed to the actor would offer the big bet
-  // only to the seat showing the pair, which is not the rule.
-  //
-  // The gate a game evaluates to choose `big_size` is a read of the boards, and
-  // boards do not change mid-street — cards are dealt between streets — so
-  // evaluating it once, here, is faithful. It does not need to be live.
-  //
-  // The size rides here rather than in a state block for the reason `limit`
-  // always has: it is a per-STREET value, and a street is where it belongs.
-  // Both sizes reset on every open, so a one-size street opened after a
-  // two-size one cannot inherit a second wager the rules do not give it.
-  procedure open_street(bet_size : Integer, big_size : Integer) {
-    bet_to_match := 0
-    raises := 0
-    limit := bet_size
-    big_limit := big_size
-    floor := bet_size
-    level := 0
-    for each player p: bet_by[p] := 0
-    for each player p: acted[p] := false
-  }
-
   // Betting-ring predicates. `pending` composes the others; the round's `over`
   // filter and its `until` terminator must name the same set, or the ring
   // will not close exactly when it empties. `until` is checked before every
@@ -133,13 +94,42 @@ library poker_betting {
   function owes(p : Player)    = bet_by[p] < bet_to_match
   function pending(p : Player) = can_act(p) and (not acted[p] or owes(p))
 
-  // One betting street, from the seat the game names. Every seat still
-  // pending is asked in turn, and the ring closes when nobody is pending,
-  // or when one contender is left and nobody owes — the arm a fold reaches.
-  // The ring's `over` filter and its `until` terminator name the same set
-  // (`pending`), so it closes exactly when it empties, and `until` is
-  // checked before every ask, so a street closes mid-lap the moment nobody
-  // is pending, with the seat behind the last aggressor the next one asked.
+  // One betting street, from the seat the game names, at a bet size of
+  // `bet_size`, a written number of 1 or more (`Positive`): a street at 0
+  // offers a free bet and one below it pays the bettor. The street opens and closes itself, so no sentence can run
+  // one unopened: on entry it takes its sizes, and when its ring closes it
+  // clears what the street left behind — no standing bet, no aggression,
+  // nobody owing and nobody yet acted, and no size. Every street in the
+  // family differs only in its sizes and its first seat, which is what makes
+  // it one procedure rather than a block repeated per street.
+  //
+  // A forced post (Hold'em's blinds, Stud's bring-in) is written BEFORE the
+  // street runs, and the street keeps it: the street it follows already
+  // cleared its own bookkeeping on closing, so a post stands on a clean
+  // street and the ring measures from it. A street a game skips is one where
+  // nobody bets, so nothing of it needs clearing.
+  //
+  // `big_size` is the street's SECOND legal wager, or 0 where it has only one;
+  // a size not above `bet_size` is a one-size street (`bet_big` says why). It
+  // is an `Integer`, not `Positive`, because Stud computes it from the boards.
+  // Stud's open-pair street is the rule that wants two: "big bets ($10) are
+  // allowed if any player has a pair (or better) showing. In this case anyone
+  // can place a big bet or raise, even if they do not themselves have a pair."
+  // Allowed, not compulsory — both sizes stay live, which is why the street
+  // carries two rather than switching to one. Sizing the STREET is also what
+  // reaches the whole table: a guard keyed to the actor would offer the big bet
+  // only to the seat showing the pair, which is not the rule. The gate a game
+  // evaluates to choose `big_size` is a read of the boards, and boards do not
+  // change mid-street — cards are dealt between streets — so evaluating it
+  // once, at the street's call, is faithful.
+  //
+  // Every seat still pending is asked in turn, and the ring closes when nobody
+  // is pending, or when one contender is left and nobody owes — the arm a fold
+  // reaches. The ring's `over` filter and its `until` terminator name the same
+  // set (`pending`), so it closes exactly when it empties, and `until` is
+  // checked before every ask, so a street closes mid-lap the moment nobody is
+  // pending, with the seat behind the last aggressor the next one asked; a
+  // street nobody can bet in runs no turn at all and closes at once.
   //
   // The family's whole vocabulary is offered on every street, in one order,
   // and a move the street cannot take is simply never legal: `bet_big` and
@@ -151,7 +141,10 @@ library poker_betting {
   // written once, and what a seat is asked is unchanged by it. `fold` is
   // the game's own, contracted above, because folding touches the game's
   // zones; the street presents it beside the moves the library defines.
-  procedure betting_street(first : Player) {
+  procedure betting_street(first : Player, bet_size : Positive, big_size : Integer) {
+    limit := bet_size
+    big_limit := big_size
+    floor := bet_size
     turns seat from first
           over players where pending(player)
           until (number of players where pending(player)) is 0
@@ -159,6 +152,14 @@ library poker_betting {
                  and (number of players where can_act(player) and owes(player)) is 0) {
       offer to seat one of [check, bet, bet_big, call, fold, raise, raise_big]
     }
+    bet_to_match := 0
+    raises := 0
+    level := 0
+    limit := 0
+    big_limit := 0
+    floor := 0
+    for each player p: bet_by[p] := 0
+    for each player p: acted[p] := false
   }
 
   move_type check {

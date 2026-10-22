@@ -397,7 +397,7 @@ def _wrap_betting_street(frag: str) -> str:
     # library.md "Mechanics", the betting bullet: one poker street, quoted from
     # docs/games/leduc-poker.cardlang. The skeleton supplies what a street
     # legitimately leaves to its host — `uses poker_betting` (which brings
-    # check/bet/call/raise, the ring predicates and `open_street`), the names
+    # check/bet/call/raise, the ring predicates and the street itself), the names
     # that library's `requires` block demands, the `first_actor` the ring
     # starts from, and a game-local `fold`, which the library deliberately omits
     # because folding touches cards. The betting state sits in a GAME-level
@@ -822,17 +822,16 @@ def test_the_betting_street_block_is_leducs_own_text() -> None:
 
 
 def test_every_poker_street_runs_the_library_street() -> None:
-    """library.md says a corpus poker street is two `run`s: the size it opens
-    at, and the seat it opens from — `open_street` and `betting_street`.
+    """library.md says a corpus poker street is one `run`: the library's
+    `betting_street`, with the seat it opens from and the sizes it opens at.
 
     Membership is derived — the games under `docs/games/` whose text carries
     `uses poker_betting` — so a poker game added tomorrow is held to the same
-    sentence without anyone remembering to add it. The block's own second
-    `run` must still be the sentence the games write, and every street a game
-    opens is one the library's ring then plays: the two counts agree.
+    sentence without anyone remembering to add it. The block's `run` must
+    still be the sentence the games write, and every street a game runs names
+    its first seat and both of its sizes.
 
-    red under: writing a street's ring inline in any poker game, or opening a
-    street in one without running the library's ring.
+    red under: writing a street's ring inline in any poker game.
     """
     want = _squash(_block_by_label("betting_street").text)
     assert "run betting_street(" in want, (
@@ -849,13 +848,17 @@ def test_every_poker_street_runs_the_library_street() -> None:
     )
     for path in users:
         text = path.read_text()
-        opened = len(re.findall(r"\brun open_street\(", text))
-        played = len(re.findall(r"\brun betting_street\(", text))
-        assert opened == played > 0, (
-            f"{path.name}: {opened} streets opened but {played} run the "
-            "library's ring — either a street is written inline, or one is "
-            "opened and never bet."
-        )
+        played = re.findall(r"\brun betting_street\((.*)\)", text)
+        assert played, f"{path.name}: no street runs the library's ring"
+        for args in played:
+            depth, commas = 0, 0
+            for ch in args:
+                depth += {"(": 1, ")": -1}.get(ch, 0)
+                commas += ch == "," and depth == 0
+            assert commas == 2, (
+                f"{path.name}: `run betting_street({args})` does not name its "
+                "first seat and both sizes"
+            )
 
 
 # ---------------------------------------------------------------------------

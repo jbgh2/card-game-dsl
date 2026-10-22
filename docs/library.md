@@ -369,7 +369,9 @@ in tests/test_trump_slot_class.py.
   Schnapsen's leader is one seat asked until it leads, an `offer` inside
   `repeat until` (see "Mechanics" below).
 - **Betting runs on the family library's street** — `poker_betting`'s
-  `betting_street(first)`, a `turns` ring over the seats still pending
+  `betting_street(first, bet_size, big_size)`, a `turns` ring over the seats
+  still pending, which opens the street at its sizes on entry and clears the
+  street's bookkeeping when its ring closes
   ([decisions.md](decisions.md) "The `turns` form"): a bet or raise re-opens
   the seats it passed, and the turn reaches the seats behind the aggressor
   first — poker's continuation order. The library owns the ring, its
@@ -392,17 +394,19 @@ in tests/test_trump_slot_class.py.
 
   ```cardlang-fragment betting_street
   phase first_street {
-    run open_street(2, 0)
-    run betting_street(first_actor)
+    run betting_street(first_actor, 2, 0)
   }
   ```
 
   The ring's `over` filter and its `until` terminator are the library's, built
-  from the three ring predicates, so a street is two `run`s: the size it
-  opens at, and the seat it opens from. What a street varies is the bet size
-  `open_street` takes, the seat the ring starts from, whether a contender
-  count guards the street at all, and whether a forced post sits between
-  `open_street` and `betting_street` (Stud's bring-in). The vocabulary does
+  from the three ring predicates, so a street is one `run`: the seat it opens
+  from and the sizes it opens at. No sentence can run a street unopened, and
+  none can leave one open: the street's sizes are set as it opens and its
+  bookkeeping cleared as it closes, so between streets no bet stands. What a
+  street varies is its sizes, the seat the ring starts from, whether a
+  contender count guards the street at all, and whether a forced post is
+  written before it (Hold'em's blinds, Stud's bring-in), which the street
+  keeps. The vocabulary does
   not vary: every street offers the family's seven moves in one order, and a
   move a street cannot take is never legal there (Kuhn Poker's `raise`, a
   one-size street's big wagers), so a seat is asked exactly what the rules
@@ -411,7 +415,7 @@ in tests/test_trump_slot_class.py.
   Both arms are the ring's: the street closes when no seat is `pending` — the
   settled field, everyone who can act having acted and owing nothing — or when
   the seats able to act are down to one that owes nothing, the street that
-  opens behind an all-in, where `open_street`'s cleared `acted` would otherwise
+  opens behind an all-in, where a fresh street's cleared `acted` would otherwise
   leave that seat `pending` with nobody to act against. A variant in which no
   seat can be all-in never reaches that second arm and writes it all the same.
   Of those variations the guard is the one with a cost in information: Leduc's

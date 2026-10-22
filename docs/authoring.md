@@ -402,8 +402,9 @@ write the `zones { }` and `state { }` entries it demands — each `requires` row
 is annotated with what it holds and why the library cannot own it.
 
 For poker, `uses poker_betting` brings check, bet, call, raise, the ring
-predicates and the street itself — `run open_street(limit, big)` then
-`run betting_street(first)` per street; `fold` stays game-local, because
+predicates and the street itself — `run betting_street(first, size, big)`
+per street, which opens the street at its sizes and clears it when the
+ring closes; `fold` stays game-local, because
 where a folded card goes is a fact about your zones, and the library
 contracts for it (`requires { fold : Move }`), so your game defines
 `move_type fold` and the street offers it. The showdown is a Primitive your

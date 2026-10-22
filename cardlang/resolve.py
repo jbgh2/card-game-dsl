@@ -444,6 +444,7 @@ from cardlang.stdlib.zones import (
 )
 from cardlang.typecheck import (
     KNOWN_TYPE_NAMES,
+    POSITIVE_PARAM_DOMAIN,
     RANKING_GATED_FUNCS,
     card_content_forms,
     ranking_gated_slots,
@@ -3004,12 +3005,26 @@ def _slot_leaks(
         if isinstance(row, (n.FunctionContract, n.ProcedureContract))
         for p in row.params
     )
+    # `Positive` is a procedure parameter domain and no value type, so it is
+    # outside the `type` namespace every other slot reads; a library
+    # procedure's parameter spelling it is the procedure domain's to judge
+    # (`_PROCEDURE_PARAM_DOMAINS`, checked once the definition is spliced).
+    positive_params = frozenset(
+        id(p)
+        for proc in library.procedures
+        for p in proc.params
+        if p.type_name == POSITIVE_PARAM_DOMAIN
+    )
     reached: dict[str, set[str]] = {
         ns: set() for ns in ("state", "zone", "move_type", "function", "procedure")
     }
     leaks: list[_SlotLeak] = []
     for node in _walk(library):
-        if id(node) in collection_elements or id(node) in shaped_params:
+        if (
+            id(node) in collection_elements
+            or id(node) in shaped_params
+            or id(node) in positive_params
+        ):
             continue
         for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
             if field_name == "type_name" and id(node) in collection_contracts:
@@ -3022,7 +3037,8 @@ def _slot_leaks(
                 continue
             if (
                 isinstance(node, n.FunctionContract)
-                and node.result_type.removesuffix("?") in _DEFINITION_KIND_WORDS
+                and node.result_type.removesuffix("?")
+                in {*_DEFINITION_KIND_WORDS, POSITIVE_PARAM_DOMAIN}
             ):
                 continue
             namespace = slot_namespace(node, field_name)
@@ -3809,6 +3825,12 @@ def _check_signature_result(
         message = (
             head + f", but '{bare}' is a zone type — a function returns a value, "
             f"and a zone the game declares is contracted as a keyed row"
+        )
+    elif bare == POSITIVE_PARAM_DOMAIN:
+        message = (
+            head + f", but `{POSITIVE_PARAM_DOMAIN}` is a procedure parameter's "
+            f"domain, a number written at the `run`, not the type a function "
+            f"returns — write `Integer`"
         )
     else:
         return
@@ -6212,6 +6234,13 @@ POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
     ReservedNameSource(
         "a collection type constructor",
         lambda game: frozenset({COLLECTION_TYPE_CONSTRUCTOR}),
+    ),
+    # A procedure parameter written `Positive` takes a written number of 1 or
+    # more; a position domain of that name would make the same parameter
+    # spelling read as the declared range at every other host.
+    ReservedNameSource(
+        "a procedure parameter domain",
+        lambda game: frozenset({POSITIVE_PARAM_DOMAIN}),
     ),
     # The collection noun, found by crossing the sources against the slots that
     # read them. `DomainQuery.binder` carries ONE name resolved against two
@@ -10131,7 +10160,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     The other declaring positions are deliberately absent, each already owned
     by an Owner Guard at least as tight: move parameters by `_check_move_params`
     (which additionally requires an ENUMERABLE domain, and now runs for every
-    declared move type), procedure parameters by `_PROCEDURE_DOMAINS`, and
+    declared move type), procedure parameters by `_PROCEDURE_PARAM_DOMAINS`, and
     rule-template parameters by `_check_template`'s Suit-only gate. Adding a
     second name check over any of them would report one defect twice, in two
     channels.
@@ -10197,12 +10226,18 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
 # optional form is the one the corpus forces. Bare `Rank` rides along: it is the
 # same domain minus the null, meaningful on its own, and free to support.
 #
-# `Integer` is forced by poker_betting's `open_street(bet_size)`: the five street
-# resets across Leduc and Stud are one shape differing in one integer. It strains
+# `Integer` is forced by poker_betting's `betting_street(big_size)`: Stud's
+# fourth street computes its big size from the cards showing. It strains
 # nothing — an argument is an expression the caller evaluates once, not a value
-# the action space enumerates, and `function` parameters have always taken
-# Integer. The gap was which games existed, not a design position.
-_PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
+# the action space enumerates, and `function` parameters take Integer too.
+#
+# `Positive` is forced by the same procedure's `bet_size`: a street played at a
+# size of 0 offers a free bet, and one at a negative size pays the bettor, so
+# no rulebook reads either. A procedure argument is evaluated once the body is
+# spliced, past every check, so the domain is held where it can be decided:
+# the `run` site admits a written number of 1 or more and nothing else
+# (`_check_positive_arguments`).
+_PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer", POSITIVE_PARAM_DOMAIN})
 
 
 # POSITION-DEPENDENT STATEMENTS: the closed class a procedure body may not hold.
@@ -10696,6 +10731,8 @@ def _check_procedures(
             invoked.add(nd.name)
             if nd.name not in known:
                 bag.error(f"run of unknown procedure '{nd.name}'", nd.span)
+            else:
+                _check_positive_arguments(known[nd.name], nd, bag)
     # Only the game's OWN procedures: a library's are its own to define, and
     # a game that imports one and runs it nowhere has not made an error — the
     # rule `_check_unoffered_move_types` keeps for a library's move types.
@@ -10706,6 +10743,38 @@ def _check_procedures(
                 + cite_named(proc, proc.name) + "(…)`, or delete it (its body would otherwise be "
                 f"spliced nowhere, and go entirely unchecked downstream)",
                 proc.span,
+            )
+
+
+def _check_positive_arguments(
+    proc: n.ProcedureDef, run: n.RunStmt, bag: DiagnosticBag
+) -> None:
+    """The `Positive` domain [[owner-guard]]: an argument bound to a `Positive`
+    parameter is a written whole number of 1 or more. Expansion splices the
+    argument as a plain binding and rejects nothing, so a computed value would
+    reach play unchecked; the written number is the one form whose membership
+    is decided here. A missing or surplus argument is typecheck's arity check,
+    so `zip` leaving it alone is that guard's case, not a gap."""
+    for param, arg in zip(proc.params, run.args):
+        if param.type_name != POSITIVE_PARAM_DOMAIN:
+            continue
+        head = (
+            f"`run {run.name}` passes its `{param.name}`, which "
+            + cite_named(proc, f"'{proc.name}'")
+            + " takes as a Positive number"
+        )
+        if not isinstance(arg, n.IntLit):
+            bag.error(
+                head + " — write the number itself (`2`, `10`): a Positive "
+                "parameter takes a whole number of 1 or more written at the "
+                "run, so the check can see it before play",
+                arg.span,
+            )
+        elif arg.value < 1:
+            bag.error(
+                head + f" — {arg.value} is not one: a Positive parameter takes "
+                "a whole number of 1 or more, so write 1 or more",
+                arg.span,
             )
 
 

@@ -55,7 +55,7 @@ registry:        vocabulary and state surface: `n.Library.move_types`,
                  performs is pinned in tests/test_playout_holdem.py,
                  tests/test_playout_holdem_heads_up.py and
                  tests/test_holdem_settle.py.
-does not prove:  `floor` is crossed only at the value `open_street` leaves it
+does not prove:  `floor` is crossed only at the value the street opens it at
                  — the street's small size. Every cell writes its standing bet
                  rather than playing to one, and only a PLACED big wager moves
                  the floor, so `raise`'s `limit >= floor` term is true in all
@@ -82,12 +82,23 @@ from typing import Any, Iterator, NamedTuple
 
 import pytest
 
+from tests.poker_probe import probe_betting
+
 from cardlang.ast import nodes as n
 from cardlang.libraries import load_library
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
+
+
+@pytest.fixture(autouse=True)
+def _probe_library() -> Iterator[None]:
+    """The probes open their street with `probe_open_street`, which only the
+    probe library holds (tests/poker_probe.py)."""
+    with probe_betting():
+        yield
+
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
 
@@ -373,7 +384,7 @@ game Probe {{
     big_raise_only    : Boolean = {ratchet}
   }}
   phase play {{
-    run open_street({limit}, {big})
+    run probe_open_street({limit}, {big})
 {prime}    bet_to_match := {bet_to_match}
     level := {level}
     raises := {raises}
@@ -396,7 +407,7 @@ move_type fold {{ when: bet_to_match < 0 effect {{ folded[actor] := true }} }}
 """
 
 # `acted` is the library's own state, so the probe game may not write it: the
-# seat reaches "turn taken" by taking one, on a street `open_street` has just
+# seat reaches "turn taken" by taking one, on a street `probe_open_street` has just
 # zeroed, where `check` is legal and moves no chips.
 _PRIME = """    turns t from 0
           over players where player is hero and not acted[player]
@@ -654,7 +665,7 @@ def test_only_a_forced_post_reaches_the_un_acted_level_seat(name: str) -> None:
 # --- the ratchet: the one guard term the cells above cannot drive -------------
 
 # Every cell writes its standing bet rather than playing to it, so `floor` sits
-# where `open_street` put it — the street's small size — and `raise`'s
+# where the street opened it — the street's small size — and `raise`'s
 # `limit >= floor` term is true in all of them. The term goes false only after a
 # big wager is PLACED, which is a state reached by playing, not by writing. This
 # probe plays one.
@@ -677,7 +688,7 @@ game Ratchet {{
     big_raise_only    : Boolean = {ratchet}
   }}
   phase play {{
-    run open_street(5, 10)
+    run probe_open_street(5, 10)
     turns t from 0
           over players where can_act(player)
           until false {{
@@ -750,7 +761,7 @@ def test_a_placed_big_bet_withdraws_the_small_raise_only_on_the_casino_arm() -> 
 
 # --- a second size that is not bigger is not a second size --------------------
 
-# `open_street` takes the two sizes as expressions, so nothing static can hold
+# `betting_street` takes the two sizes as expressions, so nothing static can hold
 # them in order, and the cells above cross only 0 and twice the small bet. The
 # two orderings between those — equal, and below — are what a designer writing
 # the arguments the wrong way round produces, and each would be a defect of its
@@ -786,7 +797,7 @@ def test_a_second_size_that_is_not_bigger_offers_no_big_wager(
     and below rows then offer the wager.
     """
     src = _RATCHET_PROBE.format(ratchet="true", vocabulary=", ".join(VOCABULARY))
-    src = src.replace("run open_street(5, 10)", f"run open_street({small}, {big})")
+    src = src.replace("run probe_open_street(5, 10)", f"run probe_open_street({small}, {big})")
     game = check_dsl(src, "degenerate.cardlang")
 
     def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:

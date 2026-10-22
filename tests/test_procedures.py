@@ -11,8 +11,10 @@ procedures", "Surface totality", "Closed-domain completeness").
 
     domain:     Three axes, each derived from its registry in code, not from the
                 implementation's own coverage:
-                  A. parameter domain — every name in `typecheck.KNOWN_TYPE_NAMES`,
-                     plain and optional, plus an unknown name;
+                  A. parameter domain — every name in `typecheck.KNOWN_TYPE_NAMES`
+                     and the procedure-only `typecheck.POSITIVE_PARAM_DOMAIN`,
+                     plain and optional, plus an unknown name (a `Positive`
+                     argument's own domain: tests/test_positive_parameters.py);
                   B. body content — every member of the `nodes.Stmt` union;
                   C. call-site context — every grammar site admitting a statement,
                      split by whether it holds a statement SEQUENCE or a SINGLE
@@ -40,7 +42,8 @@ procedures", "Surface totality", "Closed-domain completeness").
                 time, and every domain outside it is a loud unsupported-domain
                 refusal (issue #134, cited at the guard in `resolve.py`).
 
-    registry:   A. `cardlang.typecheck.KNOWN_TYPE_NAMES` vs
+    registry:   A. `cardlang.typecheck.KNOWN_TYPE_NAMES` and
+                   `cardlang.typecheck.POSITIVE_PARAM_DOMAIN` vs
                    `cardlang.resolve._PROCEDURE_PARAM_DOMAINS`
                 B. `typing.get_args(cardlang.ast.nodes.Stmt)`
                 C. `cardlang/grammar/cardlang.lark` — the `statement*` sites and
@@ -82,7 +85,7 @@ from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
 from cardlang.runtime.driver import play_game
-from cardlang.typecheck import KNOWN_TYPE_NAMES
+from cardlang.typecheck import KNOWN_TYPE_NAMES, POSITIVE_PARAM_DOMAIN
 
 # A minimal game with the pieces every probe needs: a player-indexed state var to
 # assign and a hand to move from. A probe that offers a move type declares it in
@@ -212,19 +215,24 @@ def _walk(node: object) -> typing.Iterator[object]:
 
 # A well-typed argument for each supported domain, so the domain sweep below tests
 # the DOMAIN cell and not, accidentally, the argument-type cell.
-_SAMPLE_ARG = {"Player": "0", "Rank": "A", "Rank?": "A", "Integer": "1"}
+_SAMPLE_ARG = {
+    "Player": "0", "Rank": "A", "Rank?": "A", "Integer": "1", POSITIVE_PARAM_DOMAIN: "1",
+}
 
 
 @pytest.mark.parametrize(
-    "type_name", sorted({f"{t}{o}" for t in KNOWN_TYPE_NAMES for o in ("", "?")})
+    "type_name",
+    sorted(
+        {f"{t}{o}" for t in KNOWN_TYPE_NAMES | {POSITIVE_PARAM_DOMAIN} for o in ("", "?")}
+    ),
 )
 def test_every_declarable_type_name_as_a_parameter(type_name: str) -> None:
     """The closed-domain sweep, derived from the registry that defines the universe
     of declarable type names — NOT from the domains the guard happens to handle.
     `payload_type` makes every name generically optional-able, so the domain is
-    KNOWN_TYPE_NAMES x {plain, optional}: 18 cells, of which exactly four are
-    supported. A new entry in KNOWN_TYPE_NAMES lands here as a failure until it is
-    classified as supported or guarded."""
+    (KNOWN_TYPE_NAMES + `Positive`) x {plain, optional}. A new entry in
+    KNOWN_TYPE_NAMES lands here as a failure until it is classified as
+    supported or guarded."""
     procs = f"procedure f(p : {type_name}) {{ score[0] += 1 }}"
     if type_name in _PROCEDURE_PARAM_DOMAINS:
         check(f"    run f({_SAMPLE_ARG[type_name]})", procs)  # accepted
@@ -232,7 +240,7 @@ def test_every_declarable_type_name_as_a_parameter(type_name: str) -> None:
         rejects("    run f(0)", procs, "has an unsupported domain")
 
 
-def test_the_supported_domains_are_exactly_player_rank_and_integer() -> None:
+def test_the_supported_domains_are_exactly_player_rank_integer_and_positive() -> None:
     """The commanded column for the sweep above, which reads the registry to
     decide each cell and so cannot command it. Every member is here because a
     corpus game forces it; the set grows one forcing game at a time.
@@ -243,15 +251,18 @@ def test_the_supported_domains_are_exactly_player_rank_and_integer() -> None:
     inside `if block_claim is not none`, but there is no flow narrowing, so a bare
     `Rank` parameter would reject the very argument the block sites must pass.
 
-    `Integer` is forced by `poker_betting`'s `open_street(bet_size, big_size)`,
-    the procedure that opens a betting street at the sizes it is played for — the five street
-    resets across Leduc and Stud are one shape differing in one integer, which is
-    a parameter or it is nothing. Nothing about an Integer argument strains the
-    construct: a procedure argument is an arbitrary expression the caller
-    evaluates once, never a value an action space enumerates, and a `function`
-    parameter has always accepted Integer. The gap was which games existed, not a
-    design position."""
-    assert _PROCEDURE_PARAM_DOMAINS == {"Player", "Rank", "Rank?", "Integer"}
+    `Integer` is forced by `poker_betting`'s `betting_street(first, bet_size,
+    big_size)`, the procedure that plays a betting street at the sizes it is
+    played for: Stud's fourth street computes its big size from the cards
+    showing. Nothing about an Integer argument strains the construct: a
+    procedure argument is an arbitrary expression the caller evaluates once,
+    never a value an action space enumerates, and a `function` parameter
+    accepts Integer too.
+
+    `Positive` is forced by the same procedure's `bet_size`: a street at a size
+    of 0 offers a free bet and one at a negative size pays the bettor. Its
+    argument domain is tests/test_positive_parameters.py's."""
+    assert _PROCEDURE_PARAM_DOMAINS == {"Player", "Rank", "Rank?", "Integer", "Positive"}
 
 
 def test_an_unknown_parameter_type_is_rejected() -> None:

@@ -17,7 +17,7 @@
 // Stud's. Stud opens every street with no standing bet; Hold'em opens pre-flop
 // with the blinds already posted, and its action order is POSITIONAL (left of
 // the big blind pre-flop, left of the button afterwards) rather than derived
-// from the visible cards. Both fit `open_street` + a posted forced bet — the
+// from the visible cards. Both fit a forced bet posted before `betting_street` — the
 // pattern Stud's bring-in established — so the library needed no change.
 //
 // Chips are plain integers (the Stud convention), not a resource-zone
@@ -126,7 +126,6 @@ game Holdem {
       // the street's opening bet, taking the first of the four aggressive
       // actions the cap allows. Either blind is a partial all-in when the seat
       // cannot cover it.
-      run open_street(5, 0)
       // One bet plus three raises when the street opens with MORE than two
       // active players; opening two-handed, Pagat lifts the cap entirely. 99
       // stands in for "no limit": the table holds 300 chips and the smallest
@@ -172,18 +171,13 @@ game Holdem {
       // round begins is not a turn taken within it and the seat is still
       // pending (decisions.md, "Named functions").
       //
-      // The guard is the street's own `until` terminator, negated: run the street
-      // exactly when it would not close on entry. A plain "two can act" test is
+      // The street runs unguarded: one nobody can bet in runs no turn and
+      // closes at once, by its own `until`. A plain "two can act" guard would be
       // WRONG here and only here, because the blinds leave a standing bet — a
       // big blind all-in for its whole post leaves one live player who still
       // OWES, and that player must be allowed to call or fold rather than have
-      // the hand dealt out around them. Every later street opens with no
-      // standing bet, so there the second arm is dead and the two tests agree.
-      if (number of players where pending(player)) > 0
-         and ((number of players where can_act(player)) > 1
-              or (number of players where can_act(player) and owes(player)) > 0) {
-        run betting_street(the first player from big_blind offset_by left where in_hand[player])
-      }
+      // the hand dealt out around them; the street's `until` counts that debt.
+      run betting_street(the first player from big_blind offset_by left where in_hand[player], 5, 0)
 
       // Flop, turn and river: burn, deal, then a betting round begun by the
       // first entrant left of the button. Each street runs only while more than
@@ -197,13 +191,12 @@ game Holdem {
         deal 1 card from deck to burn
         deal 3 cards from deck to board
         if (number of players where can_act(player)) >= 2 {
-          run open_street(5, 0)
       // One bet plus three raises when the street opens with MORE than two
       // active players; opening two-handed, Pagat lifts the cap entirely. 99
       // stands in for "no limit": the table holds 300 chips and the smallest
       // aggression is 5, so no street can reach 60 aggressions, let alone 99.
       raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
-          run betting_street(the first player from button offset_by left where in_hand[player])
+          run betting_street(the first player from button offset_by left where in_hand[player], 5, 0)
         }
       }
 
@@ -212,13 +205,12 @@ game Holdem {
         deal 1 card from deck to burn
         deal 1 card from deck to board
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10, 0)
       // One bet plus three raises when the street opens with MORE than two
       // active players; opening two-handed, Pagat lifts the cap entirely. 99
       // stands in for "no limit": the table holds 300 chips and the smallest
       // aggression is 5, so no street can reach 60 aggressions, let alone 99.
       raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
-          run betting_street(the first player from button offset_by left where in_hand[player])
+          run betting_street(the first player from button offset_by left where in_hand[player], 10, 0)
         }
       }
 
@@ -227,13 +219,12 @@ game Holdem {
         deal 1 card from deck to burn
         deal 1 card from deck to board
         if (number of players where can_act(player)) >= 2 {
-          run open_street(10, 0)
       // One bet plus three raises when the street opens with MORE than two
       // active players; opening two-handed, Pagat lifts the cap entirely. 99
       // stands in for "no limit": the table holds 300 chips and the smallest
       // aggression is 5, so no street can reach 60 aggressions, let alone 99.
       raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
-          run betting_street(the first player from button offset_by left where in_hand[player])
+          run betting_street(the first player from button offset_by left where in_hand[player], 10, 0)
         }
       }
 

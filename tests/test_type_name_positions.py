@@ -193,7 +193,7 @@ COLLECTION_OPTIONAL = "Collection<Card>?"
 NAMES = [
     "Integer", "Boolean", "Player", "Card", "Team", "Suit", "Rank",
     "Rank?", "Suit?", "SeatDirection", POSITION_DOMAIN, UNKNOWN_NAME,
-    COLLECTION_NAME, COLLECTION_OPTIONAL,
+    COLLECTION_NAME, COLLECTION_OPTIONAL, typecheck.POSITIVE_PARAM_DOMAIN,
 ]
 
 DECLARED = frozenset(KNOWN_TYPE_NAMES)

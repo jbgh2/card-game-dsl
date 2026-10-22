@@ -667,131 +667,6 @@
               },
               "then": [
                 {
-                  "kind": "block",
-                  "body": [
-                    {
-                      "kind": "let",
-                      "name": "@open_street.bet_size",
-                      "index": null,
-                      "value": {
-                        "kind": "int",
-                        "value": 5
-                      }
-                    },
-                    {
-                      "kind": "let",
-                      "name": "@open_street.big_size",
-                      "index": null,
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "target": "bet_to_match",
-                      "index_expr": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "target": "raises",
-                      "index_expr": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "target": "limit",
-                      "index_expr": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "name",
-                        "name": "@open_street.bet_size",
-                        "ref": "local"
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "target": "big_limit",
-                      "index_expr": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "name",
-                        "name": "@open_street.big_size",
-                        "ref": "local"
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "target": "floor",
-                      "index_expr": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "name",
-                        "name": "@open_street.bet_size",
-                        "ref": "local"
-                      }
-                    },
-                    {
-                      "kind": "assign",
-                      "target": "level",
-                      "index_expr": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "int",
-                        "value": 0
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "target": "bet_by",
-                        "index_expr": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
-                        },
-                        "op": ":=",
-                        "value": {
-                          "kind": "int",
-                          "value": 0
-                        }
-                      }
-                    },
-                    {
-                      "kind": "for_each",
-                      "role": "player",
-                      "binder": "p",
-                      "body": {
-                        "kind": "assign",
-                        "target": "acted",
-                        "index_expr": {
-                          "kind": "name",
-                          "name": "p",
-                          "ref": "local"
-                        },
-                        "op": ":=",
-                        "value": {
-                          "kind": "name",
-                          "name": "false",
-                          "ref": "bool"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
                   "kind": "let",
                   "name": "bringer",
                   "index": null,
@@ -1007,6 +882,57 @@
                       }
                     },
                     {
+                      "kind": "let",
+                      "name": "@betting_street.bet_size",
+                      "index": null,
+                      "value": {
+                        "kind": "int",
+                        "value": 5
+                      }
+                    },
+                    {
+                      "kind": "let",
+                      "name": "@betting_street.big_size",
+                      "index": null,
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "limit",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "name",
+                        "name": "@betting_street.bet_size",
+                        "ref": "local"
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "big_limit",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "name",
+                        "name": "@betting_street.big_size",
+                        "ref": "local"
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "floor",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "name",
+                        "name": "@betting_street.bet_size",
+                        "ref": "local"
+                      }
+                    },
+                    {
                       "kind": "turns",
                       "binder": "seat",
                       "leader": {
@@ -1141,6 +1067,105 @@
                           ]
                         }
                       ]
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "bet_to_match",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "raises",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "level",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "limit",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "big_limit",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "assign",
+                      "target": "floor",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "int",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "target": "bet_by",
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "int",
+                          "value": 0
+                        }
+                      }
+                    },
+                    {
+                      "kind": "for_each",
+                      "role": "player",
+                      "binder": "p",
+                      "body": {
+                        "kind": "assign",
+                        "target": "acted",
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "p",
+                          "ref": "local"
+                        },
+                        "op": ":=",
+                        "value": {
+                          "kind": "name",
+                          "name": "false",
+                          "ref": "bool"
+                        }
+                      }
                     }
                   ]
                 }
@@ -1320,11 +1345,62 @@
                   },
                   "then": [
                     {
+                      "kind": "assign",
+                      "target": "raise_cap",
+                      "index_expr": null,
+                      "op": ":=",
+                      "value": {
+                        "kind": "if_expr",
+                        "cond": {
+                          "kind": "binop",
+                          "op": ">",
+                          "left": {
+                            "kind": "player_query",
+                            "query": "count",
+                            "where": {
+                              "kind": "call",
+                              "func": "can_act",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "player",
+                                  "ref": "local"
+                                }
+                              ]
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 2
+                          }
+                        },
+                        "then": {
+                          "kind": "int",
+                          "value": 4
+                        },
+                        "elifs": [],
+                        "otherwise": {
+                          "kind": "int",
+                          "value": 160
+                        }
+                      }
+                    },
+                    {
                       "kind": "block",
                       "body": [
                         {
                           "kind": "let",
-                          "name": "@open_street.bet_size",
+                          "name": "@betting_street.first",
+                          "index": null,
+                          "value": {
+                            "kind": "call",
+                            "func": "best_showing_seat",
+                            "args": []
+                          }
+                        },
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.bet_size",
                           "index": null,
                           "value": {
                             "kind": "int",
@@ -1333,7 +1409,7 @@
                         },
                         {
                           "kind": "let",
-                          "name": "@open_street.big_size",
+                          "name": "@betting_street.big_size",
                           "index": null,
                           "value": {
                             "kind": "if_expr",
@@ -1373,32 +1449,12 @@
                         },
                         {
                           "kind": "assign",
-                          "target": "bet_to_match",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "raises",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
                           "target": "limit",
                           "index_expr": null,
                           "op": ":=",
                           "value": {
                             "kind": "name",
-                            "name": "@open_street.bet_size",
+                            "name": "@betting_street.bet_size",
                             "ref": "local"
                           }
                         },
@@ -1409,7 +1465,7 @@
                           "op": ":=",
                           "value": {
                             "kind": "name",
-                            "name": "@open_street.big_size",
+                            "name": "@betting_street.big_size",
                             "ref": "local"
                           }
                         },
@@ -1420,113 +1476,8 @@
                           "op": ":=",
                           "value": {
                             "kind": "name",
-                            "name": "@open_street.bet_size",
+                            "name": "@betting_street.bet_size",
                             "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "level",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "target": "bet_by",
-                            "index_expr": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "int",
-                              "value": 0
-                            }
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "target": "acted",
-                            "index_expr": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "name",
-                              "name": "false",
-                              "ref": "bool"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "kind": "assign",
-                      "target": "raise_cap",
-                      "index_expr": null,
-                      "op": ":=",
-                      "value": {
-                        "kind": "if_expr",
-                        "cond": {
-                          "kind": "binop",
-                          "op": ">",
-                          "left": {
-                            "kind": "player_query",
-                            "query": "count",
-                            "where": {
-                              "kind": "call",
-                              "func": "can_act",
-                              "args": [
-                                {
-                                  "kind": "name",
-                                  "name": "player",
-                                  "ref": "local"
-                                }
-                              ]
-                            }
-                          },
-                          "right": {
-                            "kind": "int",
-                            "value": 2
-                          }
-                        },
-                        "then": {
-                          "kind": "int",
-                          "value": 4
-                        },
-                        "elifs": [],
-                        "otherwise": {
-                          "kind": "int",
-                          "value": 160
-                        }
-                      }
-                    },
-                    {
-                      "kind": "block",
-                      "body": [
-                        {
-                          "kind": "let",
-                          "name": "@betting_street.first",
-                          "index": null,
-                          "value": {
-                            "kind": "call",
-                            "func": "best_showing_seat",
-                            "args": []
                           }
                         },
                         {
@@ -1664,6 +1615,105 @@
                               ]
                             }
                           ]
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "bet_to_match",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "raises",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "level",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "big_limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "floor",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "target": "bet_by",
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "target": "acted",
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "name",
+                              "name": "false",
+                              "ref": "bool"
+                            }
+                          }
                         }
                       ]
                     }
@@ -1846,131 +1896,6 @@
                   },
                   "then": [
                     {
-                      "kind": "block",
-                      "body": [
-                        {
-                          "kind": "let",
-                          "name": "@open_street.bet_size",
-                          "index": null,
-                          "value": {
-                            "kind": "int",
-                            "value": 10
-                          }
-                        },
-                        {
-                          "kind": "let",
-                          "name": "@open_street.big_size",
-                          "index": null,
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "bet_to_match",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "raises",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "limit",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.bet_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "big_limit",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.big_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "floor",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.bet_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "level",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "target": "bet_by",
-                            "index_expr": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "int",
-                              "value": 0
-                            }
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "target": "acted",
-                            "index_expr": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "name",
-                              "name": "false",
-                              "ref": "bool"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
                       "kind": "assign",
                       "target": "raise_cap",
                       "index_expr": null,
@@ -2022,6 +1947,57 @@
                             "kind": "call",
                             "func": "best_showing_seat",
                             "args": []
+                          }
+                        },
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.bet_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 10
+                          }
+                        },
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.big_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.bet_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "big_limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.big_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "floor",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.bet_size",
+                            "ref": "local"
                           }
                         },
                         {
@@ -2159,6 +2135,105 @@
                               ]
                             }
                           ]
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "bet_to_match",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "raises",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "level",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "big_limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "floor",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "target": "bet_by",
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "target": "acted",
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "name",
+                              "name": "false",
+                              "ref": "bool"
+                            }
+                          }
                         }
                       ]
                     }
@@ -2341,131 +2416,6 @@
                   },
                   "then": [
                     {
-                      "kind": "block",
-                      "body": [
-                        {
-                          "kind": "let",
-                          "name": "@open_street.bet_size",
-                          "index": null,
-                          "value": {
-                            "kind": "int",
-                            "value": 10
-                          }
-                        },
-                        {
-                          "kind": "let",
-                          "name": "@open_street.big_size",
-                          "index": null,
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "bet_to_match",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "raises",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "limit",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.bet_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "big_limit",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.big_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "floor",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.bet_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "level",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "target": "bet_by",
-                            "index_expr": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "int",
-                              "value": 0
-                            }
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "target": "acted",
-                            "index_expr": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "name",
-                              "name": "false",
-                              "ref": "bool"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
                       "kind": "assign",
                       "target": "raise_cap",
                       "index_expr": null,
@@ -2517,6 +2467,57 @@
                             "kind": "call",
                             "func": "best_showing_seat",
                             "args": []
+                          }
+                        },
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.bet_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 10
+                          }
+                        },
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.big_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.bet_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "big_limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.big_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "floor",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.bet_size",
+                            "ref": "local"
                           }
                         },
                         {
@@ -2654,6 +2655,105 @@
                               ]
                             }
                           ]
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "bet_to_match",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "raises",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "level",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "big_limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "floor",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "target": "bet_by",
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "target": "acted",
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "name",
+                              "name": "false",
+                              "ref": "bool"
+                            }
+                          }
                         }
                       ]
                     }
@@ -2836,131 +2936,6 @@
                   },
                   "then": [
                     {
-                      "kind": "block",
-                      "body": [
-                        {
-                          "kind": "let",
-                          "name": "@open_street.bet_size",
-                          "index": null,
-                          "value": {
-                            "kind": "int",
-                            "value": 10
-                          }
-                        },
-                        {
-                          "kind": "let",
-                          "name": "@open_street.big_size",
-                          "index": null,
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "bet_to_match",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "raises",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "limit",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.bet_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "big_limit",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.big_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "floor",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "name",
-                            "name": "@open_street.bet_size",
-                            "ref": "local"
-                          }
-                        },
-                        {
-                          "kind": "assign",
-                          "target": "level",
-                          "index_expr": null,
-                          "op": ":=",
-                          "value": {
-                            "kind": "int",
-                            "value": 0
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "target": "bet_by",
-                            "index_expr": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "int",
-                              "value": 0
-                            }
-                          }
-                        },
-                        {
-                          "kind": "for_each",
-                          "role": "player",
-                          "binder": "p",
-                          "body": {
-                            "kind": "assign",
-                            "target": "acted",
-                            "index_expr": {
-                              "kind": "name",
-                              "name": "p",
-                              "ref": "local"
-                            },
-                            "op": ":=",
-                            "value": {
-                              "kind": "name",
-                              "name": "false",
-                              "ref": "bool"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
                       "kind": "assign",
                       "target": "raise_cap",
                       "index_expr": null,
@@ -3012,6 +2987,57 @@
                             "kind": "call",
                             "func": "best_showing_seat",
                             "args": []
+                          }
+                        },
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.bet_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 10
+                          }
+                        },
+                        {
+                          "kind": "let",
+                          "name": "@betting_street.big_size",
+                          "index": null,
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.bet_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "big_limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.big_size",
+                            "ref": "local"
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "floor",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "name",
+                            "name": "@betting_street.bet_size",
+                            "ref": "local"
                           }
                         },
                         {
@@ -3149,6 +3175,105 @@
                               ]
                             }
                           ]
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "bet_to_match",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "raises",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "level",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "big_limit",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "assign",
+                          "target": "floor",
+                          "index_expr": null,
+                          "op": ":=",
+                          "value": {
+                            "kind": "int",
+                            "value": 0
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "target": "bet_by",
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "int",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "kind": "for_each",
+                          "role": "player",
+                          "binder": "p",
+                          "body": {
+                            "kind": "assign",
+                            "target": "acted",
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "p",
+                              "ref": "local"
+                            },
+                            "op": ":=",
+                            "value": {
+                              "kind": "name",
+                              "name": "false",
+                              "ref": "bool"
+                            }
+                          }
                         }
                       ]
                     }

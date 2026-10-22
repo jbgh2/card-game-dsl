@@ -81,8 +81,7 @@ game LeducPoker {
   // library's: every pending seat is asked from the opener until nobody is
   // pending, or a fold leaves one contender.
   phase first_street {
-    run open_street(2, 0)
-    run betting_street(first_actor)
+    run betting_street(first_actor, 2, 0)
   }
 
   // Second street: the community card is turned face up and bets double.
@@ -92,8 +91,7 @@ game LeducPoker {
   phase second_street {
     if (number of players where not folded[player]) > 1 {
       deal 1 card from deck to board
-      run open_street(4, 0)
-      run betting_street(first_actor)
+      run betting_street(first_actor, 4, 0)
     }
   }
 

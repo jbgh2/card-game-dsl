@@ -300,7 +300,7 @@ def _game(
     # refused — so a probe importing the REAL library defines one AND runs
     # the street that offers it, while one importing a synthetic library
     # does neither, having no such contract to meet.
-    run = "run open_street(1, 0)  run betting_street(0)" if "poker_betting" in uses else ""
+    run = "run betting_street(0, 1, 0)" if "poker_betting" in uses else ""
     fold = (
         "move_type fold { effect { folded[actor] := true } }\n"
         if "poker_betting" in uses

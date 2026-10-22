@@ -96,7 +96,7 @@ from cardlang.parse import parse_library, parse_text
 from cardlang.resolve import _LIBRARY_DEF_KINDS, _ROUND_QUERY_NAMES, resolve
 from cardlang.runtime.driver import play_game
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
-from cardlang.typecheck import KNOWN_TYPE_NAMES, typecheck
+from cardlang.typecheck import KNOWN_TYPE_NAMES, POSITIVE_PARAM_DOMAIN, typecheck
 from tests.test_family_libraries import _reachable_reference_namespaces
 from tests.test_game_clause_guards import _clause_keyword
 
@@ -668,10 +668,12 @@ def test_a_keyed_row_naming_a_definition_kind(word: str) -> None:
 def _type_spellings() -> list[str]:
     """Every spelling a signature row's type slot can hold that the language
     gives a meaning: the value types with and without `?`, the zone types, the
-    kind words, and one name no registry holds."""
+    kind words, the procedure-only `Positive` domain with and without `?`, and
+    one name no registry holds."""
     return sorted(
         {*KNOWN_TYPE_NAMES, *(f"{t}?" for t in KNOWN_TYPE_NAMES), *LIBRARY_ZONE_TYPES,
-         *_kind_words(), "Move", "Procedure?", "Widget"}
+         *_kind_words(), "Move", "Procedure?", "Widget",
+         POSITIVE_PARAM_DOMAIN, f"{POSITIVE_PARAM_DOMAIN}?"}
     )
 
 
@@ -686,6 +688,8 @@ def _result_expected(result: str) -> Reject | None:
         return Reject(LIBRARY, ("ready(p : Player)", "a procedure returns no value"))
     if result == "Widget":
         return Reject(LIBRARY, ("'Widget'",))
+    if result.removesuffix("?") == POSITIVE_PARAM_DOMAIN:
+        return Reject(LIBRARY, ("ready(p : Player)", "procedure parameter's domain"))
     return Reject(LIBRARY, ("ready(p : Player)", "names a kind of definition"))
 
 

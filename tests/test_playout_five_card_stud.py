@@ -192,8 +192,8 @@ def test_a_street_is_anchored_on_the_best_board_even_when_it_cannot_act() -> Non
             showing = [q for q in seats if not folded[q] and boards[q]]
             able = [q for q in showing if stack[q] > 0]
             # A street's FIRST decision, read off the betting bookkeeping rather
-            # than off the cards: `open_street` zeroes every `bet_by` and clears
-            # every `acted`, and nothing else leaves both in that state — a
+            # than off the cards: a street enters with every `bet_by` zero and
+            # every `acted` clear, and nothing else leaves both in that state — a
             # re-open clears `acted`, but only after a wager moved a `bet_by`.
             # Reading the cards for the STREET would misfire, because a fold
             # takes a board out of `upcards` mid-street.
