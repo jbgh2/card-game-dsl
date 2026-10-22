@@ -523,6 +523,24 @@ def test_a_choose_in_an_answer_read_where_no_one_acts_is_the_games(
     assert "Name who decides" not in bag[0], bag
 
 
+def test_a_bare_hand_in_an_answer_read_where_no_one_acts_is_the_games(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The answer names `hand` bare, the acting seat's own, where the
+    library reads it with no player acting: told at the game's answer, naming
+    the contract, as the `choose` beside it is, never at a `run`.
+
+    red under: route the bare-family member of `_refuse_unacting_decisions`
+    through `_report_bare_family` when the answer is set."""
+    defs = "function count(p : Player) = number of cards in hand"
+    game = _game(defs, False)
+    bag = _bag(monkeypatch, _NO_ACTOR_LIBRARY, game)
+    assert len(bag) == 1, bag
+    assert bag[0].startswith(_where(game, defs, "hand")), bag
+    assert "library 'contractlib'" in bag[0] and "`count(p : Player) : Integer`" in bag[0], bag
+    assert "names `hand` bare" in bag[0] and "the parameters the row passes" in bag[0], bag
+
+
 def test_the_answer_to_a_no_one_acting_read_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
     """The fix the refusal above names: compute the answer from the
     parameter the row passes or from the game's state."""

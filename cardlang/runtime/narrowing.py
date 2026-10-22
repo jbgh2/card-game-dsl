@@ -87,10 +87,13 @@ class EngineFacts:
     `last_round_state` — see that field."""
 
     last_round_state: Mapping[str, Any] | None
-    """The just-completed round's terminal frame, unconditionally. NOT the
-    same as `round_state` while a round is active: Tarot and Belote read the
-    live frame, Tichu's `tichu_dragon_won` reads the terminal one. Collapsing
-    the two changes behavior mid-round, so they are separate fields."""
+    """The just-completed round's terminal frame, whether or not another
+    round is live — NOT the same as `round_state` while a round is active:
+    Tarot and Belote read the live frame, Tichu's `tichu_dragon_won` reads the
+    terminal one. Collapsing the two changes behavior mid-round, so they are
+    separate fields. Bounded like the `state` pronoun: `None` once the round's
+    window has closed (`RuntimeState.end_round_window`), so a Primitive past
+    it is refused rather than served the previous trick."""
 
     actor: Player | None
     """The acting player the rules engine bound, for primitives evaluated

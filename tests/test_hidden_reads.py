@@ -862,9 +862,11 @@ _ROUTES: dict[str, tuple[str, str, str, str, bool, str]] = {
         f"phase play when rank_value(2 of clubs) > 3 {_GATE_BODY}", "", "", "", True, "",
     ),
     # Bare-family sugar where no seat decides: the acting seat's instance,
-    # and no seat is the acting one.
+    # and no seat is the acting one, so it names no one's before any seat's
+    # view of it is asked.
     "gate-bare-family": (
-        f"phase play when (2 of clubs) in hand {_GATE_BODY}", "", "", "", False, _EVERY_SEAT,
+        f"phase play when (2 of clubs) in hand {_GATE_BODY}", "", "", "", False,
+        "named bare where no player is acting",
     ),
     # The pronouns: the played card is public.
     "transition-played-card": (

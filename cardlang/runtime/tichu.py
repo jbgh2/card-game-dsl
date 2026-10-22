@@ -15,10 +15,12 @@ can emit a stable OpenSpiel action id.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from itertools import combinations
+from typing import Any
 
 from cardlang.runtime import reads
-from cardlang.runtime.errors import ShadowGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.tichu_combinations import (
     KINDS,
@@ -98,9 +100,23 @@ def tichu_follows(
 # --- round-state reads (pure) ---
 
 
+def _completed_trick(facts: EngineFacts, caller: str) -> Mapping[str, Any]:
+    """The trick just completed, read where its window is open — the `state`
+    pronoun's contract (`RuntimeState.end_round_window`). A call past the
+    window is the description's error, so this raise is its Owner Guard."""
+    frame = facts.last_round_state
+    if frame is None:
+        raise OwnerGuardError(
+            f"{caller}() called with no just-completed round in reach — call it "
+            f"directly after the round, before any other decision"
+        )
+    return frame
+
+
 def tichu_wish_after_trick(facts: EngineFacts, gr: reads.GameReads) -> int:
     """The wish still in force once the trick just completed is folded in:
     the rank value, or 0 for none — what the game carries to the next trick."""
+    _completed_trick(facts, "tichu_wish_after_trick")
     return standing_wish(facts, gr) or 0
 
 
@@ -109,8 +125,7 @@ def tichu_dragon_won(facts: EngineFacts, gr: reads.GameReads) -> bool:
     play from the round's terminal state: the Dragon appears in a pile only as
     a played single, and only a bomb can beat it — so the check is that the
     final play is one card and it is the Dragon."""
-    st = facts.last_round_state
-    cur = None if st is None else st.get("current")
+    cur = _completed_trick(facts, "tichu_dragon_won").get("current")
     return (
         cur is not None and len(cur.cards) == 1 and cur.cards[0].rank == "Dragon"
     )

@@ -41,6 +41,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.state import ChooserAbort
 
 
 def _game(body: str, extra_state: str = "") -> str:
@@ -517,3 +518,125 @@ def test_the_ring_splices_through_a_procedure() -> None:
         "test.cardlang",
     )
     assert play_game(game, random.Random(0)).scores == {0: 10, 1: 10, 2: 10}
+
+
+# --- the go-again flag dies with its ring ----------------------------------------
+#
+# The second ring records the seats it asks in `score[0]`, one digit per
+# turn (seat + 1).
+
+_RING_STATE = "go : Boolean = false  n : Integer = 0"
+_SECOND_RING = (
+    "    turns t from 1 over all players until n >= 5 again go {\n"
+    "      n += 1\n"
+    "      score[0] := score[0] * 10 + (if t is 0 then 1 elif t is 1 then 2 else 3)\n"
+    "    }\n"
+)
+
+
+def test_a_flag_set_on_the_closing_turn_buys_the_next_ring_nothing() -> None:
+    """The closing turn of the first ring writes `go`; the second ring's
+    leader takes one turn, then the turn passes: 2, 3, 1.
+
+    red under: drop the flag's consumption on ring exit in `execute._turns`
+    (the second ring asks 2, 2, 3)."""
+    game = check_dsl(
+        _game(
+            "  phase p {\n"
+            "    turns t from 0 over all players until n >= 2 again go {\n"
+            "      n += 1\n"
+            "      if n is 2 { go := true }\n"
+            "    }\n"
+            + _SECOND_RING
+            + "  }",
+            extra_state=_RING_STATE,
+        ),
+        "test.cardlang",
+    )
+    assert play_game(game, random.Random(0)).scores[0] == 231
+
+
+def test_a_flag_set_before_a_produce_buys_the_next_ring_nothing() -> None:
+    """A ring left by `produce` consumes its flag as one left by `until`.
+
+    red under: consume the flag only when `until` ends the ring."""
+    game = check_dsl(
+        _game(
+            "  phase hand {\n"
+            "    phase decide -> outcome { won(Player) | nobody } {\n"
+            "      turns t from 0 over all players until stop again go {\n"
+            "        n += 1\n"
+            "        if t is 1 { go := true  produce won(t) }\n"
+            "      }\n"
+            "      produce nobody\n"
+            "    }\n"
+            "    decide produces:\n"
+            "      won(w) { score[w] += 10 }\n"
+            "      nobody { stop := true }\n"
+            + _SECOND_RING
+            + "  }",
+            extra_state=_RING_STATE,
+        ),
+        "test.cardlang",
+    )
+    assert play_game(game, random.Random(0)).scores[0] == 231
+
+
+def test_a_suspended_decision_keeps_the_flag() -> None:
+    """A decision paused mid-turn leaves the world it is asked in as it is:
+    the flag the turn already wrote stays true.
+
+    red under: consume the flag on every exit, `ChooserAbort` included."""
+    game = check_dsl(
+        _game(
+            "  phase p {\n"
+            "    turns t from 0 over all players until stop again go {\n"
+            "      go := true\n"
+            "      offer to t one of [pass_turn]\n"
+            "    }\n"
+            "  }",
+            extra_state=_RING_STATE,
+        )
+        + "move_type pass_turn { effect { stop := true } }\n",
+        "test.cardlang",
+    )
+
+    def aborting(player: int, candidates: list[Any], n_: int) -> list[Any]:
+        raise ChooserAbort(player, list(candidates))
+
+    with pytest.raises(ChooserAbort) as ei:
+        play_game(game, random.Random(0), chooser=aborting)
+    assert ei.value.rs is not None and ei.value.rs.get("go") is True
+
+
+@pytest.mark.parametrize(
+    ("inner", "defs", "refused"),
+    [
+        pytest.param("turns u from t over all players until stop again go { stop := true }", "", True, id="inline-same-flag"),
+        pytest.param("turns u from t over all players until stop again more { stop := true }", "", False, id="inline-own-flag"),
+        pytest.param("run inner(t)", "procedure inner(p : Player) { turns u from p over all players until stop again go { stop := true } }", True, id="through-run-same-flag"),
+    ],
+)
+def test_a_ring_nested_in_a_ring_flags_its_own_turns(inner: str, defs: str, refused: bool) -> None:
+    """A write to the shared flag inside the inner ring would be the inner
+    ring's and the outer turn's at once; the inner ring names its own.
+
+    red under: drop the nested-flag refusal in typecheck's `Turns` arm."""
+    src = (
+        _game(
+            "  phase p {\n"
+            "    turns t from 0 over all players until stop again go {\n"
+            f"      {inner}\n"
+            "    }\n"
+            "  }",
+            extra_state=_RING_STATE + "  more : Boolean = false",
+        )
+        + defs
+        + "\n"
+    )
+    if not refused:
+        check_dsl(src, "test.cardlang")
+        return
+    with pytest.raises(DiagnosticError, match="its own go-again flag"):
+        check_dsl(src, "test.cardlang")
+

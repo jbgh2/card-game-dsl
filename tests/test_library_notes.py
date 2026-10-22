@@ -981,7 +981,7 @@ NAMED: dict[str, Named] = {
     ),
     "read-of-provided-state": Named(
         ((L._LIB, _lib(L._LIB, "  state { tally : Integer = 0 }")),),
-        _host(body=f"score[0] := number of cards in hand where tally  {_TRICK}"),
+        _host(body=f"score[0] := number of cards in hand[0] where tally  {_TRICK}"),
         "score[0] := number", "card-query predicate must be Boolean, got Integer",
         ((L._LIB, "tally"),),
     ),

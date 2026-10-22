@@ -33,12 +33,9 @@
                 activated by games in context — so the checker validates against
                 the UNION of the forms' published sets, and `state.shed_first`
                 inside a trick phase type-checks. What holds at runtime is that a
-                read with no frame at all is refused, and a `turns` ring ends
-                the just-completed round's window when it opens
-                (tests/test_round_execute.py pins both); a frame an earlier
-                round left survives a lone `offer` or a `repeat until` — whether
-                those should end the window too is open
-                (open-questions/round-state-in-information-states.md).
+                read with no frame at all is refused, and a finished round's
+                window closes at every other decision and at its phase's end
+                (tests/test_round_state_window.py).
                 Nor that the published set is the RIGHT one. Whether the members
                 games reach are the members published is the corpus's answer,
                 given by every `state.` reference in docs/games/*.cardlang and
