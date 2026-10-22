@@ -628,6 +628,11 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_check_role_literal", "max_players"): ClauseRead("library", "_check_role_literal"),
     ("_check_role_literal", "max_teams"): ClauseRead("library", "_check_role_literal"),
     ("_enum_domain", "value_enums"): ClauseRead("library", "_check_enum_literal"),
+    ("_check_rotate", "value_enums"): ClauseRead(
+        "shadowed",
+        reason="a library names no deck value (resolve refuses it in the library's "
+        "text), and a seat direction types alike in every game",
+    ),
     ("_check_enum_literal", "axis_enums"): ClauseRead("library", "_check_enum_literal"),
     ("_check_expr", "family_ranges"): ClauseRead(
         "game_text",
@@ -3540,12 +3545,37 @@ def _all_phases(game: Game) -> Iterator[n.Phase]:
 
 
 def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """An assignment's value fits its target, and its form fits the target's
+    shape: an index needs a keyed variable, `+=`/`-=` on a keyed variable
+    needs one of its keys, and `+=`/`-=` needs an Integer (an `Integer?` reads
+    as its base; adding to its `none` is `execute._apply`'s refusal, a fact of
+    play). Each refusal names the spelling that fits."""
     name = stmt.target.name
     target = env.state_vars.get(name)
     if target is None:
         # Resolve guarantees a write target classifies as a state variable — a binder,
         # a zone and an unknown name are all rejected there — so this is unreachable
         # for a checked game.
+        return
+    if stmt.index is not None and not isinstance(target, TCollection):
+        bag.error(
+            f"`{name}` holds one value, so it takes no index — write "
+            f"`{name} {stmt.op} …`",
+            stmt.span,
+        )
+        return
+    if (
+        stmt.index is None
+        and stmt.op in ("+=", "-=")
+        and isinstance(target, TCollection)
+        and target.key is not None
+    ):
+        per = _type_name(target.key).lower()
+        bag.error(
+            f"`{name}` is one value per {per}, so `{stmt.op}` needs one of them "
+            f"— write `{name}[<{per}>] {stmt.op} …`",
+            stmt.span,
+        )
         return
     if stmt.index is not None and isinstance(target, TCollection):
         if target.key is not None:
@@ -3561,6 +3591,20 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             )
         target = target.element  # an indexed assignment writes one element
     rhs = infer(stmt.value, env)
+    base = target.inner if isinstance(target, TOptional) else target
+    if stmt.op in ("+=", "-=") and not isinstance(base, (TInteger, TAny)):
+        if isinstance(base, TBoolean):
+            fits = f"write `{name} := true` or `{name} := false`"
+        elif isinstance(base, TPlayer):
+            fits = f"a seat moves with `{name} := {name} offset_by left`"
+        else:
+            fits = f"write `{name} := <value>`"
+        bag.error(
+            f"`{name} {stmt.op}` needs an Integer, and `{name}` is "
+            f"{_type_name(target)} — {fits}",
+            stmt.span,
+        )
+        return
     if stmt.op in ("+=", "-="):
         _check_operand(
             stmt.value, rhs, TInteger(), env, bag,
@@ -3574,6 +3618,33 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             stmt.span,
             expected_name=name,
         )
+
+
+def _check_rotate(stmt: n.RotateStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """`rotate` cycles a variable holding one value through values it can
+    hold. Resolve has checked each value names an enum value."""
+    name = stmt.target.name
+    target = env.state_vars.get(name)
+    if target is None:
+        return  # resolve refuses a target that is no state variable
+    if isinstance(target, TCollection) and target.key is not None:
+        per = _type_name(target.key).lower()
+        bag.error(
+            f"`rotate` cycles a variable holding one value, and `{name}` holds "
+            f"one per {per}",
+            stmt.span,
+        )
+        return
+    for value in stmt.values:
+        held = env.value_enums.get(value)
+        if held is not None:
+            _check_operand(
+                n.NameRef(name=value, ref_kind="enum_value", span=stmt.span), held, target, env, bag,
+                f"rotate through `{value}` ({_type_name(held)}), which `{name}` "
+                f"({_type_name(target)}) cannot hold — list values of "
+                f"{_type_name(target)}",
+                stmt.span,
+            )
 
 
 def _check_state_default_type(
@@ -3694,13 +3765,15 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                 f"got {_type_name(pl)}",
                 stmt.span,
             )
+        case n.RotateStmt():
+            _check_rotate(stmt, env, bag)
         case (
-            n.RotateStmt() | n.EachSimultaneous() | n.ForEach()
+            n.EachSimultaneous() | n.ForEach()
             | n.LetStmt() | n.Produce() | n.Produces()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
         ):
             # No statement-level semantics beyond what resolve checks (write
-            # targets, rotate enum values, simultaneous bodies, run arity is
+            # targets, simultaneous bodies, run arity is
             # `_check_stmt_exprs`'s RunStmt arm) and the expression walk covers.
             pass
         case _:
