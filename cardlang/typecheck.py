@@ -532,6 +532,10 @@ class TypeEnv:
     # Owner Guards never see it. Membership (`name in env.directions`) answers "is this
     # a direction domain?".
     directions: Mapping[str, Type] = field(default_factory=dict)
+    # Each zone family indexed by a declared INTEGER position domain -> (the
+    # domain's name, its low end, its high end), so a literal key can be ranged
+    # where the key's type (`TInteger`, by the integer-domain ruling) cannot.
+    family_ranges: Mapping[str, tuple[str, int, int]] = field(default_factory=dict)
     # `Game.content_flavor` and `Game.deck` — the dispatch key and set name for
     # the flavor-aware Owner Guards (decisions.md, "Component sets: cards and pieces");
     # `deck` names the kind in a piece game's card-content diagnostics.
@@ -582,6 +586,7 @@ TYPE_ENV_FIELD_SOURCES: dict[str, Literal["clause", "declaration", "scope", "spl
     "max_teams": "clause",
     "positions": "clause",
     "directions": "clause",
+    "family_ranges": "clause",
     "flavor": "clause",
     "deck": "clause",
     "item_fields": "clause",
@@ -629,6 +634,10 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
         "text), and a seat direction types alike in every game",
     ),
     ("_check_enum_literal", "axis_enums"): ClauseRead("library", "_check_enum_literal"),
+    ("_check_expr", "family_ranges"): ClauseRead(
+        "game_text",
+        reason="a family indexed by a position domain, which a library cannot declare",
+    ),
     ("_library_axis_refusal", "flavor"): ClauseRead("library", "_check_enum_literal"),
     ("_check_expr", "item_fields"): ClauseRead("uses_line", "_library_field_gate"),
     ("_check_expr", "flavor"): ClauseRead(
@@ -1233,6 +1242,12 @@ def _ambient_env(game: Game) -> TypeEnv:
         max_teams=len(game.teams),
         positions=positions,
         directions=_direction_types(game),
+        family_ranges={
+            z.name: (pos.name, pos.lo, pos.hi)
+            for z in game.zones
+            for pos in game.positions
+            if z.index == pos.name and pos.members_named is None
+        },
         flavor=game.content_flavor,
         deck=game.deck,
         item_fields=item_field_table(game),
@@ -3151,6 +3166,19 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f" — got {_type_name(idx_t)}",
                     e.span,
                 )
+                ranged = env.family_ranges.get(obj_ref.name)
+                if (
+                    ranged is not None
+                    and isinstance(e.index, n.IntLit)
+                    and not ranged[1] <= e.index.value <= ranged[2]
+                ):
+                    domain, lo, hi = ranged
+                    bag.error(
+                        f"`{obj_ref.name}[{e.index.value}]` is outside `{domain}`, "
+                        f"which runs {lo}..{hi} — key `{obj_ref.name}` by a member "
+                        f"of `{domain}`",
+                        e.span,
+                    )
         else:
             obj = infer(e.obj, env)
             if not subscriptable(obj):
