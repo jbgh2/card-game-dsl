@@ -5046,10 +5046,18 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
       declare time; for the OpenSpiel target a decision with no actor also has
       no information set to attach to.
 
+    A read of `actor`, or a per-player zone named bare (the acting player's
+    own instance), names no one in a default for the same reason, and is
+    refused beside them.
+
     The arms are three because the domain — `n.Expr` — was swept, not because
     three defects were reported: the `Choose` cell had no witness and was found
     by running every member of the union in default position (the grid in
     `tests/test_state_default_scope.py` carries the outcome per member)."""
+
+    player_families = frozenset(
+        z.name for z in game.zones if z.index is not None and role_of(z.index) is Role.PLAYER
+    )
 
     def declared(
         block: n.StateBlock | None, enclosing: frozenset[str]
@@ -5058,8 +5066,23 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
             return enclosing
         in_scope = enclosing
         for decl in block.decls:
+            keyed = {id(nd.obj) for nd in _walk(decl.default) if isinstance(nd, n.Subscript)}
             for node in _walk(decl.default):
-                if isinstance(node, n.Choose):
+                if (
+                    isinstance(node, n.NameRef)
+                    and node.ref_kind == "zone"
+                    and node.name in player_families
+                    and id(node) not in keyed
+                ):
+                    bag.error(
+                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" "
+                        f"names `{node.name}` bare: a default is evaluated where it is "
+                        f"written, outside any player's turn, so the acting "
+                        f"player's `{node.name}` is no one's. Say whose: "
+                        f"`{node.name}[<player>]`",
+                        node.span or decl.span,
+                    )
+                elif isinstance(node, n.Choose):
                     bag.error(
                         "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
                         f"`choose`: a default is evaluated where it is written, "
@@ -12065,6 +12088,9 @@ class _HiddenReads:
         # How many refusals `_tell` was asked to make.
         self.told = 0
         self.zones = {z.name: z for z in game.zones}
+        self.player_families = frozenset(
+            z.name for z in game.zones if z.index is not None and role_of(z.index) is Role.PLAYER
+        )
         # The families a rule clause's Play Source can be an instance of.
         self.play_sources = frozenset(
             nd.source_zone for nd in _walk(game)
@@ -12846,7 +12872,17 @@ class _HiddenReads:
         in_library = bool(self.library_text) and self.library_text[-1]
         for node, route, answered, entered in self._actor_needs_in(expr, (), in_library=in_library):
             found = True
-            if answered is not None and isinstance(node, n.Choose):
+            if isinstance(node, n.NameRef) and node.ref_kind == "zone" and answered is not None:
+                self._report_unacting_answer(
+                    route, answered, node.span,
+                    f"names `{node.name}` bare (the acting player's own)",
+                    "so it names no player's. Name whose from the parameters the "
+                    "row passes, or read the game's own state",
+                )
+            elif isinstance(node, n.NameRef) and node.ref_kind == "zone":
+                crossing = None if entered is None else _entry_route("call", entered, node.span)
+                self._report_bare_family(node.name, route, node.span, crossing)
+            elif answered is not None and isinstance(node, n.Choose):
                 self._report_unacting_answer(route, answered, node.span)
             elif answered is not None:
                 # Shadows `_check_functions`' call-site pronoun refusal, the
@@ -12879,17 +12915,29 @@ class _HiddenReads:
     ) -> Iterator[
         tuple[n.Choose | n.NameRef, tuple[Said, ...], _Answered | None, _LibraryEntry | None]
     ]:
-        """Each `choose` and each `actor` read `expr` evaluates, with the
+        """Each `choose`, each `actor` read and each per-player zone named
+        bare (the acting seat's own instance) `expr` evaluates, with the
         functions it is reached through; when the route crossed a library's
         call of the game's answer to a Definition Contract, that crossing; and
-        when it left the game's text for a library function, that entry."""
+        when it left the game's text for a library function, that entry. A
+        family a subscript keys names its own instance."""
+        keyed: set[int] = set()
         for node in _child_nodes(expr):
             route = tuple(
                 "function " + _cite_in(self.game, "function", c, f"`{c}`") for c in calls
             )
+            if isinstance(node, n.Subscript):
+                keyed.add(id(node.obj))
             if isinstance(node, n.Choose):
                 yield node, route, answered, entered
             elif isinstance(node, n.NameRef) and node.ref_kind == "pronoun" and node.name == "actor":
+                yield node, route, answered, entered
+            elif (
+                isinstance(node, n.NameRef)
+                and node.ref_kind == "zone"
+                and node.name in self.player_families
+                and id(node) not in keyed
+            ):
                 yield node, route, answered, entered
             elif isinstance(node, n.Call) and node.func in self.functions and node.func not in calls:
                 inner = answered
@@ -12912,29 +12960,60 @@ class _HiddenReads:
                 )
 
     def _report_unacting_answer(
-        self, route: tuple[Said, ...], answered: _Answered, span: Span | None
+        self,
+        route: tuple[Said, ...],
+        answered: _Answered,
+        span: Span | None,
+        does: str = "makes a `choose`",
+        then: str = (
+            "so no one can make the decision. Compute the answer from the "
+            "parameters the row passes, or from the game's own state"
+        ),
     ) -> None:
-        """A `choose` the game's answer to a Definition Contract makes where
-        the library reads it with no player acting: told to the game's author,
-        at the last text the game wrote on the way to it, with the fix the
-        answer can take."""
+        """What the game's answer to a Definition Contract needs an acting
+        player for -- a `choose`, a per-player zone named bare -- where the
+        library reads it with no player acting: told to the game's author, at
+        the last text the game wrote on the way to it, with the fix the answer
+        can take."""
         inner = route[answered.depth:]
         through: Said = " (through " + Sentence.join(", then ", inner) + ")" if inner else ""
         where = _NO_ACTOR_WHERE[self.place]
         message = (
             "function " + _cite_in(self.game, "function", answered.function, f"`{answered.function}`")
-            + " makes a `choose`" + through + ", but "
+            + f" {does}" + through + ", but "
             + cite_library(answered.stamp.library, answered.stamp.row_span)
             + " calls it under its contract "
-            f"" + cite_where(f"`{answered.stamp.row}`", answered.stamp.row_span) + f" where no player is acting ({where}), so no "
-            f"one can make the decision. Compute the answer from the parameters "
-            f"the row passes, or from the game's own state"
+            f"" + cite_where(f"`{answered.stamp.row}`", answered.stamp.row_span) + f" where no player is acting ({where}), {then}"
         )
         at = answered.anchor or span
         key = (message, at)
         if key not in self._reported:
             self._reported.add(key)
             self.bag.error(message, at)
+
+    def _report_bare_family(
+        self, family: str, route: tuple[Said, ...], span: Span | None, crossing: Route | None
+    ) -> None:
+        """A per-player zone named bare where no player is acting: the bare
+        name is the acting seat's own instance, and there is none."""
+        through: Said = " (through " + Sentence.join(", then ", route) + ")" if route else ""
+        where = _NO_ACTOR_WHERE[self.place]
+        binder = (
+            ", or read it under a binder that names who acts (`as <player> { ... }`, "
+            "`for each player p: ...`)"
+            if self.place == _NO_ACTOR_STATEMENT
+            else ""
+        )
+        head = (
+            f"`{family}`" + through + f" is one zone per player, named bare where no "
+            f"player is acting ({where}), so it names no player's"
+        )
+        self._tell(
+            head + f". Say whose: `{family}[<player>]`{binder}",
+            span,
+            route=crossing,
+            for_game=self._for_game(head),
+        )
 
     def _report_no_actor(
         self,
@@ -13332,7 +13411,8 @@ class _HiddenReads:
                 self._outside(stmt.amount, scope, seat)
             self._outside(stmt.source, scope, seat)
             self._outside(stmt.where, filtered, seat)
-            self._outside(stmt.dest, scope, seat)
+            # A `to each` destination names the family whole, every seat's.
+            self._outside(None if stmt.dest_each else stmt.dest, scope, seat)
             return
         if not scope.acting:
             if not stmt.dest_each:
@@ -13340,7 +13420,8 @@ class _HiddenReads:
                 # one `to each` is decided by each receiving seat in turn.
                 self._report_no_actor("a chosen movement", (), stmt.span)
                 return
-            clauses = (stmt.amount, stmt.source, stmt.where, stmt.dest)
+            # The destination is a `to each` family, named whole.
+            clauses = (stmt.amount, stmt.source, stmt.where)
             if any(
                 [self._refuse_unacting_decisions(c, scope) for c in clauses if not isinstance(c, str)]
             ):

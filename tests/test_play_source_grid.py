@@ -475,7 +475,7 @@ def test_a_function_reached_from_no_rule_keeps_its_zone_reading() -> None:
     fn = "function held_count() = number of cards in hand"
     game = _resolve_text(
         game_text("fnfree", source="hand", rules=_rule("R", "demands") + "\n" + fn).replace(
-            "leader := winner", "leader := winner  score[0] += held_count()"
+            "leader := winner", "leader := winner  as 0 { score[0] += held_count() }"
         )
     )
     fdef = next(f for f in game.functions if f.name == "held_count")
