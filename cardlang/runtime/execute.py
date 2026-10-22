@@ -658,7 +658,7 @@ def _assign(stmt: n.AssignStmt, ctx: Ctx) -> None:
     rhs = evaluate(stmt.value, ctx)
     if stmt.index is None:
         name = stmt.target.name
-        new = rhs if stmt.op == ":=" else _apply(stmt.op, ctx.rs.get(name), rhs)
+        new = rhs if stmt.op == ":=" else _apply(stmt.op, ctx.rs.get(name), rhs, name)
         ctx.rs.set(name, new)
     else:
         key = evaluate(stmt.index, ctx)
@@ -676,10 +676,20 @@ def _assign(stmt: n.AssignStmt, ctx: Ctx) -> None:
                 f"declared domain (keys: {sorted(target)}) — the index "
                 f"expression computed a member of no declared seat/team"
             )
-        target[key] = rhs if stmt.op == ":=" else _apply(stmt.op, target[key], rhs)
+        target[key] = (
+            rhs if stmt.op == ":=" else _apply(stmt.op, target[key], rhs, f"{stmt.target.name}[{key!r}]")
+        )
 
 
-def _apply(op: str, current: Any, rhs: Any) -> Any:
+def _apply(op: str, current: Any, rhs: Any, label: str) -> Any:
+    if current is None:
+        # The checker admits an `Integer?` target (`typecheck._check_assign`);
+        # whether it holds `none` when the add runs is a fact of play, so this
+        # is the Owner Guard of that case.
+        raise OwnerGuardError(
+            f"`{label} {op}` adds to `none`: `{label}` holds `none` here — set it "
+            f"(`{label} := 0`) before adding to it"
+        )
     if isinstance(rhs, bool) and op in ("+=", "-="):
         # `evaluate._binop`'s arithmetic guard, for the compound assignment:
         # a Boolean reaching here through the permissive top would add 1 or 0.
