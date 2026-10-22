@@ -261,18 +261,13 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
                         f"subscripted — it has no per-player instances",
                     )
                 if ctx.current_player is None:
-                    # The bare-family actor sugar (`hand` = the acting
-                    # player's hand) read outside any acting context — a phase
-                    # body has no actor. User-reachable (`shuffle hand` in a
-                    # phase body checks clean today), so it fails as an
-                    # Owner Guard with the fix named, not a bare assert. A static Owner Guard needs statement-position
-                    # context (which construct encloses this read) that no
-                    # pass threads today.
-                    raise OwnerGuardError(
+                    # Shadow Guard behind resolve's `_HiddenReads` (a bare
+                    # per-player family where no seat acts) and
+                    # `_check_state_default_scope` (one in a default).
+                    raise ShadowGuardError(
+                        "resolve._HiddenReads",
                         f"'{e.name}' is a per-player zone family read with no "
-                        f"acting player — subscript it (`{e.name}[p]`) or use "
-                        f"it where an actor is bound (a move effect, a `for "
-                        f"each player` body)"
+                        f"acting player — subscript it (`{e.name}[p]`)",
                     )
                 return ctx.rs.zones.instance(e.name, ctx.current_player)
             return ctx.rs.zones.single(e.name)

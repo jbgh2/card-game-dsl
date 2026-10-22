@@ -23,8 +23,15 @@ registry:   the acting-seat scope of `resolve._HiddenReads` (`_ReadScope.acting`
             set by the binders `_seat_rebinding` names; the differentials below
             hold each refused decision against the runtime's own refusal
             (`Ctx.require_actor`) by execution
+            The same positions hold a per-player zone named bare (the
+            acting player's own instance), refused beside them, with a
+            state default's `_check_state_default_scope`'s and a `to each`
+            destination, which names every seat's, as a control.
 does not prove:  the seat a bound trick round's mode trigger reads; the
-            accepted controls prove only that one is bound.
+            accepted controls prove only that one is bound. Nor, for a state
+            default, a mode trigger or a Hosted Poll, the runtime's own
+            refusal of a bare per-player zone: those cells are not run with
+            the static refusal silenced.
 """
 
 from __future__ import annotations
@@ -36,7 +43,7 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.execute import REFUSALS
 
 CHOOSE = "choose integer in 0 .. 1"
@@ -340,3 +347,119 @@ def test_the_same_trigger_in_the_unbound_phase_is_refused() -> None:
     assert moved.count("mode open") == 1 and moved.index("mode open") > moved.index("phase unbound")
     with pytest.raises(DiagnosticError, match="no player is acting"):
         check_dsl(moved, "moved.cardlang")
+
+
+# --- a per-player zone named bare ---------------------------------------------
+#
+# A bare `hand` is the acting player's own hand, the third need beside a
+# decision and an `actor` read: where no player is acting it names no one's.
+
+COUNT = "(number of cards in hand)"
+_BIG_TWO = open("docs/games/big-two.cardlang").read()
+_BIG_TWO_UNTIL = (
+    "              until (any player where hand[player] is empty)\n"
+    "        opened := true\n"
+)
+
+BARE_UNACTING: dict[str, str] = {
+    "phase statement shuffle": _game(body="shuffle hand"),
+    "phase statement count": _game(body=f"score[0] := {COUNT}"),
+    "phase statement move from": _game(body="move all cards from hand to pile"),
+    "phase when": _game(phase_head=f"phase play when {COUNT} > 0"),
+    "phase repeat until": _game(phase_head=f"phase play repeat until {COUNT} is 0"),
+    "before_each": _game(
+        phase_head="phase play repeat until done",
+        pre=f"before_each {{ score[1] += {COUNT} }}",
+        body="done := true",
+    ),
+    "after_each": _game(
+        phase_head="phase play repeat until done",
+        pre=f"after_each {{ score[1] += {COUNT} }}",
+        body="done := true",
+    ),
+    "loser": _game(result=f"loser: if {COUNT} > 0 then 0 else 1"),
+    "function called from a phase statement": _game(
+        body="score[0] := held()", defs=f"function held() = {COUNT}"
+    ),
+    "procedure run from a phase statement": _game(
+        body="run tally()", defs=f"procedure tally() {{ score[0] := {COUNT} }}"
+    ),
+    "mode trigger": _HEARTS.replace(
+        _TRIGGER, f"where action.card.suit is hearts and {COUNT} > 0", 1
+    ),
+    "before asking": _BIG_TWO.replace(
+        _BIG_TWO_UNTIL,
+        "              until (any player where hand[player] is empty)\n"
+        f"              before asking b {{ opened := {COUNT} > 0 }}\n"
+        "        opened := true\n",
+        1,
+    ),
+}
+
+BARE_ACTING: dict[str, str] = {
+    "as": _game(body="as 0 { shuffle hand }"),
+    "for each player": _game(body=f"for each player p: score[p] := {COUNT}"),
+    "offered effect": _game(
+        body="offer to 0 one of [tally]",
+        defs=f"move_type tally {{ effect {{ score[actor] := {COUNT} }} }}",
+    ),
+    "deal to each": _game(body="deal 1 card from deck to each hand"),
+}
+
+
+@pytest.mark.parametrize("position", list(BARE_UNACTING))
+def test_a_bare_per_player_zone_with_no_acting_player_is_refused(position: str) -> None:
+    """Refused at the name, saying whose to write.
+
+    red under: drop the per-player zone member of
+    `_HiddenReads._actor_needs_in`."""
+    src = BARE_UNACTING[position]
+    assert src not in (_HEARTS, _BIG_TWO)
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, f"{position}.cardlang")
+    msg = str(ei.value)
+    assert "named bare where no player is acting" in msg and "`hand[<player>]`" in msg, msg
+
+
+@pytest.mark.parametrize("position", list(BARE_ACTING))
+def test_a_bare_per_player_zone_under_an_acting_binder_checks_clean_and_plays(
+    position: str,
+) -> None:
+    """`deal ... to each hand` names the family whole, every seat's; the
+    others read the acting seat's own.
+
+    red under: judge a `to each` destination as a bare read."""
+    play_game(check_dsl(BARE_ACTING[position], "g.cardlang"), random.Random(0))
+
+
+@pytest.mark.expects_shadow_guard
+@pytest.mark.parametrize(
+    "position", [p for p in BARE_UNACTING if p not in ("mode trigger", "before asking")]
+)
+def test_each_refused_bare_zone_is_one_the_runtime_refuses(
+    position: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With the static refusal silenced, the playout reaches the read and the
+    runtime refuses it, naming the Owner Guard that leaked.
+
+    red under: let `evaluate._name` read a bare per-player family with no
+    acting seat."""
+    monkeypatch.setattr(
+        "cardlang.resolve._HiddenReads._report_bare_family", lambda *a, **k: None
+    )
+    game = check_dsl(BARE_UNACTING[position].replace("game G {", "game Unguarded {", 1), "g.cardlang")
+    with pytest.raises(ShadowGuardError, match="no acting player") as ei:
+        play_game(game, random.Random(0))
+    assert ei.value.leaked == "resolve._HiddenReads"
+
+
+def test_a_state_default_cannot_name_a_per_player_zone_bare() -> None:
+    """A default is evaluated outside any turn (`_check_state_default_scope`,
+    beside its `actor` arm).
+
+    red under: drop the bare-family arm of `_check_state_default_scope`."""
+    src = _game().replace(
+        "done : Boolean = false", f"done : Boolean = false  held : Integer = {COUNT}"
+    )
+    with pytest.raises(DiagnosticError, match="names `hand` bare"):
+        check_dsl(src, "g.cardlang")

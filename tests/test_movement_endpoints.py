@@ -150,13 +150,13 @@ def test_to_each_requires_a_player_indexed_family(body: str, expected: str) -> N
 
 
 def test_zone_shaped_endpoints_still_check() -> None:
-    # Both legal shapes at both positions: a family gather, a subscripted
-    # instance, and the deck singleton.
+    # Both legal shapes at both positions: a family named whole (`to each`),
+    # a subscripted instance, the acting seat's own, and the deck singleton.
     check_dsl(
         _game(
             "deal 1 cards from deck to each hand\n"
             "    for each player q: move all cards from hand[q] to deck\n"
-            "    move all cards from hand to deck"
+            "    as 0 { move all cards from hand to deck }"
         ),
         "probe.cardlang",
     )
