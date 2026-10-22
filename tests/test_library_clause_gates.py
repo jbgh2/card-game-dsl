@@ -167,11 +167,11 @@ class Clauses:
     players: int = 4
     teams: bool = True
     ranking: bool = True
-    card_points: bool = True
     trick_order: bool = False
-    # Off unless the probe reads it: a declared `suit ranking:` nothing reads is
-    # refused in its own right.
+    # Off unless the probe reads it: a declared `suit ranking:` or
+    # `card_points { }` nothing reads is refused in its own right.
     suit_ranking: bool = False
+    card_points: bool = False
 
 
 def _teams_clause(players: int) -> str:
@@ -339,6 +339,7 @@ def _home(member: str) -> Clauses:
         _CARD,
         trick_order=member in TRICK_ORDER_GATED_FUNCS,
         suit_ranking=member in resolve_module._SUIT_RANKING_CALLS,
+        card_points=member in resolve_module._CARD_POINTS_CALLS,
     )
 
 
