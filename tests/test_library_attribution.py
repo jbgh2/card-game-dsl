@@ -204,6 +204,7 @@ _UNROUTED: dict[str, str] = {
     "resolve._HiddenReads.reads_of": "game text",
     "resolve._report_recursion": "game text",
     "resolve._check_unoffered_move_types": "game text",
+    "resolve._inner_ring_sharing": "certificate",
     "typecheck._check_contracted_results": "game text",
     "resolve._check_functions": "certificate",
     "resolve._check_implicit_pools": "certificate",

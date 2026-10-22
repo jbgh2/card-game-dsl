@@ -126,6 +126,7 @@ def _choose_operand(label: str, expr: n.Expr, ctx: Ctx) -> int:
 
 
 def _choose(e: n.Choose, ctx: Ctx) -> Any:
+    ctx.rs.end_round_window()
     assert e.domain == "integer"  # `choose integer` is the grammar's only choose form
     lo = _choose_operand("lower bound", e.lo, ctx)
     hi = _choose_operand("upper bound", e.hi, ctx)
