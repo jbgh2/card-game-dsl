@@ -28,7 +28,8 @@ domain:     four axes.
             runs at the offering site, so it counts for the phase that offers.
             A trigger's decisions are judged against every trick round that
             reads it.
-            A `-X` removal reaches what its ancestors add.
+            A `-X` removal reaches what its ancestors add, and takes every
+            entry of its rule.
 registry:   the rule set and live exits: `cardlang.runtime.active_rules`; the
             reset: `cardlang.runtime.driver.run_phase`; the refusal:
             `cardlang.resolve._check_rules_reach_a_trick` over
@@ -168,6 +169,15 @@ def test_a_nested_trick_phase_inherits_its_parent_s_rules(case: str) -> None:
         f"    {parent}\n{DEAL}\n    phase tricks {{\n      {child}\n{TRICKS}\n    }}"
     )
     assert {asked for asked, _f, _p in _play(src)} == expected
+
+
+def test_a_removal_takes_every_entry_of_its_rule() -> None:
+    """`-X` leaves no `X` behind, however many entries put it there.
+
+    red under: remove only the first entry in
+    `runtime/active_rules._apply_ref`."""
+    src = _game(f"    active_rules: [MustFollow, + MustFollow, - MustFollow]\n{DEAL}\n{TRICKS}")
+    assert {asked for asked, _f, _p in _play(src)} == {()}
 
 
 def test_inheritance_reaches_through_two_levels() -> None:
@@ -410,6 +420,17 @@ def test_a_trigger_decision_is_refused_wherever_the_reading_trick_stands(nested:
     with pytest.raises(DiagnosticError) as excinfo:
         check_dsl(src, "reach.cardlang")
     assert "no player is acting" in str(excinfo.value)
+
+
+def test_a_trigger_read_inside_an_offered_effect_has_its_decider() -> None:
+    """A round in an offered move type's effect runs with the offered seat
+    acting, so a `choose` in a trigger it reads is that seat's: accepted, and
+    it plays."""
+    src = _game(
+        TRIGGER_WITH_A_DECISION
+        + f"{DEAL}\n    repeat until (all players where hand[player] is empty) {{ offer to ldr one of [go] }}"
+    ) + GO
+    _play(src)
 
 
 # --- a removal reaches what the ancestors add -------------------------------------

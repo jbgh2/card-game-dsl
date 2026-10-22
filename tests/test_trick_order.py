@@ -909,7 +909,9 @@ def _partition_cells() -> list[Cell]:
     # Subscripted: a rule clause's bare `hand` needs a trick round to read.
     # An activated rule stands beside the trick round that asks it, and beside
     # a block that round's winner reads the block too, so the rule is never the
-    # block's only reader.
+    # block's only reader. A rule read alone is held by the never-activated
+    # cell below (the game's own rule) and by tests/test_suit_ranking.py's
+    # activated library rule.
     _RULE = ("rule OnlyTrumps {\n"
              "  constrains: play_to_trick\n"
              "  demands: cards in hand[actor] where is_trump(card)\n"
