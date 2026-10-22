@@ -9,7 +9,8 @@ domain:     position {phase statement, phase `when`, phase `repeat until`,
             `before_each`, `after_each`, `loser:`, a function called from
             `loser:`, a procedure run from a phase statement, an `if` in a
             phase, an `offer`'s player, a `turns` leader, a mode's
-            `transition_to` trigger where a trick round of its own phase, and a
+            `transition_to` trigger where a trick round of its own phase's
+            subtree, and a
             Delegated Play helper where any trick round, stands outside any
             binder, a state default} x need {`choose
             integer`, `chosen` movement, `actor`} where the position holds it

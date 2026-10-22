@@ -225,7 +225,8 @@ def test_ordering_accepts_gradual_any() -> None:
         _game(
             "for each player q: score[q] := 1\n"
             "    mode m { transition_to: p when play_to_trick where action.card_count > 3 }\n"
-            "    mode p { }"
+            "    mode p { }\n"
+            "    round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
         )
     )
 
@@ -317,7 +318,8 @@ def _action_field_game(expr: str) -> str:
     return _game(
         "for each player q: score[q] := 1\n"
         f"    mode m {{ transition_to: p when play_to_trick where {expr} }}\n"
-        "    mode p {{ }}".replace("{{", "{").replace("}}", "}")
+        "    mode p { }\n"
+        "    round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
     )
 
 
@@ -402,7 +404,8 @@ def test_membership_accepts_gradual_any_collection() -> None:
         _game(
             "for each player q: score[q] := 1\n"
             "    mode m { transition_to: p when play_to_trick where action.card in [action.card] }\n"
-            "    mode p { }"
+            "    mode p { }\n"
+            "    round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
         )
     )
 

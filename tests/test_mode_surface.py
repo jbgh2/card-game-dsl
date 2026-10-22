@@ -237,6 +237,15 @@ def test_mode_placement(container: str) -> None:
 # --------------------------------------------------------------------------
 
 
+# One trick in the modes' own phase: a mode no trick round asks is refused
+# (tests/test_rules_reach_the_round.py), so a shape judged on its modes alone
+# stands beside a round that reads them.
+_A_TRICK = (
+    "    round play_to_trick from ldr over all players source hand into pile\n"
+    "          winner highest_of_led_suit"
+)
+
+
 def _role_game(source: bool, target: bool) -> str:
     """A phase holding mode `m` with the requested role, plus the siblings
     needed to give it that role and nothing more."""
@@ -247,7 +256,7 @@ def _role_game(source: bool, target: bool) -> str:
     if target:
         # A sibling naming `m` is what makes `m` a target.
         modes.append("mode feeder { transition_to: m when play_to_trick }")
-    return _game("\n".join(f"    {line}" for line in modes))
+    return _game("\n".join(f"    {line}" for line in modes) + "\n" + _A_TRICK)
 
 
 @pytest.mark.parametrize(("source", "target"), mode_roles())
@@ -328,7 +337,7 @@ def test_mode_set_shape(shape: str) -> None:
     fired and the condition simply did not end.
     """
     _require_construct_exists()
-    src = _game("\n".join(f"    {line}" for line in _SET_SOURCE[shape]))
+    src = _game("\n".join(f"    {line}" for line in _SET_SOURCE[shape]) + "\n" + _A_TRICK)
     if shape in _SET_ACCEPTS:
         check_dsl(src, "mini.cardlang")
         return
@@ -401,7 +410,7 @@ def test_transition_predicate_is_typechecked_inside_a_mode() -> None:
     src = _game(
         "    mode m { transition_to: after when play_to_trick\n"
         "             where action.card.nosuch is hearts }\n"
-        "    mode after { }"
+        "    mode after { }\n" + _A_TRICK
     )
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
@@ -423,7 +432,7 @@ def test_the_role_wall_reaches_every_nesting_depth(depth: int) -> None:
     not the games: this grid's other cells all sit at depth 1, while hearts and
     spades declare their modes at depth 3.
     """
-    body = "    mode orphan { active_rules: [MustFollow] }"
+    body = "    mode orphan { active_rules: [MustFollow] }\n" + _A_TRICK
     for level in range(depth - 1):
         body = f"    phase nest{level} {{\n  {body}\n    }}"
     with pytest.raises(DiagnosticError) as ei:
@@ -447,9 +456,9 @@ def _play(src: str, seeds: range) -> list[tuple[str, ...]]:
     seen: list[tuple[str, ...]] = []
     real = ph.compute_active_rules
 
-    def spy(phase, rs):  # type: ignore[no-untyped-def]
-        out = real(phase, rs)
-        if phase is not None and phase.name == "root":
+    def spy(chain, rs):  # type: ignore[no-untyped-def]
+        out = real(chain, rs)
+        if chain and chain[-1].name == "root":
             fired = tuple(sorted(rs.fired_transitions))
             if fired not in seen:
                 seen.append(fired)
@@ -530,10 +539,10 @@ def test_a_fan_out_reaches_exactly_one_of_its_targets(
 def test_a_mode_name_is_unique_game_wide_not_merely_per_phase() -> None:
     """Two phases may not both declare a `done`.
 
-    The runtime keys reached transitions by BARE mode name in one set that is
-    cleared per hand, not per phase — so a same-named mode in another phase
-    reads the first phase's transition as its own and starts life in its
-    "after" mode. Uniqueness is game-wide precisely because the runtime's key
+    The runtime keys reached transitions by BARE mode name in one set, and a
+    phase's entry discards only its own modes' names — so a same-named mode in
+    another phase reads the first phase's transition as its own and starts
+    life in its "after" mode. Uniqueness is game-wide precisely because the runtime's key
     is, which is the same reason `check("phase", …)` walks the whole game.
 
     red under: scope `check("mode", modes)`'s collection to one phase's items.
@@ -544,6 +553,7 @@ def test_a_mode_name_is_unique_game_wide_not_merely_per_phase() -> None:
         "    phase later {\n"
         "      mode unseen { transition_to: done when play_to_trick }\n"
         "      mode done { }\n"
+        "  " + _A_TRICK + "\n"
         "    }"
     )
     with pytest.raises(DiagnosticError) as ei:
@@ -557,7 +567,7 @@ def test_two_sibling_modes_may_not_share_a_name() -> None:
     src = _game(
         "    mode fresh { transition_to: done when play_to_trick }\n"
         "    mode done { }\n"
-        "    mode done { active_rules: [MustFollow] }"
+        "    mode done { active_rules: [MustFollow] }\n" + _A_TRICK
     )
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")

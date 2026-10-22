@@ -81,8 +81,25 @@ def test_non_positive_max_length_is_a_diagnostic() -> None:
     assert "must be a positive integer" in e.value.diagnostic.message
 
 
+# A phase's rules and modes stand beside a trick round that asks them: one no
+# trick round asks is refused (tests/test_rules_reach_the_round.py).
+_TRICK = (
+    "    round play_to_trick from 0 over all players source hand into pile "
+    "winner highest_of_led_suit\n"
+)
+
+
+def _tricked(dsl: str) -> str:
+    return dsl.replace(
+        "  zones { hand[player] : Hand<player> }\n",
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  zones { hand[player] : Hand<player>  pile : TrickPile }\n",
+        1,
+    )
+
+
 def test_undefined_rule_in_active_rules() -> None:
-    dsl = _game("  phase p { active_rules: [Nonexistent] }")
+    dsl = _tricked(_game("  phase p {\n    active_rules: [Nonexistent]\n" + _TRICK + "  }"))
     with pytest.raises(DiagnosticError) as e:
         _resolve(dsl)
     assert "undefined rule 'Nonexistent'" in e.value.diagnostic.message
@@ -96,23 +113,23 @@ def test_unknown_move_type_in_legal_moves() -> None:
 
 
 def test_transition_target_must_be_sibling() -> None:
-    dsl = _game(
+    dsl = _tricked(_game(
         "  phase play {\n"
-        "    mode a { transition_to: nowhere when play_to_trick }\n"
+        "    mode a { transition_to: nowhere when play_to_trick }\n" + _TRICK +
         "  }"
-    )
+    ))
     with pytest.raises(DiagnosticError) as e:
         _resolve(dsl)
     assert "transition_to target 'nowhere'" in e.value.diagnostic.message
 
 
 def test_transition_to_real_sibling_resolves() -> None:
-    dsl = _game(
+    dsl = _tricked(_game(
         "  phase play {\n"
         "    mode a { transition_to: b when play_to_trick }\n"
-        "    mode b { }\n"
+        "    mode b { }\n" + _TRICK +
         "  }"
-    )
+    ))
     _resolve(dsl)  # no error
 
 

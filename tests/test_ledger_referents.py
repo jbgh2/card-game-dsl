@@ -1090,6 +1090,7 @@ def _census() -> Census:
 CENSUS_RESIDUE: dict[str, str] = {
     "__init__": "the dunder discussed as prose; collides with the `__init__` stem",
     "trick_order": "the DSL block and the mechanic; collides with a module stem",
+    "active_rules": "the DSL clause; collides with the `runtime/active_rules` module stem",
 }
 
 

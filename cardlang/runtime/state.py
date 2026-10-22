@@ -365,7 +365,9 @@ class RuntimeState:
         # Guards in cardlang/stdlib/hosted_poll.py's docstring refuse what the
         # body may not execute.
         self.hosting: bool = False
-        self.fired_transitions: set[str] = set()  # transition targets reached this iteration
+        # Mode transition targets reached since the phase declaring each was
+        # entered (`driver.run_phase` discards a phase's own on entry).
+        self.fired_transitions: set[str] = set()
         self.rule_index: dict[str, n.RuleDef] = {}  # rule name -> definition
         self.move_type_index: dict[str, n.MoveTypeDef] = {}  # name -> definition
         self.function_index: dict[str, n.FunctionDef] = {}  # function name -> definition
@@ -492,6 +494,9 @@ class Ctx:
     locals: dict[str, Any] = field(default_factory=dict)
     current_player: Player | None = None
     current_phase: n.Phase | None = None
+    # The phases enclosing the current one, outermost first, ending with it:
+    # the chain a trick round's rules and modes are built down.
+    phase_chain: tuple[n.Phase, ...] = ()
     winner: Player | None = None
     action: Move | None = None
     active_rules: tuple[n.RuleDef, ...] = ()
@@ -571,7 +576,7 @@ class Ctx:
         return self.current_player
 
     def in_phase(self, phase: n.Phase) -> Ctx:
-        return self.derive(current_phase=phase)
+        return self.derive(current_phase=phase, phase_chain=self.phase_chain + (phase,))
 
     def with_winner(self, player: Player) -> Ctx:
         return self.derive(winner=player)

@@ -4467,6 +4467,7 @@ def resolve(game: n.Game) -> n.Game:
         _resolve_rule(rule, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
     _check_rule_removes(game.phases, known_rule_names, bag)
+    _check_rules_reach_a_trick(game, bag)
 
     # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
     # (`any cel where square[cell] …`) changes the binder name, so the body's
@@ -4974,21 +4975,27 @@ def _instantiate_rules(
 
 
 def _check_rule_removes(
-    phases: tuple[n.Phase, ...], rules: Mapping[str, n.RuleDef], bag: DiagnosticBag
+    phases: tuple[n.Phase, ...],
+    rules: Mapping[str, n.RuleDef],
+    bag: DiagnosticBag,
+    inherited: frozenset[str] = frozenset(),
 ) -> None:
-    """`-X` remove reachability, over a phase and its modes.
+    """`-X` remove reachability, over a phase, its modes and its sub-phases.
 
     `-X` and (unsupported today) `override X` can never instantiate a rule
     (`_instantiate_rules`'s docstring) — they only resolve X by NAME against a
     rule a `plain`/`add` reference already activated. A reference to a name no
     `plain`/`add` ever activates in the scope the runtime actually consults is
     a structural no-op forever: `runtime/active_rules.py`'s `compute_active_rules`
-    computes one phase's active set from exactly two sources — that phase's
-    OWN `active_rules:` entries (applied unconditionally, in the list's own
-    order), and, layered on top, each of its currently-active MODES. This check
-    mirrors that exact two-source shape: a `remove` inside a phase's own list
-    validates against that same list; a `remove` inside a mode validates
-    against its phase's list UNION its own.
+    builds the set down the chain of enclosing phases, each starting from its
+    parent's unconditional set (or from nothing when its own entries hold a
+    plain one), applying its OWN `active_rules:` entries, and layering its
+    currently-active MODES on top. This check mirrors that shape: a `remove`
+    inside a phase's own list validates against what the phase inherits UNION
+    its own list; a `remove` inside a mode validates against that UNION the
+    mode's own. What a phase hands down is what its own list leaves
+    unconditionally — its modes' deltas are conditional, so a sub-phase's
+    `-X` of a mode's `+X` is refused for the reason a sibling mode's is.
 
     It deliberately does NOT widen the scope to sibling modes. Modes are
     independent conditions, so two of them may hold at once and one's `+X`
@@ -5003,7 +5010,8 @@ def _check_rule_removes(
         own_refs = [
             ref for item in phase.items if isinstance(item, n.ActiveRules) for ref in item.refs
         ]
-        own_added = {r.name for r in own_refs if r.delta in ("plain", "add")}
+        base = frozenset() if any(r.delta == "plain" for r in own_refs) else inherited
+        own_added = set(base) | {r.name for r in own_refs if r.delta in ("plain", "add")}
         _validate_removes(own_refs, own_added, rules, bag)
 
         for mode in (i for i in phase.items if isinstance(i, n.Mode)):
@@ -5011,8 +5019,65 @@ def _check_rule_removes(
             cluster_added = own_added | {r.name for r in mode_refs if r.delta in ("plain", "add")}
             _validate_removes(mode_refs, cluster_added, rules, bag)
 
+        handed_down = frozenset(own_added - {r.name for r in own_refs if r.delta == "remove"})
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
-        _check_rule_removes(children, rules, bag)
+        _check_rule_removes(children, rules, bag, handed_down)
+
+
+def _reaches_a_trick_round(
+    node: object, move_types: Mapping[str, n.MoveTypeDef], followed: set[str]
+) -> bool:
+    """Whether a trick round runs anywhere `node` reaches: in its own subtree,
+    or in the effect of a move type an offer in it puts in play, followed
+    through offers within offers. A move type's effect runs at the site that
+    offers it, so a round there is asked with the offering phase's rules.
+    `legal_moves:` is configuration nothing runs, so it offers nothing here."""
+    for nd in _walk(node):
+        if isinstance(nd, n.TrickRound):
+            return True
+        for (cls, field_name), puts_in_play in _MOVE_TYPE_SLOT_OFFERS.items():
+            if not puts_in_play or cls is n.LegalMoves or not isinstance(nd, cls):
+                continue
+            for name in slot_strings(nd, field_name):
+                if name in move_types and name not in followed:
+                    followed.add(name)
+                    if _reaches_a_trick_round(move_types[name], move_types, followed):
+                        return True
+    return False
+
+
+def _check_rules_reach_a_trick(game: n.Game, bag: DiagnosticBag) -> None:
+    """A phase's `active_rules:` and modes are asked only by a trick round: a
+    rule at its card decision, a mode's condition by its plays
+    (`runtime/active_rules.py`). The rounds that ask them are the ones the
+    phase's subtree runs, nested phases included, since a sub-phase builds its
+    set on its parent's. A phase holding either with no trick round in reach
+    is refused, naming the holder: its rules would never apply. A climbing
+    round asks no rule, so it does not count."""
+    move_types = {m.name: m for m in game.move_types}
+    for phase in (nd for nd in _walk(game) if isinstance(nd, n.Phase)):
+        slots = [
+            item for item in phase.items if isinstance(item, n.ActiveRules) and item.refs
+        ]
+        modes = [item for item in phase.items if isinstance(item, n.Mode)]
+        if not (slots or modes) or _reaches_a_trick_round(phase, move_types, set()):
+            continue
+        holds: list[Said] = []
+        if slots:
+            holds.append("turns on rules with `active_rules:`")
+        if modes:
+            names = Sentence.join(", ", (cite_named(m, f"'{m.name}'") for m in modes))
+            holds.append(f"declares {'mode' if len(modes) == 1 else 'modes'} " + names)
+        bag.error(
+            f"phase '{phase.name}' " + Sentence.join(" and ", holds) + ", but no trick round "
+            f"runs in it or in a phase inside it: a rule is asked, and a mode's "
+            f"condition changes, only when a trick round offers a card (`round "
+            f"<move> from ... source ... into ...`), so none of it would ever "
+            f"apply — move it to the phase that runs the trick round, or, for a "
+            f"trick played with chosen moves, filter the move instead (`where "
+            f"follows_lead(card, <pile>)`)",
+            (slots[0] if slots else modes[0]).span,
+        )
 
 
 def _validate_removes(
@@ -5027,8 +5092,8 @@ def _validate_removes(
 
             bag.error(
                 named(f"`-{ref.name}`") + " removes a rule that is never added in scope "
-                "here (this phase's own `active_rules:`, or one of its "
-                "mode's) — add " + named(f"`{ref.name}`") + " or " + named(f"`+{ref.name}`")
+                "here (this phase's own `active_rules:`, an enclosing phase's, or "
+                "one of this phase's modes) — add " + named(f"`{ref.name}`") + " or " + named(f"`+{ref.name}`")
                 + " there, or delete this removal",
                 ref.span,
             )
@@ -6614,9 +6679,10 @@ def _check_play_source(
 
     - A zone named `hand` that is not a family kept per player, or a state
       variable named `hand`: the rule could never read it by that name.
-    - A game that runs no trick round: a rule is asked only at a trick
-      round's card decision, so it would never apply. A climbing round binds
-      no rule.
+    - A game that runs no trick round, for a rule no phase activates: a rule
+      is asked only at a trick round's card decision, so it would never apply.
+      A climbing round binds no rule. An activated rule is refused at its
+      activation (`_check_rules_reach_a_trick`).
     - A function a rule clause reaches, transitively, reading bare `hand` or
       a trick round's source family, whether or not the clauses themselves
       read `hand`: a function body runs in its own scope, where the Play
@@ -6755,36 +6821,24 @@ def _check_play_source(
                 ),
             )
     if not sources:
-        activated: dict[str, Span | None] = {}
-        for nd in _walk(game):
-            if isinstance(nd, n.ActiveRules):
-                for ref in nd.refs:
-                    activated.setdefault(ref.name, ref.span)
+        activated = _activated_rule_names(game)
         for rule in reading:
-            said = (
+            # Shadows `_check_rules_reach_a_trick`, the Owner Guard of an
+            # activation no trick round asks, which refuses every activating
+            # phase of a game with no trick round at the activation itself. A
+            # library's rule is spliced in only when activated, so what is left
+            # is a rule of the game's own that no phase activates.
+            if rule.name in activated:
+                continue
+            bag.error(
                 "rule " + cite_named(rule, f"'{rule.name}'")
                 + f" reads `{PLAY_SOURCE_NAME}`, the cards the "
                 f"player on turn plays to a trick, but this game plays no trick "
                 f"round (`round <move> from ... source ... into ...`); a rule is "
                 f"asked only when a trick round offers a card, so it would "
-                f"never apply — "
-            )
-            if rule.name in own_rules:
-                bag.error(
-                    said + f"play the hand with a trick round, or delete rule " + cite_named(rule, f"'{rule.name}'"),
-                    rule.span,
-                )
-                continue
-            # A rule the game activates from a library, judged by the game's
-            # rounds: the activation is the crossing.
-            library = rule.origin.library if rule.origin is not None else ""
-            bag.error(
-                said + f"a game with no trick round cannot ask rule " + cite_named(rule, f"'{rule.name}'"),
+                f"never apply — play the hand with a trick round, or delete rule "
+                + cite_named(rule, f"'{rule.name}'"),
                 rule.span,
-                route=Route(
-                    "activation", activated.get(rule.name, rule.span), library, rule.name
-                ),
-                for_game=said + f"take " + cite_named(rule, f"'{rule.name}'") + f" out of `active_rules:`",
             )
 
 
@@ -7317,14 +7371,15 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     check("phase", phases)
     # Modes are collected GAME-WIDE, not per phase, for the same reason phases
     # are: the runtime keys reached transitions by bare mode name in one
-    # `RuntimeState.fired_transitions` set, and that set is cleared per
-    # ITERATION of a `repeat until`-qualified phase — never on entering a
-    # phase. A name reached under one phase is therefore still present when a
-    # later one runs. Two phases each declaring a `done` would share that key —
-    # one phase's transition would put the other phase straight into its
-    # "after" mode, whose rules then apply from the start and whose "before"
-    # mode never holds at all. Uniqueness here is what lets the runtime keep
-    # using a bare name, so the checker's scope and the runtime's agree.
+    # `RuntimeState.fired_transitions` set, and a phase's entry discards only
+    # its own modes' names. A name reached under one phase is therefore still
+    # present while another runs, and a nested trick reads every enclosing
+    # phase's modes at once. Two phases each declaring a `done` would share
+    # that key — one phase's transition would put the other phase straight into
+    # its "after" mode, whose rules then apply from the start and whose
+    # "before" mode never holds at all. Uniqueness here is what lets the
+    # runtime keep using a bare name, so the checker's scope and the runtime's
+    # agree.
     check("mode", modes)
 
 
@@ -12929,10 +12984,10 @@ class _HiddenReads:
     def _judge_trick_context_positions(self) -> None:
         """A mode's `transition_to` trigger and a Delegated Play helper's body
         are evaluated by a trick round, in the round statement's context. A
-        trigger is read by the trick rounds of its own phase only
-        (`active_rules.active_mode_exits`), so a seat acts there where each of
-        them stands under a binder that names one; a helper is read by every
-        trick round of the game."""
+        trigger is read by the trick rounds of its own phase's subtree
+        (`active_rules.active_mode_exits` walks the round's chain of enclosing
+        phases), so a seat acts there where each of them stands under a binder
+        that names one; a helper is read by every trick round of the game."""
         self.place = _NO_ACTOR_ROUND
         for phase in (nd for nd in _walk(self.game) if isinstance(nd, n.Phase)):
             if all(acting for at, acting in self.trick_rounds_acting if at == id(phase)):
@@ -13347,8 +13402,10 @@ class _HiddenReads:
             case n.Offer():
                 self._outside(stmt.player, scope, seat)
             case n.TrickRound():
-                if self.phase_stack:
-                    self.trick_rounds_acting.append((self.phase_stack[-1], scope.acting))
+                # Every enclosing phase's modes are read by this round.
+                self.trick_rounds_acting.extend(
+                    (phase, scope.acting) for phase in self.phase_stack
+                )
                 self._outside(stmt.leader, scope, seat)
                 self._outside(stmt.participants, scope, seat)
                 self._outside(stmt.trump, scope, seat)
