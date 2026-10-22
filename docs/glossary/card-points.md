@@ -1,6 +1,6 @@
 ---
 term: Card Points
-definition: The per-rank points a game assigns its cards, declared by the game's `card_points { }` clause (rank-keyed rows, optional `else:` row; unlisted ranks read 0) and read by the `card_points(card)` Builtin and the driver's card-point census. One source — a deck carries composition only, never points. Never bare "value(s)" (reserved).
+definition: The per-rank points a game assigns its cards, declared by the game's `card_points { }` clause (rank-keyed rows, optional `else:` row; unlisted ranks read 0) and read by the `card_points(card)` Builtin, its one reader: a table no call reads is refused, and the driver's card-point census totals it as an instrument, never as a reader. One source — a deck carries composition only, never points. Never bare "value(s)" (reserved).
 layer: kernel
 status: canonical
 reserved: false

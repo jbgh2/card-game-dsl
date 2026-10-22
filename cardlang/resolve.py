@@ -122,7 +122,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               the board — refused on the game's ``uses`` line
               (``_check_library_clause_gates``) before the splice, so the
               gates downstream meet it only as its Shadow Guards. Each row's
-              test is the one its gate asks. A library rule the game does not
+              test is the one its gate asks, and each row states the clause it
+              gates and its role (``_ClauseGate.clause``, ``.role``). A
+              library rule the game does not
               activate is not brought in, and is not judged against the game;
               nor is a library ``check_library_alone`` refuses, whose own
               author speaks first and alone.
@@ -130,13 +132,21 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               a ``round``'s query slot, refused to the library's author
               (``_check_library_encapsulation``) before the splice; the
               slot registries are ``_ROUND_QUERY_REGISTRIES``, which
-              ``_validate_refs`` reads for every round. And a named trump nobody
-              reads: a game-level ``trump:`` that is not a suit of the deck
-              or that no trick round inherits, and a round ``trump`` clause
-              on a winner whose body reads no trump
-              (``_resolve_trump``, the winner-slot arm of
-              ``_validate_refs``; the partition is
-              ``TRUMP_READING_WINNERS``). The round clause's TYPE (``Suit?``)
+              ``_validate_refs`` reads for every round. And a game-level
+              ``trump:`` that is not a suit of the deck (``_resolve_trump``),
+              and a round ``trump`` clause on a winner whose body reads no
+              trump (the winner-slot arm of ``_validate_refs``; the
+              partition is ``TRUMP_READING_WINNERS``). And a game clause
+              some ``_CLAUSE_GATES`` row reads (``role == "reader"``),
+              written and refused by no Owner Guard of its own, that nothing
+              in the written text -- the game's own text, every spliced
+              definition and provided declaration, every activated library
+              or stdlib rule, the clause's own body excluded -- meets with
+              any of its reader rows' tests (``_check_unread_clauses``); an
+              instrument read (the driver's card census, the OpenSpiel
+              ranked policy's trump fallback) is no reader. Typecheck may
+              therefore assume every reader clause it meets is read by
+              written text. The round clause's TYPE (``Suit?``)
               is typecheck's (``_check_round_trump``); its presence against
               its winner is settled here, with the winner namespace. And a
               ``winner:`` target that is not a per-member score — unindexed,
@@ -304,7 +314,7 @@ Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass, replace
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from typing import (
     Literal,
     Protocol,
@@ -1365,15 +1375,6 @@ def _closure_steps(
     return steps
 
 
-def _reachable_nodes(game: n.Game) -> Iterator[object]:
-    """Every AST node the game can actually reach: the phase bodies, plus the
-    definition bodies something reachable names. The counterpart of `_walk` for
-    a guard whose question is "does this RUN", not "is this written"."""
-    for phase in game.phases:
-        yield from _walk(phase)
-    for container in _reachable_definitions(game).values():
-        yield from _walk(container)
-
 
 @dataclass(frozen=True)
 class _StateClaims:
@@ -1604,6 +1605,11 @@ def check_library_alone(library: n.Library, bag: DiagnosticBag) -> None:
         _refuse_play_source_params(rule, bag)
 
 
+# What a `_CLAUSE_GATES` row's construct is to the clause it gates
+# (`_ClauseGate.role`).
+ClauseRole = Literal["reader", "engine_read", "beside"]
+
+
 @dataclass(frozen=True)
 class _ClauseGate:
     """A game clause some constructs need, or are refused beside.
@@ -1619,7 +1625,15 @@ class _ClauseGate:
     than a request for a clause the game already has. `verb` and `reads` say
     what the library does with what `needs` names ("calls `x`, which reads
     ..."), and `lacks` and `fix` say what the game has instead and what to
-    write."""
+    write.
+
+    `clause` names the `n.Game` field the row gates on, and `role` says what
+    the row's construct is to that clause: a `reader` is a construct the
+    clause exists for, so a clause no construct of any of its reader rows
+    meets is read by nothing (`_check_unread_clauses`); an `engine_read`
+    clause is read by the engine whatever the text writes; a `beside` row
+    refuses a construct next to a clause it does not read. Both are
+    required, so a row cannot join the table unclassified."""
 
     needs: Callable[[object, n.Game], tuple[Said, ...]]
     unmet: Callable[[n.Game], bool]
@@ -1628,6 +1642,8 @@ class _ClauseGate:
     lacks: Callable[[n.Game], str]
     fix: Callable[[n.Game], str]
     members: frozenset[str] = frozenset()
+    clause: str = field(kw_only=True)
+    role: ClauseRole = field(kw_only=True)
 
 
 def _builtin_gate(
@@ -1636,6 +1652,9 @@ def _builtin_gate(
     reads: str,
     lacks: Callable[[n.Game], str],
     fix: Callable[[n.Game], str],
+    *,
+    clause: str,
+    role: ClauseRole,
 ) -> _ClauseGate:
     """A row whose test is a call to one of the gate's Builtins."""
     return _ClauseGate(
@@ -1648,6 +1667,8 @@ def _builtin_gate(
         lacks=lacks,
         fix=fix,
         members=members,
+        clause=clause,
+        role=role,
     )
 
 
@@ -1817,6 +1838,8 @@ _CARD_CONTENT_GATE = _ClauseGate(
     "read a deck card's content",
     lambda g: _PIECES_LACK,
     lambda g: _PIECES_FIX,
+    clause="deck",
+    role="engine_read",
 )
 _TRICK_ORDER_READING_GATE = _ClauseGate(
     _trick_order_reading_slots,
@@ -1825,6 +1848,8 @@ _TRICK_ORDER_READING_GATE = _ClauseGate(
     "read the game's `trick_order { }` block",
     lambda g: "this game declares none",
     lambda g: "declare one",
+    clause="trick_order",
+    role="reader",
 )
 _TRUMP_STATED_GATE = _ClauseGate(
     _unstated_trump_slots,
@@ -1833,6 +1858,8 @@ _TRUMP_STATED_GATE = _ClauseGate(
     "read the game's trump",
     lambda g: "this game states none",
     lambda g: "state it with `trump: <suit>`",
+    clause="trump",
+    role="reader",
 )
 _TRICK_ORDER_REPLACED_GATE = _ClauseGate(
     _trick_order_replaced_slots,
@@ -1841,6 +1868,8 @@ _TRICK_ORDER_REPLACED_GATE = _ClauseGate(
     "carry the trump and card order a `trick_order { }` block replaces",
     lambda g: "this game declares a `trick_order { }` block",
     lambda g: _TRICK_ORDER_FIX,
+    clause="trick_order",
+    role="beside",
 )
 _TEAM_RANGE_GATE = _ClauseGate(
     _team_ranges,
@@ -1849,6 +1878,8 @@ _TEAM_RANGE_GATE = _ClauseGate(
     "range over the game's teams",
     lambda g: _NO_TEAMS,
     _teams_fix,
+    clause="teams",
+    role="engine_read",
 )
 _TEAM_STATE_GATE = _ClauseGate(
     _team_keyed_state,
@@ -1857,6 +1888,8 @@ _TEAM_STATE_GATE = _ClauseGate(
     "key state by the game's teams",
     lambda g: _NO_TEAMS,
     _teams_fix,
+    clause="teams",
+    role="engine_read",
 )
 
 
@@ -1882,6 +1915,8 @@ _CELL_RANGE_GATE = _ClauseGate(
     "range over the board's cells",
     lambda g: "this game declares no `board:`",
     _board_fix,
+    clause="board",
+    role="engine_read",
 )
 _BOARD_POSITION_GATE = _ClauseGate(
     _board_positions_past_end,
@@ -1890,6 +1925,8 @@ _BOARD_POSITION_GATE = _ClauseGate(
     "read a position past the end of a board region",
     lambda g: f"this game declares `board: {_board_spelling(g)}`",
     lambda g: "declare a board that holds it",
+    clause="board",
+    role="beside",
 )
 _RANK_PARAMETER_GATE = _ClauseGate(
     _rank_parameters,
@@ -1898,6 +1935,8 @@ _RANK_PARAMETER_GATE = _ClauseGate(
     "enumerate the game's ranking",
     lambda g: _NO_RANKING,
     lambda g: "declare one",
+    clause="ranking",
+    role="engine_read",
 )
 _RANKING_SLOT_GATE = _ClauseGate(
     _ranking_slots,
@@ -1906,6 +1945,8 @@ _RANKING_SLOT_GATE = _ClauseGate(
     "read a card's rank strength from `ranking:`",
     lambda g: _NO_RANKING,
     lambda g: "declare one",
+    clause="ranking",
+    role="engine_read",
 )
 
 
@@ -1932,6 +1973,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read a card's suit, rank or points",
         lambda g: _PIECES_LACK,
         lambda g: _PIECES_FIX,
+        clause="deck",
+        role="engine_read",
     ),
     _CARD_CONTENT_GATE,
     _builtin_gate(
@@ -1940,6 +1983,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read the game's `trick_order { }` block",
         lambda g: "this game declares none",
         lambda g: "declare one",
+        clause="trick_order",
+        role="reader",
     ),
     _TRICK_ORDER_READING_GATE,
     _TRUMP_STATED_GATE,
@@ -1949,6 +1994,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read the trump and led suit a trick round names",
         lambda g: "this game declares a `trick_order { }` block, which replaces them",
         lambda g: _TRICK_ORDER_FIX,
+        clause="trick_order",
+        role="beside",
     ),
     _TRICK_ORDER_REPLACED_GATE,
     _builtin_gate(
@@ -1957,6 +2004,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read the game's card-point table",
         lambda g: "this game declares no `card_points { }` table",
         lambda g: "declare one",
+        clause="card_points",
+        role="reader",
     ),
     _builtin_gate(
         _SUIT_RANKING_CALLS,
@@ -1964,6 +2013,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read a suit's strength from `suit ranking:`",
         lambda g: "this game declares no `suit ranking:`",
         lambda g: "declare one, naming the deck's suits strongest first",
+        clause="suit_ranking",
+        role="reader",
     ),
     _builtin_gate(
         _TEAM_CALL_FUNCS,
@@ -1971,6 +2022,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "ask which team a seat is on",
         lambda g: _NO_TEAMS,
         _teams_fix,
+        clause="teams",
+        role="engine_read",
     ),
     _TEAM_RANGE_GATE,
     _TEAM_STATE_GATE,
@@ -1980,6 +2033,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read the board",
         lambda g: "this game declares no `board:`",
         _board_fix,
+        clause="board",
+        role="engine_read",
     ),
     _CELL_RANGE_GATE,
     _BOARD_POSITION_GATE,
@@ -1989,6 +2044,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read a grid's two-player movement frame",
         lambda g: f"this game declares `players: {g.players.count}`",
         lambda g: "the frame is defined for two seats, so it needs `players: 2`",
+        clause="players",
+        role="beside",
     ),
     _builtin_gate(
         RANKING_GATED_FUNCS,
@@ -1996,6 +2053,8 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         "read a card's rank strength from `ranking:`",
         lambda g: _NO_RANKING,
         lambda g: "declare one",
+        clause="ranking",
+        role="engine_read",
     ),
     _RANK_PARAMETER_GATE,
     _RANKING_SLOT_GATE,
@@ -4325,13 +4384,14 @@ def resolve(game: n.Game) -> n.Game:
     _resolve_direction(game, bag)
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
-    _resolve_card_points(game, bag)
-    _resolve_suit_ranking(game, bag)
+    refused_clauses: set[str] = set()
+    _resolve_card_points(game, bag, refused_clauses)
+    _resolve_suit_ranking(game, bag, refused_clauses)
     # Before `_resolve_trump`, which returns early on a block game: R1 owns the
     # game-clause-beside-a-block cell, so the two never co-report on it.
-    _check_trick_order_partition(game, bag)
+    _check_trick_order_partition(game, bag, refused_clauses)
     _check_piece_rounds(game, bag)
-    _resolve_trump(game, bag)
+    _resolve_trump(game, bag, refused_clauses)
     _check_duplicate_names(game, bag)
     _check_climb_action_names(game, bag)
     _check_reserved_params(game, bag)
@@ -4378,6 +4438,7 @@ def resolve(game: n.Game) -> n.Game:
     # Library-rule splice and template instantiation: after this, every rule in
     # `game.rules` is a concrete (parameter-free) definition the runtime can
     # index by name.
+    written = game
     game = _instantiate_rules(game, library_rules, bag)
 
     for rule in game.rules:
@@ -4409,7 +4470,13 @@ def resolve(game: n.Game) -> n.Game:
     _check_functions(game, bag)
     # After `_check_functions`: the row walk reuses its call map and `_reaches`
     # to follow a row's reach through the designer functions.
+    rows_before = len(bag.items)
     _check_trick_order_rows(game, bag)
+    if len(bag.items) > rows_before:
+        refused_clauses.add("trick_order")
+    _check_unread_clauses(
+        written, [r for r in game.rules if r.origin is not None], refused_clauses, bag
+    )
     # After `_classify_names`: both read the `ref_kind` the classifier stamped,
     # rather than re-deriving what is or is not a zone reference.
     _check_arrival_record_pile_args(game, bag)
@@ -5779,7 +5846,7 @@ def _check_unoffered_move_types(
 ) -> None:
     """One of the game's `own` move types (those it declares, not a library's)
     that no reachable `offer` presents is a declaration
-    nothing reads (the `_resolve_trump` precedent): no seat can ever play it,
+    nothing reads (the `_check_unread_clauses` precedent): no seat can ever play it,
     so it is refused, and a Stake row on it is named as the row nothing reads.
     Reachable is `_reachable_definitions`' fixpoint from the phases, so an
     offer inside a move type or procedure nothing reaches presents nothing. A
@@ -7586,7 +7653,7 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
-def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
+def _resolve_card_points(game: n.Game, bag: DiagnosticBag, refused: set[str]) -> None:
     """`card_points { }` keys must name real ranks of the declared deck, each
     at most once — `_resolve_ranking`'s two Owner Guards, applied to the
     table's key position. Unchecked, a typo (`ace` for `A`) would price the
@@ -7603,6 +7670,7 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
         return  # `_reject_card_content_clauses` already named the kind
     known = rank_names(game.deck)
     seen: set[str] = set()
+    before = len(bag.items)
     for entry in game.card_points.entries:
         if entry.rank in seen:
             bag.error(
@@ -7618,6 +7686,8 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
                 f"of deck '{game.deck}' (known ranks: {', '.join(sorted(known))})",
                 entry.span or game.span,
             )
+    if len(bag.items) > before:
+        refused.add("card_points")
 
 
 def _declared_suits_phrase(deck: str) -> str:
@@ -7635,7 +7705,7 @@ def _declared_suits_phrase(deck: str) -> str:
     return phrase
 
 
-def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag) -> None:
+def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -> None:
     """`suit ranking:` lists suits of the declared deck, each once, strongest
     first: every suit the deck declares (`Deck.suits`), and any of its special
     suits (`deck_suits` beyond the declared ones) it chooses to rank. A special
@@ -7646,12 +7716,8 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     A name the deck does not hold is refused naming what the designer most
     likely meant: a rank or a rank convention belongs to `ranking:`.
 
-    A clause with no `suit_value` written anywhere in the game, its spliced
-    libraries included, is refused (the `trump:` precedent: a declaration
-    nothing reads is accepted-but-ignored). Written, not reached: the call
-    gate refuses a clause-less `suit_value` wherever it is written, dead code
-    included, so counting the same text here is what keeps a game from being
-    refused both with the clause and without it.
+    A clause this guard refuses is handed to `_check_unread_clauses` in
+    `refused`, which then says nothing of whether anything reads it.
 
     A piece game's clause is `_reject_card_content_clauses`'s; an unknown deck
     is `_resolve_component_set`'s."""
@@ -7662,6 +7728,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag) -> None:
 
     span = ranking.span or game.span
     suits = deck_suits(game.deck)
+    before = len(bag.items)
     words = " ".join(ranking.suits)
     if words in RANKING_CONVENTIONS:
         bag.error(
@@ -7670,6 +7737,7 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag) -> None:
             f"{_declared_suits_phrase(game.deck)} strongest first",
             span,
         )
+        refused.add("suit_ranking")
         return
     ranks = set(deck_ranks(game.deck))
     seen: set[str] = set()
@@ -7704,148 +7772,16 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag) -> None:
                 f"{_declared_suits_phrase(game.deck)} strongest first",
                 span,
             )
-    if not any(
-        isinstance(nd, n.Call) and nd.func in _SUIT_RANKING_CALLS for nd in _walk(game)
-    ):
-        bag.error(
-            "suit ranking: is read by nothing — `suit_value(s)` is its one "
-            "reader; call it where the game compares suits, or drop the clause",
-            span,
-        )
+    if len(bag.items) > before:
+        refused.add("suit_ranking")
 
-
-# The callable containers a CONSUMPTION question must follow into, beyond the
-# three `_DEFINITION_CONTAINERS` that `_reachable_nodes` already covers: a
-# function body and a rule body both run, and both can hold the call that
-# consumes a declaration. Keyed by the namespace `_REFERENCE_SLOTS` issues for
-# each, so the sweep below finds them through the slot registry rather than by
-# matching node kinds — a future callable added to that registry joins without
-# an edit here.
-_CALLABLE_CONTAINERS: dict[str, str] = {"function": "functions", "rule": "rules"}
-
-
-# Every field of `n.Game`, classified by WHEN the engine evaluates what it
-# holds. Exhaustive over the node's fields and pinned there
-# (tests/test_trick_order.py::test_every_game_field_is_classified_for_consumption),
-# so a field added to `Game` lands unclassified and fails rather than being
-# silently left out of every consumption question.
-#
-#   "root"       -- reached at GAME level, outside any phase body, so a
-#                   consumption walk must start here. The engine evaluates
-#                   these directly (`driver.play_game`: the `loser:` terminal
-#                   selection after the phases finish, the game-level `state`
-#                   declaration defaults at setup) or they are inert today but
-#                   could hold an expression tomorrow, which is the safe side
-#                   to be on: an extra root can only over-count consumption,
-#                   never miss it.
-#   "phase"      -- the phase bodies, the walk's base.
-#   "definition" -- a body that runs only when something reachable NAMES it;
-#                   reached by the closure below, never as a root.
-#   "declared"   -- the block whose consumers this question is ABOUT. Its own
-#                   rows may not consume it, which R7 enforces separately.
-_GAME_FIELD_ROLES: dict[str, str] = {
-    "phases": "phase",
-    "move_types": "definition",
-    "procedures": "definition",
-    "functions": "definition",
-    "rules": "definition",
-    "trick_order": "declared",
-    # A declaration whose consumers are the game's `f(...)` calls, exactly as
-    # a Trick Order's are: an entry's body is Python, so the block itself
-    # evaluates nothing and must not be walked as a root.
-    "primitives": "declared",
-    "state": "root",  # declaration defaults, evaluated at setup
-    "loser": "root",  # the terminal selection, evaluated after the phases
-    "winner": "root",  # names a state variable today; walked for symmetry
-    "board": "root",
-    "zones": "root",
-    "positions": "root",
-    "card_points": "root",
-    "uses": "root",
-    "players": "root",
-    "teams": "root",
-    "name": "root",
-    "deck": "root",
-    "content_flavor": "root",
-    "direction": "root",
-    "ranking": "root",
-    "ranking_convention": "root",
-    "suit_ranking": "root",
-    "trump": "root",
-    "max_length": "root",
-    "span": "root",
-}
-
-
-def _consumption_roots(game: n.Game) -> Iterator[object]:
-    """Every node a consumption question starts from: the phase bodies, plus
-    each game-level field the engine evaluates outside them.
-
-    Derived from `_GAME_FIELD_ROLES` rather than listed at the call site --
-    the roots used to BE a list (phases and nothing else), and a game whose
-    only consumer sat in `loser:` or in a game-level `state` default was told
-    its declaration was read by nothing."""
-    for phase in game.phases:
-        yield from _walk(phase)
-    for field, role in _GAME_FIELD_ROLES.items():
-        if role == "root":
-            yield from _walk(getattr(game, field))
-
-
-def _consumption_reachable_nodes(game: n.Game) -> list[object]:
-    """Every node the game can actually RUN — `_reachable_nodes` (the phase
-    bodies plus the definition containers something reachable names) closed
-    over the FUNCTION and RULE bodies those reach, transitively.
-
-    The distinction this exists for: `_reachable_nodes` answers "does this
-    body run" for move types and procedures, and stops there. A
-    function is not one of those, so a game whose only consumer of a
-    declaration sits in a helper called from a phase looked, to a guard built
-    on `_reachable_nodes` alone, exactly like a game with no consumer at
-    all — and was refused. Rules have the same shape: a rule body runs when
-    a reachable phase activates it.
-
-    Used ONLY by consumption questions (is this declaration read by anything).
-    A guard that REFUSES a construct validates it where it is WRITTEN and
-    walks the whole text instead — over-reporting into dead code, which
-    over-reports in the safe direction and can never miss."""
-    pools: dict[str, dict[str, object]] = {
-        ns: {d.name: d for d in getattr(game, field)}
-        for ns, field in _CALLABLE_CONTAINERS.items()
-    }
-    nodes: list[object] = list(_consumption_roots(game))
-    nodes.extend(
-        node
-        for container in _reachable_definitions(game).values()
-        for node in _walk(container)
-    )
-    reached: set[tuple[str, str]] = set()
-    frontier: list[object] = list(nodes)
-    while frontier:
-        node = frontier.pop()
-        for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
-            namespace = slot_namespace(node, field_name)
-            if namespace is None or namespace not in pools:
-                continue
-            pool = pools[namespace]
-            for name in slot_strings(node, field_name):
-                key = (namespace, name)
-                target = pool.get(name)
-                if target is None or key in reached:
-                    continue
-                reached.add(key)
-                body = list(_walk(target))
-                nodes.extend(body)
-                frontier.extend(body)
-    return nodes
 
 
 def _trick_order_rounds(game: n.Game) -> list[n.TrickRound]:
     """Every trick round the game's TEXT holds. The refusal half of the
     partition validates a round WHERE IT IS WRITTEN, so a round in a container
     nothing invokes is refused too: over-reporting in the safe direction,
-    which can never miss. Consumption asks the other question and uses
-    `_consumption_reachable_nodes`."""
+    which can never miss."""
     return [nd for nd in _walk(game) if isinstance(nd, n.TrickRound)]
 
 
@@ -8981,7 +8917,7 @@ def _statement_owners(
     return owners
 
 
-def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
+def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[str]) -> None:
     """The presence partition, both directions: a game either declares a
     [[trick-order]] and names the winner and calls that read it, or declares
     none and names the round-configured ones. Never a mixture.
@@ -8994,10 +8930,9 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
     reads a table that was never materialized, which is a crash at play time
     rather than a diagnostic at check time.
 
-    A block nobody reads is refused too (R7): an unread `trick_order { }` is
-    the accepted-but-ignored class in its purest form — a whole declared order
-    the game never consults. Consumption counts readers OUTSIDE the block, so
-    rows reading each other's readers never make a block look live.
+    A game-level `trump:` it refuses beside a block (R1) is handed to
+    `_check_unread_clauses` in `refused`; whether a block is read at all is
+    that law's question.
     """
     if game.content_flavor != "card":
         return  # `_reject_card_content_clauses` already named the kind
@@ -9049,6 +8984,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
 
     # --- with a block: the round-configured names are refused ----------------
     if game.trump is not None:
+        refused.add("trump")
         remedy = ""
         if _deck_known(game.deck) and game.trump in suit_names(game.deck):
             remedy = f" (for a fixed suit, `trump: card.suit is {game.trump}`)"
@@ -9108,37 +9044,6 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 f"`{min(TRICK_ORDER_GATED_WINNERS)}({arg})`",
                 nd.span or game.span,
             )
-    # R7: the block must have a consumer OUTSIDE its own rows.
-    #
-    # Consumption counts what the game RUNS, not what its text holds — and
-    # "runs" has to include function and rule bodies, or a game whose only
-    # consumer sits in a helper is told its block is read by nothing
-    # (`_consumption_reachable_nodes`, which says why). This is the ONE
-    # reachability notion the whole partition uses for that question; the
-    # refusal guards above deliberately use the other one, walking the text so
-    # a gated name in a dead container is refused where it is written.
-    rows = set(game.trick_order.rows)
-    running = _consumption_reachable_nodes(game)
-    outside = [
-        nd
-        for nd in running
-        if isinstance(nd, n.Call)
-        and nd.func in TRICK_ORDER_GATED_FUNCS
-        and not any(nd in set(_walk(r)) for r in rows)
-    ]
-    slot = any(
-        isinstance(nd, n.TrickRound) and nd.winner_fn in TRICK_ORDER_GATED_WINNERS
-        for nd in running
-    )
-    if not slot and not outside:
-        gated = ", ".join(f"`{f}`" for f in sorted(TRICK_ORDER_GATED_FUNCS))
-        bag.error(
-            f"`trick_order {{ }}` is read by nothing — no round names "
-            f"{min(TRICK_ORDER_GATED_WINNERS)}, and nothing outside the block "
-            f"calls {gated}; name {min(TRICK_ORDER_GATED_WINNERS)} on a trick "
-            f"round or call it over the trick pile, or drop the block",
-            game.trick_order.span or game.span,
-        )
 
 
 def _check_piece_rounds(game: n.Game, bag: DiagnosticBag) -> None:
@@ -9532,67 +9437,30 @@ def _arg_shape(arg: object) -> str:
             return "an expression"
 
 
-def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
-    """`trump: NAME` names a suit of the declared deck, and some trick round
-    reads it — the two Owner Guards of the game-level trump slot.
+def _resolve_trump(game: n.Game, bag: DiagnosticBag, refused: set[str]) -> None:
+    """`trump: NAME` names a suit of the declared deck -- the membership Owner
+    Guard of the game-level trump slot.
 
-    Membership: the slot is grammatically a bare NAME (`trump: bogus`, a
-    rank, a suit of some other deck all parse), and the runtime compares the
-    string against card suits — an unknown value matched nothing and the game
-    silently played no-trumps (Surface totality: accepted-with-different-
+    The slot is grammatically a bare NAME (`trump: bogus`, a rank, a suit of
+    some other deck all parse), and the runtime compares the string against
+    card suits -- an unknown value would match nothing and the game would
+    silently play no-trumps (Surface totality: accepted-with-different-
     semantics). Same two-source rule as `_resolve_ranking` and the card
     literal's suit: the value derives from the deck (`suit_names`), so a
     deck's pseudo-suits (tarot78's `excuse`, five_hundred43's `joker`) are
-    members — they are the deck's suits, the same domain `Suit` types over.
-    `none` is a NAME too, and used to parse as the STRING "none": refused
-    with the omission that means no trump, rather than accepted for the
-    coincidence that no suit is spelled "none".
+    members -- they are the deck's suits, the same domain `Suit` types over.
+    `none` is a NAME too: refused with the omission that means no trump,
+    rather than accepted for the coincidence that no suit is spelled "none".
 
-    Consumption: `game.trump` reaches the runtime as the trick form's default
-    trump — the trump of a round that names a trump-reading winner and
-    supplies no `trump` clause of its own (`runtime/mechanics.py`,
-    `TrickForm`). That round is the value's only reader in the corpus. The
-    form ALSO publishes it as `state["trump"]` (mechanics.py), a channel any
-    Primitive behind a trick round could read back and this guard cannot
-    see; Belote's two were the corpus instance, and both left with the
-    Trick Order migration (issue #250 PR 4) — the surviving one reads the
-    GAME's own `trump_suit` state variable instead. So the reader model is
-    exact today, and a game that revived the `state["trump"]` channel under
-    a blind winner would meet a FALSE REFUSAL here: over-reach in the safe
-    direction, never a miss.
-
-    A `trump:` no round reads — the game runs no trick round; every round's
-    winner ignores its trump (`TRUMP_READING_WINNERS`' complement); every
-    reading round overrides with its own clause — is accepted-but-ignored,
-    the class this repo ranks worst, and is refused naming what would read
-    it. No corpus game holds the shape: French Tarot's `trump: atouts` beside
-    a trump-blind winner was the instance, and it retired with the game's
-    Trick Order (issue #250 PR 5), which refuses a game-level `trump:` beside
-    a block outright.
-
-    Consumption counts the rounds the game RUNS, not the rounds its text
-    holds: a `round` is a `statement`, and the definition forms hold
-    `statement*`, so a reading round inside a `move_type` no `offer` names
-    would make a provably inert clause look consumed. `_reachable_nodes` is the Owner of that question. Its sibling
-    guards need no such filter and are not shadowing one: the membership
-    check above is over `game.trump`, a game clause sitting in no container
-    at all, and the round-clause guards (`_validate_refs`' winner-slot arm,
-    typecheck's `_check_round_trump`) validate a clause WHERE IT IS WRITTEN —
-    a dead container's clause is checked too, which over-reports in the safe
-    direction and can never miss.
-
-    A round whose winner is not a trick winner at
-    all is `_validate_refs`'s diagnostic; the dead-clause question is not
-    asked over a game with one, so it never reports on top of that error.
-    A piece game's `trump:` is `_reject_card_content_clauses`'s, and an
-    unknown deck is `_resolve_component_set`'s (the value has no domain to
-    check against, so this returns, as `_resolve_ranking` does)."""
+    A clause refused here is handed to `_check_unread_clauses` in `refused`;
+    whether any round reads an accepted one is that law's question. A block
+    game's `trump:` is `_check_trick_order_partition`'s cell (R1), a piece
+    game's is `_reject_card_content_clauses`'s, and an unknown deck is
+    `_resolve_component_set`'s (the value has no domain to check against)."""
     if game.trump is None or game.content_flavor != "card" or not _deck_known(game.deck):
         return
     if game.trick_order is not None:
-        # A block game's `trump:` is `_check_trick_order_partition`'s cell (R1),
-        # whose message names the block and the row that replaces the clause.
-        # Returning here is what keeps the two from co-reporting on one defect.
+        # R1's cell; returning here keeps the two from co-reporting.
         return
     if game.trump == "none":
         bag.error(
@@ -9602,6 +9470,7 @@ def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
             "`trump <expr>` on the round, where `none` means no trump",
             game.span,
         )
+        refused.add("trump")
         return
     known = suit_names(game.deck)
     if game.trump not in known:
@@ -9610,63 +9479,128 @@ def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
             f"'{game.deck}' (known suits: {', '.join(sorted(known))})",
             game.span,
         )
-        return
-    rounds = [nd for nd in _reachable_nodes(game) if isinstance(nd, n.TrickRound)]
-    if any(r.winner_fn not in TRICK_WINNER_NAMES for r in rounds):
-        return
-    if any(r.trump is None and r.winner_fn in TRUMP_READING_WINNERS for r in rounds):
-        return
+        refused.add("trump")
+
+
+def _unread_trump(game: n.Game, written: Sequence[object]) -> str:
     readers = ", ".join(sorted(TRUMP_READING_WINNERS))
-    # A round that WOULD have inherited the clause but sits in a body nothing
-    # invokes: without this the author is told "the game runs no trick round"
-    # while looking straight at one, which is a misleading message rather than
-    # merely a missing one.
-    reached = _reachable_definitions(game)
-    stranded = sorted(
-        {
-            namespace
-            for cls, (field, namespace) in _DEFINITION_CONTAINERS.items()
-            for d in getattr(game, field)
-            if (namespace, d.name) not in reached
-            and any(
-                isinstance(x, n.TrickRound)
-                and x.trump is None
-                and x.winner_fn in TRUMP_READING_WINNERS
-                for x in _walk(d)
-            )
-        }
-    )
+    rounds = [nd for nd in written if isinstance(nd, n.TrickRound)]
     parts: list[str] = []
-    if rounds:
-        blind = sorted({r.winner_fn for r in rounds if r.winner_fn not in TRUMP_READING_WINNERS})
-        if blind:
-            parts.append(
-                f"a trick round names a winner that reads no trump ({', '.join(blind)})"
-            )
-        if any(r.trump is not None and r.winner_fn in TRUMP_READING_WINNERS for r in rounds):
-            parts.append(
-                "every trick round whose winner reads a trump supplies its "
-                "own `trump` clause"
-            )
-    elif not stranded:
+    blind = sorted({r.winner_fn for r in rounds if r.winner_fn not in TRUMP_READING_WINNERS})
+    if blind:
+        parts.append(f"a trick round names a winner that reads no trump ({', '.join(blind)})")
+    if any(r.trump is not None and r.winner_fn in TRUMP_READING_WINNERS for r in rounds):
         parts.append(
-            "the game runs no trick round (a hand-rolled trick passes its "
+            "every trick round whose winner reads a trump supplies its own `trump` clause"
+        )
+    if not rounds:
+        parts.append(
+            "the game writes no trick round (a hand-rolled trick passes its "
             "trump to `highest_trump_or_led_suit(pile, trump)` itself)"
         )
-    if stranded:
-        parts.append(
-            f"a trick round that would read it sits in a definition nothing "
-            f"reaches ({', '.join(stranded)}) — a `move_type` effect runs only "
-            f"where an `offer` names it"
-        )
-    why = "; ".join(parts)
-    bag.error(
-        f"trump: {game.trump} is read by no trick round — {why}. The game-level "
-        f"`trump:` is the default trump of a `round … winner` whose winner "
-        f"reads a trump ({readers}) and that writes no `trump` clause of its "
-        f"own; drop the clause, or route it to such a round",
-        game.span,
+    return (
+        f"trump: {game.trump} is read by no trick round — {'; '.join(parts)}. The "
+        f"game-level `trump:` is the default trump of a `round … winner` whose "
+        f"winner reads a trump ({readers}) and that writes no `trump` clause of "
+        f"its own; drop the clause, or route it to such a round"
     )
+
+
+def _unread_trick_order(game: n.Game, written: Sequence[object]) -> str:
+    winner = min(TRICK_ORDER_GATED_WINNERS)
+    gated = ", ".join(f"`{f}`" for f in sorted(TRICK_ORDER_GATED_FUNCS))
+    return (
+        f"`trick_order {{ }}` is read by nothing — no round names {winner}, and "
+        f"nothing outside the block calls {gated}; name {winner} on a trick "
+        f"round or call it over the trick pile, or drop the block"
+    )
+
+
+def _unread_suit_ranking(game: n.Game, written: Sequence[object]) -> str:
+    return (
+        "suit ranking: is read by nothing — `suit_value(s)` is its one reader; "
+        "call it where the game compares suits, or drop the clause"
+    )
+
+
+def _unread_card_points(game: n.Game, written: Sequence[object]) -> str:
+    return (
+        "card_points { } is read by nothing — `card_points(card)` is its one "
+        "reader; call it where the game counts a card's points, or drop the table"
+    )
+
+
+# The sentence each clause some `_CLAUSE_GATES` row reads is refused in when
+# nothing reads it. Keyed exactly by the reader rows' clauses (pinned equal by
+# tests/test_unread_clauses.py).
+_UNREAD_SENTENCES: dict[str, Callable[[n.Game, Sequence[object]], str]] = {
+    "trump": _unread_trump,
+    "trick_order": _unread_trick_order,
+    "suit_ranking": _unread_suit_ranking,
+    "card_points": _unread_card_points,
+}
+
+
+def _check_unread_clauses(
+    written: n.Game, stamped_rules: Sequence[n.RuleDef], refused: set[str], bag: DiagnosticBag
+) -> None:
+    """A game clause some `_CLAUSE_GATES` row reads (`role == "reader"`) is
+    read by something the game WRITES: a construct meeting one of its reader
+    rows' tests, anywhere in the game's own text, every definition and
+    provided declaration a library splices in, and every library or stdlib
+    rule the game activates (`stamped_rules`). A clause nothing reads is
+    accepted-but-ignored, and is refused at the clause.
+
+    Written, never reached: every reader row's own gate refuses its construct
+    wherever it is written, dead text included, so counting the same text here
+    is what keeps a sentence from being refused both with the clause and
+    without it. A clause's own body is never its reader -- a Trick Order's
+    rows calling its readers do not make the block read -- though it may read
+    another clause (a row calling `suit_value`).
+
+    `written` is the game before `_instantiate_rules`, which drops a local
+    template that fails to instantiate along with the reader inside it.
+    `refused` holds the clauses their own Owner Guards refused
+    (`_resolve_trump`, `_resolve_suit_ranking`, `_resolve_card_points`,
+    `_check_trick_order_partition`'s R1, `_check_trick_order_rows`); this law
+    says nothing of those, nor of a piece game's clauses
+    (`_reject_card_content_clauses`) or an unknown deck's
+    (`_resolve_component_set`).
+
+    Only game text is a reader. The driver's end-of-game card census
+    (`driver._final_card_census`) and the OpenSpiel ranked policy's trump
+    fallback (`openspiel/ranked.py`) read clauses as instruments, and no check
+    counts them. The trick form also publishes its trump as `state["trump"]`,
+    a channel a Primitive behind a trick round could read back and this law
+    cannot see; no corpus Primitive reads it, so the reader model is exact
+    today, and a game that revived the channel under a trump-blind winner
+    would meet a false refusal here: over-reach in the safe direction, never a
+    miss."""
+    if written.content_flavor != "card" or not _deck_known(written.deck):
+        return
+    readers: dict[str, list[_ClauseGate]] = {}
+    for row in _CLAUSE_GATES:
+        if row.role == "reader":
+            readers.setdefault(row.clause, []).append(row)
+    text = [*_walk(written), *(nd for rule in stamped_rules for nd in _walk(rule))]
+    for clause, rows in readers.items():
+        value = getattr(written, clause)
+        if value is None or clause in refused:
+            continue
+        own = {id(nd) for nd in _walk(value)}
+        nodes = [nd for nd in text if id(nd) not in own]
+        if clause == "trump" and any(
+            isinstance(nd, n.TrickRound) and nd.winner_fn not in TRICK_WINNER_NAMES
+            for nd in nodes
+        ):
+            # Shadow Guard behind `_validate_refs`' winner-slot arm, which
+            # refuses a winner that is no trick winner: that round may be the
+            # reader the designer meant.
+            continue
+        if any(row.needs(nd, written) for nd in nodes for row in rows):
+            continue
+        span = getattr(value, "span", None) or written.span
+        bag.error(_UNREAD_SENTENCES[clause](written, nodes), span)
 
 
 def _classify(name: str, cats: _Categories) -> n.RefKind | None:

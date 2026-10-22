@@ -2102,8 +2102,6 @@ WALKERS: dict[str, str] = {
         "test_a_library_construct_the_games_declarations_refuse; crossed in "
         "tests/test_library_declaration_gates.py"
     ),
-    "resolve._consumption_reachable_nodes": "a consumption question: reports the declaration asked about",
-    "resolve._resolve_trump": "a consumption question: reports the game's `trump:`",
     "typecheck._call_sig": "types a call at its own site",
     "typecheck._check_contracted_results": "test_a_library_reaching_the_games_text[contract-row-*]",
     "typecheck._check_stmt_exprs": "types a `run`'s arguments at the run site",

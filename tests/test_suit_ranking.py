@@ -34,7 +34,7 @@ domain:          every deck in `DECKS`, crossed with the list forms (every
                  the clause and without it.
 registry:        decks: `cardlang.runtime.values.DECKS` (declared suits:
                  `Deck.suits`; every suit: `deck_suits`); reader positions:
-                 `cardlang.resolve._GAME_FIELD_ROLES`; the clause list:
+                 the fields of `cardlang.ast.nodes.Game`; the clause list:
                  `?game_item` in `cardlang/grammar/cardlang.lark`; the
                  `uses`-line gate row: tests/test_library_clause_gates.py;
                  the rank-name absorption pin:
@@ -47,7 +47,7 @@ does not prove:  that a refused misspelling outside the probed ones reads well:
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 import pytest
 
@@ -301,8 +301,8 @@ class Position:
 
 _LIBRARY_FN = "library probe_lib {\n  function reader(c : Card) = suit_value(c.suit)\n}\n"
 
-# Every `n.Game` field, as `_GAME_FIELD_ROLES` lists them: the vehicle writing
-# `suit_value` there, or why the field holds no call of its own.
+# Every `n.Game` field: the vehicle writing `suit_value` there, or why the
+# field holds no call of its own.
 POSITIONS: dict[str, Position | str] = {
     "phases": Position(body="    score[0] := suit_value(spades)"),
     "move_types": Position(
@@ -370,12 +370,11 @@ POSITIONS: dict[str, Position | str] = {
 
 
 def test_every_game_field_is_a_reader_position_or_holds_no_call() -> None:
-    """The position axis is the game's field list, as resolve's own field
-    registry spells it; a field added to `n.Game` is a red here until it is
-    given a vehicle or a reason.
+    """The position axis is the game's field list; a field added to `n.Game`
+    is a red here until it is given a vehicle or a reason.
 
     red under: deleting the `rules` row of `POSITIONS`."""
-    assert set(POSITIONS) == set(resolve_module._GAME_FIELD_ROLES)
+    assert set(POSITIONS) == {f.name for f in fields(n.Game)}
 
 
 def _position_text(position: Position, clause: str | None) -> str:
@@ -450,6 +449,46 @@ def test_a_clause_nothing_reads_is_refused() -> None:
     text = _game(body="    score[0] := 1")
     _at(_refusal(text), "probe.cardlang", _clause_line(text), "read by nothing",
         "suit_value")
+
+
+_LIBRARY_RULE = (
+    "library probe_lib {\n  rule ByStrength {\n    constrains: play_to_trick\n"
+    "    demands: cards in hand where suit_value(card.suit) > 0\n"
+    "    if_impossible: hand\n  }\n}\n"
+)
+_RULE_BODY = (
+    "    deal 2 cards from deck to each hand\n    active_rules: [ByStrength]\n"
+    "    round play_to_trick from 0 over all players source hand into pile "
+    "winner highest_of_led_suit"
+)
+
+
+@pytest.mark.parametrize("activated", [True, False], ids=["activated", "not-activated"])
+@pytest.mark.parametrize("declared", [True, False], ids=["clause", "no-clause"])
+def test_a_library_rule_reads_the_clause_only_where_the_game_activates_it(
+    activated: bool, declared: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A library rule is spliced only where `active_rules:` names it, so an
+    activated one reads the clause and a dormant one does not: each game is
+    refused with the clause or without it, never both.
+
+    red under: run `_check_unread_clauses` over the game before the library
+    rules are spliced (the activated cell is refused both ways)."""
+    library = parse_library(_LIBRARY_RULE, "docs/libraries/probe_lib.cardlang")
+    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({"probe_lib"}))
+    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    body = _RULE_BODY if activated else _RULE_BODY.replace("    active_rules: [ByStrength]\n", "")
+    text = _game(
+        clause="suit ranking: spades hearts diamonds clubs" if declared else None,
+        clauses="uses probe_lib\n  ranking: aces high",
+        body=body,
+    )
+    if activated == declared:
+        check_dsl(text, "probe.cardlang")
+    elif declared:
+        _at(_refusal(text), "probe.cardlang", _clause_line(text), "read by nothing")
+    else:
+        _at(_refusal(text), "probe.cardlang", _line_of(text, "uses probe_lib"), "'probe_lib'")
 
 
 def test_a_reader_in_a_definition_nothing_runs_still_reads_the_clause() -> None:
