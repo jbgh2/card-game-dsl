@@ -97,16 +97,6 @@ does not prove:  three things.
             through a whole game, so what a green establishes for them is the
             lookup site's channel, not that a designer reaches that site
             through the DSL.
-            The MIXED consumption shape -- a reachable phase round with a
-            trump-blind winner AND a reading round stranded in an unreachable
-            container -- has no cell: `test_dead_clause_counts_reachable_
-            rounds`' fixture puts a round in the phase only for its reachable
-            cells, so that cross is unreached by the grid. The verdict is the
-            same either way (refused: no reachable round reads the trump) and
-            the message's `parts` list is built uniformly, so both sentences
-            appear in order -- argued from the message's construction rather
-            than observed, and one `_container_source` parameter away should
-            the message shape ever gain a branch.
 
 Framing check: RAN (a fresh-context subagent given the definition sources
 only -- grammar, AST, registries, runtime bodies -- with no plan or diff).
@@ -124,19 +114,6 @@ suits)") -- the precedent the game clause now follows; `trump: 5` /
 where `trump: NAME` wants a name -- loud, and its message quality is a
 `.lark` matter, out of this change's lane).
 
-Born red, the reachability cells (authored against the head that had the
-consumption guard but counted rounds by OCCURRENCE): `4 failed, 12 passed
-in 0.36s` -- `test_every_name_reached_container_is_classified` (no
-`_DEFINITION_CONTAINERS` yet), the two unreachable-container reject cells
-(`DefineDef`/`MoveTypeDef` x unreachable x a reading winner), and
-`test_unreached_reader_message_names_its_container`. The blind-winner
-container cells were born GREEN and are pins, not new coverage: an
-unreachable BLIND round would not read the clause even if reached, so the
-refusal is unchanged and only the absence of the container needle is new.
-The four `ProcedureDef` cells were likewise born green against a
-PRE-EXISTING Owner Guard (a procedure may hold no `round` at all, either
-arm); their reddening mutation is deleting that guard, not this change's.
-
 Born red (before the guards existed): `150 failed, 95 passed in 4.22s` --
 the game-clause value rejects, every dead-trump reject, every blind-winner
 round clause, every non-`Suit?` round clause, the registry reconciliation,
@@ -145,25 +122,15 @@ the typed channel); the 95 green were the accept cells and the
 already-gated call-form / `state.trump` / piece cells.
 
 red under -- executed, each edit reddening exactly its own cells:
-  - the consumption guard's `_reachable_nodes(game)` put back to
-    `_walk(game)` (the occurrence count this change replaced): 3 -- the two
-    unreachable-container reject cells and the container-message cell.
-  - `_reachable_definitions`' frontier seeded `[]` instead of
-    `list(game.phases)`, so no container is ever reached: 3 -- the two
-    REACHABLE-container accept cells and
-    `test_a_reachable_definition_keeps_its_trump`. This is the born-green
-    complement's reddening mutation: reverting the filter leaves them green
-    (they are accept cells), so only inverting reachability can prove they
-    are not vacuous.
   - the `ProcedureDef` row dropped from `_DEFINITION_CONTAINERS`: 1 --
     `test_every_name_reached_container_is_classified`, the deleting
     direction, so the table cannot shrink out from under the AST.
   - `_resolve_trump`'s membership guard skipped: 36 `test_game_trump_value`
     reject cells (12 decks x {bogus, a rank, a foreign suit}); the `none`
     and accept cells stay green.
-  - `_resolve_trump`'s consumption guard skipped: 43
-    `test_game_trump_consumption` cells (every configuration with no
-    reading-inheriting round) + `test_dead_trump_message_names_the_readers`.
+  - `_check_unread_clauses`' trump row skipped: every
+    `test_game_trump_consumption` cell with no reading-inheriting round +
+    `test_dead_trump_message_names_the_readers`.
   - the winner-slot `elif` in `_validate_refs` dropped: 22
     `test_round_trump_clause` cells (2 blind winners x 11 spellings) + 30
     `test_game_trump_consumption` cells (every configuration with a blind
@@ -520,23 +487,25 @@ def test_dead_trump_message_names_the_readers() -> None:
     assert text is not None
     for w in sorted(F.TRUMP_READING_WINNERS):
         assert w in text, text
-    assert "runs no trick round" in text, text
+    assert "writes no trick round" in text, text
 
 
-# --- (a) the game clause: consumption is REACHABILITY, not occurrence -------
+# --- (a) the game clause: consumption is WRITTEN text ------------------------
 #
-# The consumption guard asks whether some round READS the clause, so it must
-# count the rounds the game RUNS. A `round` is a `statement`, and three
-# definition forms hold `statement*` -- so a reading round written inside a
-# body nothing invokes made a dead `trump:` look consumed. The container axis
-# is DERIVED here (not authored): a statement-holding AST container is reached
-# by NAME exactly when it is a top-level definition list on `n.Game`; every
-# other statement holder sits inside a phase body, where containment reaches
-# it. `_CONTAINER_FIXTURES` then supplies the DSL text per container, and
+# The unread law asks whether some round the game WRITES reads the clause
+# (`_check_unread_clauses`), the same text the round gates refuse in, so no
+# game is refused both with the clause and without it. A `round` is a
+# `statement`, and the definition forms hold `statement*`; a reading round in
+# a body nothing invokes reads the clause, and the body is refused by its own
+# guard (a move type never offered, a procedure holding a round). The
+# container axis is DERIVED here (not authored): a statement-holding AST
+# container is reached by NAME exactly when it is a top-level definition list
+# on `n.Game`; every other statement holder sits inside a phase body.
+# `_CONTAINER_FIXTURES` then supplies the DSL text per container, and
 # `test_every_name_reached_container_is_classified` fails if the AST grows a
 # container neither table classifies.
 
-_UNREACHED = "sits in a definition nothing reaches"
+_UNOFFERED = "is never offered"
 _PROC_WALL = "contains a `round`"
 
 
@@ -609,7 +578,8 @@ def _container_cells() -> list[tuple[str, bool, str, tuple[str, ...], tuple[str,
     """(container, reachable, winner, needles, forbidden) -- every name-reached
     container x {reachable, unreachable} x {a trump-reading winner, a blind
     one}. The container holds the game's ONLY trick round, so the clause is
-    consumed exactly when that round is both reachable and reading.
+    read exactly when that round reads it, reachable or not; an unreachable
+    container is refused by its own guard instead.
 
     A procedure is refused either way by a pre-existing Owner Guard (a
     procedure may not hold a `round` at all), so its four cells PIN that wall
@@ -628,11 +598,11 @@ def _container_cells() -> list[tuple[str, bool, str, tuple[str, ...], tuple[str,
                     needles: tuple[str, ...] = (_PROC_WALL,)
                     forbidden: tuple[str, ...] = ()
                 elif reachable and reads_trump(winner):
-                    needles, forbidden = (), ()  # the clause is consumed
-                elif reads_trump(winner):  # unreachable, would have read it
-                    needles, forbidden = (_DEAD, _UNREACHED), ()
-                else:  # blind: it would not read the clause even if reached
-                    needles, forbidden = (_DEAD,), (_UNREACHED,)
+                    needles, forbidden = (), ()  # the clause is read
+                elif reads_trump(winner):  # read, but the move type is never offered
+                    needles, forbidden = (_UNOFFERED,), (_DEAD,)
+                else:  # blind: it does not read the clause wherever it is written
+                    needles, forbidden = (_DEAD,), ()
                 cells.append((container, reachable, winner, needles, forbidden))
     return cells
 
@@ -652,7 +622,7 @@ def _container_source(container: str, reachable: bool, winner: str) -> str:
         for c, r, w, _, _ in _container_cells()
     ],
 )
-def test_dead_clause_counts_reachable_rounds(
+def test_dead_clause_counts_written_rounds(
     container: str,
     reachable: bool,
     winner: str,
@@ -668,23 +638,10 @@ def test_dead_clause_counts_reachable_rounds(
             assert needle not in text, f"unexpected {needle!r} in:\n{text}"
 
 
-def test_unreached_reader_message_names_its_container() -> None:
-    """A reading round inside a body nothing invokes must not be told "the
-    game runs no trick round" while the author looks straight at one: the
-    refusal names the container kind and what would reach it."""
-    reading = min(F.TRUMP_READING_WINNERS)
-    text = _diagnostics(_container_source("MoveTypeDef", False, reading))
-    assert text is not None
-    assert _UNREACHED in text, text
-    assert "move_type" in text, text
-
-
 def test_a_reachable_definition_keeps_its_trump(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The complement, so the filter cannot over-reach: a reading round in an
-    OFFERED move type consumes the clause and the game checks clean. Born
-    green -- its reddening mutation is seeding the reachability frontier with
-    the definition lists inverted (making a reachable container read as
-    unreachable)."""
+    """A reading round in an OFFERED move type reads the clause and the game
+    checks clean. Born green -- its reddening mutation is dropping the
+    `_TRUMP_STATED_GATE` row's `role="reader"`."""
     reading = min(F.TRUMP_READING_WINNERS)
     _expect(_container_source("MoveTypeDef", True, reading))
 
