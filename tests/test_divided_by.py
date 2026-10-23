@@ -522,8 +522,9 @@ def test_gradual_any_operand_is_accepted() -> None:
             "for each player q: s[q] := 1\n"
             "    mode m { transition_to: p when play_to_trick "
             "where action.card_count divided by 2 rounded up > 3 }\n"
-            "    mode p { }"
-        )
+            "    mode p { }\n"
+            "    round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
+        ).replace("Hand<player> }", "Hand<player>  pile : TrickPile }")
     )
 
 

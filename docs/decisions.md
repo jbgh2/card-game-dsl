@@ -165,14 +165,19 @@ play_to_trick where action.card.suit is hearts`; Spades breaks spades with
 `transition_to: spades_broken when play_to_trick where action.card.suit is
 spades` (the move under inspection is bound as `action` — see "Rule demand
 forms"). The transition is one-shot — once Y is entered, X is not
-re-entered. It is scoped to the enclosing phase instance: when a
-`repeat until` loop begins a new iteration and re-enters the phase, the
-transition resets (Hearts re-breaks hearts each hand), per the
-activation-record semantics in "Loop lifecycle". That scoping also
-decides which tricks a mode can see: a mode whose transition must watch
-every trick of a hand belongs to the phase that runs them all, which is
-why Hearts plays its first trick inside `play` ("The
-boolean-as-sub-phase criterion" above).
+re-entered. Its condition belongs to the phase declaring the modes, as that
+phase's state does: **entering the phase begins the condition afresh, and
+nothing else resets it**. A parent's `repeat until` re-enters the phase each
+iteration, so Hearts' `play`, a sub-phase of the hand loop, re-breaks hearts
+each hand; a `repeat until` on the declaring phase itself, or a statement
+`repeat until` inside it, iterates within one entry and keeps the condition,
+exactly as it keeps the phase's `state { }`. The trick rounds that end a
+condition are the ones the declaring phase's subtree runs, so a mode whose
+transition must watch every trick of a hand belongs to a phase enclosing
+them all, which is why Hearts plays its first trick inside `play` ("The
+boolean-as-sub-phase criterion" above). A play reads the rules in force at
+that play, so a condition ending on the lead stops constraining the plays
+after it in the same trick.
 
 There is no separate construct for "this sub-phase ends and control
 returns to the enclosing parent's loop." The predicate-guard form
@@ -183,8 +188,12 @@ predicate guard.
 
 ## Sub-phase rule and legal-move deltas
 
-A sub-phase inherits its parent's `active_rules`. To modify the
-inherited set, the sub-phase uses three operators inside the slot:
+A sub-phase inherits its parent's `active_rules` — the set in force in the
+parent at that moment, the parent's holding modes included. A trick round
+asks the set built down the chain of phases enclosing it: each starts from
+its parent's, applies its own slot, then layers on its holding modes' deltas
+(a mode's plain entry adds; a mode never replaces its phase's set). To modify
+the inherited set, the sub-phase uses three operators inside the slot:
 
 ```text
 phase parent { active_rules: [A, B, C] }
@@ -219,16 +228,21 @@ phase parent { active_rules: [A, B, C] }
 phase child  { active_rules: [X, Y] }                   // X, Y only — parent set discarded
 ```
 
-**Corpus usage.** Every existing `active_rules` delta is `+ X`. Hearts
-and Spades add follow-restriction rules; Pinochle and Spades add
-first-trick constraints; Tichu adds the Mahjong-wish rule. (Tichu's
-`call_tichu`/`call_grand_tichu` decisions are not rule deltas — they
-are `round`/`offer` moves in a poll window; see "Interactive
-decisions".) `- X` and `override X` are reserved for cases where the
-rulebook itself
-describes a rule being struck out or replaced. The rulebook-natural
-reading of every game in the current corpus uses `+ X` even when the
-mechanical effect could be expressed as a removal.
+**Corpus usage.** Every corpus delta is a `+ X` inside a mode: Hearts and
+Spades add the lead restriction while their suit is unbroken. Every
+rule-bearing corpus phase runs its own trick round, so none inherits a set
+from a parent. `- X` and `override X` are reserved for cases where the
+rulebook itself describes a rule being struck out or replaced. The
+rulebook-natural reading of every game in the current corpus uses `+ X` even
+when the mechanical effect could be expressed as a removal.
+
+**Rules are asked only where a trick round runs.** A rule binds at a trick
+round's card decision and nowhere else ("Rule demand forms"), and a mode's
+condition changes only on a trick play, so a phase whose `active_rules:` or
+modes no trick round in its subtree can ask — its own body, a phase inside
+it, or the effect of a move type it offers — is refused, naming the phase. A
+climbing round asks no rule. A trick played with chosen moves holds itself to
+a rule with a `where` filter on the move (`where follows_lead(card, <pile>)`).
 
 The criterion for which operator to use: write the slot the way the
 game's rulebook introduces the change. Rulebooks describe what
@@ -5262,7 +5276,7 @@ check chooses; each refusal stands where the text it refuses stands, and
 `cardlang.attribution` tells it, at every raise after the splice. A check
 that follows the game's text into library text attaches the crossing it
 left by -- a Trick Order row's call, a Hosted Poll's reach, a `run`, a
-decision position's call, a rule's activation -- to every refusal that
+decision position's call -- to every refusal that
 crossing causes, and such a refusal is told at the game's text on that
 crossing, with the crossing kind's fix. A refusal with no crossing, in a
 library definition that some Library Witness reaches and checks clean with, is the

@@ -254,14 +254,10 @@ class TrickForm:
         self.trump: str | None = (
             evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
         )
-        # Constant for the pass: the active rules, as a rules-bearing ctx. The
-        # phase is kept rather than its transition list — which of its modes
-        # still hold is re-read per play, since a play inside THIS trick is
-        # what deactivates one.
-        self.trick_ctx = ctx.with_rules(
-            active_rules.compute_active_rules(ctx.current_phase, ctx.rs)
-        )
-        self.transition_phase = ctx.current_phase
+        # The phases the round's rules and modes are built down. The rules are
+        # read at every play, not once per pass: a play inside THIS trick can
+        # end a mode, and the plays after it are asked without its delta.
+        self.chain = ctx.phase_chain
 
     def init(self, state: RoundState, ctx: Ctx) -> RoundState:
         state["led_suit"] = None
@@ -287,18 +283,23 @@ class TrickForm:
                 return player
         return None  # turn order ran out: every participant has played
 
+    def _ruled(self, ctx: Ctx) -> Ctx:
+        """`ctx` carrying the rules the chain holds at this play."""
+        return ctx.with_rules(active_rules.compute_active_rules(self.chain, ctx.rs))
+
     def candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
         # The acting seat's effective source: routed by `play_source_for`
         # when defined, else the declared family's instance — the ONE pool
         # candidates, rule bodies, and the removal in `apply` all read
         # (issue #457's class: two reads, one answer).
+        ruled = self._ruled(ctx)
         src = delegation.source_for(
-            self.trick_ctx, actor, ctx.rs.zones.instance(self.source_family, actor)
+            ruled, actor, ctx.rs.zones.instance(self.source_family, actor)
         )
         candidates = rules.legal_cards(
             actor,
             RULE_ENFORCED_MOVE_TYPE,
-            self.trick_ctx.derive(round_source=(self.source_family, src)),
+            ruled.derive(round_source=(self.source_family, src)),
         )
         if not candidates:
             # No implicit pass: a player on turn must have a legal play. An empty
@@ -328,7 +329,7 @@ class TrickForm:
         ctx.trace("play", (actor, choice))
         if state["led_suit"] is None:
             state["led_suit"] = choice.suit
-        _fire_transitions(self.transition_phase, Move(choice, actor), self.trick_ctx)
+        _fire_transitions(self.chain, Move(choice, actor), self._ruled(ctx))
         # An `early` predicate ends the trick mid-pass; the winner function
         # picks from the plays so far (Getaway: a void player's off-led-suit
         # play, with the winner then picking up the pile).
@@ -784,9 +785,10 @@ def build_form(stmt: n.TrickRound | n.ClimbRound, ctx: Ctx) -> DecisionForm:
             return TrickForm(stmt, ctx)
 
 
-def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
+def _fire_transitions(chain: tuple[n.Phase, ...], move: Move, ctx: Ctx) -> None:
     """Evaluate each play-triggered transition's predicate against the move just
-    played; a satisfied one marks its target as reached for this iteration.
+    played; a satisfied one marks its target as reached until the phase
+    declaring it is entered again.
 
     Only the transitions of modes that STILL HOLD are evaluated: an exit
     belongs to its condition, so once that condition has ended its remaining
@@ -798,7 +800,7 @@ def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
     overlapping predicates — would otherwise both reach their targets inside
     this loop. Independent modes keep being evaluated; only the fired one's
     siblings stop."""
-    for _mode, exits in active_rules.active_mode_exits(phase, ctx.rs):
+    for _mode, exits in active_rules.active_mode_exits(chain, ctx.rs):
         for t in exits:
             # Shadow Guard. The Owner Guard is `resolve._resolve_transition`,
             # which rejects any event move type but `play_to_trick`, so no
@@ -807,6 +809,9 @@ def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
             # as a trick play is the worse failure.
             if t.event.move_type != "play_to_trick":
                 continue
+            # Evaluated in the round's context, so an enclosing phase's trigger
+            # reads a state name a nested phase redeclares as the nested one
+            # (issue #940).
             pred = t.event.where
             if pred is None or bool(evaluate(pred, ctx.with_action(move))):
                 ctx.rs.fired_transitions.add(t.mode)

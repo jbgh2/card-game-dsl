@@ -267,7 +267,8 @@ def test_action_card_suit_flows_through_to_the_enum_guard() -> None:
         _game(
             "for each player q: score[q] := 1\n"
             "    mode m { transition_to: p when play_to_trick where action.card.suit is 3 }\n"
-            "    mode p { }"
+            "    mode p { }\n"
+            "    round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
         ),
         "comparing Suit with Integer",
     )
@@ -279,7 +280,8 @@ def test_action_card_suit_against_a_suit_still_accepted() -> None:
         _game(
             "for each player q: score[q] := 1\n"
             "    mode m { transition_to: p when play_to_trick where action.card.suit is hearts }\n"
-            "    mode p { }"
+            "    mode p { }\n"
+            "    round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
         )
     )
 
@@ -293,7 +295,8 @@ def test_unknown_action_field_stays_permissive() -> None:
         _game(
             "for each player q: score[q] := 1\n"
             "    mode m { transition_to: p when play_to_trick where action.card_count is 3 }\n"
-            "    mode p { }"
+            "    mode p { }\n"
+            "    round play_to_trick from 0 over all players source hand into pile winner highest_of_led_suit"
         )
     )
 

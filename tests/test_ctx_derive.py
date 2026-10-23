@@ -67,7 +67,7 @@ DERIVATIONS: dict[str, tuple[Callable[[Ctx], Ctx], frozenset[str]]] = {
     "acting_as": (lambda c: c.acting_as(0), frozenset({"current_player"})),
     "in_phase": (
         lambda c: c.in_phase(cast(n.Phase, object())),
-        frozenset({"current_phase"}),
+        frozenset({"current_phase", "phase_chain"}),
     ),
     "with_winner": (lambda c: c.with_winner(0), frozenset({"winner"})),
     "with_action": (

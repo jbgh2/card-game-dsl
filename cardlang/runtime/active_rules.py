@@ -1,11 +1,16 @@
 """Active-[[rule]] computation for a [[phase]], including its [[mode]]s.
 
-A phase's active rules are its plain `active_rules` entries plus the deltas
-contributed by whichever of its modes currently hold. Hearts' `hearts_not_broken`
-/ `hearts_broken` are one condition's two sides: the mode declaring the
+The rules a trick round asks are built down the chain of phases enclosing it
+(decisions.md "Sub-phase rule and legal-move deltas"). Each phase starts from its
+parent's set, or from nothing when its own `active_rules:` entries hold a plain
+entry, applies those entries, then layers on the deltas of whichever of its
+modes currently hold; a mode's plain entry adds, since a mode is a condition on
+its phase and never replaces the phase's set. Hearts' `hearts_not_broken` /
+`hearts_broken` are one condition's two sides: the mode declaring the
 `transition_to` is the "before" side (it holds until a target has fired), its
 target the "after" side. A fired transition is recorded in
-`RuntimeState.fired_transitions`, which resets each loop iteration.
+`RuntimeState.fired_transitions`, and the phase declaring the mode discards it
+when it is entered (`driver.run_phase`).
 
 Modes are INDEPENDENT conditions, not an exclusive state machine. A phase may
 hold several and any number may be active at once, their deltas stacking in
@@ -19,7 +24,8 @@ Assumes: resolve has guarded the mode-role invariant — every mode is exactly o
 of a transition SOURCE or a transition TARGET (`_check_modes`). Both functions
 here rely on it: a mode that were both would be read as a source and its
 target-ness ignored, and a mode that were neither could never be active at all.
-Establishes: the active rule set for one phase at one moment.
+Establishes: the active rule set for one chain of phases at one moment, and the
+exits live at that moment in every phase of the chain.
 """
 
 from __future__ import annotations
@@ -28,25 +34,23 @@ from cardlang.ast import nodes as n
 from cardlang.runtime.state import RuntimeState
 
 
-# Three behaviours here are unguarded and recorded as issue #282: a decision
-# site inside a nested phase reads only `current_phase`, `fired_transitions`
-# clears on every `repeat until` iteration, and a mode's delta outlasts the
-# trick in which its condition ends.
-def compute_active_rules(phase: n.Phase | None, rs: RuntimeState) -> tuple[n.RuleDef, ...]:
-    if phase is None:
-        return ()
+def compute_active_rules(
+    chain: tuple[n.Phase, ...], rs: RuntimeState
+) -> tuple[n.RuleDef, ...]:
     names: list[str] = []
-
-    for item in phase.items:
-        if isinstance(item, n.ActiveRules):
-            for ref in item.refs:
-                _apply_ref(names, ref)
-
-    for item in phase.items:
-        if isinstance(item, n.Mode) and _mode_active(item, rs):
-            for block in item.active_rules:
-                for ref in block.refs:
-                    _apply_ref(names, ref)
+    for phase in chain:
+        own = [
+            ref for item in phase.items if isinstance(item, n.ActiveRules) for ref in item.refs
+        ]
+        if any(ref.delta == "plain" for ref in own):
+            names = []
+        for ref in own:
+            _apply_ref(names, ref)
+        for item in phase.items:
+            if isinstance(item, n.Mode) and _mode_active(item, rs):
+                for block in item.active_rules:
+                    for ref in block.refs:
+                        _apply_ref(names, ref)
 
     seen: dict[str, None] = {}
     for name in names:
@@ -57,8 +61,8 @@ def compute_active_rules(phase: n.Phase | None, rs: RuntimeState) -> tuple[n.Rul
 def _apply_ref(names: list[str], ref: n.RuleRef) -> None:
     if ref.delta in ("plain", "add"):
         names.append(ref.name)
-    elif ref.delta == "remove" and ref.name in names:
-        names.remove(ref.name)
+    elif ref.delta == "remove":
+        names[:] = [name for name in names if name != ref.name]
 
 
 def _mode_active(mode: n.Mode, rs: RuntimeState) -> bool:
@@ -80,9 +84,10 @@ def _mode_active(mode: n.Mode, rs: RuntimeState) -> bool:
 
 
 def active_mode_exits(
-    phase: n.Phase | None, rs: RuntimeState
+    chain: tuple[n.Phase, ...], rs: RuntimeState
 ) -> list[tuple[n.Mode, tuple[n.TransitionTo, ...]]]:
-    """Each currently-holding mode paired with its own exits.
+    """Each currently-holding mode of every phase in the chain, paired with its
+    own exits: a trick in a nested phase ends an enclosing phase's mode.
 
     A transition is an EXIT FROM a condition, so it exists only while that
     condition does — and the pairing is what carries that. A flat list of
@@ -98,10 +103,9 @@ def active_mode_exits(
     inactive mid-pass: the transition that deactivates it is fired by a play
     inside the very trick this list is consulted for.
     """
-    if phase is None:
-        return []
     return [
         (item, item.transitions)
+        for phase in chain
         for item in phase.items
         if isinstance(item, n.Mode) and _mode_active(item, rs)
     ]

@@ -132,16 +132,6 @@ def _call_fixes(monkeypatch: pytest.MonkeyPatch) -> None:
     L.test_the_rule_filter_remedy_is_accepted(monkeypatch)
 
 
-def _activation_fix(monkeypatch: pytest.MonkeyPatch) -> None:
-    """"take 'librule' out of `active_rules:`": the game without the rule's
-    activation, the library still used, checks clean."""
-    library, game, _owner, anchor = L._JUDGED_ONCE_KNOWN["rule-activated-where-no-trick-round-asks-it"]
-    assert anchor is not None
-    fixed = game.replace(anchor, "active_rules: []")
-    assert fixed != game
-    assert L._bag(monkeypatch, library, fixed) == []
-
-
 # kind -> the remedy its refusals offer, applied
 _FIX_PROOFS: dict[str, Callable[[pytest.MonkeyPatch], None]] = {
     "row": L.test_the_row_remedy_is_accepted,
@@ -149,7 +139,6 @@ _FIX_PROOFS: dict[str, Callable[[pytest.MonkeyPatch], None]] = {
     "run": lambda mp: _run_fixes(mp, by_argument=False),
     "run_argument": lambda mp: _run_fixes(mp, by_argument=True),
     "call": _call_fixes,
-    "activation": _activation_fix,
 }
 
 
@@ -185,9 +174,6 @@ _ROUTED: dict[str, dict[str, Callable[[], L.Crossing]]] = {
     },
     "resolve._check_play_source": {
         "call": lambda: L._play_source_crossing("demands"),
-        "activation": lambda: L.Crossing(
-            *L._JUDGED_ONCE_KNOWN["rule-activated-where-no-trick-round-asks-it"][:2], L.GAME
-        ),
     },
 }
 
@@ -205,6 +191,7 @@ _UNROUTED: dict[str, str] = {
     "resolve._report_recursion": "game text",
     "resolve._check_unoffered_move_types": "game text",
     "resolve._inner_ring_sharing": "certificate",
+    "resolve._reaches_a_trick_round": "refuses nothing",
     "typecheck._check_contracted_results": "game text",
     "resolve._check_functions": "certificate",
     "resolve._check_implicit_pools": "certificate",

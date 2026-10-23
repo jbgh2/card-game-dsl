@@ -73,6 +73,9 @@ PLAY_SOURCE = "play_source"
 CAPTURE = "inside a rule, `hand` is the cards the player on turn plays from"
 FUNCTION_FIX = "keep the filter in the rule and have the function take a card"
 NO_TRICK = "this game plays no trick round"
+#: The activation refusal (`resolve._check_rules_reach_a_trick`), which owns
+#: every rule a phase activates where no trick round asks it.
+NO_TRICK_ASKS = "but no trick round runs in it or in a phase inside it"
 
 
 # --- the axes, derived ------------------------------------------------------
@@ -519,12 +522,15 @@ def test_the_round_form_axis_is_every_round_node() -> None:
     assert {k.__name__ for k in ROUND_FORMS} == {"TrickRound", "ClimbRound"}
 
 
-def test_a_rule_reading_hand_in_a_game_with_no_round_is_refused() -> None:
+@pytest.mark.parametrize(("active", "needle"), [("R", NO_TRICK_ASKS), ("", NO_TRICK)])
+def test_a_rule_reading_hand_in_a_game_with_no_round_is_refused(active: str, needle: str) -> None:
+    """Activated, the phase activating it is refused; activated nowhere, the
+    rule itself is."""
     text = game_text(
-        "noround", rules=_rule("R", "demands"),
+        "noround" + active, active=active, rules=_rule("R", "demands"),
         round_stmt="move all cards from hand[leader] to trick_pile",
     ).replace("leader := winner", "")
-    _refused(text, NO_TRICK)
+    _refused(text, needle)
 
 
 def test_a_stdlib_rule_in_a_climb_only_game_is_refused() -> None:
@@ -537,7 +543,7 @@ def test_a_stdlib_rule_in_a_climb_only_game_is_refused() -> None:
     assert climb_only != src
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(climb_only, "big-two-rules.cardlang")
-    assert NO_TRICK in str(exc.value)
+    assert NO_TRICK_ASKS in str(exc.value)
     assert "big-two-rules.cardlang" in str(exc.value)
 
 
@@ -709,12 +715,6 @@ def test_one_library_start_and_one_game_start() -> None:
 # --- G: cells the framing check added ----------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=pytest.fail.Exception,
-    reason="a rule activated in a phase that runs no trick round, in a game "
-    "that runs one elsewhere, is #359's per-activation walk (issue #359)",
-)
 def test_a_rule_activated_where_no_trick_round_runs_is_refused() -> None:
     src = (GAMES / "spades.cardlang").read_text()
     bidding = src.replace(

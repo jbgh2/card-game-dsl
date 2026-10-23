@@ -578,6 +578,11 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
         # Scoped to this phase's name — other phases' pending outcomes survive.
         if phase.outcome_cases:
             ctx.rs.phase_outcomes.pop(phase.name, None)
+        # Entering a phase begins its modes' conditions afresh; its own loop
+        # iterating inside this entry, and any other phase's entry, keep them.
+        ctx.rs.fired_transitions.difference_update(
+            item.name for item in phase.items if isinstance(item, n.Mode)
+        )
         state_block = next(
             (i for i in phase.items if isinstance(i, n.StateBlock)), None
         )
@@ -611,7 +616,6 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                         f"declared max_length ({ctx.rs.max_length}) — non-termination, "
                         "or raise max_length if this game genuinely runs this long"
                     )
-                ctx.rs.fired_transitions.clear()  # transitions reset each iteration
                 for nm in loop_outcomes:
                     ctx.rs.phase_outcomes.pop(nm, None)
                 if before is not None:

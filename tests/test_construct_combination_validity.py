@@ -94,12 +94,26 @@ def test_rejects_after_each_on_a_non_repeating_phase() -> None:
     )
 
 
+# A trick round to ask a phase's rules and modes: one no trick round asks is
+# refused (tests/test_rules_reach_the_round.py), so a probe of a rule or mode
+# shape stands beside one. The round's winner reads `ranking:`.
+_TRICK = (
+    "\n    round play_to_trick from ldr over all players source hand into pile "
+    "winner highest_of_led_suit"
+)
+_RANKED = "ranking: A K Q J 10 9 8 7 6 5 4 3 2"
+
+
 # --- `override` rule deltas are deferred surface ---
 
 
 def test_rejects_override_in_active_rules() -> None:
     _rejects(
-        _game("active_rules: [override PassRule]\n    for each player q: score[q] := 1", rules=_RULE),
+        _game(
+            "active_rules: [override PassRule]\n    for each player q: score[q] := 1" + _TRICK,
+            rules=_RULE,
+            extra_game_items=_RANKED,
+        ),
         "not yet supported",
     )
 
@@ -115,7 +129,7 @@ def test_rejects_a_transition_on_a_non_trick_event() -> None:
     }
     mode b { }
     """
-    _rejects(_game(body), "must be `play_to_trick`")
+    _rejects(_game(body + _TRICK, extra_game_items=_RANKED), "must be `play_to_trick`")
 
 
 # --- the trick round form runs `play_to_trick` only ---
@@ -152,4 +166,4 @@ def test_accepts_a_play_to_trick_transition_and_plain_rule_refs() -> None:
     }
     mode b { }
     """
-    check_dsl(_game(body, rules=_RULE), "mini.cardlang")
+    check_dsl(_game(body + _TRICK, rules=_RULE, extra_game_items=_RANKED), "mini.cardlang")

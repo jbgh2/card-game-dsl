@@ -265,6 +265,7 @@ _PAST_THE_GATE: tuple[str, ...] = (
     "but its default has type",
     "is out of range",
     "names a team, but this game declares no `teams:`",
+    "but no trick round runs in it or in a phase inside it",
 )
 
 

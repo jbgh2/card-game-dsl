@@ -248,6 +248,13 @@ def test_a_same_phase_state_default_cannot_read_a_body_let() -> None:
     )
 
 
+def _with_trick_zones(src: str) -> str:
+    """`src` with the trick pile and the ranking a trick round needs."""
+    return src.replace(
+        "Hand<player> }", "Hand<player>  pile : TrickPile }", 1
+    ).replace("cards: standard52", "cards: standard52\n  ranking: A K Q J 10 9 8 7 6 5 4 3 2", 1)
+
+
 def test_a_transition_predicate_cannot_read_a_same_phase_body_let() -> None:
     # A transition is CONFIGURATION: collected position-independently and
     # evaluated with the context captured at whichever round fires it — which
@@ -256,15 +263,17 @@ def test_a_transition_predicate_cannot_read_a_same_phase_body_let() -> None:
     # over it and typecheck types it, so the mismatch survives to a round that
     # may run before the binding exists.
     _rejects(
-        _game(
+        _with_trick_zones(_game(
             "legal_moves: [play_to_trick]\n"
             "    let z = hearts\n"
             "    mode gate {\n"
             "      transition_to: opened when play_to_trick where "
             "action.card.suit is z\n"
             "    }\n"
-            "    mode opened { }"
-        ),
+            "    mode opened { }\n"
+            "    round play_to_trick from 0 over all players source hand into pile "
+            "winner highest_of_led_suit"
+        )),
         "unresolved name 'z'",
     )
 
@@ -275,7 +284,7 @@ def test_a_transition_predicate_reads_no_let_even_an_enclosing_one() -> None:
     # lexically before the let can fire a transition declared after it, and
     # the binding is not live in that round's captured context. The
     # well-typed no-let spelling stays accepted.
-    src = _game(
+    src = _with_trick_zones(_game(
         "let z = hearts\n"
         "    phase inner {\n"
         "      legal_moves: [play_to_trick]\n"
@@ -284,8 +293,10 @@ def test_a_transition_predicate_reads_no_let_even_an_enclosing_one() -> None:
         "action.card.suit is z\n"
         "      }\n"
         "      mode opened { }\n"
+        "      round play_to_trick from 0 over all players source hand into pile "
+        "winner highest_of_led_suit\n"
         "    }"
-    )
+    ))
     _rejects(src, "unresolved name 'z'")
     check_dsl(
         src.replace("action.card.suit is z", "action.card.suit is hearts"),

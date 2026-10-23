@@ -98,10 +98,9 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 # Every kind of crossing a walk reports, by the game text it left by: a Trick
 # Order row's call, a Hosted Poll's reach, a `run` of a library procedure (and
-# a read its own arguments make), a decision position's call, and a rule's
-# activation.
+# a read its own arguments make), and a decision position's call.
 CROSSING_KINDS: frozenset[str] = frozenset(
-    {"row", "hosted_poll", "run", "run_argument", "call", "activation"}
+    {"row", "hosted_poll", "run", "run_argument", "call"}
 )
 
 # The sentence a routed refusal adds, by its crossing kind: `{name}` the
@@ -119,7 +118,6 @@ FIX_TABLE: dict[str, str | None] = {
         "the argument this `run` passes it"
     ),
     "call": None,
-    "activation": None,
 }
 
 _ROOT = Path(__file__).resolve().parent.parent

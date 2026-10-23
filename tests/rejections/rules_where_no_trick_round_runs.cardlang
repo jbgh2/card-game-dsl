@@ -1,0 +1,26 @@
+// Guard: resolve.py's `_check_rules_reach_a_trick`. A rule is asked only at a
+// trick round's card decision, and the bidding phase runs none, so its
+// `active_rules:` would never apply; the trick round runs in `play`.
+game RulesWhereNoTrickRoundRuns {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    pile : TrickPile
+  }
+  state { score[player] : Integer = 0 }
+  phase bidding {
+    active_rules: [MustFollowSuit]
+    for each player q: score[q] := 0
+  }
+  phase play {
+    shuffle deck
+    deal 5 cards from deck to each hand
+    round play_to_trick from 0 over all players source hand into pile
+          winner highest_of_led_suit
+  }
+  winner: highest score
+}

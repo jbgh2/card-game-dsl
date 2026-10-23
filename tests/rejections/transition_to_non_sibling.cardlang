@@ -10,12 +10,15 @@ game TransitionToNonSibling {
   zones {
     deck : Deck
     hand[player] : Hand<player>
+    pile : TrickPile
   }
   state { score[player] : Integer = 0 }
   phase play {
     mode a {
       transition_to: nowhere when play_to_trick
     }
+    round play_to_trick from 0 over all players source hand into pile
+          winner highest_of_led_suit
   }
   winner: highest score
 }
