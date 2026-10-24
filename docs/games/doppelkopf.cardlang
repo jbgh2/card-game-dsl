@@ -52,21 +52,6 @@ game Doppelkopf {
   suit ranking: clubs spades hearts diamonds
   card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0 }
 
-  // The normal game's trump group: both hearts 10 (the Dulle) on top, then
-  // the queens, then the jacks (clubs > spades > hearts > diamonds within
-  // each rank), then the plain diamonds. Trumps are ONE class for following,
-  // which the Trick Order gives without a second definition: a trump follows
-  // as a trump by the `trump:` row, never by its printed suit. Strengths are
-  // banded so a band's members never collide with a neighbour's.
-  trick_order {
-    trump:         card.rank is Q or card.rank is J or card.suit is diamonds
-                   or (card.suit is hearts and card.rank is "10")
-    card_strength: if card.suit is hearts and card.rank is "10" then 300
-                   elif card.rank is Q then 200 + suit_value(card.suit)
-                   elif card.rank is J then 100 + suit_value(card.suit)
-                   else rank_value(card)
-  }
-
   zones {
     deck             : Deck
     hand[player]     : Hand<player>
@@ -361,6 +346,22 @@ game Doppelkopf {
 
   winner: highest score
 }
+
+// The normal game's trump group: both hearts 10 (the Dulle) on top, then
+// the queens, then the jacks (clubs > spades > hearts > diamonds within
+// each rank), then the plain diamonds. Trumps are ONE class for following,
+// which the Trick Order gives without a second definition: a trump follows
+// as a trump by `is_trump`, never by its printed suit. Strengths are
+// banded so a band's members never collide with a neighbour's.
+function is_trump(card : Card) =
+  card.rank is Q or card.rank is J or card.suit is diamonds
+  or (card.suit is hearts and card.rank is "10")
+
+function card_strength(card : Card) =
+  if card.suit is hearts and card.rank is "10" then 300
+  elif card.rank is Q then 200 + suit_value(card.suit)
+  elif card.rank is J then 100 + suit_value(card.suit)
+  else rank_value(card)
 
 // === Announcement vocabulary ===
 //

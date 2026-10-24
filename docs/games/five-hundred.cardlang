@@ -55,33 +55,6 @@ game FiveHundred {
     five_hundred_bid_level(rank : Integer) : Integer
   }
 
-  // The auction decides the order, so the rows read what it wrote onto the
-  // public state (`trump_suit`, `joker_suit`).
-  //
-  // Under a SUIT contract the joker and both bowers are members of the trump
-  // suit in all respects, so they are trumps and the trump suit is one follow
-  // class — which is what makes the left bower unfollowable by its printed
-  // suit. Above the ace they band joker > right bower > left bower.
-  //
-  // In the NO-TRUMP family there is one trump and it exists only while the
-  // joker is un-nominated: the joker itself, which is why it wins any trick
-  // it is played to and why nobody can follow it. Nominated, it stops being a
-  // trump and becomes the highest card of the nominated suit — the one
-  // `follow_class:` remap. Every other card follows as its printed suit, the
-  // omitted default.
-  trick_order {
-    trump:         if trump_suit is none
-                   then card.rank is Joker and joker_suit is none
-                   else card.rank is Joker or card.suit is trump_suit
-                        or (card.rank is J and card.suit is same_colour(trump_suit))
-    follow_class:  if trump_suit is none and card.rank is Joker and joker_suit is not none
-                   then joker_suit else card.suit
-    card_strength: if card.rank is Joker then 102
-                   elif trump_suit is not none and card.rank is J and card.suit is trump_suit then 101
-                   elif trump_suit is not none and card.rank is J and card.suit is same_colour(trump_suit) then 100
-                   else rank_value(card)
-  }
-
   zones {
     deck            : Deck
     hand[player]    : Hand<player>
@@ -99,7 +72,7 @@ game FiveHundred {
     score[team]    : Integer = 0
     champion[team] : Integer = 0
     // The declared contract, as much of it as the Trick Order reads. Game-level
-    // because a `trick_order` block is a game clause and sees game state only —
+    // because the kernel reads the Trick Order where no phase frame stands —
     // not because it outlives a hand: `phase play` clears both on entry, where
     // its own state block would otherwise have re-declared them.
     trump_suit     : Suit?   = none   // none = the no-trump family
@@ -279,6 +252,35 @@ game FiveHundred {
   winner: highest champion
 }
 
+// The auction decides the order, so the functions read what it wrote onto
+// the public state (`trump_suit`, `joker_suit`).
+//
+// Under a SUIT contract the joker and both bowers are members of the trump
+// suit in all respects, so they are trumps and the trump suit is one follow
+// class — which is what makes the left bower unfollowable by its printed
+// suit. Above the ace they band joker > right bower > left bower.
+//
+// In the NO-TRUMP family there is one trump and it exists only while the
+// joker is un-nominated: the joker itself, which is why it wins any trick
+// it is played to and why nobody can follow it. Nominated, it stops being a
+// trump and becomes the highest card of the nominated suit — the one
+// `follow_class` remap. Every other card follows as its printed suit.
+function is_trump(card : Card) =
+  if trump_suit is none
+  then card.rank is Joker and joker_suit is none
+  else card.rank is Joker or card.suit is trump_suit
+  or (card.rank is J and card.suit is same_colour(trump_suit))
+
+function follow_class(card : Card) =
+  if trump_suit is none and card.rank is Joker and joker_suit is not none
+  then joker_suit else card.suit
+
+function card_strength(card : Card) =
+  if card.rank is Joker then 102
+  elif trump_suit is not none and card.rank is J and card.suit is trump_suit then 101
+  elif trump_suit is not none and card.rank is J and card.suit is same_colour(trump_suit) then 100
+  else rank_value(card)
+
 // === The auction vocabulary ===
 //
 // Game-defined move_types (the Skat/Bridge shape). Every bid writes the
@@ -345,7 +347,7 @@ move_type decline_nomination {
 
 // The other suit of the same colour: the left bower is the jack of it. Total
 // over the deck-derived Suit domain, whose fifth value is the joker's own
-// suit — and over `none`, which the strength row's guards exclude but the
+// suit — and over `none`, which `card_strength`'s guards exclude but the
 // language evaluates anyway. Both land on `joker`, which no jack is printed,
 // so neither bower arm can fire without a real trump suit.
 function same_colour(s : Suit?) =

@@ -47,7 +47,7 @@ of them in and tops the discard up with chosen non-bout atouts routed through
 to all four seats before joining the hidden discard, so the opponents'
 information sets carry exactly what the real game shows them — the forced
 atouts — and nothing else of the discard. The atouts, the follow classes and
-the card strengths are one declared `trick_order { }` block that the trick
+the card strengths are one declared Trick Order, three functions, that the trick
 winner, the follow demand and the over-trump comparison all read: the Excuse
 belongs to no class, so it never wins and a led Excuse sets no suit — neither
 restated by a rule, and the must-trump obligation reads the second off the

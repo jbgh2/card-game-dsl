@@ -10,8 +10,8 @@ back up to 10 (sizes 2–10): 19 hands, after which the highest score wins. Sour
 [Pagat](https://www.pagat.com/exact/ohhell.html). **Deck:** standard 52.
 
 Tricks are played via the kernel `round` construct. The trump suit changes every
-hand, so it is passed as a `trump` argument (the per-hand `trump_suit` state
-var) rather than the fixed game-level `trump:` declaration that Spades uses.
+hand, so the round's `trump` clause reads the per-hand `trump_suit` state
+var, where Spades writes its fixed suit there (`trump spades`).
 
 **The hook rule** — the total of all bids may not equal the hand size, so
 somebody must miss. Bidding starts left of the dealer and goes round, so the
