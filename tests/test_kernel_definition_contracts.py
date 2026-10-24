@@ -304,6 +304,9 @@ def _absence_cells() -> list[Cell]:
                          else f"score[1] := if {name}({_CARD}) then 1 else 0" if name == "is_trump"
                          else f"score[1] := {name}({_CARD})"),
                  (_FALSE_FIX,)))
+    # The refusal's fix, as written, clears it: a game with no trumps.
+    add(Cell("no-is_trump-fix-clears",
+             _source(body=_BY_ORDER, defs="function is_trump(c : Card) = false"), ()))
     # A Trick Order row answered with no `is_trump`: an orphan, whatever reads it.
     for name in ORDER_NAMES[1:]:
         add(Cell(f"orphan-{name}",
