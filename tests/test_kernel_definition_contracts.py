@@ -23,15 +23,25 @@ domain:          the contract registry, iterated, crossed with: definition
                  each consumer of the Trick Order and of card points;
                  hermeticity (each forbidden read, directly and through a
                  designer function); the reference order (every caller and
-                 callee pair among the answers); the presence partition and
+                 callee pair among the answers, directly and through
+                 `card_points`); the presence partition and
                  the unread law in the function spelling; the lowering (each
-                 table and row form against its hand-written twin); the
+                 table and row form against its hand-written twin, the
+                 table's keys against every namespace a game can spell a
+                 rank in, a table with no deck to rank it against); mixed
+                 spellings and the fixes each refusal offers; the
                  library arms (a `requires` row, a library definition, a
                  `primitives { }` entry); a piece game; the run-time
-                 witnesses (the census, a defaulted row called directly, the
-                 spelling-neutral playout). The block spellings' own cells
+                 witnesses (the census, taken and untaken, a defaulted row
+                 called directly, the spelling-neutral playout). The block spellings' own cells
                  stay in tests/test_trick_order.py and
-                 tests/test_card_points.py.
+                 tests/test_card_points.py. A call-site pronoun (`actor`,
+                 `action`, `winner`) an answer reaches through a designer
+                 function is that function's own refusal
+                 (`_check_functions`), green before the capability by
+                 design: its `through-pronoun` cells pin the existing guard,
+                 and every other forbidden read reached through a function
+                 is the answer's.
 registry:        contracts: `cardlang.kernel_contracts.KERNEL_DEFINITION_CONTRACTS`
                  and `TRICK_ORDER_CONTRACTS`; native registries:
                  `builtins.functions.BUILTIN_CALL_FUNCS`, `VALUE_NAMES`,
@@ -649,10 +659,16 @@ def _library_cells() -> list[tuple[str, str, str, tuple[str, ...]]]:
         out.append((f"requires-{name}-answered",
                     _LIB.format(rows=row.spelled, call=call, extra=""),
                     _LIB_HOST.format(clauses="", defs=answer), ()))
+        # A defaulted row in a game with no Trick Order is answered by
+        # declaring one, so its fix is `is_trump`'s.
+        unanswered = (
+            ("the Trick Order's default answers this row",) if row.defaulted
+            else (f"function {name}(",)
+        )
         out.append((f"requires-{name}-unanswered",
                     _LIB.format(rows=row.spelled, call=call, extra=""),
                     _LIB_HOST.format(clauses="", defs=""),
-                    (f"function {name}(", )))
+                    unanswered))
         wrong = row.spelled.replace(row.result_spelling, "Player")
         out.append((f"requires-{name}-wrong-signature",
                     _LIB.format(rows=wrong, call="1", extra=""),
@@ -848,7 +864,9 @@ def test_no_pass_below_the_front_end_reads_the_lowering_stamp() -> None:
 @pytest.mark.expects_shadow_guard
 def test_the_trick_order_table_names_the_presence_partition_when_missing() -> None:
     """A Trick Order consumer reached with no table is an engine gap: the
-    runtime's Shadow Guard names the presence partition that owns the class."""
+    runtime's Shadow Guard names the presence partition that owns the class.
+
+    red under: name another owner in `trick_order.table_of`'s Shadow Guard."""
     from cardlang.runtime import trick_order
     from cardlang.runtime.errors import ShadowGuardError
     from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
@@ -858,3 +876,176 @@ def test_the_trick_order_table_names_the_presence_partition_when_missing() -> No
     ctx = Ctx(rs=rs, chooser=lambda p, cands, k: list(cands)[:k])
     with pytest.raises(ShadowGuardError, match="_check_trick_order_partition"):
         trick_order.table_of(ctx, "highest_by_trick_order")
+
+
+# =============================================================================
+# 10. The table's keys, the census, and the mixed spellings
+# =============================================================================
+
+# Every name space a game can spell a rank in. A table key is a rank of the
+# deck whatever else the game calls by that name.
+_RANK_SPELLINGS: list[tuple[str, dict[str, str]]] = [
+    ("state-rank", {"state": "  J : Rank = A"}),
+    ("state-integer", {"state": "  J : Integer = 0"}),
+    ("phase-state", {"phase_state": "state { J : Integer = 0 }"}),
+    ("zone", {"zones": "J : Discard  "}),
+]
+
+
+@pytest.mark.parametrize(("label", "spelling"), _RANK_SPELLINGS, ids=[x[0] for x in _RANK_SPELLINGS])
+def test_a_table_key_is_a_rank_whatever_else_shares_its_name(
+    label: str, spelling: dict[str, str]
+) -> None:
+    """The table prices the ranks it names: a state variable or zone spelled
+    like a key changes neither the check nor the points."""
+    body = "score[1] := card_points(J of spades)\n    score[0] := card_points(A of spades)"
+    source = _source(clauses="card_points { J: 2  A: 11 }", body=body, **spelling)
+    assert _diagnostics(source) is None
+    game = check_dsl(source, "contracts.cardlang")
+    result = play_game(game, random.Random(1))
+    assert result.scores[1] == 2
+    assert result.scores[0] == 12  # 11, plus the host's own `score[0] += 1`
+
+
+@pytest.mark.parametrize(
+    "clauses",
+    ["cards: standard53\n  card_points { A: 11  K: 4 }", "PIECES"],
+    ids=["unknown-deck", "piece-game"],
+)
+def test_a_table_with_no_deck_to_rank_reports_once(clauses: str) -> None:
+    """A table whose keys have no deck to be ranks of reports the missing
+    deck once, and never again as each key's unresolved name."""
+    if clauses == "PIECES":
+        source = (
+            "game P {\n  players: 2\n  pieces: xo_marks\n  max_length: 60\n"
+            "  card_points { A: 11  K: 4 }\n"
+            "  zones { box : Deck  reserve[player] : PlayerPile<player> }\n"
+            "  state { score[player] : Integer = 0 }\n"
+            "  phase play {\n    score[0] += 1\n  }\n  winner: highest score\n}\n"
+        )
+    else:
+        source = _source(clauses="card_points { A: 11  K: 4 }").replace(
+            "cards: standard52", "cards: standard53"
+        )
+    found = _diagnostics(source)
+    assert found is not None
+    located = [m for m in found[1:] if ": error: " in m]
+    assert max(1, len(located)) == 1, "\n".join(found)
+    assert "unresolved name" not in "\n".join(found)
+
+
+def test_a_census_that_cannot_price_a_card_is_none() -> None:
+    """The census asks every card; an answer that refuses one the game never
+    prices leaves the census untaken, and never fails the game."""
+    source = _source(
+        ranking="ranking: A K Q J",
+        body="score[1] := card_points(A of spades)",
+        defs="function card_points(c : Card) = rank_value(c)",
+    )
+    ends = [d for k, d in _trace(source, 1) if k == "game_end"]
+    assert ends and ends[0]["total_value"] is None
+
+
+def _through_points_cells() -> list[Cell]:
+    """Every Trick Order answer reaching a later one through `card_points`,
+    in both spellings: the reference order binds by reach."""
+    cells: list[Cell] = []
+    for caller in ORDER_NAMES:
+        for callee in ORDER_NAMES[ORDER_NAMES.index(caller) + 1:]:
+            body = {
+                "is_trump": "card_points(c) > 5",
+                "follow_class": "if card_points(c) > 5 then none else c.suit",
+            }[caller]
+            defs = "\n".join([
+                *(_answer(x) for x in ORDER_NAMES if x != caller),
+                _answer(caller, body=body),
+                _answer("card_points", body=_call(callee).replace(" > 3", "").replace(" is none", "") if callee == "card_strength" else f"if {_call(callee)} then 1 else 0"),
+            ])
+            cells.append(Cell(
+                f"{caller}-reaches-{callee}-through-card_points",
+                _source(body=f"{_BY_ORDER}\n    {_POINTS_READER}", defs=defs),
+                ("comes after it in the Trick Order", "through function `card_points`"),
+            ))
+    cells.append(Cell(
+        "trump-row-reaches-card_strength-through-card_points",
+        _source(
+            clauses="trick_order { trump: card_points(card) > 5 }",
+            body=f"{_BY_ORDER}\n    {_POINTS_READER}",
+            defs=_answer("card_points", body="card_strength(c)"),
+        ),
+        ("`trump:` reads `card_strength(...)`, the reader of a row", "through function `card_points`"),
+    ))
+    # The control: an earlier row reached through `card_points` is legal.
+    cells.append(Cell(
+        "card_strength-reaches-is_trump-through-card_points",
+        _source(
+            body=f"{_BY_ORDER}\n    {_POINTS_READER}",
+            defs="\n".join([
+                _answer("is_trump"),
+                _answer("card_strength", body="card_points(c)"),
+                _answer("card_points", body="if is_trump(c) then 1 else 0"),
+            ]),
+        ),
+        (),
+    ))
+    return cells
+
+
+@pytest.mark.parametrize("cell", _params(_through_points_cells()))
+def test_the_reference_order_binds_through_card_points(cell: Cell) -> None:
+    _run(cell)
+
+
+def _voice_cells() -> list[Cell]:
+    cells: list[Cell] = []
+    add = cells.append
+    # A row reading a phase's state is told in the row's voice.
+    add(Cell(
+        "row-reads-phase-state",
+        _source(clauses="trick_order { trump: late }", body=_BY_ORDER,
+                phase_state="state { late : Boolean = false }"),
+        ("`trump:` reads state variable 'late', which phase 'play' declares — a "
+         "Trick Order is read where no phase frame stands",),
+        forbidden=("is_trump",),
+    ))
+    # Mixed spellings: the fix names both.
+    add(Cell(
+        "mixed-unread-drops-both",
+        _source(clauses="trick_order { trump: card.suit is hearts }", body="score[1] += 1",
+                defs=_answer("card_strength")),
+        ("drop the block and the Trick Order's functions",),
+    ))
+    add(Cell(
+        "mixed-unread-fix-clears",
+        _source(body="score[1] += 1"),
+        (),
+    ))
+    add(Cell(
+        "block-without-trump-beside-is_trump",
+        _source(clauses="trick_order { card_strength: rank_value(card) }", body=_BY_ORDER,
+                defs=_answer("is_trump")),
+        ("writes the block's other rows as functions too",),
+    ))
+    return cells
+
+
+@pytest.mark.parametrize("cell", _params(_voice_cells()))
+def test_voice_cell(cell: Cell) -> None:
+    _run(cell)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_an_unanswered_contract_row_is_told_once_with_a_fix_that_clears(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """A library's row for a contract the game does not answer is refused
+    once, on the `uses` line, and following the fix as written clears it."""
+    call = f"if {name}(c) then 1 else 0" if name == "is_trump" else (
+        f"if {name}(c) is none then 1 else 0" if name == "follow_class" else f"{name}(c)")
+    library = _LIB.format(rows=CONTRACTS[name].spelled, call=call, extra="")
+    found = _library_bag(monkeypatch, library, _LIB_HOST.format(clauses="", defs=""))
+    assert found is not None
+    located = [m for m in found[1:] if ": error: " in m]
+    assert max(1, len(located)) == 1, "\n".join(found)
+    fixed = _answer(name) if name in ("is_trump", "card_points") else _answer("is_trump")
+    assert _library_bag(monkeypatch, library, _LIB_HOST.format(clauses="", defs=fixed)) is None

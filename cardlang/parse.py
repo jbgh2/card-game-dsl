@@ -861,7 +861,8 @@ class _Builder(Transformer[Token, n.Game]):
                     Severity.ERROR,
                     "`trick_order` declares no `trump:` row — every Trick "
                     "Order names its trumps; write `trump: false` for one "
-                    "with none",
+                    "with none (a game writing `is_trump` as a function "
+                    "writes the block's other rows as functions too)",
                     self._span(meta),
                 )
             )
