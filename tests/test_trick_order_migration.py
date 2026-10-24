@@ -1,4 +1,4 @@
-"""Byte-identity of a game migrated onto the `trick_order { }` construct.
+"""Byte-identity of a game migrated onto the kernel's Trick Order.
 
 Issue #250, PR 1 (Doppelkopf; the later PRs add Skat, Five Hundred and Belote
 by adding a hash file each and a row to `MIGRATIONS`). Each migration
@@ -229,6 +229,12 @@ a row could sit green over a hash nothing can move:
       above the plain suits and only inverts the order within it):
       `200 failed` -- every seed, since a Tarot match is 36 hands of 18
       atout-trump tricks.
+* THE ROWS FOR THE MOVE TO FUNCTIONS (issue #943), each captured on its own
+  pre-move tree: `winners.follows_lead_lazily`'s class comparison inverted
+  reddens skat and french-tarot `200 failed` each; spades, which reads no
+  Trick Order, reddens under `winners.highest_trump_or_led_suit`'s trump
+  filter inverted (`c.suit == trump` -> `!=`): `200 failed` (executed
+  2026-10-24).
 """
 
 from __future__ import annotations
