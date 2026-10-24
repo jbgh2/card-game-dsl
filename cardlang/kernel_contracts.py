@@ -93,6 +93,16 @@ KERNEL_CONTRACT_NAMES: frozenset[str] = frozenset(CONTRACTS)
 # may call any of the three, the recursion guard refusing a cycle.
 TRICK_ORDER_CONTRACTS: tuple[str, ...] = ("is_trump", "follow_class", "card_strength")
 
+# The `trick_order { }` block's row keys, each with the contract its row
+# answers. The parse builder lowers each row by this map, and refuses a key
+# outside it naming these keys.
+TRICK_ORDER_ROW_CONTRACTS: tuple[tuple[str, str], ...] = (
+    ("trump", "is_trump"),
+    ("follow_class", "follow_class"),
+    ("card_strength", "card_strength"),
+)
+TRICK_ORDER_ROW_KEYS: tuple[str, ...] = tuple(k for k, _ in TRICK_ORDER_ROW_CONTRACTS)
+
 # The contract that makes a Trick Order present: a game with a Trick Order
 # answers it, and the other two rows default.
 TRICK_ORDER_KEY_CONTRACT = "is_trump"

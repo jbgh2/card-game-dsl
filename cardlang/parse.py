@@ -41,8 +41,15 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               grammar. The zone ``type_ref``
               and a library's ``require_decl`` carry the OTHER reading of
               `<...>` — an index domain, derived through ``type_args`` — and
-              which shapes those admit is resolve's.
-Now illegal:  ill-formed syntax; it cannot reach any later pass. Also naming a
+              which shapes those admit is resolve's. The two block spellings
+              of a Kernel Definition Contract's answer reach the AST lowered:
+              the `card_points { }` table and each `trick_order { }` row are
+              the ``n.FunctionDef`` a designer would write by hand, node for
+              node modulo spans, stamped ``spelled_as`` with the spelling
+              written, which only a refusal's words read.
+Now illegal:  ill-formed syntax; it cannot reach any later pass. Also a block
+              spelling of a contract answer anywhere below the parser: no
+              node or ``Game`` field holds one. Also naming a
               grammar terminal to a designer: a terminal with no word in
               ``_WORD_OVERRIDES`` and no spelling recoverable from its own
               pattern makes ``_parser()`` refuse to build, so no message can
@@ -99,7 +106,7 @@ from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
 from cardlang.ast import nodes as n
-from cardlang.builtins.functions import TRICK_ORDER_ROW_KEYS
+from cardlang.kernel_contracts import TRICK_ORDER_ROW_CONTRACTS, TRICK_ORDER_ROW_KEYS
 from cardlang.diagnostics import (
     Diagnostic,
     DiagnosticBag,
@@ -142,10 +149,40 @@ class _Ranking:
 @dataclass(frozen=True, slots=True)
 class _CardPointsElse:
     """The `else:` row of a `card_points { }` block, distinguished from the
-    rank rows so the table callback can lift it into
-    `CardPointsTable.else_value`."""
+    rank rows so the table callback can lift it into the table's
+    everything-else value."""
 
     value: int
+
+
+@dataclass(frozen=True, slots=True)
+class _CardPointsTable:
+    """The `card_points { }` clause as written, carried to the game builder,
+    which lowers it to the `card_points` answer (`_lower_card_points`)."""
+
+    entries: tuple[n.CardPointsEntry, ...]
+    else_value: int | None
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
+class _TrickOrderRow:
+    """One `trick_order { }` row as written: `<key>: <expr>`, the body over
+    the implicit `card`."""
+
+    key: str
+    body: n.Expr
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
+class _TrickOrder:
+    """The `trick_order { }` clause as written, carried to the game builder,
+    which lowers each row to the answer of its contract
+    (`_lower_trick_order`)."""
+
+    rows: tuple[_TrickOrderRow, ...]
+    span: Span
 
 
 @dataclass(frozen=True, slots=True)
@@ -493,12 +530,12 @@ class _Builder(Transformer[Token, n.Game]):
         assert isinstance(c[0], int)
         return _CardPointsElse(c[0])
 
-    def card_points_table(self, meta: Meta, c: list[object]) -> n.CardPointsTable:
+    def card_points_table(self, meta: Meta, c: list[object]) -> _CardPointsTable:
         # Children: the rank rows, then the optional else row (None when
         # absent — the grammar's `[card_points_else]` placeholder).
         entries = tuple(x for x in c if isinstance(x, n.CardPointsEntry))
         else_rows = [x for x in c if isinstance(x, _CardPointsElse)]
-        return n.CardPointsTable(
+        return _CardPointsTable(
             entries=entries,
             else_value=else_rows[0].value if else_rows else None,
             span=self._span(meta),
@@ -779,13 +816,13 @@ class _Builder(Transformer[Token, n.Game]):
 
     # --- the Trick Order block (decisions.md "Trick Order"; issue #250) ------
     #
-    # The row set is `TRICK_ORDER_ROWS`, and it is stated there ONLY: the
+    # The row set is `TRICK_ORDER_ROW_CONTRACTS`, and it is stated there ONLY: the
     # grammar's key terminal matches any identifier, and these callbacks
     # validate against the registry. That is what keeps a row added to the
     # language from needing a grammar edit, and what lets a wrong key be
     # refused by NAMING the rows rather than dying as a bare syntax error.
 
-    def trick_order_row(self, meta: Meta, c: list[object]) -> n.TrickOrderRow:
+    def trick_order_row(self, meta: Meta, c: list[object]) -> _TrickOrderRow:
         key = str(c[0])
         assert isinstance(c[1], n.Expr)
         if key not in TRICK_ORDER_ROW_KEYS:
@@ -797,12 +834,10 @@ class _Builder(Transformer[Token, n.Game]):
                     self._span(meta),
                 )
             )
-        return n.TrickOrderRow(
-            key=cast(n.TrickOrderRowKey, key), body=c[1], span=self._span(meta)
-        )
+        return _TrickOrderRow(key=key, body=c[1], span=self._span(meta))
 
-    def trick_order(self, meta: Meta, c: list[object]) -> n.TrickOrder:
-        rows = tuple(x for x in c if isinstance(x, n.TrickOrderRow))
+    def trick_order(self, meta: Meta, c: list[object]) -> _TrickOrder:
+        rows = tuple(x for x in c if isinstance(x, _TrickOrderRow))
         seen: set[str] = set()
         for row in rows:
             if row.key in seen:
@@ -830,7 +865,7 @@ class _Builder(Transformer[Token, n.Game]):
                     self._span(meta),
                 )
             )
-        return n.TrickOrder(rows=rows, span=self._span(meta))
+        return _TrickOrder(rows=rows, span=self._span(meta))
 
     def trick_order_colon_reject(self, meta: Meta, c: list[object]) -> None:
         raise DiagnosticError(
@@ -1959,8 +1994,8 @@ class _Builder(Transformer[Token, n.Game]):
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
         suit_ranking: n.SuitRanking | None = None
-        card_points: n.CardPointsTable | None = None
-        trick_order: n.TrickOrder | None = None
+        # The answers the block spellings lower to, in source order.
+        lowered: list[n.FunctionDef] = []
         primitives: n.PrimitivesBlock | None = None
         trump: str | None = None
         teams: tuple[tuple[int, ...], ...] = ()
@@ -2022,12 +2057,12 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, n.SuitRanking):
                 once("suit ranking:", item.span)
                 suit_ranking = item
-            elif isinstance(item, n.CardPointsTable):
+            elif isinstance(item, _CardPointsTable):
                 once("card_points { }", item.span, merge_hint=True)
-                card_points = item
-            elif isinstance(item, n.TrickOrder):
+                lowered.append(_lower_card_points(item))
+            elif isinstance(item, _TrickOrder):
                 once("trick_order { }", item.span, merge_hint=True)
-                trick_order = item
+                lowered.extend(_lower_trick_order(item))
             elif isinstance(item, n.PrimitivesBlock):
                 once("primitives { }", item.span, merge_hint=True)
                 primitives = item
@@ -2119,9 +2154,8 @@ class _Builder(Transformer[Token, n.Game]):
             ranking=ranking,
             ranking_convention=ranking_convention,
             suit_ranking=suit_ranking,
-            card_points=card_points,
-            trick_order=trick_order,
             primitives=primitives,
+            functions=tuple(lowered),
             trump=trump,
             teams=teams,
             positions=positions,
@@ -2329,7 +2363,9 @@ class _Builder(Transformer[Token, n.Game]):
         game = games[0]
         rules = tuple(x for x in c if isinstance(x, n.RuleDef))
         move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
-        functions = tuple(x for x in c if isinstance(x, n.FunctionDef))
+        # The game block's lowered answers first, then the written functions,
+        # each in source order.
+        functions = game.functions + tuple(x for x in c if isinstance(x, n.FunctionDef))
         procedures = tuple(x for x in c if isinstance(x, n.ProcedureDef))
         return replace(
             game,
@@ -2338,6 +2374,59 @@ class _Builder(Transformer[Token, n.Game]):
             functions=functions,
             procedures=procedures,
         )
+
+
+def _lower_card_points(table: _CardPointsTable) -> n.FunctionDef:
+    """The `card_points { }` table as the `card_points` answer a designer would
+    write: `function card_points(card : Card) = if card.rank is <k> then <v>
+    elif ... else <else value, or 0>`, its arms in row order. A digit key is a
+    numeric rank, written as a string (`card.rank is "10"`); any other key is
+    the bare rank value."""
+
+    def rank_is(entry: n.CardPointsEntry) -> n.Expr:
+        span = entry.span
+        key: n.Expr = (
+            n.StrLit(entry.rank, span=span)
+            if entry.rank.isdigit()
+            else n.NameRef(entry.rank, span=span)
+        )
+        rank = n.Member(n.NameRef("card", span=span), "rank", span=span)
+        return n.BinOp("is", rank, key, span=span)
+
+    first, *rest = table.entries
+    body = n.IfExpr(
+        cond=rank_is(first),
+        then=n.IntLit(first.value, span=first.span),
+        elifs=tuple((rank_is(e), n.IntLit(e.value, span=e.span)) for e in rest),
+        otherwise=n.IntLit(table.else_value or 0, span=table.span),
+        span=table.span,
+    )
+    return n.FunctionDef(
+        name="card_points",
+        params=(n.Parameter("card", "Card", span=table.span),),
+        body=body,
+        span=table.span,
+        spelled_as=n.LoweredSpelling(
+            "card_points_table", "card_points", table.entries, table.else_value, table.span
+        ),
+    )
+
+
+def _lower_trick_order(block: _TrickOrder) -> tuple[n.FunctionDef, ...]:
+    """Each `trick_order { }` row as the answer to its contract:
+    `<key>: <expr>` is `function <contract>(card : Card) = <expr>`, the row's
+    own body unchanged, since the row's implicit binder is already `card`."""
+    contract = dict(TRICK_ORDER_ROW_CONTRACTS)
+    return tuple(
+        n.FunctionDef(
+            name=contract[row.key],
+            params=(n.Parameter("card", "Card", span=row.span),),
+            body=row.body,
+            span=row.span,
+            spelled_as=n.LoweredSpelling("trick_order_row", row.key, span=block.span),
+        )
+        for row in block.rows
+    )
 
 
 def _as_expr(value: object) -> n.Expr:

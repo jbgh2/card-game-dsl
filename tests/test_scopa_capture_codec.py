@@ -152,11 +152,14 @@ def test_the_primiera_scale_is_the_declared_card_points_table() -> None:
     ace there, against an ordinal that runs ace up to king.
 
     red under: drop the `else: 10` row from scopa.cardlang's card_points."""
-    game = check_source(GAMES_DIR / "scopa.cardlang")
-    assert game.card_points is not None
-    from cardlang.runtime.driver import declared_card_points
+    from cardlang.kernel_contracts import answer
 
-    assert declared_card_points(game) == {
+    game = check_source(GAMES_DIR / "scopa.cardlang")
+    points = answer(game, "card_points")
+    assert points is not None and points.spelled_as is not None
+    table = {e.rank: e.value for e in points.spelled_as.entries}
+    other = points.spelled_as.else_value
+    assert {r: table.get(r, other) for r in game.ranking} == {
         "7": 21, "6": 18, "A": 16, "5": 15, "4": 14,
         "3": 13, "2": 12, "J": 10, "Q": 10, "K": 10,
     }

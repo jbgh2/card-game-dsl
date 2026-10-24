@@ -1,9 +1,10 @@
 """The `trick_order { }` construct -- the grid, authored red before the grammar.
 
 Issue #250, PR 1: the game-level Trick Order block (rows `trump:` /
-`follow_class:` / `card_strength:` over the implicit `card` binder), the
-readers the language mints from it (`is_trump(card)`, `follow_class(card)`,
-`card_strength(card)`), the two Builtins over the declaration
+`follow_class:` / `card_strength:` over the implicit `card` binder), which
+lowers to the game's answers to the three Kernel Definition Contracts
+(`is_trump(card)`, `follow_class(card)`, `card_strength(card)`), the two
+Builtins over the declaration
 (`highest_by_trick_order` -- the winner, bare in a round's `winner` slot or
 called over a public pile's Arrival Record; `follows_lead(card, pile)` -- the
 winner's candidate test made callable), the presence partition guarded in
@@ -59,14 +60,16 @@ domain:     rows x body type x binder reads x reference direction x call
             filter is a decision site inside a legality computation wherever
             it is written, Trick Order or not, so it is its own class
             (issue #370).
-registry:   rows -- `TRICK_ORDER_ROWS` (cardlang.builtins.functions), pinned
-            equal to `_ROWS` here and to the node's row-key literal
-            (`test_row_registry_matches_the_grid`); readers' types --
-            `CALL_SIGS[reader].ret`; the winner namespace --
+registry:   rows -- `TRICK_ORDER_ROW_CONTRACTS` (cardlang.kernel_contracts),
+            pinned equal to `_ROWS` here and to the contracts' reference
+            order (`test_row_registry_matches_the_grid`); readers' types --
+            the contract rows (`kernel_contracts.CONTRACTS`); the function
+            spelling of every row and the contracts' own cells:
+            tests/test_kernel_definition_contracts.py; the winner namespace --
             `TRICK_WINNER_NAMES` partitioned by `TRICK_ORDER_GATED_WINNERS`
             (the excluded set by subtraction); the call namespace --
-            `BUILTIN_CALL_FUNCS` partitioned by `TRICK_ORDER_GATED_FUNCS`,
-            `TRICK_ORDER_ROW_CALLS` / `TRICK_ORDER_ROW_UNCALLABLE` (every
+            `BUILTIN_CALL_FUNCS` partitioned by `TRICK_ORDER_GATED_FUNCS` and
+            by `TRICK_ORDER_ROW_CALLS` / `TRICK_ORDER_ROW_UNCALLABLE` (every
             member classified, `test_row_callable_partition_is_total`);
             Arrival-Record calls -- `ARRIVAL_RECORD_CALLS` (name -> pile
             argument index); pronouns -- `resolve._PRONOUNS`; zone types --
@@ -251,7 +254,8 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 
 # --- the row table, authored; reconciled against the registry once it exists --
 
-# (row key, reader). The row's required body type is CALL_SIGS[reader].ret.
+# (row key, the contract the row answers). The row's required body type is the
+# contract row's result (`cardlang.kernel_contracts`).
 _ROWS: tuple[tuple[str, str], ...] = (
     ("trump", "is_trump"),
     ("follow_class", "follow_class"),
@@ -264,16 +268,15 @@ _ORDER = {k: i for i, k in enumerate(_ROW_KEYS)}
 # The two Builtins over the declaration, and the winner slot's gated member.
 _CONSUMERS = ("highest_by_trick_order", "follows_lead")
 _GATED_WINNERS = frozenset({"highest_by_trick_order"})
-_GATED_FUNCS = frozenset(_CONSUMERS) | frozenset(_READERS)
-# The five names as they will stand in BUILTIN_CALL_FUNCS.
+_GATED_FUNCS = frozenset(_CONSUMERS)
+# The two Builtins as they stand in BUILTIN_CALL_FUNCS.
 _NEW_BUILTINS = _GATED_FUNCS
 
 # Builtins a row may call (pure over their arguments plus a public table;
-# read no zone their arguments do not name) and those it may not. Authored
-# here from today's BUILTIN_CALL_FUNCS plus the five new names; pinned equal
-# to the registry pair once it exists, and total over BUILTIN_CALL_FUNCS.
+# read no zone their arguments do not name) and those it may not, pinned
+# equal to the registry pair and total over BUILTIN_CALL_FUNCS.
 _ROW_CALLABLE = frozenset(
-    {"rank_value", "card_points", "suit_of", "suit_value", "team_of", "top_of", "bottom_of"}
+    {"rank_value", "suit_of", "suit_value", "team_of", "top_of", "bottom_of"}
 )
 _ROW_UNCALLABLE = frozenset(
     {
@@ -312,7 +315,7 @@ R2 = "round `trump` clause beside a `trick_order { }` block"
 R3 = "round winner {name} beside a `trick_order {{ }}` block"
 R4 = "`highest_trump_or_led_suit(...)` beside a `trick_order { }` block"
 R4E = "`early` predicates read the literal led suit"
-R5 = "reads the game's `trick_order { }` block, but this game declares none"
+R5 = "reads the game's Trick Order, but this game declares none"
 R6 = R5
 R7 = "is read by nothing"
 NEVER_RUN = "is never run"
@@ -339,7 +342,6 @@ T1_ANY = "types as `Any`"
 T2 = "declares no `card_strength:` row"
 RANKING_GATE = "reads a card's rank strength from ranking:"
 RANKING_GATE_BLOCK = "trick_order"
-SHADOW_HINT = "move the body into the row"
 BOARD = "reads the board"
 W1 = "the pile is empty"
 W2 = "no card can win"
@@ -772,9 +774,10 @@ def _row_hermeticity_cells() -> list[Cell]:
              _source(clauses=_block("trump: helper(card)"), tail=_HELPER.format(body="card_strength(c) > 3")), (R8_UP, THROUGH)))
     add(Cell("reader-self-through-function",
              _source(clauses=_block("trump: helper(card)"), tail=_HELPER.format(body="is_trump(c)")), (R8_SELF, THROUGH)))
-    # A designer function named after a reader: the shadowing guard with the block hint.
+    # A designer function named after a row's contract, beside the row: one
+    # contract answered twice.
     add(Cell("designer-function-named-is_trump",
-             _source(clauses=BLOCK, tail="function is_trump(c : Card) = c.rank is Q"), ("shadows the native function", SHADOW_HINT)))
+             _source(clauses=BLOCK, tail="function is_trump(c : Card) = c.rank is Q"), ("`is_trump` is answered twice",)))
     # The binder is `card`: a function's habit `c.rank` is an unresolved name.
     add(Cell("row-binder-is-card", _source(clauses=_block("trump: c.rank is Q")), ("unresolved name 'c'",)))
     return cells
@@ -1087,19 +1090,18 @@ def _reg(name: str) -> Any:
 
 
 def test_row_registry_matches_the_grid() -> None:
-    """One row table: the registry, the node's key literal, the readers'
-    signatures. red under (once green): reorder or rename a row in
-    `TRICK_ORDER_ROWS`."""
-    from typing import get_args
+    """One row table: the lowering's row map, the contracts' reference order,
+    the contracts' parameter. red under: reorder or rename a row in
+    `kernel_contracts.TRICK_ORDER_ROW_CONTRACTS`."""
+    from cardlang import kernel_contracts as K
+    from cardlang.types import TCard
 
-    from cardlang.ast import nodes as n
-
-    rows = tuple(_reg("TRICK_ORDER_ROWS"))
+    rows = tuple(K.TRICK_ORDER_ROW_CONTRACTS)
     assert rows == _ROWS
-    assert tuple(get_args(getattr(n, "TrickOrderRowKey"))) == _ROW_KEYS
+    assert tuple(r for _, r in rows) == K.TRICK_ORDER_CONTRACTS
     for _, reader in rows:
-        assert reader in F.BUILTIN_CALL_FUNCS
-        assert CALL_SIGS[reader].params == CALL_SIGS["rank_value"].params  # (Card,)
+        assert reader not in F.BUILTIN_CALL_FUNCS
+        assert K.CONTRACTS[reader].param_type == TCard()
 
 
 def test_gated_registries_match_the_grid() -> None:
@@ -1123,14 +1125,14 @@ def test_gated_registries_match_the_grid() -> None:
 
 def test_row_callable_partition_is_total() -> None:
     """Every Builtin call is classified callable-from-a-row or not; the two
-    sets partition BUILTIN_CALL_FUNCS minus the readers (whose callability is
-    the reference-order rule) with nothing in both."""
+    sets partition BUILTIN_CALL_FUNCS with nothing in both (an answer's call
+    of another answer is the reference-order rule's)."""
     callable_ = _reg("TRICK_ORDER_ROW_CALLS")
     uncallable = _reg("TRICK_ORDER_ROW_UNCALLABLE")
     assert callable_ == _ROW_CALLABLE
     assert uncallable == _ROW_UNCALLABLE
     assert not (callable_ & uncallable)
-    assert callable_ | uncallable | set(_READERS) == F.BUILTIN_CALL_FUNCS
+    assert callable_ | uncallable == F.BUILTIN_CALL_FUNCS
 
 
 def test_every_arrival_record_call_takes_a_top_pile() -> None:
@@ -1155,7 +1157,7 @@ def test_every_arrival_record_call_takes_a_top_pile() -> None:
 
 
 def test_new_builtins_are_registered_and_deck_only() -> None:
-    """red under (once green): drop one of the five from DECK_ONLY_CALL_FUNCS."""
+    """red under: drop one of the two from DECK_ONLY_CALL_FUNCS."""
     assert _NEW_BUILTINS <= F.BUILTIN_CALL_FUNCS
     assert _NEW_BUILTINS <= F.DECK_ONLY_CALL_FUNCS
     assert "highest_by_trick_order" in F.BUILTIN_TRICK_WINNERS

@@ -465,7 +465,7 @@ def test_accepts_the_trick_order_winner_with_no_declared_ranking() -> None:
     # winner's strengths are the block's `card_strength:` row, never
     # `rank_index`. A DECLARED row, deliberately -- an omitted one defaults to
     # `rank_value(card)` and is refused without a `ranking:` by
-    # `_check_trick_order`'s own gate, which is a different guard and has its
+    # `_check_kernel_answers`' own gate, which is a different guard and has its
     # own cells in tests/test_trick_order.py.
     _accepts(
         _game(

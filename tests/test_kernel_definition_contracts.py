@@ -62,8 +62,11 @@ from cardlang.kernel_contracts import (
     TRICK_ORDER_CONTRACTS,
 )
 from cardlang.parse import parse_library, parse_text
+from cardlang.deckcheck import check_capacity
+from cardlang.expand import expand
 from cardlang.pipeline import check_dsl
-from cardlang.resolve import _PRONOUNS, _ROUND_QUERY_NAMES
+from cardlang.resolve import _CALL_SITE_PRONOUNS, _PRONOUNS, _ROUND_QUERY_NAMES, resolve
+from cardlang.typecheck import typecheck
 from cardlang.runtime.driver import play_game
 
 _HOST = """game G {{
@@ -147,23 +150,8 @@ def _run(cell: Cell) -> None:
         )
 
 
-# The cells green before the capability: the existing guards they keep.
-# Every other cell is red until the capability lands.
-_BORN_GREEN = frozenset({
-    "is_trump-twice", "follow_class-twice", "card_strength-twice", "card_points-twice",
-    "is_trump-mistyped-name-is-ordinary", "follow_class-mistyped-name-is-ordinary",
-    "card_strength-mistyped-name-is-ordinary", "card_points-mistyped-name-is-ordinary",
-    "cycle-through-card_points", "unread-ordinary-function-stays-clean",
-    "unknown-rank-reports-once",
-})
-_RED = pytest.mark.xfail(strict=True, raises=AssertionError, reason="the capability (#942)")
-
-
 def _params(cells: Iterable[Cell]) -> list[Any]:
-    return [
-        pytest.param(c, id=c.id, marks=() if c.id in _BORN_GREEN else (_RED,))
-        for c in cells
-    ]
+    return [pytest.param(c, id=c.id) for c in cells]
 
 
 # --- the host's reader of each contract --------------------------------------
@@ -211,7 +199,6 @@ ORDER_NAMES = list(TRICK_ORDER_CONTRACTS)
 # =============================================================================
 
 
-@_RED
 def test_the_contract_registry_is_disjoint_from_every_native_namespace() -> None:
     """A Kernel Definition Contract is never the language's to define, and a
     Builtin never a game's: the two registries never meet.
@@ -274,7 +261,7 @@ def _definition_cells() -> list[Cell]:
         add(Cell(f"{name}-wrong-result",
                  _cell_source(name, _answer(name, body=wrong)),
                  (f"but the kernel reads `{row.spelled}`",)))
-        top = "if c.rank is A then 1 else none" if name != "follow_class" else "if c.rank is A then 1 else c.suit"
+        top = "if c.rank is A then 1 else c.suit"
         add(Cell(f"{name}-permissive-top",
                  _cell_source(name, _answer(name, body=top)),
                  ("types as `Any`",)))
@@ -365,7 +352,7 @@ def _forbidden_reads(name: str) -> list[tuple[str, str, str, str]]:
     reads = [
         ("zone-hand-0", wrap("any card in hand[0] where card.rank is A"), f"function `{name}` reads zone 'hand'", ""),
         ("zone-hand-bare", wrap("any card in hand where card.rank is A"), f"function `{name}` reads", ""),
-        ("choose", wrap("(choose card from pile) is c"), f"function `{name}` makes a `choose`", ""),
+        ("choose", wrap("(choose integer in 0 .. 3) > 1"), f"function `{name}` makes a `choose`", ""),
         ("phase-state", wrap("late"), f"function `{name}` reads state variable 'late'", ""),
     ]
     for pronoun in sorted(_PRONOUNS):
@@ -383,10 +370,18 @@ def _hermeticity_cells() -> list[Cell]:
                      _cell_source(name, _answer(name, body=body), phase_state=phase_state),
                      (needle,)))
             helper = f"function helper(c : Card) = {body}"
-            via = {"is_trump": "helper(c)", "follow_class": "helper(c)", "card_strength": "helper(c)", "card_points": "helper(c)"}[name]
+            via = "helper(c)"
+            # A call-site pronoun inside a designer function is that
+            # function's own refusal (`_check_functions`), wherever it is
+            # called from; every other read is refused at the answer.
+            through = (
+                ("function 'helper' reads the call-site pronoun",)
+                if rid.removeprefix("pronoun-") in _CALL_SITE_PRONOUNS
+                else (needle.split(" reads")[0].split(" makes")[0], "through function `helper`")
+            )
             add(Cell(f"{name}-through-{rid}",
                      _cell_source(name, helper + "\n" + _answer(name, body=via), phase_state=phase_state),
-                     (needle.split(" reads")[0].split(" makes")[0], "through function `helper`")))
+                     through))
     # The control: a pure answer reading public state checks clean.
     add(Cell("is_trump-reads-public-state",
              _cell_source("is_trump", _answer("is_trump", body="c.suit is trump_suit"), state="  trump_suit : Suit = hearts"),
@@ -566,7 +561,6 @@ _LOWERINGS: list[tuple[str, str, str]] = [
 ]
 
 
-@_RED
 @pytest.mark.parametrize(("label", "block", "written"), _LOWERINGS, ids=[x[0] for x in _LOWERINGS])
 def test_the_lowering_is_the_hand_written_function(label: str, block: str, written: str) -> None:
     """Each block form parses to the `FunctionDef` a designer would write,
@@ -620,10 +614,18 @@ _LIB = """library contractlib {{
 
 
 def _library_bag(monkeypatch: pytest.MonkeyPatch, library: str, host: str) -> list[str] | None:
+    """The host's refusals under `library`, through the post-parse pipeline
+    unmemoized: `pipeline.check_dsl` caches on the parsed tree while the
+    library is patched per cell, so one cell's result could answer another's."""
     built = parse_library(library, "docs/libraries/contractlib.cardlang")
     monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"contractlib"}))
     monkeypatch.setattr("cardlang.resolve.load_library", lambda name: built)
-    return _diagnostics(host)
+    try:
+        check_capacity(expand(typecheck(resolve(parse_text(host, "contracts.cardlang")))))
+    except DiagnosticError as exc:
+        notes = getattr(exc, "__notes__", []) or []
+        return [exc.diagnostic.message, *notes]
+    return None
 
 
 def _library_cells() -> list[tuple[str, str, str, tuple[str, ...]]]:
@@ -661,7 +663,6 @@ def _library_cells() -> list[tuple[str, str, str, tuple[str, ...]]]:
     return out
 
 
-@_RED
 @pytest.mark.parametrize(
     ("label", "library", "host", "needles"), _library_cells(), ids=[c[0] for c in _library_cells()]
 )
@@ -678,7 +679,6 @@ def test_library_cell(
         assert needle in text, f"expected {needle!r} in:\n{text}"
 
 
-@_RED
 @pytest.mark.parametrize("name", NAMES)
 def test_a_primitive_entry_may_not_take_a_contract_name(name: str) -> None:
     source = _source(clauses=f"primitives {{ {name}(c : Card) : Integer }}", body="score[1] += 1")
@@ -687,7 +687,6 @@ def test_a_primitive_entry_may_not_take_a_contract_name(name: str) -> None:
     assert f"answers the kernel's `{CONTRACTS[name].spelled}`" in "\n".join(found), "\n".join(found)
 
 
-@_RED
 @pytest.mark.parametrize("name", NAMES)
 def test_a_piece_game_answers_no_card_contract(name: str) -> None:
     source = (
@@ -700,7 +699,7 @@ def test_a_piece_game_answers_no_card_contract(name: str) -> None:
     )
     found = _diagnostics(source)
     assert found is not None, "expected a diagnostic, the source checked clean"
-    assert "played with pieces" in "\n".join(found), "\n".join(found)
+    assert "which a piece set has no notion of" in "\n".join(found), "\n".join(found)
 
 
 # =============================================================================
@@ -718,7 +717,6 @@ def test_hearts_value_name_probe_is_still_refused() -> None:
     assert "that slot always runs the language's `highest_of_led_suit`" in "\n".join(found)
 
 
-@_RED
 def test_a_wrong_parameter_is_the_contracts_refusal_alone() -> None:
     """P7': `function is_trump(p : Player) = true` on a host whose winner reads
     the Trick Order meets only the contract's parameter check."""
@@ -740,7 +738,6 @@ def _trace(source: str, seed: int) -> list[tuple[str, Any]]:
     return events
 
 
-@pytest.mark.xfail(strict=True, raises=DiagnosticError, reason="the capability (#942)")
 def test_the_table_and_the_function_play_the_same_game() -> None:
     """P2: a point table and the function it lowers to play byte-identically,
     the end-of-game census's `total_value` included."""
@@ -755,7 +752,6 @@ def test_the_table_and_the_function_play_the_same_game() -> None:
         assert ends and "total_value" in ends[0]
 
 
-@pytest.mark.xfail(strict=True, raises=DiagnosticError, reason="the capability (#942)")
 def test_the_census_reads_a_hand_written_card_points() -> None:
     """The census sums the game's answer, whichever spelling wrote it: a
     function counting every ace 11 totals 44 over the full deck."""

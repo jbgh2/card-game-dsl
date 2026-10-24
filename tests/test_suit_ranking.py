@@ -331,14 +331,6 @@ POSITIONS: dict[str, Position | str] = {
             "  demands: cards in hand where card.suit is spades\n  if_impossible: hand\n}"
         ),
     ),
-    "trick_order": Position(
-        clauses="trick_order { trump: card.suit is spades  card_strength: suit_value(card.suit) }",
-        body=(
-            "    deal 2 cards from deck to each hand\n"
-            "    round play_to_trick from 0 over all players source hand into pile "
-            "winner highest_by_trick_order"
-        ),
-    ),
     "loser": Position(
         result="  loser: if suit_value(spades) > 0 then 0 else 1",
     ),
@@ -350,7 +342,6 @@ POSITIONS: dict[str, Position | str] = {
     "state": Position(state="  base : Integer = suit_value(spades)"),
     "winner": "names a state variable, never an expression",
     "primitives": "declares Python signatures; a body is Python, never a call",
-    "card_points": "a table of integer literals",
     "board": "a board family and integer arguments",
     "zones": "zone declarations",
     "positions": "integer ranges",
