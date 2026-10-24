@@ -28,7 +28,7 @@ from pathlib import Path
 
 from cardlang.pipeline import check_source
 from cardlang.runtime import narrowing, reads
-from cardlang.runtime.driver import declared_primitives, declared_trick_order
+from cardlang.runtime.driver import declared_kernel_answers, declared_primitives, declared_trick_order
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.tarot import (
     tarot_card_points,
@@ -123,8 +123,9 @@ def _trick_order_ctx() -> tuple[TrickOrderTable, Ctx]:
     one load site."""
     rs = _tarot_rs()
     game = check_source(TAROT)
-    table = declared_trick_order(game)
-    assert table is not None, "french-tarot declares a `trick_order { }` block"
+    rs.kernel_answers = declared_kernel_answers(game)
+    table = declared_trick_order(rs.kernel_answers)
+    assert table is not None, "french-tarot declares a Trick Order"
     rs.trick_order = table
     # The `card_strength:` row reaches the game's own `numeral` function, so
     # the fixture loads the function index exactly as the driver does.

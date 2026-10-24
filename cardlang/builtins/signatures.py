@@ -75,7 +75,6 @@ CALL_SIGS: dict[str, Sig] = {
     "suit_value": Sig((TEnum("Suit"),), TInteger()),  # strength under `suit ranking:`
     "error": Sig((TString(),), TAny()),  # the if_impossible fallback
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
-    "card_points": Sig((TCard(),), TInteger()),  # a card's points under `card_points { }`
     # Positional order reads (decisions.md "Position domains and positional
     # zones", sequence orientation): top = the sequence end (most recent
     # arrival), bottom = the front. Loud runtime error on an empty collection.
@@ -86,16 +85,9 @@ CALL_SIGS: dict[str, Sig] = {
     # (TAny: the runtime needs the Zone handle, not coerced elements — the
     # record rides the zone); the trump is a suit or none.
     "highest_trump_or_led_suit": Sig((TAny(), TOptional(TEnum("Suit"))), TPlayer()),
-    # The Trick Order's five (decisions.md "Trick Order"; issue #250). The
-    # three READERS the language mints from the block's rows: each takes the
-    # card and returns exactly what its row must type — these return types
-    # ARE the required row types, read back by typecheck's `_check_trick_order`
-    # so the demand is stated once. `follow_class` is `Suit?` because `none`
-    # means class-less (a card that neither sets the lead nor wins).
-    "is_trump": Sig((TCard(),), TBoolean()),
-    "follow_class": Sig((TCard(),), TOptional(TEnum("Suit"))),
-    "card_strength": Sig((TCard(),), TInteger()),
-    # The two Builtins over the whole declaration. Both take the pile
+    # The two Builtins over a game's Trick Order (decisions.md "Trick Order";
+    # issue #250); the Trick Order's facts themselves are Kernel Definition
+    # Contracts (`cardlang.kernel_contracts`). Both take the pile
     # polymorphically (`TAny`, the `highest_trump_or_led_suit` precedent: the
     # runtime needs the Zone handle, not coerced elements, because the
     # [[arrival-record]] rides the zone); which argument is the pile is
@@ -108,7 +100,7 @@ CALL_SIGS: dict[str, Sig] = {
 VALUE_SIGS: dict[str, Type] = {
     "highest_of_led_suit": TAny(),
     "highest_trump_or_led_suit": TAny(),
-    "highest_by_trick_order": TAny(),  # trick winner under the game's `trick_order { }`
+    "highest_by_trick_order": TAny(),  # trick winner under the game's Trick Order
 }
 
 # Early-termination predicates named by a `round`'s `early` clause. Signature is

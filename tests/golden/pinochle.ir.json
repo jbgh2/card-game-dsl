@@ -18,42 +18,6 @@
     "9"
   ],
   "ranking_convention": "ace-ten",
-  "card_points": {
-    "kind": "card_points_table",
-    "entries": [
-      {
-        "kind": "card_points_entry",
-        "rank": "A",
-        "value": 10
-      },
-      {
-        "kind": "card_points_entry",
-        "rank": "10",
-        "value": 10
-      },
-      {
-        "kind": "card_points_entry",
-        "rank": "K",
-        "value": 10
-      },
-      {
-        "kind": "card_points_entry",
-        "rank": "Q",
-        "value": 0
-      },
-      {
-        "kind": "card_points_entry",
-        "rank": "J",
-        "value": 0
-      },
-      {
-        "kind": "card_points_entry",
-        "rank": "9",
-        "value": 0
-      }
-    ],
-    "else_value": null
-  },
   "primitives": {
     "kind": "primitives",
     "entries": [
@@ -2478,6 +2442,165 @@
     }
   ],
   "functions": [
+    {
+      "kind": "function",
+      "name": "card_points",
+      "params": [
+        {
+          "name": "card",
+          "type_name": "Card"
+        }
+      ],
+      "body": {
+        "kind": "if_expr",
+        "cond": {
+          "kind": "binop",
+          "op": "is",
+          "left": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "card",
+              "ref": "local"
+            },
+            "field": "rank"
+          },
+          "right": {
+            "kind": "name",
+            "name": "A",
+            "ref": "enum_value"
+          }
+        },
+        "then": {
+          "kind": "int",
+          "value": 10
+        },
+        "elifs": [
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "card",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "10"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 10
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "card",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "name",
+                "name": "K",
+                "ref": "enum_value"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 10
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "card",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "name",
+                "name": "Q",
+                "ref": "enum_value"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 0
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "card",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "name",
+                "name": "J",
+                "ref": "enum_value"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 0
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "card",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "9"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 0
+            }
+          ]
+        ],
+        "otherwise": {
+          "kind": "int",
+          "value": 0
+        }
+      }
+    },
     {
       "kind": "function",
       "name": "team_score_in_hand",

@@ -102,6 +102,7 @@ import pytest
 import cardlang.resolve as resolve_module
 import cardlang.typecheck as typecheck_module
 from cardlang.board_domains import BOARD_DOMAIN
+from cardlang.kernel_contracts import KERNEL_CONTRACT_NAMES
 from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
@@ -317,9 +318,8 @@ class Gate:
 
 GATES: tuple[Gate, ...] = (
     Gate("ranking", RANKING_GATED_FUNCS, "ranking:"),
-    Gate("trick_order_needed", TRICK_ORDER_GATED_FUNCS, "trick_order"),
+    Gate("trick_order_needed", TRICK_ORDER_GATED_FUNCS, "Trick Order"),
     Gate("trick_order_refused", TRICK_ORDER_EXCLUDED_FUNCS, "trick_order"),
-    Gate("card_points", resolve_module._CARD_POINTS_CALLS, "card_points"),
     Gate("suit_ranking", resolve_module._SUIT_RANKING_CALLS, "`suit ranking:`"),
     Gate("teams", resolve_module._TEAM_CALL_FUNCS, "teams:"),
     Gate("board", BOARD_ONLY_CALL_FUNCS, "board:"),
@@ -350,7 +350,14 @@ def test_the_uses_check_holds_a_row_for_every_presence_gate() -> None:
 
     red under: emptying the members of the `teams:` row of
     `resolve._CLAUSE_GATES` (executed 2026-10-13)."""
-    table = {row.members for row in resolve_module._CLAUSE_GATES if row.members}
+    # The Kernel Definition Contracts' names are no Builtins: a library reaches
+    # one only through its `requires` row, which
+    # tests/test_kernel_definition_contracts.py grids.
+    table = {
+        members
+        for row in resolve_module._CLAUSE_GATES
+        if (members := row.members - KERNEL_CONTRACT_NAMES)
+    }
     grid = {gate.members for gate in GATES if gate.name != "board_span"}
     assert table == grid
 
@@ -641,7 +648,10 @@ def test_the_trick_order_remedy_clears_the_refusal(case: RankingCase) -> None:
     """The remedy as the refusal words it is the remedy `twin` applies: each
     piece of it is read off the message before the remedied game is checked."""
     refusal = _member_refusal(case, _rendered(_ranking_game(case, ranking=False)))
-    assert "`trick_order { }` block with `trump:` and `card_strength:` rows" in refusal
+    assert (
+        "declare a Trick Order — `function is_trump(c : Card) = …` and "
+        "`function card_strength(c : Card) = …`"
+    ) in refusal, refusal
     assert "in place of any `trump` clause" in refusal, refusal
     if case.position == "call":
         assert f"call `{_TRICK_ORDER_WINNER}(pile)` instead" in refusal, refusal
@@ -968,7 +978,8 @@ def test_two_libraries_are_each_refused_on_their_own_line(
         monkeypatch,
         {
             "ranks": "library ranks { function by_rank(c : Card) = rank_value(c) }",
-            "points": "library points { function by_points(c : Card) = card_points(c) }",
+            "points": "library points { requires { card_points(card : Card) : Integer } "
+            "function by_points(c : Card) = card_points(c) }",
         },
     )
     text = _game_text(
@@ -995,8 +1006,8 @@ def test_one_library_missing_two_clauses_is_told_both(
     _with_libraries(
         monkeypatch,
         {
-            _LIB: "library probe_lib { function probe_fn(c : Card) = "
-            "rank_value(c) + card_points(c) }"
+            _LIB: "library probe_lib { requires { card_points(card : Card) : Integer } "
+            "function probe_fn(c : Card) = rank_value(c) + card_points(c) }"
         },
     )
     text = _game_text(
@@ -1572,7 +1583,7 @@ def _homes(gate: str) -> list[tuple[object, str, object]]:
 # What each gate's own refusal says, for a member the game writes.
 _GATE_REFUSALS: dict[str, str] = {
     "card_content": "this game declares pieces",
-    "trick_order_reading": "reads the game's `trick_order { }` block, but this game declares none",
+    "trick_order_reading": "reads the game's Trick Order, but this game declares none",
     "trick_order_replaced": "beside a `trick_order { }` block",
     "team_range": "ranges over teams",
     "team_state": "is indexed by 'team'",
@@ -1858,13 +1869,11 @@ def test_every_card_clause_builtin_is_deck_only() -> None:
     """The Builtin rows on a clause a piece game cannot declare are pre-empted
     in a piece game by the deck-only row, which runs first.
 
-    red under: removing `card_points` from `DECK_ONLY_CALL_FUNCS` (executed
-    2026-10-14)."""
+    red under: removing `follows_lead` from `DECK_ONLY_CALL_FUNCS`."""
     card_clause_builtins = (
         (RANKING_GATED_FUNCS & BUILTIN_CALL_FUNCS)
         | TRICK_ORDER_GATED_FUNCS
         | TRICK_ORDER_EXCLUDED_FUNCS
-        | resolve_module._CARD_POINTS_CALLS
     )
     assert card_clause_builtins <= DECK_ONLY_CALL_FUNCS, sorted(
         card_clause_builtins - DECK_ONLY_CALL_FUNCS

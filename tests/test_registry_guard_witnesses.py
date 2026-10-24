@@ -575,6 +575,10 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # mutation is run in
     # tests/test_permissive_top.py::test_every_role_carries_a_row.
     "domains.py": ["set(BY_ID) == set(Role)"],
+    # A caller asking presence of a name that is no contract: an engine bug,
+    # never a designer's sentence, since every caller passes a registry row's
+    # name. No collection to go stale beside the registry it reads.
+    "kernel_contracts.py": ["name in CONTRACTS"],
     "libraries.py": ["not _LIBRARIES_DIR.is_dir()"],
     # Pins the stdlib's declared name to the constant no `uses` line spells; a
     # name compared against a name, with no collection to go stale. Its

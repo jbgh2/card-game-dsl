@@ -1,6 +1,7 @@
 // A `trick_order { }` row that asks for the strength of a rank the game's
-// `ranking:` does not rank. A row body is game text the driver evaluates
-// itself, from inside a trick round rather than from a statement, so the
+// `ranking:` does not rank. A row body, the answer it lowers to, is game text
+// the driver evaluates itself, from inside a trick round rather than from a
+// statement, so the
 // enclosing round is the only sentence the executor can name and the row's
 // own line is the smaller one.
 //

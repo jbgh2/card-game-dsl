@@ -1441,7 +1441,7 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     from cardlang.runtime.reads import coerce_args
 
     card = Card("3", "hearts")
-    (coerced,) = coerce_args(CALL_SIGS["card_points"], [card])
+    (coerced,) = coerce_args(CALL_SIGS["rank_value"], [card])
     assert coerced == card and coerced is not card, "the live engine Card leaked"
     object.__setattr__(coerced, "rank", "K")  # back door, on the copy
     assert card.rank == "3", "mutating the copy reached the engine's Card"

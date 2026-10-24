@@ -101,10 +101,13 @@ def _errors(src: str) -> list[str]:
 
 
 def test_every_row_names_a_game_field() -> None:
-    """red under: give a `_CLAUSE_GATES` row a `clause` no `n.Game` field
-    spells."""
+    """Every row's clause is an `n.Game` field or a clause the game states by
+    answering Kernel Definition Contracts (`resolve._DEFINITION_CLAUSES`),
+    and no clause is both. red under: give a `_CLAUSE_GATES` row a `clause`
+    neither spells."""
     names = {f.name for f in fields(n.Game)}
-    assert {row.clause for row in R._CLAUSE_GATES} <= names
+    assert not (names & set(R._DEFINITION_CLAUSES))
+    assert {row.clause for row in R._CLAUSE_GATES} <= names | set(R._DEFINITION_CLAUSES)
 
 
 def test_every_reader_clause_has_a_sentence_and_a_vehicle() -> None:

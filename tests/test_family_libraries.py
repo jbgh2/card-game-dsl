@@ -1877,6 +1877,13 @@ def _slot_leaky(slot: str, *, leaking: bool) -> n.Library:
     )
 
 
+# Fields a library's text can never fill, though their types are reachable
+# from `n.Library`: the lowering stamp is set only by the game builder, which
+# lowers a game's own block spellings — a library holds no block spelling of
+# an answer, and may define no Kernel Definition Contract's name.
+_GAME_BUILDER_STAMPS: frozenset[tuple[type, str]] = frozenset({(n.FunctionDef, "spelled_as")})
+
+
 def _library_reachable_node_types() -> set[type]:
     """Every node kind a library can hold, by walking `n.Library`'s own clauses
     through the AST's annotations. Derived, because the alternative is a list of
@@ -1909,6 +1916,8 @@ def _library_reachable_node_types() -> set[type]:
             continue
         seen.add(current)
         for field in fields(current):
+            if (current, field.name) in _GAME_BUILDER_STAMPS:
+                continue
             stack.extend(leaves(hints[current][field.name]) & kinds)
     return seen
 
@@ -2490,7 +2499,6 @@ def _fixed_spellings() -> dict[str, frozenset[str]]:
         "PlayerQuery": frozenset(role_names(frozenset({Role.PLAYER}))),
         "CardQuery": frozenset({card}),
         "Comprehension": frozenset({card}),
-        "TrickOrderRow": frozenset({card}),
         "Transfer": frozenset(content),
         "EpistemicOp": frozenset(content_noun(f, plural=False) for f in flavors),
         "DomainQuery": _COLLECTION_NOUNS | {BOARD_DOMAIN},
@@ -2635,11 +2643,6 @@ _INTRODUCE: tuple[_Site, ...] = (
         "if any card in deck where card.suit is hearts { score[0] := 1 }",
     ),
     _Site("Comprehension", "card", False, "score[0] := sum of 1 over cards in deck"),
-    _Site(
-        "TrickOrderRow", "card", False,
-        "let w = highest_by_trick_order(pile)\n    score[w] += 1",
-        clauses="trick_order { trump: card.suit is hearts }",
-    ),
     _Site(
         "Transfer", "card", False,
         "move 1 card from deck where card.suit is hearts to hand[0]",

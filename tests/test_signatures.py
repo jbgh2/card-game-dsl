@@ -41,7 +41,7 @@ does not prove: that a designer can REACH the dispatch refusal
             tests/rejections/primitives_declared_only_no_block.
             Nor that a call signature's PARAMETER types agree with the Python
             behind every arm. An inline arm — an expression instead of a
-            helper call: `team_of`, `card_points`, `error` — has no
+            helper call: `team_of`, `error` — has no
             annotation to introspect, and the expression is its own statement
             of the types, so it is reconciled on arity alone. `rank_value`
             forwards to `values.rank_strength` (the runtime Owner Guard for
@@ -488,7 +488,7 @@ def test_the_dispatch_parse_actually_resolves_helpers() -> None:
     resolve, so a mechanical dispatch refactor (a helpers dict, attribute
     calls, keyword arguments) could decay it to checking nothing while staying
     green. Pin the boundary exactly: the only arms without an introspectable
-    helper are the three inline expressions the module ledger's `does not
+    helper are the two inline expressions the module ledger's `does not
     prove:` row names
     (`rank_value` left the list when it began forwarding to
     `values.rank_strength`; its argument positions are computed, so the
@@ -499,7 +499,7 @@ def test_the_dispatch_parse_actually_resolves_helpers() -> None:
         for name, fact in facts.items()
         if fact.helper is None or not callable(fact.helper)
     )
-    assert inline == ["card_points", "error", "team_of"], (
+    assert inline == ["error", "team_of"], (
         f"arms with no introspectable helper: {inline} — if the dispatch shape "
         "changed, teach _call_dispatch_facts the new shape rather than letting "
         "the annotation check silently skip these"

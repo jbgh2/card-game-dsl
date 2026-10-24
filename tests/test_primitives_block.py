@@ -1975,9 +1975,8 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
         DECK_ONLY_CALL_FUNCS,
         TRICK_ORDER_EXCLUDED_FUNCS,
         TRICK_ORDER_GATED_FUNCS,
-        TRICK_ORDER_READERS,
     )
-    from cardlang.resolve import _FRAME_CALL_FUNCS
+    from cardlang.resolve import _FRAME_CALL_FUNCS, _TRICK_ORDER_READERS
     from cardlang.typecheck import RANKING_GATED_FUNCS
 
     candidates = {
@@ -1994,7 +1993,7 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
         # excludes, and what reads one.
         "TRICK_ORDER_GATED_FUNCS": TRICK_ORDER_GATED_FUNCS,
         "TRICK_ORDER_EXCLUDED_FUNCS": TRICK_ORDER_EXCLUDED_FUNCS,
-        "TRICK_ORDER_READERS": frozenset(TRICK_ORDER_READERS),
+        "_TRICK_ORDER_READERS": _TRICK_ORDER_READERS,
         # The Trick Order row check refuses every CALL_FUNCS member outside its
         # own allow-list, so its collidable set is the whole Primitive half.
         "TRICK_ORDER_ROW_CALLS": PRIMITIVE_CALL_FUNCS,

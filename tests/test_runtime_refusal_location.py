@@ -494,7 +494,7 @@ _DRIVER_WITNESSES: dict[str, frozenset[str]] = {
     "run_phase:q.expr": frozenset({WHEN_GUARD.stem, REPEAT_CONDITION.stem}),
     "_declare_state:decl.default": frozenset({PHASE_STATE.stem, GAME_STATE.stem}),
     "play_game:game.loser.selection": frozenset({LOSER_SELECTION.stem}),
-    "read:body": frozenset({TRICK_ORDER_ROW.stem}),
+    "read:fn.body": frozenset({TRICK_ORDER_ROW.stem}),
 }
 
 # The qualifier's arms, and the state declarer's two callers — the sub-axes
@@ -592,8 +592,8 @@ def test_every_driver_evaluation_position_has_a_witness() -> None:
     witness, and a witness naming a position the driver no longer has fails
     rather than passing on the rest.
 
-    red under: drop the `read:body` row — the derivation still finds the
-    trick-order row and this cell names it."""
+    red under: drop the `read:fn.body` row — the derivation still finds the
+    Kernel Definition Contract answer and this cell names it."""
     assert set(_DRIVER_WITNESSES) == _driver_evaluation_sites()
     named = {stem for stems in _DRIVER_WITNESSES.values() for stem in stems}
     assert named <= {case.path.stem for case in _CASES}, (
