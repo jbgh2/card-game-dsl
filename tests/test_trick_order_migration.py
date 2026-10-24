@@ -316,6 +316,12 @@ MIGRATIONS: tuple[Migration, ...] = (
         "belote_stream_hashes.json",
         reshaped_traces=frozenset({"trick_end"}),
     ),
+    # Skat and French Tarot re-enter for their Trick Order's move from the
+    # `trick_order { }` block to the functions it lowers to (issue #943). The
+    # block and the functions are one answer to the kernel's contracts, so
+    # nothing retires or reshapes: the whole trace channel is pinned.
+    Migration("skat.cardlang", "skat_stream_hashes.json"),
+    Migration("french-tarot.cardlang", "french_tarot_stream_hashes.json"),
 )
 
 # A game whose RULES are later corrected against its source LEAVES this
@@ -327,7 +333,10 @@ MIGRATIONS: tuple[Migration, ...] = (
 # 200 seeds. Skat left the same way when its read against Pagat (`issue #728`)
 # added the contracts and announcements the declarer is offered, moving every
 # seed. `issue #542` owns what replaces the coverage for a corrected game (the
-# same fork meets 500, whose `issue #106` is open against a row still here).
+# same fork meets 500, whose `issue #106` is open against a row still here). A
+# game that moves again AFTER its correction re-enters with a file captured on
+# the tree just before that move, which is a new pin rather than a re-blessing:
+# its claim is the later move's, never the corrected migration's.
 
 SEEDS: tuple[int, ...] = tuple(range(200))
 
