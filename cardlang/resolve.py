@@ -1868,11 +1868,14 @@ def _declares_trick_order(game: n.Game) -> str:
 
 
 def _drop_trick_order(game: n.Game) -> str:
-    """How the designer removes the game's Trick Order, in its spelling."""
-    answer = K.answer(game, K.TRICK_ORDER_KEY_CONTRACT)
-    if answer is not None and answer.spelled_as is not None:
+    """How the designer removes the game's Trick Order, in the spellings it
+    is written in: the block, its functions, or both."""
+    spellings = {a.spelled_as is not None for a in K.trick_order_answers(game)}
+    if spellings == {True}:
         return "drop the block"
-    return "drop the Trick Order's functions"
+    if spellings == {False}:
+        return "drop the Trick Order's functions"
+    return "drop the block and the Trick Order's functions"
 
 
 def _trick_order_fix(game: n.Game) -> str:
@@ -2190,7 +2193,10 @@ def _check_library_clause_gates(
     imports it, so that refusal stands alone and the game is asked no clause
     for text the library may not hold."""
     nodes = _library_nodes(library, game)
-    claimed: set[object] = set()
+    # A call of a Kernel Definition Contract the library writes a row for is
+    # that row's to judge: the game answers it or is told to on this same
+    # line (`_check_definition_requirement`), once.
+    claimed: set[object] = set(_contracted(library, "functions") & K.KERNEL_CONTRACT_NAMES)
     for gate in _CLAUSE_GATES:
         if not gate.unmet(game):
             continue
@@ -4081,6 +4087,20 @@ def _check_definition_requirement(
         row = K.CONTRACTS.get(want.name) if isinstance(want, n.FunctionContract) else None
         if row is not None and row.defaulted and K.has_trick_order(game):
             return None  # answered by the driver's default
+        if row is not None and want.name in K.TRICK_ORDER_CONTRACTS:
+            # A Trick Order row answers only in a game with a Trick Order,
+            # which answering `is_trump` declares.
+            fix: Said = (
+                _ANSWER_IS_TRUMP + " — the Trick Order's default answers this row"
+                if row.defaulted
+                else _ANSWER_IS_TRUMP
+            )
+            bag.error(
+                head + f", which game '{game.name}' does not answer, since it "
+                f"declares no Trick Order — " + fix,
+                use.span,
+            )
+            return None
         others = _game_declarations_of(game, want.name)
         if others:
             bag.error(
@@ -7947,13 +7967,18 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag, refused: set[str]) ->
 
     A refused table's answer gets a constant body, the table's everything-else
     value, so the fault reports here once and never again as the chain's
-    unresolved rank; resolve raises before any later pass reads it."""
+    unresolved rank; resolve raises before any later pass reads it. So does a
+    table in a game with no deck to rank it against. An accepted table's keys
+    are classified as the ranks they are."""
     answer = K.answer(game, "card_points")
     spelled = answer.spelled_as if answer is not None else None
     if answer is None or spelled is None or spelled.form != "card_points_table":
         return game
+    assert isinstance(answer.body, n.IfExpr), "a lowered table is a chain"
     if not _deck_known(game.deck) or game.content_flavor != "card":
-        return game  # `_reject_card_content_clauses` already named the kind
+        # `_reject_card_content_clauses` or `_resolve_component_set` named
+        # the fault; the keys have no deck to be ranks of.
+        return _with_answer_body(game, answer, answer.body.otherwise)
     known = rank_names(game.deck)
     seen: set[str] = set()
     before = len(bag.items)
@@ -7972,13 +7997,36 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag, refused: set[str]) ->
                 f"of deck '{game.deck}' (known ranks: {', '.join(sorted(known))})",
                 entry.span or game.span,
             )
-    if len(bag.items) == before:
-        return game
-    refused.add("card_points")
-    assert isinstance(answer.body, n.IfExpr), "a lowered table is a chain"
-    stand_in = replace(answer, body=answer.body.otherwise)
+    if len(bag.items) > before:
+        refused.add("card_points")
+        return _with_answer_body(game, answer, answer.body.otherwise)
+    # Every key is a rank of the deck, decided here: each arm's key is
+    # classified so, whatever state, zone or local the game spells the same,
+    # since the table's key position names ranks only.
+    def ranked(cond: n.Expr) -> n.Expr:
+        assert isinstance(cond, n.BinOp), "a lowered arm compares the card's rank"
+        key = cond.right
+        if isinstance(key, n.NameRef):
+            return replace(cond, right=replace(key, ref_kind="enum_value"))
+        return cond
+
+    chain = answer.body
+    return _with_answer_body(
+        game,
+        answer,
+        replace(
+            chain,
+            cond=ranked(chain.cond),
+            elifs=tuple((ranked(c), v) for c, v in chain.elifs),
+        ),
+    )
+
+
+def _with_answer_body(game: n.Game, answer: n.FunctionDef, body: n.Expr) -> n.Game:
+    """`game` with `answer`'s body replaced."""
+    rebuilt = replace(answer, body=body)
     return replace(
-        game, functions=tuple(stand_in if f is answer else f for f in game.functions)
+        game, functions=tuple(rebuilt if f is answer else f for f in game.functions)
     )
 
 
@@ -9388,10 +9436,19 @@ def _check_piece_rounds(game: n.Game, bag: DiagnosticBag) -> None:
 
 
 def _gated_calls(game: n.Game) -> list[n.Call]:
+    """The calls reading a Trick Order in the game's own text. A library's
+    call is `_check_library_clause_gates`', or, for a name its `requires`
+    contracts for, that row's (`_check_definition_requirement`)."""
+    spliced = {
+        id(nd)
+        for f in game.functions
+        if f.origin is not None
+        for nd in _walk(f.body)
+    }
     return [
         nd
         for nd in _walk(game)
-        if isinstance(nd, n.Call) and nd.func in _TRICK_ORDER_READERS
+        if isinstance(nd, n.Call) and nd.func in _TRICK_ORDER_READERS and id(nd) not in spliced
     ]
 
 
@@ -9504,6 +9561,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
         return refused
     answer_names = {a.name for a in answers}
     fns = {f.name: f for f in game.functions if f.name not in answer_names}
+    points = K.answer(game, "card_points")
     # The zone references that carry a subscript (`won[0]`). A family read is
     # BARE — the acting player's instance, which an answer does not have —
     # only when it is not one of these; identity, because two reads of the
@@ -9517,11 +9575,25 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
     for answer in answers:
         voice = _AnswerVoice(answer)
         before = len(bag.items)
-        routes = _answer_routes(answer, fns)
+        # A Trick Order answer's reach runs on through `card_points`, which it
+        # may call and which may call any of the three: there the reference
+        # order still binds it. Everything else in `card_points`' reach is
+        # that answer's own to refuse, at itself.
+        pool = (
+            {**fns, points.name: points}
+            if points is not None and answer.name in K.TRICK_ORDER_CONTRACTS
+            else fns
+        )
+        routes = _answer_routes(answer, pool)
+        through_points = {
+            name
+            for name, steps in routes.items()
+            if any(d is points for _at, d in steps)
+        }
         # (node, the function it was reached through, or None when direct)
         sites: list[tuple[object, str | None]] = [(nd, None) for nd in _walk(answer.body)]
         for name in routes:
-            sites.extend((nd, name) for nd in _walk(fns[name].body))
+            sites.extend((nd, name) for nd in _walk(pool[name].body))
         # A function reached through library text is the library's, sound
         # where the library calls it: the answer's call of it is what fails.
         entries = {
@@ -9558,6 +9630,10 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
 
         for nd, fn in sites:
             out = sink(fn)
+            if fn in through_points and not (
+                isinstance(nd, n.Call) and nd.func in K.KERNEL_CONTRACT_NAMES
+            ):
+                continue
             if isinstance(nd, n.NameRef) and nd.ref_kind == "pronoun":
                 if fn is not None and nd.name in _CALL_SITE_PRONOUNS:
                     continue
@@ -9603,13 +9679,18 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                 home = " or ".join(
                     f"phase '{p}'" for p in sorted(declaring_phases(game, nd.name))
                 )
+                scoped: Said = (
+                    " — a Trick Order is read where no phase frame stands, so a "
+                    "row may read only the game's own `state { }`"
+                    if voice.row
+                    else " — the kernel reads " + voice.named() + " where no phase "
+                    "frame stands (the end-of-game card census among them), so it "
+                    "may read only the game's own `state { }`"
+                )
                 out.error(
                     voice.subject() + f" reads state variable '{nd.name}', which "
-                    f"{home} declares" + through(fn)
-                    + " — the kernel reads " + voice.named() + f" where no phase frame "
-                    f"stands (the end-of-game card census among them), so it may "
-                    f"read only the game's own `state {{ }}`; declare "
-                    f"'{nd.name}' there",
+                    f"{home} declares" + through(fn) + scoped
+                    + f"; declare '{nd.name}' there",
                     nd.span or answer.span,
                 )
             elif isinstance(nd, n.Call):
@@ -9952,14 +10033,14 @@ def _unread_trick_order(game: n.Game, written: Sequence[object]) -> Said:
         return (
             f"`trick_order {{ }}` is read by nothing — no round names {winner}, and "
             f"nothing outside the block calls " + gated + f"; name {winner} on a "
-            f"trick round or call it over the trick pile, or drop the block"
+            f"trick round or call it over the trick pile, or {_drop_trick_order(game)}"
         )
     return (
         "function " + _cite_in(game, "function", "is_trump", "`is_trump`")
         + f" declares a Trick Order nothing reads — no round names {winner}, and "
         f"nothing outside the Trick Order's functions calls " + gated + f"; name "
-        f"{winner} on a trick round or call it over the trick pile, or drop the "
-        f"functions"
+        f"{winner} on a trick round or call it over the trick pile, or "
+        f"{_drop_trick_order(game)}"
     )
 
 
@@ -10256,6 +10337,11 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     ):
         return node
     if isinstance(node, n.NameRef):
+        if node.ref_kind is not None:
+            # Classified by an earlier step of this pass from a fact it held
+            # first: a `card_points { }` key is a rank of the deck
+            # (`_resolve_card_points`), whatever else the game spells so.
+            return node
         if cats.rule_clause and node.name == PLAY_SOURCE_NAME and node.name not in cats.locals:
             return replace(node, ref_kind="play_source")
         kind = _classify(node.name, cats)

@@ -504,7 +504,7 @@ def play_game(
     )
 
 
-def _final_card_census(rs: RuntimeState, ctx: Ctx) -> dict[str, int]:
+def _final_card_census(rs: RuntimeState, ctx: Ctx) -> dict[str, int | None]:
     """Total cards across every zone (conservation check) and how many `hand`
     zones still hold cards (the survivor count for an elimination game)."""
     all_zones = list(rs.zones.singles.values())
@@ -515,11 +515,17 @@ def _final_card_census(rs: RuntimeState, ctx: Ctx) -> dict[str, int]:
     # point-trick games (e.g. Schnapsen's 120), read through the game's
     # `card_points` answer, which resolve holds to game-level state so it reads
     # the same here, after the last phase, as in play. Zero for a game that
-    # answers none.
+    # answers none. The census asks every card, including cards the game never
+    # prices, and an answer may refuse one (a `rank_value` under a partial
+    # `ranking:`): an instrument never fails a game that played, so such a
+    # total is None, a census that could not be taken.
     points = rs.kernel_answers.get("card_points")
-    total_value = (
-        sum(points(c, ctx) for z in all_zones for c in z.cards) if points is not None else 0
-    )
+    total_value: int | None = 0
+    if points is not None:
+        try:
+            total_value = sum(points(c, ctx) for z in all_zones for c in z.cards)
+        except REFUSALS:
+            total_value = None
     hands = rs.zones.families.get("hand", {})
     with_cards = sum(1 for z in hands.values() if z.cards)
     return {"total": total, "hands_with_cards": with_cards, "total_value": total_value}
