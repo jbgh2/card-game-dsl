@@ -322,6 +322,10 @@ MIGRATIONS: tuple[Migration, ...] = (
     # nothing retires or reshapes: the whole trace channel is pinned.
     Migration("skat.cardlang", "skat_stream_hashes.json"),
     Migration("french-tarot.cardlang", "french_tarot_stream_hashes.json"),
+    # Spades states its fixed trump on its round rather than in the game-level
+    # `trump:` clause, the clause's own default (issue #943): the round's
+    # trump is the same suit, so nothing retires or reshapes.
+    Migration("spades.cardlang", "spades_stream_hashes.json"),
 )
 
 # A game whose RULES are later corrected against its source LEAVES this
