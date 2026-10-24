@@ -29,9 +29,11 @@ about a game nobody is playing.
 
 from __future__ import annotations
 
+import dataclasses
 import random
 from typing import Any, Callable
 
+from cardlang.ast import nodes as n
 from cardlang.domains import zone_observer_key
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.errors import OwnerGuardError
@@ -122,13 +124,14 @@ def _own_private_cards(rs: RuntimeState, player: int) -> list[Card]:
     return out
 
 
-def _likely_winners(rs: RuntimeState, player: int) -> int:
+def _likely_winners(rs: RuntimeState, player: int, trump: str | None) -> int:
     """How many tricks the seat's own cards look like taking.
 
     The standard bidding heuristic, stated deck-agnostically: cards in the top
     two ranks of the declared ranking, plus trump length beyond a fair share of
-    the hand. Both terms read the declared `ranking:` and `trump:`, which are
-    public, and the seat's own cards, which are its own.
+    the hand. Both terms read declarations, the `ranking:` and the fixed suit
+    the game's trick rounds name as trump, which are public, and the seat's own
+    cards, which are its own.
 
     It is a heuristic and nothing more — it does not model partners, position,
     voids, or what has already been played. What it buys is a declaration in
@@ -139,13 +142,36 @@ def _likely_winners(rs: RuntimeState, player: int) -> int:
         return 0
     top = max(rs.rank_index.values())
     winners = sum(1 for c in cards if rs.rank_index.get(c.rank, -1) >= top - 1)
-    if rs.trump:
+    if trump:
         fair_share = len(cards) // max(1, len(rs.suits))
-        winners += max(0, sum(1 for c in cards if c.suit == rs.trump) - fair_share)
+        winners += max(0, sum(1 for c in cards if c.suit == trump) - fair_share)
     return winners
 
 
-def _rank_declaration(rs: RuntimeState, player: int, candidates: list[Any]) -> Any:
+def fixed_trump(game: n.Game) -> str | None:
+    """The suit the game's trick rounds all name as trump (`... winner
+    highest_trump_or_led_suit trump spades`), or None where they name none,
+    name a State Variable, or disagree."""
+    found: set[str | None] = set()
+
+    def walk(node: object) -> None:
+        if isinstance(node, n.TrickRound):
+            spec = node.trump
+            found.add(spec.name if isinstance(spec, n.NameRef) and spec.ref_kind == "enum_value" else None)
+        if dataclasses.is_dataclass(node) and not isinstance(node, type):
+            for field in dataclasses.fields(node):
+                walk(getattr(node, field.name))
+        elif isinstance(node, tuple):
+            for item in node:
+                walk(item)
+
+    walk(game)
+    return found.pop() if len(found) == 1 else None
+
+
+def _rank_declaration(
+    rs: RuntimeState, player: int, candidates: list[Any], trump: str | None
+) -> Any:
     """Declare the number of tricks the hand looks like taking, clamped to what
     is on offer.
 
@@ -153,7 +179,7 @@ def _rank_declaration(rs: RuntimeState, player: int, candidates: list[Any]) -> A
     value, so the seam's return-what-you-were-handed contract holds for every
     kind alike.
     """
-    target = _likely_winners(rs, player)
+    target = _likely_winners(rs, player, trump)
     return min(candidates, key=lambda c: (abs(int(c) - target), int(c)))
 
 
@@ -167,7 +193,9 @@ def _rank_declaration(rs: RuntimeState, player: int, candidates: list[Any]) -> A
 # discard, and which cards those want is game-specific in a direction a
 # state-free ranking cannot pick (Hearts passes its highest cards, a discard
 # sheds its lowest).
-CANDIDATE_RANKERS: dict[str, Callable[[RuntimeState, int, list[Any]], Any] | None] = {
+CANDIDATE_RANKERS: dict[
+    str, Callable[[RuntimeState, int, list[Any], str | None], Any] | None
+] = {
     "integer": _rank_declaration,
     "card": None,
     "card_group": None,
@@ -240,7 +268,7 @@ class PlayoutPolicy:
     nobody is playing.
     """
 
-    def __init__(self, rng: random.Random) -> None:
+    def __init__(self, rng: random.Random, game: n.Game | None = None) -> None:
         # The delegate is `random_chooser` itself, not a private re-draw: it
         # owns the `n > len(candidates)` refusal, samples by position (so decks
         # declared with `copies` keep their equal cards distinguishable), and
@@ -248,6 +276,9 @@ class PlayoutPolicy:
         # so a seeded run stays reproducible.
         self._draw = random_chooser(rng)
         self._rs: RuntimeState | None = None
+        # The game's declared fixed trump, which the live world does not
+        # carry: the round states it, and no round runs during a bid.
+        self._trump = fixed_trump(game) if game is not None else None
 
     def attach(self, rs: RuntimeState) -> None:
         """Take the live world, via `play_game`'s `on_first_decision` seam.
@@ -281,5 +312,5 @@ class PlayoutPolicy:
         if n == 1 and len(kinds) == 1:
             ranker = CANDIDATE_RANKERS[next(iter(kinds))]
             if ranker is not None:
-                return [ranker(rs, player, candidates)]
+                return [ranker(rs, player, candidates, self._trump)]
         return self._draw(player, candidates, n)

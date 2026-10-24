@@ -491,7 +491,7 @@ def test_the_same_seed_replays_identically() -> None:
 
     def outcome(seed: int) -> Any:
         rng = random.Random(seed)
-        policy = PlayoutPolicy(rng)
+        policy = PlayoutPolicy(rng, game)
         try:
             r = play_game(game, rng, chooser=policy, on_first_decision=policy.attach)
         except OwnerGuardError as exc:

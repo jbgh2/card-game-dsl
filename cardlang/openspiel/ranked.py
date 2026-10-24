@@ -335,13 +335,17 @@ class RankedSeatPolicy:
         return min(legal, key=lambda aid: (self._worth(aid), aid))
 
     def _trump_now(self, view: SeatView) -> str | None:
-        """The suit that trumps at this decision. A game may fix it once for
-        the whole game, or name a State Variable its Trick Round points at and
-        set it as the deal turns it up — Oh Hell, Bridge and Pinochle all do
-        the second, so reading the fixed declaration alone reads no trump at
-        all in three of the corpus's trick games."""
+        """The suit that trumps at this decision. A Trick Round may name the
+        suit itself, a fixed trump, or name a State Variable and set
+        it as the deal turns it up — Oh Hell, Bridge and Pinochle all do the
+        second, so reading a fixed suit alone reads no trump at all in three of
+        the corpus's trick games."""
         spec = self.trump_spec
         if isinstance(spec, n.NameRef):
+            if spec.ref_kind == "enum_value":
+                return spec.name
+            if spec.ref_kind != "state_var":
+                return None
             value = dict(view.state).get(spec.name)
             return value if isinstance(value, str) else None
         return spec if isinstance(spec, str) else None

@@ -705,13 +705,16 @@ def test_a_game_trump_states_the_trump_a_round_reads() -> None:
 
 
 def test_spades_without_its_trump_is_refused() -> None:
-    """The planted-fault witness: Spades with its `trump: spades` line
+    """The planted-fault witness: Spades with its round's `trump spades`
     deleted.
 
     red under: drop the unstated-trump arm of `_check_trick_order_partition`."""
     text = (Path(__file__).resolve().parent.parent / "docs" / "games" / "spades.cardlang").read_text()
-    assert text.count("  trump: spades\n") == 1
-    _expect(text.replace("  trump: spades\n", ""), _UNSTATED)
+    assert text.count("winner highest_trump_or_led_suit trump spades\n") == 1
+    _expect(
+        text.replace("winner highest_trump_or_led_suit trump spades\n", "winner highest_trump_or_led_suit\n"),
+        _UNSTATED,
+    )
 
 
 # --- (c) the call form's trump argument -------------------------------------
