@@ -304,6 +304,11 @@ def _absence_cells() -> list[Cell]:
                          else f"score[1] := if {name}({_CARD}) then 1 else 0" if name == "is_trump"
                          else f"score[1] := {name}({_CARD})"),
                  (_FALSE_FIX,)))
+    # The round-configured refusal's fix (#931), as written, clears it: answer
+    # `is_trump` and name the Trick Order winner in the trump-reading
+    # winner's place.
+    add(Cell("unstated-trump-fix-clears",
+             _source(body=_BY_ORDER, defs=_answer("is_trump", body="c.suit is spades")), ()))
     # The refusal's fix, as written, clears it: a game with no trumps.
     add(Cell("no-is_trump-fix-clears",
              _source(body=_BY_ORDER, defs="function is_trump(c : Card) = false"), ()))
@@ -763,3 +768,93 @@ def test_the_census_reads_a_hand_written_card_points() -> None:
     events = _trace(source, 1)
     ends = [d for k, d in events if k == "game_end"]
     assert ends and ends[0]["total_value"] == 44, ends
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        f"score[1] := if follow_class({_CARD}) is spades then 1 else 0",
+        f"score[1] := card_strength({_CARD})",
+    ],
+    ids=["follow_class", "card_strength"],
+)
+def test_a_defaulted_row_called_directly_plays(call: str) -> None:
+    """A Trick Order game that leaves `follow_class` or `card_strength`
+    unanswered and calls it directly reaches the driver's default at run
+    time, through the one answers table."""
+    source = _source(body=f"{_BY_ORDER}\n    {call}", defs=_answer("is_trump"))
+    for seed in (1, 2, 3):
+        assert any(k == "game_end" for k, _ in _trace(source, seed))
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_a_library_calling_a_contract_without_its_row_is_told_in_its_file(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """A library reaches the game's fact only through the contract's row: a
+    call with none is refused to the library's author, naming the row."""
+    call = f"if {name}(c) then 1 else 0" if name == "is_trump" else (
+        f"if {name}(c) is none then 1 else 0" if name == "follow_class" else f"{name}(c)")
+    library = f"library contractlib {{\n  function lib_points(c : Card) = {call}\n}}\n"
+    found = _library_bag(monkeypatch, library, _LIB_HOST.format(clauses="", defs=_answer(name)))
+    assert found is not None, "expected a diagnostic, the source checked clean"
+    text = "\n".join(found)
+    assert "docs/libraries/contractlib.cardlang" in text, text
+    assert f"a fact each game answers for itself — contract for it with `{CONTRACTS[name].spelled}`" in text, text
+
+
+@pytest.mark.parametrize("name", ORDER_NAMES[1:])
+def test_a_defaulted_row_answers_a_library_requires_row(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """A library's `requires` row for a defaulted Trick Order row is answered
+    by the driver's default in a game that answers only `is_trump`: the game
+    checks clean and plays."""
+    call = f"if {name}(c) is none then 1 else 0" if name == "follow_class" else f"{name}(c)"
+    library = _LIB.format(rows=CONTRACTS[name].spelled, call=call, extra="")
+    host = _source(
+        body=f"{_BY_ORDER}\n    score[1] := lib_points(2 of spades)", defs=_answer("is_trump")
+    ).replace("game G {\n", "game G {\n  uses contractlib\n", 1)
+    assert _library_bag(monkeypatch, library, host) is None
+    game = check_capacity(expand(typecheck(resolve(parse_text(host, "contracts.cardlang")))))
+    play_game(game, random.Random(1))
+
+
+def test_the_drivers_defaults_are_the_registrys_defaulted_rows() -> None:
+    """The defaults have one home, keyed by the registry.
+
+    red under: add an `is_trump` key to `driver.KERNEL_DEFAULTS`."""
+    from cardlang.runtime.driver import KERNEL_DEFAULTS
+
+    assert set(KERNEL_DEFAULTS) == {c.name for c in KERNEL_DEFINITION_CONTRACTS if c.defaulted}
+
+
+def test_no_pass_below_the_front_end_reads_the_lowering_stamp() -> None:
+    """The stamp names a spelling for a refusal and nothing reads it for
+    meaning: no module of the runtime, the OpenSpiel adapter or the IR reads
+    `spelled_as`, so no block arm stands below the checker.
+
+    red under: read `fn.spelled_as` in `runtime/driver.py`."""
+    import pathlib
+
+    import cardlang
+
+    root = pathlib.Path(cardlang.__file__).parent
+    paths = [*(root / "runtime").rglob("*.py"), *(root / "openspiel").rglob("*.py"), root / "ir.py"]
+    readers = [str(p.relative_to(root)) for p in paths if "spelled_as" in p.read_text()]
+    assert readers == []
+
+
+@pytest.mark.expects_shadow_guard
+def test_the_trick_order_table_names_the_presence_partition_when_missing() -> None:
+    """A Trick Order consumer reached with no table is an engine gap: the
+    runtime's Shadow Guard names the presence partition that owns the class."""
+    from cardlang.runtime import trick_order
+    from cardlang.runtime.errors import ShadowGuardError
+    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+    from cardlang.runtime.values import Seating
+
+    rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
+    ctx = Ctx(rs=rs, chooser=lambda p, cands, k: list(cands)[:k])
+    with pytest.raises(ShadowGuardError, match="_check_trick_order_partition"):
+        trick_order.table_of(ctx, "highest_by_trick_order")
