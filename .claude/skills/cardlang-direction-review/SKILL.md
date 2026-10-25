@@ -103,7 +103,10 @@ The third open milestone, when there is one, is the Operator's Milestone
 filled from #143 by the review, closed by the usual rule or by the
 operator at any time, and read by the review as an instrument. The verdict says what it held, whether and how it closed, and
 whether what it held says the queue is ordered wrong; a class that lands
-there twice is promoted into the review's own slots.
+there twice is promoted into the review's own slots. An Operator's
+Swarm — several milestones the operator opened at once for one
+controller thread — fills that slot as one unit and is read the same
+way, epic by epic, with the gate-queue record each closure carries.
 
 **Then triage.** The review is the one role that sets a Priority Tier
 (docs/harness.md, "The Ready Front"): every designer-reachable issue filed

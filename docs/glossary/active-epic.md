@@ -1,11 +1,11 @@
 ---
 term: Active Epic
-definition: An epic the fleet is finishing now — an open GitHub milestone holding that one epic issue and its parts, whose description states the finish line it closes against. Opened by the direction review, at most two at a time, or by the operator as the [[operators-milestone]], one at a time; closed by the epic's taker when its finish line is checkable and the last part lands, by the review when the finish line carries a judgment; `tools/ready-front.sh` lists it as one takeable row (the epic's) ahead of every tiered issue and holds its parts off the [[ready-front]]. Distinct from an epic that is merely open, which is a container and not work.
+definition: An epic the fleet is finishing now — an open GitHub milestone holding that one epic issue and its parts, whose description states the finish line it closes against. Opened by the direction review, at most two at a time, or by the operator as the [[operators-milestone]], one at a time or several at once as an [[operators-swarm]]; closed by the epic's taker when its finish line is checkable and the last part lands, by the review when the finish line carries a judgment; `tools/ready-front.sh` lists it as one takeable row (the epic's) ahead of every tiered issue and holds its parts off the [[ready-front]]. Distinct from an epic that is merely open, which is a container and not work.
 layer: process
 status: canonical
 reserved: false
 home: `harness.md`
-see: ["ready-front", "priority-tier", "operators-milestone"]
+see: ["ready-front", "priority-tier", "operators-milestone", "operators-swarm"]
 retired_spellings: []
 findings: []
 ---
