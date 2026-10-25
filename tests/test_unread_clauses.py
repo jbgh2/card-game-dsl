@@ -177,6 +177,16 @@ def test_a_clause_its_own_guard_refused_draws_that_refusal_alone(
     assert len(errors) == 1 and "is read by" not in errors[0], errors
 
 
+def test_an_answer_refused_for_its_signature_draws_that_refusal_alone() -> None:
+    """A Trick Order's answer is its clause: refused for its signature with no
+    reader, it is told that one thing.
+
+    red under: drop the handover (`refused.add(...)`) in
+    `resolve._check_kernel_answers`."""
+    errors = _errors(_HOST.format(clause="", body="", defs="function is_trump(c : Card, d : Card) = true"))
+    assert len(errors) == 1 and "takes exactly one Card" in errors[0], errors
+
+
 def test_go_fish_with_an_unread_table_is_refused() -> None:
     """The planted-fault witness: Go Fish, which reads no card points, with a
     `card_points { }` table added.
