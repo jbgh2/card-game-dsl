@@ -345,6 +345,7 @@ from cardlang.builtins.functions import (
     DECK_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
+    PRIMITIVE_CLIMB_ENGINES,
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
@@ -5459,9 +5460,11 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     # `winner: <dir> NAME` needs naming separately: `Winner.target` is a bare
     # `str` and never becomes a `NameRef` (issue #243), so the walk above cannot
     # see it.
-    if game.winner is not None and game.winner.state_var not in top:
-        where = declared_at.get(game.winner.state_var, [])
-        home = " or ".join(f"phase '{w}'" for w in where) or "a phase"
+    # A name declared in no phase at all is `_validate_refs`'s unknown
+    # variable; this refusal is for state that exists, in the wrong scope.
+    where = declared_at.get(game.winner.state_var, []) if game.winner is not None else []
+    if game.winner is not None and game.winner.state_var not in top and where:
+        home = " or ".join(f"phase '{w}'" for w in where)
         bag.error(
             f"`winner:` ranks on state variable '{game.winner.state_var}', which "
             f"is declared in {home} and so does not exist when the winner is "
@@ -10058,6 +10061,23 @@ def _callback_outside_slot(name: str) -> str:
     )
 
 
+def _slot_name_outside_slot(name: str) -> str | None:
+    """The refusal for a name only a round slot reads, written where an
+    expression stands — a call, a bare name, the `winner:` clause's state
+    variable — or None for any other name. One sentence per namespace: a trick
+    winner's own, and for a walled Primitive the label the `primitives { }`
+    block gives the same name."""
+    if name in VALUE_NAMES:
+        return _callback_outside_slot(name)
+    walled = walled_namespace_of(name)
+    if walled is None:
+        return None
+    return (
+        f"`{name}` is {walled}, read only in that slot; it is not a value an "
+        f"expression can hold — name it in its round"
+    )
+
+
 @dataclass(frozen=True)
 class _AlwaysSite:
     """A clause whose whole predicate a designer writes as `always`: the node
@@ -10156,8 +10176,8 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             # tests/test_role_comparison_pin.py).
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
-            elif node.name in VALUE_NAMES:
-                bag.error(_callback_outside_slot(node.name), node.span)
+            elif (outside := _slot_name_outside_slot(node.name)) is not None:
+                bag.error(outside, node.span)
                 return replace(node, ref_kind=kind)
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
         return replace(node, ref_kind=kind)
@@ -11590,9 +11610,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # resolves and then dispatches through a table this game never
                 # claimed (issue #364).
                 bag.error(
-                    _callback_outside_slot(nd.func)
-                    if nd.func in VALUE_NAMES
-                    else f"call to unknown function '{nd.func}'"
+                    _slot_name_outside_slot(nd.func)
+                    or f"call to unknown function '{nd.func}'"
                     + _undeclared_primitive_hint(game, nd.func),
                     nd.span,
                 )
@@ -11983,7 +12002,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Winner() if nd.state_var not in cats.state_vars:
-                bag.error(f"winner references unknown variable '{nd.state_var}'", nd.span)
+                bag.error(
+                    _slot_name_outside_slot(nd.state_var)
+                    or f"winner references unknown variable '{nd.state_var}'",
+                    nd.span,
+                )
             case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:
                 # The go-again flag is ordinary game state the body's effects
                 # write (decisions.md "The `turns` form") — a plain string
@@ -12036,6 +12059,20 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(
                         f"climb round `follows` query '{nd.follows_fn}' is not a "
                         f"combination follows query",
+                        nd.span,
+                    )
+                elif (
+                    nd.combos_fn in PRIMITIVE_CLIMB_ENGINES
+                    and PRIMITIVE_CLIMB_ENGINES[nd.combos_fn] != nd.follows_fn
+                ):
+                    # The runtime keys the engine by the lead query alone, so a
+                    # follows query from another engine would run over the
+                    # wrong engine's plays.
+                    bag.error(
+                        f"climb round pairs `combinations` query '{nd.combos_fn}' "
+                        f"with `follows` query '{nd.follows_fn}', which is another "
+                        f"engine's; '{nd.combos_fn}' follows with "
+                        f"'{PRIMITIVE_CLIMB_ENGINES[nd.combos_fn]}'",
                         nd.span,
                     )
             case n.TrickRound():

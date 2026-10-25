@@ -71,7 +71,12 @@ import pytest
 from cardlang import pipeline
 from cardlang.ast import nodes as n
 from cardlang.attribution import is_library_warning
-from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS, TRUMP_READING_WINNERS, VALUE_NAMES
+from cardlang.builtins.functions import (
+    PRIMITIVE_CALL_FUNCS,
+    PRIMITIVE_CLIMB_ENGINES,
+    TRUMP_READING_WINNERS,
+    VALUE_NAMES,
+)
 from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
@@ -246,8 +251,18 @@ def _patch(monkeypatch: pytest.MonkeyPatch, library_text: str) -> None:
 
 
 def _fills(slot: tuple[type, str], name: str) -> dict[str, str | None]:
+    """The host's slots with `name` in `slot`. A climb round's sibling slot
+    holds the query of the same engine (`PRIMITIVE_CLIMB_ENGINES`), so the
+    sibling stays one the game's own round accepts."""
     form, field = slot
-    return {**_HOSTS[form].defaults, field: name}
+    fills = {**_HOSTS[form].defaults, field: name}
+    if form is n.ClimbRound:
+        if field == "combos_fn" and name in PRIMITIVE_CLIMB_ENGINES:
+            fills["follows_fn"] = PRIMITIVE_CLIMB_ENGINES[name]
+        leads = {f: lead for lead, f in PRIMITIVE_CLIMB_ENGINES.items()}
+        if field == "follows_fn" and name in leads:
+            fills["combos_fn"] = leads[name]
+    return fills
 
 
 def _game_written(slot: tuple[type, str], name: str) -> list[tuple[str | None, str]]:
