@@ -41,6 +41,14 @@ best score, both partners of a winning team and every tied seat
 it is read from, so a golden's winners are checkable against its own
 scores and the game's `teams:` without running anything.
 
+A sanctioned regeneration covers `bigtwo_scores.json` on every seed it
+holds: Big Two plays Pagat's basic game (epic #961, issue #962). The engine
+offers every combination a hand holds, not one representative per rank and
+five-card type; the 3♦ holder leads every hand; play runs anticlockwise. Every
+seed's first decision menu grows, so the chooser draws move from the first
+trick. The rules are pinned away from this vector, by
+tests/test_bigtwo_combinations.py.
+
 A sanctioned regeneration covers `skat_scores.json` and `skat_hands.json`
 on every seed they hold: Skat is read against Pagat (issue #728), so the
 declarer is offered Null Ouvert and Null Ouvert Hand at every declaration and
@@ -975,13 +983,12 @@ def test_tichu_ws5_pins_per_hand_results() -> None:
     assert_golden_seeds("tichu", _capture_tichu_hands(), expected)
 
 
-# Big Two (the second climbing instance) moves its whole hand — the climbing
+# Big Two (the second climbing instance) runs its whole hand — the climbing
 # trick, the combination model, the 3♦ opening, the shedding finish, and penalty
-# scoring — onto the kernel `climb` construct alongside Tichu. The migration must
-# reproduce the monolith's chooser-draw sequence, so the per-seed results stay
-# byte-identical. We pin `scores` + `winner` (Big Two has no `scoring` phase, so
-# the driver's hand counter reads 0, as for Tichu). Its engine is set-free, so
-# the capture is hash-independent. Pinned pre-migration.
+# scoring — on the kernel `climb` construct alongside Tichu. We pin `scores` +
+# `winners` per seed, a characterization of the basic game (the sanctioned
+# regeneration in the module docstring). Its engine is set-free, so the capture
+# is hash-independent.
 _BIGTWO_CAPTURE = """
 import json, random, sys
 from pathlib import Path

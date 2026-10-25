@@ -5,7 +5,9 @@ readable twin. A four-player **climbing / shedding** game (also called Deuces or
 Choh Dai Di) on the standard 52-card deck. The aim is to be the first to play out
 your whole hand; the others lose penalty points for the cards they are caught
 with. Lowest cumulative penalty wins. Rules: [Pagat](https://www.pagat.com/climbing/bigtwo.html)
-(basic game).
+(basic game), played **anticlockwise** as the page's basic game is. Pagat sets no
+end to a session; this file's match ends when a player's penalty total reaches
+100.
 
 **Card order.** Two rank orders coexist, which is the heart of the game:
 
@@ -20,9 +22,8 @@ with. Lowest cumulative penalty wins. Rules: [Pagat](https://www.pagat.com/climb
 
 Each hand:
 
-1. Deal **13 cards** to each player. On the **first hand of the match** the holder
-   of the **3♦** leads and must include it in the opening combination; on every
-   later hand the **winner of the previous hand** leads, with any combination.
+1. Deal **13 cards** to each player. The holder of the **3♦** leads every hand and
+   must play it, **alone or as part of any legal combination**.
 2. Players **climb**: a play must have the **same number of cards** as the
    standing combination and **beat** it, or you **pass**. Passing does not lock
    you out — you may play again when the turn comes back around. A trick ends when
@@ -43,22 +44,16 @@ Each hand:
    others score **penalty points** for the cards still in hand: **1 per card** for
    nine or fewer, **2 per card** for ten–twelve, **3 per card** for a full
    thirteen (39). The winner scores 0. The match ends when a player's cumulative
-   penalty reaches 100; the **lowest** total wins.
+   penalty reaches 100 (this file's bound); the **lowest** total wins.
 
 The hand runs on the kernel **`round climb`** construct: one combination-climbing
 trick per round, with the combination engine named as the game-local Primitive
-queries `bigtwo_lead_options` (lead candidates, 3♦-filtered on the opening) and
-`bigtwo_follows` (legal follows). The climbing loop, the pile routing, the
-shed-out finish, and penalty scoring are DSL. Scope reductions (random play): each
-pair/triple is offered as its single strongest representative per rank (highest
-suits), and each five-card type as its strongest representative (the top five of a
-suit for a flush, the highest top card for a straight); none of these change which
-combinations a hand can legally beat. One corollary at the **opening 3♦ lead**: the
-single 3♦ is always offered, but a multi-card opening whose strongest representative
-omits the 3♦ (a pair or triple of 3s — represented by its two highest suits — or a
-straight/flush built on a higher-suit 3) is not. The single 3♦ guarantees a legal
-opening; exhaustive opening coverage would require dropping the representative
-reduction (full per-suit enumeration), a global change deferred for random play.
-Match-doubling surcharges (for holding 2s, or a 13-card blitz) are omitted — the
-basic 1/2/3-per-card penalty only. The turn
-direction (clockwise) is a fixed choice; Pagat leaves it to the table.
+queries `bigtwo_lead_options` (lead candidates, 3♦-filtered on each hand's opening
+lead) and `bigtwo_follows` (legal follows). The engine offers **every combination a
+hand holds** — each suit choice of a pair or triple, every straight over its
+window, every five cards of a suit, every pairing of a full house, and any kicker
+with four of a kind — since which cards a seat keeps back for later tricks is a
+decision of the game. The climbing loop, the pile routing, the shed-out finish,
+and penalty scoring are DSL. Pagat's scoring variations — the doubled penalties
+for many cards left or for twos held, among others — are variants this file does
+not play.

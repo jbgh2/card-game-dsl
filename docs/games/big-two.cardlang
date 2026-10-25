@@ -1,27 +1,32 @@
 // Big Two — formalized DSL (parser/checker/runtime target).
 //
-// Companion to big-two.md. Four-player climbing/shedding game on the standard 52
-// (no jokers). Players are dealt 13 cards each and climb: each play has the *same
-// number of cards* as the standing combination and beats it, or passes; a trick
-// ends when action returns to the last player who played (everyone else passed),
-// who then leads again. The hand ends the instant one player sheds out — the
-// others score penalty points for the cards they still hold (1 per card up to
-// nine, 2 for ten–twelve, 3 for a full thirteen). Lowest cumulative penalty wins.
+// Companion to big-two.md. Pagat's basic game, four players, standard 52 (no
+// jokers), played anticlockwise. Players are dealt 13 cards each; the holder of
+// the 3♦ leads every hand and must play it, alone or in a combination. Players
+// climb: each play has the *same number of cards* as the standing combination
+// and beats it, or passes; a pass does not stop a player playing at a later
+// turn of the same trick; a trick ends when action returns to the last player
+// who played (everyone else passed), who then leads again. The hand ends the
+// instant one player sheds out — the others score penalty points for the cards
+// they still hold (1 per card up to nine, 2 for ten–twelve, 3 for a full
+// thirteen). Pagat sets no end to a session; this file's match ends when a
+// player's penalty total reaches 100, and the lowest total wins.
 //
 // The hand runs on the kernel `round climb` construct. The combination model —
 // the two rank orders (2 high for sets; natural for straights), suit tie-breaks,
 // and the straight < flush < full house < quads < straight flush hierarchy — is
 // not expressible in the DSL, so it lives in the game-local Primitive queries
-// `bigtwo_lead_options` / `bigtwo_follows` (see big-two.md). Everything else —
-// the climbing trick loop, the 3♦ opening, pile routing to the discard, the
-// shed-out finish, and penalty scoring — is DSL. This is the second climbing
-// instance the `climb` construct is co-designed against (with Tichu); see
-// docs/kernel-migration.md, Workstream 3.
+// `bigtwo_lead_options` / `bigtwo_follows` (see big-two.md), which offer every
+// combination a hand holds. Everything else — the climbing trick loop, the 3♦
+// opening, pile routing to the discard, the shed-out finish, and penalty
+// scoring — is DSL. This is the second climbing instance the `climb` construct
+// is co-designed against (with Tichu); see docs/kernel-migration.md,
+// Workstream 3.
 
 game BigTwo {
 
   players: 4
-  direction: clockwise
+  direction: counterclockwise
   max_length: 25000
 
   cards: standard52
@@ -36,21 +41,21 @@ game BigTwo {
   state {
     // Game-level: persist across hands.
     score[player] : Integer = 0       // cumulative penalty points (lower is better)
-    winner_seat   : Player? = none    // who shed out last hand; leads the next one
-    opened        : Boolean = false   // has the opening (3♦) lead been played?
+    opened        : Boolean = false   // has this hand's opening (3♦) lead been played?
     leader        : Player? = none    // who leads the current trick
   }
 
-  // The match runs until a player's penalty total reaches 100 (a loss threshold);
-  // penalties only accumulate — three of the four players gain points every hand —
-  // so this is reached under uniform-random play, and the lowest total wins.
+  // The match runs until a player's penalty total reaches 100 (this file's
+  // bound; Pagat sets none). Penalties only accumulate — three of the four
+  // players gain points every hand — so every match reaches it.
   phase hand_sequence repeat until (any player where score[player] >= 100) {
     before_each {
       move all cards to deck
       shuffle deck
       deal 13 cards from deck to each hand
-      // The 3♦ holder leads the first hand; thereafter the previous winner does.
-      leader := (if winner_seat is none then player_holding(3 of diamonds) else winner_seat)
+      // The 3♦ holder leads every hand, and must play it.
+      opened := false
+      leader := player_holding(3 of diamonds)
     }
 
     phase play {
@@ -73,9 +78,8 @@ game BigTwo {
     }
 
     phase scoring {
-      // The shed-out player (the last trick's winner) carries no penalty and leads
-      // the next hand; the others lose 1/2/3 points per card still held.
-      winner_seat := leader
+      // The shed-out player (the last trick's winner) carries no penalty; the
+      // others lose 1/2/3 points per card still held.
       for each player p:
         if hand[p] is not empty {
           score[p] += bigtwo_penalty(number of cards in hand[p])

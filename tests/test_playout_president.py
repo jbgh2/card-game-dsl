@@ -17,6 +17,7 @@ PYTHONHASHSEED, which test_migration_characterization.py's
 
 from __future__ import annotations
 
+import itertools
 import json
 import random
 import subprocess
@@ -135,6 +136,51 @@ def test_transparent_threes_beat_anything_and_absorb_the_rank() -> None:
     # No bombs, no cross-size beating: a triple never answers a pair.
     follows_sizes = president_follows(*ctx, _hand("A@s", "A@h", "A@c"), led_pair_k)
     assert all(p.size == 2 for p in follows_sizes)
+
+
+def test_every_set_a_hand_holds_is_offered_at_lead_and_follow() -> None:
+    """The queries against an oracle written from Pagat ("any single card or
+    any set of cards of equal rank"; a set "can only be beaten by a higher set
+    containing the same number of cards"; transparent threes beat a set of
+    the same size of any rank): every subset of the hand, classified without
+    the engine, is offered exactly when the rules allow it, once.
+
+    red under: one representative set per (rank, size) — a hand holding a
+    rank twice has a withheld pair on the first sampled deal."""
+    ctx = _ctx()
+    order = ["3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2"]
+    rng = random.Random(962)
+    from cardlang.runtime.values import build_deck
+
+    deck = build_deck("standard52")
+    for _ in range(60):
+        hand = rng.sample(deck, 11)
+        subsets = [
+            frozenset(s)
+            for size in range(1, 5)
+            for s in itertools.combinations(hand, size)
+            if len({c.rank for c in s}) == 1
+        ]
+        leads = president_lead_options(*ctx, hand)
+        offered = [frozenset(p.cards) for p in leads]
+        assert len(offered) == len(set(offered)), "a set offered twice"
+        assert set(offered) == set(subsets)
+        rest = [c for c in deck if c not in hand]
+        for _ in range(10):
+            led = next(
+                p for p in rng.sample(president_universe(), 195)
+                if not (frozenset(p.cards) - frozenset(rest))
+            )
+            power = order.index(led.cards[0].rank)
+            expected = {
+                s for s in subsets
+                if len(s) == led.size
+                and (order.index(next(iter(s)).rank) > power or next(iter(s)).rank == "3")
+            }
+            follows = president_follows(*ctx, hand, led)
+            got = [frozenset(p.cards) for p in follows]
+            assert len(got) == len(set(got)), "a set offered twice"
+            assert set(got) == expected, (led, set(got) ^ expected)
 
 
 def test_universe_is_a_unique_superset_of_the_query_outputs() -> None:
