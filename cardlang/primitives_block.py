@@ -3,8 +3,8 @@
 A game declares the [[primitive]]s it borrows from outside the DSL in a
 `primitives { }` block beside `uses`
 (docs/design-notes/primitive-sidecars.md section 2). The block's PRESENCE
-partitions the game's native-call namespace in both directions, the `trick_order { }`
-mechanism one construct over: a game with a block names its own declared
+partitions the game's native-call namespace in both directions, the Trick Order's
+presence partition one construct over: a game with a block names its own declared
 primitives and no other game's, and a game without one keeps the hand-authored
 `PRIMITIVE_CALL_FUNCS` namespace — which admits every Primitive by name and
 lets none of them run, since a declaration is a Primitive's only route to

@@ -482,14 +482,17 @@ def test_to_each_team_family_reports_once() -> None:
 
 def _belote_row_reading(read: str) -> str:
     text = (GAMES / "belote.cardlang").read_text()
-    old = "trump:         card.suit is trump_suit\n"
+    old = "function is_trump(card : Card) = card.suit is trump_suit\n"
     assert old in text
-    return text.replace(old, f"trump:         card.suit is trump_suit and {read}\n", 1)
+    return text.replace(
+        old, f"function is_trump(card : Card) = card.suit is trump_suit and {read}\n", 1
+    )
 
 
 def test_trick_order_row_team_family_reports_once() -> None:
-    """A row has no acting player, so the hint's shape is filled with a team
-    literal there; the hint names no pronoun that a row could not read."""
+    """A Trick Order answer has no acting player, so the hint's shape is
+    filled with a team literal there; the hint names no pronoun that an
+    answer could not read."""
     found = diagnostics(_belote_row_reading("captured is empty"))
     assert len(found) == 1, found
     assert _refusal_names("captured", "team") in found[0], found[0]

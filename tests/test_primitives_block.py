@@ -898,8 +898,7 @@ def test_a_wrong_entry_spelling_is_refused_in_the_designers_voice(
 def test_one_wrong_entry_among_right_ones_still_speaks() -> None:
     """The reject arms' tails admit the well-formed entry too, so a block whose
     LAST entry is wrong reaches the designer-voice rejection rather than the
-    lexer's — the `trick_order` comma arm's rule, which exists because the
-    likeliest slip is one row among many."""
+    lexer's, because the likeliest slip is one wrong entry among many."""
     block = _PINOCHLE_ENTRY + "  tichu_dragon_won() -> Boolean"
     message = _refused(_game(block=block, body=_SCORE_FROM_PRIMITIVE))
     assert "not an arrow" in message
@@ -1975,9 +1974,8 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
         DECK_ONLY_CALL_FUNCS,
         TRICK_ORDER_EXCLUDED_FUNCS,
         TRICK_ORDER_GATED_FUNCS,
-        TRICK_ORDER_READERS,
     )
-    from cardlang.resolve import _FRAME_CALL_FUNCS
+    from cardlang.resolve import _FRAME_CALL_FUNCS, _TRICK_ORDER_READERS
     from cardlang.typecheck import RANKING_GATED_FUNCS
 
     candidates = {
@@ -1994,8 +1992,8 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
         # excludes, and what reads one.
         "TRICK_ORDER_GATED_FUNCS": TRICK_ORDER_GATED_FUNCS,
         "TRICK_ORDER_EXCLUDED_FUNCS": TRICK_ORDER_EXCLUDED_FUNCS,
-        "TRICK_ORDER_READERS": frozenset(TRICK_ORDER_READERS),
-        # The Trick Order row check refuses every CALL_FUNCS member outside its
+        "_TRICK_ORDER_READERS": _TRICK_ORDER_READERS,
+        # The Trick Order answer check refuses every CALL_FUNCS member outside its
         # own allow-list, so its collidable set is the whole Primitive half.
         "TRICK_ORDER_ROW_CALLS": PRIMITIVE_CALL_FUNCS,
     }
@@ -2070,7 +2068,7 @@ def test_a_designer_function_named_after_an_absent_primitive_escapes_the_ranking
 
 
 def test_a_designer_function_named_after_an_absent_primitive_may_be_called_from_a_row() -> None:
-    """TRICK_ORDER_ROW: a row calls the card and public state only, and a
+    """TRICK_ORDER_ROW: an answer calls the card and public state only, and a
     designer function is neither native nor a Primitive — the original arm
     already meant to let one through, using `not in CALL_FUNCS` as the proxy,
     which a shadowing spelling defeats."""
@@ -2082,7 +2080,6 @@ def test_a_designer_function_named_after_an_absent_primitive_may_be_called_from_
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
         "  primitives { }\n"
-        "  trick_order { trump: tichu_dragon_won(card) }\n"
         "  zones { deck : Deck  hand[player] : Hand<player>"
         "  trick_pile : TrickPile }\n"
         "  state { score[player] : Integer = 0 }\n"
@@ -2093,6 +2090,7 @@ def test_a_designer_function_named_after_an_absent_primitive_may_be_called_from_
         "  }\n"
         "  winner: highest score\n"
         "}\n"
+        "function is_trump(card : Card) = tichu_dragon_won(card)\n"
     )
     assert declared_names(_checks(source)) == frozenset()
 
@@ -2200,20 +2198,19 @@ def test_a_declared_primitive_is_callable(body: str) -> None:
 # --- axis 19: the partitions that must stay total ---------------------------
 
 
-def test_a_trick_order_row_cannot_call_a_declared_primitive() -> None:
+def test_a_trick_order_answer_cannot_call_a_declared_primitive() -> None:
     """The Trick Order's row-callable partition covers the Builtin half only,
-    on the ground that a row calls no game-local Python. A declared Primitive
+    on the ground that an answer calls no game-local Python. A declared Primitive
     is game-local Python in NO registry that partition reads, so the argument
     holds only because the name is refused on its own — not by inheriting an
     exclusion it is not in."""
     source = _game(
         block=_PINOCHLE_ENTRY,
         body="    score[0] := if follows_lead(A of spades, discard) then 1 else 0",
-        extra="  trick_order { trump: pinochle_meld_value(0) > 0 }\n",
-    )
+    ) + "function is_trump(card : Card) = pinochle_meld_value(0) > 0\n"
     message = _refused(source)
     assert "pinochle_meld_value" in message
-    assert "Trick Order row" in message
+    assert "calls the declared Primitive" in message
 
 
 # --- axis 18: the declared signature is what freezes -------------------------

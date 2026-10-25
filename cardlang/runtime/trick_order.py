@@ -1,30 +1,32 @@
-"""The game's [[trick-order]], materialized — the runtime side of the block.
+"""The game's [[trick-order]], materialized — the runtime side of its three
+facts.
 
-The `trick_order { }` clause declares three per-card facts as expressions over
-the implicit `card` binder (decisions.md "Trick Order"). This module holds what
-the driver builds from that clause ONCE at load — `TrickOrderTable`, the three
-row callables with their defaults already applied — and the thin wrappers that
-carry a zone's [[arrival-record]] into the pure comparisons of
-`runtime/winners.py`.
+A game's Trick Order is three per-card facts, `is_trump`, `follow_class` and
+`card_strength`, which it answers as Kernel Definition Contracts (decisions.md
+"Trick Order"; `cardlang.kernel_contracts`). This module holds what the driver
+builds from the answers ONCE at load — `TrickOrderTable`, the three callables
+with their defaults already applied — and the thin wrappers that carry a
+zone's [[arrival-record]] into the pure comparisons of `runtime/winners.py`.
 
 Neutral by construction, like `winners.py`: BOTH dispatch halves consume it
 (`runtime/builtins.py` for the five calls, `runtime/primitives.py` for the
 winner slot's second contract) and the two may not import each other. It
-imports `winners` and `state` and never `evaluate` — the row callables arrive
+imports `winners` and `state` and never `evaluate` — the callables arrive
 already closed over the evaluator, built by the driver, so this module can be
 imported from anywhere in the runtime without a cycle.
 
 Contract
 --------
-Assumes: resolve admitted the block and its consumers (the presence partition
-in both directions), every row is hermetic, and every [[arrival-record]] read
+Assumes: resolve admitted the Trick Order and its consumers (the presence
+partition in both directions), every answer is hermetic, and every
+[[arrival-record]] read
 names a static identity-to-all zone
 (`resolve._check_arrival_record_pile_args`). Assumes the driver materialized
 `rs.trick_order` for any game whose description reaches these entry points.
 Establishes: a card's three Trick Order facts, and the winner / follow answer
 over a public pile — each a pure function of the card and public state.
-Illegal after: reading a row's raw `Expr` anywhere downstream; re-applying a
-row default (the defaults are decided once, in the driver's table).
+Illegal after: reading an answer's raw `Expr` anywhere downstream; re-applying
+a default (the defaults are decided once, in the driver's table).
 """
 
 from __future__ import annotations
@@ -39,18 +41,18 @@ from cardlang.runtime.state import Ctx, Zone
 from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import identity_to_all
 
-# One row, as a callable over the card and the live ctx. The ctx is threaded
-# because a row may read public state (`card.suit is trump_suit`); it is
+# One fact, as a callable over the card and the live ctx. The ctx is threaded
+# because an answer may read public state (`c.suit is trump_suit`); it is
 # hermetic by resolve's guards, never by convention here.
 RowFn = Callable[[Card, Ctx], Any]
 
 
 @dataclass(frozen=True)
 class TrickOrderTable:
-    """The three rows, defaults already applied. Built once per game by the
-    driver (`runtime/driver.py`), read by every consumer — so an omitted
-    `follow_class:` or `card_strength:` row has exactly one meaning, decided
-    at load, and no reader re-derives it."""
+    """The three facts, defaults already applied. Built once per game by the
+    driver (`runtime/driver.py`), read by every consumer — so an unanswered
+    `follow_class` or `card_strength` has exactly one meaning, decided at
+    load, and no reader re-derives it."""
 
     is_trump: RowFn
     follow_class: RowFn
@@ -59,22 +61,21 @@ class TrickOrderTable:
 
 def table_of(ctx: Ctx, caller: str) -> TrickOrderTable:
     """The game's materialized Trick Order. [[shadow-guard]] behind resolve's
-    presence partition, which refuses every consumer of the block in a game
-    that declares none — so a missing table here is an engine gap, not a bad
-    game."""
+    presence partition, which refuses every consumer of a Trick Order in a
+    game that declares none — so a missing table here is an engine gap, not a
+    bad game."""
     table = ctx.rs.trick_order
     if table is None:
         raise ShadowGuardError(
             "resolve._check_trick_order_partition",
-            f"{caller} reads the game's `trick_order {{ }}` block, but the "
-            f"game declares none",
+            f"{caller} reads the game's Trick Order, but the game declares none",
         )
     return table
 
 
 def project(card: Card, ctx: Ctx, actor: Player, caller: str) -> winners.Arrival:
     """One play, with its three Trick Order facts computed. The single place a
-    row is asked anything on behalf of a comparison."""
+    fact is asked anything on behalf of a comparison."""
     table = table_of(ctx, caller)
     return winners.Arrival(
         actor,
@@ -140,9 +141,9 @@ def _strength_of(ctx: Ctx, caller: str) -> Callable[[Card], int]:
 
     def strength(card: Card) -> int:
         value = table.card_strength(card, ctx)
-        # shadow guard: typecheck `_check_trick_order` (T1) requires the
-        # `card_strength:` row to type exactly Integer
-        assert isinstance(value, int), f"card_strength row yielded {value!r}"
+        # shadow guard: typecheck `_check_kernel_answers` (T1) requires the
+        # `card_strength` answer to type exactly Integer
+        assert isinstance(value, int), f"card_strength answer yielded {value!r}"
         return value
 
     return strength
@@ -170,7 +171,7 @@ def follows_lead_over_pile(card: Any, value: Any, ctx: Ctx) -> bool:
     The LEGALITY path, and the hot one: a follow filter asks this once per
     candidate per decision, so it runs orders of magnitude more often than the
     winner below. It therefore projects LAZILY — the pile scan stops at the
-    [[effective-lead]] and each row is asked only where the answer can still
+    [[effective-lead]] and each fact is asked only where the answer can still
     change (`winners.follows_lead_lazily`). Projecting the whole pile per ask,
     as the winner path does, was measured as the dominant cost of the whole
     construct."""
@@ -199,8 +200,8 @@ class TrickOrderWinner:
     `TRICK_ORDER_GATED_WINNERS`). The uniform contract takes the round's
     configuration — (played, led_suit, trump, rank_index); this one takes
     (played, ctx), because a Trick Order winner's trumps, classes and
-    strengths are the GAME's rows, not the round's arguments, and the rows
-    need a ctx to evaluate under.
+    strengths are the GAME's answers, not the round's arguments, and the
+    answers need a ctx to evaluate under.
 
     A type rather than a plain closure so the contract is INSPECTABLE: the
     dispatcher's caller branches on `isinstance`, and the grid reconciles the

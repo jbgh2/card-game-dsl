@@ -1,0 +1,1 @@
+trump_clause_retired.cardlang:9:3: error: `trump:` is not a clause: a fixed trump is written on the round, `winner highest_trump_or_led_suit trump spades`, or, where the game answers `is_trump`, the suit is written there: `function is_trump(card : Card) = card.suit is spades`

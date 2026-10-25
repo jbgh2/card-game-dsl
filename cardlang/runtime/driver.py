@@ -47,7 +47,7 @@ from cardlang.runtime import active_rules, primitives, reads
 from cardlang.typecheck import declared_primitive_sigs
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
-from cardlang.runtime.evaluate import evaluate, row_context
+from cardlang.runtime.evaluate import answer_context, evaluate
 from cardlang.runtime.execute import REFUSALS, execute
 from cardlang.runtime.execute import run_body as run_stmts
 from cardlang.runtime.state import (
@@ -60,6 +60,7 @@ from cardlang.runtime.state import (
     _ProduceSignal,
     _SkipHand,
 )
+from cardlang import kernel_contracts
 from cardlang.runtime.trick_order import TrickOrderTable
 from cardlang.runtime.values import (
     Card,
@@ -79,7 +80,7 @@ def _evaluate_stamped(expr: n.Expr, ctx: Ctx) -> Any:
     """Evaluate one expression the phase tree owns, naming it on any refusal.
 
     A phase's `when` guard and `repeat until` condition, a `state { }`
-    default, the `loser:` selection and a `trick_order { }` row body are game
+    default, the `loser:` selection and a Kernel Definition Contract's answer are game
     text no statement encloses, so the executor — which stamps what it
     dispatches — never sees them, and a refusal from one would reach a
     designer with no line at all. Each carries its own span, and this is where
@@ -173,22 +174,6 @@ def declared_suit_values(game: n.Game) -> dict[str, int]:
     return {s: len(suits) - 1 - i for i, s in enumerate(suits)}
 
 
-def declared_card_points(game: n.Game) -> dict[str, int]:
-    """The game's card-point table, materialized over the deck's ranks: the
-    `card_points { }` rows verbatim, every unlisted rank at the `else:` value
-    (or 0 with no else row). Materializing here — the one load site — is what
-    keeps the table's two consumers (the `card_points(card)` Builtin and the
-    card-point census below) reading identical values by construction: neither
-    re-applies a default. Empty for a game declaring no clause (resolve's
-    clause-required guard refuses the Builtin call there, and the census sums
-    to 0, the pre-clause behavior)."""
-    if game.card_points is None:
-        return {}
-    declared = {e.rank: e.value for e in game.card_points.entries}
-    default = game.card_points.else_value or 0
-    return {r: declared.get(r, default) for r in deck_ranks(game.deck)}
-
-
 def _bundled(contract: InvocationContract) -> bool:
     """Whether the dispatch hands this implementation the [[primitive-bundle]].
     Structural over the contract rather than a comparison against one member,
@@ -210,7 +195,7 @@ def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
     one.
 
     Every fact a call needs is resolved HERE, at the one load site, the
-    `declared_trick_order` precedent above: the implementation is imported from
+    `declared_kernel_answers` precedent below: the implementation is imported from
     the names-only index, the declared reads become the primitive's own row,
     and each indexed read is paired with the parameter that keys it. No caller
     re-derives any of them, which is what keeps the bundle a primitive receives
@@ -274,70 +259,77 @@ def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
     return table
 
 
-def declared_trick_order(game: n.Game) -> TrickOrderTable | None:
-    """The game's [[trick-order]], materialized: one callable per row, with the
-    two DEFAULTS applied here and nowhere else. None for a game declaring no
-    block (resolve's presence partition admits no reader of one there).
+def _default_class(card: Card, ctx: Ctx) -> str:
+    """`follow_class` unanswered: a card follows as its printed suit, the
+    ordinary trick-taking rule."""
+    return card.suit
 
-    Applying the defaults at this single load site is what keeps every consumer
-    — the three readers, the winner, `follows_lead` — reading identical facts
-    by construction, the `declared_card_points` precedent above: no reader
-    re-derives what an omitted row means.
 
-    The two defaults (decisions.md "Trick Order"):
+def _default_strength(card: Card, ctx: Ctx) -> int:
+    """`card_strength` unanswered: `rank_value(card)`, the game's declared
+    `ranking:`. typecheck's T2 refuses that combination in a game with no
+    `ranking:`, so an empty order reaching the closure is an engine gap, not
+    a bad game, and says so in the [[shadow-guard]]'s voice."""
+    if not ctx.rs.rank_index:
+        raise ShadowGuardError(
+            "typecheck._check_kernel_answers (T2)",
+            "a Trick Order with no `card_strength` defaults to "
+            "`rank_value(card)`, but the game declares no `ranking:` — T2 "
+            "admits no defaulted strength without one",
+        )
+    return rank_strength(ctx.rs.rank_index, card.rank, "card_strength")
 
-    * `follow_class:` omitted — a card follows as its printed suit, the
-      ordinary trick-taking rule. A game needs the row only when some card
-      follows as something else (a class-remapped trump) or as nothing (the
-      Excuse).
-    * `card_strength:` omitted — `rank_value(card)`, the game's declared
-      `ranking:`. typecheck's T2 refuses that combination in a game with no
-      `ranking:`, so an empty order reaching the closure is an engine gap, not
-      a bad game, and says so in the [[shadow-guard]]'s voice.
 
-    A row's body evaluates under the hermetic row context
-    (`evaluate.row_context`): only `card` is bound and no pronoun of any
-    namespace is readable, which is what makes the answer a fact of the card
-    and public state rather than of whoever happened to be asking."""
-    if game.trick_order is None:
-        return None
+# The defaults of the Kernel Definition Contract rows that carry one
+# (`KernelDefinitionContract.defaulted`), applied here and nowhere else, for a
+# game with a Trick Order that leaves the row unanswered.
+KERNEL_DEFAULTS: dict[str, Callable[[Card, Ctx], Any]] = {
+    "follow_class": _default_class,
+    "card_strength": _default_strength,
+}
 
-    def row_callable(body: n.Expr) -> Callable[[Card, Ctx], Any]:
+
+def declared_kernel_answers(game: n.Game) -> dict[str, Callable[[Card, Ctx], Any]]:
+    """The game's answers to the [[kernel-definition-contract]] rows,
+    materialized: one callable per answered row, plus the defaults of the
+    Trick Order's two defaulted rows when the game has a Trick Order. Built
+    once, at load, and read by every consumer — a call of one of the names,
+    the Trick Order winner and follow test, and the end-of-game card census —
+    so an unanswered row has exactly one meaning, decided here.
+
+    An answer's body evaluates under the hermetic answer context
+    (`evaluate.answer_context`): only its card parameter is bound and no
+    pronoun of any namespace is readable, which is what makes the answer a
+    fact of the card and public state rather than of whoever happened to be
+    asking (decisions.md "Trick Order")."""
+
+    def answer_callable(fn: n.FunctionDef) -> Callable[[Card, Ctx], Any]:
+        param = fn.params[0].name
+
         def read(card: Card, ctx: Ctx) -> Any:
-            return _evaluate_stamped(body, row_context(ctx, card))
+            return _evaluate_stamped(fn.body, answer_context(ctx, param, card))
 
         return read
 
-    def default_class(card: Card, ctx: Ctx) -> str:
-        return card.suit
+    table = {fn.name: answer_callable(fn) for fn in kernel_contracts.answers(game)}
+    if kernel_contracts.has_trick_order(game):
+        for name, default in KERNEL_DEFAULTS.items():
+            table.setdefault(name, default)
+    return table
 
-    def default_strength(card: Card, ctx: Ctx) -> int:
-        if not ctx.rs.rank_index:
-            raise ShadowGuardError(
-                "typecheck._check_trick_order (T2)",
-                "a `trick_order { }` with no `card_strength:` row defaults to "
-                "`rank_value(card)`, but the game declares no `ranking:` — T2 "
-                "admits no defaulted strength without one",
-            )
-        return rank_strength(ctx.rs.rank_index, card.rank, "card_strength")
 
-    rows = {r.key: r.body for r in game.trick_order.rows}
-    trump_body = rows.get("trump")
-    # shadow guard: parse requires the `trump:` row (P8), so a block that
-    # reached here always has one
-    assert trump_body is not None, "a `trick_order { }` with no `trump:` row"
+def declared_trick_order(
+    answers: dict[str, Callable[[Card, Ctx], Any]],
+) -> TrickOrderTable | None:
+    """The game's [[trick-order]], read off its answers table: None for a game
+    that answers no `is_trump` (resolve's presence partition admits no reader
+    of a Trick Order there). The table already holds the two defaults."""
+    if "is_trump" not in answers:
+        return None
     return TrickOrderTable(
-        is_trump=row_callable(trump_body),
-        follow_class=(
-            row_callable(rows["follow_class"])
-            if "follow_class" in rows
-            else default_class
-        ),
-        card_strength=(
-            row_callable(rows["card_strength"])
-            if "card_strength" in rows
-            else default_strength
-        ),
+        is_trump=answers["is_trump"],
+        follow_class=answers["follow_class"],
+        card_strength=answers["card_strength"],
     )
 
 
@@ -360,7 +352,6 @@ def play_game(
     positions = dict(position_domains_of(game))
     zones = ZoneStore(game.zones, seating.players, teams, positions=positions)
     rs = RuntimeState(seating, zones, rng)
-    rs.trump = game.trump
     rs.teams = teams
     rs.team_of = team_of
     rs.position_domains = positions
@@ -376,12 +367,12 @@ def play_game(
     rs.max_length = game.max_length
     # Rank strength is read from the game's `ranking:` (high to low), so every
     # deck ranks correctly without a hardcoded order. Card points come from the
-    # game's own `card_points { }` clause — the ONE source; the deck registry
-    # carries no point table (empty for games that score by other means).
+    # game's own `card_points` answer — the ONE source; the deck registry
+    # carries no point table.
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
     rs.suit_values = declared_suit_values(game)
-    rs.card_points = declared_card_points(game)
-    rs.trick_order = declared_trick_order(game)
+    rs.kernel_answers = declared_kernel_answers(game)
+    rs.trick_order = declared_trick_order(rs.kernel_answers)
     rs.declared_primitives = declared_primitives(game)
     rs.declared_sigs = declared_primitive_sigs(game)
     rs.content_flavor = game.content_flavor
@@ -456,7 +447,7 @@ def play_game(
         abort.rs = rs
         raise
 
-    ctx.trace("game_end", _final_card_census(rs))
+    ctx.trace("game_end", _final_card_census(rs, ctx))
 
     # Compute the result against the final state, before unwinding the frame.
     scores: dict[int, int] = {}
@@ -512,7 +503,7 @@ def play_game(
     )
 
 
-def _final_card_census(rs: RuntimeState) -> dict[str, int]:
+def _final_card_census(rs: RuntimeState, ctx: Ctx) -> dict[str, int | None]:
     """Total cards across every zone (conservation check) and how many `hand`
     zones still hold cards (the survivor count for an elimination game)."""
     all_zones = list(rs.zones.singles.values())
@@ -520,13 +511,20 @@ def _final_card_census(rs: RuntimeState) -> dict[str, int]:
         all_zones.extend(family.values())
     total = sum(len(z.cards) for z in all_zones)
     # Total card points across every zone — a deck-integrity check for
-    # point-trick games (e.g. Schnapsen's 120). Zero when the game declares no
-    # `card_points { }` clause. The table is materialized over the deck's
-    # ranks (`declared_card_points`), so the `.get` default only serves the
-    # clause-less empty table.
-    total_value = sum(
-        rs.card_points.get(c.rank, 0) for z in all_zones for c in z.cards
-    )
+    # point-trick games (e.g. Schnapsen's 120), read through the game's
+    # `card_points` answer, which resolve holds to game-level state so it reads
+    # the same here, after the last phase, as in play. Zero for a game that
+    # answers none. The census asks every card, including cards the game never
+    # prices, and an answer may refuse one (a `rank_value` under a partial
+    # `ranking:`): an instrument never fails a game that played, so such a
+    # total is None, a census that could not be taken.
+    points = rs.kernel_answers.get("card_points")
+    total_value: int | None = 0
+    if points is not None:
+        try:
+            total_value = sum(points(c, ctx) for z in all_zones for c in z.cards)
+        except REFUSALS:
+            total_value = None
     hands = rs.zones.families.get("hand", {})
     with_cards = sum(1 for z in hands.values() if z.cards)
     return {"total": total, "hands_with_cards": with_cards, "total_value": total_value}

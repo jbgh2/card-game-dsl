@@ -1,4 +1,4 @@
-"""Byte-identity of a game migrated onto the `trick_order { }` construct.
+"""Byte-identity of a game migrated onto the kernel's Trick Order.
 
 Issue #250, PR 1 (Doppelkopf; the later PRs add Skat, Five Hundred and Belote
 by adding a hash file each and a row to `MIGRATIONS`). Each migration
@@ -229,6 +229,12 @@ a row could sit green over a hash nothing can move:
       above the plain suits and only inverts the order within it):
       `200 failed` -- every seed, since a Tarot match is 36 hands of 18
       atout-trump tricks.
+* THE ROWS FOR THE MOVE TO FUNCTIONS (issue #943), each captured on its own
+  pre-move tree: `winners.follows_lead_lazily`'s class comparison inverted
+  reddens skat and french-tarot `200 failed` each; spades, which reads no
+  Trick Order, reddens under `winners.highest_trump_or_led_suit`'s trump
+  filter inverted (`c.suit == trump` -> `!=`): `200 failed` (executed
+  2026-10-24).
 """
 
 from __future__ import annotations
@@ -316,6 +322,16 @@ MIGRATIONS: tuple[Migration, ...] = (
         "belote_stream_hashes.json",
         reshaped_traces=frozenset({"trick_end"}),
     ),
+    # Skat and French Tarot are pinned across their Trick Order's move from
+    # rows to the functions (issue #943): one answer to the kernel's
+    # contracts, so nothing retires or reshapes and the whole trace channel
+    # is pinned.
+    Migration("skat.cardlang", "skat_stream_hashes.json"),
+    Migration("french-tarot.cardlang", "french_tarot_stream_hashes.json"),
+    # Spades states its fixed trump on its round rather than in the game-level
+    # `trump:` clause, the clause's own default (issue #943): the round's
+    # trump is the same suit, so nothing retires or reshapes.
+    Migration("spades.cardlang", "spades_stream_hashes.json"),
 )
 
 # A game whose RULES are later corrected against its source LEAVES this
@@ -327,7 +343,10 @@ MIGRATIONS: tuple[Migration, ...] = (
 # 200 seeds. Skat left the same way when its read against Pagat (`issue #728`)
 # added the contracts and announcements the declarer is offered, moving every
 # seed. `issue #542` owns what replaces the coverage for a corrected game (the
-# same fork meets 500, whose `issue #106` is open against a row still here).
+# same fork meets 500, whose `issue #106` is open against a row still here). A
+# game that moves again AFTER its correction re-enters with a file captured on
+# the tree just before that move, which is a new pin rather than a re-blessing:
+# its claim is the later move's, never the corrected migration's.
 
 SEEDS: tuple[int, ...] = tuple(range(200))
 

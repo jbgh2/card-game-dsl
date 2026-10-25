@@ -26,7 +26,7 @@ from __future__ import annotations
 #       `rank_index` is typecheck's `RANKING_GATED_WINNERS`);
 #     * the Trick Order contract, (played, ctx) -> Player, which the gated
 #       winner answers because its led suit, its trumps and its strengths are
-#       the GAME's `trick_order { }` rows, materialized once at load, not the
+#       the GAME's Trick Order answers, materialized once at load, not the
 #       round's arguments (`runtime/trick_order.py::TrickOrderWinner`).
 #   Two contracts rather than a fifth argument on one: handing a live Ctx to
 #   every game-local winner would widen what a Primitive may read, against the
@@ -59,21 +59,19 @@ PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset()
 TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS
 # The winners whose BODY reads the `trump` argument of the winner contract
 # above. The other half accepts the argument and ignores it (a no-trump
-# winner), so a `trump` clause
-# on one of those -- the round's own, or the game-level `trump:` it would
-# inherit -- would be accepted and silently dropped: resolve refuses both
-# shapes against this set (the winner-slot arm of `_validate_refs`, and
-# `_resolve_trump`'s dead-clause guard). Classification by body, not name:
+# winner), so a round's `trump` clause on one of those would be accepted
+# and silently dropped: resolve refuses it against this set (the winner-slot
+# arm of `_validate_refs`). Classification by body, not name:
 # tests/test_trump_slot_class.py executes every registered winner on one
 # pile with and without a trump and reconciles this set against the answer,
 # so a winner filed on the wrong side fails there. A new winner not listed
 # here is treated as trump-blind -- its trump clause is REFUSED, loudly,
 # rather than admitted on trust.
 # `highest_by_trick_order` is deliberately NOT a member: its trumps are the
-# game's `trick_order { trump: ... }` row, not the round's `trump` argument,
+# game's `is_trump` answer, not the round's `trump` argument,
 # which it never receives (the other contract). A round `trump` clause beside
 # it is refused by the presence partition (`_check_trick_order_partition`, R2),
-# whose message names the block -- so the two guards divide the case rather
+# whose message names the functions -- so the two guards divide the case rather
 # than co-reporting on it.
 TRUMP_READING_WINNERS: frozenset[str] = frozenset({"highest_trump_or_led_suit"})
 
@@ -146,7 +144,6 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "suit_value",  # a suit's strength under the game's `suit ranking:` (weakest listed 0)
         "error",  # the if_impossible fallback that rejects the move
         "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
-        "card_points",  # a card's points under the game's `card_points { }` table
         "top_of",  # the top card of an ordered zone/collection (the sequence end)
         "bottom_of",  # the bottom card of an ordered zone/collection (the sequence front)
         # The standard trump-game trick winner, callable over a fully public
@@ -155,17 +152,14 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         # above), in its second position: one name, one home, two syntactic
         # positions, each resolved against its own namespace.
         "highest_trump_or_led_suit",
-        # The Trick Order's surface (decisions.md "Trick Order"; issue #250).
-        # The three READERS the language mints from the block's rows -- one per
-        # row, each a fact of the card alone; and the two Builtins over the
-        # whole declaration: the winner (also in BUILTIN_TRICK_WINNERS above,
+        # The two Builtins over a game's Trick Order (decisions.md "Trick
+        # Order"; issue #250): the winner (also in BUILTIN_TRICK_WINNERS above,
         # the same two-position shape as `highest_trump_or_led_suit`) and the
         # candidate test the winner uses, made callable so a follow filter can
-        # ask it. All five are gated on the block's presence in BOTH directions
-        # (`TRICK_ORDER_GATED_FUNCS`).
-        "is_trump",
-        "follow_class",
-        "card_strength",
+        # ask it. Both are gated on the Trick Order's presence in BOTH
+        # directions (`TRICK_ORDER_GATED_FUNCS`). The Trick Order's three
+        # facts are not Builtins: they are Kernel Definition Contracts the game
+        # answers (`cardlang.kernel_contracts`).
         "highest_by_trick_order",
         "follows_lead",
     }
@@ -241,32 +235,19 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 
 # --- The Trick Order (decisions.md "Trick Order"; issue #250) ----------------
 #
-# The game-level `trick_order { }` block declares three per-card facts -- is
-# the card a trump, what class does it follow as, how strong is it within its
-# class -- and the language mints one reader per row plus two Builtins over
-# the declaration. These tables are the ONE source for: which rows exist
-# (parse, resolve, typecheck, IR and the diagnostics all render from it),
-# which names the block gates, and which names it excludes.
+# A game's Trick Order is three per-card facts -- is the card a trump, what
+# class does it follow as, how strong is it within its class -- which the game
+# answers as Kernel Definition Contracts (`cardlang.kernel_contracts`), and two
+# Builtins over them. These tables are the ONE source for which names the
+# Trick Order gates and which names it excludes.
 
-# row key -> the reader the language mints from it. The tuple ORDER is the
-# language's reference order: a row may read the readers of the rows BEFORE
-# it and no others, whatever order the rows are written in (resolve, R8).
-# A row's required body type is `CALL_SIGS[reader].ret` -- stated once there.
-TRICK_ORDER_ROWS: tuple[tuple[str, str], ...] = (
-    ("trump", "is_trump"),
-    ("follow_class", "follow_class"),
-    ("card_strength", "card_strength"),
-)
-TRICK_ORDER_ROW_KEYS: tuple[str, ...] = tuple(k for k, _ in TRICK_ORDER_ROWS)
-TRICK_ORDER_READERS: tuple[str, ...] = tuple(r for _, r in TRICK_ORDER_ROWS)
-
-# The winner that reads the block, and the whole surface the block gates. Both
-# directions of the presence partition key on these: with a block, everything
-# OUTSIDE them is refused; without one, everything INSIDE them is.
+# The winner that reads the Trick Order, and the Builtins it gates. Both
+# directions of the presence partition key on these: with a Trick Order,
+# everything OUTSIDE them is refused; without one, everything INSIDE them is.
 TRICK_ORDER_GATED_WINNERS: frozenset[str] = frozenset({"highest_by_trick_order"})
 TRICK_ORDER_GATED_FUNCS: frozenset[str] = frozenset(
     {"highest_by_trick_order", "follows_lead"}
-) | frozenset(TRICK_ORDER_READERS)
+)
 # The complements, BY SUBTRACTION: a winner or call added to the language later
 # lands on the excluded side automatically rather than being silently admitted
 # beside a block by an out-of-date hand-listing.
@@ -275,10 +256,11 @@ TRICK_ORDER_EXCLUDED_FUNCS: frozenset[str] = (
     BUILTIN_TRICK_WINNERS & BUILTIN_CALL_FUNCS
 ) - TRICK_ORDER_GATED_FUNCS
 
-# What a Trick Order row may call. A row is HERMETIC -- a pure function of the
-# card and public state, asked from the legality filter, the winner slot and a
-# hand-rolled body under different live frames -- so the callable surface is an
-# ALLOW-LIST, and its complement is listed explicitly rather than derived, so a
+# What a Kernel Definition Contract's answer may call among the Builtins. An
+# answer is HERMETIC -- a pure function of the card and public state, asked
+# from the legality filter, the winner slot, a hand-rolled body and the
+# end-of-game census under different live frames -- so the callable surface is
+# an ALLOW-LIST, and its complement is listed explicitly rather than derived, so a
 # newly registered Builtin lands unclassified and the partition test names it
 # (tests/test_trick_order.py::test_row_callable_partition_is_total) instead of
 # being absorbed silently into either side. Only the Builtin half is
@@ -286,12 +268,11 @@ TRICK_ORDER_EXCLUDED_FUNCS: frozenset[str] = (
 # `PRIMITIVE_CALL_FUNCS` member is uncallable because this allow-list admits
 # none of it, and a [[primitive]] a game's own `primitives { }` block declares
 # — which is in no registry here — is refused by name at
-# `resolve._check_row_call`. The reason is one for both halves: a row is
+# `resolve._check_answer_call`. The reason is one for both halves: a row is
 # HERMETIC, and a Primitive reads whatever its `reads` clause names.
 TRICK_ORDER_ROW_CALLS: frozenset[str] = frozenset(
     {
         "rank_value",  # the declared `ranking:` order -- what strength defaults to
-        "card_points",  # the declared `card_points { }` table
         "suit_of",  # the suit of its card argument
         "suit_value",  # the declared `suit ranking:` table
         "team_of",  # the seating's team map (public, fixed)
@@ -352,7 +333,7 @@ BUILTIN_ARGUMENT_READS: dict[str, str] = {
     "highest_trump_or_led_suit": "order",
 }
 # Reads nothing beyond its argument values: the seating, the declared tables,
-# the board, and the Trick Order's rows (hermetic, `_check_trick_order_rows`).
+# the board.
 BUILTIN_READS_NOTHING: frozenset[str] = frozenset(
     {
         "lines",
@@ -365,10 +346,6 @@ BUILTIN_READS_NOTHING: frozenset[str] = frozenset(
         "suit_value",
         "error",
         "rank_value",
-        "card_points",
-        "is_trump",
-        "follow_class",
-        "card_strength",
     }
 )
 # Reads zones no argument names: name -> (the zone family, the need). Every
@@ -446,11 +423,8 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_close_ok",
         "canasta_must_take_pile",
         "canasta_stage_ok",
-        "card_points",
-        "card_strength",
         "five_hundred_bid_value",
         "five_hundred_next_bid",
-        "follow_class",
         "follows_lead",
         "gin_arrange_ok",
         "gin_can_declare",
@@ -466,7 +440,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "highest_trump_or_led_suit",
         "holdem_heads_up_pot_share",
         "holdem_pot_share",
-        "is_trump",
         "peg_pair_points",
         "peg_run_points",
         "pinochle_meld_size",

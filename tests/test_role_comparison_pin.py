@@ -149,6 +149,9 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
 # The role spellings that are NOT roles. Authorized one by one; each is an
 # English word, a mapping-table key, a parser keyword row, or an axis name.
 #
+# parse's third `rank` is the field the `card_points { }` table's lowered chain
+# reads (`card.rank is <key>`), an AST field name selecting nothing.
+#
 # resolve's `rank`/`suit` are the reference-slot registry's KEYS, and the same
 # keys again in `HOSTED_REACH_INERT_SLOTS` -- the AST field
 # names `CardLiteral.rank` and `CardLiteral.suit`, which coincide with two role
@@ -164,8 +167,8 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
 # reserved against a piece set claiming them, plus the deck's own rank and
 # suit names.
 _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
-    "ir.py": ["player", "player", "rank", "rank", "suit"],
-    "parse.py": ["player", "player", "rank", "rank", "suit", "suit", "team", "team"],
+    "ir.py": ["player", "player", "rank", "suit"],
+    "parse.py": ["player", "player", "rank", "rank", "rank", "suit", "suit", "team", "team"],
     "resolve.py": ["player", "player", "player", "player", "rank", "rank", "rank", "suit", "suit"],
     "runtime/evaluate.py": ["player", "player"],
     # `_contract`'s return tag: a Skat contract KIND ("suit"/"grand"/"null"),

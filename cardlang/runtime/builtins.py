@@ -87,72 +87,24 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             # `ranking:` (a runtime fact -- which cards reach the read); the
             # no-`ranking:` case is typecheck's RANKING_GATED_FUNCS gate.
             return rank_strength(ctx.rs.rank_index, args[0].rank, "rank_value")
-        case "card_points":
-            # Total by construction: the driver materialized the declared
-            # `card_points { }` table over every deck rank (unlisted ranks at
-            # the else value, or 0), and resolve's clause-required guard
-            # refuses the call in a game with no table — so a plain subscript,
-            # never a defaulted get that would re-derive either fact.
-            return ctx.rs.card_points[args[0].rank]
         case "top_of":
             return _end_card(args[0], "top_of", -1)
         case "bottom_of":
             return _end_card(args[0], "bottom_of", 0)
         case "highest_trump_or_led_suit":
             return _pile_trick_winner(args[0], args[1], ctx)
-        # The Trick Order's five (decisions.md "Trick Order"). The three
-        # readers answer from the table the driver materialized; the two
-        # Builtins over the declaration delegate to the neutral module. None
-        # of the five emits a `trick` trace: a call form's read may be
-        # mid-trick (the winner so far, issue #350), and a trace there would
-        # announce trick ends that did not happen (issue #250 PR 1, ruled
-        # point 7) -- the round form's `outcome` keeps its trace.
-        case "is_trump":
-            return _is_trump(args[0], ctx)
-        case "follow_class":
-            return _follow_class(args[0], ctx)
-        case "card_strength":
-            return _card_strength(args[0], ctx)
+        # The two Builtins over a game's Trick Order (decisions.md "Trick
+        # Order"), delegating to the neutral module. Neither emits a `trick`
+        # trace: a call form's read may be mid-trick (the winner so far, issue
+        # #350), and a trace there would announce trick ends that did not
+        # happen (issue #250 PR 1, ruled point 7) -- the round form's
+        # `outcome` keeps its trace.
         case "follows_lead":
             return _follows_lead(args[0], args[1], ctx)
         case "highest_by_trick_order":
             return _trick_order_winner(args[0], ctx)
         case _:
             return NOT_A_BUILTIN
-
-
-def _trick_order_table(ctx: Ctx, reader: str) -> trick_order.TrickOrderTable:
-    """The materialized [[trick-order]] a minted reader reads. [[shadow-guard]]
-    behind resolve's presence partition, which refuses every reader in a game
-    declaring no block."""
-    return trick_order.table_of(ctx, f"{reader}(card)")
-
-
-def _is_trump(card: Card, ctx: Ctx) -> bool:
-    """`is_trump(card)` — the reader the language mints from the block's
-    `trump:` row."""
-    return bool(_trick_order_table(ctx, "is_trump").is_trump(card, ctx))
-
-
-def _follow_class(card: Card, ctx: Ctx) -> str | None:
-    """`follow_class(card)` — the class the card follows as, `none` for
-    class-less."""
-    value = _trick_order_table(ctx, "follow_class").follow_class(card, ctx)
-    # shadow guard: typecheck `_check_trick_order` (T1) holds the
-    # `follow_class:` row to `Suit?`
-    assert value is None or isinstance(value, str), (
-        f"follow_class row yielded {value!r}"
-    )
-    return value
-
-
-def _card_strength(card: Card, ctx: Ctx) -> int:
-    """`card_strength(card)` — the card's strength within its class."""
-    value = _trick_order_table(ctx, "card_strength").card_strength(card, ctx)
-    # shadow guard: typecheck `_check_trick_order` (T1) requires the
-    # `card_strength:` row to type exactly Integer
-    assert isinstance(value, int), f"card_strength row yielded {value!r}"
-    return value
 
 
 def _follows_lead(card: Card, pile: Any, ctx: Ctx) -> bool:

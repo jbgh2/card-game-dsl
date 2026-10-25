@@ -376,20 +376,20 @@ class RuntimeState:
         self.phase_outcomes: dict[str, tuple[str, list[Any]]] = {}
         self.deck_zone: str = ""  # the Deck-typed zone (initialized full at start)
         self.score_var: str | None = None  # the winner's score var (None for loser games)
-        self.trump: str | None = None  # the trump suit, if the game declares one
         self.teams: tuple[int, ...] = ()  # team ids (empty for teamless games)
         self.team_of: TeamOf = TeamOf({})  # player -> their team id
         self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
         # suit -> strength under the game's `suit ranking:` (weakest listed 0);
         # empty for a game declaring none.
         self.suit_values: dict[str, int] = {}
-        # rank -> card points, materialized over the deck's ranks from the
-        # game's `card_points { }` clause; empty for a game declaring none.
-        self.card_points: dict[str, int] = {}
-        # The game's [[trick-order]], materialized once from its
-        # `trick_order { }` clause with both row defaults already applied
-        # (`runtime/driver.py`); None for a game declaring no block, where
-        # resolve's presence partition admits no reader of one.
+        # The game's answers to the Kernel Definition Contract rows, one
+        # callable per answered row plus the Trick Order's defaults
+        # (`runtime/driver.py`, `declared_kernel_answers`); empty for a game
+        # answering none.
+        self.kernel_answers: dict[str, Callable[[Card, Ctx], Any]] = {}
+        # The game's [[trick-order]], read once off `kernel_answers`
+        # (`runtime/driver.py`); None for a game answering no `is_trump`,
+        # where resolve's presence partition admits no reader of one.
         self.trick_order: TrickOrderTable | None = None
         # The game's declared [[primitive]]s, materialized once from its
         # `primitives { }` clause (`runtime/driver.py`); None for a game

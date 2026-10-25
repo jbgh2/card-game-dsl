@@ -161,8 +161,8 @@ def test_a_crossing_kinds_fix_checks_clean(monkeypatch: pytest.MonkeyPatch, kind
 
 # walker -> the crossing kinds it reports, and a cell of its family reporting each
 _ROUTED: dict[str, dict[str, Callable[[], L.Crossing]]] = {
-    "resolve._check_trick_order_rows": {
-        "row": lambda: L._row_crossing("trump", L._row_arms("trump")["zone-HiddenPile"]),
+    "resolve._check_answer_hermeticity": {
+        "row": lambda: L._row_crossing("is_trump", L._row_arms("is_trump")["zone-HiddenPile"]),
     },
     "resolve._check_hosted_polls": {"hosted_poll": lambda: L._poll_crossing("run", "Transfer")},
     "resolve._HiddenReads._run": {
@@ -184,7 +184,7 @@ _ROUTED: dict[str, dict[str, Callable[[], L.Crossing]]] = {
 # certificate tells it.
 _NO_CROSSING_REASONS = frozenset({"refuses nothing", "game text", "certificate"})
 _UNROUTED: dict[str, str] = {
-    "resolve._row_routes": "refuses nothing",
+    "resolve._answer_routes": "refuses nothing",
     "resolve._HiddenReads._after": "refuses nothing",
     "expand._expansion": "refuses nothing",
     "resolve._HiddenReads.reads_of": "game text",

@@ -38,11 +38,12 @@ kernel's Arrival Record ([decisions.md](decisions.md), "Knowledge,
 visibility, and the projection model" — The Arrival Record), and the playout
 harness derives its trick facts from observation events. Where a game's trick
 order is not the printed one — Doppelkopf, Skat, 500, Belote, French Tarot —
-follow legality and the winner are its declared `trick_order { }` block, read
-by `follows_lead` and `highest_by_trick_order`, not a game-local Primitive; in
-Belote the same block also answers the rule cascade's head/over-trump
+follow legality and the winner are its declared Trick Order (the three
+functions the kernel reads), read by `follows_lead` and
+`highest_by_trick_order`, not a game-local Primitive; in Belote the same
+Trick Order also answers the rule cascade's head/over-trump
 comparisons and the team-relative gate that asks who is winning the
-partial trick, and in French Tarot the block's class-less Excuse is what makes
+partial trick, and in French Tarot the class-less Excuse its Trick Order states is what makes
 "the Excuse never wins" and "a led Excuse sets no suit" facts of the kernel
 rather than rules.
 
@@ -61,7 +62,9 @@ or distinct information sets that differ only in order would silently
 collapse into the same string and the same text.
 
 **What remains honest to record — the scope boundary, not debt.** No
-rules-level randomness remains: both Workstream 5 halves are done. Coup's
+rules-level randomness remains, the invariant stated in
+[decisions.md](decisions.md), "Interactive decisions: a kernel and an in-DSL standard library":
+both Workstream 5 halves are done. Coup's
 challenges, blocks, claimed characters, and targets are real announced
 decisions, and so are Tichu's call windows (grand at the eight-card deal
 window, small on the off-the-clock poll — decisions.md "Off-the-clock
@@ -182,7 +185,7 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   eighteen atout-trump tricks
   run on the trick form of `round` under a new `ExcuseIsExempt`/
   `MustFollowEffectiveSuit`/`MustTrumpIfVoid`/`MustOverTrump` rule cascade,
-  whose three demands now read the game's declared `trick_order { }`. The Excuse's
+  whose three demands now read the game's declared Trick Order. The Excuse's
   exemption needed a second new axis — a rule `exempts:` clause: cards it
   selects (when the rule's `applies_when` holds) sit outside the demand
   cascade entirely and are appended after every other legal card, in hand

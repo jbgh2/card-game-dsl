@@ -149,14 +149,6 @@ CORPUS: dict[tuple[str, str], tuple[str, str, str]] = {
         "until (any player where hand[player] is empty)\n        opened := true",
         "until {W}\n        opened := true",
     ),
-    # S3: total before this module existed, so both cells are expected GREEN and
-    # this row is the grid's own control -- a guard that stopped refusing `TAny`
-    # would surface here rather than in a cell nobody watches.
-    ("TrickOrderRow", "body"): (
-        "belote.cardlang",
-        "trump:         card.suit is trump_suit",
-        "trump:         {W}",
-    ),
 }
 
 
@@ -213,8 +205,7 @@ def test_every_total_position_has_a_probe() -> None:
 # closes it, and an empty set is the finished state.
 #
 # `concrete` entries are positions with no static check at all; `laundered`
-# entries are guards that admit the permissive top. `TrickOrderRow.body` is in
-# neither list, which is what makes it this grid's control.
+# entries are guards that admit the permissive top.
 # Cells this tree does not yet refuse. The expected column above says every
 # TOTAL position must reject both spellings, so an entry here is a guard still
 # to write, never a design question. The marks are strict: a cell that starts

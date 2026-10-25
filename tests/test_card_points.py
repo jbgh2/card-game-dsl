@@ -10,25 +10,26 @@ same change, and the four populated deck tables migrate into their game files
 Completeness ledger
 --------------------
 property:  every table the clause accepts loads as the game's card points —
-           the `card_points(card)` Builtin and the driver's census sum read
-           the same materialized table (rank rows verbatim, unlisted ranks at
-           the `else:` value, or 0 with no else row); a table no
+           it lowers to the `card_points` answer, which `card_points(card)`
+           and the driver's census sum both read (rank rows verbatim,
+           unlisted ranks at the `else:` value, or 0 with no else row); a
+           table no
            `card_points(card)` call in the written text reads is refused, the
            census being an instrument and no reader — and every plausible
            wrong sentence fails loud in its owning layer's currency: block
            shapes as parse-layer DiagnosticErrors (the wrong spellings
            `card_points:` and `card_values` naming the one block spelling),
            key mistakes as resolve diagnostics naming the deck, the clause in
-           a piece game as the noun/content agreement rejection, and the
-           Builtin called with no clause declared as a resolve diagnostic
-           naming the clause.
+           a piece game as the noun/content agreement rejection, and
+           `card_points(card)` called with no answer declared as a resolve
+           diagnostic naming both spellings.
 domain:    clause presence x block shape (rows, else-row states, duplicates,
            the empty block) x key kind (NAME rank, INT rank, unknown,
            duplicate, `else`-adjacent spellings) x row value (positive, zero,
            negative, spaced sign, leading zeros, and the non-literal shapes)
            x deck flavor (card / piece) x host (game body; the clause is
            grammatically inexpressible in a library, a phase, or at top
-           level) x consumers (the renamed Builtin through a played game; the
+           level) x consumers (`card_points(card)` through a played game; the
            census total; the surviving Python point tables) x the rename
            axis (`card_points` resolves, `card_value` does not) x the
            wrong-spelling POSITION axis (the game_item position, canonical
@@ -39,7 +40,7 @@ domain:    clause presence x block shape (rows, else-row states, duplicates,
            block).
            Two things sit outside, and neither is a gap. A state variable,
            zone, or local spelled `card_points` beside the clause and the
-           Builtin is a naming-hygiene question rather than a correctness
+           answer is a naming-hygiene question rather than a correctness
            one: `Call.func` and `NameRef` classification are separate
            channels that cannot cross, so the coexistence is left undecided
            rather than sanctioned, and no corpus game writes it. And a
@@ -51,8 +52,9 @@ registry:  the clause axis derives from the grammar's `?game_item`
            alternation and the `card_points_table` production (scraped from
            cardlang.lark by test_clause_axes_are_pinned_by_grammar_and_
            registries below); the key
-           terminal's `else` exclusion from CARD_POINTS_KEY; the Builtin's
-           home from BUILTIN_CALL_FUNCS / CALL_SIGS; the key-validity set
+           terminal's `else` exclusion from CARD_POINTS_KEY; the contract's
+           home from `kernel_contracts.CONTRACTS`, its answer's lowering
+           pinned in tests/test_kernel_definition_contracts.py; the key-validity set
            from the deck registry via `rank_names`; the migration tables
            from the migrating games' own runtime dicts. The enumeration
            record is the framing-check comment on issue #249; the design
@@ -174,11 +176,16 @@ def test_clause_axes_are_pinned_by_grammar_and_registries() -> None:
         line for line in grammar.splitlines() if line.startswith("CARD_POINTS_KEY")
     )
     assert "else" in key_terminal  # the else row cannot be shadowed by a rank key
-    assert "card_points" in BUILTIN_CALL_FUNCS
+    from cardlang.kernel_contracts import CONTRACTS
+    from cardlang.types import TInteger
+
+    # `card_points` is a Kernel Definition Contract the game answers, never a
+    # Builtin; the table is its answer's spelling.
+    assert CONTRACTS["card_points"].result == TInteger()
+    assert "card_points" not in BUILTIN_CALL_FUNCS
     assert "card_value" not in BUILTIN_CALL_FUNCS
-    assert "card_points" in DECK_ONLY_CALL_FUNCS
-    assert "card_value" not in DECK_ONLY_CALL_FUNCS
-    assert "card_points" in CALL_SIGS and "card_value" not in CALL_SIGS
+    assert "card_points" not in DECK_ONLY_CALL_FUNCS
+    assert "card_points" not in CALL_SIGS and "card_value" not in CALL_SIGS
 
 
 # =============================================================================
@@ -294,7 +301,7 @@ def test_call_with_no_clause_is_a_resolve_diagnostic() -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
     message = str(ei.value)
-    assert "card_points" in message and "clause" in message, message
+    assert "`card_points { }` table" in message and "`function card_points(card : Card) = …`" in message, message
 
 
 def test_clause_with_no_call_is_refused_naming_its_reader() -> None:
@@ -524,8 +531,10 @@ def test_ir_emits_the_table_only_when_declared() -> None:
     with_clause = _accepts(
         _game("card_points { A: 1  else: 2 }", body="s[0] := card_points(2 of spades)")
     )
+    # The table emits as the function it lowers to, and no table node.
     blob = json.dumps(ir.emit(with_clause))
-    assert '"card_points_table"' in blob
+    assert '"card_points_table"' not in blob
+    assert '"name": "card_points"' in blob
     assert '"A"' in blob
     without = _accepts(_game(""))
     assert '"card_points' not in json.dumps(ir.emit(without))
@@ -545,8 +554,11 @@ def test_ir_emits_the_table_only_when_declared() -> None:
 
 
 def _declared_table(game_file: str) -> tuple[dict[str, int], int | None]:
+    from cardlang.kernel_contracts import answer
+
     game = check_dsl((GAMES / game_file).read_text(), game_file)
-    table = game.card_points
+    points = answer(game, "card_points")
+    table = points.spelled_as if points is not None else None
     assert table is not None, f"{game_file} declares no card_points clause"
     return {e.rank: e.value for e in table.entries}, table.else_value
 

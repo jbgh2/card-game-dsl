@@ -1,0 +1,1 @@
+trick_order_retired.cardlang:9:3: error: a Trick Order is three functions, not a block: write `function is_trump(card : Card) = …`, with `function follow_class(card : Card) = …` where the printed suit is not the answer and `function card_strength(card : Card) = …` where `rank_value` is not

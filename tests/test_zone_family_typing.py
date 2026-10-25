@@ -462,31 +462,32 @@ def test_accepts_the_trump_winner_slot_with_a_declared_ranking() -> None:
 
 def test_accepts_the_trick_order_winner_with_no_declared_ranking() -> None:
     # The NON-member cell that keeps french-tarot legal: the Trick Order
-    # winner's strengths are the block's `card_strength:` row, never
-    # `rank_index`. A DECLARED row, deliberately -- an omitted one defaults to
+    # winner's strengths are the game's `card_strength`, never
+    # `rank_index`. A DECLARED answer, deliberately -- an omitted one defaults to
     # `rank_value(card)` and is refused without a `ranking:` by
-    # `_check_trick_order`'s own gate, which is a different guard and has its
+    # `_check_kernel_answers`' own gate, which is a different guard and has its
     # own cells in tests/test_trick_order.py.
     _accepts(
         _game(
             _TRICK_ROUND.format(winner="highest_by_trick_order"),
             ranking="",
-            clauses="trick_order { trump: card.suit is hearts  card_strength: 1 }",
         )
+        + "function is_trump(card : Card) = card.suit is hearts\n"
+        "function card_strength(card : Card) = 1\n"
     )
 
 
-def test_rejects_the_trick_order_winner_when_the_strength_row_is_omitted() -> None:
-    # The other side of the same cell: with no `card_strength:` row the
-    # strength IS `rank_value(card)`, so the game needs a `ranking:` after all
-    # -- and the refusal comes from the block's own gate, naming the row.
+def test_rejects_the_trick_order_winner_when_the_strength_is_omitted() -> None:
+    # The other side of the same cell: with no `card_strength` the strength IS
+    # `rank_value(card)`, so the game needs a `ranking:` after all -- and the
+    # refusal comes from the Trick Order's own gate, naming the function.
     _rejects(
         _game(
             _TRICK_ROUND.format(winner="highest_by_trick_order"),
             ranking="",
-            clauses="trick_order { trump: card.suit is hearts }",
-        ),
-        "declares no `card_strength:` row",
+        )
+        + "function is_trump(card : Card) = card.suit is hearts\n",
+        "declares a Trick Order with no `card_strength`",
     )
 
 

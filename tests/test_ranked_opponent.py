@@ -19,7 +19,7 @@ property:        `ranked` answers from its seat's view and the game's own
                  only while a trick is IN PROGRESS: an empty trick pile does not
                  mean a lead, and nothing the seat is handed tells a lead from a
                  hand passed to a neighbour. A game that declares a
-                 `trick_order { }` of its own is one whose tricks it reads
+                 Trick Order of its own is one whose tricks it reads
                  nothing of, so those decisions are drawn too. A throw counts the suits of the zone
                  the decision plays from, which a game may seat with one player
                  and the cards with another. Seated at a table it reaches an
@@ -82,10 +82,10 @@ does not prove:  That `ranked` plays a game well. It reads no game's own
                  (tests/test_move_stake.py). A game
                  that declares no ranking has nothing here to rank by, and the
                  disposition says so rather than pretending otherwise. A trump
-                 a game keeps in a state variable rather than in `trump:` is
+                 a game keeps in a state variable rather than on its round is
                  invisible here, and the opponent plays the suit led as though
                  there were none; the corpus declares no such game today, and a
-                 declared `trick_order { }` is drawn rather than guessed at.
+                 declared Trick Order is drawn rather than guessed at.
                  Two arms are STATED AND NOT MEASURED, because no corpus game
                  reaches either: a game declaring a second trick pile is drawn,
                  and no registered game declares two, so nothing here would
@@ -144,6 +144,7 @@ from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.ranked import DISPOSITIONS, RankedSeatPolicy
 from cardlang.openspiel.registry import GAMES
 from cardlang.openspiel.replay import LiveLine, load
+from tests.playout_policy import fixed_trump
 from cardlang.openspiel.seat_policy import (
     OPPONENTS,
     FirstSeatPolicy,
@@ -349,6 +350,7 @@ def test_a_bid_counts_a_fair_share_of_the_decks_suits() -> None:
     ranking = {rank: len(game.ranking) - place for place, rank in enumerate(game.ranking)}
     hands = frozenset(zone.name for zone in game.zones if zone.type_ref.name == "Hand")
     top = len(game.ranking)
+    trump = fixed_trump(game)
     checked = 0
 
     def watched(seat: int, policy: SeatPolicy) -> SeatPolicy:
@@ -362,7 +364,7 @@ def test_a_bid_counts_a_fair_share_of_the_decks_suits() -> None:
                     for card in (shown if isinstance(shown, tuple) else ())]
             strong = sum(1 for card in held if ranking.get(card.rank, 0) >= top - 1)
             share = len(held) // len(deck_suits(game.deck))
-            strong += max(0, sum(1 for card in held if card.suit == game.trump) - share)
+            strong += max(0, sum(1 for card in held if card.suit == trump) - share)
             wanted = min(legal, key=lambda aid: (abs(space.decode(aid) - strong), aid))
             assert picked == wanted, (
                 f"seat {seat} bid {space.decode(picked)} where {strong} winners "
@@ -502,7 +504,7 @@ def test_a_card_decision_with_no_trick_in_progress_is_drawn() -> None:
 
 
 def test_a_game_that_declares_its_own_trick_order_is_drawn() -> None:
-    """Belote states its trumps and card strengths in a `trick_order { }` of its
+    """Belote states its trumps and card strengths in a Trick Order of its
     own, which this opponent reads nothing of, so its card decisions are the
     draw's.
 

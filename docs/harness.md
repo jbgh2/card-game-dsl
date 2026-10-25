@@ -207,7 +207,12 @@ on the issue:
 - **Containment** — sub-issues. An `epic` is a container of sub-issues
   and holds no work of its own (CLAUDE.md, "The tracker").
 - **Dependency** — blocked-by edges between issues. An issue with an open
-  blocked-by dependency is not workable, whatever its labels say.
+  blocked-by dependency is not workable, whatever its labels say. Issues
+  that one change resolves as a side effect are blocked-by the resolving
+  issue, never children of an epic made from it: the resolving issue IS
+  the work, and the edge keeps the dependents off the Ready Front so no
+  agent fixes by hand what is about to change. The resolving PR writes a
+  closing keyword before every issue number it closes.
 - **Witness** — the `blocked:needs-witness` label, for the one blocker
   that is not an issue: the body names the game or data point that
   unblocks (CLAUDE.md, "The tracker").
@@ -243,6 +248,19 @@ The disqualifiers, in the order the sweep counts them:
   and assignment is the one-click shield that keeps the fleet off work
   the operator holds privately on a `ben/...` branch;
 - it is Leased.
+
+An issue that waits on an operator ruling stays unassigned and Ready. Its
+body states the decision (the options, their costs, the recommended one),
+and the agent that takes it puts the question to the operator when the
+work reaches it. Assignment shields work the operator holds privately; it
+is never a queue of rulings. The exception is an unruled Merge Lane A
+item, which is never takeable at all (The Language Owner, below).
+
+A deferral is real only when something fires: a test that reddens when
+the premise behind it stops holding, or a comment at the construct someone
+must touch to meet it. An issue kept open so that someone remembers it has
+no trigger, so it closes with its record — what closing leaves unsettled
+and what would reopen it — and the trigger in the tree carries it.
 
 `tools/ready-front.sh` computes the front — the third sibling of the two
 CLAUDE.md sweeps — in the order an agent takes it: Priority Tier first
@@ -299,8 +317,9 @@ taken first — and holds every other issue in the milestone off the front: the 
 its Lease is the epic's, and one PR or one short series closes it. The
 direction review opens at most two milestones at a time, from the head
 of #143, and the third is the Operator's Milestone (below), so three
-open milestones is the work-in-progress cap — two the review's and one
-the operator's — and it needs no label to keep it honest. Who closes one
+units in flight is the work-in-progress cap — two the review's and one the
+operator's, which an Operator's Swarm (below) fills as a single unit —
+and it needs no label to keep it honest. Who closes one
 follows from its finish line. A
 checkable finish line — a sentence an artifact can hold, such as "a test
 fails when the two routes stop agreeing" or "each sentence is refused at
@@ -352,6 +371,22 @@ class the review promotes into its own slots. It closes by the rule
 above — the epic's taker on a checkable finish line, the review on a
 judgment one — or the operator closes or empties it at any time, naming
 why on the epic; either way the review reads the closure.
+
+**An Operator's Swarm fills that slot with several milestones at once.**
+The operator may open, instead of one Operator's Milestone, several
+milestones together for one controller thread to drive — a test of a
+thread managing many units through the agents it spawns. Each is in the
+shape of any milestone and names itself `Operator's Swarm` in its
+description's first line beside the Destination; the controller Leases
+every swarm epic in the act of opening, so the front offers none of them
+to the fleet and the swarm is the operator's one unit for the cap; a
+swarm epic that waits on another's work is blocked-by it, so a rung
+cannot start before its prerequisite lands. The review reads a swarm
+exactly as it reads the Operator's Milestone — each epic's closure, and
+what the set says about the queue — and the controller records on each
+epic it closes how long the unit's PRs waited on the runner, the
+measurement that decides whether the shape spreads beyond the
+operator's slot.
 
 **The tier is triage, and triage is the direction review's.** A filer
 states facts — kind, reachability, the body — and never a tier: the
@@ -445,8 +480,8 @@ the tool is exempt, so headless runs are untouched. The title is
 display, never address: a rename does not propagate to the agent list,
 and cross-session messages still go to the ListAgents row name (see
 "The Review Desk" — the desk is spawn-named for exactly this reason). A
-thread not working a single issue — the desk, a consult, exploration —
-keeps its own name.
+thread not working a single issue — the desk, a consult, exploration,
+an Operator's Swarm's controller — keeps its own name.
 
 ## Standing Roles
 

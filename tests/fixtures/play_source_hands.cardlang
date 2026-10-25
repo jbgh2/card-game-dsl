@@ -28,7 +28,6 @@ game Spades {
 
   cards: standard52
   ranking: aces high
-  trump: spades
 
   zones {
     deck           : Deck
@@ -85,7 +84,7 @@ game Spades {
 
       repeat until (all players where hands[player] is empty) {
         round play_to_trick from leader over all players source hands into trick_pile
-              winner highest_trump_or_led_suit
+              winner highest_trump_or_led_suit trump spades
         move all cards from trick_pile to captured[team_of(winner)]
         tricks_won[winner] += 1
         leader := winner

@@ -56,24 +56,6 @@ game Skat {
         reads is_null, is_grand, trump_suit, hand[p], skat
   }
 
-  // The declared contract decides the order, so the rows read it off the
-  // public state the declaration wrote (`is_null`, `is_grand`, `trump_suit`).
-  // Suit and Grand: the four jacks are trumps, banded above everything, clubs
-  // > spades > hearts > diamonds; a Suit game adds its whole trump suit below
-  // them, in ONE class with them, which is what makes the jacks unfollowable
-  // by their printed suit. Null: no trumps at all, and the natural order
-  // A K Q J 10 9 8 7, where the jack sits between the queen and the ten
-  // instead of above the ace. Non-trumps follow as their printed suit — the
-  // omitted `follow_class:` row's default — so a Null hand is plain suits
-  // throughout.
-  trick_order {
-    trump:         not is_null
-                   and (card.rank is J or (not is_grand and card.suit is trump_suit))
-    card_strength: if is_null then null_strength(card)
-                   elif card.rank is J then 100 + suit_value(card.suit)
-                   else rank_value(card)
-  }
-
   zones {
     deck             : Deck
     hand[player]     : Hand<player>
@@ -87,10 +69,10 @@ game Skat {
     // Game-level: persists across hands.
     score[player] : Integer = 0
     hands_played  : Integer = 0
-    // The declared contract. Game-level because the Trick Order rows read it
-    // and a game clause sees game state only — not because it outlives a
-    // hand: `phase play` clears all three on entry, where its own state block
-    // would otherwise have re-declared them.
+    // The declared contract. Game-level because the Trick Order reads it and
+    // the kernel reads that where no phase frame stands — not because it
+    // outlives a hand: `phase play` clears all three on entry, where its own
+    // state block would otherwise have re-declared them.
     is_grand      : Boolean = false
     is_null       : Boolean = false
     trump_suit    : Suit?   = none
@@ -272,6 +254,26 @@ game Skat {
 
   winner: highest score
 }
+
+// The declared contract decides the order, so the functions read it off
+// the public state the declaration wrote (`is_null`, `is_grand`,
+// `trump_suit`).
+// Suit and Grand: the four jacks are trumps, banded above everything, clubs
+// > spades > hearts > diamonds; a Suit game adds its whole trump suit below
+// them, in ONE class with them, which is what makes the jacks unfollowable
+// by their printed suit. Null: no trumps at all, and the natural order
+// A K Q J 10 9 8 7, where the jack sits between the queen and the ten
+// instead of above the ace. Non-trumps follow as their printed suit — the
+// default `follow_class`, which the game leaves unwritten — so a Null hand
+// is plain suits throughout.
+function is_trump(card : Card) =
+  not is_null
+  and (card.rank is J or (not is_grand and card.suit is trump_suit))
+
+function card_strength(card : Card) =
+  if is_null then null_strength(card)
+  elif card.rank is J then 100 + suit_value(card.suit)
+  else rank_value(card)
 
 // === The Reizen + declaration vocabulary ===
 //

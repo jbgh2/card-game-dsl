@@ -74,10 +74,15 @@ Now illegal:  a type-invalid program, per the Owner Guards above and their
               arms), and this pass raises ``ShadowGuardError`` naming them;
               anything else with no signature is a registry divergence and
               keeps the assert channel. And a Definition Contract read from
-              anything but its stamp.
+              anything but its stamp. And a Kernel Definition Contract's
+              signature read from anywhere but its ``kernel_contracts`` row:
+              a call of one of its names is typed against the row, and an
+              answer's result is held to the row exactly
+              (``_check_kernel_answers``).
 Verified by:  the Owner Guard test modules (operator, aggregation, context,
               ranking, rule-ref) and their ledgers;
               tests/test_definition_contracts.py for the contract result;
+              tests/test_kernel_definition_contracts.py for the kernel's;
               tests/test_library_type_gates.py for the origin stamp's readers.
 """
 
@@ -91,6 +96,7 @@ from typing import Literal, assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game, library_origins
 from cardlang.board_domains import directions_of
+from cardlang import kernel_contracts as K
 from cardlang.builtins.functions import (
     PRIMITIVE_CALL_FUNCS,
     PRIMITIVE_CLIMB_FOLLOWS,
@@ -99,7 +105,6 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_EXCLUDED_FUNCS,
     TRICK_ORDER_EXCLUDED_WINNERS,
     TRICK_ORDER_GATED_WINNERS,
-    TRICK_ORDER_ROWS,
 )
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.attribution import (
@@ -250,10 +255,10 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #   winner callbacks, gated via RANKING_GATED_WINNERS at the trick round's
 #     `winner` slot: highest_of_led_suit, highest_trump_or_led_suit
 #     (winners.py). NON-member: highest_by_trick_order, whose strengths are
-#     the game's `card_strength:` row rather than its `ranking:` — which is
+#     the game's `card_strength` answer rather than its `ranking:` — which is
 #     what keeps french-tarot (a no-`ranking:` corpus game with trick rounds)
-#     legal. An OMITTED `card_strength:` row defaults to `rank_value(card)`
-#     and is gated by `_check_trick_order`'s own ranking guard, which is where
+#     legal. An UNANSWERED `card_strength` defaults to `rank_value(card)`
+#     and is gated by `_check_kernel_answers`' own ranking guard, which is where
 #     a Trick Order game meets this rule.
 #   climb queries, gated via RANKING_GATED_CLIMB_QUERIES at the climb
 #     round's `combinations`/`follows` slots: president_lead_options,
@@ -262,8 +267,8 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #   NON-members elsewhere: peg_pair_points (rank equality only),
 #     on_play_off_led_suit (suit only). The Rank
 #     move-parameter domain is resolve's gate; `card_points` is gated by its
-#     own clause-required guard, and a Trick Order's OMITTED `card_strength:`
-#     row by `_check_trick_order`'s own ranking gate (the default is
+#     own answer-required guard, and a Trick Order's UNANSWERED
+#     `card_strength` by `_check_kernel_answers`' own ranking gate (the default is
 #     `rank_value(card)`).
 RANKING_GATED_FUNCS: frozenset[str] = frozenset(
     {
@@ -281,10 +286,9 @@ RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
     {"president_lead_options", "president_follows"}
 )
 
-# The ranking-gated names a Trick Order replaces. Beside a `trick_order { }`
-# block each is refused in favour of the Trick Order winner, whose strengths
-# are the block's `card_strength:` row, so naming that winner instead clears
-# this gate too. For every other member, declaring `ranking:` is the one fix,
+# The ranking-gated names a Trick Order replaces. Beside a Trick Order each is
+# refused in favour of the Trick Order winner, whose strengths are the game's
+# `card_strength` answer, so naming that winner instead clears this gate too. For every other member, declaring `ranking:` is the one fix,
 # and the refusal offers no other.
 RANKING_TRICK_ORDER_TWINS: frozenset[str] = (
     RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES
@@ -355,14 +359,15 @@ def card_content_forms(node: object) -> tuple[str, ...]:
 def _ranking_refusal(subject: str, name: str, instead: str) -> str:
     """The ranking gate's refusal for `name`, offering only fixes that clear it.
     `instead` is how the Trick Order winner takes `name`'s place, said for the
-    position `name` is written in. A block needs its `trump:` row, and an
-    omitted `card_strength:` row reads `ranking:` after all, so the fix names
-    both; a `trump` clause is refused beside a block, so it names that too."""
+    position `name` is written in. A Trick Order needs its `is_trump`, and an
+    omitted `card_strength` reads `ranking:` after all, so the fix names both;
+    a `trump` clause is refused beside a Trick Order, so it names that too."""
     fix = "declare one"
     if name in RANKING_TRICK_ORDER_TWINS:
         fix += (
-            f", or declare a `trick_order {{ }}` block with `trump:` and "
-            f"`card_strength:` rows in place of any `trump` clause, and {instead}"
+            f", or declare a Trick Order — `function is_trump(card : Card) = …` "
+            f"and `function card_strength(card : Card) = …` — in place of any "
+            f"`trump` clause, and {instead}"
         )
     return (
         f"{subject} reads a card's rank strength from ranking:, but the game "
@@ -667,8 +672,8 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_check_stmt_exprs", "flavor"): ClauseRead(
         "typing", reason="binds a filter's item noun, which resolve checks (issue #170)"
     ),
-    ("_check_trick_order", "has_ranking"): ClauseRead(
-        "game_text", reason="a `trick_order { }` block, which a library cannot hold"
+    ("_check_kernel_answers", "has_ranking"): ClauseRead(
+        "game_text", reason="a Kernel Definition Contract's answer, which a library cannot hold"
     ),
     ("_name_type", "value_enums"): ClauseRead(
         "typing", reason="types a deck value, which library text cannot name"
@@ -1600,9 +1605,16 @@ def _contract_type(spelled: str, env: TypeEnv) -> Type:
 
 
 def _call_sig(call: n.Call, env: TypeEnv) -> Sig | None:
-    """The signature a call is typed against: its Definition Contract row when
-    the call is a library's of a contracted function, else the native table,
-    else the game's own function."""
+    """The signature a call is typed against: the Kernel Definition Contract's
+    row for one of its names, its Definition Contract row when the call is a
+    library's of a contracted function, else the native table, else the game's
+    own function."""
+    if call.func in K.CONTRACTS:
+        # The kernel's row, whoever answers it and wherever it is called from:
+        # an answer's own inferred signature is typed against the row once,
+        # at the answer (`_check_kernel_answers`).
+        row = K.CONTRACTS[call.func]
+        return Sig((row.param_type,), row.result)
     if call.contract is not None:
         result = call.contract.result_type
         assert result is not None, "a contracted call names a function row"
@@ -2854,105 +2866,98 @@ def _check_round_ranking(
         bag.error(_ranking_refusal(f"{slot} {name}", name, instead), stmt.span)
 
 
-def _check_trick_order(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """Each [[trick-order]] row types EXACTLY its reader's return type.
+def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """Each answer to a [[kernel-definition-contract]] types EXACTLY its row's
+    result (T1), and a Trick Order whose strength defaults has the `ranking:`
+    the default reads (T2).
 
-    The required type is `CALL_SIGS[reader].ret` — read back from the
-    signature the language mints, so the demand is stated once and a row and
-    its reader can never disagree. Strictness is the point (issue #250 PR 1,
-    ruled point 2): `trump:` and `card_strength:` compare by type EQUALITY, so
-    an optional cannot slip in. A `Boolean?` trump row whose value went absent
-    would read as not-a-trump, silently, for the rest of the game; only
-    `follow_class:` is genuinely optional-typed, and it routes through
-    `_check_operand` because `none` and a bare `Suit` both legitimately stand
-    where `Suit?` is wanted.
+    The required type is the registry row's (`kernel_contracts`), stated once
+    there. Strictness is the point (issue #250 PR 1, ruled point 2): Boolean
+    and Integer results compare by type EQUALITY, so an optional cannot slip
+    in. A `Boolean?` `is_trump` whose value went absent would read as
+    not-a-trump, silently, for the rest of the game; only `follow_class` is
+    genuinely optional-typed, and it routes through `_check_operand` because
+    `none` and a bare `Suit` both legitimately stand where `Suit?` is wanted.
 
     `TAny`, the [[permissive-top]], is refused in both arms. It is what the
     checker returns when it CANNOT type an expression — a mixed-branch `if`,
-    an untyped read — so accepting it would let exactly the rows nobody could
-    check through the strictest gate in the construct.
+    an untyped read — so accepting it would let exactly the answers nobody
+    could check through the strictest gate in the construct.
+
+    Each refusal carries the hint its most plausible wrong spelling earns
+    (`_answer_type_hint`), so a designer who wrote the wrong thing is told
+    what the RIGHT thing looks like rather than only that the type is wrong.
     """
-    if game.trick_order is None:
-        return
-    row_env = _scoped_env(env, (("card", TCard()),))
-    for row in game.trick_order.rows:
-        # Through the generic expression walk first, so a row gets every
-        # ordinary diagnostic (an unknown card field, a call arity, the
-        # `ranking:` gate on `rank_value`) from the pass that owns it, and
-        # this check adds only the demand that is the ROW's own.
-        _check_expr(row.body, row_env, bag)
-        reader = next(r for k, r in TRICK_ORDER_ROWS if k == row.key)
-        expected = CALL_SIGS[reader].ret
-        got = infer(row.body, row_env)
+    for answer in K.answers(game):
+        row = K.CONTRACTS[answer.name]
+        if tuple(p.type_name for p in answer.params) != ("Card",):
+            continue  # resolve's arity and parameter refusal
+        answer_env = _scoped_env(env, ((answer.params[0].name, TCard()),))
+        expected = row.result
+        got = infer(answer.body, answer_env)
+        span = answer.span or game.span
+        subject: Said = "function " + cite_named(answer, f"`{answer.name}`")
         if isinstance(got, TAny):
             bag.error(
-                f"`{row.key}:` row types as `Any`, the permissive top (a value "
-                f"the checker cannot type — a mixed-branch `if`, an untyped "
-                f"read); a Trick Order row must type exactly "
+                subject + f" types as `Any`, the permissive top (a value the "
+                f"checker cannot type — a mixed-branch `if`, an untyped "
+                f"read); the kernel reads `{row.spelled}` as exactly "
                 f"{_type_name(expected)}",
-                row.span or game.span,
+                span,
             )
             continue
+        message: Said = (
+            subject + f" returns {_type_name(got)}, but the kernel reads "
+            f"`{row.spelled}` as {_type_name(expected)}"
+            + _answer_type_hint(answer.name, got, game)
+        )
         if isinstance(expected, TOptional):
-            _check_operand(
-                row.body, got, expected, row_env, bag,
-                _row_type_message(row.key, got, expected, game),
-                row.span or game.span,
-            )
+            _check_operand(answer.body, got, expected, answer_env, bag, message, span)
         elif got != expected:
-            bag.error(
-                _row_type_message(row.key, got, expected, game), row.span or game.span
-            )
-    if game.trick_order.row("card_strength") is None and not env.has_ranking:
-        # The omitted row defaults to `rank_value(card)` (the driver's table),
-        # which reads `ranking:` — so the default silently demands a clause
-        # the game may not declare. Named at the BLOCK, not through the
-        # RANKING_GATED sentence: the reader here is a default nobody wrote.
+            bag.error(message, span)
+    if K.has_trick_order(game) and K.answer(game, "card_strength") is None and not env.has_ranking:
+        # The unanswered row defaults to `rank_value(card)` (the driver's
+        # closure), which reads `ranking:` — so the default silently demands a
+        # clause the game may not declare. Named at the Trick Order, not
+        # through the RANKING_GATED sentence: the reader here is a default
+        # nobody wrote.
+        is_trump = K.answer(game, K.TRICK_ORDER_KEY_CONTRACT)
+        assert is_trump is not None
         bag.error(
-            "`trick_order` declares no `card_strength:` row, so strength "
-            "defaults to `rank_value(card)`, which reads `ranking:` — but the "
-            "game declares no `ranking:`; declare one, or write a "
-            "`card_strength:` row",
-            game.trick_order.span or game.span,
+            "function " + cite_named(is_trump, "`is_trump`") + " declares a "
+            "Trick Order with no `card_strength`, so strength defaults to "
+            "`rank_value(card)`, which reads `ranking:` — but the game "
+            "declares no `ranking:`; declare one, or write "
+            "`function card_strength(card : Card) = …`",
+            is_trump.span or game.span,
         )
 
 
-def _row_type_message(key: str, got: Type, expected: Type, game: n.Game) -> str:
-    """A row's type refusal, with the hint its most plausible wrong spelling
-    earns. Each hint answers a specific confusion the row invites, so a
-    designer who wrote the wrong thing is told what the RIGHT thing looks
-    like rather than only that the type is wrong."""
-    gname = _type_name(got)
-    if key == "trump":
-        msg = f"`trump:` row must type Boolean (is this card a trump?), got {gname}"
+def _answer_type_hint(name: str, got: Type, game: n.Game) -> str:
+    """The half-sentence an answer of the wrong type earns, by the confusion
+    its contract invites; empty where none is likely."""
+    if name == "is_trump":
         if isinstance(got, TEnum) and got.name == "Suit":
             # A concrete suit of THIS deck, so the remedy is a sentence the
             # designer can paste (resolve already refused an unknown deck, the
             # `_suit_types` precedent above).
             known = sorted(suit_names(game.deck))
             suit = known[0] if known else "spades"
-            return msg + f" — for a fixed trump suit write `trump: card.suit is {suit}`"
+            return (
+                f" — for a fixed trump suit write "
+                f"`function is_trump(card : Card) = card.suit is {suit}`"
+            )
         if isinstance(got, TOptional) and isinstance(got.inner, TBoolean):
-            return msg + (
-                " — a Trick Order row is never absent-valued (a `none` would "
+            return (
+                " — a Trick Order answer is never absent-valued (a `none` would "
                 "read as not-a-trump silently)"
             )
-        return msg
-    if key == "follow_class":
-        msg = (
-            f"`follow_class:` row must type Suit? (the class the card follows "
-            f"as, or none for class-less), got {gname}"
+    if name == "follow_class" and isinstance(got, TString):
+        return (
+            " — a trump follows as a trump by `is_trump`, never by a class "
+            "value; the class of a trump card is not consulted"
         )
-        if isinstance(got, TString):
-            return msg + (
-                " — a trump follows as a trump by the `trump:` row, never by a "
-                "class value; the class of a trump card is not consulted"
-            )
-        return msg
-    return (
-        f"`card_strength:` row must type Integer (strength within its class; "
-        f"higher beats lower), got {gname}"
-    )
+    return ""
 
 
 def _check_round_trump(stmt: n.TrickRound, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -4551,7 +4556,7 @@ def typecheck(game: Game) -> Game:
                 phase.qualifier.expr, env, bag, f"phase '{phase.name}' condition"
             )
         check_phase_positions(phase, ())
-    _check_trick_order(game, env, bag)
+    _check_kernel_answers(game, env, bag)
     if game.loser is not None:
         _check_expr(game.loser.selection, env, bag)
         # `loser:` names a player directly (unlike `winner:`, which ranks a score

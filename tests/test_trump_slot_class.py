@@ -2,29 +2,26 @@
 
 Two classes of pre-existing accepted-but-ignored / accepted-then-crashes cells
 around the language's trump surface (issue #250, PR 0 — the sweep that
-precedes the `trick_order { }` construct, so the construct is not built on
-top of them):
+precedes the Trick Order, so the construct is not built on top of them):
 
 * THE TRUMP-SLOT CLASS — every position where a trump value is named or a
   trump-reading function is named. Its members, derived below from the
-  grammar (`trump: NAME`, `round ... [trump expr]`), the AST (`Game.trump`,
-  `TrickRound.trump`, `TrickRound.winner_fn`), the winner registry
-  (`TRICK_WINNER_NAMES`) and the call registry (`CALL_SIGS`):
-    (a) the game clause `trump: NAME` — its value must be a suit of the
-        declared deck (resolve, `_resolve_trump`), and it must be READ by at
-        least one trick round (a round whose winner reads a trump and that
-        supplies no `trump` clause of its own); a `trump:` no round reads
-        is refused as dead — French Tarot's `trump: atouts` beside
-        `winner tarot_trick_winner` was the corpus instance;
-    (b) the round clause `trump <expr>` — held to `Suit?` (typecheck,
-        `_check_round_trump`), and refused on a winner whose body reads no
-        trump (resolve, the winner-slot arm) — `highest_of_led_suit trump
-        hearts` used to check green and play no-trumps;
-    (c) the call form `highest_trump_or_led_suit(pile, trump)` — its trump
+  grammar (`round ... [trump expr]`), the AST (`TrickRound.trump`,
+  `TrickRound.winner_fn`), the winner registry (`TRICK_WINNER_NAMES`) and
+  the call registry (`CALL_SIGS`):
+    (a) the round clause `trump <expr>` — held to `Suit?` (typecheck,
+        `_check_round_trump`), a suit of the declared deck by resolution, and
+        refused on a winner whose body reads no trump (resolve, the
+        winner-slot arm); a round whose winner reads a trump and that states
+        none is refused wherever it is written (resolve,
+        `_check_trick_order_partition`);
+    (b) the call form `highest_trump_or_led_suit(pile, trump)` — its trump
         argument is `Suit?` by `CALL_SIGS` (already gated; pinned here as
-        the same class's third position);
-    (d) `state.trump` — the round publishes no trump (already gated by the
-        round-state registry; pinned here as the class's fourth position).
+        the same class's second position);
+    (c) `state.trump` — the round publishes no trump (already gated by the
+        round-state registry; pinned here as the class's third position).
+  The game-level `trump:` clause is retired, refused by its twin
+  (tests/test_retired_trick_order.py).
   Which winner reads its trump is decided BY BODY, executed: `reads_trump`
   runs every registered winner on one pile twice (trump = the second
   player's suit, then no trump) and asks whether the answer moves. The
@@ -49,18 +46,14 @@ property:   (1) a named trump value is a suit of the deck, typed `Suit?`,
             ignored; (2) a rank outside the declared `ranking:` reaching a
             strength read fails in the runtime's typed channel, naming the
             reader — never a bare KeyError.
-domain:     trump-slot: {game clause, round clause, call form, state.trump}
-            x TRICK_WINNER_NAMES x expression type x consumption shape
-            (inherit / override / none) x every card deck's suit domain
-            x -- for the game clause's consumption arm -- every name-reached
+domain:     trump-slot: {round clause, call form, state.trump}
+            x TRICK_WINNER_NAMES x expression type x every card deck's suit
+            domain x -- for the unstated-trump arm -- every name-reached
             statement CONTAINER x {reachable, unreachable};
             rank-to-order: every rank_index consumer x an unranked rank
             reaching its lookup.
-            Two shapes sit outside the type axis, and neither is a gap. A
-            non-NAME trump value (`trump: 5`, `trump: "spades"`) is refused
-            in the grammar's own channel before resolve -- the clause is
-            `trump: NAME` -- so the axis is spelled with NAME-shaped values,
-            the rank cell included. And board-minted shapes (Cell/Dir/Line)
+            One shape sits outside the type axis, and it is not a gap:
+            board-minted shapes (Cell/Dir/Line)
             and a `TAny` operand are not spelled at all: a card game mints
             none, and `TAny` is the permissive top, admitted here exactly as
             the call form admits it.
@@ -125,18 +118,8 @@ red under -- executed, each edit reddening exactly its own cells:
   - the `ProcedureDef` row dropped from `_DEFINITION_CONTAINERS`: 1 --
     `test_every_name_reached_container_is_classified`, the deleting
     direction, so the table cannot shrink out from under the AST.
-  - `_resolve_trump`'s membership guard skipped: 36 `test_game_trump_value`
-    reject cells (12 decks x {bogus, a rank, a foreign suit}); the `none`
-    and accept cells stay green.
-  - `_check_unread_clauses`' trump row skipped: every
-    `test_game_trump_consumption` cell with no reading-inheriting round +
-    `test_dead_trump_message_names_the_readers`.
   - the winner-slot `elif` in `_validate_refs` dropped: 22
-    `test_round_trump_clause` cells (2 blind winners x 11 spellings) + 30
-    `test_game_trump_consumption` cells (every configuration with a blind
-    winner overriding) -- 52; a first run reddened only 30 because the
-    needle "reads no trump" also occurs inside the dead-clause message, so
-    `_BLIND` now pins the round-clause phrase.
+    `test_round_trump_clause` cells (2 blind winners x 11 spellings).
   - `_check_round_trump` returning early: 14 `test_round_trump_clause`
     cells (2 reading winners x 7 non-`Suit?` spellings).
   - `rank_strength` returning `rank_index[rank]` bare: the 10 reader
@@ -187,11 +170,11 @@ from cardlang.typecheck import (
 # `TRICK_ORDER_GATED_WINNERS`), so `reads_trump`'s differential cannot be
 # posed of them: they receive no trump argument to read or ignore, and the
 # question this module asks -- does the body consume the round's trump? -- has
-# no meaning for a winner whose trumps are the game's `trick_order { }` rows.
+# no meaning for a winner whose trumps are the game's `is_trump`.
 # Their trump-clause cells are DECIDED and live in the construct's own grid
-# (tests/test_trick_order.py): without a block, every spelling is R5 (the
-# winner reads a block the game does not declare); with one, a round `trump`
-# clause is R2 and the game-level clause is R1.
+# (tests/test_trick_order.py): without a Trick Order, every spelling is R5
+# (the winner reads a Trick Order the game does not declare); with one, a
+# round `trump` clause is R2.
 WINNERS: tuple[str, ...] = tuple(
     sorted(F.TRICK_WINNER_NAMES - F.TRICK_ORDER_GATED_WINNERS)
 )
@@ -304,7 +287,6 @@ game G {{
   max_length: 100
   cards: {deck}
   ranking: {ranking}
-  {clause}
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile }}
   state {{ won[player] : Integer = 0  trump_suit : Suit? = none  trump_s : Suit = {suit}  leader : Player = 0 }}
   phase play {{
@@ -318,10 +300,10 @@ game G {{
 _ROUND = "round play_to_trick from 0 over all players source hand into pile winner {winner}{trump}"
 
 
-def _source(*, deck: str = "standard52", clause: str = "", body: str = "") -> str:
+def _source(*, deck: str = "standard52", body: str = "") -> str:
     suit = deck_suits(deck)[0]
     return _GAME.format(
-        deck=deck, ranking=_ranking_of(deck), clause=clause, suit=suit, body=body
+        deck=deck, ranking=_ranking_of(deck), suit=suit, body=body
     )
 
 
@@ -351,157 +333,82 @@ def _expect(source: str, *needles: str) -> None:
         assert needle in text, f"expected {needle!r} in:\n{text}"
 
 
-# --- (a) the game clause: value ---------------------------------------------
+# --- (a) the round clause: value --------------------------------------------
 
-_DEAD = "is read by no trick round"
-_UNKNOWN_SUIT = "names unknown suit"
-_BLIND = "round `trump` clause on winner"  # the round-clause refusal, not the dead-clause one
+_NO_SUIT = "which is neither a suit of this deck"
+_BLIND = "round `trump` clause on winner"  # the round-clause refusal
 _TYPE = "round `trump` names the trump suit"
 _UNSTATED = "reads a trump, but none is stated"
 
 
-def _game_trump_value_cells() -> list[tuple[str, str, str]]:
-    """(deck, value, expectation) for every card deck: every suit of the
-    deck accepts; a non-name, a rank of the deck, and a suit of some OTHER
-    deck reject; and `none` -- a NAME to the grammar, so it parsed as the
-    string "none" and silently played no-trumps -- rejects pointing at the
-    omission that means no trump. `bogus` is a NAME the grammar admits (the
-    clause is `trump: NAME`), which is exactly why the value needs a
-    membership guard."""
+def _round_trump_value_cells() -> list[tuple[str, str, str]]:
+    """(deck, value, expectation) for every card deck, on the round clause --
+    the one place a fixed trump is written: every suit of the deck accepts;
+    `none` accepts, the designed no-trump (Bridge's contract); a name that is
+    no suit, a rank of the deck, and a suit of some OTHER deck reject.
+
+    red under (each executed 2026-10-24, reverted): resolve's `enums`
+    category admitting every deck's suits -- the foreign-suit cell of each
+    deck reddens, 14 cells; and the round `trump` arm of `resolve._rewrite`
+    disabled -- every no-suit cell and tests/rejections/round_trump_unknown_suit
+    redden, 29.
+    The no-suit voice was written before these cells named it (they named
+    "unresolved name"), so it was never red under its own needle; the
+    disabled-arm run is its evidence."""
     every_suit = sorted({s for d in DECKS for s in deck_suits(d)})
     cells: list[tuple[str, str, str]] = []
     for deck in sorted(DECKS):
         suits = deck_suits(deck)
         for s in suits:
             cells.append((deck, s, "accept"))
-        cells.append((deck, "bogus", "unknown"))
-        # A NAME-shaped rank: a numeral rank (`trump: 2`) never reaches
-        # resolve -- the clause is `trump: NAME` and the grammar refuses the
-        # INT token itself (loud, its own channel; see the ledger).
-        cells.append((deck, next(r for r in deck_ranks(deck) if not r.isdigit()), "unknown"))
+        cells.append((deck, "none", "accept"))
+        cells.append((deck, "bogus", "no-suit"))
+        cells.append((deck, next(r for r in deck_ranks(deck) if not r.isdigit()), "type"))
         foreign = next((s for s in every_suit if s not in suits), None)
         if foreign is not None:
-            cells.append((deck, foreign, "unknown"))
-        cells.append((deck, "none", "omit"))
+            cells.append((deck, foreign, "no-suit"))
     return cells
 
 
 @pytest.mark.parametrize(
     ("deck", "value", "expectation"),
-    _game_trump_value_cells(),
-    ids=[f"{d}-{v}-{e}" for d, v, e in _game_trump_value_cells()],
+    _round_trump_value_cells(),
+    ids=[f"{d}-{v}-{e}" for d, v, e in _round_trump_value_cells()],
 )
-def test_game_trump_value(deck: str, value: str, expectation: str) -> None:
-    body = _ROUND.format(winner="highest_trump_or_led_suit", trump="")
-    src = _source(deck=deck, clause=f"trump: {value}", body=body)
+def test_round_trump_value(deck: str, value: str, expectation: str) -> None:
+    body = _ROUND.format(winner="highest_trump_or_led_suit", trump=f" trump {value}")
+    src = _source(deck=deck, body=body)
     if expectation == "accept":
         _expect(src)
-    elif expectation == "omit":
-        _expect(src, "trump: none", "drop `trump: none`")
+    elif expectation == "type":
+        _expect(src, _TYPE, "got Rank")
     else:
-        _expect(src, _UNKNOWN_SUIT, f"'{value}'", f"deck '{deck}'")
+        _expect(src, _NO_SUIT, f"'{value}'")
 
 
-def test_game_trump_in_a_piece_game_names_the_kind() -> None:
-    """The flavor cell (owned by `_reject_card_content_clauses`, pinned in
-    tests/test_piece_content_guards.py): a piece set has no suits, so the
-    clause is refused naming the kind, and the membership guard is not what
-    speaks."""
-    src = """
-game G {
-  players: 2
-  max_length: 10
-  pieces: xo_marks
-  trump: x
-  zones { box : Deck }
-  state { score[player] : Integer = 0 }
-  phase play { }
-  winner: highest score
-}
-"""
-    _expect(src, "this game declares pieces ('xo_marks')")
+def test_the_no_suit_refusals_fixes_clear() -> None:
+    """"write the suit, or a `Suit?` state variable the game sets": each,
+    written as the refusal says, checks clean; and in a library, where no
+    suit is spelled, the library's own encapsulation refusal speaks instead
+    (tests/test_library_boundary_ledger.py).
+
+    red under: refuse the round clause's state variable (the second fix)."""
+    misspelt = _source(body=_ROUND.format(winner="highest_trump_or_led_suit", trump=" trump spade"))
+    _expect(misspelt, _NO_SUIT, "write the suit")
+    _expect(misspelt.replace(" trump spade", " trump spades"))
+    _expect(misspelt.replace(" trump spade", " trump trump_suit"))
 
 
-# --- (a) the game clause: consumption ---------------------------------------
-
-
-def _round_shapes() -> list[tuple[str, str]]:
-    """Every (winner, shape): a round that INHERITS the game clause (no
-    `trump` of its own) or OVERRIDES it (`trump trump_suit`)."""
-    return [(w, shape) for w in WINNERS for shape in ("inherit", "override")]
-
-
-def _round_text(winner: str, shape: str) -> str:
-    return _ROUND.format(
-        winner=winner, trump=" trump trump_suit" if shape == "override" else ""
-    )
-
-
-def _consumption_cells() -> list[tuple[tuple[tuple[str, str], ...], tuple[str, ...]]]:
-    """A game declaring `trump: spades` with zero, one, or two trick rounds
-    (every pair of (winner, shape)). Expected: clean iff SOME round both
-    reads a trump and inherits; otherwise the dead-clause refusal -- and,
-    independently, the blind-winner refusal for every round that puts a
-    `trump` clause on a winner that reads no trump."""
-    shapes = _round_shapes()
-    configs: list[tuple[tuple[str, str], ...]] = [()]
-    configs += [(s,) for s in shapes]
-    configs += [(a, b) for a in shapes for b in shapes]
-    cells = []
-    for config in configs:
-        consumed = any(reads_trump(w) and shape == "inherit" for w, shape in config)
-        blind_override = any(
-            not reads_trump(w) and shape == "override" for w, shape in config
-        )
-        needles: list[str] = []
-        if not consumed:
-            needles.append(_DEAD)
-        if blind_override:
-            needles.append(_BLIND)
-        cells.append((config, tuple(needles)))
-    return cells
-
-
-def _config_id(config: tuple[tuple[str, str], ...]) -> str:
-    return "+".join(f"{w}:{shape}" for w, shape in config) or "no-round"
-
-
-@pytest.mark.parametrize(
-    ("config", "needles"),
-    _consumption_cells(),
-    ids=[_config_id(c) for c, _ in _consumption_cells()],
-)
-def test_game_trump_consumption(
-    config: tuple[tuple[str, str], ...], needles: tuple[str, ...]
-) -> None:
-    body = "\n    ".join(_round_text(w, shape) for w, shape in config)
-    _expect(_source(clause="trump: spades", body=body), *needles)
-
-
-def test_dead_trump_message_names_the_readers() -> None:
-    """The refusal tells the author what WOULD read the clause -- the
-    trump-reading winners by name -- and, for a game with no round at all,
-    that a hand-rolled trick passes its trump to the call form itself."""
-    src = _source(clause="trump: spades", body="won[1] += 1")
-    text = _diagnostics(src)
-    assert text is not None
-    for w in sorted(F.TRUMP_READING_WINNERS):
-        assert w in text, text
-    assert "writes no trick round" in text, text
-
-
-# --- (a) the game clause: consumption is WRITTEN text ------------------------
+# --- (a) the round clause: a reading round states its trump WHERE WRITTEN ---
 #
-# The unread law asks whether some round the game WRITES reads the clause
-# (`_check_unread_clauses`), the same text the round gates refuse in, so no
-# game is refused both with the clause and without it. A `round` is a
-# `statement`, and the definition forms hold `statement*`; a reading round in
-# a body nothing invokes reads the clause, and the body is refused by its own
-# guard (a move type never offered, a procedure holding a round). The
-# container axis is DERIVED here (not authored): a statement-holding AST
-# container is reached by NAME exactly when it is a top-level definition list
-# on `n.Game`; every other statement holder sits inside a phase body.
-# `_CONTAINER_FIXTURES` then supplies the DSL text per container, and
+# A round whose winner reads a trump and that states none is refused wherever
+# it is written (`_check_trick_order_partition`), and a round in a body
+# nothing invokes is also refused by that body's own guard (a move type never
+# offered, a procedure holding a round). The container axis is DERIVED here
+# (not authored): a statement-holding AST container is reached by NAME
+# exactly when it is a top-level definition list on `n.Game`; every other
+# statement holder sits inside a phase body. `_CONTAINER_FIXTURES` then
+# supplies the DSL text per container, and
 # `test_every_name_reached_container_is_classified` fails if the AST grows a
 # container neither table classifies.
 
@@ -574,12 +481,12 @@ def test_every_name_reached_container_is_classified() -> None:
     assert derived == {c.__name__ for c in _DEFINITION_CONTAINERS}, derived
 
 
-def _container_cells() -> list[tuple[str, bool, str, tuple[str, ...], tuple[str, ...]]]:
-    """(container, reachable, winner, needles, forbidden) -- every name-reached
+def _container_cells() -> list[tuple[str, bool, str, tuple[str, ...]]]:
+    """(container, reachable, winner, needles) -- every name-reached
     container x {reachable, unreachable} x {a trump-reading winner, a blind
-    one}. The container holds the game's ONLY trick round, so the clause is
-    read exactly when that round reads it, reachable or not; an unreachable
-    container is refused by its own guard instead.
+    one}, the container holding the game's only trick round, with no `trump`
+    clause. A reading round is refused wherever it is written, reachable or
+    not; an unreachable container is refused by its own guard as well.
 
     A procedure is refused either way by a pre-existing Owner Guard (a
     procedure may not hold a `round` at all), so its four cells PIN that wall
@@ -594,56 +501,47 @@ def _container_cells() -> list[tuple[str, bool, str, tuple[str, ...], tuple[str,
     for container in sorted(_CONTAINER_FIXTURES):
         for reachable in (True, False):
             for winner in (reading, blind):
+                needles: tuple[str, ...]
                 if container == "ProcedureDef":
-                    needles: tuple[str, ...] = (_PROC_WALL,)
-                    forbidden: tuple[str, ...] = ()
-                elif reachable and reads_trump(winner):
-                    needles, forbidden = (), ()  # the clause is read
-                elif reads_trump(winner):  # read, but the move type is never offered
-                    needles, forbidden = (_UNOFFERED,), (_DEAD,)
-                else:  # blind: it does not read the clause wherever it is written
-                    needles, forbidden = (_DEAD,), ()
-                cells.append((container, reachable, winner, needles, forbidden))
+                    needles = (_PROC_WALL,)
+                else:
+                    needles = (_UNSTATED,) if reads_trump(winner) else ()
+                    if not reachable:
+                        needles += (_UNOFFERED,)
+                cells.append((container, reachable, winner, needles))
     return cells
 
 
-def _container_source(container: str, reachable: bool, winner: str) -> str:
+def _container_source(container: str, reachable: bool, winner: str, trump: str = "") -> str:
     template, invocation = _CONTAINER_FIXTURES[container]
-    defs = template.format(round=_ROUND.format(winner=winner, trump=""))
+    defs = template.format(round=_ROUND.format(winner=winner, trump=trump))
     body = invocation if reachable else "won[1] += 1"
-    return _source(clause="trump: spades", body=body) + "\n" + defs
+    return _source(body=body) + "\n" + defs
 
 
 @pytest.mark.parametrize(
-    ("container", "reachable", "winner", "needles", "forbidden"),
+    ("container", "reachable", "winner", "needles"),
     _container_cells(),
     ids=[
         f"{c}-{'reachable' if r else 'unreachable'}-{w}"
-        for c, r, w, _, _ in _container_cells()
+        for c, r, w, _ in _container_cells()
     ],
 )
-def test_dead_clause_counts_written_rounds(
+def test_an_unstated_trump_is_refused_where_written(
     container: str,
     reachable: bool,
     winner: str,
     needles: tuple[str, ...],
-    forbidden: tuple[str, ...],
 ) -> None:
-    src = _container_source(container, reachable, winner)
-    _expect(src, *needles)
-    if forbidden:
-        text = _diagnostics(src)
-        assert text is not None
-        for needle in forbidden:
-            assert needle not in text, f"unexpected {needle!r} in:\n{text}"
+    _expect(_container_source(container, reachable, winner), *needles)
 
 
-def test_a_reachable_definition_keeps_its_trump(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A reading round in an OFFERED move type reads the clause and the game
-    checks clean. Born green -- its reddening mutation is dropping the
-    `_TRUMP_STATED_GATE` row's `role="reader"`."""
+def test_a_reachable_definition_keeps_its_trump() -> None:
+    """A reading round that states its trump, in an OFFERED move type, checks
+    clean. Born green -- its reddening mutation is making the unstated-trump
+    arm of `_check_trick_order_partition` ignore the round's own clause."""
     reading = min(F.TRUMP_READING_WINNERS)
-    _expect(_container_source("MoveTypeDef", True, reading))
+    _expect(_container_source("MoveTypeDef", True, reading, trump=" trump spades"))
 
 
 # --- (b) the round clause ---------------------------------------------------
@@ -681,9 +579,9 @@ def test_round_trump_clause(winner: str, shape: str) -> None:
     spelling, suit_typed = _TRUMP_SPELLINGS[shape]
     src = _source(body=_ROUND.format(winner=winner, trump=spelling))
     if shape == "absent" and reads_trump(winner):
-        # No round clause, no game `trump:`, no Trick Order: the winner reads
-        # a trump the game never states, so it would play no-trump silently.
-        _expect(src, _UNSTATED, "`trump: <suit>`", "trick_order", "highest_of_led_suit")
+        # No round clause and no Trick Order: the winner reads a trump the
+        # game never states, so it would play no-trump silently.
+        _expect(src, _UNSTATED, "trump <suit>", "is_trump", "highest_of_led_suit")
     elif shape == "absent":
         _expect(src)
     elif not reads_trump(winner):
@@ -694,24 +592,17 @@ def test_round_trump_clause(winner: str, shape: str) -> None:
         _expect(src, _TYPE, "expected Suit?")
 
 
-def test_a_game_trump_states_the_trump_a_round_reads() -> None:
-    """The control for the unstated cell: the same round, the trump stated
-    once at the game level.
-
-    red under: refuse the unstated trump whatever the game's `trump:`."""
-    _expect(_source(clause="trump: spades", body=_ROUND.format(
-        winner="highest_trump_or_led_suit", trump="",
-    )))
-
-
 def test_spades_without_its_trump_is_refused() -> None:
-    """The planted-fault witness: Spades with its `trump: spades` line
+    """The planted-fault witness: Spades with its round's `trump spades`
     deleted.
 
     red under: drop the unstated-trump arm of `_check_trick_order_partition`."""
     text = (Path(__file__).resolve().parent.parent / "docs" / "games" / "spades.cardlang").read_text()
-    assert text.count("  trump: spades\n") == 1
-    _expect(text.replace("  trump: spades\n", ""), _UNSTATED)
+    assert text.count("winner highest_trump_or_led_suit trump spades\n") == 1
+    _expect(
+        text.replace("winner highest_trump_or_led_suit trump spades\n", "winner highest_trump_or_led_suit\n"),
+        _UNSTATED,
+    )
 
 
 # --- (c) the call form's trump argument -------------------------------------
@@ -742,10 +633,10 @@ def test_state_trump_is_unpublished() -> None:
     (`stdlib/round_state.py`, TRICK_INTERNAL), so no rule or body can read
     a round's trump back -- the round-state registry's own guard."""
     body = (
-        _ROUND.format(winner="highest_trump_or_led_suit", trump="")
+        _ROUND.format(winner="highest_trump_or_led_suit", trump=" trump spades")
         + "\n    if state.trump is none { won[1] += 1 }"
     )
-    _expect(_source(clause="trump: spades", body=body), "a round publishes no `trump`")
+    _expect(_source(body=body), "a round publishes no `trump`")
 
 
 # --- the rank-to-order-table class ------------------------------------------

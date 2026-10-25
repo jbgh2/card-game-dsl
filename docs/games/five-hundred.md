@@ -139,8 +139,8 @@ bid levels and omits the dummy; the file documents the chosen ruleset):
   orders are out of its scope
   ([decisions.md](../decisions.md), "The `ranking:` declaration: enumeration or convention").
 - The contract's `trump_suit` and `joker_suit` are game-level state, not
-  phase-level: a `trick_order` block is a game clause and sees game state
-  only. `phase play` clears both on entry, so a hand behaves exactly as it
+  phase-level: the kernel reads the Trick Order where no phase frame
+  stands, so its functions read game state only. `phase play` clears both on entry, so a hand behaves exactly as it
   did when its own state block declared them.
 - The open-misère reveal is a plain movement into `exposed[declarer]`, a
   `PublicHand` zone: the mid-phase visibility flip is carried entirely by

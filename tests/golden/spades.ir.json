@@ -25,7 +25,6 @@
     "2"
   ],
   "ranking_convention": "aces high",
-  "trump": "spades",
   "teams": [
     [
       0,
@@ -526,7 +525,11 @@
                   "source_zone": "hand",
                   "play_zone": "trick_pile",
                   "winner_fn": "highest_trump_or_led_suit",
-                  "trump": null,
+                  "trump": {
+                    "kind": "name",
+                    "name": "spades",
+                    "ref": "enum_value"
+                  },
                   "early_termination": null
                 },
                 {

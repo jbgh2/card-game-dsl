@@ -428,11 +428,11 @@ inside a round reads that round's live frame, which no window closes.
 **Contextual card properties are the game's Trick Order.** Some games
 interpret card properties contextually rather than from the card's intrinsic
 fields: Skat's jacks are trumps regardless of printed suit, and in Doppelkopf
-the queens and jacks are too. Those games declare a `trick_order { }` block
-("Trick Order" below), whose three rows say what a trump is, what class a card
-follows as, and how strong it is; the language mints the readers and the
-winner from the declaration. A game that declares none keeps the default —
-printed-suit equality, and a `trump:` suit if it has one — and the presence
+the queens and jacks are too. Those games declare a Trick Order ("Trick Order"
+below): three functions, `is_trump`, `follow_class` and `card_strength`, that
+say what a trump is, what class a card follows as, and how strong it is; the
+kernel's winner and follow test read them. A game that declares none keeps the default —
+printed-suit equality, and the trump suit its round names — and the presence
 partition refuses any mixture of the two vocabularies.
 
 ## Trick Order
@@ -440,57 +440,75 @@ partition refuses any mixture of the two vocabularies.
 A trick's resolution and its follow legality both rest on three facts about
 each card: is it a **trump**, what **class** does it follow as, and how
 **strong** is it within that class. In a plain game those fall out of the
-card's printed fields and the `trump:` clause. In the big European games they
+card's printed fields and the trump suit the round names. In the big European games they
 do not: Doppelkopf's queens and jacks are trumps whatever suit they are
 printed, Skat's jacks likewise, 500's joker and left bower are members of a
 trump suit they are not printed in, Belote reorders the ranks WITHIN its
-trump suit alone, and French Tarot's Excuse belongs to no class at all. A game whose answer differs from the printed one declares it:
+trump suit alone, and French Tarot's Excuse belongs to no class at all. A game whose answer differs from the printed one declares it, as three functions:
 
 ```cardlang-fragment trick_order
-trick_order {
-  trump:         card.rank is Q or card.rank is J or card.suit is diamonds
-  follow_class:  if card.rank is Q then none else card.suit
-  card_strength: if card.rank is Q then 200 else rank_value(card)
-}
+function is_trump(card : Card) = card.rank is Q or card.rank is J or card.suit is diamonds
+function follow_class(card : Card) = if card.rank is Q then none else card.suit
+function card_strength(card : Card) = if card.rank is Q then 200 else rank_value(card)
 ```
 
-The block is a **define form**: it does not select among behaviours, it
-*defines* the three facts, as ordinary expressions over the implicit `card`
-binder (the card-query and filter convention). From the declaration the
-language mints one reader per row — `is_trump(card)`, `follow_class(card)`,
-`card_strength(card)` — the `card_points { }` / `card_points(card)`
-precedent. A game states its order once, and every consumer reads that
-statement rather than a second copy of it.
+The three are **Kernel Definition Contracts**: signatures the kernel states
+and only the game answers, by writing `function <name>` with the contract's
+signature — the shape a family library's `requires` row has, with the kernel
+as the party requiring. The game answers by the name alone, with no marker;
+the signature check does the work a marker would. A game states its order
+once, and every consumer reads that statement rather than a second copy of it.
+The order has this one spelling. A block of rows over an implicit `card`
+would be a second spelling of the same three answers, one a designer learns
+twice and every refusal speaks in two voices, so a `trick_order { }` block is
+refused naming the three functions, and a game-level `trump:` is refused
+naming the round's `trump` clause and `is_trump`.
 
-**The rows.** `trump:` is required and types Boolean; a game whose Trick Order
-has no trumps writes `trump: false`, so the absence is stated rather than
-inferred. `follow_class:` types `Suit?`, where `none` means class-less — a
-card that neither sets the lead nor wins — and defaults to the card's printed
-suit. `card_strength:` types Integer, higher beating lower, and defaults to
-`rank_value(card)`, which reads `ranking:`; a game taking that default without
-declaring a `ranking:` is refused. Both defaults are applied once, when the
-game loads.
+**The contracts.** `is_trump(card : Card) : Boolean` has no default: a game
+with a Trick Order answers it, and one with no trumps writes
+`function is_trump(card : Card) = false`, so the absence is stated rather than
+inferred. Answering it is what declares a Trick Order. `follow_class(card :
+Card) : Suit?`, where `none` means class-less — a card that neither sets the
+lead nor wins — defaults to the card's printed suit. `card_strength(card :
+Card) : Integer`, higher beating lower, defaults to `rank_value(card)`, which
+reads `ranking:`; a game taking that default without declaring a `ranking:`
+is refused. Both defaults are applied once, when the game loads. An answer
+takes exactly one Card and returns exactly the contract's type: Boolean and
+Integer compare by equality, so no optional slips in, and the permissive top
+is refused. An answer to `follow_class` or `card_strength` in a game that
+answers no `is_trump` is refused, naming `= false`.
 
-Rows may be written in any order. The order they are READ in is the
-language's — `trump:`, then `follow_class:`, then `card_strength:` — and a
-row may call the readers of the rows before it only. So a strength row may ask
-`is_trump(card)`, and a trump row may not ask `card_strength(card)`; the
-reference order is a property of the language, never of how a designer
-happened to arrange the block.
+The functions may be written in any order. The order they are READ in is the
+language's — `is_trump`, then `follow_class`, then `card_strength` — and each
+may call the ones before it only. So `card_strength` may ask `is_trump(c)`,
+and `is_trump` may not ask `card_strength(c)`; the reference order is a
+property of the language, never of how a designer happened to arrange the
+text.
 
-**Rows are hermetic.** A row is asked from three places under three different
-live frames: the legality filter mid-decision, the winner slot at the end of a
-trick, and any hand-rolled body. An answer that varied with the asker would
-not be a fact about the card, so a row may read no pronoun of any namespace,
-make no `choose`, read no zone that is not fully public and no per-player zone
-without naming whose, and call only the Builtins that are pure over their
-arguments. Each refusal follows the call graph, so a row that reaches the
-forbidden thing through a designer function is refused with the function
-named. This is what makes a Trick Order a public fact, and therefore
-information-set-safe: nothing it computes can depend on what any one player
-knows.
+**Answers are hermetic.** An answer is asked from several places under
+different live frames: the legality filter mid-decision, the winner slot at
+the end of a trick, any hand-rolled body, and the end-of-game card census. An
+answer that varied with the asker would not be a fact about the card, so an
+answer may read no pronoun of any namespace, make no `choose`, read no zone
+that is not fully public and no per-player zone without naming whose, read no
+state but the game's own `state { }`, and call only the Builtins that are
+pure over their arguments. Each refusal follows the call graph, so an answer
+that reaches the forbidden thing through a designer function is refused with
+the function named. This is what makes a Trick Order a public fact, and
+therefore information-set-safe: nothing it computes can depend on what any
+one player knows. The same law holds for the fourth contract,
+`card_points` ("Scoring has no constructs of its own").
 
-**Two Builtins over the declaration.** `highest_by_trick_order` is the winner.
+**Two registries, never meeting.** The native names split in two. A
+**Builtin** is the language's own definition, and a game may never define a
+callable Builtin's name; a value Builtin's name (a trick winner a round's
+slot names) is refused to a game function where one of the game's own round
+slots names it ("Named functions"). A **Kernel Definition Contract** is never
+the language's to define and always the game's to answer. The two registries
+are pinned disjoint, and a family library may define no contract's name: a
+library that needs the fact writes the contract's row in its `requires`.
+
+**Two Builtins over the Trick Order.** `highest_by_trick_order` is the winner.
 It is the same name in both of a winner's positions — named bare in a trick
 round's `winner` slot, or called over a public pile's Arrival Record for a
 hand-rolled trick. `follows_lead(card, pile)` is the winner's own candidate
@@ -525,18 +543,22 @@ follows_lead(card, pile) then follows_lead(c, pile) else true`, which is also
 the shape that gives "void in the led class, anything goes".
 
 **The presence partition.** A game either declares a Trick Order and uses its
-vocabulary, or declares none and uses the round-configured one. With a block,
-the game-level `trump:` clause, a round's `trump` clause, every other trick
-winner and `highest_trump_or_led_suit(...)` are all refused — each describes a
-different order from the one the block declares, and admitting both would
-leave the engine quietly running one of them. Without a block, every gated
-name is refused, because it would read a table the game never declared. A
-block that nothing reads is refused too ("Surface totality", "A clause nothing
-reads is refused"). The round-configured order states its
-trump as the block does: a round whose winner reads a trump
-(`highest_trump_or_led_suit`) names it in its own `trump` clause or inherits
-the game's `trump:`, and a round with neither is refused, since it would play
-no-trump without saying so. A no-trump trick names a winner that reads none.
+vocabulary, or declares none and uses the round-configured one. With a Trick
+Order, a round's `trump` clause, every other
+trick winner and `highest_trump_or_led_suit(...)` are all refused — each
+describes a different order from the one the Trick Order declares, and
+admitting both would leave the engine quietly running one of them. Without
+one, every gated name — the two Builtins and the three contracts' names — is
+refused, because it would read an order the game never declared. A Trick
+Order that nothing reads is refused too ("Surface totality", "A clause
+nothing reads is refused"); its own three answers are one clause, and never
+each other's readers. The round-configured order states its trump as
+`is_trump` does: a round whose winner reads a trump
+(`highest_trump_or_led_suit`) names it in its own `trump` clause, and a
+round without one is refused, wherever it is written, since it would play
+no-trump without saying so; a library names no suit, so its round names one the
+game supplies through the library's `requires`. A no-trump trick names a winner
+that reads none.
 
 **Provenance.** Every Arrival Record read names a fully public zone,
 statically: the pile argument of each of these calls is a zone reference whose
@@ -693,10 +715,9 @@ order and never sees the keyword. The registry is
 canonical `RANKS` tuple and reconciled against the grammar in both
 directions by `tests/test_ranking_conventions.py`; suit-contextual orders
 (trump promotions, Euchre's bowers) are out of this declaration's scope: a
-game whose strength depends on the trick's context declares a
-`trick_order { }` with a `card_strength:` row instead ("Trick Order"), and
-`ranking:` stays the deck's one context-free order. What the block does not
-answer — a card whose IDENTITY changes with context, Tichu's Phoenix — stays
+game whose strength depends on the trick's context declares a Trick Order
+with a `card_strength` function instead ("Trick Order"), and `ranking:` stays
+the deck's one context-free order. What a Trick Order does not answer — a card whose IDENTITY changes with context, Tichu's Phoenix — stays
 open ([open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md)).
 
 ## The `suit ranking:` declaration
@@ -728,9 +749,9 @@ A clause nothing reads is refused ("Surface totality", "A clause nothing reads
 is refused"); `suit_value` is its reader. A `suit_value` call in a game
 declaring no clause is refused at the call, or on the `uses` line when a
 library makes it ("Family libraries"). A game whose strength order depends on
-the trick's context, the trump suit above all, declares a `trick_order { }`;
-its rows may read `suit_value` for the part of the order that is fixed (Skat's
-and Doppelkopf's jacks and queens, clubs high).
+the trick's context, the trump suit above all, declares a Trick Order; its
+functions may read `suit_value` for the part of the order that is fixed
+(Skat's and Doppelkopf's jacks and queens, clubs high).
 
 ## Declared parameter domains
 
@@ -2435,6 +2456,12 @@ function. Both are refused at the definition. A family library cannot know which
 game's rounds will name a slot callback, so its functions and its `requires`
 function rows may take no slot callback's name at all.
 
+Four names are the game's to take: `is_trump`, `follow_class`,
+`card_strength` and `card_points` are Kernel Definition Contracts ("Trick
+Order"), and a game function by one of those names answers the contract,
+typed against the kernel's row. A family library may not define one; it
+writes the contract's row in its `requires` instead.
+
 This is a deliberate, authorized general construct: factoring predicates is a need
 the corpus has as games grow more advanced, not a Stud-only convenience. It
 resolves the *named-predicate* half of
@@ -3143,8 +3170,9 @@ game, is rejected with a diagnostic naming the game's declared kind
 ("this game declares pieces ('xo_marks')") — and symmetrically the
 `piece`/`pieces` noun is rejected in a card game. The guarded surfaces
 are the transfer/reveal item noun, the filter binder, `.suit`/`.rank`
-field access, the card-query and aggregation forms, the `ranking:`,
-`trump:`, and `card_points { }` clauses, the `suit`/`rank` quantifier and
+field access, the card-query and aggregation forms, the `ranking:`
+and `card_points { }` clauses, an answer to a card fact's Kernel
+Definition Contract, the `suit`/`rank` quantifier and
 iteration roles, the `Card`/`Suit`/`Suit?`/`Rank` move-parameter domains,
 the deck-reading native calls, and card literals. Each rejection sits at the layer that
 owns the operand-kind class (the typechecker), naming the kind rather
@@ -3569,12 +3597,18 @@ block is a syntax error (at least one rank row); a duplicate rank
 key and a key that is not a rank of the declared deck are resolve
 errors naming the deck. Unlisted ranks read the `else:` value, or
 0 with no else row (Tichu's sparse table prices five ranks; the
-rest read 0). Negative rows are ordinary (`Phoenix: -25`). The
-`card_points(card)` Builtin reads the declared table; a table no
+rest read 0). Negative rows are ordinary (`Phoenix: -25`). The table
+is a spelling of the `card_points(card : Card) : Integer` Kernel
+Definition Contract ("Trick Order"): the parse builder lowers it to
+the function a designer would write by hand, `function
+card_points(card : Card) = if card.rank is A then 1 elif ... else 0`,
+and a game writes that function directly when the table cannot carry
+the fact. Either spelling is the one answer; a game writing both is
+refused. `card_points(card)` reads the answer; an answer no
 `card_points(card)` call reads is refused ("Surface totality", "A
-clause nothing reads is refused"), and calling the Builtin in a game
-that declares no clause is a resolve error — the
-table has ONE source, the game's own clause: the deck registry
+clause nothing reads is refused"), and calling it in a game that
+answers none is a resolve error — the
+points have ONE source, the game's own answer: the deck registry
 carries composition only, never points (`values.Deck`), so one
 deck serves games that price it differently, and a piece game is
 refused the clause outright (the noun/content agreement guard,
@@ -3589,8 +3623,10 @@ Tarot declares `card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }`
 and wraps its bouts inline (`if is_bout(card) then 9 else
 card_points(card)` — a rank-keyed table cannot carry the petit,
 whose rank "1" is worth 9 in the atouts and 1 in the plain
-suits); Belote's trump-dependent pricing is a per-game function
-with no table at all. A declarative rank-keyed `counters: { ... }`
+suits); Belote's trump-dependent pricing is a function with no
+table at all. A `card_points` answer is held to the Trick Order's
+hermeticity law, since the end-of-game card census reads it where no
+phase frame stands, and it may call the Trick Order's answers. A declarative rank-keyed `counters: { ... }`
 block on the CARD definition was considered and stays rejected —
 it re-attaches a scoring fact to the card itself, and only cleanly
 handles the pure-rank shape; the game-level clause carries that
@@ -4279,6 +4315,16 @@ that is *finitely enumerable from current state*, over a move-type vocabulary
 fixed at game-definition time; the action has an effect and may yield a typed
 outcome. Plus chance nodes for shuffles/deals. Everything below lowers to this.
 
+**The engine's only chance is the shuffle and the random selection.** Both are
+named in `runtime/chance.py`. Where a rulebook has a seat choose — a challenge,
+a call, a routing, a target — the game offers that choice as a decision node,
+so the information state carries it as an announced decision rather than
+hiding it in a chance outcome. A mechanic that draws from the World's generator
+in place of a seat's decision is a spec regression, never a scope note, and
+review refuses it. Review is the refuser by design: no checker can read the
+rulebook, so none can tell a seat's choice written as a `random` selection
+from the chance the rules themselves call for.
+
 **Two surface constructs.**
 
 - `offer` — a single decision: an acting player chooses one of a set of
@@ -4364,18 +4410,23 @@ worth implementing, prefer static rejection over a runtime error, and never
 silence.
 
 **A clause nothing reads is refused.** A game clause whose readers are
-constructs the game writes — `card_points { }`, read by `card_points(card)`;
-`suit ranking:`, read by `suit_value`; a `trick_order { }` block, read by
-`highest_by_trick_order` on a round or by a call of its readers outside the
-block; `trump:`, read by a trick round whose winner reads a trump and that
-states none of its own — is refused at the clause when nothing the game writes
+constructs the game writes — the game's card points (the `card_points { }`
+table or the `card_points` function), read by `card_points(card)`;
+`suit ranking:`, read by `suit_value`; a Trick Order (its answers to
+`is_trump`, `follow_class` and `card_strength`), read by
+`highest_by_trick_order` on a round or by a call of `follows_lead`,
+`highest_by_trick_order` or its three names outside its own answers — is
+refused at the clause when nothing the game writes
 reads it: its own text, every definition a library splices in, and every
 library rule it activates. Judged on written text, not on the code that runs:
 each reader is refused wherever it is written when its clause is absent, so
 judging the same text is what keeps a sentence from being refused both with
-the clause and without it. A clause's own body never reads it, and an
-instrument is no reader: the end-of-game card census and the OpenSpiel ranked
-policy's trump fallback read clauses without making a game read them.
+the clause and without it. A clause's own body never reads it — a Trick
+Order's three answers are one clause, so one calling another does not make
+the Trick Order read — and an instrument is no reader: the end-of-game card
+census and the OpenSpiel ranked policy's trump fallback read clauses without
+making a game read them. A function answering no contract is no clause:
+nothing refuses it for going uncalled.
 
 **An accounted outcome is not enough: the outcome must be the one the surface
 plainly says.** A combination that parses to *defined but unintended*
@@ -4647,6 +4698,12 @@ violation. The class ledger keeps its own `covered:` row and the rule with
 it — there `members:` is the named set, derived on the line above. The
 completeness ledger holds no row a matcher should read.
 
+**Widening a ledger's sentence until its check goes green is the defect.** A
+`property:` or `domain:` sentence widened to admit new pins credits rows the
+module does not cover, so a widened ledger re-derives every axis from that
+axis's own registry. A claim found broader than its pins is removed, not
+sharpened: a more exact overclaim is still an overclaim.
+
 **Prose names the registry, never the cardinality.** A ledger row — or any
 spec sentence — states what it quantifies over, not how many members that
 set holds today. "Every registry with a signature table" stays true as
@@ -4691,6 +4748,13 @@ because it claims only what was true when it ran. A live claim that would
 be correct if dated should be dated, not deleted — the figures are
 evidence, and deleting them to satisfy this rule would cost the argument
 its support.
+
+**A fact specified and not yet built is marked, never deleted.** Where a doc
+specifies a construct or symbol the tree does not implement, the sentence says
+so and names the issue that builds it; it is neither deleted to satisfy this
+rule nor stated as present. The mark is the one place spec prose speaks of what
+is not yet built, and it is an exception that keeps a specified surface
+findable, never a license for future tense elsewhere.
 
 An Owner Guard must also speak its **layer's failure channel**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a

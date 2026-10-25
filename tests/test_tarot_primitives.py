@@ -12,8 +12,8 @@ constructed directly.
 
 The trick-order section is where the three retired Primitives'
 (`tarot_trump_height`, `tarot_led_suit`, `tarot_trick_winner`) known values
-went when the game migrated onto `trick_order { }` (issue #250 PR 5): the
-declaration's rows are read off the same materialized table every consumer
+went when the game migrated onto its Trick Order (issue #250 PR 5): the
+declaration's answers are read off the same materialized table every consumer
 reads, over the whole pack rather than at sampled cards. The CONSTRUCT's own
 cells (what a row may read, which names it gates, the winner's comparison)
 belong to tests/test_trick_order.py's grid; what belongs here is French
@@ -28,7 +28,7 @@ from pathlib import Path
 
 from cardlang.pipeline import check_source
 from cardlang.runtime import narrowing, reads
-from cardlang.runtime.driver import declared_primitives, declared_trick_order
+from cardlang.runtime.driver import declared_kernel_answers, declared_primitives, declared_trick_order
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.tarot import (
     tarot_card_points,
@@ -68,8 +68,8 @@ def test_card_points_known_values() -> None:
 # --- the declared Trick Order ---
 #
 # `tarot_trump_height`, `tarot_led_suit` and `tarot_trick_winner` retired into
-# the game's own `trick_order { }` block (issue #250 PR 5). Their published
-# values became the block's, so the known-value pin moves here rather than
+# the game's own Trick Order (issue #250 PR 5). Their published
+# values became its answers', so the known-value pin moves here rather than
 # being dropped -- and it is DERIVED over the pack instead of sampled, because
 # the row that replaced the height Primitive is the corpus's first with a
 # per-rank chain, where a single wrong arm is exactly what a handful of
@@ -123,8 +123,9 @@ def _trick_order_ctx() -> tuple[TrickOrderTable, Ctx]:
     one load site."""
     rs = _tarot_rs()
     game = check_source(TAROT)
-    table = declared_trick_order(game)
-    assert table is not None, "french-tarot declares a `trick_order { }` block"
+    rs.kernel_answers = declared_kernel_answers(game)
+    table = declared_trick_order(rs.kernel_answers)
+    assert table is not None, "french-tarot declares a Trick Order"
     rs.trick_order = table
     # The `card_strength:` row reaches the game's own `numeral` function, so
     # the fixture loads the function index exactly as the driver does.

@@ -272,20 +272,17 @@ def test_every_game_field_is_decided() -> None:
     # a decision rather than joining whichever side it happens to land on.
     walked = sorted(fields - _GAME_LEVEL_SKIP)
     assert walked == [
-        # `card_points` holds rank strings and integer literals only — no
-        # expression, so no state reference to find; walked (the conservative
-        # side) rather than skipped.
-        "board", "card_points", "content_flavor", "deck", "direction", "loser",
+        "board", "content_flavor", "deck", "direction", "loser",
         "max_length",
         "name", "players", "positions",
         # `primitives` holds names and type names only — no expression, so no
-        # state reference to find; walked, the conservative side, like
-        # `card_points`.
+        # state reference to find; walked (the conservative side) rather than
+        # skipped.
         "primitives",
         "ranking", "ranking_convention", "span",
         # Suit names only, like `ranking`.
         "suit_ranking",
-        "teams", "trick_order", "trump", "uses", "winner", "zones",
+        "teams", "uses", "winner", "zones",
     ], (
         f"`Game` gained or lost a field: {walked}. Decide whether a state "
         f"reference in it runs inside a phase (skip it, and say which set) or "

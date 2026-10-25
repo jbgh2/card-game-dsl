@@ -28,8 +28,8 @@
 // The order a trick is decided by is declared as the game's Trick Order, so
 // the winner, the head/over-trump comparisons and the team-relative gates
 // all read ONE declaration instead of a Primitive they had to agree with.
-// The block OWNS the within-trump reorder and DELEGATES the plain-suit
-// order to `ranking: ace-ten` (the strength row's else-branch is
+// The Trick Order OWNS the within-trump reorder and DELEGATES the
+// plain-suit order to `ranking: ace-ten` (`card_strength`'s else-branch is
 // `rank_value(card)`). The declaration classes carry their own two orders —
 // the natural A K Q J 10 9 8 7 a sequence runs in, and the carré strength
 // J > 9 > A > 10 > K > Q — which are facts about COMBINATIONS, are never
@@ -75,29 +75,6 @@ game Belote {
         reads hand[p], trump_suit
   }
 
-  // The trump-making decides the order, so the rows read what it wrote onto
-  // the public state (`trump_suit`).
-  //
-  // Belote's order is the simplest shape the block has: the trump suit is the
-  // trumps, every other card follows as its printed suit (the omitted
-  // `follow_class:` row's default — no card changes class, and none is
-  // class-less), and only the STRENGTH is contract-dependent. Within the
-  // trump suit the reorder J > 9 > A > 10 > K > Q > 8 > 7 replaces the
-  // declared `ace-ten`; outside it `rank_value` reads `ranking:` unchanged.
-  // The trump band sits above every plain strength, which no comparison here
-  // needs (the winner ranks trumps against trumps, and the head/over-trump
-  // demands filter to trumps first) but is what the numbers MEAN: a trump
-  // beats a plain card.
-  trick_order {
-    trump:         card.suit is trump_suit
-    card_strength: if is_trump(card)
-                   then (if card.rank is J then 108 elif card.rank is "9" then 107
-                         elif card.rank is A then 106 elif card.rank is "10" then 105
-                         elif card.rank is K then 104 elif card.rank is Q then 103
-                         elif card.rank is "8" then 102 else 101)
-                   else rank_value(card)
-  }
-
   zones {
     deck           : Deck
     hand[player]   : Hand<player>
@@ -109,10 +86,10 @@ game Belote {
   state {
     // Game-level: persists across hands.
     score[team] : Integer = 0
-    // The made trump. Game-level because the Trick Order rows read it and a
-    // `trick_order` block is a game clause — not because it outlives a hand:
-    // `phase play` clears it on entry, where the phase's own state block
-    // would otherwise have re-declared it.
+    // The made trump. Game-level because the Trick Order reads it, and the
+    // kernel reads the Trick Order where no phase frame stands — not because
+    // it outlives a hand: `phase play` clears it on entry, where the phase's
+    // own state block would otherwise have re-declared it.
     trump_suit  : Suit? = none
   }
 
@@ -161,7 +138,7 @@ game Belote {
         total[team]      : Integer = 0
       }
 
-      // The made trump is game-level (the Trick Order rows read it); clearing
+      // The made trump is game-level (the Trick Order reads it); clearing
       // it here is what the phase's own state block did. Being game-level,
       // nothing resets it between hands but this line — and what it protects
       // is the INFORMATION STATE, not the play.
@@ -351,6 +328,29 @@ game Belote {
 
   winner: highest score
 }
+
+// The trump-making decides the order, so the functions read what it wrote
+// onto the public state (`trump_suit`).
+//
+// Belote's order is the simplest shape a Trick Order has: the trump suit is
+// the trumps, every other card follows as its printed suit (the default
+// `follow_class`, which the game leaves unwritten — no card changes class,
+// and none is class-less), and only the STRENGTH is contract-dependent. Within the
+// trump suit the reorder J > 9 > A > 10 > K > Q > 8 > 7 replaces the
+// declared `ace-ten`; outside it `rank_value` reads `ranking:` unchanged.
+// The trump band sits above every plain strength, which no comparison here
+// needs (the winner ranks trumps against trumps, and the head/over-trump
+// demands filter to trumps first) but is what the numbers MEAN: a trump
+// beats a plain card.
+function is_trump(card : Card) = card.suit is trump_suit
+
+function card_strength(card : Card) =
+  if is_trump(card)
+  then (if card.rank is J then 108 elif card.rank is "9" then 107
+  elif card.rank is A then 106 elif card.rank is "10" then 105
+  elif card.rank is K then 104 elif card.rank is Q then 103
+  elif card.rank is "8" then 102 else 101)
+  else rank_value(card)
 
 // === Trump-making vocabulary ===
 //
@@ -567,9 +567,9 @@ function belote20(t : Team) =
 // hand — "keep the prior narrowing" — so an inapplicable obligation falls
 // through (rules.legal_cards).
 //
-// The four rules below read the Trick Order directly: `is_trump(card)` is the
-// block's `trump:` row and `card_strength(card)` its `card_strength:` row, so
-// what may be played and what wins are one declaration.
+// The four rules below read the Trick Order directly, `is_trump(card)` and
+// `card_strength(card)`, so what may be played and what wins are one
+// declaration.
 
 // MustFollowSuit is the standard-library rule (library.md "Rules"), and it is
 // deliberately NOT rewritten onto `follows_lead`. Its demand is

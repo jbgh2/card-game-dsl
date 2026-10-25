@@ -65,27 +65,11 @@ def emit(game: n.Game) -> IRDict:
         # None. `ranking` above is always the operative (expanded) order.
         "ranking_convention": game.ranking_convention,
         # Keyed ONLY when the game declares a `suit ranking:` clause — the
-        # `card_points` precedent, so clause-less games' IR goldens stay
+        # `content_flavor` precedent, so clause-less games' IR goldens stay
         # byte-stable.
         **(
             {"suit_ranking": list(game.suit_ranking.suits)}
             if game.suit_ranking is not None
-            else {}
-        ),
-        # Keyed ONLY when the game declares a `card_points { }` clause — the
-        # `content_flavor` precedent, so clause-less games' IR goldens stay
-        # byte-stable.
-        **(
-            {"card_points": _card_points_table(game.card_points)}
-            if game.card_points is not None
-            else {}
-        ),
-        # Keyed ONLY when the game declares a `trick_order { }` block — the
-        # `card_points` precedent above, so block-less games' IR goldens stay
-        # byte-stable.
-        **(
-            {"trick_order": _trick_order(game.trick_order)}
-            if game.trick_order is not None
             else {}
         ),
         # Keyed ONLY when the game declares a `primitives { }` block, the same
@@ -98,7 +82,6 @@ def emit(game: n.Game) -> IRDict:
             if game.primitives is not None
             else {}
         ),
-        "trump": game.trump,
         "teams": [list(t) for t in game.teams],
         "positions": [_position(p) for p in game.positions],
         # The board-minted movement-direction domain (decisions.md "Boards and
@@ -132,30 +115,6 @@ def to_json(game: n.Game) -> str:
 
 def _players(p: n.PlayersSpec) -> IRDict:
     return {"kind": "players", "count": p.count}
-
-
-def _card_points_table(t: n.CardPointsTable) -> IRDict:
-    return {
-        "kind": "card_points_table",
-        "entries": [
-            {"kind": "card_points_entry", "rank": e.rank, "value": e.value}
-            for e in t.entries
-        ],
-        "else_value": t.else_value,
-    }
-
-
-def _trick_order(t: n.TrickOrder) -> IRDict:
-    """The game's [[trick-order]]. Rows keep SOURCE order (the node's), so the
-    IR is a faithful record of what was written; the order they are READ in is
-    the language's and is not a property of any one game."""
-    return {
-        "kind": "trick_order",
-        "rows": [
-            {"kind": "trick_order_row", "key": r.key, "body": _expr(r.body)}
-            for r in t.rows
-        ],
-    }
 
 
 def _primitives(b: n.PrimitivesBlock) -> IRDict:

@@ -23,8 +23,9 @@ value, because that is what decides whether a wrong one is loud:
 
 `TAny` keeps its one meaning throughout -- the top (decisions.md, "`Any` means
 the top, never a failed lookup"). This module changes which positions ADMIT it,
-never what it means. `TrickOrderRow.body` was total before this module existed
-and is the template the Boolean positions follow.
+never what it means. A Kernel Definition Contract's answer is held to its row
+exactly, the permissive top refused (typecheck `_check_kernel_answers`), and
+is the template the Boolean positions follow.
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
@@ -110,7 +111,6 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     ("Quantifier", "body"): (TOTAL, "Boolean"),
     ("RepeatUntil", "until"): (TOTAL, "Boolean"),
     ("Transfer", "where"): (TOTAL, "Boolean"),
-    ("TrickOrderRow", "body"): (TOTAL, "row-declared"),
     ("Turns", "until"): (TOTAL, "Boolean"),
     ("PhaseQualifier", "expr"): (TOTAL, "Boolean"),
     # -- matched against a domain where "no match" is legal: also silent -------

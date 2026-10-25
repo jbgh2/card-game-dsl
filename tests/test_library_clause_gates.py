@@ -102,6 +102,7 @@ import pytest
 import cardlang.resolve as resolve_module
 import cardlang.typecheck as typecheck_module
 from cardlang.board_domains import BOARD_DOMAIN
+from cardlang.kernel_contracts import KERNEL_CONTRACT_NAMES
 from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
@@ -174,6 +175,13 @@ class Clauses:
     card_points: bool = False
 
 
+# A game's Trick Order, as the probe games answer it.
+_TRICK_ORDER_ANSWERS = (
+    "function is_trump(card : Card) = card.suit is hearts\n"
+    "function card_strength(card : Card) = 1"
+)
+
+
 def _teams_clause(players: int) -> str:
     if players == 4:
         return "teams: [[0, 2], [1, 3]]"
@@ -202,11 +210,6 @@ def _game_text(
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2" if c.ranking else "",
         "  card_points { A: 1 else: 0 }" if c.card_points else "",
         "  suit ranking: spades hearts diamonds clubs" if c.suit_ranking else "",
-        (
-            "  trick_order { trump: card.suit is hearts  card_strength: 1 }"
-            if c.trick_order
-            else ""
-        ),
         f"  uses {_LIB}" if uses else "",
         f"  zones {{ {zones} }}",
         "  state { score[player] : Integer = 0 }",
@@ -224,6 +227,7 @@ def _game_text(
         "  winner: highest score",
         "}",
         game_fn,
+        _TRICK_ORDER_ANSWERS if c.trick_order else "",
     ]
     return "\n".join(lines) + "\n"
 
@@ -317,9 +321,8 @@ class Gate:
 
 GATES: tuple[Gate, ...] = (
     Gate("ranking", RANKING_GATED_FUNCS, "ranking:"),
-    Gate("trick_order_needed", TRICK_ORDER_GATED_FUNCS, "trick_order"),
-    Gate("trick_order_refused", TRICK_ORDER_EXCLUDED_FUNCS, "trick_order"),
-    Gate("card_points", resolve_module._CARD_POINTS_CALLS, "card_points"),
+    Gate("trick_order_needed", TRICK_ORDER_GATED_FUNCS, "Trick Order"),
+    Gate("trick_order_refused", TRICK_ORDER_EXCLUDED_FUNCS, "Trick Order"),
     Gate("suit_ranking", resolve_module._SUIT_RANKING_CALLS, "`suit ranking:`"),
     Gate("teams", resolve_module._TEAM_CALL_FUNCS, "teams:"),
     Gate("board", BOARD_ONLY_CALL_FUNCS, "board:"),
@@ -350,7 +353,14 @@ def test_the_uses_check_holds_a_row_for_every_presence_gate() -> None:
 
     red under: emptying the members of the `teams:` row of
     `resolve._CLAUSE_GATES` (executed 2026-10-13)."""
-    table = {row.members for row in resolve_module._CLAUSE_GATES if row.members}
+    # The Kernel Definition Contracts' names are no Builtins: a library reaches
+    # one only through its `requires` row, which
+    # tests/test_kernel_definition_contracts.py grids.
+    table = {
+        members
+        for row in resolve_module._CLAUSE_GATES
+        if (members := row.members - KERNEL_CONTRACT_NAMES)
+    }
     grid = {gate.members for gate in GATES if gate.name != "board_span"}
     assert table == grid
 
@@ -641,7 +651,10 @@ def test_the_trick_order_remedy_clears_the_refusal(case: RankingCase) -> None:
     """The remedy as the refusal words it is the remedy `twin` applies: each
     piece of it is read off the message before the remedied game is checked."""
     refusal = _member_refusal(case, _rendered(_ranking_game(case, ranking=False)))
-    assert "`trick_order { }` block with `trump:` and `card_strength:` rows" in refusal
+    assert (
+        "declare a Trick Order — `function is_trump(card : Card) = …` and "
+        "`function card_strength(card : Card) = …`"
+    ) in refusal, refusal
     assert "in place of any `trump` clause" in refusal, refusal
     if case.position == "call":
         assert f"call `{_TRICK_ORDER_WINNER}(pile)` instead" in refusal, refusal
@@ -968,7 +981,8 @@ def test_two_libraries_are_each_refused_on_their_own_line(
         monkeypatch,
         {
             "ranks": "library ranks { function by_rank(c : Card) = rank_value(c) }",
-            "points": "library points { function by_points(c : Card) = card_points(c) }",
+            "points": "library points { requires { card_points(card : Card) : Integer } "
+            "function by_points(c : Card) = card_points(c) }",
         },
     )
     text = _game_text(
@@ -995,8 +1009,8 @@ def test_one_library_missing_two_clauses_is_told_both(
     _with_libraries(
         monkeypatch,
         {
-            _LIB: "library probe_lib { function probe_fn(c : Card) = "
-            "rank_value(c) + card_points(c) }"
+            _LIB: "library probe_lib { requires { card_points(card : Card) : Integer } "
+            "function probe_fn(c : Card) = rank_value(c) + card_points(c) }"
         },
     )
     text = _game_text(
@@ -1023,11 +1037,9 @@ def test_one_library_missing_two_clauses_is_told_both(
 
 @dataclass(frozen=True)
 class NodeGame:
-    """The probe game a node member is checked in: its clauses, plus the
-    game-level `trump:` a trump-reading winner reads."""
+    """The probe game a node member is checked in: its clauses."""
 
     clauses: Clauses
-    trump: bool = False
 
 
 @dataclass(frozen=True)
@@ -1083,12 +1095,6 @@ def _node_game_text(
         f"  {content}",
         f"  board: grid({c.board_size}, {c.board_size})" if c.board else "",
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2" if c.ranking else "",
-        "  trump: hearts" if game.trump else "",
-        (
-            "  trick_order { trump: card.suit is hearts  card_strength: 1 }"
-            if c.trick_order
-            else ""
-        ),
         f"  uses {_LIB}" if through_library else "",
         f"  zones {{ {zones} }}",
         f"  state {{ {state} }}",
@@ -1100,6 +1106,7 @@ def _node_game_text(
         "  winner: highest score",
         "}",
         definition if written else "",
+        _TRICK_ORDER_ANSWERS if c.trick_order else "",
     ]
     return "\n".join(lines) + "\n"
 
@@ -1269,12 +1276,15 @@ def _round_members() -> list[NodeMember]:
     no_order = replace(_CARD, trick_order=False)
     with_order = replace(_CARD, trick_order=True)
     for winner in sorted(TRICK_WINNER_NAMES):
-        definition = _round_definition(_trick_round(winner, "actor"))
-        trump = winner in TRUMP_READING_WINNERS
+        # A winner that reads a trump states it on its own round.
+        if winner in TRUMP_READING_WINNERS:
+            definition = _round_definition(_trick_round(winner, "actor") + " trump s", "s : Suit")
+        else:
+            definition = _round_definition(_trick_round(winner, "actor"))
         members.append(
             NodeMember(
                 "card_content", f"winner_{winner}", definition, winner, "pieces",
-                NodeGame(with_order if winner in TRICK_ORDER_GATED_WINNERS else no_order, trump),
+                NodeGame(with_order if winner in TRICK_ORDER_GATED_WINNERS else no_order),
                 NodeGame(_PIECES), requires=_ROUND_ZONES,
             )
         )
@@ -1282,7 +1292,7 @@ def _round_members() -> list[NodeMember]:
             members.append(
                 NodeMember(
                     "trick_order_reading", f"winner_{winner}", definition, winner,
-                    "trick_order", NodeGame(with_order), NodeGame(no_order),
+                    "Trick Order", NodeGame(with_order), NodeGame(no_order),
                     requires=_ROUND_ZONES,
                 )
             )
@@ -1290,22 +1300,15 @@ def _round_members() -> list[NodeMember]:
             members.append(
                 NodeMember(
                     "trick_order_replaced", f"winner_{winner}", definition, winner,
-                    "trick_order", NodeGame(no_order, trump), NodeGame(with_order),
+                    "Trick Order", NodeGame(no_order), NodeGame(with_order),
                     requires=_ROUND_ZONES,
-                )
-            )
-        if winner in TRUMP_READING_WINNERS:
-            members.append(
-                NodeMember(
-                    "trump_stated", f"winner_{winner}", definition, winner, "trump:",
-                    NodeGame(no_order, True), NodeGame(no_order), requires=_ROUND_ZONES,
                 )
             )
         if winner in RANKING_GATED_WINNERS:
             members.append(
                 NodeMember(
                     "ranking_slot", f"winner_{winner}", definition, winner, "ranking:",
-                    NodeGame(no_order, trump), NodeGame(replace(_CARD, ranking=False), trump),
+                    NodeGame(no_order), NodeGame(replace(_CARD, ranking=False)),
                     requires=_ROUND_ZONES,
                 )
             )
@@ -1315,8 +1318,8 @@ def _round_members() -> list[NodeMember]:
             _round_definition(
                 _trick_round("highest_trump_or_led_suit", "actor") + " trump s", "s : Suit"
             ),
-            "`trump` clause", "trick_order", NodeGame(no_order), NodeGame(with_order),
-            requires=_ROUND_ZONES,
+            "`trump` clause", "Trick Order", NodeGame(no_order), NodeGame(with_order),
+            requires=_ROUND_ZONES, game_word="`is_trump`",
         )
     )
     for query in sorted(PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS):
@@ -1332,7 +1335,7 @@ def _round_members() -> list[NodeMember]:
         )
         members.append(
             NodeMember(
-                "trick_order_replaced", f"climb_{query}", definition, query, "trick_order",
+                "trick_order_replaced", f"climb_{query}", definition, query, "Trick Order",
                 NodeGame(no_order), NodeGame(with_order), requires=_ROUND_ZONES,
             )
         )
@@ -1394,7 +1397,6 @@ NODE_GATES: dict[str, str] = {
     "board_position": "_BOARD_POSITION_GATE",
     "rank_parameter": "_RANK_PARAMETER_GATE",
     "ranking_slot": "_RANKING_SLOT_GATE",
-    "trump_stated": "_TRUMP_STATED_GATE",
 }
 
 # Members the `uses` check does not hold, each with its record.
@@ -1564,23 +1566,20 @@ def _homes(gate: str) -> list[tuple[object, str, object]]:
             return [(resolve_module, "_position_past_end", lambda nd, g: None)]
         case "ranking_slot":
             return [(typecheck_module, "ranking_gated_slots", lambda nd: ())]
-        case "trump_stated":
-            return [(resolve_module, "_unstated_trump_slots", lambda nd, g: ())]
     return [_no_needs(NODE_GATES[gate])]
 
 
 # What each gate's own refusal says, for a member the game writes.
 _GATE_REFUSALS: dict[str, str] = {
     "card_content": "this game declares pieces",
-    "trick_order_reading": "reads the game's `trick_order { }` block, but this game declares none",
-    "trick_order_replaced": "beside a `trick_order { }` block",
+    "trick_order_reading": "reads the game's Trick Order, but this game declares none",
+    "trick_order_replaced": "beside function `is_trump`",
     "team_range": "ranges over teams",
     "team_state": "is indexed by 'team'",
     "cell_range": "ranges over the board's cells",
     "board_position": "is past the end",
     "rank_parameter": "has a Rank parameter",
     "ranking_slot": "reads a card's rank strength",
-    "trump_stated": "reads a trump, but none is stated",
 }
 
 
@@ -1844,7 +1843,7 @@ def test_a_board_that_mints_no_cells_is_refused_at_the_board(
 
 # --- a piece game is never asked for a clause it cannot declare ---------------
 #
-# A piece game is refused `ranking:`, `trump:`, `card_points` and a Trick
+# A piece game is refused `ranking:`, `card_points` and a Trick
 # Order, so a refusal asking it for one offers a fix that cannot be applied.
 # Every member of a gate on those clauses reaches a piece game's refusal
 # through the content-flavor gate, which runs first.
@@ -1858,13 +1857,11 @@ def test_every_card_clause_builtin_is_deck_only() -> None:
     """The Builtin rows on a clause a piece game cannot declare are pre-empted
     in a piece game by the deck-only row, which runs first.
 
-    red under: removing `card_points` from `DECK_ONLY_CALL_FUNCS` (executed
-    2026-10-14)."""
+    red under: removing `follows_lead` from `DECK_ONLY_CALL_FUNCS`."""
     card_clause_builtins = (
         (RANKING_GATED_FUNCS & BUILTIN_CALL_FUNCS)
         | TRICK_ORDER_GATED_FUNCS
         | TRICK_ORDER_EXCLUDED_FUNCS
-        | resolve_module._CARD_POINTS_CALLS
     )
     assert card_clause_builtins <= DECK_ONLY_CALL_FUNCS, sorted(
         card_clause_builtins - DECK_ONLY_CALL_FUNCS
@@ -1897,7 +1894,7 @@ def test_a_piece_game_is_told_its_flavor_not_a_card_clause(
         line.startswith(where) and f"'{_LIB}'" in line and "played with pieces" in line
         for line in rendered.splitlines()
     ), rendered
-    for clause in ("`ranking:`", "`trick_order { }`"):
+    for clause in ("`ranking:`", "`is_trump`"):
         assert clause not in rendered, rendered
 
 
@@ -1960,8 +1957,6 @@ def test_a_member_written_twice_is_named_in_both_definitions(
     node itself (the node cells) (both executed 2026-10-14)."""
     _with_libraries(monkeypatch, {_LIB: library})
     text = _game_text(clauses, uses=True, game_fn="", tag="Twice")
-    if node_game is not None and node_game.trump:
-        text = text.replace("  max_length: 1000", "  trump: hearts\n  max_length: 1000")
     rendered = _rendered(text)
     assert rendered is not None
     where = f"{_GAME_FILE}:{_line_of(text, f'uses {_LIB}')}:"

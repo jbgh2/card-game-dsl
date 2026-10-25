@@ -651,8 +651,8 @@ _SITES: dict[tuple[str, str, int], tuple[Placement, ...] | str] = {
         "a `produce` stands only in an outcome phase's body, which a library cannot hold"
     ),
     ("typecheck", "TPlayer()", 0): "the `loser:` clause, which a library cannot hold",
-    ("_check_trick_order", "expected", 0): (
-        "a `trick_order { }` row, which a library cannot hold"
+    ("_check_kernel_answers", "expected", 0): (
+        "a Kernel Definition Contract's answer, which a library cannot hold"
     ),
     ("_check_participants", "TPlayer()", 0): (
         Placement(

@@ -38,7 +38,7 @@ domain:     query slot x name. The slot axis is every `_REFERENCE_SLOTS` row
             The misuse probes run the routes and neighbours a designer
             reaches for: a library procedure holding the round, Getaway's
             own trick as a library, and importers whose clauses a game-clause
-            gate on climb queries reads (a `trick_order { }` block, no
+            gate on climb queries reads (a Trick Order, no
             `ranking:`).
 registry:   slots: `cardlang.resolve._REFERENCE_SLOTS`; each slot's accepted
             names: `cardlang.resolve._ROUND_QUERY_REGISTRIES`; Primitives:
@@ -411,9 +411,9 @@ def test_a_tochoo_library_is_refused_for_its_early_predicate(
 # An importer's clause a game-clause gate on climb queries reads -> (the
 # queries the library's round names, the edit to the host that trips the gate).
 _CLAUSE_TRIGGERS: dict[str, tuple[dict[str, str | None], tuple[str, str]]] = {
-    "trick_order block": (
+    "a Trick Order": (
         _CLIMB.defaults,
-        ("  cards: standard52\n", "  cards: standard52\n  trick_order {\n    trump: false\n  }\n"),
+        ("\ngame BigTwo {", "\nfunction is_trump(card : Card) = false\ngame BigTwo {"),
     ),
     "no ranking": (
         {"combos_fn": "president_lead_options", "follows_fn": "president_follows"},

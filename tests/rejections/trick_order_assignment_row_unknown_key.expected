@@ -1,1 +1,0 @@
-trick_order_assignment_row_unknown_key.cardlang:8:17: error: `trumps = <expr>` is not a row of `trick_order`, nor is `trumps:` — the rows are `trump:`, `follow_class:`, `card_strength:`, each `key: <expr>`

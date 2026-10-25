@@ -84,8 +84,6 @@ game: _GAME_KW NAME "{" game_item* "}"
           | ranking
           | suit_ranking
           | card_points_table
-          | trump
-          | trick_order
           | teams
           | max_length
           | positions
@@ -111,7 +109,7 @@ uses_decl: _USES_KW NAME
 // reuse `parameter`, so a Primitive's parameters and a `move_type`'s are one
 // shape rather than two spellings of the same thing.
 //
-// Entry-STAR, unlike `card_points` and `trick_order`: an empty block is a
+// Entry-STAR, unlike `card_points`: an empty block is a
 // declaration, not a syntax error. It says the game borrows no Python, which
 // is a different state from writing no block at all — the presence, not the
 // contents, picks the game's Primitive regime.
@@ -201,8 +199,9 @@ SUIT_RANKING_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direct
 // The game's card-point table (decisions.md "Scoring has no constructs of its own"): a block
 // clause beside `cards:`, rank-keyed rows in `ranking:`'s key position, values
 // static signed integer literals, one optional trailing `else:` row for the
-// everything-else value (unlisted ranks read 0 with no else row — the
-// `card_points(card)` Builtin's contract). Entry-plus: the empty block is a
+// everything-else value (unlisted ranks read 0 with no else row). The table
+// answers the `card_points` Kernel Definition Contract: the builder lowers it
+// to that function. Entry-plus: the empty block is a
 // syntax error. Rows are
 // whitespace-separated like every block clause (`zones`, `state`,
 // `positions`) — never comma-separated. The key is its own terminal
@@ -219,34 +218,6 @@ card_points_else: _ELSE_KW ":" card_points_value
 card_points_key: CARD_POINTS_KEY | INT
 card_points_value: INT       -> cp_value
                  | "-" INT   -> cp_neg_value
-
-// The game's [[trick-order]] (decisions.md "Trick Order"): the three per-card
-// facts a trick's resolution and follow legality derive from — is the card a
-// trump, what class does it follow as, how strong is it within its class --
-// each an expression over the implicit `card` binder (the card-query and
-// filter convention). The language mints the readers `is_trump(card)`,
-// `follow_class(card)`, `card_strength(card)` (the `card_points { }` /
-// `card_points(card)` precedent) and two Builtins over the declaration:
-// `highest_by_trick_order` (the winner: bare in a round's `winner` slot, or
-// called over a public pile's [[arrival-record]]) and `follows_lead(card,
-// pile)`. Entry-plus (the empty block is a syntax error, the
-// `card_points_table` rule). The row key is its own terminal, validated by the
-// builder against `TRICK_ORDER_ROWS` — ONE source for the row set, and a
-// wrong key gets a rejection naming the rows rather than a bare syntax error.
-// Each row at most once, in any order; the reference order BETWEEN rows is the
-// language's (trump, follow_class, card_strength), never the textual one. Rows
-// are whitespace-separated like every block clause; its wrong spellings are
-// refused with the fix (diagnostics.lark).
-trick_order: _TRICK_ORDER_KW "{" trick_order_row+ "}"
-trick_order_row: TRICK_ORDER_KEY ":" expr
-
-// The game-level trump clause: the suit that beats all others in a trick,
-// named bare (`trump: spades`) — a suit of the declared deck (resolve,
-// `_resolve_trump`), read by a trick round whose winner reads a trump and
-// writes no `trump` clause of its own. Refused beside a `trick_order` block
-// (the block's `trump:` row is then the trump). Its wrong spellings are
-// refused naming the bare name (diagnostics.lark).
-trump: _TRUMP_KW ":" NAME
 
 // Fixed teams, each a bracketed list of seat indices (0-based, clockwise).
 // `teams: [[0, 2], [1, 3]]` — partners sit across in a four-hand game. The
@@ -797,18 +768,6 @@ CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction
 // absorbs one.
 CARD_POINTS_KEY: /(?!(?:else|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
-// The Trick Order row-key terminal: NAME's own base reserved-word exclusions
-// and nothing else. CARD_POINTS_KEY carries one more -- `else`, because the
-// card-point table has an `else:` row that would otherwise derive as a rank
-// key too; this block has no such row, so it needs no such exclusion. The
-// clause-keyword exclusions CARD_RANK_NAME
-// carries are deliberately absent — the block is brace-bounded, so a following
-// clause can never be absorbed into it. Which keys are LEGAL is not this
-// terminal's question: it matches any identifier and the builder validates
-// against `TRICK_ORDER_ROWS`, so the row set is stated once, in the registry,
-// and a wrong key gets a rejection that names the rows.
-TRICK_ORDER_KEY: /(?!(?:all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
-
 all_players: _ALL_KW _PLAYERS_KW
 call: NAME "(" [arg_list] ")"
 
@@ -891,7 +850,7 @@ _BEFORE_EACH_KW: "before_each" /(?![A-Za-z0-9_])/
 _BOARD_KW: "board" /(?![A-Za-z0-9_])/
 _BY_KW: "by" /(?![A-Za-z0-9_])/
 _CARD_KW: "card" /(?![A-Za-z0-9_])/
-// The clause keyword and the `card_points(card)` Builtin share one spelling
+// The clause keyword and the `card_points(card)` contract share one spelling
 // deliberately (one name for one concept); the dynamic lexer disambiguates by
 // position, the `cards` precedent — so no NAME exclusion, anchoring only.
 _CARD_POINTS_KW: "card_points" /(?![A-Za-z0-9_])/
@@ -992,7 +951,6 @@ _THEN_KW: "then" /(?![A-Za-z0-9_])/
 _THROUGH_KW: "through" /(?![A-Za-z0-9_])/
 _TO_KW: "to" /(?![A-Za-z0-9_])/
 _TRANSITION_TO_KW: "transition_to" /(?![A-Za-z0-9_])/
-_TRICK_ORDER_KW: "trick_order" /(?![A-Za-z0-9_])/
 _TRUMP_KW: "trump" /(?![A-Za-z0-9_])/
 _TURNS_KW: "turns" /(?![A-Za-z0-9_])/
 _UNTIL_KW: "until" /(?![A-Za-z0-9_])/

@@ -41,7 +41,7 @@ domain:     the `?game_item` alternatives of the `game` production, times
             the empty-EXPRESSION absorber is reachable at all.
             One thing sits outside, and it is not a gap: this module owns the
             clause STRUCTURE, so the content VOCABULARY a flavor admits —
-            `ranking:`/`trump:` declared in a piece game, and every other
+            `ranking:` declared in a piece game, and every other
             card-content surface — is the content-agreement guards' domain
             and the piece-game playout's, not this one's.
 registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
@@ -253,8 +253,6 @@ _CLAUSE_TEXT: dict[str, str] = {
     "ranking": "ranking: K Q J",
     "suit_ranking": "suit ranking: spades hearts",
     "card_points_table": "card_points { A: 1 }",
-    "trump": "trump: hearts",
-    "trick_order": "trick_order { trump: card.suit is hearts }",
     "teams": "teams: [[0, 2], [1, 3]]",
     "max_length": "max_length: 10",
     "positions": "positions { column : 1..7 }",
@@ -377,8 +375,6 @@ SINGLE_VALUED: dict[str, str] = {
     "ranking": "ranking:",
     "suit_ranking": "suit ranking:",
     "card_points_table": "card_points { }",
-    "trump": "trump:",
-    "trick_order": "trick_order { }",
     "primitives_block": "primitives { }",
     "teams": "teams:",
     "max_length": "max_length:",
@@ -390,7 +386,7 @@ SINGLE_VALUED: dict[str, str] = {
 }
 
 # A minimal valid game (also the acceptance probe: it omits `direction:`,
-# `ranking:`, `trump:`, and `teams:`, pinning that those omissions
+# `ranking:` and `teams:`, pinning that those omissions
 # are legal). Duplication probes are built by line surgery on it.
 BASE_LINES: tuple[str, ...] = (
     "game Probe {",
@@ -422,11 +418,6 @@ _EXTRA_CLAUSE: dict[str, str] = {
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
     "suit_ranking": "  suit ranking: spades hearts diamonds clubs",
-    "trump": "  trump: spades",
-    # The duplicate probe must reach the `once` guard, so the block itself has
-    # to be well-formed: a `trump:` row is required (parse's P8), and it speaks
-    # first for a block that lacks one.
-    "trick_order": "  trick_order { trump: card.suit is spades }",
     "teams": "  teams: [[0, 1]]",
     # An EMPTY block, which is well-formed on purpose (the presence, not the
     # contents, picks the game's Primitive regime) — so the duplicate probe

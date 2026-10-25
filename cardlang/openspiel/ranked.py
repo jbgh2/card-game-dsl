@@ -36,7 +36,7 @@ What it does with each block of action ids is `DISPOSITIONS`, keyed by
   the cards with another.
 
   Five things send the decision to the draw instead: a game that declares no
-  ranking; one that declares a `trick_order { }` of its own (its trumps and
+  ranking; one that declares a Trick Order of its own (its trumps and
   strengths are expressions this reads nothing of); one that keeps more than one
   trick pile, or whose rounds name different trumps, where which round a
   decision belongs to is not a fact the view carries; a throw whose source zone
@@ -81,6 +81,7 @@ from collections import Counter
 from collections.abc import Sequence
 from typing import Any
 
+from cardlang import kernel_contracts
 from cardlang.ast import nodes as n
 from cardlang.openspiel.infostate import SeatView, current_ask
 from cardlang.openspiel.seat_policy import SeatBinding, UniformSeatPolicy
@@ -163,22 +164,19 @@ _DISAGREE = object()
 
 
 def _declared_trump(game: n.Game) -> Any:
-    """What the game's Trick Rounds say their trump is: a suit name, a
-    `NameRef` to the State Variable holding it, or None where they declare
+    """What the game's Trick Rounds say their trump is: a `NameRef` to the
+    suit, or to the State Variable holding it, or None where they declare
     none. A game whose rounds disagree returns `_DISAGREE` — which round a
     decision belongs to is not a fact the view carries, so a policy that
-    picked one would be picking.
-
-    The top-level `trump:` declaration is the fallback for a game that states
-    it once for the whole game rather than on the round."""
+    picked one would be picking."""
     specs = [rnd.trump for rnd in _trick_rounds(game)]
     if not specs:
-        return game.trump
+        return None
     first = specs[0]
     for other in specs[1:]:
         if _spec_key(other) != _spec_key(first):
             return _DISAGREE
-    return first if first is not None else game.trump
+    return first
 
 
 def _spec_key(spec: Any) -> Any:
@@ -223,7 +221,7 @@ class RankedSeatPolicy:
         # and a second trick pile leaves the trick in progress unidentified.
         # Either way the cards on the table are not a fact this can read.
         self.reads_the_trick = (
-            binding.game.trick_order is None
+            not kernel_contracts.has_trick_order(binding.game)
             and len(self.trick_zones) < 2
             and self.trump_spec is not _DISAGREE
         )
@@ -334,13 +332,17 @@ class RankedSeatPolicy:
         return min(legal, key=lambda aid: (self._worth(aid), aid))
 
     def _trump_now(self, view: SeatView) -> str | None:
-        """The suit that trumps at this decision. A game may fix it once for
-        the whole game, or name a State Variable its Trick Round points at and
-        set it as the deal turns it up — Oh Hell, Bridge and Pinochle all do
-        the second, so reading the fixed declaration alone reads no trump at
-        all in three of the corpus's trick games."""
+        """The suit that trumps at this decision. A Trick Round may name the
+        suit itself, a fixed trump, or name a State Variable and set
+        it as the deal turns it up — Oh Hell, Bridge and Pinochle all do the
+        second, so reading a fixed suit alone reads no trump at all in three of
+        the corpus's trick games."""
         spec = self.trump_spec
         if isinstance(spec, n.NameRef):
+            if spec.ref_kind == "enum_value":
+                return spec.name
+            if spec.ref_kind != "state_var":
+                return None
             value = dict(view.state).get(spec.name)
             return value if isinstance(value, str) else None
         return spec if isinstance(spec, str) else None

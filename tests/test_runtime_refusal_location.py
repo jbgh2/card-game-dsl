@@ -12,7 +12,7 @@ passes own the class between them. The statement executor owns the sentences:
 every statement a game runs passes through it holding its own span, and the
 [[context]] it is handed holds the phase. The driver owns what no statement
 encloses — a phase's qualifier, a `state { }` default, the `loser:` selection,
-a `trick_order { }` row — and carries its own `Contract` saying so.
+a Trick Order answer — and carries its own `Contract` saying so.
 
 A gap sits inside each half, and each is an axis below. A statement form that
 runs an embedded sentence ITSELF instead of handing it back leaves the
@@ -52,8 +52,8 @@ domain:     three axes, each read off its own registry.
 
             (3) The DRIVER-POSITION axis: the game text the DRIVER evaluates
             itself. A phase's `when` guard and `repeat until` condition, a
-            `state { }` default, the `loser:` selection and a `trick_order { }`
-            row body are expressions no statement encloses, so the executor's
+            `state { }` default, the `loser:` selection and a Trick Order
+            answer's body are expressions no statement encloses, so the executor's
             stamp never reaches them. The axis is derived as the driver's own
             calls to the evaluator, each keyed by the function it sits in and
             the expression it reads, and every one of them goes through the
@@ -162,10 +162,10 @@ PHASE_STATE = FIXTURES / "phase_state_default_no_match.cardlang"
 GAME_STATE = FIXTURES / "game_state_default_no_match.cardlang"
 # The `loser:` selection, read after the last phase has run.
 LOSER_SELECTION = FIXTURES / "loser_selection_no_holder.cardlang"
-# A `trick_order { }` row asking for an unranked rank's strength, reached from
+# A `card_strength` asking for an unranked rank's strength, reached from
 # inside a round — so a location taken where the executor dispatched names the
-# round rather than the row.
-TRICK_ORDER_ROW = FIXTURES / "trick_order_row_unranked.cardlang"
+# round rather than the answer.
+CARD_STRENGTH_UNRANKED = FIXTURES / "card_strength_unranked.cardlang"
 
 
 # ---------------------------------------------------------------------------
@@ -494,7 +494,7 @@ _DRIVER_WITNESSES: dict[str, frozenset[str]] = {
     "run_phase:q.expr": frozenset({WHEN_GUARD.stem, REPEAT_CONDITION.stem}),
     "_declare_state:decl.default": frozenset({PHASE_STATE.stem, GAME_STATE.stem}),
     "play_game:game.loser.selection": frozenset({LOSER_SELECTION.stem}),
-    "read:body": frozenset({TRICK_ORDER_ROW.stem}),
+    "read:fn.body": frozenset({CARD_STRENGTH_UNRANKED.stem}),
 }
 
 # The qualifier's arms, and the state declarer's two callers — the sub-axes
@@ -592,8 +592,8 @@ def test_every_driver_evaluation_position_has_a_witness() -> None:
     witness, and a witness naming a position the driver no longer has fails
     rather than passing on the rest.
 
-    red under: drop the `read:body` row — the derivation still finds the
-    trick-order row and this cell names it."""
+    red under: drop the `read:fn.body` row — the derivation still finds the
+    Kernel Definition Contract answer and this cell names it."""
     assert set(_DRIVER_WITNESSES) == _driver_evaluation_sites()
     named = {stem for stems in _DRIVER_WITNESSES.values() for stem in stems}
     assert named <= {case.path.stem for case in _CASES}, (
@@ -741,9 +741,9 @@ _CASES: tuple[_Refusal, ...] = (
         zone=None,
     ),
     _Refusal(
-        name="a `trick_order { }` row asking an unranked rank's strength",
-        path=TRICK_ORDER_ROW,
-        sentence="card_strength: rank_value(card)",
+        name="a `card_strength` answer asking an unranked rank's strength",
+        path=CARD_STRENGTH_UNRANKED,
+        sentence="function card_strength(card : Card) = rank_value(card)",
         occurrence=0,
         phase="play",
         zone=None,

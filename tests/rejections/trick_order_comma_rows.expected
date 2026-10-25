@@ -1,1 +1,0 @@
-trick_order_comma_rows.cardlang:8:3: error: `trick_order` rows are whitespace-separated, never comma-separated — write `trick_order { trump: ...  follow_class: ... }`

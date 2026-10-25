@@ -187,8 +187,8 @@ def test_every_golden_a_twin_derives_has_one_derivation() -> None:
     """Under the composed grammar with ambiguity explicit, no golden the main
     grammar refuses parses to an `_ambig` node: the twin that speaks is the
     grammar's choice, never lark's. Red under: a second twin deriving a
-    golden's slip (plant `%extend trump: _TRUMP_KW ":" INT -> planted_reject`
-    in diagnostics.lark)."""
+    golden's slip (plant `%extend game_item: _TRUMP_KW ":" NAME ->
+    planted_reject` in diagnostics.lark: `trump_clause_retired` reddens)."""
     explicit = Lark(
         parse_module._grammar_text() + "\n" + parse_module.DIAGNOSTIC_GRAMMAR.read_text(),
         parser="earley",
