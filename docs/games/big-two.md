@@ -56,4 +56,6 @@ with four of a kind — since which cards a seat keeps back for later tricks is 
 decision of the game. The climbing loop, the pile routing, the shed-out finish,
 and penalty scoring are DSL. Pagat's scoring variations — the doubled penalties
 for many cards left or for twos held, among others — are variants this file does
-not play.
+not play. Nor does it play the page's rule for a game played for money, under
+which a player who lets the next seat win with its last single card pays the
+other losers' losses: this file keeps penalty points and settles no stakes.
