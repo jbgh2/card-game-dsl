@@ -4578,10 +4578,12 @@ domain:          <what is quantified over, and what is deliberately
                   outside it — the boundary stated positively>
 registry:        <where each axis is derived in code, and where a property
                   this module leans on is proven elsewhere — locators only>
+held by:         <the Enforcement Ladder rung this guarantee sits on; below
+                  Unrepresentable, why its fact cannot live a rung higher>
 does not prove:  <what a green here does NOT establish, and why>
 ```
 
-**`registry:` is the locator row; the other three are claim rows.** Every
+**`registry:` is the locator row; the other four are claim rows.** Every
 entry in it points into code and none of them asserts coverage. Two kinds
 of locator live there: where each axis is derived, and — when a property
 this module depends on is pinned in another module — that module's test id.
@@ -4599,8 +4601,9 @@ tested is a reason not to test it, so a stale one leaves a gap open and
 says it is closed. A wrong locator sends the reader to a place that is not
 there, and `tests/test_ledger_referents.py` reddens on it.
 
-**Only `does not prove:` carries a caution**; the other three state the
-guarantee, its scope, and where to look. The row is named for the one thing
+**Only `does not prove:` carries a caution**; the other four state the
+guarantee, its scope, where to look, and the rung that holds it
+("Prefer the guard you cannot need"). The row is named for the one thing
 it may hold, because a catch-all noun catches all — deferred work, an
 uncovered cell, a domain boundary and a designed constraint make four
 different demands on a reader, and each has a home that acts on it. A slot
@@ -4780,7 +4783,14 @@ cannot say which of the three it is does not land. Each pass states its
 contract — what it assumes, what it establishes, and what becomes illegal
 after it — in a `Contract` block in its module docstring
 (`cardlang/parse.py` through `cardlang/ir.py`); the owning pass's contract
-decides where a check belongs. For the runtime packages the triage is
+decides where a check belongs. Each Establishes clause also says how it is
+held: the rung of the Enforcement Ladder that keeps it true
+("Prefer the guard you cannot need") — Unrepresentable, Derived and Pinned,
+Born-Green Pin, or Review-Enforced Prose — and a clause held below
+Unrepresentable names why its fact cannot live a rung higher, the same line
+a ledger's `held by:` row carries. A Contract Block without held-by lines
+gains them when its module is next edited; a new one carries them from
+birth. For the runtime packages the triage is
 mechanized: `tests/test_assert_triage.py` scrapes every assert-channel
 site in `cardlang/runtime/` and `cardlang/stdlib/` and fails the build on
 any site whose attached text names neither a dispatch fallthrough nor the
@@ -4966,23 +4976,30 @@ Enforcement has a ladder, and each rung down costs more to hold:
    type checker dispatches over, a grammar that cannot produce the
    combination, a fact derived from one defining site so a second copy
    cannot exist.
-2. **Derived and pinned** — the fact has one source; consumers derive from
+2. **Derived and Pinned** — the fact has one source; consumers derive from
    it, and a pin catches the consumer that re-spells it.
-3. **A born-green pin with its witness** — behavior already correct,
-   guarded by a check that names its reddening mutation.
-4. **Review-enforced prose** — an authoring rule, held by whoever happens
+3. **Born-Green Pin** — behavior already correct, guarded by a check that
+   names its reddening mutation, its witness.
+4. **Review-Enforced Prose** — an authoring rule, held by whoever happens
    to read it.
 
 Every claim on a lower rung is machinery that must itself be kept honest —
 markers need reasons, reasons need vocabularies, scrapes need manifests —
 and that maintenance is where enforcement findings breed. So a proposed
-pin carries one more line in its ledger: **why the fact cannot live a rung
-higher.** "The domain is strings the checker cannot see" is an answer only
-after asking whether the strings should be a union the checker can see —
+pin carries one more row in its ledger, `held by:`: the rung, and **why the
+fact cannot live a rung higher.** "The domain is strings the checker cannot
+see" is an answer only after asking whether the strings should be a union
+the checker can see —
 a registry of role ids is a closed domain by definition, which is exactly
 the shape an enum holds for free. A pin whose fact could have been a type
 is built on the wrong rung, and the findings it later generates are the
 interest on that choice.
+
+The rung is stated wherever a guarantee is written down — a ledger's
+`held by:` row, a Contract Block's held-by line (write-time triage,
+above) — and the top rung is the default: a clause whose fact a union, an
+exhaustive match or a single constructor can hold is held there, and a
+lower rung is a recorded decision, never a default.
 
 The rung is a design decision and gets recorded like one: when rung 3 or 4
 is chosen over an available rung 1 or 2, the ledger says why (a subtype

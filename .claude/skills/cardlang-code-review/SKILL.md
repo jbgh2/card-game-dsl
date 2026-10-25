@@ -38,9 +38,13 @@ loud failure is the system working; silence is the enemy.
    diagnostic belongs; a bare `assert`; a runtime crash for a statically
    checkable error; a diagnostic that directs the user to syntax the grammar
    cannot accept.
-6. **Registry drift** — a closed domain (binder-introducing nodes, Card
-   fields, iteration roles, enum value sources) enumerated at two or more
-   sites with nothing pinning them equal.
+6. **Registry drift, wrong rung** — a closed domain (binder-introducing
+   nodes, Card fields, iteration roles, enum value sources) enumerated at
+   two or more sites with nothing pinning them equal; a guarantee held on
+   a lower rung of the Enforcement Ladder than its fact admits — a pin or
+   scrape where a union, an exhaustive match or a single constructor holds
+   it (decisions.md, "Prefer the guard you cannot need"); or a second site
+   constructing an artifact that has one owner.
 7. **Crash-path correctness** — the generic bug classes. Real, but loud.
 8. **Message/spec drift** — diagnostics or docs teaching retired spellings;
    corpus games out of lockstep (CLAUDE.md operating rules 1–2).
@@ -149,7 +153,9 @@ dominant cause of misses.
   "Closed-domain completeness"): it is an Owner Guard at the owning layer, or a
   Shadow Guard whose comment names the Owner Guard it shadows — a guard that names
   neither is a finding (class 5 or 6) even if the condition it checks is
-  true.
+  true. Every new guard also states its rung (the Contract Block's held-by
+  line, the ledger's `held by:` row); a guard on a lower rung than its fact
+  admits is class 6.
   Grep each new diagnostic's quoted syntax against the grammar: a message
   that names a retired spelling, or directs the user to a sentence the
   grammar rejects, is a finding.
@@ -184,7 +190,12 @@ dominant cause of misses.
   site that recomputes a fact an earlier pass established (re-classifying
   a name instead of reading `ref_kind`, re-inferring a type, re-computing
   a zone projection) is a finding even while its answer is currently
-  correct — the two computations will drift.
+  correct — the two computations will drift. The same angle reads the
+  rung: for each new guard, pin or scrape, ask whether the fact it holds
+  is a union the checker could see or an artifact with one owner; a check
+  below the rung its fact admits, or a second builder of an owned
+  artifact, is class 6, and a Contract Block or ledger that states no rung
+  is class 8.
 - **G. Test-integrity auditor** *(test, golden, or construct-retiring
   changes)*. Hunt vacuous tests: assertion loops whose trigger condition a
   retired construct can no longer produce, guards over deleted grammar,

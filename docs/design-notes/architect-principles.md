@@ -12,8 +12,13 @@ P-n); an assertion is only as citable as its book entry, and the book's
 ## The pipeline
 
 - A pass contract that matters is a checked artifact, not a docstring
-  (P1). Counsel-shaping today; building the pins is enforcement
-  scaffolding and stays the operator's call (planning Gate 3.5).
+  (P1). Binding at planning: every Establishes clause of a Contract Block
+  names the rung that holds it, and a clause whose fact a type, an
+  exhaustive match or a single owner can hold is held there — shipping
+  surface, not scaffolding (decisions.md,
+  "Prefer the guard you cannot need"; planning Gate 2.5). The operator's
+  call is the rung chosen when the top one is declined, recorded as a
+  decision.
 - When downstream re-derives, the IR is missing a slot — materialize in
   the owning pass (P2; the house stop-and-fix rule, with nanopass as its
   external confirmation).

@@ -86,6 +86,16 @@ comparison-shaped context, not at the first site that motivated it. If the
 Owner Guard is being written inline at one site, say why the class has exactly one
 member.
 
+**Each axis names its rung before the expected column is authored.** For
+every axis, record whether its universe is one the type checker sees — a
+union or enum every consumer dispatches over with `assert_never`
+(Unrepresentable) — or one it cannot, a registry of strings (Derived and
+Pinned), and for the second whether promotion to a union was priced and
+declined, with the record (decisions.md, "Closed-domain completeness").
+The grid designs the type before it designs the test: an axis that could
+be a union gets the union as the change's first deliverable, the same way
+a missing derivation does.
+
 **The framing check (mandatory, before outcomes are authored).** The grid
 makes every decided cell honest; it does nothing for the axis you never
 derived. So before authoring the expected column, hand a fresh subagent
@@ -305,10 +315,12 @@ domain:          <what is quantified over, and what is deliberately
                   outside it — the boundary stated positively>
 registry:        <where each axis is derived in code, and where a property
                   this module leans on is proven elsewhere — locators only>
+held by:         <the Enforcement Ladder rung this guarantee sits on; below
+                  Unrepresentable, why its fact cannot live a rung higher>
 does not prove:  <what a green here does NOT establish, and why>
 ```
 
-**`registry:` is the locator row; the other three are claim rows.** Nothing
+**`registry:` is the locator row; the other four are claim rows.** Nothing
 in it asserts coverage. Two kinds of locator go there: where each axis is
 derived, and — when a property this module depends on is pinned in another
 module — that module's test id. The second is how you pay CLAUDE.md rule 4:
@@ -317,6 +329,13 @@ locator register, a label and the id, no assertion verb. "The partition is
 pinned at X" is a coverage claim wearing a pointer's clothes; `partition:
 tests/test_signatures.py::test_deck_only_classification_partitions_call_funcs`
 is a locator.
+
+**`held by:` names the rung.** The Enforcement Ladder rung the guarantee
+sits on — Unrepresentable, Derived and Pinned, Born-Green Pin,
+Review-Enforced Prose — and, below Unrepresentable, why its fact cannot
+live a rung higher (decisions.md, "Prefer the guard you cannot need"). It
+is a claim row: being wrong licenses a reader to leave a type unbuilt and
+keep paying for the pin.
 
 Rank the rows by failure mode, not by how likely they are to be wrong: what
 does being wrong license the reader **not to do?** A claim that something
