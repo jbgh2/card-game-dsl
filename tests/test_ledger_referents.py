@@ -762,7 +762,7 @@ def test_the_row_axis_is_the_set_the_templates_print() -> None:
     red under: delete, rename or reorder any `label:` line in BOTH
     completeness fences at once (one alone reddens the sibling).
     """
-    assert COMPLETENESS_ROWS == ("property", "domain", "registry", "does not prove")
+    assert COMPLETENESS_ROWS == ("property", "domain", "registry", "held by", "does not prove")
     assert CLASS_ROWS == ("finding", "class", "members", "covered", "residual", "why missed")
 
 

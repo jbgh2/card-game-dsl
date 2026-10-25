@@ -159,6 +159,15 @@ definition inside this unit and the three sites use it; the copy census
 is the grammar report's seventh finding, and a third copy left standing
 is the construct the next game will ask the grammar for.
 
+**Rung first, in the same gate.** Before the plan names a new guard, pin,
+scrape or check, it names the rung of the Enforcement Ladder the
+guarantee will sit on (decisions.md, "Prefer the guard you cannot need")
+and whether a union, an exhaustive match or a single constructor holds it
+instead; the answer is the Contract Block's held-by line and the ledger's
+`held by:` row, written now. A check planned on a lower rung than its
+fact admits is the planning-stage form of the wrong-rung finding
+(`cardlang-code-review`, class 6).
+
 ## Gate 3 — State the acceptance criteria before the task list
 
 Three, always, in the plan's header (CLAUDE.md, load-bearing section):
@@ -209,6 +218,14 @@ is not the implementing context's to make:
 - the plan reverts or overrides a settled decision;
 - the plan's only justification is that a gate requires it, with no R1/R2
   defect anywhere in sight.
+
+A rung promotion is none of the four. Replacing a pin, a scrape or a prose
+rule with a type, an exhaustive match or a single owner on the shipping
+surface or the rigor-critical machinery retires scaffolding rather than
+adding it — the test is the law's own (decisions.md, "The machinery is
+guarded once"): a wrong game trusted, not a wrong audit — so it proceeds
+at the proportion of the defect class it closes, and its proving artifacts
+are the pin it retires and the goldens left byte-identical.
 
 **Class over site, once the class exists.** A finding met inside a unit
 is fixed at its site once and twice. At the THIRD instance of one class

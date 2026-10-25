@@ -64,7 +64,12 @@ criterion** — alongside "does it run" and "is it byte-identical":
   against **its own domain**, never against the corpus — closed enumerable
   domains get exhaustive coverage derived from their defining registry,
   pinned by a static test and a runtime refusal; open design spaces stay
-  corpus-first but every deferral is a loud guard. "Vacuously green" — a
+  corpus-first but every deferral is a loud guard. Every guarantee sits on
+  the highest rung of the Enforcement Ladder the type checker can hold — a
+  type or a single owner before a Pin, a Pin before prose — and says which
+  rung in its Contract Block or ledger; a lower rung is a recorded
+  decision, never a default (`docs/decisions.md`,
+  "Prefer the guard you cannot need"). "Vacuously green" — a
   check presented as a guarantee that cannot fail — is a defect class of
   equal rank to "accepted-but-ignored". Changes to rigor-critical machinery
   ship with their completeness argument (property, domain, registry, and
