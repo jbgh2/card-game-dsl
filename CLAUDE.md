@@ -384,8 +384,8 @@ Lease protocol live in `docs/harness.md`; its sweep,
 `tools/ready-front.sh`, is the third sibling of the two above.
 
 What an agent takes next is an Active Epic — an open milestone, opened
-by the direction review or, for the one Operator's Milestone, by the
-operator — and then the Priority Tier, which the
+by the direction review or, for the Operator's Milestone or an
+Operator's Swarm, by the operator — and then the Priority Tier, which the
 Ready Front sorts by (`docs/harness.md`, "The Ready Front").
 [Issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the
 pinned queue of units not yet active, in the order the review promotes
