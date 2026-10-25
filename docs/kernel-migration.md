@@ -62,7 +62,9 @@ or distinct information sets that differ only in order would silently
 collapse into the same string and the same text.
 
 **What remains honest to record — the scope boundary, not debt.** No
-rules-level randomness remains: both Workstream 5 halves are done. Coup's
+rules-level randomness remains, the invariant stated in
+[decisions.md](decisions.md), "Interactive decisions: a kernel and an in-DSL standard library":
+both Workstream 5 halves are done. Coup's
 challenges, blocks, claimed characters, and targets are real announced
 decisions, and so are Tichu's call windows (grand at the eight-card deal
 window, small on the off-the-clock poll — decisions.md "Off-the-clock

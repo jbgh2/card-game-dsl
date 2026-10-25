@@ -157,6 +157,10 @@ measurement error with a comment. The corpus acceptance test below ("A note
 on the games") is what this rule protects: a non-player reads the file cold
 and plays a hand — of the real game.
 
+The rule holds when a measurement disagrees with it. A measurement that falls
+after a correct rule fix is a finding about the next gap — the instrument, the
+policy, a fact the policy is never told — never evidence against the fix.
+
 ## What's here
 
 ```
@@ -267,6 +271,20 @@ quoting local evidence, run the checks as written. In particular:
   change under `docs/games/` or `docs/libraries/` sweeps it before the change is
   reported as green, and REGENERATES at the golden's own width — never at the
   dial's, which writes a vector stale everywhere the dial did not look.
+- **A change to a game's RULES also runs every test module that names the
+  game.** The hand-authored tables that classify a game (its buckets, its
+  pinned action-id lines, the state variables a test names) are keyed by the
+  game's name, so no glob or census selects them, and they fire on a rules
+  change exactly as on the game's arrival
+  (docs/maintaining.md, "The pins a new game joins"):
+
+  ```bash
+  git grep -ln "<game>" -- tests
+  ```
+- **Two PRs green alone can be red together.** PRs that touch one
+  diagnostic, guard or census table each pass on their own base and fail
+  once both land. The second to merge merges main forward and re-runs its
+  grids before it merges.
 
 **These two checks are regression gates, not completeness gates.** A change
 that adds or extends grammar surface, a checker Owner Guard or diagnostic, a native registry or kernel table, or any closed-domain mechanism — **including a change answering a
@@ -308,6 +326,15 @@ it constrains, where the next reader of that construct meets it; and it SAYS
 it is designed, so "no issue" reads as a decision rather than an omission. If
 the cell is something anyone might one day build, it is work: file the
 issue.
+
+**Search before filing, by the mechanism.** Before filing, search the tracker
+(`gh issue list --state all --search ...`) for the mechanism and the site —
+the module, the function, the event kind, the registry — not for the symptom
+you met: a finding met from the consumer side is often already filed from the
+emitter side. A duplicate is proven by one mechanism that accounts for every
+row of both issues, never by resemblance. The issue the repo cites is the one
+kept, the duplicate's witnesses are carried onto it as a comment, and the
+duplicate closes with `gh issue close N --duplicate-of M`.
 
 Keep the label set minimal. The whole vocabulary is five **kinds** — `bug`,
 `enhancement`, `documentation`, `tech-debt`, `epic` — two **modifiers**,
