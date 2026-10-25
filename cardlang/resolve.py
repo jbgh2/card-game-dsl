@@ -10114,6 +10114,24 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
     ):
         return node
+    if (
+        isinstance(node, n.TrickRound)
+        and isinstance(node.trump, n.NameRef)
+        and node.trump.ref_kind is None
+        and cats.suits
+        and _classify(node.trump.name, cats) is None
+    ):
+        # A fixed trump is a suit of the deck, so a name that is none is told
+        # the deck's suits, where an unresolved name would say only that.
+        bag.error(
+            f"round `trump` names '{node.trump.name}', which is neither a suit of "
+            f"this deck ({', '.join(sorted(cats.suits))}) nor a state variable — "
+            f"write the suit, or a `Suit?` state variable the game sets",
+            node.trump.span,
+        )
+        rest = _rewrite(replace(node, trump=None), cats, bag)
+        assert isinstance(rest, n.TrickRound)
+        return replace(rest, trump=node.trump)
     if isinstance(node, n.NameRef):
         if node.ref_kind is not None:
             # Classified by an earlier step of this pass from a fact it held

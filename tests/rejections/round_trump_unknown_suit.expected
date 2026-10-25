@@ -1,0 +1,1 @@
+round_trump_unknown_suit.cardlang:16:50: error: round `trump` names 'spade', which is neither a suit of this deck (clubs, diamonds, hearts, spades) nor a state variable — write the suit, or a `Suit?` state variable the game sets

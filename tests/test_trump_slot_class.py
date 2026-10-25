@@ -335,7 +335,7 @@ def _expect(source: str, *needles: str) -> None:
 
 # --- (a) the round clause: value --------------------------------------------
 
-_UNRESOLVED = "unresolved name"
+_NO_SUIT = "which is neither a suit of this deck"
 _BLIND = "round `trump` clause on winner"  # the round-clause refusal
 _TYPE = "round `trump` names the trump suit"
 _UNSTATED = "reads a trump, but none is stated"
@@ -347,9 +347,11 @@ def _round_trump_value_cells() -> list[tuple[str, str, str]]:
     `none` accepts, the designed no-trump (Bridge's contract); a name that is
     no suit, a rank of the deck, and a suit of some OTHER deck reject.
 
-    red under (executed 2026-10-24, reverted): resolve's `enums` category
-    admitting every deck's suits -- the foreign-suit cell of each deck
-    reddens, 14 cells."""
+    red under (each executed 2026-10-24, reverted): resolve's `enums`
+    category admitting every deck's suits -- the foreign-suit cell of each
+    deck reddens, 14 cells; and the round `trump` arm of `resolve._rewrite`
+    disabled -- every no-suit cell and tests/rejections/round_trump_unknown_suit
+    redden, 29."""
     every_suit = sorted({s for d in DECKS for s in deck_suits(d)})
     cells: list[tuple[str, str, str]] = []
     for deck in sorted(DECKS):
@@ -357,11 +359,11 @@ def _round_trump_value_cells() -> list[tuple[str, str, str]]:
         for s in suits:
             cells.append((deck, s, "accept"))
         cells.append((deck, "none", "accept"))
-        cells.append((deck, "bogus", "unresolved"))
+        cells.append((deck, "bogus", "no-suit"))
         cells.append((deck, next(r for r in deck_ranks(deck) if not r.isdigit()), "type"))
         foreign = next((s for s in every_suit if s not in suits), None)
         if foreign is not None:
-            cells.append((deck, foreign, "unresolved"))
+            cells.append((deck, foreign, "no-suit"))
     return cells
 
 
@@ -378,7 +380,7 @@ def test_round_trump_value(deck: str, value: str, expectation: str) -> None:
     elif expectation == "type":
         _expect(src, _TYPE, "got Rank")
     else:
-        _expect(src, _UNRESOLVED, f"'{value}'")
+        _expect(src, _NO_SUIT, f"'{value}'")
 
 
 # --- (a) the round clause: a reading round states its trump WHERE WRITTEN ---

@@ -30,6 +30,12 @@ registry:        the host: docs/games/spades.cardlang; the game-item heads:
                  `_UNBOUNDED_RUN_TERMINALS`.
 does not prove:  that every message earns its exact sentence: each cell reads
                  its refusal by needle.
+
+Born red on 8bc479d8 (commit 3844f66c), strict-xfail: every twin cell, the
+head-exclusion pin, the departure pin, the type hints and the round-clause
+cell -- 34. Green at authoring, 7: the two never-one-mistake syntax errors and
+the five fixes, which are sentences of the language as it stands. Every red
+cell has flipped, so no mark remains.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 // Guard: parse.py's `trump_clause_retired_reject` (diagnostics.lark). A fixed
-// trump is written on the round, or in a Trick Order's `is_trump`; the
-// game-level clause that once stated it is refused naming both.
+// trump is written on the round, or in a Trick Order's `is_trump`; a
+// game-level `trump:` is refused naming both.
 game TrumpClauseRetired {
   players: 4
   max_length: 1000
