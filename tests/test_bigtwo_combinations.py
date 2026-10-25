@@ -13,7 +13,10 @@ over every subset of sampled hands:
 - **soundness** — every play the engine offers is a combination of the kind
   it claims, offered once;
 - **follows** — the engine's legal follows over a standing play are exactly
-  the hand's combinations the oracle says beat it.
+  the hand's combinations the oracle says beat it;
+- **live** — across whole matches of the game file, every lead and follow
+  the climbing round asks for is the oracle's set on the live hand and
+  standing play, and every hand's opening lead is the 3♦ holder's.
 
 The hand generators cover the five-card shapes a uniform deal rarely holds
 (quads, several flushes, straight flushes, overlapping full houses) by
@@ -21,7 +24,7 @@ drawing from narrowed decks.
 
 What a green here does not prove: nothing about the climbing ring (who is
 asked, when a trick ends — `tests/test_round_forms.py` and the pass witness
-below), nothing about the action-id bijection (`tests/test_bigtwo_universe.py`
+in `tests/test_playout_bigtwo.py`), nothing about the action-id bijection (`tests/test_bigtwo_universe.py`
 pins the universe), and nothing about play order in live games (the goldens).
 
 Completeness ledger:
@@ -43,6 +46,9 @@ import itertools
 import random
 from collections import Counter
 from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
 
 from cardlang.runtime import narrowing, reads
 from cardlang.runtime.bigtwo import ROW, Play, bigtwo_follows, bigtwo_lead_options, bigtwo_universe
@@ -280,3 +286,53 @@ def test_every_universe_play_is_the_combination_it_names() -> None:
     for p in bigtwo_universe():
         found = classify(frozenset(p.cards))
         assert found is not None and found[0] == p.kind, p
+
+
+def test_every_live_ask_of_a_played_match_offers_the_rules_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The execution differential: across whole matches of the game file,
+    every lead and follow the climbing round asks for is checked against the
+    oracle on the live hand and standing play — and every hand's opening lead
+    is made by the 3♦'s holder, offered exactly its combinations holding it.
+
+    red under: the one-representative-per-rank enumeration (completeness
+    fails on the first live hand holding a rank twice)."""
+    import cardlang.runtime.bigtwo as engine
+    from cardlang.pipeline import check_source
+    from cardlang.runtime.driver import play_game
+
+    three = Card("3", "diamonds")
+    lead, follows = engine.bigtwo_lead_options, engine.bigtwo_follows
+    asks = {"lead": 0, "opening": 0, "follow": 0}
+
+    def checked_lead(facts: narrowing.EngineFacts, gr: reads.GameReads, hand: list[Card]) -> list[Play]:
+        plays = lead(facts, gr, hand)
+        expected = set(legal_plays(hand))
+        if not gr.state["opened"]:
+            assert three in hand, "the opening lead is not the 3♦'s holder's"
+            expected = {k for k in expected if three in k}
+            asks["opening"] += 1
+        offered = _offered(plays)
+        assert set(offered) == expected and max(offered.values()) == 1
+        asks["lead"] += 1
+        return plays
+
+    def checked_follows(
+        facts: narrowing.EngineFacts, gr: reads.GameReads, hand: list[Card], current: Play
+    ) -> list[Play]:
+        plays = follows(facts, gr, hand, current)
+        found = classify(frozenset(current.cards))
+        assert found is not None and found[0] == current.kind
+        expected = {
+            k for k, (_, s) in legal_plays(hand).items() if len(k) == len(current.cards) and s > found[1]
+        }
+        offered = _offered(plays)
+        assert set(offered) == expected and all(n == 1 for n in offered.values())
+        asks["follow"] += 1
+        return plays
+
+    monkeypatch.setattr(engine, "bigtwo_lead_options", checked_lead)
+    monkeypatch.setattr(engine, "bigtwo_follows", checked_follows)
+    game = check_source(Path(__file__).resolve().parent.parent / "docs" / "games" / "big-two.cardlang")
+    for seed in range(4):
+        play_game(game, random.Random(seed))
+    assert asks["opening"] > 0 and asks["lead"] > asks["opening"] and asks["follow"] > 0, asks
