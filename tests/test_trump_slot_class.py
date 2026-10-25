@@ -351,7 +351,10 @@ def _round_trump_value_cells() -> list[tuple[str, str, str]]:
     category admitting every deck's suits -- the foreign-suit cell of each
     deck reddens, 14 cells; and the round `trump` arm of `resolve._rewrite`
     disabled -- every no-suit cell and tests/rejections/round_trump_unknown_suit
-    redden, 29."""
+    redden, 29.
+    The no-suit voice was written before these cells named it (they named
+    "unresolved name"), so it was never red under its own needle; the
+    disabled-arm run is its evidence."""
     every_suit = sorted({s for d in DECKS for s in deck_suits(d)})
     cells: list[tuple[str, str, str]] = []
     for deck in sorted(DECKS):
@@ -381,6 +384,19 @@ def test_round_trump_value(deck: str, value: str, expectation: str) -> None:
         _expect(src, _TYPE, "got Rank")
     else:
         _expect(src, _NO_SUIT, f"'{value}'")
+
+
+def test_the_no_suit_refusals_fixes_clear() -> None:
+    """"write the suit, or a `Suit?` state variable the game sets": each,
+    written as the refusal says, checks clean; and in a library, where no
+    suit is spelled, the library's own encapsulation refusal speaks instead
+    (tests/test_library_boundary_ledger.py).
+
+    red under: refuse the round clause's state variable (the second fix)."""
+    misspelt = _source(body=_ROUND.format(winner="highest_trump_or_led_suit", trump=" trump spade"))
+    _expect(misspelt, _NO_SUIT, "write the suit")
+    _expect(misspelt.replace(" trump spade", " trump spades"))
+    _expect(misspelt.replace(" trump spade", " trump trump_suit"))
 
 
 # --- (a) the round clause: a reading round states its trump WHERE WRITTEN ---
