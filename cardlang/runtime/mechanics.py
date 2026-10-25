@@ -248,11 +248,12 @@ class TrickForm:
             if stmt.early_termination is not None
             else None
         )
-        # A Trick Order game declares no trump anywhere — the block's `trump:`
-        # row is the trump, and resolve's presence partition refuses both the
-        # game clause (R1) and the round's (R2) beside a block.
+        # The round's own `trump` clause is its trump. A Trick Order game
+        # writes none — its `is_trump` is the trump, and resolve's presence
+        # partition refuses the clause beside one — and resolve refuses a
+        # trump-reading winner on a round that states none.
         self.trump: str | None = (
-            evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
+            evaluate(stmt.trump, ctx) if stmt.trump is not None else None
         )
         # The phases the round's rules and modes are built down. The rules are
         # read at every play, not once per pass: a play inside THIS trick can

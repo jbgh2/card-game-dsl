@@ -175,11 +175,7 @@ def test_the_real_tree_has_no_dead_row_outside_the_ruled_classes() -> None:
     dead = {r for r, (cls, _) in rep.rule_classes().items() if cls == "dead"} | {
         k for k, (cls, _) in rep.keyword_classes().items() if cls == "dead"
     }
-    # The Trick Order block and the game-level `trump:`, which no corpus game
-    # writes and issue #944 cuts with their rows; the cut deletes this
-    # allowance with them.
-    retiring = {"TRICK_ORDER", "trick_order", "trick_order_row", "trump"}
-    assert not dead - retiring, sorted(dead - retiring)
+    assert not dead, sorted(dead)
 
 
 def test_a_planted_production_nothing_produces_is_reported() -> None:

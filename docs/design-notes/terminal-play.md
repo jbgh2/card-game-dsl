@@ -139,13 +139,13 @@ item can repeat one exchange until the game's `max_length` refuses it (issue
 view and the game's own declarations and nothing else: the declared ranking
 orders its cards, the `winner:` clause says which way the score runs, and the
 library type of a zone says which of the view's cards are the trick's and which
-are its own. A card of the declared `trump:` suit takes a
+are its own. A card of the trump suit its rounds name takes a
 trick the suit led cannot. What it does with each block of action ids is a table
 beside it, and the blocks it does not rank it draws, which the table states. At
 an offering it first declines every move type the game marks a Wager or a
 Concession where a plain one is on offer (decisions.md, "A move type's stake"),
 then draws among the rest — so at Tichu it never calls, and the game ends. The
-cards of a game that declares a `trick_order { }` of its own are drawn too,
+cards of a game that declares a Trick Order of its own are drawn too,
 whose trumps and strengths are expressions this reads nothing of.
 
 The pin is `tests/test_live_line.py`. Along every registered game's line, at

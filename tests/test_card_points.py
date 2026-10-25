@@ -301,7 +301,7 @@ def test_call_with_no_clause_is_a_resolve_diagnostic() -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
     message = str(ei.value)
-    assert "`card_points { }` table" in message and "`function card_points(c : Card) = …`" in message, message
+    assert "`card_points { }` table" in message and "`function card_points(card : Card) = …`" in message, message
 
 
 def test_clause_with_no_call_is_refused_naming_its_reader() -> None:

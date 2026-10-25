@@ -9,17 +9,15 @@ domain:     reader clause x reader position x clause present/absent. The
             clause axis is every `clause` of a `role == "reader"` row of
             `resolve._CLAUSE_GATES`; the position axis is no reader, a phase
             statement, an offered move type's effect and a function nothing
-            calls, the written text the gates themselves refuse in. A round
-            is a statement, so the trump clause's reader stands in the phase
-            and the move type only. The library positions are
+            calls, the written text the gates themselves refuse in. The
+            library positions are
             tests/test_suit_ranking.py's (an activated and a dormant library
             rule) and tests/test_library_clause_gates.py's (every library
             definition kind, on the `uses` line).
 registry:   rows: `cardlang.resolve._CLAUSE_GATES` (`clause`, `role`);
             sentences: `cardlang.resolve._UNREAD_SENTENCES`; clause fields:
-            `cardlang.ast.nodes.Game`; the trump clause's dead-container
-            cells: tests/test_trump_slot_class.py::test_dead_clause_counts_written_rounds;
-            the Trick Order's cells: tests/test_trick_order.py::test_partition_cell.
+            `cardlang.ast.nodes.Game`; the Trick Order's cells:
+            tests/test_trick_order.py::test_partition_cell.
 does not prove:  that a reader runs. A reader in a definition nothing runs
             reads the clause here (issue #932).
 """
@@ -56,22 +54,18 @@ _HOST = """game G {{
 
 READER_CLAUSES = sorted({row.clause for row in R._CLAUSE_GATES if row.role == "reader"})
 
-# clause -> (the clause as written, its reader: an expression, or a statement
-# for the trump clause, whose reader is a round)
+# clause -> (the clause as written, its reader expression)
 _VEHICLES: dict[str, tuple[str, str]] = {
     "card_points": ("card_points { A: 1 }", "card_points(2 of spades)"),
     "suit_ranking": ("suit ranking: spades hearts diamonds clubs", "suit_value(spades)"),
     "trick_order": (
-        "trick_order { trump: card.suit is hearts }",
+        "function is_trump(card : Card) = card.suit is hearts",
         "if is_trump(2 of spades) then 1 else 0",
     ),
-    "trump": (
-        "trump: spades",
-        "round play_to_trick from 0 over all players source hand into pile "
-        "winner highest_trump_or_led_suit",
-    ),
 }
-_STATEMENT_READERS = frozenset({"trump"})
+# The clauses a game states by answering Kernel Definition Contracts, written
+# as definitions rather than as game items.
+_DEFINED = frozenset(R._DEFINITION_CLAUSES) - {"card_points"}
 
 POSITIONS = ("none", "phase", "move-type", "uncalled-function")
 
@@ -79,7 +73,7 @@ POSITIONS = ("none", "phase", "move-type", "uncalled-function")
 def _source(clause: str, position: str, declared: bool) -> str:
     text, reader = _VEHICLES[clause]
     body, defs = "", ""
-    statement = reader if clause in _STATEMENT_READERS else f"score[0] := {reader}"
+    statement = f"score[0] := {reader}"
     if position == "phase":
         body = statement
     elif position == "move-type":
@@ -87,7 +81,15 @@ def _source(clause: str, position: str, declared: bool) -> str:
         defs = f"move_type m {{ effect {{ {statement.replace('score[0]', 'score[actor]')} }} }}"
     elif position == "uncalled-function":
         defs = f"function r() = {reader}"
+    if clause in _DEFINED:
+        defs += "\n" + text if declared else ""
+        return _HOST.format(clause="", body=body, defs=defs)
     return _HOST.format(clause=text if declared else "", body=body, defs=defs)
+
+
+def _unread(error: str) -> bool:
+    """Whether `error` is the unread law's refusal, in either of its voices."""
+    return "is read by" in error or "nothing reads" in error
 
 
 def _errors(src: str) -> list[str]:
@@ -134,7 +136,6 @@ CELLS = [
     pytest.param(clause, position, id=f"{clause}-{position}")
     for clause in READER_CLAUSES
     for position in POSITIONS
-    if not (clause in _STATEMENT_READERS and position == "uncalled-function")
 ]
 
 
@@ -151,20 +152,30 @@ def test_a_game_is_refused_with_the_clause_or_without_it_never_both(
     present = _errors(_source(clause, position, True))
     absent = _errors(_source(clause, position, False))
     if position == "none":
-        assert len(present) == 1 and "is read by" in present[0], present
+        assert len(present) == 1 and _unread(present[0]), present
         assert absent == [], absent
     else:
         assert present == [], present
-        assert absent and not any("is read by" in e for e in absent), absent
+        assert absent and not any(_unread(e) for e in absent), absent
+
+
+# (clause, a malformed spelling its own Owner Guard refuses, the cell id)
+_OWN_GUARD_CELLS: tuple[tuple[str, str, str], ...] = (
+    ("suit_ranking", "suit ranking: spades spades hearts diamonds clubs", "suit-ranking-repeat"),
+    ("card_points", "card_points { ace: 1 }", "card-points-unknown-rank"),
+    ("trick_order", "function is_trump(c : Card, d : Card) = true", "trick-order-arity"),
+    ("trick_order", "function is_trump(card : Card) = actor is 0", "trick-order-pronoun"),
+)
+
+
+def test_every_reader_clause_has_an_own_guard_cell() -> None:
+    """red under: drop a reader clause's cells from `_OWN_GUARD_CELLS`."""
+    assert {c for c, _, _ in _OWN_GUARD_CELLS} == set(READER_CLAUSES)
 
 
 @pytest.mark.parametrize(
     ("clause", "malformed"),
-    [
-        pytest.param("suit_ranking", "suit ranking: spades spades hearts diamonds clubs", id="suit-ranking-repeat"),
-        pytest.param("card_points", "card_points { ace: 1 }", id="card-points-unknown-rank"),
-        pytest.param("trump", "trump: bogus", id="trump-unknown-suit"),
-    ],
+    [pytest.param(c, m, id=i) for c, m, i in _OWN_GUARD_CELLS],
 )
 def test_a_clause_its_own_guard_refused_draws_that_refusal_alone(
     clause: str, malformed: str
@@ -173,8 +184,12 @@ def test_a_clause_its_own_guard_refused_draws_that_refusal_alone(
     with no reader is told one thing.
 
     red under: drop the handover (`refused.add(...)`) in the clause's guard."""
-    errors = _errors(_HOST.format(clause=malformed, body="", defs=""))
-    assert len(errors) == 1 and "is read by" not in errors[0], errors
+    assert clause in READER_CLAUSES, clause
+    defined = clause in _DEFINED
+    errors = _errors(_HOST.format(
+        clause="" if defined else malformed, body="", defs=malformed if defined else "",
+    ))
+    assert len(errors) == 1 and not _unread(errors[0]), errors
 
 
 def test_an_answer_refused_for_its_signature_draws_that_refusal_alone() -> None:

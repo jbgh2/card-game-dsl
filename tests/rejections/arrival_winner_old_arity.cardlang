@@ -9,7 +9,6 @@ game ArrivalWinnerOldArity {
   max_length: 1000
   cards: standard52
   ranking: aces high
-  trick_order { trump: card.suit is spades }
   zones {
     deck : Deck
     hand[player] : Hand<player>
@@ -22,3 +21,5 @@ game ArrivalWinnerOldArity {
   }
   winner: highest score
 }
+
+function is_trump(card : Card) = card.suit is spades

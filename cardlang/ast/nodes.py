@@ -842,15 +842,15 @@ class CardPointsEntry:
     span: Span | None = None
 
 
-# The spellings the parse builder lowers to a [[kernel-definition-contract]]'s
+# The spelling the parse builder lowers to a [[kernel-definition-contract]]'s
 # answer.
-LoweredForm = Literal["card_points_table", "trick_order_row"]
+LoweredForm = Literal["card_points_table"]
 
 
 @dataclass(frozen=True, slots=True)
 class LoweredSpelling:
-    """What a lowered answer was written as: the `card_points { }` table, or
-    one `trick_order { }` row (`key` is the row's key). The parse builder
+    """What a lowered answer was written as: the `card_points { }` table
+    (`key` names its contract). The parse builder
     stamps it on the `FunctionDef` it lowers, which is otherwise the function a
     designer would write by hand; a refusal reads it to name the spelling the
     designer wrote, and nothing reads it for meaning. `entries` are the
@@ -1458,7 +1458,6 @@ class Game:
     ranking_convention: str | None = None
     # The `suit ranking:` clause, or None for a game declaring none.
     suit_ranking: SuitRanking | None = None
-    trump: str | None = None
     teams: tuple[tuple[int, ...], ...] = ()
     # Declared position domains (`positions { column : 1..7 }`) — per-game
     # integer index/parameter domains (decisions.md "Position domains and

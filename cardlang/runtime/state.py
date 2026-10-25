@@ -376,7 +376,6 @@ class RuntimeState:
         self.phase_outcomes: dict[str, tuple[str, list[Any]]] = {}
         self.deck_zone: str = ""  # the Deck-typed zone (initialized full at start)
         self.score_var: str | None = None  # the winner's score var (None for loser games)
-        self.trump: str | None = None  # the trump suit, if the game declares one
         self.teams: tuple[int, ...] = ()  # team ids (empty for teamless games)
         self.team_of: TeamOf = TeamOf({})  # player -> their team id
         self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)

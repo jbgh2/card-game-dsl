@@ -1,0 +1,20 @@
+// Guard: resolve.py's `_rewrite`, the round `trump` arm. A fixed trump is a
+// suit of the deck, so a misspelt one is told the deck's suits.
+game RoundTrumpUnknownSuit {
+  players: 4
+  max_length: 1000
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    trick_pile : TrickPile
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_trump_or_led_suit trump spade
+    score[winner] += 1
+  }
+  winner: highest score
+}

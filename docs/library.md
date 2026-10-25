@@ -15,7 +15,7 @@ before everyone has played; then a winner function selects a player, bound as
 A round's `trump <expr>` names the trump for the pass. A game whose trumps are
 not a suit — Doppelkopf's queens and jacks, Skat's jacks, 500's joker and
 bowers — declares a Trick Order instead (decisions.md "Trick Order"),
-`function is_trump(c : Card) = …` with `follow_class` and `card_strength` where
+`function is_trump(card : Card) = …` with `follow_class` and `card_strength` where
 the defaults are not the answer, and names `highest_by_trick_order`; such a
 round writes no `trump` clause at all. Every
 trick round's play zone must project identity to every observer: the plays are
@@ -46,19 +46,18 @@ Key design notes:
   all participants have played). Getaway uses `early on_play_off_led_suit`: an
   off-led-suit play (only possible when void — the game's *tochoo*) ends the trick.
 
-- **`trump <expr>` is optional.** Omitted, the round uses the game-level `trump:`
-  declaration (Spades); supplied, it overrides per hand (Oh Hell turns one up each
-  deal; Bridge's contract sets it, none for no-trump). The expression is `Suit?`
-  (a suit, or `none` for no trump), and only a winner whose body reads a trump
-  may carry the clause — `highest_trump_or_led_suit`
-  (`TRUMP_READING_WINNERS`, cardlang/builtins/functions.py); on
-  `highest_of_led_suit` it would be silently ignored, so the checker refuses
-  it. Beside a Trick Order the clause is
-  refused outright, whatever the winner: the game's `is_trump` is the
-  trump. The same rule holds the game-level `trump:` to a
-  suit of the declared deck, and to being READ: a `trump:` that no trick round
-  inherits (no round; every winner trump-blind; every reading round supplying
-  its own clause) is refused as dead rather than accepted and dropped.
+- **`trump <expr>` names the trump.** A fixed trump is a suit (Spades:
+  `trump spades`); a changing one is a state variable the game sets (Oh Hell
+  turns one up each deal; Bridge's contract sets it, none for no-trump). The
+  expression is `Suit?` (a suit of the declared deck, or `none` for no trump),
+  and only a winner whose body reads a trump may carry the clause —
+  `highest_trump_or_led_suit` (`TRUMP_READING_WINNERS`,
+  cardlang/builtins/functions.py); on `highest_of_led_suit` it would be silently
+  ignored, so the checker refuses it. A round whose winner reads a trump and
+  that names none is refused, wherever it is written; a library's round names a
+  suit the game supplies through its `requires`. Beside a Trick Order the
+  clause is refused outright, whatever the winner: the game's `is_trump` is the
+  trump.
 
 - **The round emits observation events** for each play, with visibility derived
   from the zones. Hidden-info and perfect-info games use the same construct; the
@@ -312,7 +311,7 @@ slot (a name's home is its classification, never its syntactic position):
 - `highest_of_led_suit` — the Builtin no-trump winner (reads no trump: a
   `trump` clause on it is refused)
 - `highest_trump_or_led_suit` — the Builtin with-trump winner (the round's
-  `trump` clause, else the game's declared trump); the same Builtin is also
+  `trump` clause, which it requires); the same Builtin is also
   callable over a public pile's Arrival Record (see "Native functions")
 - `highest_by_trick_order` — the Builtin winner of a game's declared Trick
   Order (decisions.md "Trick Order"): the strongest trump if any, else the
@@ -322,8 +321,8 @@ slot (a name's home is its classification, never its syntactic position):
   takes no `trump` clause — the game's `is_trump` is the trump.
 
 **The two vocabularies do not mix.** A game declaring a Trick Order names
-`highest_by_trick_order` and nothing else: every other winner here, the
-game-level `trump:` clause, a round's `trump` clause and
+`highest_by_trick_order` and nothing else: every other winner here, a
+round's `trump` clause and
 `highest_trump_or_led_suit(...)` are all refused beside a Trick Order,
 because each describes a different order from the one it declares. A game
 with no Trick Order may not name `highest_by_trick_order`. The partition is checked in both
@@ -945,8 +944,8 @@ and which one is the game's own choice:
   `card_strength(card) → Integer` — the game's Trick Order, which it answers
   itself: three Kernel Definition Contracts, not Builtins (decisions.md "Trick
   Order"): is the card a trump, what class does it follow as, how strong is
-  it within that class. A game answers them as functions or as the rows of a
-  `trick_order { }` block; `follow_class` and `card_strength` default to the
+  it within that class. A game answers them by writing the functions;
+  `follow_class` and `card_strength` default to the
   printed suit and `rank_value`. Available only in a game that answers
   `is_trump`, and refused in one that does not.
 - `highest_by_trick_order(zone) → Player` — the Trick Order's winner over a
@@ -1075,7 +1074,7 @@ terminal world and the observation stream (tests/playout_trace.py).
 French Tarot's trick play over its non-uniform 78-card deck
 ([decisions.md](decisions.md) "Deck declaration") is all the language's:
 the atouts banded above every plain card and the class-less Excuse that
-never wins are the game's `trick_order { }` block, the Excuse's exemption
+never wins are the game's three Trick Order functions, the Excuse's exemption
 from the demand cascade is its `ExcuseIsExempt` rule (see "Rules" above),
 and the winner is `highest_by_trick_order`. What stays game-local, reading
 `cardlang/runtime/tarot.py`, is the post-trick Excuse routing's aim and the
@@ -1097,8 +1096,8 @@ the petit, whose rank "1" is 9 in atouts and 1 in the plain suits):
   `pb`, and the bid multiplier.
 
 Belote's trick order — the within-trump reorder J > 9 > A > 10 > K > Q > 8 > 7
-over the plain-suit `ranking: ace-ten` — is the game's `trick_order { }`
-block, so the winner, the head/over-trump demands and the team-relative gate
+over the plain-suit `ranking: ace-ten` — is the game's `is_trump` and
+`card_strength`, so the winner, the head/over-trump demands and the team-relative gate
 are all the language's. What stays game-local is the Belote-Rebelote window's
 aim and the declaration combinations, reading
 `cardlang/runtime/belote.py`:

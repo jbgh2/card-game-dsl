@@ -354,7 +354,6 @@ POSITIONS: dict[str, Position | str] = {
     "ranking": "rank names",
     "ranking_convention": "a convention keyword",
     "suit_ranking": "suit names: the clause itself",
-    "trump": "a suit name",
     "max_length": "an integer",
     "span": "a source location",
 }

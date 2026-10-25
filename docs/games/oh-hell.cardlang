@@ -6,8 +6,8 @@
 // hand scores +1 per trick plus a +10 bonus for hitting the bid exactly.
 //
 // Tricks are played via the kernel `round` construct. The trump suit varies per
-// hand, so it is passed as a `trump` argument (read from the per-hand
-// `trump_suit` state var) rather than a fixed game-level `trump:` declaration.
+// hand, so the round's `trump` argument reads the per-hand `trump_suit` state
+// var rather than naming a suit.
 //
 // The dealer hook (the total of all bids may not equal the hand size) is the
 // dealer's `excluding` clause: the one forbidden number leaves the dealer's

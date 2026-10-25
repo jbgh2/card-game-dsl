@@ -96,8 +96,8 @@ from cardlang.diagnostics import (
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.ast import nodes as n
 
-# Every kind of crossing a walk reports, by the game text it left by: a Trick
-# Order row's call, a Hosted Poll's reach, a `run` of a library procedure (and
+# Every kind of crossing a walk reports, by the game text it left by: a Kernel
+# Definition Contract answer's call, a Hosted Poll's reach, a `run` of a library procedure (and
 # a read its own arguments make), and a decision position's call.
 CROSSING_KINDS: frozenset[str] = frozenset(
     {"row", "hosted_poll", "run", "run_argument", "call"}
@@ -108,8 +108,8 @@ CROSSING_KINDS: frozenset[str] = frozenset(
 # computed. None where the walk's own sentence carries the fix.
 FIX_TABLE: dict[str, str | None] = {
     "row": (
-        "`{name}` is library '{library}''s, so write the fact in the row from the "
-        "card and public state instead of calling it"
+        "`{name}` is library '{library}''s, so write the fact in the answer itself, "
+        "from the card and public state, instead of calling it"
     ),
     "hosted_poll": "`{name}` is library '{library}''s, so take it out of the Hosted Poll's body",
     "run": "`{name}` is library '{library}''s procedure, so {fix}",

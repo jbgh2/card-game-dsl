@@ -162,7 +162,7 @@ def test_a_crossing_kinds_fix_checks_clean(monkeypatch: pytest.MonkeyPatch, kind
 # walker -> the crossing kinds it reports, and a cell of its family reporting each
 _ROUTED: dict[str, dict[str, Callable[[], L.Crossing]]] = {
     "resolve._check_answer_hermeticity": {
-        "row": lambda: L._row_crossing("trump", L._row_arms("trump")["zone-HiddenPile"]),
+        "row": lambda: L._row_crossing("is_trump", L._row_arms("is_trump")["zone-HiddenPile"]),
     },
     "resolve._check_hosted_polls": {"hosted_poll": lambda: L._poll_crossing("run", "Transfer")},
     "resolve._HiddenReads._run": {

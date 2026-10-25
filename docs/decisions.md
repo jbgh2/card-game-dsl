@@ -432,7 +432,7 @@ the queens and jacks are too. Those games declare a Trick Order ("Trick Order"
 below): three functions, `is_trump`, `follow_class` and `card_strength`, that
 say what a trump is, what class a card follows as, and how strong it is; the
 kernel's winner and follow test read them. A game that declares none keeps the default —
-printed-suit equality, and a `trump:` suit if it has one — and the presence
+printed-suit equality, and the trump suit its round names — and the presence
 partition refuses any mixture of the two vocabularies.
 
 ## Trick Order
@@ -440,16 +440,16 @@ partition refuses any mixture of the two vocabularies.
 A trick's resolution and its follow legality both rest on three facts about
 each card: is it a **trump**, what **class** does it follow as, and how
 **strong** is it within that class. In a plain game those fall out of the
-card's printed fields and the `trump:` clause. In the big European games they
+card's printed fields and the trump suit the round names. In the big European games they
 do not: Doppelkopf's queens and jacks are trumps whatever suit they are
 printed, Skat's jacks likewise, 500's joker and left bower are members of a
 trump suit they are not printed in, Belote reorders the ranks WITHIN its
 trump suit alone, and French Tarot's Excuse belongs to no class at all. A game whose answer differs from the printed one declares it, as three functions:
 
 ```cardlang-fragment trick_order
-function is_trump(c : Card) = c.rank is Q or c.rank is J or c.suit is diamonds
-function follow_class(c : Card) = if c.rank is Q then none else c.suit
-function card_strength(c : Card) = if c.rank is Q then 200 else rank_value(c)
+function is_trump(card : Card) = card.rank is Q or card.rank is J or card.suit is diamonds
+function follow_class(card : Card) = if card.rank is Q then none else card.suit
+function card_strength(card : Card) = if card.rank is Q then 200 else rank_value(card)
 ```
 
 The three are **Kernel Definition Contracts**: signatures the kernel states
@@ -458,15 +458,15 @@ signature — the shape a family library's `requires` row has, with the kernel
 as the party requiring. The game answers by the name alone, with no marker;
 the signature check does the work a marker would. A game states its order
 once, and every consumer reads that statement rather than a second copy of it.
-The `trick_order { }` block is a second spelling of the same three answers:
-each row `<key>: <expr>`, over the implicit `card`, is the function
-`<contract>(card : Card) = <expr>`, and the parse builder lowers it so, so no
-pass below the parser sees a block. A refusal of a lowered row names the row
-the designer wrote.
+The order has this one spelling. A block of rows over an implicit `card`
+would be a second spelling of the same three answers, one a designer learns
+twice and every refusal speaks in two voices, so a `trick_order { }` block is
+refused naming the three functions, and a game-level `trump:` is refused
+naming the round's `trump` clause and `is_trump`.
 
 **The contracts.** `is_trump(card : Card) : Boolean` has no default: a game
 with a Trick Order answers it, and one with no trumps writes
-`function is_trump(c : Card) = false`, so the absence is stated rather than
+`function is_trump(card : Card) = false`, so the absence is stated rather than
 inferred. Answering it is what declares a Trick Order. `follow_class(card :
 Card) : Suit?`, where `none` means class-less — a card that neither sets the
 lead nor wins — defaults to the card's printed suit. `card_strength(card :
@@ -544,7 +544,7 @@ the shape that gives "void in the led class, anything goes".
 
 **The presence partition.** A game either declares a Trick Order and uses its
 vocabulary, or declares none and uses the round-configured one. With a Trick
-Order, the game-level `trump:` clause, a round's `trump` clause, every other
+Order, a round's `trump` clause, every other
 trick winner and `highest_trump_or_led_suit(...)` are all refused — each
 describes a different order from the one the Trick Order declares, and
 admitting both would leave the engine quietly running one of them. Without
@@ -554,9 +554,11 @@ Order that nothing reads is refused too ("Surface totality", "A clause
 nothing reads is refused"); its own three answers are one clause, and never
 each other's readers. The round-configured order states its trump as
 `is_trump` does: a round whose winner reads a trump
-(`highest_trump_or_led_suit`) names it in its own `trump` clause or inherits
-the game's `trump:`, and a round with neither is refused, since it would play
-no-trump without saying so. A no-trump trick names a winner that reads none.
+(`highest_trump_or_led_suit`) names it in its own `trump` clause, and a
+round without one is refused, wherever it is written, since it would play
+no-trump without saying so; a library names no suit, so its round names one the
+game supplies through the library's `requires`. A no-trump trick names a winner
+that reads none.
 
 **Provenance.** Every Arrival Record read names a fully public zone,
 statically: the pile argument of each of these calls is a zone reference whose
@@ -3168,8 +3170,8 @@ game, is rejected with a diagnostic naming the game's declared kind
 ("this game declares pieces ('xo_marks')") — and symmetrically the
 `piece`/`pieces` noun is rejected in a card game. The guarded surfaces
 are the transfer/reveal item noun, the filter binder, `.suit`/`.rank`
-field access, the card-query and aggregation forms, the `ranking:`,
-`trump:`, and `card_points { }` clauses, an answer to a card fact's Kernel
+field access, the card-query and aggregation forms, the `ranking:`
+and `card_points { }` clauses, an answer to a card fact's Kernel
 Definition Contract, the `suit`/`rank` quantifier and
 iteration roles, the `Card`/`Suit`/`Suit?`/`Rank` move-parameter domains,
 the deck-reading native calls, and card literals. Each rejection sits at the layer that
@@ -4401,11 +4403,10 @@ silence.
 constructs the game writes — the game's card points (the `card_points { }`
 table or the `card_points` function), read by `card_points(card)`;
 `suit ranking:`, read by `suit_value`; a Trick Order (its answers to
-`is_trump`, `follow_class` and `card_strength`, in either spelling), read by
+`is_trump`, `follow_class` and `card_strength`), read by
 `highest_by_trick_order` on a round or by a call of `follows_lead`,
-`highest_by_trick_order` or its three names outside its own answers;
-`trump:`, read by a trick round whose winner reads a trump and that states
-none of its own — is refused at the clause when nothing the game writes
+`highest_by_trick_order` or its three names outside its own answers — is
+refused at the clause when nothing the game writes
 reads it: its own text, every definition a library splices in, and every
 library rule it activates. Judged on written text, not on the code that runs:
 each reader is refused wherever it is written when its clause is absent, so

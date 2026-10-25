@@ -164,22 +164,19 @@ _DISAGREE = object()
 
 
 def _declared_trump(game: n.Game) -> Any:
-    """What the game's Trick Rounds say their trump is: a suit name, a
-    `NameRef` to the State Variable holding it, or None where they declare
+    """What the game's Trick Rounds say their trump is: a `NameRef` to the
+    suit, or to the State Variable holding it, or None where they declare
     none. A game whose rounds disagree returns `_DISAGREE` — which round a
     decision belongs to is not a fact the view carries, so a policy that
-    picked one would be picking.
-
-    The top-level `trump:` declaration is the fallback for a game that states
-    it once for the whole game rather than on the round."""
+    picked one would be picking."""
     specs = [rnd.trump for rnd in _trick_rounds(game)]
     if not specs:
-        return game.trump
+        return None
     first = specs[0]
     for other in specs[1:]:
         if _spec_key(other) != _spec_key(first):
             return _DISAGREE
-    return first if first is not None else game.trump
+    return first
 
 
 def _spec_key(spec: Any) -> Any:

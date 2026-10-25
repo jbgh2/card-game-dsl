@@ -322,10 +322,10 @@ MIGRATIONS: tuple[Migration, ...] = (
         "belote_stream_hashes.json",
         reshaped_traces=frozenset({"trick_end"}),
     ),
-    # Skat and French Tarot re-enter for their Trick Order's move from the
-    # `trick_order { }` block to the functions it lowers to (issue #943). The
-    # block and the functions are one answer to the kernel's contracts, so
-    # nothing retires or reshapes: the whole trace channel is pinned.
+    # Skat and French Tarot are pinned across their Trick Order's move from
+    # rows to the functions (issue #943): one answer to the kernel's
+    # contracts, so nothing retires or reshapes and the whole trace channel
+    # is pinned.
     Migration("skat.cardlang", "skat_stream_hashes.json"),
     Migration("french-tarot.cardlang", "french_tarot_stream_hashes.json"),
     # Spades states its fixed trump on its round rather than in the game-level

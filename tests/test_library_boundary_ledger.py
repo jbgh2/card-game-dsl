@@ -145,8 +145,6 @@ from cardlang.builtins.functions import (
 from cardlang.kernel_contracts import (
     CONTRACTS,
     TRICK_ORDER_CONTRACTS as TRICK_ORDER_READERS,
-    TRICK_ORDER_ROW_CONTRACTS as TRICK_ORDER_ROWS,
-    TRICK_ORDER_ROW_KEYS,
 )
 from cardlang.deckcheck import check_capacity
 from cardlang.diagnostics import DiagnosticError, line_kind
@@ -280,7 +278,7 @@ def _assert_told(cell: Crossing, bag: list[str]) -> None:
         assert any(needle in line for line in bag), f"{needle!r} not said:\n{text}"
 
 
-# --- game to library: a Trick Order row calling a library function --------------
+# --- game to library: a Trick Order answer calling a library function -----------
 #
 # The row's arms are `resolve._check_answer_hermeticity`'s refusals, each read
 # off its registry: every pronoun, a `choose`, every zone type, a bare family,
@@ -293,7 +291,6 @@ _TRICK_HOST = """game Boundary {{
   ranking: aces high
   {clauses}
   uses boundarylib
-  trick_order {{ {rows} }}
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile  {zones} }}
   state {{ score[player] : Integer = 0  who : Player = 0 }}
   phase play {{
@@ -302,26 +299,31 @@ _TRICK_HOST = """game Boundary {{
   }}
   winner: highest score
 }}
+{answers}
 """
 
-# How each row asks a Boolean `libf(card)`, typed as the row's own value.
+# How each answer asks a Boolean `libf(card)`, typed as the row's own value.
 _ROW_ASKS = {
-    "trump": "libf(card)",
+    "is_trump": "libf(card)",
     "follow_class": "if libf(card) then card.suit else card.suit",
     "card_strength": "if libf(card) then 1 else 2",
 }
-# Each row's own body where the cell does not probe it.
+# Each answer's own body where the cell does not probe it.
 _ROW_DEFAULT = {
-    "trump": "card.suit is hearts",
+    "is_trump": "card.suit is hearts",
     "follow_class": "card.suit",
     "card_strength": "rank_value(card)",
 }
 
 
-def _rows(probed: str) -> str:
-    return "  ".join(
-        f"{key}: {_ROW_ASKS[key] if key == probed else _ROW_DEFAULT[key]}"
-        for key in TRICK_ORDER_ROW_KEYS
+def _answer_text(key: str, body: str) -> str:
+    return f"function {key}(card : Card) = {body}"
+
+
+def _answers(probed: str) -> str:
+    return "\n".join(
+        _answer_text(key, _ROW_ASKS[key] if key == probed else _ROW_DEFAULT[key])
+        for key in TRICK_ORDER_READERS
     )
 
 
@@ -428,7 +430,7 @@ def _call_arms() -> dict[str, RowArm]:
 
 
 def _reader_arms(row: str) -> dict[str, RowArm]:
-    order = {key: at for at, (key, _) in enumerate(TRICK_ORDER_ROWS)}
+    order = {key: at for at, key in enumerate(TRICK_ORDER_READERS)}
     spelled = {
         "is_trump": "is_trump(c)",
         "follow_class": "follow_class(c) is c.suit",
@@ -436,8 +438,8 @@ def _reader_arms(row: str) -> dict[str, RowArm]:
     }
     assert set(spelled) == set(TRICK_ORDER_READERS)
     arms: dict[str, RowArm] = {}
-    for key, reader in TRICK_ORDER_ROWS:
-        earlier = order[key] < order[row]
+    for reader in TRICK_ORDER_READERS:
+        earlier = order[reader] < order[row]
         # A library reaches a Trick Order fact through its contract row.
         arms[f"reader-{reader}"] = RowArm(
             spelled[reader], None if earlier else GAME, requires=CONTRACTS[reader].spelled
@@ -469,11 +471,11 @@ def _row_crossing(row: str, arm: RowArm) -> Crossing:
         f"library {_LIB} {{\n  requires {{ {requires} }}\n"
         f"  function libf(c : Card) = {arm.body}\n}}\n"
     )
-    host = _TRICK_HOST.format(clauses=arm.clauses, rows=_rows(row), zones=arm.zones)
+    host = _TRICK_HOST.format(clauses=arm.clauses, answers=_answers(row), zones=arm.zones)
     twin = host.replace(f"  uses {_LIB}\n", "") + f"function libf(c : Card) = {arm.body}\n"
     return Crossing(
         library, host, arm.owner,
-        anchor=f"{row}: {_ROW_ASKS[row]}",
+        anchor=_answer_text(row, _ROW_ASKS[row]),
         needles=("`libf`",) if arm.owner == GAME else (),
         twin=twin,
     )
@@ -482,7 +484,7 @@ def _row_crossing(row: str, arm: RowArm) -> Crossing:
 def _row_cells() -> list[object]:
     return [
         pytest.param(row, arm, id=f"{row}-{arm}")
-        for row in TRICK_ORDER_ROW_KEYS
+        for row in TRICK_ORDER_READERS
         for arm in _row_arms(row)
     ]
 
@@ -1594,6 +1596,14 @@ _JUDGED_ONCE_KNOWN: dict[str, tuple[str, str, str, str | None]] = {
         "demands: cards in hand where true if_impossible: hand } }",
         _PIECE_HOST, USES, None,
     ),
+    # No game clause states a library round's trump, so a round whose winner
+    # reads one and that states none is the library's own mistake.
+    "round-reading-an-unstated-trump": (
+        f"library {_LIB} {{ {_ROUND_REQUIRES} move_type lm {{ effect {{ round play_to_trick "
+        "from actor over all players source hand into pile winner highest_trump_or_led_suit } } }",
+        _ACTIVATING_HOST.replace("BODY", "turns t from 0 over all players until true { offer to t one of [lm] }"),
+        LIBRARY, None,
+    ),
     "round-early-predicate": (
         f"library {_LIB} {{ {_ROUND_REQUIRES} procedure lr(p : Player) {{ round play_to_trick "
         "from p over all players source hand into pile winner highest_of_led_suit "
@@ -1610,10 +1620,36 @@ _JUDGED_ONCE_KNOWN: dict[str, tuple[str, str, str, str | None]] = {
     ),
     "row-reaching-a-primitive": (
         f"library {_LIB} {{ function lp(c : Card) = skat_next_bid(0) > 3 }}",
-        _TRICK_HOST.format(clauses="", rows=_rows("trump").replace("libf(card)", "lp(card)"), zones=""),
+        _TRICK_HOST.format(clauses="", answers=_answers("is_trump").replace("libf(card)", "lp(card)"), zones=""),
         LIBRARY, None,
     ),
 }
+
+
+def test_a_library_rounds_unstated_trump_names_fixes_a_library_can_take(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A library names no suit and answers no contract, so the refusal's fix
+    in a library's file is a suit the game supplies, or the game's Trick
+    Order, and each remedy, written as the refusal says, checks clean.
+
+    red under: dropping the library arm of the unstated-trump fix in
+    `resolve._check_trick_order_partition` -- the sentence then offers
+    `trump <suit>`, which a library cannot spell."""
+    library, game, owner, anchor = _JUDGED_ONCE_KNOWN["round-reading-an-unstated-trump"]
+    (told,) = _errors(_bag(monkeypatch, library, game))
+    assert "`requires { trump_suit : Suit }`" in told, told
+    assert "trump trump_suit" in told and "highest_by_trick_order" in told, told
+    assert "trump <suit>" not in told, told
+    required = library.replace(
+        "pile : Discard }", "pile : Discard  trump_suit : Suit }"
+    ).replace("highest_trump_or_led_suit }", "highest_trump_or_led_suit trump trump_suit }")
+    assert required != library
+    supplied = game.replace("state {", "state { trump_suit : Suit = hearts ", 1)
+    assert _bag(monkeypatch, required, supplied) == []
+    by_order = library.replace("highest_trump_or_led_suit", "highest_by_trick_order")
+    answered = game + "function is_trump(card : Card) = card.suit is hearts\n"
+    assert _bag(monkeypatch, by_order, answered) == []
 
 
 @pytest.mark.parametrize("case", sorted(_JUDGED_ONCE_KNOWN))
@@ -1869,7 +1905,7 @@ def _unproven_cells() -> dict[str, tuple[Crossing, bool]]:
     two_seats = _RUN_CASES["two-seats"].crossing()
     idle = _run_game("score[0] := 1")
     return {
-        "row": (_row_crossing("trump", _row_arms("trump")["pronoun-actor"]), True),
+        "row": (_row_crossing("is_trump", _row_arms("is_trump")["pronoun-actor"]), True),
         "no-one-acts": (_unacting_crossing(R._NO_ACTOR_STATEMENT, "actor"), True),
         "run": (two_seats, True),
         "run-refused-witness": (replace(two_seats, witnesses=(two_seats.game,)), True),
@@ -1909,17 +1945,19 @@ def test_an_unproven_library_says_so_on_the_uses_line(
 
 _SENTENCES: dict[str, str] = {
     "row": (
-        "`trump:` reads zone 'probe' (HiddenPile) through library 'boundarylib''s "
-        "function `libf`, which does not project identity to every observer — a "
-        "Trick Order is public by construction and may read only fully public "
-        "zones. `libf` is library 'boundarylib''s, so write the fact in the row "
-        "from the card and public state instead of calling it"
+        "function `is_trump` reads zone 'probe' (HiddenPile) through library "
+        "'boundarylib''s function `libf`, which does not project identity to every "
+        "observer — the kernel reads `is_trump` as a public fact of the card, so it "
+        "may read only fully public zones. `libf` is library 'boundarylib''s, so "
+        "write the fact in the answer itself, from the card and public state, "
+        "instead of calling it"
     ),
     "row-bare-family": (
-        "`trump:` reads `shown` bare (the acting player's instance) through "
-        "library 'boundarylib''s function `libf` — a Trick Order row has no acting "
-        "player. `libf` is library 'boundarylib''s, so write the fact in the row "
-        "from the card and public state instead of calling it"
+        "function `is_trump` reads `shown` bare (the acting player's instance) "
+        "through library 'boundarylib''s function `libf` — the kernel asks "
+        "`is_trump` with no acting player. `libf` is library 'boundarylib''s, so "
+        "write the fact in the answer itself, from the card and public state, "
+        "instead of calling it"
     ),
     "rule": (
         "rule 'Probed' calls library 'boundarylib''s function `libbare` from its "
@@ -1948,8 +1986,8 @@ _SENTENCES: dict[str, str] = {
 
 def _sentence_cell(name: str) -> Crossing:
     return {
-        "row": lambda: _row_crossing("trump", _row_arms("trump")["zone-HiddenPile"]),
-        "row-bare-family": lambda: _row_crossing("trump", _row_arms("trump")["bare-family"]),
+        "row": lambda: _row_crossing("is_trump", _row_arms("is_trump")["zone-HiddenPile"]),
+        "row-bare-family": lambda: _row_crossing("is_trump", _row_arms("is_trump")["bare-family"]),
         "rule": lambda: _play_source_crossing("demands"),
         "no-one-acts": lambda: _unacting_crossing(R._NO_ACTOR_GATE, "choose"),
         "hosted-poll": lambda: _poll_crossing("run", "Transfer"),
@@ -1967,15 +2005,15 @@ def test_the_sentence_a_game_author_reads(monkeypatch: pytest.MonkeyPatch, name:
 
 
 def test_the_row_remedy_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
-    """"write the fact in the row from the card and public state instead of
-    calling it": the row written that way, the library still used, checks
+    """"write the fact in the answer itself, from the card and public state,
+    instead of calling it": the answer written that way, the library still used, checks
     clean, for every row and every arm the game owns."""
-    for row in TRICK_ORDER_ROW_KEYS:
+    for row in TRICK_ORDER_READERS:
         for name, arm in _row_arms(row).items():
             if arm.owner != GAME:
                 continue
             cell = _row_crossing(row, arm)
-            fixed = cell.game.replace(f"{row}: {_ROW_ASKS[row]}", f"{row}: {_ROW_DEFAULT[row]}")
+            fixed = cell.game.replace(_answer_text(row, _ROW_ASKS[row]), _answer_text(row, _ROW_DEFAULT[row]))
             assert fixed != cell.game
             assert _bag(monkeypatch, cell.library, fixed) == [], (row, name)
 
@@ -2133,7 +2171,7 @@ def test_every_crossing_walker_is_classified() -> None:
 
 def _game_to_library_cells() -> list[Crossing]:
     cells: list[Crossing] = []
-    for row in TRICK_ORDER_ROW_KEYS:
+    for row in TRICK_ORDER_READERS:
         cells.extend(_row_crossing(row, arm) for arm in _row_arms(row).values())
     cells.extend(
         _unacting_crossing(place, need) for place in _UNACTING_PLACES for need in _UNACTING_NEEDS

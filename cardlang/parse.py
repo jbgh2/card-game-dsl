@@ -41,12 +41,12 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               grammar. The zone ``type_ref``
               and a library's ``require_decl`` carry the OTHER reading of
               `<...>` — an index domain, derived through ``type_args`` — and
-              which shapes those admit is resolve's. The two block spellings
-              of a Kernel Definition Contract's answer reach the AST lowered:
-              the `card_points { }` table and each `trick_order { }` row are
-              the ``n.FunctionDef`` a designer would write by hand, node for
-              node modulo spans, stamped ``spelled_as`` with the spelling
-              written, which only a refusal's words read.
+              which shapes those admit is resolve's. The block spelling of a
+              Kernel Definition Contract's answer reaches the AST lowered: the
+              `card_points { }` table is the ``n.FunctionDef`` a designer
+              would write by hand, node for node modulo spans, stamped
+              ``spelled_as`` with the spelling written, which only a
+              refusal's words read.
 Now illegal:  ill-formed syntax; it cannot reach any later pass. Also a block
               spelling of a contract answer anywhere below the parser: no
               node or ``Game`` field holds one. Also naming a
@@ -106,7 +106,6 @@ from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
 from cardlang.ast import nodes as n
-from cardlang.kernel_contracts import TRICK_ORDER_ROW_CONTRACTS, TRICK_ORDER_ROW_KEYS
 from cardlang.diagnostics import (
     Diagnostic,
     DiagnosticBag,
@@ -166,32 +165,6 @@ class _CardPointsTable:
 
 
 @dataclass(frozen=True, slots=True)
-class _TrickOrderRow:
-    """One `trick_order { }` row as written: `<key>: <expr>`, the body over
-    the implicit `card`."""
-
-    key: str
-    body: n.Expr
-    span: Span
-
-
-@dataclass(frozen=True, slots=True)
-class _TrickOrder:
-    """The `trick_order { }` clause as written, carried to the game builder,
-    which lowers each row to the answer of its contract
-    (`_lower_trick_order`)."""
-
-    rows: tuple[_TrickOrderRow, ...]
-    span: Span
-
-
-@dataclass(frozen=True, slots=True)
-class _Trump:
-    suit: str
-    span: Span
-
-
-@dataclass(frozen=True, slots=True)
 class _PrimitiveArrowDecl:
     """A `primitives` entry written with the arrow return spelling, carried
     only far enough for the reject callback to name the offending entry at its
@@ -207,17 +180,6 @@ class _PrimitiveDefaultDecl:
     way and for the same reason as `_PrimitiveArrowDecl`."""
 
     decl: n.PrimitiveDecl
-    span: Span
-
-
-@dataclass(frozen=True, slots=True)
-class _TrickOrderEqRow:
-    """An assignment-shaped Trick Order row (`trump = ...` / `trump := ...`),
-    carried only far enough for the reject callback to name the offending key
-    and operator at its own span."""
-
-    key: str
-    op: str
     span: Span
 
 
@@ -484,8 +446,8 @@ class _Builder(Transformer[Token, n.Game]):
 
         span = self._span(meta)
         # `suit ranking:` is the one game clause whose first word is also a
-        # name, so a clause above it left without its value (`trump:`,
-        # `uses`, `loser:` ...) takes `suit` as that value and the rest of the
+        # name, so a clause above it left without its value (`uses`,
+        # `loser:` ...) takes `suit` as that value and the rest of the
         # line parses as `ranking:` — a whole parse with the clause gone. No
         # sentence of the language puts `suit` before `ranking:` on its line.
         before = self._text[: meta.start_pos].rstrip(" \t")
@@ -814,119 +776,32 @@ class _Builder(Transformer[Token, n.Game]):
             )
         )
 
-    # --- the Trick Order block (decisions.md "Trick Order"; issue #250) ------
+    # --- the retired Trick Order block and game-level trump clause -----------
     #
-    # The row set is `TRICK_ORDER_ROW_CONTRACTS`, and it is stated there ONLY: the
-    # grammar's key terminal matches any identifier, and these callbacks
-    # validate against the registry. That is what keeps a row added to the
-    # language from needing a grammar edit, and what lets a wrong key be
-    # refused by NAMING the rows rather than dying as a bare syntax error.
+    # Neither is the language (decisions.md "Trick Order"); each twin names the
+    # form that replaced it, in sentences that check clean as written.
 
-    def trick_order_row(self, meta: Meta, c: list[object]) -> _TrickOrderRow:
-        key = str(c[0])
-        assert isinstance(c[1], n.Expr)
-        if key not in TRICK_ORDER_ROW_KEYS:
-            raise DiagnosticError(
-                Diagnostic(
-                    Severity.ERROR,
-                    f"`{key}:` is not a row of `trick_order` — the rows are "
-                    + ", ".join(f"`{k}:`" for k in TRICK_ORDER_ROW_KEYS),
-                    self._span(meta),
-                )
-            )
-        return _TrickOrderRow(key=key, body=c[1], span=self._span(meta))
-
-    def trick_order(self, meta: Meta, c: list[object]) -> _TrickOrder:
-        rows = tuple(x for x in c if isinstance(x, _TrickOrderRow))
-        seen: set[str] = set()
-        for row in rows:
-            if row.key in seen:
-                # A repeat would silently replace the first — the
-                # accepted-but-ignored class, refused at its own row's span.
-                raise DiagnosticError(
-                    Diagnostic(
-                        Severity.ERROR,
-                        f"`trick_order` declares one `{row.key}:` row — the "
-                        f"repeat would silently replace the first; keep one",
-                        row.span,
-                    )
-                )
-            seen.add(row.key)
-        if "trump" not in seen:
-            # Required, both counsels and the operator's ruling: every Trick
-            # Order names its trumps, and a game with none says so rather than
-            # leaving the reader to infer it from an absence.
-            raise DiagnosticError(
-                Diagnostic(
-                    Severity.ERROR,
-                    "`trick_order` declares no `trump:` row — every Trick "
-                    "Order names its trumps; write `trump: false` for one "
-                    "with none (a game writing `is_trump` as a function "
-                    "writes the block's other rows as functions too)",
-                    self._span(meta),
-                )
-            )
-        return _TrickOrder(rows=rows, span=self._span(meta))
-
-    def trick_order_colon_reject(self, meta: Meta, c: list[object]) -> None:
+    def trick_order_retired_reject(self, meta: Meta, c: list[object]) -> None:
         raise DiagnosticError(
             Diagnostic(
                 Severity.ERROR,
-                "`trick_order` is a block clause and takes no colon — write "
-                "`trick_order { trump: ... }`",
+                "a Trick Order is three functions, not a block: write "
+                "`function is_trump(card : Card) = …`, with "
+                "`function follow_class(card : Card) = …` where the printed suit "
+                "is not the answer and `function card_strength(card : Card) = …` "
+                "where `rank_value` is not",
                 self._span(meta),
             )
         )
 
-    def trick_order_comma_reject(self, meta: Meta, c: list[object]) -> None:
-        first, second = TRICK_ORDER_ROW_KEYS[0], TRICK_ORDER_ROW_KEYS[1]
+    def trump_clause_retired_reject(self, meta: Meta, c: list[object]) -> None:
         raise DiagnosticError(
             Diagnostic(
                 Severity.ERROR,
-                f"`trick_order` rows are whitespace-separated, never "
-                f"comma-separated — write `trick_order {{ {first}: ...  "
-                f"{second}: ... }}`",
-                self._span(meta),
-            )
-        )
-
-    def trick_order_eq_row(self, meta: Meta, c: list[object]) -> _TrickOrderEqRow:
-        return _TrickOrderEqRow(str(c[0]), str(c[1]), span=self._span(meta))
-
-    def trick_order_eq_reject(self, meta: Meta, c: list[object]) -> None:
-        # The first assignment-shaped row speaks, so a block mixing one wrong
-        # row among colon rows is refused at the row that is wrong.
-        bad = next(x for x in c if isinstance(x, _TrickOrderEqRow))
-        rows = ", ".join(f"`{k}:`" for k in TRICK_ORDER_ROW_KEYS)
-        message = (
-            f"a `trick_order` row is `{bad.key}: <expr>`, not "
-            f"`{bad.key} {bad.op} <expr>` — write `{bad.key}: ...`"
-            if bad.key in TRICK_ORDER_ROW_KEYS
-            else f"`{bad.key} {bad.op} <expr>` is not a row of `trick_order`, nor "
-            f"is `{bad.key}:` — the rows are {rows}, each `key: <expr>`"
-        )
-        raise DiagnosticError(Diagnostic(Severity.ERROR, message, bad.span))
-
-    def trump(self, meta: Meta, c: list[Token]) -> _Trump:
-        return _Trump(str(c[0]), span=self._span(meta))
-
-    def trump_int_reject(self, meta: Meta, c: list[Token]) -> None:
-        raise DiagnosticError(
-            Diagnostic(
-                Severity.ERROR,
-                "`trump:` names a suit of the declared deck by its bare name "
-                "(`trump: spades`), not a number",
-                self._span(meta),
-            )
-        )
-
-    def trump_string_reject(self, meta: Meta, c: list[Token]) -> None:
-        raise DiagnosticError(
-            Diagnostic(
-                Severity.ERROR,
-                "`trump:` names a suit of the declared deck by its bare name "
-                "(`trump: spades`), not a quoted string — write the suit "
-                "unquoted",
+                "`trump:` is not a clause: a fixed trump is written on the round, "
+                "`winner highest_trump_or_led_suit trump spades`, or, where the "
+                "game answers `is_trump`, the suit is written there: "
+                "`function is_trump(card : Card) = card.suit is spades`",
                 self._span(meta),
             )
         )
@@ -1998,7 +1873,6 @@ class _Builder(Transformer[Token, n.Game]):
         # The answers the block spellings lower to, in source order.
         lowered: list[n.FunctionDef] = []
         primitives: n.PrimitivesBlock | None = None
-        trump: str | None = None
         teams: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
         positions: tuple[n.PositionDecl, ...] = ()
@@ -2061,15 +1935,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _CardPointsTable):
                 once("card_points { }", item.span, merge_hint=True)
                 lowered.append(_lower_card_points(item))
-            elif isinstance(item, _TrickOrder):
-                once("trick_order { }", item.span, merge_hint=True)
-                lowered.extend(_lower_trick_order(item))
             elif isinstance(item, n.PrimitivesBlock):
                 once("primitives { }", item.span, merge_hint=True)
                 primitives = item
-            elif isinstance(item, _Trump):
-                once("trump:", item.span)
-                trump = item.suit
             elif isinstance(item, _Teams):
                 once("teams:", item.span)
                 teams = item.teams
@@ -2157,7 +2025,6 @@ class _Builder(Transformer[Token, n.Game]):
             suit_ranking=suit_ranking,
             primitives=primitives,
             functions=tuple(lowered),
-            trump=trump,
             teams=teams,
             positions=positions,
             board=board,
@@ -2413,23 +2280,6 @@ def _lower_card_points(table: _CardPointsTable) -> n.FunctionDef:
     )
 
 
-def _lower_trick_order(block: _TrickOrder) -> tuple[n.FunctionDef, ...]:
-    """Each `trick_order { }` row as the answer to its contract:
-    `<key>: <expr>` is `function <contract>(card : Card) = <expr>`, the row's
-    own body unchanged, since the row's implicit binder is already `card`."""
-    contract = dict(TRICK_ORDER_ROW_CONTRACTS)
-    return tuple(
-        n.FunctionDef(
-            name=contract[row.key],
-            params=(n.Parameter("card", "Card", span=row.span),),
-            body=row.body,
-            span=row.span,
-            spelled_as=n.LoweredSpelling("trick_order_row", row.key, span=block.span),
-        )
-        for row in block.rows
-    )
-
-
 def _as_expr(value: object) -> n.Expr:
     """Assert a transformer child is an expression node (helps mypy + catches
     transform gaps loudly)."""
@@ -2461,7 +2311,6 @@ _WORD_OVERRIDES: dict[str, str] = {
     "NAME": "a name",
     "QNOUN": "a name",
     "CARD_POINTS_KEY": "a name",
-    "TRICK_ORDER_KEY": "a name",
     "CARD_RANK_NAME": "a rank name",
     "SUIT_RANKING_NAME": "a suit name",
     "INT": "a whole number",

@@ -141,9 +141,8 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               a ``round``'s query slot, refused to the library's author
               (``_check_library_encapsulation``) before the splice; the
               slot registries are ``_ROUND_QUERY_REGISTRIES``, which
-              ``_validate_refs`` reads for every round. And a game-level
-              ``trump:`` that is not a suit of the deck (``_resolve_trump``),
-              and a round ``trump`` clause on a winner whose body reads no
+              ``_validate_refs`` reads for every round. And a round
+              ``trump`` clause on a winner whose body reads no
               trump (the winner-slot arm of ``_validate_refs``; the
               partition is ``TRUMP_READING_WINNERS``). And a game clause
               some ``_CLAUSE_GATES`` row reads (``role == "reader"``),
@@ -836,7 +835,6 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.CardLiteral, "suit"): "deck_suit",
     (n.Game, "ranking"): "deck_rank",
     (n.CardPointsEntry, "rank"): "deck_rank",
-    (n.Game, "trump"): "deck_suit",
     (n.SuitRanking, "suits"): "deck_suit",
     (n.Game, "direction"): "enum_value",
     (n.RotateStmt, "values"): "enum_value",
@@ -927,9 +925,8 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Winner, "rank_dir"),
         (n.Game, "ranking_convention"),
         # The lowering stamp's two words: `form` is a `Literal`, and `key`
-        # names a row of `kernel_contracts.TRICK_ORDER_ROW_CONTRACTS` (or the
-        # table), a fixed set the parse builder lowers by, never a
-        # designer-authored name in any namespace.
+        # names the contract the table answers, never a designer-authored
+        # name in any namespace.
         (n.LoweredSpelling, "form"),
         (n.LoweredSpelling, "key"),
         # Annotated `Flavor` (a `Literal`), not `str` — which is exactly why it
@@ -1776,7 +1773,7 @@ def _round_trump_clauses(node: object, game: n.Game) -> tuple[str, ...]:
 
 def _unstated_trump_slots(node: object, game: n.Game) -> tuple[str, ...]:
     """A trick round naming a winner that reads a trump, with no `trump`
-    clause of its own: its trump is the game's `trump:`."""
+    clause of its own."""
     if (
         isinstance(node, n.TrickRound)
         and node.winner_fn in TRUMP_READING_WINNERS
@@ -1839,43 +1836,19 @@ _NO_RANKING = "this game declares no `ranking:`"
 _NO_TEAMS = "this game declares no `teams:`"
 # What a game without a Trick Order writes to have one.
 _ANSWER_IS_TRUMP = (
-    "answer `is_trump`: write `function is_trump(c : Card) = …`, or "
-    "`function is_trump(c : Card) = false` for a game with no trumps"
+    "answer `is_trump`: write `function is_trump(card : Card) = …`, or "
+    "`function is_trump(card : Card) = false` for a game with no trumps"
 )
 
 
 def _trick_order_named(game: n.Game) -> Said:
-    """The game's Trick Order in the spelling the designer wrote it: the block,
-    or the `is_trump` function."""
-    answer = K.answer(game, K.TRICK_ORDER_KEY_CONTRACT)
-    if answer is not None and answer.spelled_as is not None:
-        return "a `trick_order { }` block"
+    """The game's Trick Order, named by the function that declares it."""
     return "function " + _cite_in(game, "function", "is_trump", "`is_trump`")
 
 
-def _trick_order_block(game: n.Game) -> bool:
-    """Whether the game's Trick Order is spelled as a `trick_order { }` block."""
-    answer = K.answer(game, K.TRICK_ORDER_KEY_CONTRACT)
-    return answer is not None and answer.spelled_as is not None
-
-
-def _declares_trick_order(game: n.Game) -> str:
-    """A gate's words for a game with a Trick Order, naming the block where
-    the game wrote one."""
-    if _trick_order_block(game):
-        return "this game declares a Trick Order (a `trick_order { }` block)"
-    return "this game declares a Trick Order"
-
-
 def _drop_trick_order(game: n.Game) -> str:
-    """How the designer removes the game's Trick Order, in the spellings it
-    is written in: the block, its functions, or both."""
-    spellings = {a.spelled_as is not None for a in K.trick_order_answers(game)}
-    if spellings == {True}:
-        return "drop the block"
-    if spellings == {False}:
-        return "drop the Trick Order's functions"
-    return "drop the block and the Trick Order's functions"
+    """How the designer removes the game's Trick Order."""
+    return "drop the Trick Order's functions"
 
 
 def _trick_order_fix(game: n.Game) -> str:
@@ -1888,7 +1861,7 @@ def _trick_order_fix(game: n.Game) -> str:
 def _card_points_fix(game: n.Game) -> str:
     return (
         "declare a `card_points { }` table, or write "
-        "`function card_points(c : Card) = …`"
+        "`function card_points(card : Card) = …`"
     )
 
 
@@ -1916,22 +1889,12 @@ _TRICK_ORDER_READING_GATE = _ClauseGate(
     clause="trick_order",
     role="reader",
 )
-_TRUMP_STATED_GATE = _ClauseGate(
-    _unstated_trump_slots,
-    lambda g: g.content_flavor == "card" and not K.has_trick_order(g) and g.trump is None,
-    "writes",
-    "read the game's trump",
-    lambda g: "this game states none",
-    lambda g: "state it with `trump: <suit>`",
-    clause="trump",
-    role="reader",
-)
 _TRICK_ORDER_REPLACED_GATE = _ClauseGate(
     _trick_order_replaced_slots,
     lambda g: g.content_flavor == "card" and K.has_trick_order(g),
     "writes",
     "carry the trump and card order a Trick Order replaces",
-    _declares_trick_order,
+    lambda g: "this game declares a Trick Order",
     _trick_order_fix,
     clause="trick_order",
     role="beside",
@@ -2052,12 +2015,11 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
         role="reader",
     ),
     _TRICK_ORDER_READING_GATE,
-    _TRUMP_STATED_GATE,
     _builtin_gate(
         TRICK_ORDER_EXCLUDED_FUNCS,
         lambda g: K.has_trick_order(g),
         "read the trump and led suit a trick round names",
-        lambda g: f"{_declares_trick_order(g)}, which replaces them",
+        lambda g: "this game declares a Trick Order, which replaces them",
         _trick_order_fix,
         clause="trick_order",
         role="beside",
@@ -2964,13 +2926,7 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 # `library`, `component_set`, `board_family`, `zone_type`, `zone_type_arg` and
 # `param`, each because its clause — `active_rules:`, `zones { }`, `cards:`,
 # `board:`, `uses`, `primitives { }` — is a GAME clause the library grammar has
-# no production for. One
-# SLOT of a swept namespace is unreachable the same way and is recorded here
-# rather than as a row, since its namespace is swept and a row would read as
-# "not swept": `deck_suit` is swept for the card literal's suit, which a
-# library can write, and vacuous for `(n.Game, "trump")` — `trump:` is a game
-# clause with no library production, so no library ever names a suit there;
-# the value's Owner Guard is `_resolve_trump`, over the game.)
+# no production for.)
 #
 # Three shapes of reason, and they are not interchangeable. CLOSED: the
 # namespace is the same for a library as for a game, so no importing game can
@@ -4529,11 +4485,8 @@ def resolve(game: n.Game) -> n.Game:
     refused_clauses: set[str] = set()
     game = _resolve_card_points(game, bag, refused_clauses)
     _resolve_suit_ranking(game, bag, refused_clauses)
-    # Before `_resolve_trump`, which returns early on a block game: R1 owns the
-    # game-clause-beside-a-block cell, so the two never co-report on it.
     _check_trick_order_partition(game, bag, refused_clauses)
     _check_piece_rounds(game, bag)
-    _resolve_trump(game, bag, refused_clauses)
     _check_duplicate_names(game, bag)
     _check_climb_action_names(game, bag)
     _check_reserved_params(game, bag)
@@ -7456,12 +7409,9 @@ def _answered_in_two_spellings(first: object, second: object) -> bool:
 
 def _answer_spelling(answer: n.FunctionDef) -> Said:
     """An answer named as the designer wrote it, in a sentence about two."""
-    spelled = answer.spelled_as
-    if spelled is None:
+    if answer.spelled_as is None:
         return "function " + cite_named(answer, f"`{answer.name}`")
-    if spelled.form == "card_points_table":
-        return "the `card_points { }` table"
-    return f"the `trick_order {{ }}` block's `{spelled.key}:` row"
+    return "the `card_points { }` table"
 
 
 def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> set[str]:
@@ -7482,7 +7432,7 @@ def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> set[str]:
         bag.error(
             f"function " + cite_named(answer, f"`{answer.name}`") + f" answers the "
             f"kernel's `{row.spelled}`, so it takes exactly one Card — write "
-            f"`function {answer.name}(c : Card) = …`",
+            f"`function {answer.name}(card : Card) = …`",
             answer.span or game.span,
         )
         refused.add("card_points" if answer.name == "card_points" else "trick_order")
@@ -7765,8 +7715,9 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
 
 
 def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
-    """`ranking:` and `trump:` read a deck's rank order and suits; a piece set
-    has neither, so both are rejected NAMING THE KIND in a piece game (rather
+    """`ranking:` and `suit ranking:` read a deck's rank order and suits, and
+    a card fact's answer a deck's cards; a piece set has none of them, so each
+    is rejected NAMING THE KIND in a piece game (rather
     than the silent no-op the `_deck_known` gate on `_expand_ranking`/
     `_resolve_ranking` would otherwise give -- accepted-but-ignored, either the
     enumeration or the convention form). A card game is unaffected."""
@@ -7785,27 +7736,14 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
             f"set has none of; drop the clause",
             game.suit_ranking.span or game.span,
         )
-    if game.trump is not None:
-        bag.error(
-            f"{kind} -- `trump:` names the suit that beats others in a trick, "
-            f"a card-play notion; drop the clause",
-            game.span,
-        )
     for answer in K.answers(game):
         spelled = answer.spelled_as
-        if spelled is not None and spelled.form == "card_points_table":
+        if spelled is not None:
             bag.error(
                 f"{kind} -- `card_points` prices a deck's cards by rank, which a "
                 f"piece set has no notion of; drop the clause",
                 answer.span or game.span,
             )
-        elif spelled is not None:
-            if spelled.key == "trump":  # one refusal for the block, at its `trump:` row
-                bag.error(
-                    f"{kind} — `trick_order` orders a deck's cards for trick play, "
-                    f"which a piece set has no notion of; drop the block",
-                    spelled.span or game.span,
-                )
         else:
             bag.error(
                 f"{kind} — function " + cite_named(answer, f"`{answer.name}`")
@@ -8279,7 +8217,7 @@ def _check_primitive_name(
         row = K.CONTRACTS[decl.name]
         bag.error(
             f"`{decl.name}` answers the kernel's `{row.spelled}`, which the game "
-            f"answers in the language (`function {decl.name}(c : Card) = …`), "
+            f"answers in the language (`function {decl.name}(card : Card) = …`), "
             f"so a `primitives` entry may not declare it; rename the Primitive",
             decl.span,
         )
@@ -8663,7 +8601,6 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     "ranking": "refused",
     "ranking_convention": "refused",
     "suit_ranking": "refused",
-    "trump": "refused",
     "teams": "refused",
     "positions": "refused",
     "board": "refused",
@@ -9265,30 +9202,32 @@ def _statement_owners(
 
 def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[str]) -> None:
     """The presence partition, both directions: a game either declares a
-    [[trick-order]] — it answers `is_trump`, in a `trick_order { }` block or a
-    function — and names the winner and calls that read it, or declares none
-    and names the round-configured ones. Never a mixture.
+    [[trick-order]] — it answers `is_trump` — and names the winner and calls
+    that read it, or declares none and names the round-configured ones. Never
+    a mixture.
 
     The Owner Guard for a class that would otherwise be silent in both
-    directions. WITH a Trick Order, the round-configured trumps (`trump:`, a
-    round's `trump` clause) and the winners that read them are not merely
+    directions. WITH a Trick Order, the round-configured trump (a round's
+    `trump` clause) and the winners that read it are not merely
     redundant — they describe a DIFFERENT order from the one the Trick Order
     declares, and the engine would quietly run one of the two. WITHOUT one,
     every gated name reads a table that was never materialized, which is a
     crash at play time rather than a diagnostic at check time; and an answer
     to `follow_class` or `card_strength` is a row of an order the game never
-    declares, which nothing would read.
+    declares, which nothing would read. A round whose winner reads a trump
+    and that states none is refused, wherever it is written: a game clause
+    that would state it does not exist, so a library's round is refused in
+    the library's own text.
 
-    A game-level `trump:` it refuses beside a Trick Order (R1) is handed to
-    `_check_unread_clauses` in `refused`; whether a Trick Order is read at all
-    is that law's question.
+    Whether a Trick Order is read at all is `_check_unread_clauses`' question.
     """
     if game.content_flavor != "card":
         return  # `_reject_card_content_clauses` already named the kind
     if not K.has_trick_order(game):
         # --- without a Trick Order: no gated name may appear ----------------
-        # A round spliced from a library is `_check_library_clause_gates`'s,
-        # which this loop and the round loops below shadow.
+        # A round spliced from a library whose winner reads the Trick Order is
+        # `_check_library_clause_gates`'s, which this loop shadows.
+        spliced = n.library_origins(game)
         for rnd in _trick_order_rounds(game):
             if _trick_order_reading_slots(rnd, game):
                 others = ", ".join(sorted(TRICK_WINNER_NAMES - TRICK_ORDER_GATED_WINNERS))
@@ -9298,18 +9237,25 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                     f"or name {others}",
                     rnd.span,
                 )
-            elif game.trump is None and _unstated_trump_slots(rnd, game):
+            elif _unstated_trump_slots(rnd, game):
                 # The round-configured twin of a Trick Order's required
-                # `is_trump`: a winner reading a trump the game never states
-                # would play no-trump. `trump: none` is `_resolve_trump`'s.
+                # `is_trump`: a winner reading a trump the round never states
+                # would play no-trump.
+                # A library names no suit and answers no contract, so its fix
+                # is a suit the game supplies, or the game's Trick Order.
+                fix = (
+                    f"require the suit from the game (`requires {{ trump_suit : "
+                    f"Suit }}`) and write it on the round (`... winner "
+                    f"{rnd.winner_fn} trump trump_suit`), or name "
+                    f"highest_by_trick_order, whose trump is the game's `is_trump`"
+                    if id(rnd) in spliced
+                    else f"write it on the round (`... winner {rnd.winner_fn} "
+                    f"trump <suit>`), or answer `is_trump` (`function "
+                    f"is_trump(card : Card) = …`) and name highest_by_trick_order"
+                )
                 bag.error(
                     f"round winner {rnd.winner_fn} reads a trump, but none is "
-                    f"stated — write it on the round (`... winner "
-                    f"{rnd.winner_fn} trump <suit>`) or as the game's "
-                    f"`trump: <suit>`, or answer `is_trump` "
-                    f"(`function is_trump(c : Card) = …`) and name "
-                    f"highest_by_trick_order; a no-trump trick names "
-                    f"highest_of_led_suit",
+                    f"stated — {fix}; a no-trump trick names highest_of_led_suit",
                     rnd.span,
                 )
         # A call spliced from a library is `_check_library_clause_gates`'s,
@@ -9335,47 +9281,19 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
 
     # --- with a Trick Order: the round-configured names are refused ----------
     named = _trick_order_named(game)
-    block = _trick_order_block(game)
-    if game.trump is not None:
-        refused.add("trump")
-        remedy = ""
-        if _deck_known(game.deck) and game.trump in suit_names(game.deck):
-            remedy = (
-                f" (for a fixed suit, `trump: card.suit is {game.trump}`)"
-                if block
-                else f" (for a fixed suit, `function is_trump(c : Card) = c.suit is {game.trump}`)"
-            )
-        trump_is = (
-            "the block's `trump:` row is the trump"
-            if block
-            else _cite_in(game, "function", "is_trump", "`is_trump`") + " is the trump"
-        )
-        bag.error(
-            f"`trump: {game.trump}` beside " + named + " — with a Trick Order "
-            + trump_is + f"{remedy}; drop the game-level clause",
-            game.span,
-        )
     for rnd in _trick_order_rounds(game):
         if _round_trump_clauses(rnd, game):
-            trump_is = (
-                "the block's `trump:` row is the trump"
-                if block
-                else _cite_in(game, "function", "is_trump", "`is_trump`") + " is the trump"
-            )
             bag.error(
-                "round `trump` clause beside " + named + " — " + trump_is
-                + "; drop the clause",
+                "round `trump` clause beside " + named + " — "
+                + _cite_in(game, "function", "is_trump", "`is_trump`")
+                + " is the trump; drop the clause",
                 rnd.span,
             )
         if _trick_order_excluded_winners(rnd, game):
             gated = ", ".join(sorted(TRICK_ORDER_GATED_WINNERS))
-            declares = (
-                "the block declares the Trick Order"
-                if block
-                else "it declares the game's Trick Order"
-            )
             bag.error(
-                f"round winner {rnd.winner_fn} beside " + named + f" — {declares}, and "
+                f"round winner {rnd.winner_fn} beside " + named + " — it declares "
+                f"the game's Trick Order, and "
                 f"{gated} is the winner that reads it; name that, or "
                 f"{_drop_trick_order(game)}",
                 rnd.span,
@@ -9408,13 +9326,9 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
             arg = "pile"
             if nd.args and isinstance(nd.args[0], n.NameRef):
                 arg = nd.args[0].name
-            rows_are = (
-                "the block's rows are the trick order"
-                if block
-                else "the Trick Order's functions are the trick order"
-            )
             bag.error(
-                f"`{nd.func}(...)` beside " + named + f" — {rows_are}; call "
+                f"`{nd.func}(...)` beside " + named + " — the Trick Order's "
+                f"functions are the trick order; call "
                 f"`{min(TRICK_ORDER_GATED_WINNERS)}({arg})`",
                 nd.span or game.span,
             )
@@ -9482,23 +9396,14 @@ def _entry_route(kind: str, entry: _LibraryEntry, fallback: Span | None) -> Rout
 @dataclass(frozen=True)
 class _AnswerVoice:
     """How a refusal names a Kernel Definition Contract's answer: in the
-    spelling the designer wrote. A `trick_order { }` row speaks as its row
-    (`` `trump:` ``), the `card_points { }` table as the table, and a written
-    function as itself."""
+    spelling the designer wrote. The `card_points { }` table speaks as the
+    table, and a written function as itself."""
 
     answer: n.FunctionDef
 
-    @property
-    def row(self) -> bool:
-        spelled = self.answer.spelled_as
-        return spelled is not None and spelled.form == "trick_order_row"
-
     def subject(self) -> Said:
-        spelled = self.answer.spelled_as
-        if spelled is None:
+        if self.answer.spelled_as is None:
             return "function " + cite_named(self.answer, f"`{self.answer.name}`")
-        if spelled.form == "trick_order_row":
-            return cite_named(self.answer, f"`{spelled.key}:`")
         return cite_named(self.answer, "`card_points { }`")
 
     @property
@@ -9643,13 +9548,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                 if fn is not None and nd.name in _CALL_SITE_PRONOUNS:
                     continue
                 reason = (
-                    f" — a Trick Order row is hermetic: it is asked from the "
-                    f"legality filter, the winner slot and a hand-rolled body "
-                    f"under different live frames, so it may read no pronoun "
-                    f"({', '.join(sorted(_PRONOUNS))}); a card's trick order is "
-                    f"a fact of the card and public state alone"
-                    if voice.row
-                    else " — the kernel asks " + voice.named() + f" from the legality "
+                    " — the kernel asks " + voice.named() + f" from the legality "
                     f"filter, the trick's winner, a hand-rolled body and the "
                     f"end-of-game census under different live frames, so it may "
                     f"read no pronoun ({', '.join(sorted(_PRONOUNS))}); it is a "
@@ -9662,10 +9561,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                 )
             elif isinstance(nd, n.Choose):
                 reason = (
-                    " — a Trick Order row is a fact, not a decision: it may "
-                    "not choose"
-                    if voice.row
-                    else " — " + voice.named() + f" is a fact the kernel reads, not a "
+                    " — " + voice.named() + f" is a fact the kernel reads, not a "
                     f"decision: it may not choose"
                 )
                 out.error(
@@ -9685,10 +9581,7 @@ def _check_answer_hermeticity(game: n.Game, bag: DiagnosticBag) -> set[str]:
                     f"phase '{p}'" for p in sorted(declaring_phases(game, nd.name))
                 )
                 scoped: Said = (
-                    " — a Trick Order is read where no phase frame stands, so a "
-                    "row may read only the game's own `state { }`"
-                    if voice.row
-                    else " — the kernel reads " + voice.named() + " where no phase "
+                    " — the kernel reads " + voice.named() + " where no phase "
                     "frame stands (the end-of-game card census among them), so it "
                     "may read only the game's own `state { }`"
                 )
@@ -9722,11 +9615,7 @@ def _check_answer_zone_read(
         return
     if not identity_to_all(ztype):
         reason = (
-            ", which does not project identity to every observer — a Trick "
-            "Order is public by construction and may read only fully public "
-            "zones"
-            if voice.row
-            else f", which does not project identity to every observer — the "
+            f", which does not project identity to every observer — the "
             "kernel reads " + voice.named() + f" as a public fact of the card, so it "
             f"may read only fully public zones"
         )
@@ -9757,9 +9646,7 @@ def _check_answer_zone_read(
                 )
             fix = f"; subscript it with a player the state names (`{nd.name}[{example}]`)"
         reason = (
-            f" — a Trick Order row has no acting player{fix}"
-            if voice.row
-            else " — the kernel asks " + voice.named() + f" with no acting player{fix}"
+            " — the kernel asks " + voice.named() + f" with no acting player{fix}"
         )
         bag.error(
             voice.subject() + f" reads `{nd.name}` bare (the acting player's "
@@ -9787,10 +9674,7 @@ def _check_answer_call(
         # in that registry at all, so it needs this arm rather than inheriting
         # the exclusion.
         reads = (
-            " — a Trick Order row reads the card and public state only, and "
-            "a Primitive reads whatever its `reads` clause names"
-            if voice.row
-            else " — " + voice.named() + f" reads the card and public state only, and "
+            " — " + voice.named() + f" reads the card and public state only, and "
             f"a Primitive reads whatever its `reads` clause names"
         )
         bag.error(
@@ -9812,9 +9696,7 @@ def _check_answer_call(
         return  # allowed, or a name no native registry claims
     if nd.func in TRICK_ORDER_GATED_FUNCS:
         defines = (
-            " — a row may not read the Trick Order it defines"
-            if voice.row
-            else " — " + voice.named() + f" may not read the Trick Order it helps define"
+            " — " + voice.named() + f" may not read the Trick Order it helps define"
         )
         bag.error(
             voice.subject() + f" calls `{nd.func}(...)`, which reads every row "
@@ -9822,11 +9704,9 @@ def _check_answer_call(
             span,
         )
         return
-    where = "a Trick Order row" if voice.row else voice.subject()
     bag.error(
-        f"`{nd.func}(...)` may not be called from " + where + through(fn)
-        + (" — a row reads the card and public state only" if voice.row
-           else " — " + voice.named() + f" reads the card and public state only"),
+        f"`{nd.func}(...)` may not be called from " + voice.subject() + through(fn)
+        + " — " + voice.named() + " reads the card and public state only",
         span,
     )
 
@@ -9839,40 +9719,17 @@ def _check_reference_order(
     bag: _ErrorSink,
     through: Callable[[str | None], Said],
 ) -> None:
-    """An answer's call of another answer: the Trick Order's rows read only
-    the rows BEFORE them, whatever order they are written in; `card_points`
-    is outside the order, callable from any answer and calling any. A call of
-    an answer's own name is the recursion guard's (`_check_functions`), except
-    from a `trick_order { }` row, which reads its own reader, directly or
-    through a designer function."""
+    """An answer's call of another answer: the Trick Order's answers read only
+    the answers BEFORE them, whatever order they are written in;
+    `card_points` is outside the order, callable from any answer and calling
+    any. A call of an answer's own name is the recursion guard's
+    (`_check_functions`)."""
     order = K.TRICK_ORDER_CONTRACTS
     caller, callee = voice.name, nd.func
     called = _cite_in(game, "function", callee, f"`{callee}(...)`")
-    if caller == callee:
-        if voice.row:
-            bag.error(
-                voice.subject() + " reads its own reader " + called + through(fn),
-                nd.span or voice.answer.span,
-            )
-        return
-    if caller not in order or callee not in order:
+    if caller == callee or caller not in order or callee not in order:
         return
     if order.index(callee) < order.index(caller):
-        return
-    if voice.row:
-        rows = Sentence.join(
-            ", then ",
-            (_cite_in(game, "function", c, f"`{k}:`") for k, c in K.TRICK_ORDER_ROW_CONTRACTS),
-        )
-        bag.error(
-            voice.subject() + " reads " + called + ", the reader of a row "
-            "that comes after it in the Trick Order" + through(fn)
-            + " — the rows are read in one order, " + rows + ", whatever order "
-            f"they are written in, and a row may read only the readers of "
-            f"the rows before it; spell the fact in this row, or move it "
-            f"to the later one",
-            nd.span or voice.answer.span,
-        )
         return
     names = Sentence.join(
         ", then ", (_cite_in(game, "function", c, f"`{c}`") for c in order)
@@ -9959,87 +9816,12 @@ def _arg_shape(arg: object) -> str:
             return "an expression"
 
 
-def _resolve_trump(game: n.Game, bag: DiagnosticBag, refused: set[str]) -> None:
-    """`trump: NAME` names a suit of the declared deck -- the membership Owner
-    Guard of the game-level trump slot.
-
-    The slot is grammatically a bare NAME (`trump: bogus`, a rank, a suit of
-    some other deck all parse), and the runtime compares the string against
-    card suits -- an unknown value would match nothing and the game would
-    silently play no-trumps (Surface totality: accepted-with-different-
-    semantics). Same two-source rule as `_resolve_ranking` and the card
-    literal's suit: the value derives from the deck (`suit_names`), so a
-    deck's pseudo-suits (tarot78's `excuse`, five_hundred43's `joker`) are
-    members -- they are the deck's suits, the same domain `Suit` types over.
-    `none` is a NAME too: refused with the omission that means no trump,
-    rather than accepted for the coincidence that no suit is spelled "none".
-
-    A clause refused here is handed to `_check_unread_clauses` in `refused`;
-    whether any round reads an accepted one is that law's question. A Trick
-    Order game's `trump:` is `_check_trick_order_partition`'s cell (R1), a piece
-    game's is `_reject_card_content_clauses`'s, and an unknown deck is
-    `_resolve_component_set`'s (the value has no domain to check against)."""
-    if game.trump is None or game.content_flavor != "card" or not _deck_known(game.deck):
-        return
-    if K.has_trick_order(game):
-        # R1's cell; returning here keeps the two from co-reporting.
-        return
-    if game.trump == "none":
-        bag.error(
-            "trump: none — no trump is the ABSENT clause: drop `trump: none`, "
-            "and give a no-trump trick a winner that reads none "
-            "(highest_of_led_suit); a round that turns a trump per hand writes "
-            "`trump <expr>` on the round, where `none` means no trump",
-            game.span,
-        )
-        refused.add("trump")
-        return
-    known = suit_names(game.deck)
-    if game.trump not in known:
-        bag.error(
-            f"trump: names unknown suit '{game.trump}' — not a suit of deck "
-            f"'{game.deck}' (known suits: {', '.join(sorted(known))})",
-            game.span,
-        )
-        refused.add("trump")
-
-
-def _unread_trump(game: n.Game, written: Sequence[object]) -> str:
-    readers = ", ".join(sorted(TRUMP_READING_WINNERS))
-    rounds = [nd for nd in written if isinstance(nd, n.TrickRound)]
-    parts: list[str] = []
-    blind = sorted({r.winner_fn for r in rounds if r.winner_fn not in TRUMP_READING_WINNERS})
-    if blind:
-        parts.append(f"a trick round names a winner that reads no trump ({', '.join(blind)})")
-    if any(r.trump is not None and r.winner_fn in TRUMP_READING_WINNERS for r in rounds):
-        parts.append(
-            "every trick round whose winner reads a trump supplies its own `trump` clause"
-        )
-    if not rounds:
-        parts.append(
-            "the game writes no trick round (a hand-rolled trick passes its "
-            "trump to `highest_trump_or_led_suit(pile, trump)` itself)"
-        )
-    return (
-        f"trump: {game.trump} is read by no trick round — {'; '.join(parts)}. The "
-        f"game-level `trump:` is the default trump of a `round … winner` whose "
-        f"winner reads a trump ({readers}) and that writes no `trump` clause of "
-        f"its own; drop the clause, or route it to such a round"
-    )
-
-
 def _unread_trick_order(game: n.Game, written: Sequence[object]) -> Said:
     winner = min(TRICK_ORDER_GATED_WINNERS)
     gated = Sentence.join(
         ", ",
         (_cite_in(game, "function", f, f"`{f}`") for f in sorted(_TRICK_ORDER_READERS)),
     )
-    if _trick_order_block(game):
-        return (
-            f"`trick_order {{ }}` is read by nothing — no round names {winner}, and "
-            f"nothing outside the block calls " + gated + f"; name {winner} on a "
-            f"trick round or call it over the trick pile, or {_drop_trick_order(game)}"
-        )
     return (
         "function " + _cite_in(game, "function", "is_trump", "`is_trump`")
         + f" declares a Trick Order nothing reads — no round names {winner}, and "
@@ -10112,7 +9894,6 @@ def _clause_span(game: n.Game, clause: str, value: object) -> Span | None:
 # nothing reads it. Keyed exactly by the reader rows' clauses (pinned equal by
 # tests/test_unread_clauses.py).
 _UNREAD_SENTENCES: dict[str, Callable[[n.Game, Sequence[object]], Said]] = {
-    "trump": _unread_trump,
     "trick_order": _unread_trick_order,
     "suit_ranking": _unread_suit_ranking,
     "card_points": _unread_card_points,
@@ -10133,14 +9914,14 @@ def _check_unread_clauses(
     wherever it is written, dead text included, so counting the same text here
     is what keeps a sentence from being refused both with the clause and
     without it. A clause's own body is never its reader -- a Trick Order's
-    rows calling its readers do not make the block read -- though it may read
-    another clause (a row calling `suit_value`).
+    answers calling each other do not make it read -- though it may read
+    another clause (an answer calling `suit_value`).
 
     `written` is the game before `_instantiate_rules`, which drops a local
     template that fails to instantiate along with the reader inside it.
     `refused` holds the clauses their own Owner Guards refused
-    (`_resolve_trump`, `_resolve_suit_ranking`, `_resolve_card_points`,
-    `_check_trick_order_partition`'s R1, `_check_answer_hermeticity`); this law
+    (`_resolve_suit_ranking`, `_resolve_card_points`,
+    `_check_answer_hermeticity`); this law
     says nothing of those, nor of a piece game's clauses
     (`_reject_card_content_clauses`) or an unknown deck's
     (`_resolve_component_set`).
@@ -10175,14 +9956,6 @@ def _check_unread_clauses(
             for nd in _walk(part)
         }
         nodes = [nd for nd in text if id(nd) not in own]
-        if clause == "trump" and any(
-            isinstance(nd, n.TrickRound) and nd.winner_fn not in TRICK_WINNER_NAMES
-            for nd in nodes
-        ):
-            # Shadow Guard behind `_validate_refs`' winner-slot arm, which
-            # refuses a winner that is no trick winner: that round may be the
-            # reader the designer meant.
-            continue
         if any(row.needs(nd, written) for nd in nodes for row in rows):
             continue
         span = _clause_span(written, clause, value) or written.span
@@ -10341,6 +10114,24 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
     ):
         return node
+    if (
+        isinstance(node, n.TrickRound)
+        and isinstance(node.trump, n.NameRef)
+        and node.trump.ref_kind is None
+        and cats.suits
+        and _classify(node.trump.name, cats) is None
+    ):
+        # A fixed trump is a suit of the deck, so a name that is none is told
+        # the deck's suits, where an unresolved name would say only that.
+        bag.error(
+            f"round `trump` names '{node.trump.name}', which is neither a suit of "
+            f"this deck ({', '.join(sorted(cats.suits))}) nor a state variable — "
+            f"write the suit, or a `Suit?` state variable the game sets",
+            node.trump.span,
+        )
+        rest = _rewrite(replace(node, trump=None), cats, bag)
+        assert isinstance(rest, n.TrickRound)
+        return replace(rest, trump=node.trump)
     if isinstance(node, n.NameRef):
         if node.ref_kind is not None:
             # Classified by an earlier step of this pass from a fact it held
@@ -10551,11 +10342,6 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
         f.name: {c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names}
         for f in game.functions
     }
-    lowered_rows = {
-        f.name
-        for f in game.functions
-        if f.spelled_as is not None and f.spelled_as.form == "trick_order_row"
-    }
     native = call_namespace(game)
     # The names this game's own rounds write in a slot: a function sharing one
     # is never what that slot runs, while a function no slot here names is
@@ -10622,12 +10408,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                     ),
                     nd.span,
                 )
-        if _reaches(fn.name, fn.name, calls) and not any(
-            # A cycle through a `trick_order { }` row is the row reading its
-            # own reader, `_check_answer_hermeticity`'s in the row's voice.
-            row == fn.name or (_reaches(fn.name, row, calls) and _reaches(row, fn.name, calls))
-            for row in lowered_rows
-        ):
+        if _reaches(fn.name, fn.name, calls):
             library_functions = {f.name: f for f in game.functions if f.origin is not None}
             _report_recursion(fn, calls, library_functions, bag)
 
@@ -12295,10 +12076,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     )
                 elif nd.winner_fn in TRICK_ORDER_GATED_WINNERS:
                     # A Trick Order winner takes no `trump` argument at all --
-                    # its trumps are the block's row — so this arm's question
-                    # (a clause the winner would ignore) is not the one to ask.
-                    # `_check_trick_order_partition` owns both cells: R2 with a
-                    # block, R5 without one, and each names the block.
+                    # its trumps are the game's `is_trump` -- so this arm's
+                    # question (a clause the winner would ignore) is not the one
+                    # to ask. `_check_trick_order_partition` owns both cells,
+                    # with a Trick Order and without one.
                     pass
                 elif nd.trump is not None and nd.winner_fn not in TRUMP_READING_WINNERS:
                     # The winner contract carries a `trump` argument for every

@@ -115,7 +115,7 @@ def call_declared(entry: Declared, args: list[Any], ctx: Ctx) -> Any:
 #   the ROUND;
 # * the TRICK ORDER contract, `trick_order.TrickOrderWinner` — (played, ctx)
 #   -> Player — for the winner whose trumps, classes and strengths are the
-#   GAME's `trick_order { }` rows, which need a ctx to evaluate under.
+#   GAME's Trick Order answers, which need a ctx to evaluate under.
 #
 # The caller (`mechanics.TrickForm.outcome`) selects the contract from the
 # registry and then invokes what THIS function returned, so the dispatcher
