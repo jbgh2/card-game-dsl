@@ -4321,7 +4321,9 @@ a call, a routing, a target — the game offers that choice as a decision node,
 so the information state carries it as an announced decision rather than
 hiding it in a chance outcome. A mechanic that draws from the World's generator
 in place of a seat's decision is a spec regression, never a scope note, and
-review refuses it.
+review refuses it. Review is the refuser by design: no checker can read the
+rulebook, so none can tell a seat's choice written as a `random` selection
+from the chance the rules themselves call for.
 
 **Two surface constructs.**
 

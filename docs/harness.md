@@ -259,8 +259,8 @@ item, which is never takeable at all (The Language Owner, below).
 A deferral is real only when something fires: a test that reddens when
 the premise behind it stops holding, or a comment at the construct someone
 must touch to meet it. An issue kept open so that someone remembers it has
-no trigger, so it closes with its record — what closing leaves unsettled,
-and the likelier reopener — and the trigger in the tree carries it.
+no trigger, so it closes with its record — what closing leaves unsettled
+and what would reopen it — and the trigger in the tree carries it.
 
 `tools/ready-front.sh` computes the front — the third sibling of the two
 CLAUDE.md sweeps — in the order an agent takes it: Priority Tier first

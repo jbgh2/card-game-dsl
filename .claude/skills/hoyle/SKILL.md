@@ -118,7 +118,8 @@ re-decided at the bench.
    the same reading (a bracket list, an existing keyword production),
    found by searching the grammar and the corpus: a rival list of new
    keywords alone has skipped that search. Name any adjacency or
-   shared-delimiter hazard for the misparse prober (`or` / `where` / `:` boundaries, absorbing operands).
+   shared-delimiter hazard for the misparse prober (`or` / `where` / `:`
+   boundaries, absorbing operands).
 2. **Precedent.** The named commitments this extends or cuts against:
    `decisions.md` sections, glossary entries, existing productions, the
    reserved-words check — and, whenever the surface touches a decision
