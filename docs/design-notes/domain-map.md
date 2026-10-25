@@ -65,6 +65,8 @@ flowchart LR
   obs -- "Seat View · information state" --> interop
   decision -- action space --> interop
   valuation -- returns --> interop
+  interop -- resample_from_infostate --> belief
+  interop -- "a held line's next pick" --> exec
   cert -- proves --> front
   cert -- proves --> runtime
   cert -- proves --> obs
@@ -210,14 +212,15 @@ design rather than accrete:
   urgent, and their repetition rules need state *history*, which the
   engine does not track. Settle before the first open-ended board game.
 - **Codecs outside Interop** (Interop + Native Code): the action-id codecs
-  behind the joint and climb forms are the placement convention's one
-  exception. `runtime/primitives.py`'s `joint_codec_function` and
-  `climb_codec_function` hand the encoder codecs that live in game modules
-  (Tichu's combo codec among them; [kernel-migration.md](../kernel-migration.md),
+  `runtime/primitives.py` hands the encoder (`climb_codec_function`,
+  `joint_codec_function`) live in game modules (Tichu's combo codec among
+  them; [kernel-migration.md](../kernel-migration.md),
   "Workstream 3 — Combinations and climbing (Tichu)" records why its ids are
-  computed rather than enumerated), so Interop conforms to game Python for
-  those games' action ids. A further game that needs a hand-written codec is
-  the tripwire: every other block's ids derive from the declared surface.
+  computed rather than enumerated) — the placement convention's one exception, under which
+  Interop conforms to game Python for those games' action ids. An enumerated
+  climb universe (`climb_universe_function`) is game-module Python too, but
+  the encoder orders and numbers it itself. A further game whose combination
+  ids need a hand-written codec is the tripwire.
 - **The stillness test:** the observation substrate, information-state
   derivation, certification, and Valuation should not move. A design that
   requires changing how information states derive is a moat-level event —
