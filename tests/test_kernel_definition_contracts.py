@@ -464,6 +464,14 @@ def _reference_cells() -> list[Cell]:
         _answer("card_points", body="card_strength(c)"),
     ])
     add(Cell("cycle-through-card_points", _source(body=f"{_BY_ORDER}\n    {_POINTS_READER}", defs=cycle), ("recursive",)))
+    # The same cycle with the Trick Order written as rows: the recursion
+    # guard leaves a lowered row to the reference order, which reaches the
+    # row's own reader through `card_points`.
+    add(Cell("cycle-through-card_points-from-a-row",
+             _source(clauses="trick_order { trump: false  card_strength: card_points(card) }",
+                     body=f"{_BY_ORDER}\n    {_POINTS_READER}",
+                     defs=_answer("card_points", body="card_strength(c)")),
+             ("reads its own reader", "through function `card_points`")))
     return cells
 
 
