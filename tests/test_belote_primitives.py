@@ -13,7 +13,7 @@ domain:     every `belote_*` row of CALL_FUNCS (the registry is the axis;
             decomposition's combination classes over 32 ranks x 4 suits, the
             guard's class argument). Belote holds no
             PRIMITIVE_TRICK_WINNERS row: the trick order is the game's
-            `trick_order { }` block (issue #250), so the winner, the
+            Trick Order (issue #250), so the winner, the
             within-trump strength and the live-trick team gate are the
             language's domain rather than this game's.
             The game declares its Primitives, so a name reaches Python

@@ -3,21 +3,20 @@
 The grid of issue #942, authored red before the implementation: a game
 `function` named `is_trump`, `follow_class`, `card_strength` or `card_points`
 answers the kernel's contract row, typed against it, and the
-`card_points { }` table and each `trick_order { }` row lower to the function a
-designer would write by hand (decisions.md "Trick Order", "Scoring has no
+`card_points { }` table lowers to the function a designer would write by hand (decisions.md "Trick Order", "Scoring has no
 constructs of its own"; the rulings on issues #921 and #942).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:        a game answers each Kernel Definition Contract by name alone,
-                 once, at the row's parameter and result, in either spelling;
+                 once, at the row's parameter and result;
                  the answer is a public fact of the card (hermetic by reach,
                  game-level state only, the Trick Order's reference order);
                  its absence is stated, never inferred; and no pass below the
-                 parser can tell the two spellings apart.
+                 parser can tell the table from its function.
 domain:          the contract registry, iterated, crossed with: definition
-                 state (answered, omitted, answered twice in each spelling
-                 pair, answered by a library, mistyped name); signature
+                 state (answered, omitted, answered twice -- the table beside
+                 its function -- answered by a library, mistyped name); signature
                  (parameter type, arity both ways, result type, the
                  permissive top, the parameter's own name); absence against
                  each consumer of the Trick Order and of card points;
@@ -25,17 +24,19 @@ domain:          the contract registry, iterated, crossed with: definition
                  designer function); the reference order (every caller and
                  callee pair among the answers, directly and through
                  `card_points`); the presence partition and
-                 the unread law in the function spelling; the lowering (each
-                 table and row form against its hand-written twin, the
+                 the unread law; the lowering (each table form against its
+                 hand-written twin, the
                  table's keys against every namespace a game can spell a
                  rank in, a table with no deck to rank it against); mixed
                  spellings and the fixes each refusal offers; the
                  library arms (a `requires` row, a library definition, a
                  `primitives { }` entry); a piece game; the run-time
                  witnesses (the census, taken and untaken, a defaulted row
-                 called directly, the spelling-neutral playout). The block spellings' own cells
-                 stay in tests/test_trick_order.py and
-                 tests/test_card_points.py. A call-site pronoun (`actor`,
+                 called directly, the spelling-neutral playout). The Trick
+                 Order's own cells stay in tests/test_trick_order.py, the
+                 table's in tests/test_card_points.py, and the retired
+                 `trick_order { }` and game-level `trump:` spellings' in
+                 tests/test_retired_trick_order.py. A call-site pronoun (`actor`,
                  `action`, `winner`) an answer reaches through a designer
                  function is that function's own refusal
                  (`_check_functions`), green before the capability by
@@ -296,7 +297,7 @@ def test_definition_cell(cell: Cell) -> None:
 # 3. Absence: stated, never inferred
 # =============================================================================
 
-_FALSE_FIX = "`function is_trump(c : Card) = false`"
+_FALSE_FIX = "`function is_trump(card : Card) = false`"
 
 
 def _absence_cells() -> list[Cell]:
@@ -343,7 +344,7 @@ def _absence_cells() -> list[Cell]:
              ()))
     # Card points: a call with no answer.
     add(Cell("no-card_points-call", _source(body=_POINTS_READER),
-             ("`card_points { }` table", "`function card_points(c : Card) = …`")))
+             ("`card_points { }` table", "`function card_points(card : Card) = …`")))
     return cells
 
 
@@ -485,9 +486,6 @@ def _partition_cells() -> list[Cell]:
              _source(body=_TRICK.format(winner="highest_trump_or_led_suit"), defs=is_trump),
              ("beside function `is_trump`", "highest_by_trick_order"),
              forbidden=("none is stated",), count=1))
-    add(Cell("game-trump-beside-is_trump",
-             _source(clauses="trump: spades", body=_BY_ORDER, defs=is_trump),
-             ("`trump: spades` beside function `is_trump`",)))
     add(Cell("round-trump-beside-is_trump",
              _source(body=_BY_ORDER + " trump spades", defs=is_trump),
              ("beside function `is_trump`",)))
@@ -529,11 +527,6 @@ def _both_spellings_cells() -> list[Cell]:
     add(Cell("card_points-table-and-function",
              _source(clauses="card_points { A: 11 }", body=_POINTS_READER, defs=_answer("card_points")),
              ("`card_points` is answered twice",)))
-    for key, name in (("trump", "is_trump"), ("follow_class", "follow_class"), ("card_strength", "card_strength")):
-        rows = "trump: card.suit is hearts" + (f"  {key}: " + {"follow_class": "card.suit", "card_strength": "rank_value(card)"}[key] if key != "trump" else "")
-        add(Cell(f"{name}-row-and-function",
-                 _source(clauses=f"trick_order {{ {rows} }}", body=_BY_ORDER, defs=_answer(name)),
-                 (f"`{name}` is answered twice",)))
     # The double report: one unknown rank is one diagnostic.
     add(Cell("unknown-rank-reports-once",
              _source(clauses="card_points { Zed: 11 }", body=_POINTS_READER),
@@ -571,11 +564,6 @@ _LOWERINGS: list[tuple[str, str, str]] = [
     ("table-rows",
      'card_points { A: 11  10: 10  K: 4 }',
      'function card_points(card : Card) = if card.rank is A then 11 elif card.rank is "10" then 10 elif card.rank is K then 4 else 0'),
-    ("row-trump", "trick_order { trump: card.suit is hearts }", "function is_trump(card : Card) = card.suit is hearts"),
-    ("row-follow_class", "trick_order { trump: false  follow_class: card.suit }",
-     "function is_trump(card : Card) = false\nfunction follow_class(card : Card) = card.suit"),
-    ("row-card_strength", "trick_order { trump: false  card_strength: rank_value(card) }",
-     "function is_trump(card : Card) = false\nfunction card_strength(card : Card) = rank_value(card)"),
 ]
 
 
@@ -966,15 +954,6 @@ def _through_points_cells() -> list[Cell]:
                 _source(body=f"{_BY_ORDER}\n    {_POINTS_READER}", defs=defs),
                 ("comes after it in the Trick Order", "through function `card_points`"),
             ))
-    cells.append(Cell(
-        "trump-row-reaches-card_strength-through-card_points",
-        _source(
-            clauses="trick_order { trump: card_points(card) > 5 }",
-            body=f"{_BY_ORDER}\n    {_POINTS_READER}",
-            defs=_answer("card_points", body="card_strength(c)"),
-        ),
-        ("`trump:` reads `card_strength(...)`, the reader of a row", "through function `card_points`"),
-    ))
     # The control: an earlier row reached through `card_points` is legal.
     cells.append(Cell(
         "card_strength-reaches-is_trump-through-card_points",
@@ -999,32 +978,13 @@ def test_the_reference_order_binds_through_card_points(cell: Cell) -> None:
 def _voice_cells() -> list[Cell]:
     cells: list[Cell] = []
     add = cells.append
-    # A row reading a phase's state is told in the row's voice.
+    # An answer reading a phase's state is told why the frame is missing.
     add(Cell(
-        "row-reads-phase-state",
-        _source(clauses="trick_order { trump: late }", body=_BY_ORDER,
+        "answer-reads-phase-state",
+        _source(body=_BY_ORDER, defs=_answer("is_trump", body="late"),
                 phase_state="state { late : Boolean = false }"),
-        ("`trump:` reads state variable 'late', which phase 'play' declares — a "
-         "Trick Order is read where no phase frame stands",),
-        forbidden=("is_trump",),
-    ))
-    # Mixed spellings: the fix names both.
-    add(Cell(
-        "mixed-unread-drops-both",
-        _source(clauses="trick_order { trump: card.suit is hearts }", body="score[1] += 1",
-                defs=_answer("card_strength")),
-        ("drop the block and the Trick Order's functions",),
-    ))
-    add(Cell(
-        "mixed-unread-fix-clears",
-        _source(body="score[1] += 1"),
-        (),
-    ))
-    add(Cell(
-        "block-without-trump-beside-is_trump",
-        _source(clauses="trick_order { card_strength: rank_value(card) }", body=_BY_ORDER,
-                defs=_answer("is_trump")),
-        ("writes the block's other rows as functions too",),
+        ("reads state variable 'late', which phase 'play' declares — the "
+         "kernel reads `is_trump` where no phase frame stands",),
     ))
     return cells
 

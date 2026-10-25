@@ -9222,6 +9222,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
         # --- without a Trick Order: no gated name may appear ----------------
         # A round spliced from a library whose winner reads the Trick Order is
         # `_check_library_clause_gates`'s, which this loop shadows.
+        spliced = n.library_origins(game)
         for rnd in _trick_order_rounds(game):
             if _trick_order_reading_slots(rnd, game):
                 others = ", ".join(sorted(TRICK_WINNER_NAMES - TRICK_ORDER_GATED_WINNERS))
@@ -9235,13 +9236,21 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 # The round-configured twin of a Trick Order's required
                 # `is_trump`: a winner reading a trump the round never states
                 # would play no-trump.
+                # A library names no suit and answers no contract, so its fix
+                # is a suit the game supplies, or the game's Trick Order.
+                fix = (
+                    f"require the suit from the game (`requires {{ trump_suit : "
+                    f"Suit }}`) and write it on the round (`... winner "
+                    f"{rnd.winner_fn} trump trump_suit`), or name "
+                    f"highest_by_trick_order, whose trump is the game's `is_trump`"
+                    if id(rnd) in spliced
+                    else f"write it on the round (`... winner {rnd.winner_fn} "
+                    f"trump <suit>`), or answer `is_trump` (`function "
+                    f"is_trump(card : Card) = …`) and name highest_by_trick_order"
+                )
                 bag.error(
                     f"round winner {rnd.winner_fn} reads a trump, but none is "
-                    f"stated — write it on the round (`... winner "
-                    f"{rnd.winner_fn} trump <suit>`), or answer `is_trump` "
-                    f"(`function is_trump(card : Card) = …`) and name "
-                    f"highest_by_trick_order; a no-trump trick names "
-                    f"highest_of_led_suit",
+                    f"stated — {fix}; a no-trump trick names highest_of_led_suit",
                     rnd.span,
                 )
         # A call spliced from a library is `_check_library_clause_gates`'s,

@@ -271,7 +271,7 @@ def test_polymorphic_trick_winner_still_sees_the_zone() -> None:
     assert result.scores == {0: 1, 1: 0}
 
 
-_TRICK_ORDER_PROBE = "  trick_order { trump: card.suit is clubs }\n"
+_TRICK_ORDER_PROBE = "function is_trump(card : Card) = card.suit is clubs\n"
 
 
 def test_polymorphic_trick_order_winner_still_sees_the_zone() -> None:
@@ -280,7 +280,7 @@ def test_polymorphic_trick_order_winner_still_sees_the_zone() -> None:
     would strip it. Same probe shape — the dealer plays one heart into the
     public discard, and the winner over that one recorded play is the dealer,
     which only computes if the adapter received the zone with its record
-    intact. Under this block hearts are not trumps, so the winner comes from
+    intact. Under this Trick Order hearts are not trumps, so the winner comes from
     the Effective Lead's class, exercising the non-trump branch."""
     game = check_dsl(
         _game(
@@ -290,8 +290,8 @@ def test_polymorphic_trick_order_winner_still_sees_the_zone() -> None:
             "    as dealer { move chosen one card from shown_deadwood[dealer] where card.suit is hearts to discard }\n"
             "    if highest_by_trick_order(discard) is dealer { score[dealer] += 1 }\n"
             "  }",
-            clauses=_TRICK_ORDER_PROBE,
-        ),
+        )
+        + _TRICK_ORDER_PROBE,
         "probe.cardlang",
     )
     result = play_game(game, rng=random.Random(0))
@@ -314,8 +314,8 @@ def test_polymorphic_follows_lead_still_sees_the_zone() -> None:
             "    if any card in deck where card.suit is hearts and follows_lead(card, discard) { score[dealer] += 1 }\n"
             "    if any card in deck where card.suit is clubs and follows_lead(card, discard) { score[1] += 1 }\n"
             "  }",
-            clauses=_TRICK_ORDER_PROBE,
-        ),
+        )
+        + _TRICK_ORDER_PROBE,
         "probe.cardlang",
     )
     result = play_game(game, rng=random.Random(0))
