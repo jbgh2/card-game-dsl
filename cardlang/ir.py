@@ -82,7 +82,6 @@ def emit(game: n.Game) -> IRDict:
             if game.primitives is not None
             else {}
         ),
-        "trump": game.trump,
         "teams": [list(t) for t in game.teams],
         "positions": [_position(p) for p in game.positions],
         # The board-minted movement-direction domain (decisions.md "Boards and

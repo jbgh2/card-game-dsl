@@ -58,14 +58,6 @@ game Doppelkopf {
   // which the Trick Order gives without a second definition: a trump follows
   // as a trump by the `trump:` row, never by its printed suit. Strengths are
   // banded so a band's members never collide with a neighbour's.
-  trick_order {
-    trump:         card.rank is Q or card.rank is J or card.suit is diamonds
-                   or (card.suit is hearts and card.rank is "10")
-    card_strength: if card.suit is hearts and card.rank is "10" then 300
-                   elif card.rank is Q then 200 + suit_value(card.suit)
-                   elif card.rank is J then 100 + suit_value(card.suit)
-                   else rank_value(card)
-  }
 
   zones {
     deck             : Deck
@@ -360,6 +352,16 @@ game Doppelkopf {
 
   winner: highest score
 }
+
+function is_trump(card : Card) =
+  card.rank is Q or card.rank is J or card.suit is diamonds
+  or (card.suit is hearts and card.rank is "10")
+
+function card_strength(card : Card) =
+  if card.suit is hearts and card.rank is "10" then 300
+  elif card.rank is Q then 200 + suit_value(card.suit)
+  elif card.rank is J then 100 + suit_value(card.suit)
+  else rank_value(card)
 
 // === Announcement vocabulary ===
 //

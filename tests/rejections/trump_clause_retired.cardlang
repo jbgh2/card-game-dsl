@@ -1,0 +1,22 @@
+// Guard: parse.py's `trump_clause_retired_reject` (diagnostics.lark). A fixed
+// trump is written on the round, or in a Trick Order's `is_trump`; the
+// game-level clause that once stated it is refused naming both.
+game TrumpClauseRetired {
+  players: 4
+  max_length: 1000
+  cards: standard52
+  ranking: aces high
+  trump: spades
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    trick_pile : TrickPile
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_trump_or_led_suit
+    score[winner] += 1
+  }
+  winner: highest score
+}

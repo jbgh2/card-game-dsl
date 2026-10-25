@@ -11,10 +11,10 @@ scoring text and the end-of-game census read (`card_points`). A game answers a
 row by the name alone: no marker, the signature check doing the work a marker
 would.
 
-The `card_points { }` table and each `trick_order { }` row are spellings of an
-answer: the parse builder lowers each to the `FunctionDef` a designer would
-write by hand, stamped with its source spelling so a refusal names what was
-written (`n.LoweredSpelling`). No pass below the parser sees a block.
+The `card_points { }` table is a spelling of an answer: the parse builder
+lowers it to the `FunctionDef` a designer would write by hand, stamped with its
+source spelling so a refusal names what was written (`n.LoweredSpelling`). No
+pass below the parser sees a block.
 
 Two rows carry a default the driver applies once, at load, when the game has
 a Trick Order and leaves the row unanswered: `follow_class` (the printed suit)
@@ -92,16 +92,6 @@ KERNEL_CONTRACT_NAMES: frozenset[str] = frozenset(CONTRACTS)
 # them in. `card_points` is outside the order: any answer may call it, and it
 # may call any of the three, the recursion guard refusing a cycle.
 TRICK_ORDER_CONTRACTS: tuple[str, ...] = ("is_trump", "follow_class", "card_strength")
-
-# The `trick_order { }` block's row keys, each with the contract its row
-# answers. The parse builder lowers each row by this map, and refuses a key
-# outside it naming these keys.
-TRICK_ORDER_ROW_CONTRACTS: tuple[tuple[str, str], ...] = (
-    ("trump", "is_trump"),
-    ("follow_class", "follow_class"),
-    ("card_strength", "card_strength"),
-)
-TRICK_ORDER_ROW_KEYS: tuple[str, ...] = tuple(k for k, _ in TRICK_ORDER_ROW_CONTRACTS)
 
 # The contract that makes a Trick Order present: a game with a Trick Order
 # answers it, and the other two rows default.

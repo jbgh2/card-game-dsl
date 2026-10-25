@@ -6,10 +6,11 @@
 // builder its node, and the builder's `*_reject` method raises the message.
 // The main grammar accepts only the language, so nothing here is reachable
 // while a file parses there. No alphabetic word here is one the main lexer
-// knows; the symbol terminals (`:=` / `=`, `:`, `==` / `!=`, `/` / `%`)
+// knows, but `trump`, the round's clause keyword, which the retired
+// game-level clause's twin reuses where the language has no game item it
+// opens; the symbol terminals (`:=` / `=`, `:`, `==` / `!=`, `/` / `%`)
 // overlap the main lexer's, and the composed Earley parse resolves them by
-// position — the hazard tests/test_trick_order.py's ledger records for any
-// other parser. Each twin is a COMPLETE production for the string it names,
+// position — a hazard under any other parser. Each twin is a COMPLETE production for the string it names,
 // never a prefix, so no sentence of the language gains a second derivation
 // and no golden a twin derives has two. Every twin is exercised by a
 // rejection golden under tests/rejections/ (tests/test_diagnostic_grammar.py).
@@ -51,20 +52,19 @@ nested_collection: NAME "<" NAME ">"
                          | _CARD_VALUES_KW [":"] "{" card_points_entry* [card_points_else] "}" -> card_values_reject
 _CARD_VALUES_KW: "card_values" /(?![A-Za-z0-9_])/
 
-// --- the trick order: the colon habit, comma rows, the assignment habit -----
-// The assignment arm takes one wrong row anywhere among colon rows. The comma
-// arm's tail is `row*`, not `row+`, so a TRAILING comma (`{ trump: X, }` --
-// the likeliest single slip, and the one a list habit produces) reaches the
-// same designer-voice rejection instead of the lexer's.
-%extend trick_order: _TRICK_ORDER_KW ":" "{" trick_order_row* "}"                             -> trick_order_colon_reject
-                   | _TRICK_ORDER_KW "{" trick_order_row+ ("," trick_order_row*)+ "}"         -> trick_order_comma_reject
-                   | _TRICK_ORDER_KW "{" trick_order_row* trick_order_eq_row (trick_order_row | trick_order_eq_row)* "}" -> trick_order_eq_reject
-trick_order_eq_row: TRICK_ORDER_KEY TRICK_ORDER_EQ expr
-TRICK_ORDER_EQ: ":=" | "="
-
-// --- the trump clause: a number or a quoted string where the bare name belongs
-%extend trump: _TRUMP_KW ":" INT     -> trump_int_reject
-             | _TRUMP_KW ":" STRING  -> trump_string_reject
+// --- the retired Trick Order block and game-level trump clause ------------
+// Neither is the language: a Trick Order is the three functions the kernel
+// reads, and a fixed trump is written on the round. Each twin derives every
+// spelling of its retired form a designer who learned it would write -- the
+// block with any rows, the colon, comma and assignment habits, the empty
+// block; the clause with a colon or without, over any value -- so none dies
+// at the lexer. The clause twin reuses `_TRUMP_KW`, the round's own clause
+// keyword; at game level no production of the language opens with it.
+%extend game_item: _RETIRED_TRICK_ORDER_KW [":"] "{" (retired_row [","])* "}" -> trick_order_retired_reject
+                 | _TRUMP_KW [":"] expr                                       -> trump_clause_retired_reject
+retired_row: RETIRED_ROW_KEY (":" | ":=" | "=") expr
+RETIRED_ROW_KEY: /(?!(?:all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+_RETIRED_TRICK_ORDER_KW: "trick_order" /(?![A-Za-z0-9_])/
 
 // --- the suit ranking: written into `ranking:`, or as a comma list --------
 // A Suit Ranking is its own clause; a designer who knows `ranking:` writes the

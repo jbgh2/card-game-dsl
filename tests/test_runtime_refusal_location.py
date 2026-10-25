@@ -165,7 +165,7 @@ LOSER_SELECTION = FIXTURES / "loser_selection_no_holder.cardlang"
 # A `trick_order { }` row asking for an unranked rank's strength, reached from
 # inside a round — so a location taken where the executor dispatched names the
 # round rather than the row.
-TRICK_ORDER_ROW = FIXTURES / "trick_order_row_unranked.cardlang"
+CARD_STRENGTH_UNRANKED = FIXTURES / "card_strength_unranked.cardlang"
 
 
 # ---------------------------------------------------------------------------
@@ -494,7 +494,7 @@ _DRIVER_WITNESSES: dict[str, frozenset[str]] = {
     "run_phase:q.expr": frozenset({WHEN_GUARD.stem, REPEAT_CONDITION.stem}),
     "_declare_state:decl.default": frozenset({PHASE_STATE.stem, GAME_STATE.stem}),
     "play_game:game.loser.selection": frozenset({LOSER_SELECTION.stem}),
-    "read:fn.body": frozenset({TRICK_ORDER_ROW.stem}),
+    "read:fn.body": frozenset({CARD_STRENGTH_UNRANKED.stem}),
 }
 
 # The qualifier's arms, and the state declarer's two callers — the sub-axes
@@ -741,9 +741,9 @@ _CASES: tuple[_Refusal, ...] = (
         zone=None,
     ),
     _Refusal(
-        name="a `trick_order { }` row asking an unranked rank's strength",
-        path=TRICK_ORDER_ROW,
-        sentence="card_strength: rank_value(card)",
+        name="a `card_strength` answer asking an unranked rank's strength",
+        path=CARD_STRENGTH_UNRANKED,
+        sentence="function card_strength(card : Card) = rank_value(card)",
         occurrence=0,
         phase="play",
         zone=None,

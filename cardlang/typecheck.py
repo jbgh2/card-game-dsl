@@ -2884,49 +2884,33 @@ def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> Non
     an untyped read — so accepting it would let exactly the answers nobody
     could check through the strictest gate in the construct.
 
-    A refusal names the answer in the spelling the designer wrote it: a
-    `trick_order { }` row as its row, a written function as itself.
+    Each refusal carries the hint its most plausible wrong spelling earns
+    (`_answer_type_hint`), so a designer who wrote the wrong thing is told
+    what the RIGHT thing looks like rather than only that the type is wrong.
     """
     for answer in K.answers(game):
         row = K.CONTRACTS[answer.name]
         if tuple(p.type_name for p in answer.params) != ("Card",):
             continue  # resolve's arity and parameter refusal
-        spelled = answer.spelled_as
-        row_key = spelled.key if spelled is not None and spelled.form == "trick_order_row" else None
         answer_env = _scoped_env(env, ((answer.params[0].name, TCard()),))
         expected = row.result
         got = infer(answer.body, answer_env)
         span = answer.span or game.span
         subject: Said = "function " + cite_named(answer, f"`{answer.name}`")
         if isinstance(got, TAny):
-            if row_key is not None:
-                bag.error(
-                    cite_named(answer, f"`{row_key}:` row") + " types as `Any`, the permissive top (a value "
-                    f"the checker cannot type — a mixed-branch `if`, an untyped "
-                    f"read); a Trick Order row must type exactly "
-                    f"{_type_name(expected)}",
-                    span,
-                )
-            else:
-                bag.error(
-                    subject + f" types as `Any`, the permissive top (a value the "
-                    f"checker cannot type — a mixed-branch `if`, an untyped "
-                    f"read); the kernel reads `{row.spelled}` as exactly "
-                    f"{_type_name(expected)}",
-                    span,
-                )
-            continue
-        if row_key is not None:
-            # The row's own words, its subject cited: the row is the answer.
-            words = _row_type_message(row_key, got, expected, game)
-            head = f"`{row_key}:` row"
-            assert words.startswith(head), "a row's refusal opens on the row"
-            message: Said = cite_named(answer, head) + words[len(head):]
-        else:
-            message = (
-                subject + f" returns {_type_name(got)}, but the kernel reads "
-                f"`{row.spelled}` as {_type_name(expected)}"
+            bag.error(
+                subject + f" types as `Any`, the permissive top (a value the "
+                f"checker cannot type — a mixed-branch `if`, an untyped "
+                f"read); the kernel reads `{row.spelled}` as exactly "
+                f"{_type_name(expected)}",
+                span,
             )
+            continue
+        message: Said = (
+            subject + f" returns {_type_name(got)}, but the kernel reads "
+            f"`{row.spelled}` as {_type_name(expected)}"
+            + _answer_type_hint(answer.name, got, game)
+        )
         if isinstance(expected, TOptional):
             _check_operand(answer.body, got, expected, answer_env, bag, message, span)
         elif got != expected:
@@ -2939,61 +2923,41 @@ def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> Non
         # nobody wrote.
         is_trump = K.answer(game, K.TRICK_ORDER_KEY_CONTRACT)
         assert is_trump is not None
-        if is_trump.spelled_as is not None:
-            bag.error(
-                "`trick_order` declares no `card_strength:` row, so strength "
-                "defaults to `rank_value(card)`, which reads `ranking:` — but the "
-                "game declares no `ranking:`; declare one, or write a "
-                "`card_strength:` row",
-                is_trump.spelled_as.span or game.span,
-            )
-        else:
-            bag.error(
-                "function " + cite_named(is_trump, "`is_trump`") + " declares a "
-                "Trick Order with no `card_strength`, so strength defaults to "
-                "`rank_value(card)`, which reads `ranking:` — but the game "
-                "declares no `ranking:`; declare one, or write "
-                "`function card_strength(c : Card) = …`",
-                is_trump.span or game.span,
-            )
+        bag.error(
+            "function " + cite_named(is_trump, "`is_trump`") + " declares a "
+            "Trick Order with no `card_strength`, so strength defaults to "
+            "`rank_value(card)`, which reads `ranking:` — but the game "
+            "declares no `ranking:`; declare one, or write "
+            "`function card_strength(card : Card) = …`",
+            is_trump.span or game.span,
+        )
 
 
-def _row_type_message(key: str, got: Type, expected: Type, game: n.Game) -> str:
-    """A row's type refusal, with the hint its most plausible wrong spelling
-    earns. Each hint answers a specific confusion the row invites, so a
-    designer who wrote the wrong thing is told what the RIGHT thing looks
-    like rather than only that the type is wrong."""
-    gname = _type_name(got)
-    if key == "trump":
-        msg = f"`trump:` row must type Boolean (is this card a trump?), got {gname}"
+def _answer_type_hint(name: str, got: Type, game: n.Game) -> str:
+    """The half-sentence an answer of the wrong type earns, by the confusion
+    its contract invites; empty where none is likely."""
+    if name == "is_trump":
         if isinstance(got, TEnum) and got.name == "Suit":
             # A concrete suit of THIS deck, so the remedy is a sentence the
             # designer can paste (resolve already refused an unknown deck, the
             # `_suit_types` precedent above).
             known = sorted(suit_names(game.deck))
             suit = known[0] if known else "spades"
-            return msg + f" — for a fixed trump suit write `trump: card.suit is {suit}`"
+            return (
+                f" — for a fixed trump suit write "
+                f"`function is_trump(card : Card) = card.suit is {suit}`"
+            )
         if isinstance(got, TOptional) and isinstance(got.inner, TBoolean):
-            return msg + (
-                " — a Trick Order row is never absent-valued (a `none` would "
+            return (
+                " — a Trick Order answer is never absent-valued (a `none` would "
                 "read as not-a-trump silently)"
             )
-        return msg
-    if key == "follow_class":
-        msg = (
-            f"`follow_class:` row must type Suit? (the class the card follows "
-            f"as, or none for class-less), got {gname}"
+    if name == "follow_class" and isinstance(got, TString):
+        return (
+            " — a trump follows as a trump by `is_trump`, never by a class "
+            "value; the class of a trump card is not consulted"
         )
-        if isinstance(got, TString):
-            return msg + (
-                " — a trump follows as a trump by the `trump:` row, never by a "
-                "class value; the class of a trump card is not consulted"
-            )
-        return msg
-    return (
-        f"`card_strength:` row must type Integer (strength within its class; "
-        f"higher beats lower), got {gname}"
-    )
+    return ""
 
 
 def _check_round_trump(stmt: n.TrickRound, env: TypeEnv, bag: DiagnosticBag) -> None:

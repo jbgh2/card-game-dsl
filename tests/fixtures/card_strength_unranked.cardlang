@@ -1,25 +1,19 @@
-// A `trick_order { }` row that asks for the strength of a rank the game's
-// `ranking:` does not rank. A row body, the answer it lowers to, is game text
-// the driver evaluates itself, from inside a trick round rather than from a
-// statement, so the
-// enclosing round is the only sentence the executor can name and the row's
-// own line is the smaller one.
+// A Trick Order whose `card_strength` asks for the strength of a rank the
+// game's `ranking:` does not rank. An answer's body is game text the driver
+// evaluates itself, from inside a trick round rather than from a statement,
+// so the enclosing round is the only sentence the executor can name and the
+// answer's own line is the smaller one.
 //
 // `ranking:` may rank a subset of the deck (it narrows the Rank move-parameter
 // domain), and which cards reach a strength read is a fact of what was dealt —
 // so a partial order plus a full deck is a game that checks clean and refuses
 // at the first trick.
-game TrickOrderRowUnranked {
+game CardStrengthUnranked {
   players: 2
   direction: clockwise
   max_length: 40
   cards: standard52
   ranking: A K Q                   // the other ten ranks are unranked
-
-  trick_order {
-    trump:         card.suit is spades
-    card_strength: rank_value(card)
-  }
 
   zones {
     deck         : Deck
@@ -45,3 +39,7 @@ game TrickOrderRowUnranked {
 
   winner: highest coins
 }
+
+function is_trump(card : Card) = card.suit is spades
+
+function card_strength(card : Card) = rank_value(card)

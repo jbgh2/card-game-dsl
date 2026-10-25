@@ -1,0 +1,21 @@
+// Guard: parse.py's `trick_order_retired_reject` (diagnostics.lark). A Trick
+// Order is three functions the kernel reads; the block that once spelled it
+// is refused naming them.
+game TrickOrderRetired {
+  players: 4
+  max_length: 1000
+  cards: standard52
+  ranking: aces high
+  trick_order { trump: card.suit is spades }
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    trick_pile : TrickPile
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    let w = highest_by_trick_order(trick_pile)
+    score[w] += 1
+  }
+  winner: highest score
+}

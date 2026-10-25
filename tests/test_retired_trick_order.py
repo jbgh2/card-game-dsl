@@ -51,8 +51,6 @@ TOW = "winner highest_by_trick_order"
 RANKS = "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
 SUITS = "  suit ranking: spades hearts diamonds clubs\n"
 
-_RED = pytest.mark.xfail(strict=True, raises=AssertionError, reason="the cut (#944)")
-
 T_ORDER = "a Trick Order is three functions, not a block"
 T_TRUMP = "`trump:` is not a clause"
 
@@ -113,7 +111,6 @@ _RETIRED: list[tuple[str, str, str]] = [
 ]
 
 
-@_RED
 @pytest.mark.parametrize(
     ("label", "source", "needle"), _RETIRED, ids=[x[0] for x in _RETIRED]
 )
@@ -170,7 +167,6 @@ def _keyword_words(text: str) -> dict[str, str]:
     }
 
 
-@_RED
 def test_every_game_item_head_is_kept_out_of_the_unbounded_runs() -> None:
     """A word that heads a game item in the COMPOSED grammar, a retired
     spelling's twin included, is no rank or suit name, so `trump spades`
@@ -193,7 +189,6 @@ def test_every_game_item_head_is_kept_out_of_the_unbounded_runs() -> None:
         assert heads <= set(match.group(1).split("|")), (terminal, heads)
 
 
-@_RED
 def test_the_block_and_the_clause_left_the_language() -> None:
     """No production, node field or lowering keeps the retired spellings."""
     from dataclasses import fields
@@ -218,7 +213,6 @@ _HINTS: list[tuple[str, str, str]] = [
 ]
 
 
-@_RED
 @pytest.mark.parametrize(("label", "defs", "needle"), _HINTS, ids=[x[0] for x in _HINTS])
 def test_an_answer_of_the_wrong_type_is_told_its_fix(label: str, defs: str, needle: str) -> None:
     """The hints the Trick Order's answers carry, in the function voice."""
@@ -227,7 +221,6 @@ def test_an_answer_of_the_wrong_type_is_told_its_fix(label: str, defs: str, need
     assert needle in found, found
 
 
-@_RED
 def test_a_round_that_reads_a_trump_and_states_none_names_the_round_clause() -> None:
     """With no game-level clause to inherit, a round whose winner reads a trump
     states it on the round, and the refusal says so and offers no clause."""

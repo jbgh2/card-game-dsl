@@ -352,7 +352,6 @@ def play_game(
     positions = dict(position_domains_of(game))
     zones = ZoneStore(game.zones, seating.players, teams, positions=positions)
     rs = RuntimeState(seating, zones, rng)
-    rs.trump = game.trump
     rs.teams = teams
     rs.team_of = team_of
     rs.position_domains = positions
