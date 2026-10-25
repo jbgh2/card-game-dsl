@@ -124,7 +124,7 @@ def _termini(seeds: int, use_policy: bool) -> Counter[str]:
     out: Counter[str] = Counter()
     for seed in range(seeds):
         rng = random.Random(seed)
-        policy = PlayoutPolicy(rng) if use_policy else None
+        policy = PlayoutPolicy(rng, game) if use_policy else None
         try:
             result = (
                 play_game(game, rng, chooser=policy, on_first_decision=policy.attach)

@@ -60,7 +60,7 @@ ten identities through the zone's declared type (the Five Hundred open-misère
 shape), and the declarer plays on from it. The ten tricks are three
 single-actor filtered movements per trick, ending early when a Null declarer
 takes one, and the contract's order is the game's Trick Order
-([decisions.md](../decisions.md), "Trick Order"): its rows read the
+([decisions.md](../decisions.md), "Trick Order"): its functions read the
 declared contract off the public state, which is what puts the four jacks and
 the trump suit in one follow class under Suit and Grand and leaves Null
 trumpless on its own rank order. Follow legality (`follows_lead`) and the
@@ -70,6 +70,7 @@ smallest-covering-multiple written as rounded division (`working_bid divided
 by base rounded up`) in the game text.
 
 The contract's three variables (`is_grand`, `is_null`, `trump_suit`) are
-declared at game level rather than in `phase play`, because a `trick_order`
-block is a game clause and sees game state only; the phase clears them on
+declared at game level rather than in `phase play`, because the kernel reads
+the Trick Order where no phase frame stands, so its functions read game
+state only; the phase clears them on
 entry, so they still last exactly one hand.

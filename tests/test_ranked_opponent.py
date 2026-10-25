@@ -144,6 +144,7 @@ from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.ranked import DISPOSITIONS, RankedSeatPolicy
 from cardlang.openspiel.registry import GAMES
 from cardlang.openspiel.replay import LiveLine, load
+from tests.playout_policy import fixed_trump
 from cardlang.openspiel.seat_policy import (
     OPPONENTS,
     FirstSeatPolicy,
@@ -349,6 +350,7 @@ def test_a_bid_counts_a_fair_share_of_the_decks_suits() -> None:
     ranking = {rank: len(game.ranking) - place for place, rank in enumerate(game.ranking)}
     hands = frozenset(zone.name for zone in game.zones if zone.type_ref.name == "Hand")
     top = len(game.ranking)
+    trump = fixed_trump(game)
     checked = 0
 
     def watched(seat: int, policy: SeatPolicy) -> SeatPolicy:
@@ -362,7 +364,7 @@ def test_a_bid_counts_a_fair_share_of_the_decks_suits() -> None:
                     for card in (shown if isinstance(shown, tuple) else ())]
             strong = sum(1 for card in held if ranking.get(card.rank, 0) >= top - 1)
             share = len(held) // len(deck_suits(game.deck))
-            strong += max(0, sum(1 for card in held if card.suit == game.trump) - share)
+            strong += max(0, sum(1 for card in held if card.suit == trump) - share)
             wanted = min(legal, key=lambda aid: (abs(space.decode(aid) - strong), aid))
             assert picked == wanted, (
                 f"seat {seat} bid {space.decode(picked)} where {strong} winners "

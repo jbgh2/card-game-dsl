@@ -20,7 +20,7 @@
 // `shown_atouts` on their way in; the tricks run on the trick form of `round`,
 // legality narrowed by the
 // ExcuseIsExempt/MustFollowEffectiveSuit/MustTrumpIfVoid/MustOverTrump rule cascade,
-// over the game's declared `trick_order { }` (the Excuse is exempt from every
+// over the game's declared Trick Order (the Excuse is exempt from every
 // obligation, and belongs to no class, so it never wins); the Excuse's special
 // routing (it stays with its own side, repaying the trick winner a low card) is
 // ordinary body movements after the round. Card points are kept in doubled
@@ -40,32 +40,6 @@ game FrenchTarot {
   // cannot carry the petit, whose rank "1" is 4.5 in atouts and half a
   // point in the plain suits: `if is_bout(card) then 9 else card_points(card)`.
   card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }
-
-  // The trick order. The atouts are the trump class; the Excuse belongs to no
-  // class at all, which is what makes "the Excuse never wins" fall out of the
-  // kernel rather than being restated here — a card that is neither a trump
-  // nor of the effective led class is never a candidate, so no rule has to
-  // say it cannot win, and no rule has to say it does not set the suit when
-  // it is led.
-  //
-  // Strength carries its own arithmetic because this game declares no
-  // `ranking:` and no single one could serve: rank "1" is the petit at the top
-  // band of the atouts and the lowest card of a plain suit. Plain cards keep
-  // K > Q > Cavalier > J > 10 > ... > 1 (11-14 over 1-10); the twenty-one
-  // atouts sit as one band above every plain card (101-121), which is what
-  // lets `MustOverTrump` compare a candidate against the pile's best card
-  // without first asking whether that card is a trump.
-  trick_order {
-    trump:         card.suit is atouts
-    follow_class:  if card.suit is excuse then none else card.suit
-    card_strength: if card.suit is excuse then 0
-                   elif is_trump(card) then 100 + numeral(card)
-                   elif card.rank is K then 14
-                   elif card.rank is Q then 13
-                   elif card.rank is C then 12
-                   elif card.rank is J then 11
-                   else numeral(card)
-  }
 
   // The two this game borrows from outside the DSL at a CALL position,
   // implemented in `cardlang/runtime/tarot.py`: who played the Excuse in the
@@ -223,6 +197,33 @@ game FrenchTarot {
   winner: highest score
 }
 
+// The trick order. The atouts are the trump class; the Excuse belongs to no
+// class at all, which is what makes "the Excuse never wins" fall out of the
+// kernel rather than being restated here — a card that is neither a trump
+// nor of the effective led class is never a candidate, so no rule has to
+// say it cannot win, and no rule has to say it does not set the suit when
+// it is led.
+//
+// Strength carries its own arithmetic because this game declares no
+// `ranking:` and no single one could serve: rank "1" is the petit at the top
+// band of the atouts and the lowest card of a plain suit. Plain cards keep
+// K > Q > Cavalier > J > 10 > ... > 1 (11-14 over 1-10); the twenty-one
+// atouts sit as one band above every plain card (101-121), which is what
+// lets `MustOverTrump` compare a candidate against the pile's best card
+// without first asking whether that card is a trump.
+function is_trump(card : Card) = card.suit is atouts
+
+function follow_class(card : Card) = if card.suit is excuse then none else card.suit
+
+function card_strength(card : Card) =
+  if card.suit is excuse then 0
+  elif is_trump(card) then 100 + numeral(card)
+  elif card.rank is K then 14
+  elif card.rank is Q then 13
+  elif card.rank is C then 12
+  elif card.rank is J then 11
+  else numeral(card)
+
 // === Auction move vocabulary ===
 //
 // One pass counterclockwise: a seat passes, or raises to a level strictly above
@@ -251,7 +252,7 @@ function is_pref_discard(c : Card) =
   c.suit is not atouts and c.suit is not excuse and c.rank is not K
 
 // The number a rank spells, and 0 for a rank that spells a letter — the
-// arithmetic the `card_strength:` row carries because no `ranking:` can serve
+// arithmetic `card_strength` carries because no `ranking:` can serve
 // two orders at once. Covers 1-21 so one function serves both the plain suits'
 // pip cards and the whole atout band.
 function numeral(c : Card) =
