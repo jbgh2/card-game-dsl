@@ -4315,6 +4315,14 @@ that is *finitely enumerable from current state*, over a move-type vocabulary
 fixed at game-definition time; the action has an effect and may yield a typed
 outcome. Plus chance nodes for shuffles/deals. Everything below lowers to this.
 
+**The engine's only chance is the shuffle and the random selection.** Both are
+named in `runtime/chance.py`. Where a rulebook has a seat choose — a challenge,
+a call, a routing, a target — the game offers that choice as a decision node,
+so the information state carries it as an announced decision rather than
+hiding it in a chance outcome. A mechanic that draws from the World's generator
+in place of a seat's decision is a spec regression, never a scope note, and
+review refuses it.
+
 **Two surface constructs.**
 
 - `offer` — a single decision: an acting player chooses one of a set of
@@ -4685,6 +4693,12 @@ violation. The class ledger keeps its own `covered:` row and the rule with
 it — there `members:` is the named set, derived on the line above. The
 completeness ledger holds no row a matcher should read.
 
+**Widening a ledger's sentence until its check goes green is the defect.** A
+`property:` or `domain:` sentence widened to admit new pins credits rows the
+module does not cover, so a widened ledger re-derives every axis from that
+axis's own registry. A claim found broader than its pins is removed, not
+sharpened: a more exact overclaim is still an overclaim.
+
 **Prose names the registry, never the cardinality.** A ledger row — or any
 spec sentence — states what it quantifies over, not how many members that
 set holds today. "Every registry with a signature table" stays true as
@@ -4729,6 +4743,13 @@ because it claims only what was true when it ran. A live claim that would
 be correct if dated should be dated, not deleted — the figures are
 evidence, and deleting them to satisfy this rule would cost the argument
 its support.
+
+**A fact specified and not yet built is marked, never deleted.** Where a doc
+specifies a construct or symbol the tree does not implement, the sentence says
+so and names the issue that builds it; it is neither deleted to satisfy this
+rule nor stated as present. The mark is the one place spec prose speaks of what
+is not yet built, and it is an exception that keeps a specified surface
+findable, never a license for future tense elsewhere.
 
 An Owner Guard must also speak its **layer's failure channel**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a

@@ -150,7 +150,9 @@ sweep on arrival. What it does not join on arrival are the hand-authored
 tables that CLASSIFY a game rather than enumerate one. Each is keyed by the
 file's stem or basename, each states a claim about the game that no glob can
 derive, and each fails loudly when a game it should classify is absent — so
-a new game reddens them rather than going quietly uncovered.
+a new game reddens them rather than going quietly uncovered. The same tables,
+and any test that names the game, fire when an existing game's RULES change,
+since what each classifies is the game's behavior.
 
 - **The proof module — always.** `tests/openspiel_ready/test_<stem>.py`,
   the stem's hyphens folded to underscores, holding a
