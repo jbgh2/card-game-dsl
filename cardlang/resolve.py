@@ -4611,7 +4611,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_state_default_scope(game, bag)
     _check_state_scope(game, bag)
     _check_functions(game, bag)
-    _check_kernel_answers(game, bag)
+    refused_clauses |= _check_kernel_answers(game, bag)
     # After `_check_functions`, which owns a call-site pronoun reached through
     # a designer function and the recursion of an answer's own call.
     refused_clauses |= _check_answer_hermeticity(game, bag)
@@ -7464,11 +7464,14 @@ def _answer_spelling(answer: n.FunctionDef) -> Said:
     return f"the `trick_order {{ }}` block's `{spelled.key}:` row"
 
 
-def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> None:
+def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> set[str]:
     """A game function answering a [[kernel-definition-contract]] takes the
     row's parameter: exactly one Card, the card the kernel asks about. Its
     result is typecheck's, against the row (`typecheck._check_kernel_answers`).
-    A lowered answer takes `card : Card` by construction."""
+    A lowered answer takes `card : Card` by construction. Returns the clauses
+    of the answers it refused, which `_check_unread_clauses` then leaves to
+    this refusal."""
+    refused: set[str] = set()
     for answer in K.answers(game):
         if answer.spelled_as is not None:
             continue
@@ -7482,6 +7485,8 @@ def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> None:
             f"`function {answer.name}(c : Card) = …`",
             answer.span or game.span,
         )
+        refused.add("card_points" if answer.name == "card_points" else "trick_order")
+    return refused
 
 
 def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
