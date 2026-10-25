@@ -27,7 +27,7 @@ dev = [
     # Exact pin, not a floor: with no `[tool.ruff]` config the enabled rule set
     # IS the version's default, so a range would silently change what the lint
     # means from one install to the next.
-    "ruff==0.16.0",
+    "ruff==0.17.1",
     # The import graph behind `import-linter`. The leak-freeness check asks it
     # whether any chain of imports reaches the engine from a decision; a
     # hand-rolled walk of the same graph collected five resolution defects
