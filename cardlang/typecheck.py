@@ -365,8 +365,8 @@ def _ranking_refusal(subject: str, name: str, instead: str) -> str:
     fix = "declare one"
     if name in RANKING_TRICK_ORDER_TWINS:
         fix += (
-            f", or declare a Trick Order — `function is_trump(c : Card) = …` "
-            f"and `function card_strength(c : Card) = …` — in place of any "
+            f", or declare a Trick Order — `function is_trump(card : Card) = …` "
+            f"and `function card_strength(card : Card) = …` — in place of any "
             f"`trump` clause, and {instead}"
         )
     return (

@@ -1,8 +1,6 @@
-"""The `trick_order { }` construct -- the grid, authored red before the grammar.
+"""The Trick Order -- the grid, authored red before the construct.
 
-Issue #250, PR 1: the game-level Trick Order block (rows `trump:` /
-`follow_class:` / `card_strength:` over the implicit `card` binder), which
-lowers to the game's answers to the three Kernel Definition Contracts
+The game's answers to the three Kernel Definition Contracts
 (`is_trump(card)`, `follow_class(card)`, `card_strength(card)`), the two
 Builtins over the declaration
 (`highest_by_trick_order` -- the winner, bare in a round's `winner` slot or
@@ -20,27 +18,27 @@ The plan this grid is the work list of is the rulings on issue #250 and PR #371.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
-property:   (1) every combination the `trick_order` grammar accepts is
-            implemented (rows typed strictly, readers minted, both Builtins
-            in both positions) or refused with the named diagnostic; (2) a
-            Trick Order is a pure function of the card and public state
-            (rows may read no pronoun, no concealed or actor-relative zone,
-            make no choice, call only the row-callable Builtins and the
-            readers of earlier rows); (3) the winner vocabulary partitions
-            strictly on the block's presence, in both directions; (4) the
+property:   (1) every Trick Order a game can write is implemented (answers
+            typed strictly, both Builtins in both positions) or refused with
+            the named diagnostic; (2) a Trick Order is a pure function of the
+            card and public state (an answer may read no pronoun, no
+            concealed or actor-relative zone, make no choice, call only the
+            row-callable Builtins and the answers before it); (3) the winner
+            vocabulary partitions strictly on the Trick Order's presence, in
+            both directions; (4) the
             algorithm names the first-played strongest candidate (First of
             Equals) among the trumps if any, else the Effective Lead's class,
             never evaluating strength on a non-candidate, and `follows_lead`
             is that candidate test; (5) every Arrival-Record read names a
             fully public zone statically, and every trick round plays into
             one.
-domain:     rows x body type x binder reads x reference direction x call
-            target x zone visibility (direct and through a designer
-            function); consumer position {slot, call, follows_lead, each
-            reader} x block presence; coexistence with game `trump:`, round
-            `trump`, every non-gated winner, the excluded call, `early`;
-            row presence subsets and the two defaults; the grammar's
-            reject-with-replacement twins and absorbers; the pile argument
+domain:     answers x body type x reference direction x call target x zone
+            visibility (direct and through a designer function); consumer
+            position {slot, call, follows_lead, each reader} x Trick Order
+            presence; coexistence with a round's `trump`, every non-gated
+            winner, the excluded call, `early`; answer presence subsets and
+            the two defaults; placement (text order, a piece game, a contract
+            answered twice); the pile argument
             shapes x the Arrival-Record calls; the play zone x every
             library zone type; the algorithm's value cells (lead shape x
             trumps played x ties x pile state) and `follows_lead`'s (lead
@@ -48,7 +46,7 @@ domain:     rows x body type x binder reads x reference direction x call
             metamorphic pin against `highest_trump_or_led_suit`.
             Three things sit outside, and none is a gap. The zone-visibility
             axis treats a count-projected zone as concealed, so a count read
-            inside a row (`number of cards in deck`) is refused although the
+            inside an answer (`number of cards in deck`) is refused although the
             projection makes the count public -- deliberately conservative,
             since no game asks for it. The empty-candidate case belongs to
             the MOVEMENT: `follows_lead(card, pile)` written bare as the
@@ -60,12 +58,13 @@ domain:     rows x body type x binder reads x reference direction x call
             filter is a decision site inside a legality computation wherever
             it is written, Trick Order or not, so it is its own class
             (issue #370).
-registry:   rows -- `TRICK_ORDER_ROW_CONTRACTS` (cardlang.kernel_contracts),
-            pinned equal to `_ROWS` here and to the contracts' reference
-            order (`test_row_registry_matches_the_grid`); readers' types --
-            the contract rows (`kernel_contracts.CONTRACTS`); the function
-            spelling of every row and the contracts' own cells:
-            tests/test_kernel_definition_contracts.py; the winner namespace --
+registry:   answers -- `TRICK_ORDER_CONTRACTS` (cardlang.kernel_contracts),
+            pinned equal to `_READERS` here
+            (`test_the_contract_registry_matches_the_grid`); their types --
+            the contract rows (`kernel_contracts.CONTRACTS`); the contracts'
+            own cells: tests/test_kernel_definition_contracts.py; the retired
+            block and game-level `trump:` spellings:
+            tests/test_retired_trick_order.py; the winner namespace --
             `TRICK_WINNER_NAMES` partitioned by `TRICK_ORDER_GATED_WINNERS`
             (the excluded set by subtraction); the call namespace --
             `BUILTIN_CALL_FUNCS` partitioned by `TRICK_ORDER_GATED_FUNCS` and
@@ -77,37 +76,20 @@ registry:   rows -- `TRICK_ORDER_ROW_CONTRACTS` (cardlang.kernel_contracts),
             (`identity_to_all`); early predicates --
             `PRIMITIVE_EARLY_PREDICATES` minus `TRICK_ORDER_EARLY_PREDICATES`;
             the body-type axis is `_BODY_SPELLINGS`, authored rather than
-            derived (see `does not prove:`).
-            The ambiguity budget over every accept source, derived from
-            `_grammar_cells`: tests/test_grammar_ambiguity.py. The corpus
-            witnesses' byte-identity oracle:
-            tests/test_trick_order_migration.py.
-does not prove:  five things, and the first two are about the VOICE of a
-            refusal rather than the fact of one.
-            (1) That a misplaced row is refused in the block's voice. `trump:
-            card.rank is J` written at GAME level dies as a bare syntax error
-            at `.`; `trump: trick_order { ... }` (the suit dropped) dies at
-            `{`; and the four CROSSED reject-with-replacement habits -- the
-            colon, the commas, the `=`/`:=` rows taken together -- match no
-            arm and die the same way, since each named arm covers its own
-            habit alone. The `habits-*` cells pin these loud, in the lexer's
-            voice, and a crossed arm would buy a better voice on a sentence
-            nobody has written.
-            (2) That two refusals are refusals BY DESIGN. `empty-block` and
-            `block-in-phase-body` assert only "syntax error", which a tree
-            WITHOUT the construct also produces. What discriminates is the
-            ACCEPT cells beside them, which such a tree cannot pass.
-            (3) The ADMISSION direction of the `early` gate.
+            derived (see `does not prove:`). The corpus witnesses'
+            byte-identity oracle: tests/test_trick_order_migration.py.
+does not prove:  two things.
+            (1) The ADMISSION direction of the `early` gate.
             `TRICK_ORDER_EARLY_PREDICATES` is EMPTY, so only the refusal is
             exercised, by the `with-block-early` cell -- and a test iterating
             the empty set would pass over zero rows and read as coverage.
             The direction opens when a predicate joins the set with a
             witness.
-            (4) The whole type lattice on a row body. `_BODY_SPELLINGS` is one
+            (2) The whole type lattice on an answer's body. `_BODY_SPELLINGS` is one
             spelling per representative `cardlang.types` shape (Boolean,
             Boolean?, Suit, Suit?, none, Integer, Integer?, String, Rank,
-            Card, Player, Collection, the top): strict rows compare by type
-            equality, and the `follow_class:` row routes through
+            Card, Player, Collection, the top): strict answers compare by
+            type equality, and `follow_class` routes through
             `typecheck._check_operand`, whose coercion domain nothing here
             exercises. Nor does it reach past one helper level -- deeper call
             chains ride the same call-graph walk (`_check_functions`' call
@@ -115,28 +97,19 @@ does not prove:  five things, and the first two are about the VOICE of a
             family-library function is not spelled at all, since there is no
             library fixture; the guard runs over the resolved game after the
             splice, and the direct cells stand for it.
-            (5) That `TRICK_ORDER_EQ: ":=" | "="` (diagnostics.lark) is safe
-            under a different parser. Its alternatives overlap `ASSIGN_OP`'s
-            `:=` and every anonymous `"="` in the grammar (`state_decl`,
-            `let_stmt`, `function_def`, `vis_clause`). Under Earley with the
-            dynamic lexer the composed parse resolves this by position, and
-            the `eq-row-*` cells exercise it clean THERE; a named terminal
-            overlapping anonymous literals is precisely what breaks under
-            the LALR tightening the grammar header announces.
 
-Every cut-level point this grid's cells rest on is ruled (issue #250, the
-operator's PR-1 ruling 5321676867), and each was ruled as the cells were
-authored, so no cell flipped: the `trump:` row is REQUIRED and `trump: false`
-is the no-trump spelling; `trump:` and `card_strength:` type strictly, only
-`follow_class:` coerces, `TAny` refused; a row reads no `_PRONOUNS` member and
-makes no `choose`, directly or through a helper, while declared state variables
-stay readable; the row-callable Builtin surface is an allow-list with its
-complement listed; the pile argument of every Arrival-Record call is a static
-identity-to-all zone reference at resolve and every trick round's play zone is
-one, both tightening the EXISTING call form; `early` is refused beside the
-block winner; the winner slot has two contracts keyed by
-`TRICK_ORDER_GATED_WINNERS`, both dispatched by `value_function`; the call form
-emits no `trick` trace.
+Every point this grid's cells rest on is ruled (issue #250, the operator's
+PR-1 ruling 5321676867; issues #921 and #944 for the function form):
+`is_trump` is REQUIRED and `function is_trump(card : Card) = false` is the
+no-trump spelling; `is_trump` and `card_strength` type strictly, only
+`follow_class` coerces, `TAny` refused; an answer reads no `_PRONOUNS` member
+and makes no `choose`, directly or through a helper, while declared state
+variables stay readable; the row-callable Builtin surface is an allow-list
+with its complement listed; the pile argument of every Arrival-Record call is
+a static identity-to-all zone reference at resolve and every trick round's
+play zone is one; `early` is refused beside the Trick Order winner; the
+winner slot has two contracts keyed by `TRICK_ORDER_GATED_WINNERS`, both
+dispatched by `value_function`; the call form emits no `trick` trace.
 
 The cost, measured at issue #250's two PRs: the legality path evaluates a row
 per candidate per decision. MEASURED per Doppelkopf playout, base and head
@@ -210,31 +183,16 @@ else-branch with 60 no-op `+ 0` terms, at an UNCHANGED crossing count, costs
 measured +15% on the same shape). So row weight is spendable, not free -- it is
 simply small at the weights the corpus writes, and a row that grew an order of
 magnitude heavier would need its own measurement rather than this ledger's.
-Born red (the bare run, `TRICK_ORDER_GRID_BARE=1`, on main 8a722cd before any
-implementation): `285 failed, 13 passed in 4.57s` -- every block-bearing cell
-dies at the block's own line (verified: each syntax error's line is the line
-holding `trick_order` or `trump: 5` / `trump: "spades"`), the without-block
-gated cells die as "call to unknown function" / "is not a trick winner
-function", the two ranking-gate remedy cells lack the block's name, and the
-eleven tightening cells (the existing call form over a computed or concealed
-pile, a trick round into a non-public zone) check CLEAN today -- accepted-
-then-crashes and an unwitnessed leak, the reason they are cells. The 13 green
-are the controls, the placement cells whose refusal predates the construct,
-the existing call form's accept cells, and the First of Equals sweep (whose
-red-under is executed in its docstring). The designed-to-flip cells ride
-strict xfail marks constrained to their designed failure
-(`raises=AssertionError` for a static cell, `DiagnosticError` for an
-end-to-end cell whose fixture could not parse yet, `ImportError` /
-`AttributeError` for a cell over an engine API that did not exist yet). Every
-cell has flipped, so no mark remains: the grid is green unmarked, and the
-born-red counts above are its provenance, carried in the git log rather than
-in a skip.
+Born red on main 8a722cd (`TRICK_ORDER_GRID_BARE=1`, before any
+implementation): `285 failed, 13 passed in 4.57s`. Every cell has flipped, so
+no mark remains.
 """
 
 from __future__ import annotations
 
 import importlib
 import random
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -256,14 +214,7 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 
 # (row key, the contract the row answers). The row's required body type is the
 # contract row's result (`cardlang.kernel_contracts`).
-_ROWS: tuple[tuple[str, str], ...] = (
-    ("trump", "is_trump"),
-    ("follow_class", "follow_class"),
-    ("card_strength", "card_strength"),
-)
-_ROW_KEYS = tuple(k for k, _ in _ROWS)
-_READERS = tuple(r for _, r in _ROWS)
-_ORDER = {k: i for i, k in enumerate(_ROW_KEYS)}
+_READERS: tuple[str, ...] = ("is_trump", "follow_class", "card_strength")
 
 # The two Builtins over the declaration, and the winner slot's gated member.
 _CONSUMERS = ("highest_by_trick_order", "follows_lead")
@@ -294,54 +245,39 @@ _ARRIVAL_RECORD_CALLS = {"highest_by_trick_order": 0, "follows_lead": 1, "highes
 
 # --- diagnostics: the needles ------------------------------------------------
 
-P1 = "takes no colon"
-P2 = "never comma-separated"
-P3_EQ = "not `trump = <expr>`"
-P3_ASSIGN = "not `trump := <expr>`"
-P4 = "is not a row of `trick_order`"
-P5 = "declares one `{key}:` row"
-P6 = "a game declares one `trick_order { }` block"
-P7 = "by its bare name"
-P8 = "declares no `trump:` row"
-R1 = "beside a `trick_order { }` block"
-R1_FIX = "drop the game-level clause"
-# `_resolve_trump`'s dead-clause message. FORBIDDEN beside R1: both guards can
-# see a block game's `trump:` clause, and two messages about one defect send
-# the designer looking for two problems. R1 owns the cell, so `_resolve_trump`
-# returns early on a block game -- and this needle is what makes dropping that
-# early return redden something.
-DEAD_TRUMP = "is read by no trick round"
-R2 = "round `trump` clause beside a `trick_order { }` block"
-R3 = "round winner {name} beside a `trick_order {{ }}` block"
-R4 = "`highest_trump_or_led_suit(...)` beside a `trick_order { }` block"
+P5 = "duplicate function '{name}'"
+P8 = "a row of the Trick Order, but the game declares no Trick Order"
+R2 = "round `trump` clause beside function"
+R3 = "round winner {name} beside function"
+R4 = "`highest_trump_or_led_suit(...)` beside function"
 R4E = "`early` predicates read the literal led suit"
 R5 = "reads the game's Trick Order, but this game declares none"
 R6 = R5
-R7 = "is read by nothing"
+R7 = "declares a Trick Order nothing reads"
 NEVER_RUN = "is never run"
-R8_UP = "the reader of a row that comes after it"
-R8_SELF = "reads its own reader"
-R8_CONSUMER = "may not read the Trick Order it defines"
+R8_UP = "which comes after it in the Trick Order"
+R8_SELF = "is recursive"
+R8_CONSUMER = "may not read the Trick Order it helps define"
 R9 = "reads the pronoun"
 R9_CALLSITE = "reads the call-site pronoun"  # the existing `_check_functions` guard, through a helper
 R9_CHOOSE = "may not choose"
 R10 = "may read only fully public zones"
-R11 = "has no acting player"
+R11 = "with no acting player"
 R12 = "which a piece set has no notion of"
-R13 = "may not be called from a Trick Order row"
+R13 = "may not be called from function"
 R14 = "must name a zone"
 R14_ID = "does not project identity to every observer"
 R15 = "play zone must project identity to every observer"
 THROUGH = "through function"
-T1_TRUMP = "`trump:` row must type Boolean"
-T1_TRUMP_SUIT = "for a fixed trump suit write `trump: card.suit is"
-T1_CLASS = "`follow_class:` row must type Suit?"
+T1_TRUMP = "the kernel reads `is_trump(card : Card) : Boolean` as Boolean"
+T1_TRUMP_SUIT = "for a fixed trump suit write `function is_trump(card : Card) = card.suit is"
+T1_CLASS = "the kernel reads `follow_class(card : Card) : Suit?` as Suit?"
 T1_CLASS_STRING = "never by a class value"
-T1_STRENGTH = "`card_strength:` row must type Integer"
+T1_STRENGTH = "the kernel reads `card_strength(card : Card) : Integer` as Integer"
 T1_ANY = "types as `Any`"
-T2 = "declares no `card_strength:` row"
+T2 = "declares a Trick Order with no `card_strength`"
 RANKING_GATE = "reads a card's rank strength from ranking:"
-RANKING_GATE_BLOCK = "trick_order"
+RANKING_GATE_TRICK_ORDER = "declare a Trick Order"
 BOARD = "reads the board"
 W1 = "the pile is empty"
 W2 = "no card can win"
@@ -369,9 +305,9 @@ game G {{
 {tail}
 """
 
-BLOCK = "trick_order { trump: card.suit is hearts }"
-# A consumer outside the block, so the block is live (never R7) in cells that
-# are about something else.
+ORDER = "function is_trump(card : Card) = card.suit is hearts"
+# A consumer outside the answers, so the Trick Order is live (never R7) in
+# cells that are about something else.
 LIVE = "let w = highest_by_trick_order(pile)\n    score[w] += 1"
 
 
@@ -384,16 +320,28 @@ def _source(
     zones: str = "",
     state: str = "",
     body: str = LIVE,
+    order: str = "",
     tail: str = "",
 ) -> str:
     return _GAME.format(
         deck=deck, ranking=ranking, clauses=clauses, positions=positions,
-        zones=zones, state=state, body=body, tail=tail,
+        zones=zones, state=state, body=body, tail=f"{order}\n{tail}",
     )
 
 
-def _block(rows: str) -> str:
-    return f"trick_order {{ {rows} }}"
+_ANSWER = re.compile(r"(?:^|\s+)(is_trump|follow_class|card_strength):\s+")
+
+
+def _answers(rows: str) -> str:
+    """The Trick Order's answers as a game writes them: `rows` is a run of
+    `<contract>: <body>` pairs, each the body of `function <contract>(card :
+    Card)`."""
+    parts = _ANSWER.split(rows)
+    assert parts[0].strip() == "" and len(parts) > 1, rows
+    return "\n".join(
+        f"function {parts[i]}(card : Card) = {parts[i + 1].strip()}"
+        for i in range(1, len(parts), 2)
+    )
 
 
 def _diagnostics(source: str) -> str | None:
@@ -453,131 +401,44 @@ def _run(cell: Cell) -> None:
 
 
 # =============================================================================
-# 1. Grammar and parse: the twins, the absorbers, placement, presence
+# 1. Placement and order: where the answers stand, and in what order
 # =============================================================================
 
 
-def _grammar_cells() -> list[Cell]:
+def _placement_cells() -> list[Cell]:
     cells: list[Cell] = []
     add = cells.append
-    add(Cell("colon-block", _source(clauses="trick_order: { trump: card.suit is hearts }"), (P1,)))
-    add(Cell("colon-empty-block", _source(clauses="trick_order: { }"), (P1,)))
-    add(Cell("comma-two-rows", _source(clauses="trick_order { trump: card.suit is hearts, card_strength: 3 }"), (P2,)))
-    add(Cell("comma-one-among-three",
-             _source(clauses="trick_order { trump: card.suit is hearts  card_strength: 3, follow_class: card.suit }"), (P2,)))
-    add(Cell("eq-row-all", _source(clauses="trick_order { trump = card.suit is hearts }"), (P3_EQ,)))
-    add(Cell("eq-row-mixed", _source(clauses="trick_order { trump: card.suit is hearts  card_strength = 3 }"), ("not `card_strength = <expr>`",)))
-    add(Cell("assign-row", _source(clauses="trick_order { trump := card.suit is hearts }"), (P3_ASSIGN,)))
-    # Separator slips, one cell each. The TRAILING comma is the likeliest --
-    # a list habit produces it, and it used to miss the comma arm because the
-    # arm's tail demanded a row AFTER the comma -- so it earns the designer's
-    # voice; the other three are rarer and stay in the lexer's, recorded in
-    # the ledger's `does not prove:` (1) rather than assumed.
-    add(Cell("separator-trailing-comma",
-             _source(clauses="trick_order { trump: card.suit is hearts, }"), (P2,)))
-    add(Cell("separator-leading-comma",
-             _source(clauses="trick_order { , trump: card.suit is hearts }"),
-             ("syntax error",)))
-    add(Cell("separator-semicolon",
-             _source(clauses="trick_order { trump: card.suit is hearts; card_strength: 3 }"),
-             ("syntax error",)))
-    add(Cell("row-with-an-empty-body",
-             _source(clauses="trick_order { trump: card.suit is hearts  card_strength: }"),
-             ("syntax error",)))
-    # The three habits CROSSED. Each alone has a named reject arm above; the
-    # four combinations match no arm and die as a bare syntax error -- loud,
-    # but in the lexer's voice rather than the block's (the ledger's `does
-    # not prove:` (1)). Pinned
-    # LOUD here so the cells are recorded rather than assumed, and so a future
-    # crossed arm makes them fail rather than pass silently.
-    add(Cell("habits-colon-and-comma",
-             _source(clauses="trick_order: { trump: card.suit is hearts, card_strength: 3 }"),
-             ("syntax error",)))
-    add(Cell("habits-colon-and-eq",
-             _source(clauses="trick_order: { trump = card.suit is hearts }"),
-             ("syntax error",)))
-    add(Cell("habits-comma-and-eq",
-             _source(clauses="trick_order { trump: card.suit is hearts, card_strength = 3 }"),
-             ("syntax error",)))
-    add(Cell("habits-all-three",
-             _source(clauses="trick_order: { trump = card.suit is hearts, card_strength := 3 }"),
-             ("syntax error",)))
-    # `trick_order` is an ordinary NAME outside the clause position (it is not
-    # in NAME's exclusion): a zone may be called it, and the clause still
-    # resolves. One reading, accepted.
-    add(Cell("zone-named-trick_order",
-             _source(clauses=BLOCK, zones="  trick_order : Discard"), ()))
-    for bad in ("strength", "class", "order", "trumps", "rank", "is_trump", "trumpx", "follow_classcard_strength"):
-        add(Cell(f"bad-key-{bad}", _source(clauses=f"trick_order {{ trump: card.suit is hearts  {bad}: 3 }}"), (P4,)))
-    for key, body in (("trump", "card.suit is hearts"), ("follow_class", "card.suit"), ("card_strength", "3")):
-        rows = "trump: card.suit is hearts  " if key != "trump" else ""
-        add(Cell(f"duplicate-row-{key}", _source(clauses=_block(f"{rows}{key}: {body}  {key}: {body}")), (P5.format(key=key),)))
-    add(Cell("two-blocks", _source(clauses=f"{BLOCK}\n  {BLOCK}"), (P6,)))
-    # The game clause's non-name values, refused in the grammar's channel today
-    # (tests/test_trump_slot_class.py owns that record).
-    add(Cell("game-trump-int", _source(clauses="trump: 5", body="score[1] += 1"), (P7,)))
-    add(Cell("game-trump-string", _source(clauses='trump: "spades"', body="score[1] += 1"), (P7,)))
-    # The empty block is entry-plus: a syntax error, the card_points precedent.
-    # This and the two placement cells below assert only "syntax error", which
-    # is what a tree WITHOUT the construct also produces -- so each passed at
-    # base for the wrong reason, and none can distinguish "refused by design"
-    # from "not implemented". They are kept (the sentence must stay refused)
-    # and recorded in the ledger's `does not prove:` (2); their discriminating
-    # power comes from the accept cells beside them, which base cannot pass.
-    add(Cell("empty-block", _source(clauses="trick_order { }"), ("syntax error",)))
-    # Any row order accepts; the reference order is the language's, not the text's.
-    add(Cell("row-order-strength-first",
-             _source(clauses=_block("card_strength: rank_value(card)  trump: card.suit is hearts")), ()))
-    add(Cell("row-order-class-first",
-             _source(clauses=_block("follow_class: card.suit  trump: card.suit is hearts  card_strength: 3")), ()))
-    # Row boundaries: an expression cannot absorb the next key.
-    add(Cell("boundary-else-then-key",
-             _source(clauses=_block("follow_class: if card.rank is Q then none else card.suit  trump: card.suit is hearts")), ()))
-    add(Cell("boundary-or-then-key",
-             _source(clauses=_block("trump: card.suit is hearts or card.rank is Q  card_strength: rank_value(card)")), ()))
-    add(Cell("boundary-elif-chain-then-key",
-             _source(clauses=_block(
-                 "card_strength: if card.rank is Q then 3 elif card.rank is J then 2 else rank_value(card)  "
-                 "trump: card.suit is hearts")), ()))
-    add(Cell("boundary-call-then-key",
-             _source(clauses=_block("trump: card.suit is hearts  card_strength: rank_value(card)  follow_class: card.suit")), ()))
-    add(Cell("boundary-suit-literal-then-key",
-             _source(clauses=_block("trump: card.suit is spades  follow_class: card.suit")), ()))
-    # A state variable named `trump` read inside a row: one reading, accepted.
+    # `trick_order` is an ordinary NAME: a zone may be called it.
+    add(Cell("zone-named-trick_order", _source(order=ORDER, zones="  trick_order : Discard"), ()))
+    # A contract answered twice is refused once, naming the contract.
+    for name, body in (("is_trump", "card.suit is hearts"), ("follow_class", "card.suit"), ("card_strength", "3")):
+        rows = "is_trump: card.suit is hearts  " if name != "is_trump" else ""
+        add(Cell(f"answered-twice-{name}",
+                 _source(order=_answers(f"{rows}{name}: {body}  {name}: {body}")), (P5.format(name=name),)))
+    # Any order of the text accepts; the reference order is the language's.
+    add(Cell("order-strength-first",
+             _source(order=_answers("card_strength: rank_value(card)  is_trump: card.suit is hearts")), ()))
+    add(Cell("order-class-first",
+             _source(order=_answers("follow_class: card.suit  is_trump: card.suit is hearts  card_strength: 3")), ()))
+    # A state variable named `trump` read inside an answer: one reading.
     add(Cell("state-var-named-trump",
-             _source(clauses=_block("trump: card.suit is trump"), state="  trump : Suit? = none"), ()))
-    # The absorber: `card_rank+`.
-    add(Cell("ranking-does-not-absorb-the-block",
-             _source(ranking="ranking: A K Q J 10 9 8 7 6 5 4 3 2", clauses=BLOCK), ()))
-    # Placement: a phase body, a piece game, a library.
-    add(Cell("block-in-phase-body", _source(body=f"{BLOCK}\n    {LIVE}"), ("syntax error",)))
-    # R12 names the kind, and the partition must stay SILENT: a piece game has
-    # no gated consumer, so `_check_trick_order_partition` would otherwise
-    # co-report R7 on top of it and send the designer after two problems.
-    add(Cell("block-in-piece-game",
+             _source(order=_answers("is_trump: card.suit is trump"), state="  trump : Suit? = none"), ()))
+    # R12 names the kind, and the partition stays SILENT: a piece game has no
+    # gated consumer, so R7 co-reported on top of it would send the designer
+    # after two problems.
+    add(Cell("answer-in-piece-game",
              "game P {\n  players: 2\n  pieces: xo_marks\n  max_length: 60\n"
-             "  trick_order { trump: true }\n"
              "  zones { box : Deck  reserve[player] : PlayerPile<player> }\n"
              "  state { score[player] : Integer = 0 }\n"
              "  phase play {\n    move all pieces from box where piece.side is x to reserve[0]\n"
-             "    score[0] += 1\n  }\n  winner: highest score\n}\n",
+             "    score[0] += 1\n  }\n  winner: highest score\n}\n"
+             "function is_trump(card : Card) = true\n",
              (R12,), forbidden=(R7,)))
     return cells
 
 
-def test_block_in_a_library_is_inexpressible() -> None:
-    """`?library_item` has no arm for the block (a game clause, like every
-    other): a family library that writes one dies at parse. Green today and
-    after; red under: adding `trick_order` to `?library_item`."""
-    from cardlang.parse import parse_library
-
-    with pytest.raises(DiagnosticError) as exc:
-        parse_library("library L {\n  trick_order { trump: true }\n  function f(c : Card) = c.rank is Q\n}\n", "L.cardlang")
-    assert "syntax error" in exc.value.diagnostic.message
-
-
-@pytest.mark.parametrize("cell", _params(_grammar_cells()))
-def test_grammar_cell(cell: Cell) -> None:
+@pytest.mark.parametrize("cell", _params(_placement_cells()))
+def test_placement_cell(cell: Cell) -> None:
     _run(cell)
 
 
@@ -611,26 +472,26 @@ _BODY_SPELLINGS: tuple[tuple[str, str, str], ...] = (
 )
 
 _ACCEPTS = {
-    "trump": {"Boolean", "Boolean-literal"},
+    "is_trump": {"Boolean", "Boolean-literal"},
     "follow_class": {"Suit", "Suit-literal", "Suit?", "none"},
     "card_strength": {"Integer", "Integer-literal"},
 }
-_TYPE_NEEDLE = {"trump": T1_TRUMP, "follow_class": T1_CLASS, "card_strength": T1_STRENGTH}
+_TYPE_NEEDLE = {"is_trump": T1_TRUMP, "follow_class": T1_CLASS, "card_strength": T1_STRENGTH}
 
 
 def _row_type_cells() -> list[Cell]:
     cells: list[Cell] = []
-    for key in _ROW_KEYS:
+    for key in _READERS:
         for tname, spelling, state in _BODY_SPELLINGS:
-            rows = f"{key}: {spelling}" if key == "trump" else f"trump: card.suit is hearts  {key}: {spelling}"
-            src = _source(clauses=_block(rows), state=state)
+            rows = f"{key}: {spelling}" if key == "is_trump" else f"is_trump: card.suit is hearts  {key}: {spelling}"
+            src = _source(order=_answers(rows), state=state)
             if tname in _ACCEPTS[key]:
                 cells.append(Cell(f"{key}-{tname}", src, ()))
                 continue
             needles: tuple[str, ...]
             if tname == "Any":
                 needles = (T1_ANY,)
-            elif key == "trump" and tname in ("Suit", "Suit-literal"):
+            elif key == "is_trump" and tname in ("Suit", "Suit-literal"):
                 needles = (T1_TRUMP, T1_TRUMP_SUIT)
             elif key == "follow_class" and tname == "String":
                 needles = (T1_CLASS, T1_CLASS_STRING)
@@ -678,8 +539,8 @@ def _row_hermeticity_cells() -> list[Cell]:
     assert set(_PRONOUN_SPELLING) == set(_PRONOUNS), sorted(_PRONOUNS)
     for name in sorted(_PRONOUNS):
         spelling = _PRONOUN_SPELLING[name]
-        add(Cell(f"pronoun-{name}-direct", _source(clauses=_block(f"trump: {spelling}")), (R9, f"'{name}'")))
-        through = _source(clauses=_block("trump: helper(card)"), tail=_HELPER.format(body=spelling))
+        add(Cell(f"pronoun-{name}-direct", _source(order=_answers(f"is_trump: {spelling}")), (R9, f"'{name}'")))
+        through = _source(order=_answers("is_trump: helper(card)"), tail=_HELPER.format(body=spelling))
         if name in ("actor", "action", "winner"):
             # The existing function hermeticity guard fires first; the cell is
             # already refused today (green), pinned as a member of the class.
@@ -687,28 +548,28 @@ def _row_hermeticity_cells() -> list[Cell]:
         else:
             add(Cell(f"pronoun-{name}-through-function", through, (R9, THROUGH)))
     # (b) choose -- direct and through a function.
-    add(Cell("choose-direct", _source(clauses=_block("trump: (choose integer in 0 .. 3) > 1")), (R9_CHOOSE,)))
+    add(Cell("choose-direct", _source(order=_answers("is_trump: (choose integer in 0 .. 3) > 1")), (R9_CHOOSE,)))
     add(Cell("choose-through-function",
-             _source(clauses=_block("trump: helper(card)"), tail=_HELPER.format(body="(choose integer in 0 .. 3) > 1")),
+             _source(order=_answers("is_trump: helper(card)"), tail=_HELPER.format(body="(choose integer in 0 .. 3) > 1")),
              (R9_CHOOSE, THROUGH)))
     # (c) zone reads over every library zone type: accept iff identity to all.
     for ztype in sorted(LIBRARY_ZONE_TYPES):
         positions, decl, read, bare = _zone_decl(ztype)
-        row = f"trump: any card in {read} where card.rank is Q"
+        row = f"is_trump: any card in {read} where card.rank is Q"
         needles: tuple[str, ...] = () if identity_to_all(ztype) else (R10,)
-        add(Cell(f"zone-{ztype}-direct", _source(clauses=_block(row), positions=positions, zones=decl), needles))
-        through = _source(clauses=_block("trump: helper(card)"), positions=positions, zones=decl,
+        add(Cell(f"zone-{ztype}-direct", _source(order=_answers(row), positions=positions, zones=decl), needles))
+        through = _source(order=_answers("is_trump: helper(card)"), positions=positions, zones=decl,
                           tail=_HELPER.format(body=f"any card in {read} where card.rank is Q"))
         add(Cell(f"zone-{ztype}-through-function", through, needles if not needles else (R10, THROUGH)))
         if bare and identity_to_all(ztype):
             add(Cell(f"zone-{ztype}-bare-direct",
-                     _source(clauses=_block(f"trump: any card in {bare} where card.rank is Q"), zones=decl), (R11,)))
+                     _source(order=_answers(f"is_trump: any card in {bare} where card.rank is Q"), zones=decl), (R11,)))
             add(Cell(f"zone-{ztype}-bare-through-function",
-                     _source(clauses=_block("trump: helper(card)"), zones=decl,
+                     _source(order=_answers("is_trump: helper(card)"), zones=decl,
                              tail=_HELPER.format(body=f"any card in {bare} where card.rank is Q")), (R11, THROUGH)))
     # A count read of a count-projected zone: refused (conservative; the
     # ledger's `domain:`).
-    add(Cell("count-of-concealed-zone", _source(clauses=_block("trump: (number of cards in deck) > 10")), (R10,)))
+    add(Cell("count-of-concealed-zone", _source(order=_answers("is_trump: (number of cards in deck) > 10")), (R10,)))
     # (d) every BUILTIN_CALL_FUNCS member as a row call (the axis grows by the
     # five new names; the census pin below keeps the classification total).
     call_spelling = {
@@ -738,48 +599,43 @@ def _row_hermeticity_cells() -> list[Cell]:
     }
     for name in sorted(_ROW_CALLABLE | _ROW_UNCALLABLE):
         spelling = call_spelling[name]
-        clauses = f"{extra_clause.get(name, '')}\n  {_block(f'trump: {spelling}')}"
+        clauses = extra_clause.get(name, "")
+        order = _answers(f"is_trump: {spelling}")
         if name in _ROW_CALLABLE:
-            add(Cell(f"call-{name}", _source(clauses=clauses), ()))
+            add(Cell(f"call-{name}", _source(clauses=clauses, order=order), ()))
         elif name in _CONSUMERS:
-            add(Cell(f"call-{name}", _source(clauses=clauses), (R8_CONSUMER,)))
+            add(Cell(f"call-{name}", _source(clauses=clauses, order=order), (R8_CONSUMER,)))
         elif name in F.BOARD_ONLY_CALL_FUNCS:
-            add(Cell(f"call-{name}", _source(clauses=clauses), (R13, BOARD), any_of=True))
+            add(Cell(f"call-{name}", _source(clauses=clauses, order=order), (R13, BOARD), any_of=True))
         else:
-            add(Cell(f"call-{name}", _source(clauses=clauses), (R13,)))
+            add(Cell(f"call-{name}", _source(clauses=clauses, order=order), (R13,)))
         # through a helper: the same classification, the walk names the function
         if name in ("player_holding", "highest_by_trick_order", "follows_lead"):
             needle = R8_CONSUMER if name in _CONSUMERS else R13
             add(Cell(f"call-{name}-through-function",
-                     _source(clauses=_block("trump: helper(card)"), tail=_HELPER.format(body=spelling.replace("card", "c"))),
+                     _source(order=_answers("is_trump: helper(card)"), tail=_HELPER.format(body=spelling.replace("card", "c"))),
                      (needle, THROUGH)))
     # A Primitive in a row: uncallable by construction.
-    add(Cell("call-primitive", _source(clauses=_block("trump: skat_next_bid(0) > 3")), (R13,)))
+    add(Cell("call-primitive", _source(order=_answers("is_trump: skat_next_bid(0) > 3")), (R13,)))
     # (e) reader references: self, upward, downward -- direct and through a function.
-    add(Cell("reader-self-trump", _source(clauses=_block("trump: is_trump(card)")), (R8_SELF,)))
+    add(Cell("reader-self-trump", _source(order=_answers("is_trump: is_trump(card)")), (R8_SELF,)))
     add(Cell("reader-self-strength",
-             _source(clauses=_block("trump: card.suit is hearts  card_strength: card_strength(card) + 1")), (R8_SELF,)))
-    add(Cell("reader-upward-trump-reads-strength", _source(clauses=_block("trump: card_strength(card) > 3")), (R8_UP,)))
-    add(Cell("reader-upward-trump-reads-class", _source(clauses=_block("trump: follow_class(card) is hearts")), (R8_UP,)))
+             _source(order=_answers("is_trump: card.suit is hearts  card_strength: card_strength(card) + 1")), (R8_SELF,)))
+    add(Cell("reader-upward-trump-reads-strength", _source(order=_answers("is_trump: card_strength(card) > 3")), (R8_UP,)))
+    add(Cell("reader-upward-trump-reads-class", _source(order=_answers("is_trump: follow_class(card) is hearts")), (R8_UP,)))
     add(Cell("reader-upward-class-reads-strength",
-             _source(clauses=_block("trump: card.suit is hearts  follow_class: if card_strength(card) > 3 then none else card.suit")),
+             _source(order=_answers("is_trump: card.suit is hearts  follow_class: if card_strength(card) > 3 then none else card.suit")),
              (R8_UP,)))
     add(Cell("reader-downward-strength-reads-trump",
-             _source(clauses=_block("trump: card.suit is hearts  card_strength: if is_trump(card) then 100 else rank_value(card)")), ()))
+             _source(order=_answers("is_trump: card.suit is hearts  card_strength: if is_trump(card) then 100 else rank_value(card)")), ()))
     add(Cell("reader-downward-strength-reads-class",
-             _source(clauses=_block("trump: card.suit is hearts  follow_class: card.suit  card_strength: if follow_class(card) is hearts then 9 else 1")), ()))
+             _source(order=_answers("is_trump: card.suit is hearts  follow_class: card.suit  card_strength: if follow_class(card) is hearts then 9 else 1")), ()))
     add(Cell("reader-downward-class-reads-trump",
-             _source(clauses=_block("trump: card.suit is hearts  follow_class: if is_trump(card) then none else card.suit")), ()))
+             _source(order=_answers("is_trump: card.suit is hearts  follow_class: if is_trump(card) then none else card.suit")), ()))
     add(Cell("reader-upward-through-function",
-             _source(clauses=_block("trump: helper(card)"), tail=_HELPER.format(body="card_strength(c) > 3")), (R8_UP, THROUGH)))
+             _source(order=_answers("is_trump: helper(card)"), tail=_HELPER.format(body="card_strength(c) > 3")), (R8_UP, THROUGH)))
     add(Cell("reader-self-through-function",
-             _source(clauses=_block("trump: helper(card)"), tail=_HELPER.format(body="is_trump(c)")), (R8_SELF, THROUGH)))
-    # A designer function named after a row's contract, beside the row: one
-    # contract answered twice.
-    add(Cell("designer-function-named-is_trump",
-             _source(clauses=BLOCK, tail="function is_trump(c : Card) = c.rank is Q"), ("`is_trump` is answered twice",)))
-    # The binder is `card`: a function's habit `c.rank` is an unresolved name.
-    add(Cell("row-binder-is-card", _source(clauses=_block("trump: c.rank is Q")), ("unresolved name 'c'",)))
+             _source(order=_answers("is_trump: helper(card)"), tail=_HELPER.format(body="is_trump(c)")), (R8_SELF,)))
     return cells
 
 
@@ -800,22 +656,11 @@ def _partition_cells() -> list[Cell]:
     add = cells.append
     excluded_winners = sorted(F.TRICK_WINNER_NAMES - _GATED_WINNERS)
     # WITH a block --------------------------------------------------------------
-    add(Cell("with-block-game-trump", _source(clauses=f"trump: spades\n  {BLOCK}"),
-             (R1, R1_FIX), forbidden=(DEAD_TRUMP,)))
-    add(Cell("with-block-game-trump-non-suit", _source(clauses=f"trump: is_trump\n  {BLOCK}"),
-             (R1,), forbidden=("card.suit is is_trump", DEAD_TRUMP)))
-    # A block game whose trump clause WOULD have been read by a round, had the
-    # round not been a block round: the shape on which `_resolve_trump` has
-    # most to say, and must still say nothing.
-    add(Cell("with-block-game-trump-and-round",
-             _source(clauses=f"trump: spades\n  {BLOCK}",
-                     body=_ROUND.format(winner="highest_by_trick_order", extra="")),
-             (R1,), forbidden=(DEAD_TRUMP,)))
     add(Cell("with-block-round-trump",
-             _source(clauses=BLOCK, body=_ROUND.format(winner="highest_by_trick_order", extra=" trump hearts")),
+             _source(order=ORDER, body=_ROUND.format(winner="highest_by_trick_order", extra=" trump hearts")),
              (R2,), forbidden=("reads no trump",)))
     for w in excluded_winners:
-        add(Cell(f"with-block-winner-{w}", _source(clauses=BLOCK, body=_ROUND.format(winner=w, extra="")),
+        add(Cell(f"with-block-winner-{w}", _source(order=ORDER, body=_ROUND.format(winner=w, extra="")),
                  (R3.format(name=w),)))
     # A climbing query beside the block: two card orders in one game, and the
     # engine runs both. PARAMETRIZED over the whole climb registry -- every
@@ -833,7 +678,7 @@ def _partition_cells() -> list[Cell]:
             f for f in sorted(F.PRIMITIVE_CLIMB_FOLLOWS) if f.startswith(family)
         )
         add(Cell(f"with-block-climb-{combos}",
-                 _source(clauses=BLOCK,
+                 _source(order=ORDER,
                          body=_CLIMB.format(combos=combos, follows=follows) + "\n    " + LIVE),
                  (_CLIMB_NEEDLE, combos)))
         # ... and the same round without a block is untouched by this guard.
@@ -841,27 +686,27 @@ def _partition_cells() -> list[Cell]:
                  _source(body=_CLIMB.format(combos=combos, follows=follows)),
                  (), forbidden=(_CLIMB_NEEDLE,)))
     add(Cell("with-block-excluded-call",
-             _source(clauses=BLOCK, body="let w = highest_trump_or_led_suit(pile, hearts)\n    score[w] += 1"), (R4,)))
+             _source(order=ORDER, body="let w = highest_trump_or_led_suit(pile, hearts)\n    score[w] += 1"), (R4,)))
     add(Cell("with-block-early",
-             _source(clauses=BLOCK, body=_ROUND.format(winner="highest_by_trick_order", extra=" early on_play_off_led_suit")),
+             _source(order=ORDER, body=_ROUND.format(winner="highest_by_trick_order", extra=" early on_play_off_led_suit")),
              (R4E,)))
-    add(Cell("with-block-dead", _source(clauses=BLOCK, body="score[1] += 1"), (R7,)))
+    add(Cell("with-block-dead", _source(order=ORDER, body="score[1] += 1"), (R7,)))
     add(Cell("with-block-dead-self-referencing-rows",
-             _source(clauses=_block("trump: card.suit is hearts  card_strength: if is_trump(card) then 9 else 1"),
+             _source(order=_answers("is_trump: card.suit is hearts  card_strength: if is_trump(card) then 9 else 1"),
                      body="score[1] += 1"), (R7,)))
     # The block's only consumer sits in a procedure nothing runs, so the game
     # never REACHES it: the block is dead, and counting the text rather than
     # what runs would call it live -- `_resolve_trump`'s dead-clause guard
     # takes the same care over the same question.
     add(Cell("with-block-consumer-only-in-an-unreached-procedure",
-             _source(clauses=BLOCK, body="score[1] += 1",
+             _source(order=ORDER, body="score[1] += 1",
                      tail="procedure p() {\n  let w = highest_by_trick_order(pile)\n  score[w] += 1\n}"),
              (NEVER_RUN,)))
     # A consumer in a GAME-LEVEL evaluated position, outside every phase body:
     # the `loser:` terminal selection, which the driver evaluates after the
     # phases finish. Accepted -- it is read, by the engine, every game.
     add(Cell("consumer-only-in-the-loser-selection",
-             _source(clauses=BLOCK, body="score[1] += 1",
+             _source(order=ORDER, body="score[1] += 1",
                      tail="").replace(
                  "  winner: highest score",
                  "  loser: if is_trump(A of hearts) then 0 else 1"),
@@ -881,7 +726,7 @@ def _partition_cells() -> list[Cell]:
         )
 
     add(Cell("with-block-excluded-winner-in-a-dead-procedure",
-             _source(clauses=BLOCK, body=LIVE, tail=_dead_procedure("highest_of_led_suit")),
+             _source(order=ORDER, body=LIVE, tail=_dead_procedure("highest_of_led_suit")),
              (R3.format(name="highest_of_led_suit"),)))
     add(Cell("without-block-gated-winner-in-a-dead-procedure",
              _source(body="score[1] += 1", tail=_dead_procedure("highest_by_trick_order")),
@@ -895,16 +740,16 @@ def _partition_cells() -> list[Cell]:
     # notion is pinned rather than the one shape the corpus happens to use.
     _CALL = "let w = highest_by_trick_order(pile)\n    score[w] += 1"
     add(Cell("consumer-in-a-called-function",
-             _source(clauses=BLOCK,
+             _source(order=ORDER,
                      body="if helper(0) { score[1] += 1 }",
                      tail="function helper(p : Player) = any card in hand[p] where is_trump(card)"),
              ()))
     add(Cell("consumer-in-an-uncalled-function",
-             _source(clauses=BLOCK, body="score[1] += 1",
+             _source(order=ORDER, body="score[1] += 1",
                      tail="function helper(p : Player) = any card in hand[p] where is_trump(card)"),
              ()))
     add(Cell("consumer-in-a-called-function-through-a-second",
-             _source(clauses=BLOCK,
+             _source(order=ORDER,
                      body="if outer(0) { score[1] += 1 }",
                      tail="function outer(p : Player) = helper(p)\n"
                           "function helper(p : Player) = any card in hand[p] where is_trump(card)"),
@@ -920,7 +765,7 @@ def _partition_cells() -> list[Cell]:
              "  demands: cards in hand[actor] where is_trump(card)\n"
              "  if_impossible: hand[actor]\n}")
     add(Cell("consumer-in-an-active-rule",
-             _source(clauses=BLOCK,
+             _source(order=ORDER,
                      body="active_rules: [OnlyTrumps]\n    "
                      + _ROUND.format(winner="highest_by_trick_order", extra=""),
                      tail=_RULE),
@@ -929,17 +774,17 @@ def _partition_cells() -> list[Cell]:
     # block, as the gate refuses that reader wherever it is written; the
     # inert definition itself is issue #932.
     add(Cell("consumer-in-a-never-activated-rule",
-             _source(clauses=BLOCK, body="score[1] += 1", tail=_RULE),
+             _source(order=ORDER, body="score[1] += 1", tail=_RULE),
              ()))
     # live via each consumer position
-    add(Cell("with-block-live-slot", _source(clauses=BLOCK, body=_ROUND.format(winner="highest_by_trick_order", extra="")), ()))
-    add(Cell("with-block-live-call", _source(clauses=BLOCK, body=LIVE), ()))
+    add(Cell("with-block-live-slot", _source(order=ORDER, body=_ROUND.format(winner="highest_by_trick_order", extra="")), ()))
+    add(Cell("with-block-live-call", _source(order=ORDER, body=LIVE), ()))
     add(Cell("with-block-live-follows_lead",
-             _source(clauses=BLOCK, body="if any card in hand[0] where follows_lead(card, pile) { score[1] += 1 }"), ()))
+             _source(order=ORDER, body="if any card in hand[0] where follows_lead(card, pile) { score[1] += 1 }"), ()))
     for reader, use in (("is_trump", "if any card in hand[0] where is_trump(card) { score[1] += 1 }"),
                         ("follow_class", "if any card in hand[0] where follow_class(card) is hearts { score[1] += 1 }"),
                         ("card_strength", "if any card in hand[0] where card_strength(card) > 3 { score[1] += 1 }")):
-        add(Cell(f"with-block-live-{reader}", _source(clauses=BLOCK, body=use), ()))
+        add(Cell(f"with-block-live-{reader}", _source(order=ORDER, body=use), ()))
     # WITHOUT a block -----------------------------------------------------------
     add(Cell("without-block-slot", _source(body=_ROUND.format(winner="highest_by_trick_order", extra="")), (R5,)))
     add(Cell("without-block-slot-with-trump",
@@ -955,8 +800,8 @@ def _partition_cells() -> list[Cell]:
         }[name]
         add(Cell(f"without-block-call-{name}", _source(body=use), (R6,)))
     # controls: the existing vocabulary, unchanged without a block
-    add(Cell("control-standard-winner-inherits-game-trump",
-             _source(clauses="trump: hearts", body=_ROUND.format(winner="highest_trump_or_led_suit", extra="")), ()))
+    add(Cell("control-standard-winner-with-round-trump",
+             _source(body=_ROUND.format(winner="highest_trump_or_led_suit", extra=" trump hearts")), ()))
     add(Cell("control-no-trump-winner",
              _source(body=_ROUND.format(winner="highest_of_led_suit", extra="")), ()))
     add(Cell("control-standard-call",
@@ -978,28 +823,28 @@ def _defaults_cells() -> list[Cell]:
     cells: list[Cell] = []
     add = cells.append
     # P8: the `trump:` row is required (provisional -- see the ledger).
-    add(Cell("no-trump-row-class-only", _source(clauses=_block("follow_class: card.suit")), (P8,)))
-    add(Cell("no-trump-row-strength-only", _source(clauses=_block("card_strength: rank_value(card)")), (P8,)))
+    add(Cell("no-trump-row-class-only", _source(order=_answers("follow_class: card.suit")), (P8,)))
+    add(Cell("no-trump-row-strength-only", _source(order=_answers("card_strength: rank_value(card)")), (P8,)))
     add(Cell("no-trump-row-class-and-strength",
-             _source(clauses=_block("follow_class: card.suit  card_strength: rank_value(card)")), (P8,)))
+             _source(order=_answers("follow_class: card.suit  card_strength: rank_value(card)")), (P8,)))
     add(Cell("trump-false-is-the-no-trump-spelling",
-             _source(clauses=_block("trump: false  follow_class: if card.rank is Q then none else card.suit")), ()))
+             _source(order=_answers("is_trump: false  follow_class: if card.rank is Q then none else card.suit")), ()))
     # T2: the default strength reads ranking:
-    add(Cell("default-strength-without-ranking", _source(ranking="", clauses=BLOCK), (T2,)))
-    add(Cell("default-strength-with-ranking", _source(clauses=BLOCK), ()))
+    add(Cell("default-strength-without-ranking", _source(ranking="", order=ORDER), (T2,)))
+    add(Cell("default-strength-with-ranking", _source(order=ORDER), ()))
     add(Cell("explicit-strength-without-ranking",
-             _source(ranking="", clauses=_block("trump: card.suit is hearts  card_strength: if card.rank is A then 2 else 1")), ()))
+             _source(ranking="", order=_answers("is_trump: card.suit is hearts  card_strength: if card.rank is A then 2 else 1")), ()))
     add(Cell("explicit-rank_value-without-ranking",
-             _source(ranking="", clauses=_block("trump: card.suit is hearts  card_strength: rank_value(card)")), (RANKING_GATE,)))
+             _source(ranking="", order=_answers("is_trump: card.suit is hearts  card_strength: rank_value(card)")), (RANKING_GATE,)))
     # The ranking gate names the block for a name the Trick Order winner
     # replaces (the design's C13; `typecheck.RANKING_TRICK_ORDER_TWINS`), and
     # for no other name, where the block would leave the refusal standing.
     add(Cell("standard-winner-without-ranking-names-the-block",
-             _source(ranking="", clauses="trump: hearts", body=_ROUND.format(winner="highest_trump_or_led_suit", extra="")),
-             (RANKING_GATE, RANKING_GATE_BLOCK)))
+             _source(ranking="", body=_ROUND.format(winner="highest_trump_or_led_suit", extra=" trump hearts")),
+             (RANKING_GATE, RANKING_GATE_TRICK_ORDER)))
     add(Cell("rank_value-without-ranking-asks-for-a-ranking-only",
              _source(ranking="", body="if any card in hand[0] where rank_value(card) > 3 { score[1] += 1 }"),
-             (RANKING_GATE,), forbidden=(RANKING_GATE_BLOCK,)))
+             (RANKING_GATE,), forbidden=(RANKING_GATE_TRICK_ORDER,)))
     return cells
 
 
@@ -1030,7 +875,7 @@ _PILE_SHAPES: tuple[tuple[str, str, str, str | None], ...] = (
 def _pile_argument_cells() -> list[Cell]:
     cells: list[Cell] = []
     for name, idx in sorted(_ARRIVAL_RECORD_CALLS.items()):
-        clauses = "" if name == "highest_trump_or_led_suit" else BLOCK
+        order = "" if name == "highest_trump_or_led_suit" else ORDER
         for label, arg, zdecl, needle in _PILE_SHAPES:
             if name == "highest_by_trick_order":
                 body = f"let w = highest_by_trick_order({arg})\n    score[w] += 1"
@@ -1038,7 +883,7 @@ def _pile_argument_cells() -> list[Cell]:
                 body = f"if any card in hand[0] where follows_lead(card, {arg}) {{ score[1] += 1 }}"
             else:
                 body = f"let w = highest_trump_or_led_suit({arg}, hearts)\n    score[w] += 1"
-            src = _source(clauses=clauses, zones=zdecl, body=body)
+            src = _source(order=order, zones=zdecl, body=body)
             # The EXISTING call form is tightened by the same guard, which is
             # why it is an axis member and not a control: before issue #250 PR
             # 1 its computed and concealed piles checked clean and died at play
@@ -1089,17 +934,14 @@ def _reg(name: str) -> Any:
     return getattr(F, name)
 
 
-def test_row_registry_matches_the_grid() -> None:
-    """One row table: the lowering's row map, the contracts' reference order,
-    the contracts' parameter. red under: reorder or rename a row in
-    `kernel_contracts.TRICK_ORDER_ROW_CONTRACTS`."""
+def test_the_contract_registry_matches_the_grid() -> None:
+    """One table: the contracts' reference order and parameter. red under:
+    reorder or rename a contract in `kernel_contracts.TRICK_ORDER_CONTRACTS`."""
     from cardlang import kernel_contracts as K
     from cardlang.types import TCard
 
-    rows = tuple(K.TRICK_ORDER_ROW_CONTRACTS)
-    assert rows == _ROWS
-    assert tuple(r for _, r in rows) == K.TRICK_ORDER_CONTRACTS
-    for _, reader in rows:
+    assert K.TRICK_ORDER_CONTRACTS == _READERS
+    for reader in _READERS:
         assert reader not in F.BUILTIN_CALL_FUNCS
         assert K.CONTRACTS[reader].param_type == TCard()
 
@@ -1310,7 +1152,6 @@ game G {
   max_length: 100
   cards: standard52
   ranking: aces high
-  trick_order { trump: card.suit is hearts }
   zones { deck : Deck  hand[player] : Hand<player>  piles[player] : PlayerPile<player> }
   state { score[player] : Integer = 0 }
   phase play {
@@ -1324,6 +1165,7 @@ game G {
   }
   winner: highest score
 }
+function is_trump(card : Card) = card.suit is hearts
 """
 
 
@@ -1520,6 +1362,7 @@ game G {{
   }}
   winner: highest score
 }}
+{functions}
 """
 
 _FOLLOW_OK_STANDARD = """
@@ -1547,35 +1390,38 @@ def test_slot_and_call_agree(deck: str) -> None:
     call over the Arrival Record) -- names the same winners on the same seeds
     (the candidate order is hand order in both, so the RNG draws agree).
     `pinochle48` is the double pack: First of Equals is exercised."""
-    block = "trick_order { trump: card.suit is hearts  card_strength: rank_value(card) }"
-    slot = _ROUND_FORM.format(deck=deck, ranking="aces high", clauses=block, cards_each=3,
-                              winner="highest_by_trick_order", extra="")
-    call = _HAND_ROLLED.format(deck=deck, ranking="aces high", clauses=block, cards_each=3,
-                               winner_call="highest_by_trick_order(pile)", functions=_FOLLOW_OK_TRICK_ORDER)
+    order = _answers("is_trump: card.suit is hearts  card_strength: rank_value(card)")
+    slot = _ROUND_FORM.format(deck=deck, ranking="aces high", clauses="", cards_each=3,
+                              winner="highest_by_trick_order", extra="", functions=order)
+    call = _HAND_ROLLED.format(deck=deck, ranking="aces high", clauses="", cards_each=3,
+                               winner_call="highest_by_trick_order(pile)",
+                               functions=order + _FOLLOW_OK_TRICK_ORDER)
     for seed in _SEEDS:
         assert _play(slot, seed).scores == _play(call, seed).scores, f"seed {seed}"
 
 
 @pytest.mark.parametrize("deck", ["standard52", "pinochle48"])
-def test_block_agrees_with_the_standard_winner(deck: str) -> None:
-    """The metamorphic pin: a block `trump: card.suit is X` with the default
-    strength is the standard trump game, so it names the same winners as
-    `trump: X` + `highest_trump_or_led_suit`, slot and call, on every seed --
-    which also pins First of Equals against `_strongest`'s `max`."""
-    block = "trick_order { trump: card.suit is hearts }"
-    std_slot = _ROUND_FORM.format(deck=deck, ranking="aces high", clauses="trump: hearts", cards_each=3,
-                                  winner="highest_trump_or_led_suit", extra="")
-    new_slot = _ROUND_FORM.format(deck=deck, ranking="aces high", clauses=block, cards_each=3,
-                                  winner="highest_by_trick_order", extra="")
+def test_a_suit_trick_order_agrees_with_the_standard_winner(deck: str) -> None:
+    """The metamorphic pin: `is_trump` answered `card.suit is X` with the
+    default strength is the standard trump game, so it names the same winners
+    as a round's `trump X` + `highest_trump_or_led_suit`, slot and call, on
+    every seed -- which also pins First of Equals against `_strongest`'s
+    `max`."""
+    order = ORDER
+    std_slot = _ROUND_FORM.format(deck=deck, ranking="aces high", clauses="", cards_each=3,
+                                  winner="highest_trump_or_led_suit", extra=" trump hearts", functions="")
+    new_slot = _ROUND_FORM.format(deck=deck, ranking="aces high", clauses="", cards_each=3,
+                                  winner="highest_by_trick_order", extra="", functions=order)
     std_call = _HAND_ROLLED.format(deck=deck, ranking="aces high", clauses="", cards_each=3,
                                    winner_call="highest_trump_or_led_suit(pile, hearts)", functions=_FOLLOW_OK_STANDARD)
-    new_call = _HAND_ROLLED.format(deck=deck, ranking="aces high", clauses=block, cards_each=3,
-                                   winner_call="highest_by_trick_order(pile)", functions=_FOLLOW_OK_TRICK_ORDER)
+    new_call = _HAND_ROLLED.format(deck=deck, ranking="aces high", clauses="", cards_each=3,
+                                   winner_call="highest_by_trick_order(pile)",
+                                   functions=order + _FOLLOW_OK_TRICK_ORDER)
     for seed in _SEEDS:
         expected = _play(std_slot, seed).scores
         assert _play(new_slot, seed).scores == expected, f"slot, seed {seed}"
         assert _play(std_call, seed).scores == expected, f"standard call, seed {seed}"
-        assert _play(new_call, seed).scores == expected, f"block call, seed {seed}"
+        assert _play(new_call, seed).scores == expected, f"Trick Order call, seed {seed}"
 
 
 _READERS_GAME = """
@@ -1584,11 +1430,6 @@ game G {
   max_length: 100
   cards: standard52
   ranking: aces high
-  trick_order {
-    trump: card.rank is J or card.suit is spades
-    follow_class: if card.rank is Q then none else card.suit
-    card_strength: if card.rank is J then 100 else rank_value(card)
-  }
   zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
   state { score[player] : Integer = 0  t : Integer = 0  s : Integer = 0  q : Integer = 0 }
   phase play {
@@ -1604,6 +1445,9 @@ game G {
   }
   winner: highest score
 }
+function is_trump(card : Card) = card.rank is J or card.suit is spades
+function follow_class(card : Card) = if card.rank is Q then none else card.suit
+function card_strength(card : Card) = if card.rank is J then 100 else rank_value(card)
 """
 
 
@@ -1642,7 +1486,6 @@ game G {
   max_length: 100
   cards: standard52
   ranking: aces high
-  trick_order { trump: false  follow_class: none }
   zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase play {
@@ -1656,6 +1499,8 @@ game G {
   }
   winner: highest score
 }
+function is_trump(card : Card) = false
+function follow_class(card : Card) = none
 """
 
 
@@ -1672,7 +1517,6 @@ game G {
   max_length: 100
   cards: standard52
   ranking: aces high
-  trick_order { trump: card.suit is hearts }
   zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase play {
@@ -1684,6 +1528,7 @@ game G {
   }
   winner: highest score
 }
+function is_trump(card : Card) = card.suit is hearts
 """
 
 
@@ -1698,7 +1543,6 @@ game G {
   max_length: 100
   cards: standard52
   ranking: aces high
-  trick_order { trump: card.suit is hearts }
   zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase play {
@@ -1711,6 +1555,7 @@ game G {
   }
   winner: highest score
 }
+function is_trump(card : Card) = card.suit is hearts
 """
 
 

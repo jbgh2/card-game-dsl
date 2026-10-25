@@ -9,7 +9,7 @@ must-follow/must-trump/must-over-trump obligations (the
 run in the DSL (docs/games/french-tarot.cardlang). The trick order itself —
 which cards are trumps, which class a card follows as, how strong it is, and
 that the Excuse belongs to no class at all — is the game's own
-`trick_order { }` declaration, so the winner, the follow demand and the
+Trick Order, so the winner, the follow demand and the
 over-trump comparison read one declaration and no Python (issue #250 PR 5).
 This module holds only what is not expressible there:
 

@@ -26,7 +26,7 @@ from __future__ import annotations
 #       `rank_index` is typecheck's `RANKING_GATED_WINNERS`);
 #     * the Trick Order contract, (played, ctx) -> Player, which the gated
 #       winner answers because its led suit, its trumps and its strengths are
-#       the GAME's `trick_order { }` rows, materialized once at load, not the
+#       the GAME's Trick Order answers, materialized once at load, not the
 #       round's arguments (`runtime/trick_order.py::TrickOrderWinner`).
 #   Two contracts rather than a fifth argument on one: handing a live Ctx to
 #   every game-local winner would widen what a Primitive may read, against the
@@ -59,21 +59,19 @@ PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset()
 TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS
 # The winners whose BODY reads the `trump` argument of the winner contract
 # above. The other half accepts the argument and ignores it (a no-trump
-# winner), so a `trump` clause
-# on one of those -- the round's own, or the game-level `trump:` it would
-# inherit -- would be accepted and silently dropped: resolve refuses both
-# shapes against this set (the winner-slot arm of `_validate_refs`, and
-# `_resolve_trump`'s dead-clause guard). Classification by body, not name:
+# winner), so a round's `trump` clause on one of those would be accepted
+# and silently dropped: resolve refuses it against this set (the winner-slot
+# arm of `_validate_refs`). Classification by body, not name:
 # tests/test_trump_slot_class.py executes every registered winner on one
 # pile with and without a trump and reconciles this set against the answer,
 # so a winner filed on the wrong side fails there. A new winner not listed
 # here is treated as trump-blind -- its trump clause is REFUSED, loudly,
 # rather than admitted on trust.
 # `highest_by_trick_order` is deliberately NOT a member: its trumps are the
-# game's `trick_order { trump: ... }` row, not the round's `trump` argument,
+# game's `is_trump` answer, not the round's `trump` argument,
 # which it never receives (the other contract). A round `trump` clause beside
 # it is refused by the presence partition (`_check_trick_order_partition`, R2),
-# whose message names the block -- so the two guards divide the case rather
+# whose message names the functions -- so the two guards divide the case rather
 # than co-reporting on it.
 TRUMP_READING_WINNERS: frozenset[str] = frozenset({"highest_trump_or_led_suit"})
 

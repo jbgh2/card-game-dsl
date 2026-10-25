@@ -19,7 +19,7 @@ pass below the parser sees a block.
 Two rows carry a default the driver applies once, at load, when the game has
 a Trick Order and leaves the row unanswered: `follow_class` (the printed suit)
 and `card_strength` (`rank_value`). `is_trump` and `card_points` carry none, so
-their absence is stated — `function is_trump(c : Card) = false` for a game with
+their absence is stated — `function is_trump(card : Card) = false` for a game with
 no trumps.
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)

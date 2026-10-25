@@ -1836,8 +1836,8 @@ _NO_RANKING = "this game declares no `ranking:`"
 _NO_TEAMS = "this game declares no `teams:`"
 # What a game without a Trick Order writes to have one.
 _ANSWER_IS_TRUMP = (
-    "answer `is_trump`: write `function is_trump(c : Card) = …`, or "
-    "`function is_trump(c : Card) = false` for a game with no trumps"
+    "answer `is_trump`: write `function is_trump(card : Card) = …`, or "
+    "`function is_trump(card : Card) = false` for a game with no trumps"
 )
 
 
@@ -1861,7 +1861,7 @@ def _trick_order_fix(game: n.Game) -> str:
 def _card_points_fix(game: n.Game) -> str:
     return (
         "declare a `card_points { }` table, or write "
-        "`function card_points(c : Card) = …`"
+        "`function card_points(card : Card) = …`"
     )
 
 
@@ -7429,7 +7429,7 @@ def _check_kernel_answers(game: n.Game, bag: DiagnosticBag) -> None:
         bag.error(
             f"function " + cite_named(answer, f"`{answer.name}`") + f" answers the "
             f"kernel's `{row.spelled}`, so it takes exactly one Card — write "
-            f"`function {answer.name}(c : Card) = …`",
+            f"`function {answer.name}(card : Card) = …`",
             answer.span or game.span,
         )
 
@@ -8212,7 +8212,7 @@ def _check_primitive_name(
         row = K.CONTRACTS[decl.name]
         bag.error(
             f"`{decl.name}` answers the kernel's `{row.spelled}`, which the game "
-            f"answers in the language (`function {decl.name}(c : Card) = …`), "
+            f"answers in the language (`function {decl.name}(card : Card) = …`), "
             f"so a `primitives` entry may not declare it; rename the Primitive",
             decl.span,
         )

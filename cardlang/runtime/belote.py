@@ -7,7 +7,7 @@ the eight tricks under the follow/trump/over-trump obligation cascade (the
 poll with its comparison and showing, the Belote-Rebelote window, and the
 contract scoring all run in the DSL (docs/games/belote.cardlang), and so does
 the ORDER a trick is decided by: the within-trump reorder over the plain-suit
-`ace-ten` ranking is the game's `trick_order { }`, which the winner, the
+`ace-ten` ranking is the game's Trick Order, which the winner, the
 head/over-trump demands and the team-relative gate all read. This module
 holds only what is not expressible there:
 

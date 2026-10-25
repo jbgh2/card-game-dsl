@@ -39,7 +39,7 @@ visibility, and the projection model" — The Arrival Record), and the playout
 harness derives its trick facts from observation events. Where a game's trick
 order is not the printed one — Doppelkopf, Skat, 500, Belote, French Tarot —
 follow legality and the winner are its declared Trick Order (the three
-functions the kernel reads, in either spelling), read by `follows_lead` and
+functions the kernel reads), read by `follows_lead` and
 `highest_by_trick_order`, not a game-local Primitive; in Belote the same
 Trick Order also answers the rule cascade's head/over-trump
 comparisons and the team-relative gate that asks who is winning the
