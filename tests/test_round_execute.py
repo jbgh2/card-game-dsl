@@ -14,7 +14,6 @@ game G {
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  trump: spades
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile  captured[player] : PlayerPile<player> }
   state { tricks_won[player] : Integer = 0  leader : Player? = none }
   phase deal { shuffle deck  deal 13 cards from deck to each hand  leader := 0 }
@@ -22,7 +21,7 @@ game G {
     active_rules: [MustFollowSuit]
     legal_moves: [play_to_trick]
     repeat until (all players where hand[player] is empty) {
-      round play_to_trick from leader over all players source hand into trick_pile winner highest_trump_or_led_suit
+      round play_to_trick from leader over all players source hand into trick_pile winner highest_trump_or_led_suit trump spades
       move all cards from trick_pile to captured[winner]
       tricks_won[winner] += 1
       leader := winner

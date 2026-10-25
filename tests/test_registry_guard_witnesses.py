@@ -649,7 +649,6 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
         # the other to have checked.
         "direction not in RANK_DIRECTIONS",
         "direction not in RANK_DIRECTIONS",
-        "key not in TRICK_ORDER_ROW_KEYS",
     ],
     # Like `domains.py` above: it reconciles two registries rather than pinning
     # one against a literal, so there is no collection to widen and no witness

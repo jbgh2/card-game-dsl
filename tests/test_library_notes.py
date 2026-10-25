@@ -997,7 +997,7 @@ NAMED: dict[str, Named] = {
     "row-through-a-library-function-to-the-answer": Named(
         ((L._LIB, _lib(L._LIB, "  requires { g(c : Card) : Boolean }\n  function libf(c : Card) = g(c)")),),
         L._TRICK_HOST.format(
-            clauses="", rows="trump: libf(card)  follow_class: card.suit  card_strength: rank_value(card)",
+            clauses="", answers=L._answers("is_trump"),
             zones="secret[player] : HiddenPile<player>",
         ) + "function g(c : Card) = (number of cards in secret[1]) > 0\n",
         "function g(c : Card)", "then function `g`",

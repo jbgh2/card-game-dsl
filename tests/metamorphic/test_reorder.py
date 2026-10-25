@@ -137,12 +137,8 @@ _PARSE_LEVEL_CASES = frozenset(
         "subset_source_single_bracket",
         "suit_ranking_commas",
         "suit_ranking_in_ranking",
-        "trick_order_assignment_row",
-        "trick_order_assignment_row_unknown_key",
-        "trick_order_colon",
-        "trick_order_comma_rows",
-        "trump_as_number",
-        "trump_as_string",
+        "trick_order_retired",
+        "trump_clause_retired",
     }
 )
 

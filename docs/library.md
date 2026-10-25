@@ -46,19 +46,18 @@ Key design notes:
   all participants have played). Getaway uses `early on_play_off_led_suit`: an
   off-led-suit play (only possible when void — the game's *tochoo*) ends the trick.
 
-- **`trump <expr>` is optional.** Omitted, the round uses the game-level `trump:`
-  declaration (Spades); supplied, it overrides per hand (Oh Hell turns one up each
-  deal; Bridge's contract sets it, none for no-trump). The expression is `Suit?`
-  (a suit, or `none` for no trump), and only a winner whose body reads a trump
-  may carry the clause — `highest_trump_or_led_suit`
-  (`TRUMP_READING_WINNERS`, cardlang/builtins/functions.py); on
-  `highest_of_led_suit` it would be silently ignored, so the checker refuses
-  it. Beside a Trick Order the clause is
-  refused outright, whatever the winner: the game's `is_trump` is the
-  trump. The same rule holds the game-level `trump:` to a
-  suit of the declared deck, and to being READ: a `trump:` that no trick round
-  inherits (no round; every winner trump-blind; every reading round supplying
-  its own clause) is refused as dead rather than accepted and dropped.
+- **`trump <expr>` names the trump.** A fixed trump is a suit (Spades:
+  `trump spades`); a changing one is a state variable the game sets (Oh Hell
+  turns one up each deal; Bridge's contract sets it, none for no-trump). The
+  expression is `Suit?` (a suit of the declared deck, or `none` for no trump),
+  and only a winner whose body reads a trump may carry the clause —
+  `highest_trump_or_led_suit` (`TRUMP_READING_WINNERS`,
+  cardlang/builtins/functions.py); on `highest_of_led_suit` it would be silently
+  ignored, so the checker refuses it. A round whose winner reads a trump and
+  that names none is refused, wherever it is written; a library's round names a
+  suit the game supplies through its `requires`. Beside a Trick Order the
+  clause is refused outright, whatever the winner: the game's `is_trump` is the
+  trump.
 
 - **The round emits observation events** for each play, with visibility derived
   from the zones. Hidden-info and perfect-info games use the same construct; the

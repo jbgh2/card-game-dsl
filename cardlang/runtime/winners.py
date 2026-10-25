@@ -7,8 +7,8 @@ Hell), and the call form `highest_trump_or_led_suit(zone, trump)` computes
 the same winner over a public pile's [[arrival-record]] (issue #256; the
 schnapsen retirement). Beside them is the general comparison, over a game's
 declared [[trick-order]]: `highest_by_trick_order` reads no suit and no
-`ranking:` of its own, only the three per-card facts the block's rows
-computed (`follows_lead` is the same candidate test, exposed). They live in
+`ranking:` of its own, only the three per-card facts the game's answers
+compute (`follows_lead` is the same candidate test, exposed). They live in
 this neutral module because the two dispatch halves may not import each other
 (`runtime/builtins.py` and `runtime/primitives.py`, each docstring's
 contract) and BOTH consume these.

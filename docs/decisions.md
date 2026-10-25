@@ -555,8 +555,10 @@ nothing reads is refused"); its own three answers are one clause, and never
 each other's readers. The round-configured order states its trump as
 `is_trump` does: a round whose winner reads a trump
 (`highest_trump_or_led_suit`) names it in its own `trump` clause, and a
-round without one is refused, since it would play
-no-trump without saying so. A no-trump trick names a winner that reads none.
+round without one is refused, wherever it is written, since it would play
+no-trump without saying so; a library names no suit, so its round names one the
+game supplies through the library's `requires`. A no-trump trick names a winner
+that reads none.
 
 **Provenance.** Every Arrival Record read names a fully public zone,
 statically: the pile argument of each of these calls is a zone reference whose

@@ -282,7 +282,7 @@ def test_every_game_field_is_decided() -> None:
         "ranking", "ranking_convention", "span",
         # Suit names only, like `ranking`.
         "suit_ranking",
-        "teams", "trump", "uses", "winner", "zones",
+        "teams", "uses", "winner", "zones",
     ], (
         f"`Game` gained or lost a field: {walked}. Decide whether a state "
         f"reference in it runs inside a phase (skip it, and say which set) or "

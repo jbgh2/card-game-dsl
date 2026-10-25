@@ -3,8 +3,8 @@
 The flagship flavor grid. A game declares its content with `cards:` (a card
 deck) or `pieces:` (a piece set); every surface that spells card-content
 vocabulary -- the movement/reveal item noun, the filter binder, `.suit`/`.rank`
-field access, the card-query and aggregation forms, the `ranking:`/`trump:`
-clauses, the `suit`/`rank` quantifier and iteration roles, the Card/Suit/Rank
+field access, the card-query and aggregation forms, the `ranking:`
+clause, the `suit`/`rank` quantifier and iteration roles, the Card/Suit/Rank
 move-parameter domains, the deck-reading native calls, and card literals --
 must AGREE with the declared flavor: legal (in its flavor spelling) in a card
 game, rejected NAMING THE KIND in a piece game, and vice versa. A piece game's
@@ -28,7 +28,7 @@ domain:     {the card-content surface positions -- enumerated below} x
               - movement/reveal item noun, filter binder, field access,
                 card-query forms (cq_set/count/any/all), aggregation forms
                 (sum / RANK_DIR over cards in), `ranking:` (enumeration and
-                convention), `trump:`, card literal -- grammar-anchored, no
+                convention), card literal -- grammar-anchored, no
                 registry; the members are hand-listed once, each below;
               - quantifier / for-each roles -- `cardlang.domains.DOMAINS`, the
                 card-axis rows (`CARD_AXIS_ROLES` = suit, rank) vs the seat
@@ -341,9 +341,9 @@ def test_aggregation_accepted_in_card_game() -> None:
     _accept(src)
 
 
-# --- ranking: / trump: clauses ---------------------------------------------
-# Both the enumeration and the convention form of `ranking:`, and `trump:`,
-# read the deck's suits/ranks; rejected in a piece game, in BOTH forms.
+# --- ranking: ---------------------------------------------------------------
+# Both the enumeration and the convention form of `ranking:` read the deck's
+# ranks; rejected in a piece game, in BOTH forms.
 
 
 def test_ranking_enumeration_rejected_in_piece_game() -> None:
@@ -356,27 +356,6 @@ def test_ranking_convention_rejected_in_piece_game() -> None:
 
 def test_ranking_accepted_in_card_game() -> None:
     _accept(card_game(clause="  ranking: aces high\n"))
-
-
-def test_trump_rejected_in_piece_game() -> None:
-    assert PIECE_KIND in _reject(piece_game(clause="  trump: x\n"))
-
-
-def test_trump_accepted_in_card_game() -> None:
-    # Legal in its flavor -- and READ: a game-level `trump:` no trick round
-    # inherits is refused as dead (resolve `_resolve_trump`,
-    # tests/test_trump_slot_class.py), so the card cell carries the round
-    # that consumes it; the flavor guard is what this cell is about.
-    _accept(
-        card_game(
-            clause="  ranking: aces high\n  trump: hearts\n",
-            zones="  pile : TrickPile",
-            body=(
-                "    round play_to_trick from 0 over all players source hand "
-                "into pile winner highest_trump_or_led_suit\n"
-            ),
-        )
-    )
 
 
 # --- quantifier / for-each roles -------------------------------------------
