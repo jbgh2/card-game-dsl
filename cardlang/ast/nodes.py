@@ -831,27 +831,36 @@ class ZoneDecl:
 
 @dataclass(frozen=True, slots=True)
 class CardPointsEntry:
-    """One row of the `card_points { }` table: `<rank>: <value>` — the rank in
-    `ranking:`'s key position, the value a static signed integer literal
-    (decisions.md "Scoring has no constructs of its own"). Held as a tuple of rows rather than
-    a dict (nodes carry no mutable containers), which also lets resolve point
-    a duplicate-key diagnostic at the offending row's own span."""
+    """One row of the `card_points { }` table as written: `<rank>: <value>` —
+    the rank in `ranking:`'s key position, the value a static signed integer
+    literal (decisions.md "Scoring has no constructs of its own"). Carried on
+    the lowered answer's `LoweredSpelling`, so resolve checks each key against
+    the deck at the row's own span."""
 
     rank: str
     value: int
     span: Span | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class CardPointsTable:
-    """The `card_points { }` clause: the game's card-point table (decisions.md
-    "Scoring has no constructs of its own"). `else_value` is the optional trailing `else:`
-    row's everything-else value; with no else row, unlisted ranks read 0 —
-    the `card_points(card)` Builtin's contract. The driver materializes the
-    table over the deck's ranks at load (`driver.declared_card_points`), so
-    the Builtin and the card-point census read one total table."""
+# The spellings the parse builder lowers to a [[kernel-definition-contract]]'s
+# answer.
+LoweredForm = Literal["card_points_table", "trick_order_row"]
 
-    entries: tuple[CardPointsEntry, ...]
+
+@dataclass(frozen=True, slots=True)
+class LoweredSpelling:
+    """What a lowered answer was written as: the `card_points { }` table, or
+    one `trick_order { }` row (`key` is the row's key). The parse builder
+    stamps it on the `FunctionDef` it lowers, which is otherwise the function a
+    designer would write by hand; a refusal reads it to name the spelling the
+    designer wrote, and nothing reads it for meaning. `entries` are the
+    table's rows, for its deck checks, and `else_value` its `else:` row's
+    value, None when the table writes none; `span` is the enclosing table or
+    block."""
+
+    form: LoweredForm
+    key: str
+    entries: tuple[CardPointsEntry, ...] = ()
     else_value: int | None = None
     span: Span | None = None
 
@@ -865,52 +874,6 @@ class SuitRanking:
 
     suits: tuple[str, ...]
     span: Span | None = None
-
-
-# The rows a `trick_order { }` block may declare. This literal is the
-# type-level statement of the row set; `builtins.functions.TRICK_ORDER_ROWS` is
-# the value-level one, and the two are pinned equal
-# (tests/test_trick_order.py::test_row_registry_matches_the_grid) so a row
-# cannot be added to one without the other.
-TrickOrderRowKey = Literal["trump", "follow_class", "card_strength"]
-
-
-@dataclass(frozen=True, slots=True)
-class TrickOrderRow:
-    """One row of the `trick_order { }` block: `<key>: <expr>` (decisions.md
-    "Trick Order"). The body is an expression over the implicit `card` binder
-    — the card-query and filter convention — which makes this a BINDING node
-    (`resolve._node_binders`), the binder scoping over `body` alone."""
-
-    key: TrickOrderRowKey
-    body: Expr
-    span: Span | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class TrickOrder:
-    """The `trick_order { }` clause: the game's [[trick-order]] — the three
-    per-card facts a trick's resolution and follow legality derive from
-    (decisions.md "Trick Order").
-
-    Rows are held in SOURCE order and each key appears at most once (parse).
-    The order they are READ in is the language's, fixed by `TRICK_ORDER_ROWS`,
-    never the textual one — so consumers ask through `row()` and none depends
-    on how the designer happened to arrange the block. The driver materializes
-    the table at load (`driver.declared_trick_order`), applying the two row
-    defaults once."""
-
-    rows: tuple[TrickOrderRow, ...]
-    span: Span | None = None
-
-    def row(self, key: TrickOrderRowKey) -> Expr | None:
-        """The body declared for `key`, or None when the block omits the row.
-        `follow_class:` and `card_strength:` have defaults; `trump:` is
-        required, so a None there is a parse-guaranteed impossibility."""
-        for r in self.rows:
-            if r.key == key:
-                return r.body
-        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1241,7 +1204,9 @@ class FunctionDef:
     (read at call time), never the caller's binders. Non-recursive.
     ``contracts`` is set by `resolve` on a game function answering library
     [[definition-contract]] rows, one stamp per library whose row it answers:
-    the obligations `typecheck` checks its result against."""
+    the obligations `typecheck` checks its result against. ``spelled_as`` is
+    set by the parse builder on a function it lowered from a block spelling
+    (`LoweredSpelling`), and is None on every function written as one."""
 
     name: str
     params: tuple[Parameter, ...]
@@ -1249,6 +1214,7 @@ class FunctionDef:
     span: Span | None = None
     contracts: tuple[ContractStamp, ...] = ()
     origin: LibraryOrigin | None = None
+    spelled_as: LoweredSpelling | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1492,17 +1458,6 @@ class Game:
     ranking_convention: str | None = None
     # The `suit ranking:` clause, or None for a game declaring none.
     suit_ranking: SuitRanking | None = None
-    # The `card_points { }` clause, or None for a game declaring no card
-    # points. The ONE source of the game's card-point table (the deck registry
-    # carries none): the driver loads `rs.card_points` from it, and resolve's
-    # clause-required guard refuses a `card_points(card)` call without it.
-    card_points: CardPointsTable | None = None
-    # The `trick_order { }` clause, or None for a game declaring no Trick
-    # Order. The ONE source of the game's per-card trick facts: the driver
-    # loads `rs.trick_order` from it, and resolve's presence partition refuses
-    # every reader of a block in a game without one — and every winner and
-    # call the block replaces in a game with one.
-    trick_order: TrickOrder | None = None
     trump: str | None = None
     teams: tuple[tuple[int, ...], ...] = ()
     # Declared position domains (`positions { column : 1..7 }`) — per-game
@@ -1576,10 +1531,8 @@ Node = (
     | FunctionDef
     | ZoneDecl
     | CardPointsEntry
-    | CardPointsTable
+    | LoweredSpelling
     | SuitRanking
-    | TrickOrderRow
-    | TrickOrder
     | TypeRef
     | TypeArg
     | StateBlock

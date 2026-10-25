@@ -108,7 +108,7 @@ Three game-level blocks spell a function over `card` as a keyed table, each with
 - `trick_order { trump: ...  follow_class: ...  card_strength: ... }` (5 games) is three functions with reserved names, `is_trump`, `follow_class`, `card_strength`, that the kernel's `follows_lead` and `highest_by_trick_order` call. Nothing about them needs a block: `function is_trump(c : Card) = c.suit is trump_suit` is the same sentence, and would let a game define only the rows it needs without an "omitted row default".
 - `trump: spades` (one game) versus `trump trump_suit` on the round (three games) versus the `trump:` row of `trick_order` (five games): three spellings of one fact.
 
-Cost: 15 rules (`card_points_*` 5, `trick_order*` 3, `trump` 1, plus their key terminals and 8 reject productions) for what two reserved function names and `ranking:` already say. The desugaring is mechanical: the builder already turns the table into a lookup.
+Cost: 15 rules (`card_points_*` 5, `trick_order*` 3, `trump` 1, plus their key terminals and 8 reject productions) for what two reserved function names and `ranking:` already say. The desugaring is mechanical: the builder already turns the table into a lookup. *(Correction, 2026-10-24, issue #942: on this note's tree the builder did not; `parse.py` built the table node and the driver materialized the lookup at load. The builder now lowers the table to the `card_points` function.)*
 
 ### Finding 4: binders implied by position, and a quantifier with thirteen arms
 

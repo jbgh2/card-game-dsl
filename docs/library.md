@@ -14,8 +14,10 @@ before everyone has played; then a winner function selects a player, bound as
 
 A round's `trump <expr>` names the trump for the pass. A game whose trumps are
 not a suit — Doppelkopf's queens and jacks, Skat's jacks, 500's joker and
-bowers — declares a `trick_order { }` instead (decisions.md "Trick Order") and names
-`highest_by_trick_order`; such a round writes no `trump` clause at all. Every
+bowers — declares a Trick Order instead (decisions.md "Trick Order"),
+`function is_trump(c : Card) = …` with `follow_class` and `card_strength` where
+the defaults are not the answer, and names `highest_by_trick_order`; such a
+round writes no `trump` clause at all. Every
 trick round's play zone must project identity to every observer: the plays are
 the provenance every winner reads.
 
@@ -51,8 +53,8 @@ Key design notes:
   may carry the clause — `highest_trump_or_led_suit`
   (`TRUMP_READING_WINNERS`, cardlang/builtins/functions.py); on
   `highest_of_led_suit` it would be silently ignored, so the checker refuses
-  it. Beside a `trick_order { }` block the clause is
-  refused outright, whatever the winner: the block's `trump:` row is the
+  it. Beside a Trick Order the clause is
+  refused outright, whatever the winner: the game's `is_trump` is the
   trump. The same rule holds the game-level `trump:` to a
   suit of the declared deck, and to being READ: a `trump:` that no trick round
   inherits (no round; every winner trump-blind; every reading round supplying
@@ -243,7 +245,7 @@ Game-local rules that recur as *names* but not as bodies:
   stands.
 - `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
   led suit (Pinochle, French Tarot — the bodies differ: Pinochle's declared
-  `trump_suit` vs Tarot's `is_trump(card)`, its Trick Order's `trump:` row,
+  `trump_suit` vs Tarot's `is_trump(card)`, its Trick Order's trump fact,
   and Tarot's guard asks for an [[effective-lead]] where Pinochle's asks for
   the led suit)
 - `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
@@ -315,16 +317,16 @@ slot (a name's home is its classification, never its syntactic position):
 - `highest_by_trick_order` — the Builtin winner of a game's declared Trick
   Order (decisions.md "Trick Order"): the strongest trump if any, else the
   strongest card of the Effective Lead's class, all three facts read from the
-  game's `trick_order { }` rows. Like `highest_trump_or_led_suit` it is also
+  game's Trick Order. Like `highest_trump_or_led_suit` it is also
   callable over a public pile's Arrival Record (see "Native functions"). It
-  takes no `trump` clause — the block's `trump:` row is the trump.
+  takes no `trump` clause — the game's `is_trump` is the trump.
 
-**The two vocabularies do not mix.** A game declaring a `trick_order { }`
-block names `highest_by_trick_order` and nothing else: every other winner
-here, the game-level `trump:` clause, a round's `trump` clause and
-`highest_trump_or_led_suit(...)` are all refused beside a block, because each
-describes a different order from the one the block declares. A game with no
-block may not name `highest_by_trick_order`. The partition is checked in both
+**The two vocabularies do not mix.** A game declaring a Trick Order names
+`highest_by_trick_order` and nothing else: every other winner here, the
+game-level `trump:` clause, a round's `trump` clause and
+`highest_trump_or_led_suit(...)` are all refused beside a Trick Order,
+because each describes a different order from the one it declares. A game
+with no Trick Order may not name `highest_by_trick_order`. The partition is checked in both
 directions, at resolve.
 
 Which of the trump-argument winners reads it is `TRUMP_READING_WINNERS`
@@ -909,11 +911,13 @@ and which one is the game's own choice:
   Doppelkopf (the jacks' and queens' order inside the trump band), Bridge (the
   bid ladder's strains, below no-trump) and the `stud` library (the suit
   tie-break).
-- `card_points(card: Card) → Integer` — the card's points under the game's
-  own `card_points { }` clause (decisions.md "Scoring has no constructs of its own"): listed
-  ranks verbatim, unlisted ranks at the `else:` row's value or 0 without one.
-  General-purpose for any point-counting game; calling it in a game that
-  declares no clause is a resolve error (the table has one source). Used by
+- `card_points(card: Card) → Integer` — the card's points, which the game
+  answers itself: a Kernel Definition Contract, not a Builtin (decisions.md
+  "Scoring has no constructs of its own"). The `card_points { }` table answers
+  it with listed ranks verbatim and unlisted ranks at the `else:` row's value
+  or 0 without one; a game whose points vary by more than rank writes
+  `function card_points(c : Card) = …` instead. Calling it in a game that
+  answers none is a resolve error (the points have one source). Used by
   Pinochle (`trick_score[...] += sum of card_points(card) over cards in
   trick_pile`), Schnapsen (`points_taken[w] += sum of card_points(card) over
   cards in trick_pile`), Skat (the declarer's points: a `sum of … over cards
@@ -938,11 +942,13 @@ and which one is the game's own choice:
   observer's to compute a winner from. Loud runtime errors on an empty pile,
   or on a pile holding any card no seat played (an engine deal).
 - `is_trump(card) → Boolean` / `follow_class(card) → Suit?` /
-  `card_strength(card) → Integer` — the three readers the language MINTS from
-  a game's `trick_order { }` rows (decisions.md "Trick Order"): is the card a
-  trump, what class does it follow as, how strong is it within that class.
-  Available only in a game that declares the block, and refused in one that
-  does not.
+  `card_strength(card) → Integer` — the game's Trick Order, which it answers
+  itself: three Kernel Definition Contracts, not Builtins (decisions.md "Trick
+  Order"): is the card a trump, what class does it follow as, how strong is
+  it within that class. A game answers them as functions or as the rows of a
+  `trick_order { }` block; `follow_class` and `card_strength` default to the
+  printed suit and `rank_value`. Available only in a game that answers
+  `is_trump`, and refused in one that does not.
 - `highest_by_trick_order(zone) → Player` — the Trick Order's winner over a
   public pile's Arrival Record, the call-form twin of the `winner` slot's
   bare name: the strongest trump if any, else the strongest card of the

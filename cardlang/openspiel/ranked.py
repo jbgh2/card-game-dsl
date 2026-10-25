@@ -36,7 +36,7 @@ What it does with each block of action ids is `DISPOSITIONS`, keyed by
   the cards with another.
 
   Five things send the decision to the draw instead: a game that declares no
-  ranking; one that declares a `trick_order { }` of its own (its trumps and
+  ranking; one that declares a Trick Order of its own (its trumps and
   strengths are expressions this reads nothing of); one that keeps more than one
   trick pile, or whose rounds name different trumps, where which round a
   decision belongs to is not a fact the view carries; a throw whose source zone
@@ -81,6 +81,7 @@ from collections import Counter
 from collections.abc import Sequence
 from typing import Any
 
+from cardlang import kernel_contracts
 from cardlang.ast import nodes as n
 from cardlang.openspiel.infostate import SeatView, current_ask
 from cardlang.openspiel.seat_policy import SeatBinding, UniformSeatPolicy
@@ -223,7 +224,7 @@ class RankedSeatPolicy:
         # and a second trick pile leaves the trick in progress unidentified.
         # Either way the cards on the table are not a fact this can read.
         self.reads_the_trick = (
-            binding.game.trick_order is None
+            not kernel_contracts.has_trick_order(binding.game)
             and len(self.trick_zones) < 2
             and self.trump_spec is not _DISAGREE
         )

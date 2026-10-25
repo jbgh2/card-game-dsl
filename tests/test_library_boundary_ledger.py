@@ -29,7 +29,7 @@ property:        a refusal whose cause is the game's text is reported in the
 domain:          two directions. Game to library, the checks that follow a
                  call out of the text they started in (`crossing_walkers`,
                  each classified in `WALKERS`): a Trick Order row, at every
-                 row of `TRICK_ORDER_ROWS`, with every arm of its refusal --
+                 row of `kernel_contracts.TRICK_ORDER_ROW_CONTRACTS`, with every arm of its refusal --
                  every pronoun of `resolve._PRONOUNS`, a `choose`, every zone
                  type of `LIBRARY_ZONE_TYPES`, a bare per-player family, every
                  Builtin of the row-call partition and every row's reader; a
@@ -139,11 +139,14 @@ import cardlang.resolve as R
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
-    TRICK_ORDER_READERS,
     TRICK_ORDER_ROW_CALLS,
-    TRICK_ORDER_ROW_KEYS,
     TRICK_ORDER_ROW_UNCALLABLE,
-    TRICK_ORDER_ROWS,
+)
+from cardlang.kernel_contracts import (
+    CONTRACTS,
+    TRICK_ORDER_CONTRACTS as TRICK_ORDER_READERS,
+    TRICK_ORDER_ROW_CONTRACTS as TRICK_ORDER_ROWS,
+    TRICK_ORDER_ROW_KEYS,
 )
 from cardlang.deckcheck import check_capacity
 from cardlang.diagnostics import DiagnosticError, line_kind
@@ -279,7 +282,7 @@ def _assert_told(cell: Crossing, bag: list[str]) -> None:
 
 # --- game to library: a Trick Order row calling a library function --------------
 #
-# The row's arms are `resolve._check_trick_order_rows`' refusals, each read
+# The row's arms are `resolve._check_answer_hermeticity`'s refusals, each read
 # off its registry: every pronoun, a `choose`, every zone type, a bare family,
 # every Builtin a row may or may not call, and every row's reader.
 
@@ -387,7 +390,6 @@ def _zone_arms() -> dict[str, RowArm]:
 # required `who`, the pile the contracted `pile`.
 _CALL_SPELLINGS: dict[str, tuple[str, str]] = {
     "rank_value": ("rank_value(c) > 3", ""),
-    "card_points": ("card_points(c) > 3", "card_points { A: 1 }"),
     "suit_of": ("suit_of(c) is c.suit", ""),
     "suit_value": ("suit_value(c.suit) > 0", "suit ranking: spades hearts diamonds clubs"),
     "team_of": ("team_of(who) is team_of(who)", "teams: [[0, 2], [1, 3]]"),
@@ -436,7 +438,10 @@ def _reader_arms(row: str) -> dict[str, RowArm]:
     arms: dict[str, RowArm] = {}
     for key, reader in TRICK_ORDER_ROWS:
         earlier = order[key] < order[row]
-        arms[f"reader-{reader}"] = RowArm(spelled[reader], None if earlier else GAME)
+        # A library reaches a Trick Order fact through its contract row.
+        arms[f"reader-{reader}"] = RowArm(
+            spelled[reader], None if earlier else GAME, requires=CONTRACTS[reader].spelled
+        )
     return arms
 
 
@@ -2071,8 +2076,8 @@ def _pool_name(node: ast.expr) -> str | None:
 
 # walker -> where its crossings are held
 WALKERS: dict[str, str] = {
-    "resolve._check_trick_order_rows": "test_a_row_reaching_a_library_function",
-    "resolve._row_routes": "the routes `_check_trick_order_rows` locates its refusals by",
+    "resolve._check_answer_hermeticity": "test_a_row_reaching_a_library_function",
+    "resolve._answer_routes": "the routes `_check_answer_hermeticity` locates its refusals by",
     "resolve._check_play_source": (
         "test_a_rule_calling_a_library_function_that_reads_hand; the answer's: "
         "test_a_library_reaching_the_games_text[play-source]"
@@ -2155,7 +2160,7 @@ def test_who_is_told_never_changes_what_is_refused(monkeypatch: pytest.MonkeyPat
     """Every game-to-library cell the game or no one owns is refused exactly
     when the same definitions, written in the game itself, are.
 
-    red under: have `_check_trick_order_rows` skip a node reached through a
+    red under: have `_check_answer_hermeticity` skip a node reached through a
     library function."""
     for cell in _game_to_library_cells():
         if cell.owner not in (GAME, None) or cell.twin is None:

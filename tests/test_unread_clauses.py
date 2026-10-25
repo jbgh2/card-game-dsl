@@ -101,10 +101,13 @@ def _errors(src: str) -> list[str]:
 
 
 def test_every_row_names_a_game_field() -> None:
-    """red under: give a `_CLAUSE_GATES` row a `clause` no `n.Game` field
-    spells."""
+    """Every row's clause is an `n.Game` field or a clause the game states by
+    answering Kernel Definition Contracts (`resolve._DEFINITION_CLAUSES`),
+    and no clause is both. red under: give a `_CLAUSE_GATES` row a `clause`
+    neither spells."""
     names = {f.name for f in fields(n.Game)}
-    assert {row.clause for row in R._CLAUSE_GATES} <= names
+    assert not (names & set(R._DEFINITION_CLAUSES))
+    assert {row.clause for row in R._CLAUSE_GATES} <= names | set(R._DEFINITION_CLAUSES)
 
 
 def test_every_reader_clause_has_a_sentence_and_a_vehicle() -> None:
@@ -172,6 +175,16 @@ def test_a_clause_its_own_guard_refused_draws_that_refusal_alone(
     red under: drop the handover (`refused.add(...)`) in the clause's guard."""
     errors = _errors(_HOST.format(clause=malformed, body="", defs=""))
     assert len(errors) == 1 and "is read by" not in errors[0], errors
+
+
+def test_an_answer_refused_for_its_signature_draws_that_refusal_alone() -> None:
+    """A Trick Order's answer is its clause: refused for its signature with no
+    reader, it is told that one thing.
+
+    red under: drop the handover (`refused.add(...)`) in
+    `resolve._check_kernel_answers`."""
+    errors = _errors(_HOST.format(clause="", body="", defs="function is_trump(c : Card, d : Card) = true"))
+    assert len(errors) == 1 and "takes exactly one Card" in errors[0], errors
 
 
 def test_go_fish_with_an_unread_table_is_refused() -> None:

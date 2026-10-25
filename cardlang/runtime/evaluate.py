@@ -83,6 +83,13 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
         case n.Subscript():
             return _subscript(e, ctx)
         case n.Call():
+            # A Kernel Definition Contract's name reads the answers table the
+            # driver built at load: the game's answer, evaluated hermetically,
+            # or the row's default.
+            answer = ctx.rs.kernel_answers.get(e.func)
+            if answer is not None:
+                (card,) = e.args
+                return answer(evaluate(card, ctx), ctx)
             fn = ctx.rs.function_index.get(e.func)
             if fn is not None:
                 return _user_function(fn, e.args, ctx)
@@ -181,13 +188,14 @@ def _hermetic_ctx(ctx: Ctx, scope: dict[str, Any], *, keep_actor: bool) -> Ctx:
     `keep_actor` is the whole difference between the two, and the difference is
     semantic. A user FUNCTION inherits `current_player`: its body may read a
     bare per-player zone (`cards in hand where …`), whose family instance
-    resolves through the acting player the caller set. A [[trick-order]] ROW
-    clears it: a row is asked from the legality filter, the winner slot and a
-    hand-rolled body under different live frames, and an answer that varied
+    resolves through the acting player the caller set. A
+    [[kernel-definition-contract]]'s ANSWER clears it: an answer is asked from
+    the legality filter, the winner slot, a hand-rolled body and the
+    end-of-game census under different live frames, and an answer that varied
     with the asker would not be a fact of the card (decisions.md "Trick
-    Order"). Clearing it makes a bare-family read inside a row reach the loud
-    Owner Guard in `_name` below — the runtime [[shadow-guard]] behind
-    resolve's R11, which owns the class statically."""
+    Order"). Clearing it makes a bare-family read inside an answer reach the
+    loud Owner Guard in `_name` below — the runtime [[shadow-guard]] behind
+    resolve's `_check_answer_hermeticity`, which owns the class statically."""
     if keep_actor:
         return ctx.derive(locals=scope, winner=None, action=None, round_source=None)
     return ctx.derive(
@@ -196,12 +204,12 @@ def _hermetic_ctx(ctx: Ctx, scope: dict[str, Any], *, keep_actor: bool) -> Ctx:
     )
 
 
-def row_context(ctx: Ctx, card: Card) -> Ctx:
-    """The context a [[trick-order]] row's body evaluates under: `card` bound,
-    every pronoun cleared. Resolve refuses a row that reads a pronoun of any
-    namespace (`_check_trick_order_rows`, R9); this is the runtime shape that
-    keeps that refusal true of what actually runs."""
-    return _hermetic_ctx(ctx, {"card": card}, keep_actor=False)
+def answer_context(ctx: Ctx, param: str, card: Card) -> Ctx:
+    """The context a [[kernel-definition-contract]]'s answer evaluates under:
+    its card parameter bound, every pronoun cleared. Resolve refuses an answer
+    that reads a pronoun of any namespace (`_check_answer_hermeticity`); this
+    is the runtime shape that keeps that refusal true of what actually runs."""
+    return _hermetic_ctx(ctx, {param: card}, keep_actor=False)
 
 
 def call_user_function(fn: n.FunctionDef, values: list[Any], ctx: Ctx) -> Any:

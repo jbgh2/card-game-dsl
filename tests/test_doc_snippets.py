@@ -464,18 +464,18 @@ move_type fold {{
 # carries a unique label and every non-fragment block carries none;
 # `test_no_orphan_recipes` pins that every label here is claimed by a block.
 def _wrap_trick_order(frag: str) -> str:
-    # `frag` is a `trick_order { }` game clause. The skeleton supplies what the
-    # block's own guards demand of its host: a `ranking:` (the defaulted
-    # strength row reads it) and a CONSUMER outside the block — a Trick Order
-    # nothing reads is refused, so a wrapper without one would report the
-    # doc's block as bad for a reason the doc has nothing to do with.
+    # `frag` is a Trick Order written as its functions. The skeleton supplies
+    # what the Trick Order's own guards demand of its host: a `ranking:` (a
+    # defaulted strength reads it) and a CONSUMER outside the functions — a
+    # Trick Order nothing reads is refused, so a wrapper without one would
+    # report the doc's functions as bad for a reason the doc has nothing to
+    # do with.
     return f"""
 game Skeleton {{
   players: 4
   max_length: 1000
   cards: standard52
   ranking: aces high
-  {frag}
   zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile }}
   state {{ score[player] : Integer = 0 }}
   phase main {{
@@ -484,6 +484,7 @@ game Skeleton {{
   }}
   winner: highest score
 }}
+{frag}
 """
 
 
