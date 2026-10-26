@@ -25,11 +25,9 @@ is implemented by constructing the threes play with `key = current.key`: when
 it becomes the standing play, the chain compares against the rank it absorbed.
 Led naturally, threes carry their own (lowest) rank.
 
-Scope reduction (random play, the Big Two precedent): each (rank, size) is
-offered as ONE representative set — the group's highest-suit cards — rather
-than every suit subset. Suits never matter in President, so this changes no
-legality whatsoever: any representative beats exactly what any other suit
-subset of the same rank and size would beat.
+The queries offer every suit subset of each (rank, size): suits carry no
+strength, but which cards of a rank a seat parts with is still the seat's
+choice, and the cards it plays are seen by every seat.
 """
 
 from __future__ import annotations
@@ -51,8 +49,8 @@ ROW = reads.row("cardlang/runtime/president.py", "president.cardlang")
 _RANKING: tuple[str, ...] = ("2", "A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3")
 _STRENGTH: dict[str, int] = {r: len(_RANKING) - 1 - i for i, r in enumerate(_RANKING)}
 
-# Highest suit first — only for picking a deterministic representative; suits
-# carry no strength in President.
+# Highest suit first — a deterministic candidate order; suits carry no
+# strength in President.
 _SUITS_DESC: tuple[str, ...] = tuple(reversed(SUITS))
 
 
@@ -78,7 +76,7 @@ class Play:
 
 def _by_rank(hand: list[Card]) -> dict[str, list[Card]]:
     """Group a hand by rank, each group's cards sorted highest suit first (a
-    deterministic representative order; suits carry no strength)."""
+    deterministic candidate order; suits carry no strength)."""
     groups: dict[str, list[Card]] = {}
     for c in hand:
         groups.setdefault(c.rank, []).append(c)
@@ -95,8 +93,8 @@ def _by_rank(hand: list[Card]) -> dict[str, list[Card]]:
 def president_lead_options(
     facts: EngineFacts, gr: reads.GameReads, hand: list[Card]
 ) -> list[Play]:
-    """Every set the leader may lead: for each rank held, one representative
-    set of each size 1..count. A led set of threes is a natural lead — its key
+    """Every set the leader may lead: for each rank held, every subset of its
+    cards of each size 1..count. A led set of threes is a natural lead — its key
     is the threes' own (lowest) strength; transparency applies only when
     threes BEAT a standing set (the follows query)."""
     strength = facts.rank_index
@@ -104,7 +102,8 @@ def president_lead_options(
     for r, cs in _by_rank(hand).items():
         key = rank_strength(strength, r, "president_lead_options")
         for size in range(1, len(cs) + 1):
-            leads.append(Play("set", size, key, tuple(cs[:size])))
+            for cards in itertools.combinations(cs, size):
+                leads.append(Play("set", size, key, cards))
     return leads
 
 
@@ -128,11 +127,12 @@ def president_follows(
             continue
         key = rank_strength(strength, r, "president_follows")
         if key > current.key:
-            follows.append(Play("set", current.size, key, tuple(cs[:current.size])))
+            for cards in itertools.combinations(cs, current.size):
+                follows.append(Play("set", current.size, key, cards))
     threes = [c for c in hand if c.rank == "3"]
     threes.sort(key=lambda c: _SUITS_DESC.index(c.suit))
-    if len(threes) >= current.size:
-        follows.append(Play("threes", current.size, current.key, tuple(threes[:current.size])))
+    for cards in itertools.combinations(threes, current.size):
+        follows.append(Play("threes", current.size, current.key, cards))
     return follows
 
 
@@ -140,8 +140,7 @@ def president_universe() -> list[Play]:
     """Every play this engine can ever produce over any hand — the combination
     action universe for the OpenSpiel adapter: all sets of 1..4 equal-ranked
     cards (13 ranks x every suit subset of each size; 195 plays, each card-set
-    unique). A superset of the queries' representatives, safe by the same rule
-    as Big Two's (supersets are safe, collisions are not). A transparent-threes
+    unique) — the union of the queries' outputs over every hand. A transparent-threes
     follow moves a card-set this enumeration already contains — its action id
     is the card-set's, and its effective key lives in the live candidate, so
     transparency needs no ids of its own."""

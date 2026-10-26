@@ -16,16 +16,16 @@ A-2-3-4-5 wheel; no wrap-around). It is kept game-local beside Tichu's
 `tichu_combinations.py` (the engines differ) until a third instance justifies
 merging.
 
-Scope reductions (random play; see docs/games/big-two.md): pairs/triples are
-offered as the single strongest representative per rank (highest suits), and each
-five-card type as its strongest representative (the top-5 of a suit for a flush,
-the highest top-card for a straight); these never change which combinations a hand
-can *legally beat*. Match-doubling surcharges (for 2s or a 13-card blitz) are
-omitted — the basic 1/2/3-per-card penalty (in big-two.cardlang) only.
+The queries offer every combination a hand holds — each suit choice of a pair,
+triple, straight, full house, and quads kicker, and each five-card subset of a
+suit for a flush — since which cards a seat keeps back is a decision of the game.
+tests/test_bigtwo_combinations.py holds them to an independent oracle written
+from the rules source over every subset of sampled hands.
 """
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 from typing import Any
 
@@ -105,73 +105,59 @@ def _five_card_combos(hand: list[Card], by_rank: dict[str, list[Card]]) -> list[
     for c in hand:
         suit_cards.setdefault(c.suit, []).append(c)
 
-    # Straights and straight flushes, window by window.
+    # Straights and straight flushes, window by window: every suit assignment
+    # over the window's five ranks. A monochrome assignment is a straight flush.
     for seq in _STRAIGHTS:
         if not all(r in by_rank for r in seq):
             continue
         top_nat = _NAT[seq[-1]]
-        # Straight flushes: any suit that covers all five ranks of the window.
-        for suit in ("spades", "hearts", "clubs", "diamonds"):
-            if all(any(c.suit == suit for c in by_rank[r]) for r in seq):
-                cards = tuple(next(c for c in by_rank[r] if c.suit == suit) for r in seq)
-                out.append(Play("straightflush", 5, (_STRAIGHTFLUSH, top_nat, _SUIT[suit]), cards))
-        # A plain (mixed-suit) straight: top card the highest suit available at
-        # the top rank, the rest any card, forced off-suit somewhere so it is not
-        # secretly a flush (if it can only be monochrome it is a straight flush,
-        # already emitted above).
-        top_card = by_rank[seq[-1]][0]
-        chosen = [top_card]
-        mixed = False
-        for r in seq[:-1]:
-            alt = next((c for c in by_rank[r] if c.suit != top_card.suit), None)
-            if alt is not None:
-                chosen.append(alt)
-                mixed = True
+        for cards in itertools.product(*(by_rank[r] for r in seq)):
+            top = cards[-1]
+            if len({c.suit for c in cards}) == 1:
+                out.append(Play("straightflush", 5, (_STRAIGHTFLUSH, top_nat, _SUIT[top.suit]), cards))
             else:
-                chosen.append(by_rank[r][0])
-        if mixed:
-            out.append(Play("straight", 5, (_STRAIGHT, top_nat, _SUIT[top_card.suit]), tuple(chosen)))
+                out.append(Play("straight", 5, (_STRAIGHT, top_nat, _SUIT[top.suit]), cards))
 
-    # Flushes: the five highest cards of any suit with five or more (unless those
-    # five are consecutive — that is a straight flush, already emitted).
+    # Flushes: every five cards of a suit, unless their ranks are consecutive —
+    # that card-set is a straight flush, already emitted.
     for suit, cs in suit_cards.items():
-        if len(cs) >= 5:
-            top5 = sorted(cs, key=lambda c: _RANK[c.rank], reverse=True)[:5]
-            if not _is_straight_ranks(frozenset(c.rank for c in top5)):
-                out.append(Play("flush", 5, (_FLUSH, _SUIT[suit], _RANK[top5[0].rank]), tuple(top5)))
+        ordered = sorted(cs, key=lambda c: _RANK[c.rank], reverse=True)
+        for five in itertools.combinations(ordered, 5):
+            if not _is_straight_ranks(frozenset(c.rank for c in five)):
+                out.append(Play("flush", 5, (_FLUSH, _SUIT[suit], _RANK[five[0].rank]), five))
 
-    # Full houses: a triple rank plus any different pair rank (triple rank ranks it).
-    triple_ranks = [r for r, cs in by_rank.items() if len(cs) >= 3]
-    pair_ranks = [r for r, cs in by_rank.items() if len(cs) >= 2]
-    for tr in triple_ranks:
-        pr = next((p for p in pair_ranks if p != tr), None)
-        if pr is not None:
-            out.append(Play("fullhouse", 5, (_FULLHOUSE, _RANK[tr]),
-                            tuple(by_rank[tr][:3] + by_rank[pr][:2])))
+    # Full houses: every triple of a rank with every pair of another rank (the
+    # triple's rank ranks it).
+    for tr, tcs in by_rank.items():
+        for triple in itertools.combinations(tcs, 3):
+            for pr, pcs in by_rank.items():
+                if pr == tr:
+                    continue
+                for pair in itertools.combinations(pcs, 2):
+                    out.append(Play("fullhouse", 5, (_FULLHOUSE, _RANK[tr]), triple + pair))
 
-    # Quads: four of a rank plus the lowest spare card as the mandatory kicker.
+    # Quads: four of a rank plus any other card of the hand as the fifth.
     for r, cs in by_rank.items():
         if len(cs) == 4:
-            others = [c for c in hand if c.rank != r]
-            if others:
-                kicker = min(others, key=lambda c: (_RANK[c.rank], _SUIT[c.suit]))
-                out.append(Play("quads", 5, (_QUADS, _RANK[r]), tuple(cs + [kicker])))
+            for kicker in hand:
+                if kicker.rank != r:
+                    out.append(Play("quads", 5, (_QUADS, _RANK[r]), tuple(cs) + (kicker,)))
     return out
 
 
 def _combos(hand: list[Card]) -> list[Play]:
-    """Every combination a hand can play, as the strongest representative of each
-    rank/type (see the module scope note). Sizes 1, 2, 3, and 5 — Big Two has no
-    four-card play, and quads are a five-card group (four plus a kicker)."""
+    """Every combination a hand can play. Sizes 1, 2, 3, and 5 — Big Two has
+    no four-card play, and quads are a five-card group (four plus a kicker)."""
     by_rank = _by_rank(hand)
     out: list[Play] = [
         Play("single", 1, (_RANK[c.rank], _SUIT[c.suit]), (c,)) for c in hand
     ]
     for r, cs in by_rank.items():
-        if len(cs) >= 2:
-            out.append(Play("pair", 2, (_RANK[r], _SUIT[cs[0].suit]), tuple(cs[:2])))
-        if len(cs) >= 3:
-            out.append(Play("triple", 3, (_RANK[r],), tuple(cs[:3])))
+        # `cs` is highest suit first, so each pair's first card is its highest.
+        for pair in itertools.combinations(cs, 2):
+            out.append(Play("pair", 2, (_RANK[r], _SUIT[pair[0].suit]), pair))
+        for triple in itertools.combinations(cs, 3):
+            out.append(Play("triple", 3, (_RANK[r],), triple))
     out.extend(_five_card_combos(hand, by_rank))
     return out
 
@@ -192,17 +178,9 @@ def _legal_follows(hand: list[Card], led: Play) -> list[Play]:
 def bigtwo_lead_options(
     facts: EngineFacts, gr: reads.GameReads, hand: list[Card]
 ) -> list[Play]:
-    """The combinations a leader may lead. On the opening lead of the match (game
-    state `opened` still false) only those containing the 3♦ are offered — the
-    holder of the 3♦ leads the first hand and must include it.
-
-    The filter runs over `_combos`' representatives, so a multi-card opening whose
-    strongest representative omits the 3♦ (a pair/triple of 3s — the two highest
-    suits — or a straight/flush built on a higher-suit 3) is not offered; the single
-    3♦ always is, so a legal opening is guaranteed. This is a corollary of the
-    representative scope reduction (see the module docstring / big-two.md), not a
-    correctness bug — exhaustive opening coverage means dropping representatives
-    (full per-suit enumeration), a global change deferred for random play."""
+    """The combinations a leader may lead. On a hand's opening lead (game state
+    `opened` still false) only those containing the 3♦ are offered — its holder
+    leads and must play it, alone or in any combination holding it."""
     combos = _combos(hand)
     if not gr.state["opened"]:
         three = Card("3", "diamonds")
@@ -222,19 +200,16 @@ def bigtwo_follows(
 
 def bigtwo_universe() -> list[Play]:
     """Every play this engine can ever produce over any hand — the combination
-    action universe for the OpenSpiel adapter (a stable superset of the
-    reachable representatives; supersets are safe, collisions are not, so the
-    one invariant is that each card-set appears at most once).
+    action universe for the OpenSpiel adapter (the union of `_combos` over
+    every hand; each card-set appears at most once, since a collision would
+    give two plays one action id).
 
-    Enumerates by shape, mirroring `_combos` / `_five_card_combos` exactly:
-    representatives take the top suits present in the hand, so over all hands
-    every suit subset is reachable — pairs are all C(4,2) per rank, triples all
-    C(4,3), a straight is any non-monochrome suit assignment over its window
-    (monochrome is a straight flush), a flush any 5-of-a-suit whose ranks are
-    not a straight window, a quad takes any of the 48 spare cards as kicker.
+    Enumerates by shape, mirroring `_combos` / `_five_card_combos`: pairs are
+    all C(4,2) per rank, triples all C(4,3), a straight is any non-monochrome
+    suit assignment over its window (monochrome is a straight flush), a flush
+    any 5-of-a-suit whose ranks are not a straight window, a quad takes any of
+    the 48 spare cards as kicker.
     """
-    import itertools
-
     suits_desc = sorted(_SUIT, key=lambda s: _SUIT[s], reverse=True)
     out: list[Play] = []
 

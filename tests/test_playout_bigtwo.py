@@ -28,16 +28,16 @@ def _hand(*specs: str) -> list[Card]:
 
 
 def _only(kind: str, *specs: str) -> Play:
-    """The one combination of `kind` a hand forms (for building led plays)."""
+    """The first combination of `kind` a hand forms (for building led plays)."""
     return next(p for p in _combos(_hand(*specs)) if p.kind == kind)
 
 
 def test_combination_engine() -> None:
-    # Pairs/triples are formed by rank; the strongest representative carries the
-    # higher suit (here both 7s, so the spade tops the heart in the pair).
+    # Pairs/triples are formed by rank, every suit choice offered: three 7s are
+    # three pairs and one triple.
     sevens = _combos(_hand("7@s", "7@h", "7@c"))
-    assert any(p.kind == "pair" and p.cards[0].suit == "spades" for p in sevens)
-    assert any(p.kind == "triple" for p in sevens)
+    assert sum(p.kind == "pair" for p in sevens) == 3
+    assert sum(p.kind == "triple" for p in sevens) == 1
 
     # The 2 is the highest single rank, the 3 the lowest.
     assert _RANK["2"] > _RANK["A"] > _RANK["3"]
@@ -131,3 +131,31 @@ def test_random_games_satisfy_invariants() -> None:
         low = min(result.scores.values())
         assert result.winners == {p for p, s in result.scores.items() if s == low}
         assert max(result.scores.values()) >= 100, f"seed {seed}: match did not reach the threshold"
+
+
+def test_a_seat_that_passes_plays_again_in_the_same_trick() -> None:
+    """Pagat: "Passing does not prevent you from playing when your turn comes
+    round again." A lead is the one ask offering no pass, so it opens a trick;
+    within one, some seat that passed must later be asked and play.
+
+    red under: a climb ring that drops a passing seat from the trick."""
+    game = check_source(BIG_TWO)
+    rng = random.Random(0)
+    asks: list[tuple[int, list[Any], list[Any]]] = []
+
+    def chooser(player: int, candidates: list[Any], n: int) -> list[Any]:
+        picked = rng.sample(candidates, n)
+        asks.append((player, candidates, picked))
+        return picked
+
+    play_game(game, random.Random(0), chooser=chooser)
+    passed: set[int] = set()
+    replayed = 0
+    for player, candidates, picked in asks:
+        if "pass" not in candidates:
+            passed.clear()  # a lead: a new trick
+        elif picked == ["pass"]:
+            passed.add(player)
+        elif player in passed:
+            replayed += 1
+    assert replayed > 0, "no seat ever played after passing in the same trick"

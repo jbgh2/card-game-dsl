@@ -508,23 +508,29 @@ def _climb_round(combos: str, follows: str) -> str:
     )
 
 
+def _rejects_naming(src: str, needle: str) -> None:
+    """Refused, with `needle` among ALL the diagnostics — not only the first
+    the channel renders."""
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    rendered = "\n".join(getattr(ei.value, "__notes__", None) or [str(ei.value)])
+    assert needle in rendered, rendered
+
+
 def test_rejects_the_lead_climb_query_with_no_declared_ranking() -> None:
-    # One cell per MEMBER, each isolating its member with a NON-member in
-    # the other slot — a single both-members cell would stay green if either
-    # member alone left the registry (the F3 class, climb face), because the
-    # diagnostic channel renders the FIRST error and the surviving member's
-    # message would keep the substring matching. The cross-engine pairing is
-    # statically legal (the two slots validate against separate name sets)
-    # and these cells never run.
-    _rejects(
-        _game(_climb_round("president_lead_options", "bigtwo_follows"), ranking=""),
+    # One cell per MEMBER, each asserting its own member's refusal over every
+    # diagnostic: President's two queries are both ranking-gated, and a round
+    # may only pair one engine's queries, so each cell reads its member's line
+    # by name rather than isolating it with a non-member sibling.
+    _rejects_naming(
+        _game(_climb_round("president_lead_options", "president_follows"), ranking=""),
         "climb query president_lead_options reads a card's rank strength from ranking:",
     )
 
 
 def test_rejects_the_follows_climb_query_with_no_declared_ranking() -> None:
-    _rejects(
-        _game(_climb_round("bigtwo_lead_options", "president_follows"), ranking=""),
+    _rejects_naming(
+        _game(_climb_round("president_lead_options", "president_follows"), ranking=""),
         "climb query president_follows reads a card's rank strength from ranking:",
     )
 

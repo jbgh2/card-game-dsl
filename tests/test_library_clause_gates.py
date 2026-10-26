@@ -107,6 +107,7 @@ from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
+    PRIMITIVE_CLIMB_ENGINES,
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     TRICK_ORDER_EXCLUDED_FUNCS,
@@ -590,10 +591,12 @@ def _ranking_game(case: RankingCase, *, ranking: bool, twin: bool = False) -> st
         if not twin and case.member in TRUMP_READING_WINNERS:
             round_text += " trump hearts"
         return _game_text(clauses, uses=False, game_fn="", tag=tag, statement=round_text)
+    # The member's own engine fills the other slot: a round pairing two
+    # engines' queries is refused at resolve, before this clause gate runs.
     lead, follows = (
-        (case.member, "bigtwo_follows")
+        (case.member, PRIMITIVE_CLIMB_ENGINES[case.member])
         if case.member in PRIMITIVE_CLIMB_LEADS
-        else ("bigtwo_lead_options", case.member)
+        else (next(k for k, v in PRIMITIVE_CLIMB_ENGINES.items() if v == case.member), case.member)
     )
     return _game_text(
         clauses, uses=False, game_fn="", tag=tag, statement=_climb_round(lead, follows)

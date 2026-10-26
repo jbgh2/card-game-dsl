@@ -10,7 +10,10 @@ property:   every zone/state name a game-local Python primitive reads is
             module's source and the game file's declarations, and every failed
             read is a typed `PrimitiveReadError` naming the registry — a
             rename on either side of the coupling fails a static test here,
-            never a bare `KeyError` mid-playout.
+            never a bare `KeyError` mid-playout. Each game reaching a
+            Primitive is held to it on its own: every game declaring one
+            Primitive declares the same reads, and every climb query a game
+            names binds a row serving that game.
 domain:     name-keyed `RuntimeState`/`ZoneStore` access (`get`/`set`/
             `declare`/`single`/`instance`/`is_family`/`families[...]`/
             `singles[...]`, from `state.py`'s API — the forbidden-pattern
@@ -761,3 +764,96 @@ def test_probe_kind_confusion_fails_the_row_pin() -> None:
     )
     problems = _row_problems(doctored, _declared_names("coup.cardlang"))
     assert any("kind" in p and "court_deck" in p for p in problems)
+
+
+# --- the coupling's fourth side: which game names the Primitive --------------
+#
+# A Primitive's Python reads one fixed set of names. Every game that reaches it
+# must hand it that set: a game declaring it in its block declares the reads
+# there, and a game naming a walled query in a round slot is bound to the row
+# the binder keys by that query. The module scan above compares a module's
+# literals with the UNION of its declarers, so a second declarer missing a
+# read stays green there and fails only at playout; these pin each declarer.
+
+
+def _declarer_disagreements(games: list[tuple[str, n.Game]]) -> list[str]:
+    """Every Primitive two games declare with different reads."""
+    by_primitive: dict[str, dict[str, frozenset[str]]] = {}
+    for file_name, game in games:
+        if game.primitives is None:
+            continue
+        for decl in game.primitives.decls:
+            by_primitive.setdefault(decl.name, {})[file_name] = frozenset(
+                r.name for r in decl.reads
+            )
+    return [
+        f"`{name}` is declared with different reads by {sorted(declarers)}: "
+        + "; ".join(f"{g} reads {sorted(r)}" for g, r in sorted(declarers.items()))
+        for name, declarers in sorted(by_primitive.items())
+        if len(set(declarers.values())) > 1
+    ]
+
+
+def _climb_rows_of_other_games(games: list[tuple[str, n.Game]]) -> list[str]:
+    """Every climb query a game names whose binder row serves another game."""
+    from cardlang.runtime.primitives import climb_row
+
+    return [
+        f"{file_name} names `{query}`, whose reads row serves {row.game_file}"
+        for file_name, game in games
+        for node in _resolve_walk(game)
+        if isinstance(node, n.ClimbRound)
+        for query in (node.combos_fn, node.follows_fn)
+        if (row := climb_row(query)).game_file != file_name
+    ]
+
+
+def _corpus_games() -> list[tuple[str, n.Game]]:
+    from tests.test_primitives_block import game_sources
+
+    return [
+        (p.name, parse_corpus_game(p) if p.parent == GAMES_DIR else _parse_game(p))
+        for p in game_sources()
+    ]
+
+
+def test_every_game_declaring_a_primitive_declares_the_same_reads() -> None:
+    """red under: `test_probe_a_second_declarer_missing_a_read_is_named`'s
+    plant — Hold'em Heads-Up declaring `holdem_pot_share` without `board`."""
+    assert not _declarer_disagreements(_corpus_games())
+
+
+def test_every_climb_query_a_game_names_binds_that_games_row() -> None:
+    """red under: `test_probe_a_climb_query_of_another_game_is_named`'s
+    plant — President's round naming Big Two's queries."""
+    assert not _climb_rows_of_other_games(_corpus_games())
+
+
+def test_probe_a_second_declarer_missing_a_read_is_named() -> None:
+    """The issue's plant: Hold'em Heads-Up declaring Hold'em's Primitive
+    with one read fewer checks clean and fails at playout; here it is named."""
+    source = (GAMES_DIR / "holdem-heads-up.cardlang").read_text()
+    planted = source.replace("holdem_heads_up_pot_share", "holdem_pot_share").replace(
+        "reads in_hand, committed, folded, hole, shown, board",
+        "reads in_hand, committed, folded, hole, shown",
+    )
+    assert planted.count("holdem_pot_share") == source.count("holdem_heads_up_pot_share") > 0
+    from cardlang.parse import parse_text
+
+    games = [
+        ("holdem.cardlang", parse_corpus_game(GAMES_DIR / "holdem.cardlang")),
+        ("holdem-heads-up.cardlang", parse_text(planted, "holdem-heads-up.cardlang")),
+    ]
+    (problem,) = _declarer_disagreements(games)
+    assert "holdem_pot_share" in problem and "board" in problem
+
+
+def test_probe_a_climb_query_of_another_game_is_named() -> None:
+    from cardlang.parse import parse_text
+
+    source = (GAMES_DIR / "president.cardlang").read_text()
+    planted = source.replace("president_lead_options", "bigtwo_lead_options").replace(
+        "president_follows", "bigtwo_follows"
+    )
+    problems = _climb_rows_of_other_games([("president.cardlang", parse_text(planted, "president.cardlang"))])
+    assert len(problems) == 2 and all("big-two.cardlang" in p for p in problems)

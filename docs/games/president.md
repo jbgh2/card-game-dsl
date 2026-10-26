@@ -109,9 +109,9 @@ clockwise.
   identity of the card on their own side and every bystander sees a one-card
   count — nobody learns the exchanged cards but the pair, and nobody authors
   an observation rule to make it so.
-- **Suits never matter**, so the engine offers each (rank, size) as one
-  representative set (the group's highest suits — the Big Two representative
-  convention) without changing any legality, and the OpenSpiel
+- **Suits never matter** to legality or strength, yet the engine offers every
+  suit subset of each (rank, size): which of three sevens a seat plays as a
+  pair is the seat's choice, and the cards played are public. The OpenSpiel
   indistinguishability class for hidden hands is exactly "same rank, any
   suit" (`swap_axis="rank"` in `tests/openspiel_ready/test_president.py`).
 - **State is public throughout:** scores, the finishing order, and the

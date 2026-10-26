@@ -1,4 +1,4 @@
-"""The Big Two play universe: a superset of every reachable representative,
+"""The Big Two play universe: every play the engine can offer over any hand,
 unique by card-set — the combination action space (SP1 spec, Pillar 2)."""
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def test_universe_composition_by_kind() -> None:
     assert by_kind["quads"] == 13 * 48
 
 
-def test_universe_covers_every_reachable_representative() -> None:
+def test_universe_covers_every_reachable_play() -> None:
     universe = {frozenset(p.cards): p.kind for p in bigtwo_universe()}
     deck = [Card(r, s) for s in SUITS for r in RANKS]
     rng = random.Random(0)

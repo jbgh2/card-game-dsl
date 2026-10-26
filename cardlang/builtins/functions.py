@@ -105,20 +105,23 @@ PRIMITIVE_EARLY_PREDICATES: frozenset[str] = frozenset(
 #
 # The engines are game-local (Big Two's and Tichu's combination rules differ), so
 # these grow corpus-first, one pair per climbing game.
-PRIMITIVE_CLIMB_LEADS: frozenset[str] = frozenset(
-    {
-        "bigtwo_lead_options",  # Big Two: every combination (3♦-filtered on the opening lead)
-        "tichu_lead_options",  # Tichu: every combination + the special-card lead singles
-        "president_lead_options",  # President: every equal-rank set of 1-4 cards
-    }
-)
-PRIMITIVE_CLIMB_FOLLOWS: frozenset[str] = frozenset(
-    {
-        "bigtwo_follows",  # Big Two: combinations that beat the standing play (same size)
-        "tichu_follows",  # Tichu: same kind/length and higher, any bomb, Dragon/Phoenix answers
-        "president_follows",  # President: same-size higher-rank sets + transparent threes
-    }
-)
+PRIMITIVE_CLIMB_ENGINES: dict[str, str] = {
+    # Big Two: every combination (3♦-filtered on the opening lead) / the
+    # combinations that beat the standing play (same size)
+    "bigtwo_lead_options": "bigtwo_follows",
+    # Tichu: every combination + the special-card lead singles / same kind and
+    # length and higher, any bomb, Dragon/Phoenix answers
+    "tichu_lead_options": "tichu_follows",
+    # President: every equal-rank set of 1-4 cards / same-size higher-rank sets
+    # + transparent threes
+    "president_lead_options": "president_follows",
+}
+"""Each climb engine as its lead query -> its follows query: the one table
+both registries below derive from, so a follows query exists only beside the
+lead it pairs with. Resolve refuses a round naming two engines' queries; the
+runtime keys an engine by its lead query alone."""
+PRIMITIVE_CLIMB_LEADS: frozenset[str] = frozenset(PRIMITIVE_CLIMB_ENGINES)
+PRIMITIVE_CLIMB_FOLLOWS: frozenset[str] = frozenset(PRIMITIVE_CLIMB_ENGINES.values())
 
 # Native functions invoked with arguments: `f(...)`, declared in two sets by
 # the home that implements each (issue #200's ruling; the implementation split

@@ -70,9 +70,8 @@ decisions, and so are Tichu's call windows (grand at the eight-card deal
 window, small on the off-the-clock poll — decisions.md "Off-the-clock
 windows") and its Dragon routing. Tichu plays its rulebook whole (epic
 #762): the wish, the Phoenix in every combination but a bomb, straight-flush
-bombs and bombs out of turn are all in. Big Two's and President's
-representative-card enumerations are named in their own game files —
-scope, not hidden randomness.
+bombs and bombs out of turn are all in, and Big Two and President offer
+every combination a hand holds.
 
 The built-in `Trick` mechanic was also engine code, not DSL. Retiring it —
 moving Hearts, Spades, Getaway, and Bridge's play onto the kernel `round` (Oh
