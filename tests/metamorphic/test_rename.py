@@ -26,32 +26,24 @@ domain:     corpus games (`pairing.CORPUS`) x seeds (`pairing.SEEDS`).
             zone and the checker refuses a `reads` name that resolves to
             nothing — one edit in one file moves both sides. The names it
             excludes are exactly those whose reading side is Python this
-            transform cannot rewrite.
+            transform cannot rewrite. Every rename keeps each zone's place in
+            sorted name order, the one meaning a zone's spelling carries (a
+            gather collects in that order, decisions.md's gather paragraph),
+            so an excluded zone and a renamed one holding cards at the same
+            gather collect as they did; a rename that cannot keep the order
+            is refused, never run.
 registry:   docs/games/*.cardlang (`pairing.CORPUS`) — every corpus game.
             The declared-reads registry the coupled exclusion derives from:
             `PRIMITIVE_READS`, cardlang/runtime/reads.py, pinned in both
             directions — against each game file's declarations and against
             each module's accessor-call literals — by
             tests/test_primitive_reads.py.
-does not prove:  two things.
-            That the property holds at every depth or from every deal.
+does not prove:  that the property holds at every depth or from every deal.
             Seeds and decision depth are sampled to a CI budget
             (`CARDLANG_METAMORPHIC_STEPS` / `CARDLANG_METAMORPHIC_SEEDS` in
             pairing.py widen both for a deeper local run), so a divergence
             reachable only from an unsampled seed, or past the step bound,
             passes here.
-            That a FAILURE of the pairing property is a defect. `move all
-            cards to <zone>` collects its sources in sorted ZONE-NAME order
-            (decisions.md, the gather paragraph) and this transform renames
-            only the names outside the exclusion sets, so a game reaching a
-            gather with cards in BOTH an excluded zone and a renamed one has
-            its collection reordered, its deck stacked differently and its
-            next shuffle diverged — the property fails on a game that is
-            correct. The failure names a diverging event rather
-            than a naming artifact, which makes the tempting repair
-            distorting the game until the transform is happy; the fix is
-            upstream of the game, in the transform or the gather, never in
-            the game file.
 """
 
 from __future__ import annotations
@@ -61,7 +53,12 @@ from pathlib import Path
 import pytest
 
 from tests.metamorphic import pairing
-from tests.metamorphic.rename import alpha_rename, build_rename_plan, trace_rename
+from tests.metamorphic.rename import (
+    _order_preserving_check,
+    alpha_rename,
+    build_rename_plan,
+    trace_rename,
+)
 
 
 @pytest.mark.parametrize("path", pairing.CORPUS, ids=lambda p: p.name)
@@ -95,3 +92,21 @@ def test_renamed_game_plays_out_identically(path: Path, seed: int) -> None:
     a, b = pairing.run_pair(path, alpha_rename, seed)
     witness = pairing.compare_traces(a, b, rename=rename_hook)
     assert witness is None, f"{path} seed={seed}: {witness}"
+
+
+@pytest.mark.parametrize("path", pairing.CORPUS, ids=lambda p: p.name)
+def test_every_rename_keeps_the_zones_in_sorted_order(path: Path) -> None:
+    """red under: rename targets that ignore their source's spelling (the
+    `_mt_<n>` prefix scheme, which sorts every renamed zone before every
+    unrenamed one)."""
+    parsed = pairing.parse_corpus_game(path)
+    plan = build_rename_plan(parsed)
+    zones = [z.name for z in parsed.zones]
+    assert sorted(zones) == sorted(zones, key=lambda z: plan.zone_map.get(z, z))
+
+
+def test_a_rename_that_would_reorder_the_zones_is_refused() -> None:
+    """A source name that is a prefix of another's is the one case a suffix
+    cannot keep in order; the rename refuses it rather than run."""
+    with pytest.raises(AssertionError, match="reorder the zones a gather collects"):
+        _order_preserving_check({"pile", "pileA"}, {"pile": "pile__mt0"})

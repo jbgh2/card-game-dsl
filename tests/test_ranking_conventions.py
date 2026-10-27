@@ -351,6 +351,13 @@ _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # expansion would not change what beats what — it would silently desync the
     # declared order from the compared one.
     "five-card-draw": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
+    # Big Two is convention-BORN: it declares `twos high` for its precaution
+    # rule, whose single-card strength the game file reads through
+    # `rank_value`, while the combination engine compares against its own
+    # table. The row freezes the expansion that strength was built against;
+    # tests/test_bigtwo_precaution.py pins the declaration to the engine's
+    # table, so the two orders cannot drift apart.
+    "big-two": ("twos high", "standard52", ("2", "A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3")),
 }
 
 
