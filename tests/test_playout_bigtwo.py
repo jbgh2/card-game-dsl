@@ -94,6 +94,8 @@ def _expected_penalty(cards_left: int) -> int:
 
 # Every per-hand penalty a non-winner can score (1–13 cards left), recomputed here.
 _VALID_PENALTIES = frozenset(_expected_penalty(n) for n in range(1, 14))
+# What a liable seat can pay: three losers' penalties at once.
+_LIABLE_TOTALS = frozenset(a + b + c for a in _VALID_PENALTIES for b in _VALID_PENALTIES for c in _VALID_PENALTIES)
 
 
 def test_random_games_satisfy_invariants() -> None:
@@ -101,9 +103,11 @@ def test_random_games_satisfy_invariants() -> None:
     for seed in range(30):
         census: dict[str, int] = {}
         # `hand_end` carries the cumulative score after each hand; per-hand deltas
-        # let us check shedding (exactly one zero-delta winner per hand) and that
-        # every non-winner's delta is a well-formed penalty (an independent check
-        # of the DSL `bigtwo_penalty`, not sharing its code).
+        # let us check shedding and that every delta is well formed (an
+        # independent check of the DSL `bigtwo_penalty`, not sharing its code):
+        # one zero-delta winner and a penalty for each other seat, or — the
+        # precaution rule — one liable seat paying three penalties at once.
+        # Which hands are liable is tests/test_bigtwo_precaution.py's.
         hand_totals: list[dict[int, int]] = []
 
         def tracer(event: str, data: Any) -> None:
@@ -119,11 +123,12 @@ def test_random_games_satisfy_invariants() -> None:
         prev = {p: 0 for p in range(4)}
         for cum in hand_totals:
             deltas = {p: cum[p] - prev[p] for p in cum}
-            zero = [p for p, d in deltas.items() if d == 0]
-            assert len(zero) == 1, f"seed {seed}: not exactly one shed-out winner: {deltas}"
-            for d in deltas.values():
-                if d != 0:
-                    assert d in _VALID_PENALTIES, f"seed {seed}: bad penalty {d}"
+            paying = [d for d in deltas.values() if d != 0]
+            if len(paying) == 1:
+                assert paying[0] in _LIABLE_TOTALS, f"seed {seed}: bad liable total {deltas}"
+            else:
+                assert len(paying) == 3, f"seed {seed}: not exactly one shed-out winner: {deltas}"
+                assert all(d in _VALID_PENALTIES for d in paying), f"seed {seed}: bad penalty {deltas}"
             prev = cum
 
         assert census["total"] == 52, f"seed {seed}: {census}"

@@ -5,9 +5,9 @@ readable twin. A four-player **climbing / shedding** game (also called Deuces or
 Choh Dai Di) on the standard 52-card deck. The aim is to be the first to play out
 your whole hand; the others lose penalty points for the cards they are caught
 with. Lowest cumulative penalty wins. Rules: [Pagat](https://www.pagat.com/climbing/bigtwo.html)
-(basic game), played **anticlockwise** as the page's basic game is. Pagat sets no
-end to a session; this file's match ends when a player's penalty total reaches
-100.
+(basic game), played **anticlockwise** as the page's basic game is, and **for
+money** at a stake per penalty point. Pagat sets no end to a session; this file's
+match ends when a player's penalty total reaches 100.
 
 **Card order.** Two rank orders coexist, which is the heart of the game:
 
@@ -45,6 +45,15 @@ Each hand:
    nine or fewer, **2 per card** for ten–twelve, **3 per card** for a full
    thirteen (39). The winner scores 0. The match ends when a player's cumulative
    penalty reaches 100 (this file's bound); the **lowest** total wins.
+5. **Precautions** (the money game). When the next player holds **one card**, you
+   must try to stop them going out: if **single cards** are being played, play
+   your **highest card**; if it is **your lead**, lead a **combination of more
+   than one card** if you can, otherwise your highest card. If you don't, and
+   that player then goes out on their last card, your hand is **shown** and, if
+   it held what you should have played, you **pay every loser's penalty** for the
+   hand — the whole sum is yours and the other losers score nothing. A pass
+   counts as ignoring the precaution when your highest card could have beaten the
+   single.
 
 The hand runs on the kernel **`round climb`** construct: one combination-climbing
 trick per round, with the combination engine named as the game-local Primitive
@@ -54,8 +63,10 @@ hand holds** — each suit choice of a pair or triple, every straight over its
 window, every five cards of a suit, every pairing of a full house, and any kicker
 with four of a kind — since which cards a seat keeps back for later tricks is a
 decision of the game. The climbing loop, the pile routing, the shed-out finish,
-and penalty scoring are DSL. Pagat's scoring variations — the doubled penalties
-for many cards left or for twos held, among others — are variants this file does
-not play. Nor does it play the page's rule for a game played for money, under
-which a player who lets the next seat win with its last single card pays the
-other losers' losses: this file keeps penalty points and settles no stakes.
+penalty scoring and the precaution rule are DSL: the round's `before asking` hook
+keeps a public record of the hand's last two asks (who was asked, the trick
+pile's size and top card, the trick's lead size), and the moment a hand ends the
+seat bound by the precaution has its hand shown before it is judged, so every
+seat sees what decides it. Pagat's scoring variations — the doubled penalties for
+many cards left or for twos held, among others — are variants this file does not
+play.
