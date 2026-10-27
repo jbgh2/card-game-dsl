@@ -42,6 +42,15 @@ it is read from, so a golden's winners are checkable against its own
 scores and the game's `teams:` without running anything.
 
 A sanctioned regeneration covers `bigtwo_scores.json` on every seed it
+holds: Big Two is played for money and carries Pagat's precaution rule
+(epic #961). A seat that lets the next seat go out on its last card, having
+ignored the precaution, pays every loser's penalty for the hand. The rule
+asks nothing, so a seed moves first at the hand where a precaution is owed:
+its scores move there, and the hand the rule shows changes the next gather's
+order, and so every later deal. The rule is pinned away from this vector, by
+tests/test_bigtwo_precaution.py.
+
+A sanctioned regeneration covers `bigtwo_scores.json` on every seed it
 holds: Big Two plays Pagat's basic game (epic #961, issue #962). The engine
 offers every combination a hand holds, not one representative per rank and
 five-card type; the 3♦ holder leads every hand; play runs anticlockwise. Every

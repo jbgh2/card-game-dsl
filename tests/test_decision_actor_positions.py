@@ -357,10 +357,8 @@ def test_the_same_trigger_in_the_unbound_phase_is_refused() -> None:
 
 COUNT = "(number of cards in hand)"
 _BIG_TWO = open("docs/games/big-two.cardlang").read()
-_BIG_TWO_UNTIL = (
-    "              until (any player where hand[player] is empty)\n"
-    "        opened := true\n"
-)
+# Big Two's climbing round carries a Hosted Poll; the probe reads inside it.
+_BIG_TWO_HOOK = "              before asking seat {\n"
 
 BARE_UNACTING: dict[str, str] = {
     "phase statement shuffle": _game(body="shuffle hand"),
@@ -389,11 +387,7 @@ BARE_UNACTING: dict[str, str] = {
         _TRIGGER, f"where action.card.suit is hearts and {COUNT} > 0", 1
     ),
     "before asking": _BIG_TWO.replace(
-        _BIG_TWO_UNTIL,
-        "              until (any player where hand[player] is empty)\n"
-        f"              before asking b {{ opened := {COUNT} > 0 }}\n"
-        "        opened := true\n",
-        1,
+        _BIG_TWO_HOOK, f"{_BIG_TWO_HOOK}                opened := {COUNT} > 0\n", 1
     ),
 }
 

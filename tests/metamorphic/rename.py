@@ -63,9 +63,14 @@ is excluded (`RenamePlan.excluded_contract`) rather than renamed. Note this
 exclusion is derived from the library's own `requires` block, not a
 hand-listed set, so it tracks the libraries automatically.
 
-A gather reached with cards in both an excluded zone and a renamed one
-collects in a different order under the rename, so the pairing property
-fails on a correct game; issue #194 holds that false-positive class.
+**A rename keeps every zone's place in sorted name order.** A gather
+(`move all cards to <zone>`) collects its sources in sorted zone-name order
+(decisions.md, the gather paragraph), so the spelling of a zone does carry
+one meaning: where its cards land in the deck. Every target is therefore its
+source name with a fresh suffix, which keeps each renamed zone in the same
+place beside every excluded one and every other renamed one; a rename that
+cannot keep that order is refused loudly (`_order_preserving_check`), never
+run.
 
 **`hand` is the magic name where a construct reads the zone by that spelling.**
 decisions.md "Declared parameter domains": a `Card`-typed move parameter
@@ -130,7 +135,7 @@ from cardlang.resolve import _walk as _resolve_walk
 from cardlang.runtime.reads import PRIMITIVE_READS
 from tests.metamorphic.pairing import Event
 
-_PREFIX = "_mt_"
+_SUFFIX = "__mt"
 
 # The zone name `Card`-typed move parameters and `player_holding` read by
 # spelling (see the module docstring).
@@ -289,16 +294,17 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
 
     used = set(_all_string_tokens(game))
     name_map: dict[str, str] = {}
-    counter = 0
     for old in safe:
+        counter = 0
         while True:
-            candidate = f"{_PREFIX}{counter}"
+            candidate = f"{old}{_SUFFIX}{counter}"
             counter += 1
             if candidate not in used:
                 used.add(candidate)
                 name_map[old] = candidate
                 break
     zone_map = {old: new for old, new in name_map.items() if old in zone_names}
+    _order_preserving_check(zone_names, zone_map)
     return RenamePlan(
         name_map=name_map,
         zone_map=zone_map,
@@ -307,6 +313,19 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
         excluded_coupled=frozenset(excluded_coupled),
         excluded_contract=frozenset(excluded_contract),
     )
+
+
+def _order_preserving_check(zone_names: frozenset[str] | set[str], zone_map: dict[str, str]) -> None:
+    """Refuse a rename that moves any zone in sorted name order: a suffix
+    keeps it unless one zone's name is a prefix of another's, and then the
+    rename would change what a gather collects first."""
+    before = sorted(zone_names)
+    after = sorted(zone_names, key=lambda z: zone_map.get(z, z))
+    if before != after:
+        raise AssertionError(
+            f"alpha-rename would reorder the zones a gather collects: "
+            f"{before} becomes {after}"
+        )
 
 
 def _rewrite(node: object, name_map: dict[str, str]) -> object:

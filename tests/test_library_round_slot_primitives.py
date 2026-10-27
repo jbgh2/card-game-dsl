@@ -174,26 +174,27 @@ class _Host:
         )
 
 
+def _between(game: str, first: str, last: str) -> str:
+    """The statements of `game` from the line opening with `first` through the
+    line `last`, each marker present once: the round and everything its body
+    does after it."""
+    text = (_GAMES / game).read_text()
+    assert text.count(first) == 1 and text.count(last) == 1, f"the probe's markers moved in {game}"
+    return text[text.index(first) : text.index(last) + len(last)]
+
+
+# Big Two declares its own rank order, so every climb query the slot accepts
+# is admitted by the host's clauses: the oracle's verdict is then the slot's,
+# not the `ranking:` gate's. Deleting the line makes an importer with none.
+_CLIMB_RANKING = "  ranking: twos high\n"
 _CLIMB = _Host(
     "big-two.cardlang",
-    """        round climb play_combination from leader
-              over players where hand[player] is not empty
-              source hand into trick_pile
-              combinations bigtwo_lead_options follows bigtwo_follows
-              until (any player where hand[player] is empty)
-        opened := true
-        move all cards from trick_pile to discard
-        leader := winner
-""",
+    _between("big-two.cardlang", "        round climb play_combination from leader\n", "        leader := winner\n"),
     "discard",
     {"combos_fn": "bigtwo_lead_options", "follows_fn": "bigtwo_follows"},
     "round climb play_combination from actor over players where hand[player] "
     "is not empty source hand into trick_pile combinations {combos_fn} "
     "follows {follows_fn} until (any player where hand[player] is empty)",
-    # Big Two's own rank order, declared so that every climb query the slot
-    # accepts is admitted by the host's clauses: the oracle's verdict is then
-    # the slot's, not the `ranking:` gate's.
-    clauses="  ranking: twos high\n",
     after="    opened := true\n",
 )
 _TRICK = _Host(
@@ -432,7 +433,7 @@ _CLAUSE_TRIGGERS: dict[str, tuple[dict[str, str | None], tuple[str, str]]] = {
     ),
     "no ranking": (
         {"combos_fn": "president_lead_options", "follows_fn": "president_follows"},
-        (_CLIMB.clauses, ""),
+        (_CLIMB_RANKING, ""),
     ),
 }
 
@@ -500,8 +501,8 @@ def test_a_gated_call_inside_a_refused_round_asks_the_importer_nothing(
     assert round_text.count(until) == 1
     _patch(monkeypatch, _CLIMB.library_text(round_text.replace(until, gated)))
     text = _CLIMB.game_text(uses=True, game_local_round=None)
-    assert text.count(_CLIMB.clauses) == 1
-    got = _diagnostics(text.replace(_CLIMB.clauses, ""), _CLIMB.game)
+    assert text.count(_CLIMB_RANKING) == 1
+    got = _diagnostics(text.replace(_CLIMB_RANKING, ""), _CLIMB.game)
     assert got == [
         (_LIBRARY_FILE, _primitive_rule(name)) for name in _CLIMB.defaults.values() if name
     ]

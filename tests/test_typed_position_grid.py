@@ -146,8 +146,8 @@ CORPUS: dict[tuple[str, str], tuple[str, str, str]] = {
     ),
     ("ClimbRound", "until"): (
         "big-two.cardlang",
-        "until (any player where hand[player] is empty)\n        opened := true",
-        "until {W}\n        opened := true",
+        "until (any player where hand[player] is empty)\n              before asking seat {",
+        "until {W}\n              before asking seat {",
     ),
 }
 
