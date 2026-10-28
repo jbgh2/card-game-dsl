@@ -1067,9 +1067,12 @@ wildcard among those cards stands for: a card-set holding a wildcard can be
 two plays (Tichu's {Phoenix,3,4,5,6} is 2-6 or 3-7), and the climb form
 announces the value publicly so every follower's legal set derives from what
 it has seen. Either way the id is a stable function of that identity, which
-is what determinized replay needs; the codec route is the designed answer for
-any future engine whose combination space explodes
-([kernel-migration.md](kernel-migration.md), Workstream 3).
+is what determinized replay needs; the codec route is the designed answer
+for any future engine whose combination space explodes
+([kernel-migration.md](kernel-migration.md), Workstream 3). An engine with an
+enumerated universe offers its candidates in that universe's id order
+(`primitives.action_order`), so a per-turn candidate list is a function of
+the plays it holds and never of how the engine generated them.
 
 ## The `turns` form
 

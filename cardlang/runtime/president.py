@@ -32,10 +32,11 @@ choice, and the cards it plays are seen by every seat.
 
 from __future__ import annotations
 
+import functools
 import itertools
 from dataclasses import dataclass
 
-from cardlang.runtime import reads
+from cardlang.runtime import primitives, reads
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import SUITS, Card, rank_strength
 
@@ -49,7 +50,7 @@ ROW = reads.row("cardlang/runtime/president.py", "president.cardlang")
 _RANKING: tuple[str, ...] = ("2", "A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3")
 _STRENGTH: dict[str, int] = {r: len(_RANKING) - 1 - i for i, r in enumerate(_RANKING)}
 
-# Highest suit first — a deterministic candidate order; suits carry no
+# Highest suit first — the order of the cards within a play; suits carry no
 # strength in President.
 _SUITS_DESC: tuple[str, ...] = tuple(reversed(SUITS))
 
@@ -75,8 +76,8 @@ class Play:
 
 
 def _by_rank(hand: list[Card]) -> dict[str, list[Card]]:
-    """Group a hand by rank, each group's cards sorted highest suit first (a
-    deterministic candidate order; suits carry no strength)."""
+    """Group a hand by rank, each group's cards sorted highest suit first (the
+    order of the cards within a play; suits carry no strength)."""
     groups: dict[str, list[Card]] = {}
     for c in hand:
         groups.setdefault(c.rank, []).append(c)
@@ -104,7 +105,7 @@ def president_lead_options(
         for size in range(1, len(cs) + 1):
             for cards in itertools.combinations(cs, size):
                 leads.append(Play("set", size, key, cards))
-    return leads
+    return _in_action_order(leads)
 
 
 def president_follows(
@@ -133,7 +134,7 @@ def president_follows(
     threes.sort(key=lambda c: _SUITS_DESC.index(c.suit))
     for cards in itertools.combinations(threes, current.size):
         follows.append(Play("threes", current.size, current.key, cards))
-    return follows
+    return _in_action_order(follows)
 
 
 def president_universe() -> list[Play]:
@@ -152,3 +153,14 @@ def president_universe() -> list[Play]:
                     Play("set", size, _STRENGTH[r], tuple(Card(r, s) for s in suits))
                 )
     return out
+
+
+@functools.cache
+def _action_rank() -> dict[tuple[frozenset[Card], int | None], int]:
+    return primitives.action_rank(president_universe())
+
+
+def _in_action_order(plays: list[Play]) -> list[Play]:
+    """`plays` in their action-id order, the order both queries offer."""
+    rank = _action_rank()
+    return sorted(plays, key=lambda p: rank[primitives.play_identity(p)])

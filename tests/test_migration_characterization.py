@@ -41,6 +41,15 @@ best score, both partners of a winning team and every tied seat
 it is read from, so a golden's winners are checkable against its own
 scores and the game's `teams:` without running anything.
 
+A sanctioned regeneration covers `bigtwo_scores.json` here and
+`president_scores.json` (tests/test_playout_president.py) on every seed they
+hold: an enumerated climb engine offers its candidates in action-id order
+(issue #251's ruled design, its first step), not in the order its generator
+walks a hand. The candidate sets do not change, and neither does an action id
+(tests/test_climb_action_ids.py), but the chooser samples the list, so every
+seed's draws move from the first ask. The order is pinned away from this
+vector, by tests/test_climb_offer_order.py.
+
 A sanctioned regeneration covers `bigtwo_scores.json` on every seed it
 holds: Big Two is played for money and carries Pagat's precaution rule
 (epic #961). A seat that lets the next seat go out on its last card, having
