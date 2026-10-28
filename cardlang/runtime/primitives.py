@@ -212,11 +212,12 @@ class ComboCodec(Protocol):
     def kind_of(self, index: int) -> str: ...
 
 
-def play_identity(play: ClimbPlay) -> tuple[frozenset[Card], int | None]:
-    """A climb play's identity, which its action id is a function of: its
-    card-set and the rank value a wildcard among those cards stands for
-    (`None` on every play of an engine without wildcards)."""
-    return frozenset(play.cards), play.wild
+def play_identity(play: Any) -> tuple[frozenset[Card], int | None]:
+    """A combination's identity, which its combo-block id is a function of:
+    its card-set and the rank value a wildcard among those cards stands for
+    (`None` for a combination with no `wild` member — a joint selection's or
+    a capture's card set, or a play of an engine without wildcards)."""
+    return frozenset(play.cards), getattr(play, "wild", None)
 
 
 def action_order(universe: Sequence[ClimbPlay]) -> list[ClimbPlay]:
