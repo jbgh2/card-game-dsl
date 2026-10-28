@@ -1070,7 +1070,9 @@ it has seen. Either way the id is a stable function of that identity, which
 is what determinized replay needs; the codec route is the designed answer
 for any future engine whose combination space explodes
 ([kernel-migration.md](kernel-migration.md), Workstream 3). An engine with an
-enumerated universe offers its candidates in that universe's id order
+enumerated universe numbers its plays by card count and then by their
+sorted card ids, so an id is a function of the cards alone and no shape's
+label takes part; it offers its candidates in that order
 (`primitives.action_order`), so a per-turn candidate list is a function of
 the plays it holds and never of how the engine generated them.
 

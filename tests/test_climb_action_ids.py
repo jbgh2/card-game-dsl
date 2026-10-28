@@ -1,9 +1,9 @@
-"""Every enumerated combination action id names the play it names today.
+"""Every enumerated combination action id names the cards it names today.
 
 property:        For every corpus game whose climbing round's combo block is an
-                 enumerated universe, the combo block's id -> play table (each
-                 play's kind label and sorted card ids, in id order) equals the
-                 frozen table in `golden/climb_action_ids.json`, row for row.
+                 enumerated universe, the combo block's id -> identity table
+                 (each play's sorted card ids, in id order) equals the frozen
+                 table in `golden/climb_action_ids.json`, row for row.
                  A determinized replay, a stored policy or a trained network
                  keys on these ids, so an engine that re-derives the universe
                  another way must reproduce it id for id.
@@ -14,8 +14,9 @@ registry:        the corpus glob; `ActionSpace.for_game` (the combo block).
 held by:         a Pin. The table is frozen: it is written only by
                  `CARDLANG_REGEN_CLIMB_IDS=1`, and a regeneration is a
                  sanctioned id change recorded in the change that makes it.
-                 Reddening mutation: reorder `primitives.action_order`'s key,
-                 or drop a play from either engine's universe.
+                 Reddening mutation: put a play's kind into
+                 `primitives.action_order`'s key, or drop a play from either
+                 engine's universe.
 does not prove:  Anything about a codec game (Tichu), whose ids are its codec's
                  and pinned by its round trips (tests/test_openspiel_encoding.py).
 """
@@ -43,7 +44,7 @@ def _tables() -> dict[str, list[str]]:
         if space._combo_codec is not None or not space._combos:
             continue
         out[path.stem] = [
-            " ".join([p.kind, *(str(i) for i in sorted(card_to_action(c) for c in p.cards))])
+            " ".join(str(i) for i in sorted(card_to_action(c) for c in p.cards))
             for p in space._combos
         ]
     return out

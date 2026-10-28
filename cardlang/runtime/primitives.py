@@ -221,14 +221,16 @@ def play_identity(play: Any) -> tuple[frozenset[Card], int | None]:
 
 
 def action_order(universe: Sequence[ClimbPlay]) -> list[ClimbPlay]:
-    """An enumerated play universe in action-id order: card count, then kind
-    label, then the sorted card ids. The combo block numbers the universe in
-    this order, and an enumerated engine offers its candidates in it
-    (`action_rank`), so a candidate list is a function of the plays it holds
-    and never of how the engine generated them."""
+    """An enumerated play universe in action-id order: card count, then the
+    sorted card ids. The combo block numbers the universe in this order, and
+    an enumerated engine offers its candidates in it (`action_rank`), so a
+    candidate list is a function of the plays it holds and never of how the
+    engine generated them. A play's kind takes no part: an id is a function
+    of the cards alone, so no label an engine or a game gives a shape can
+    move one."""
     return sorted(
         universe,
-        key=lambda p: (len(p.cards), p.kind, sorted(card_to_action(c) for c in p.cards)),
+        key=lambda p: (len(p.cards), sorted(card_to_action(c) for c in p.cards)),
     )
 
 
