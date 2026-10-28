@@ -41,6 +41,14 @@ best score, both partners of a winning team and every tied seat
 it is read from, so a golden's winners are checkable against its own
 scores and the game's `teams:` without running anything.
 
+A sanctioned regeneration covers `bridge_scores.json` on every seed it
+holds: Bridge bids as Pagat states it, one club to seven no-trumps, and play
+stops after twelve deals with the rubber unfinished, scored by Pagat's
+unfinished-rubber bonuses (epic #445, issue #415). The first auction offers
+the same calls, so a seed moves at the first bid the level cap had refused,
+and every hand after it. The rules are pinned away from this vector, by
+tests/test_bridge_scoring.py and tests/test_playout_bridge.py.
+
 A sanctioned regeneration covers `bigtwo_scores.json` on every seed it
 holds: Big Two is played for money and carries Pagat's precaution rule
 (epic #961). A seat that lets the next seat go out on its last card, having

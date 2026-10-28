@@ -8,7 +8,7 @@
   },
   "deck": "standard52",
   "direction": "clockwise",
-  "max_length": 20000,
+  "max_length": 4500,
   "ranking": [
     "A",
     "K",
@@ -146,29 +146,46 @@
         "kind": "phase_qualifier",
         "qualifier": "repeat_until",
         "expr": {
-          "kind": "quantifier",
-          "quant": "any",
-          "role": "team",
-          "binder": "team",
-          "body": {
+          "kind": "binop",
+          "op": "or",
+          "left": {
+            "kind": "quantifier",
+            "quant": "any",
+            "role": "team",
+            "binder": "team",
+            "body": {
+              "kind": "binop",
+              "op": ">=",
+              "left": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "games_won",
+                  "ref": "state_var"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "team",
+                  "ref": "local"
+                }
+              },
+              "right": {
+                "kind": "int",
+                "value": 2
+              }
+            }
+          },
+          "right": {
             "kind": "binop",
             "op": ">=",
             "left": {
-              "kind": "subscript",
-              "obj": {
-                "kind": "name",
-                "name": "games_won",
-                "ref": "state_var"
-              },
-              "index_expr": {
-                "kind": "name",
-                "name": "team",
-                "ref": "local"
-              }
+              "kind": "name",
+              "name": "deals_played",
+              "ref": "state_var"
             },
             "right": {
               "kind": "int",
-              "value": 2
+              "value": 12
             }
           }
         }
@@ -178,6 +195,17 @@
         {
           "kind": "state",
           "decls": [
+            {
+              "kind": "state_decl",
+              "name": "deals_played",
+              "index": null,
+              "type": "Integer",
+              "optional": false,
+              "default": {
+                "kind": "int",
+                "value": 0
+              }
+            },
             {
               "kind": "state_decl",
               "name": "dealer",
@@ -341,6 +369,16 @@
                   "name": "left",
                   "ref": "enum_value"
                 }
+              }
+            },
+            {
+              "kind": "assign",
+              "target": "deals_played",
+              "index_expr": null,
+              "op": "+=",
+              "value": {
+                "kind": "int",
+                "value": 1
               }
             },
             {
@@ -1920,6 +1958,142 @@
           ]
         }
       ]
+    },
+    {
+      "kind": "phase",
+      "name": "unfinished_rubber",
+      "qualifier": null,
+      "outcome_cases": [],
+      "items": [
+        {
+          "kind": "if",
+          "cond": {
+            "kind": "not",
+            "operand": {
+              "kind": "quantifier",
+              "quant": "any",
+              "role": "team",
+              "binder": "team",
+              "body": {
+                "kind": "binop",
+                "op": ">=",
+                "left": {
+                  "kind": "subscript",
+                  "obj": {
+                    "kind": "name",
+                    "name": "games_won",
+                    "ref": "state_var"
+                  },
+                  "index_expr": {
+                    "kind": "name",
+                    "name": "team",
+                    "ref": "local"
+                  }
+                },
+                "right": {
+                  "kind": "int",
+                  "value": 2
+                }
+              }
+            }
+          },
+          "then": [
+            {
+              "kind": "for_each",
+              "role": "team",
+              "binder": "t",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "binop",
+                  "op": "is",
+                  "left": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "games_won",
+                      "ref": "state_var"
+                    },
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    }
+                  },
+                  "right": {
+                    "kind": "int",
+                    "value": 1
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "assign",
+                    "target": "total_score",
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    },
+                    "op": "+=",
+                    "value": {
+                      "kind": "int",
+                      "value": 300
+                    }
+                  }
+                ],
+                "else": null
+              }
+            },
+            {
+              "kind": "for_each",
+              "role": "team",
+              "binder": "t",
+              "body": {
+                "kind": "if",
+                "cond": {
+                  "kind": "binop",
+                  "op": ">",
+                  "left": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "below_current",
+                      "ref": "state_var"
+                    },
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    }
+                  },
+                  "right": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                },
+                "then": [
+                  {
+                    "kind": "assign",
+                    "target": "total_score",
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "t",
+                      "ref": "local"
+                    },
+                    "op": "+=",
+                    "value": {
+                      "kind": "int",
+                      "value": 100
+                    }
+                  }
+                ],
+                "else": null
+              }
+            }
+          ],
+          "else": null
+        }
+      ]
     }
   ],
   "winner": {
@@ -2034,7 +2208,7 @@
         },
         "right": {
           "kind": "int",
-          "value": 3
+          "value": 7
         }
       },
       "effect": [
