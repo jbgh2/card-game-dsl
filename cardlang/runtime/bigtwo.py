@@ -25,11 +25,12 @@ from the rules source over every subset of sampled hands.
 
 from __future__ import annotations
 
+import functools
 import itertools
 from dataclasses import dataclass
 from typing import Any
 
-from cardlang.runtime import reads
+from cardlang.runtime import primitives, reads
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card
 
@@ -185,7 +186,7 @@ def bigtwo_lead_options(
     if not gr.state["opened"]:
         three = Card("3", "diamonds")
         combos = [p for p in combos if three in p.cards]
-    return combos
+    return _in_action_order(combos)
 
 
 def bigtwo_follows(
@@ -195,7 +196,18 @@ def bigtwo_follows(
     key). The bundles are unused — Big Two follows depend only on the hand and
     the led play — but the climb round passes them uniformly with the lead
     query."""
-    return _legal_follows(hand, current)
+    return _in_action_order(_legal_follows(hand, current))
+
+
+@functools.cache
+def _action_rank() -> dict[tuple[frozenset[Card], int | None], int]:
+    return primitives.action_rank(bigtwo_universe())
+
+
+def _in_action_order(plays: list[Play]) -> list[Play]:
+    """`plays` in their action-id order, the order both queries offer."""
+    rank = _action_rank()
+    return sorted(plays, key=lambda p: rank[primitives.play_identity(p)])
 
 
 def bigtwo_universe() -> list[Play]:
