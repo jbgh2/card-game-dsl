@@ -18,16 +18,13 @@
 // session; this file's match ends when a player's penalty total reaches 100,
 // and the lowest total wins.
 //
-// The hand runs on the kernel `round climb` construct. The combination model —
-// the two rank orders (2 high for sets; natural for straights), suit tie-breaks,
-// and the straight < flush < full house < quads < straight flush hierarchy — is
-// not expressible in the DSL, so it lives in the game-local Primitive queries
-// `bigtwo_lead_options` / `bigtwo_follows` (see big-two.md), which offer every
-// combination a hand holds. Everything else — the climbing trick loop, the 3♦
-// opening, pile routing to the discard, the shed-out finish, and penalty
-// scoring — is DSL. This is the second climbing instance the `climb` construct
-// is co-designed against (with Tichu); see docs/kernel-migration.md,
-// Workstream 3.
+// The hand runs on the kernel `round climb` construct over the game's own
+// combination catalogue (`combinations big_two`): the plays are the catalogue's
+// rows, and a play follows when `big_two_follows` says it does — the two rank
+// orders (2 high for sets; natural for straights), suit tie-breaks, and the
+// straight < flush < full house < quads < straight flush hierarchy. The
+// climbing trick loop, the 3♦ opening, pile routing to the discard, the
+// shed-out finish, and penalty scoring are DSL as well.
 
 game BigTwo {
 
@@ -39,6 +36,9 @@ game BigTwo {
   // The single-card order: rank first (2 high, 3 low), then suit.
   ranking: twos high
   suit ranking: spades hearts clubs diamonds
+  // Five cards in sequence run in this order: the ace stands low in
+  // A-2-3-4-5 and high in 10-J-Q-K-A, and nothing runs past it.
+  sequence: A 2 3 4 5 6 7 8 9 10 J Q K A
 
   zones {
     deck         : Deck
@@ -104,7 +104,7 @@ game BigTwo {
         round climb play_combination from leader
               over players where hand[player] is not empty
               source hand into trick_pile
-              combinations bigtwo_lead_options follows bigtwo_follows
+              combinations big_two follows big_two_follows
               until (any player where hand[player] is empty)
               before asking seat {
                 prev_seat := last_seat
@@ -220,3 +220,57 @@ function combination_held(p : Player, x : Integer) =
   or straight_from(p, x, 4) or straight_from(p, x, 5) or straight_from(p, x, 6)
   or straight_from(p, x, 7) or straight_from(p, x, 8) or straight_from(p, x, 9)
   or straight_from(p, x, 10)
+
+// === What a play is ===
+
+// Every play is one of these. A straight all of one suit is a straight flush
+// and never a straight or a flush, so the rows say so.
+combinations big_two {
+  single:         1 card
+  pair:           2 of a kind
+  triple:         3 of a kind
+  straight:       5 in sequence, not all one suit
+  flush:          5 cards, all one suit, not in sequence
+  full_house:     3 of a kind with 2 of a kind
+  quads:          4 of a kind with 1 card
+  straight_flush: 5 in sequence, all one suit
+}
+
+// A play follows the standing play when it holds as many cards and is
+// stronger. With no standing play it leads, and the hand's opening lead
+// holds the 3 of diamonds.
+function big_two_follows(play : Combination, standing : Combination?) =
+  if standing is none then opened or (3 of diamonds) in play
+  else (number of cards in play) is (number of cards in standing)
+       and strength(play) > strength(standing)
+
+// A five-card play ranks by its shape first -- straight, flush, full house,
+// quads, straight flush -- then within it: a straight by its top card, a
+// flush by its suit and then its highest card, a full house or quads by the
+// rank of its group. A single or a pair ranks by its highest card, a triple
+// by its rank.
+function strength(play : Combination) =
+  if play.shape is straight_flush then 5000 + sequence_strength(play)
+  elif play.shape is quads then 4000 + group_rank(play, 4)
+  elif play.shape is full_house then 3000 + group_rank(play, 3)
+  elif play.shape is flush
+    then 2000 + 20 * (highest suit_value(suit_of(card)) over cards in play or 0)
+         + (highest rank_value(card) over cards in play or 0)
+  elif play.shape is straight then 1000 + sequence_strength(play)
+  elif play.shape is triple then group_rank(play, 3)
+  else highest single_strength(card) over cards in play or 0
+
+// A sequence's top card, by its place and then its suit; the ace is the
+// low card of the A-2-3-4-5.
+function sequence_strength(play : Combination) =
+  highest 4 * sequence_place(play, card) + suit_value(suit_of(card)) over cards in play or 0
+
+function sequence_place(play : Combination, c : Card) =
+  if c.rank is A and (any card in play where card.rank is "2") then 1
+  else straight_place(rank_value(c))
+
+// The rank held `n` times in a play.
+function group_rank(play : Combination, n : Integer) =
+  highest rank_value(card) over cards in play where rank_count(play, card) is n or -1
+
+function rank_count(play : Combination, c : Card) = number of cards in play where card.rank is c.rank

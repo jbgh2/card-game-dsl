@@ -146,8 +146,8 @@ def value_function(name: str) -> Callable[..., Any]:
 #
 # A *lead* query returns every combination a hand may lead; a *follows* query
 # returns those that beat the standing play. Both take the primitive bundles (a
-# lead query may read game state, e.g. Big Two's opening 3♦ filter). The
-# engines are game-local, so these dispatch to per-game modules.
+# lead query may read game state, e.g. Tichu's wish). The engines are
+# game-local, so these dispatch to per-game modules.
 
 
 class ClimbPlay(Protocol):
@@ -255,14 +255,6 @@ def in_card_order(cards: Iterable[Card]) -> tuple[Card, ...]:
     return tuple(sorted(cards, key=card_to_action))
 
 
-def action_rank(universe: Sequence[ClimbPlay]) -> dict[Identity, int]:
-    """Each play identity of `universe`, an engine's whole play universe, at
-    its position in `action_order`. An enumerated engine sorts its candidates
-    by it, so a play outside its own universe raises a `KeyError` at the
-    offer rather than reaching the combo block unnumbered."""
-    return {play_identity(p): i for i, p in enumerate(action_order(universe))}
-
-
 # The climbing ring's own word for a seat that does not play: every engine's,
 # so no registry row states it.
 CLIMB_PASS = "pass"
@@ -295,8 +287,6 @@ def climb_announcements(name: str) -> tuple[str, ...]:
             from cardlang.runtime.tichu_combinations import WISH_TOKENS
 
             return WISH_TOKENS
-        case "bigtwo_lead_options" | "president_lead_options":
-            return ()
         case _:
             raise AssertionError(f"unknown climb lead query '{name}'")
 
@@ -311,8 +301,6 @@ def climb_interrupt_decline(name: str) -> str | None:
             from cardlang.runtime.tichu_combinations import INTERRUPT_DECLINE
 
             return INTERRUPT_DECLINE
-        case "bigtwo_lead_options" | "president_lead_options":
-            return None
         case _:
             raise AssertionError(f"unknown climb lead query '{name}'")
 
@@ -324,16 +312,8 @@ def climb_row(name: str) -> reads.PrimitiveReads:
     from here — keyed by the LEAD query's name, the same key
     `climb_universe_function` uses."""
     match name:
-        case "bigtwo_lead_options" | "bigtwo_follows":
-            from cardlang.runtime.bigtwo import ROW
-
-            return ROW
         case "tichu_lead_options" | "tichu_follows":
             from cardlang.runtime.tichu import ROW
-
-            return ROW
-        case "president_lead_options" | "president_follows":
-            from cardlang.runtime.president import ROW
 
             return ROW
         case _:
@@ -342,61 +322,22 @@ def climb_row(name: str) -> reads.PrimitiveReads:
 
 def climb_lead_function(name: str) -> ClimbLeadFn:
     match name:
-        case "bigtwo_lead_options":
-            from cardlang.runtime.bigtwo import bigtwo_lead_options
-
-            return bigtwo_lead_options
         case "tichu_lead_options":
             from cardlang.runtime.tichu import tichu_lead_options
 
             return tichu_lead_options
-        case "president_lead_options":
-            from cardlang.runtime.president import president_lead_options
-
-            return president_lead_options
         case _:
             raise AssertionError(f"unknown climb lead query '{name}'")
 
 
 def climb_follow_function(name: str) -> ClimbFollowFn:
     match name:
-        case "bigtwo_follows":
-            from cardlang.runtime.bigtwo import bigtwo_follows
-
-            return bigtwo_follows
         case "tichu_follows":
             from cardlang.runtime.tichu import tichu_follows
 
             return tichu_follows
-        case "president_follows":
-            from cardlang.runtime.president import president_follows
-
-            return president_follows
         case _:
             raise AssertionError(f"unknown climb follows query '{name}'")
-
-
-def climb_universe_function(name: str) -> Callable[[], list[Any]]:
-    """The engine's full play universe — every combination it can ever emit —
-    keyed by the SAME name as its `combinations` lead query. The OpenSpiel
-    adapter derives the climb action space from this; the lead query itself
-    cannot serve (its representatives depend on the live hand and game state).
-    An engine whose universe is too large to enumerate provides a codec via
-    `climb_codec_function` instead and never reaches this dispatch."""
-    match name:
-        case "bigtwo_lead_options":
-            from cardlang.runtime.bigtwo import bigtwo_universe
-
-            return bigtwo_universe
-        case "president_lead_options":
-            from cardlang.runtime.president import president_universe
-
-            return president_universe
-        case _:
-            raise AssertionError(
-                f"no declared combination universe for climb engine '{name}' — "
-                f"register one here or provide a codec (climb_codec_function)"
-            )
 
 
 def joint_codec_function(name: str) -> ComboCodec | None:
@@ -427,20 +368,19 @@ def joint_codec_function(name: str) -> ComboCodec | None:
             return None
 
 
-def climb_codec_function(name: str) -> ComboCodec | None:
+def climb_codec_function(name: str) -> ComboCodec:
     """The engine's arithmetic combo codec — pure card-set <-> action-index
     functions (`size` / `encode` / `decode` / `kind_of`) — keyed by the
-    lead-query name, for engines whose play universe is too large to enumerate
-    (Tichu's; the codec's `size` says how large). `None` means the engine
-    enumerates via `climb_universe_function` (Big Two: 19,898, golden-pinned),
-    keeping that path and its pinned ids byte-identical."""
+    lead-query name: a registered engine's play universe is too large to
+    enumerate (the codec's `size` says how large), where a Combination
+    Catalogue's is numbered from its rows (`runtime.declared`)."""
     match name:
         case "tichu_lead_options":
             from cardlang.runtime.tichu import TICHU_COMBO_CODEC
 
             return TICHU_COMBO_CODEC
         case _:
-            return None
+            raise AssertionError(f"unknown climb lead query '{name}'")
 
 
 def on_play_off_led_suit(card: Card, led_suit: str) -> bool:

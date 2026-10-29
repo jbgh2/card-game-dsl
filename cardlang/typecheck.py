@@ -268,10 +268,9 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #     legal. An UNANSWERED `card_strength` defaults to `rank_value(card)`
 #     and is gated by `_check_kernel_answers`' own ranking guard, which is where
 #     a Trick Order game meets this rule.
-#   climb queries, gated via RANKING_GATED_CLIMB_QUERIES at the climb
-#     round's `combinations`/`follows` slots: president_lead_options,
-#     president_follows (president.py reads facts.rank_index). NON-members:
-#     the bigtwo_* and tichu_* engines, which carry their own orders.
+#   NON-members at the climb round's `combinations`/`follows` slots: the
+#     tichu_* engine carries its own orders, and a follows function is
+#     gated where it calls a member above.
 #   NON-members elsewhere: peg_pair_points (rank equality only),
 #     on_play_off_led_suit (suit only). The Rank
 #     move-parameter domain is resolve's gate; `card_points` is gated by its
@@ -290,32 +289,24 @@ RANKING_GATED_FUNCS: frozenset[str] = frozenset(
 RANKING_GATED_WINNERS: frozenset[str] = frozenset(
     {"highest_of_led_suit", "highest_trump_or_led_suit"}
 )
-RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
-    {"president_lead_options", "president_follows"}
-)
 
 # The ranking-gated names a Trick Order replaces. Beside a Trick Order each is
 # refused in favour of the Trick Order winner, whose strengths are the game's
 # `card_strength` answer, so naming that winner instead clears this gate too. For every other member, declaring `ranking:` is the one fix,
 # and the refusal offers no other.
 RANKING_TRICK_ORDER_TWINS: frozenset[str] = (
-    RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES
+    RANKING_GATED_FUNCS | RANKING_GATED_WINNERS
 ) & (TRICK_ORDER_EXCLUDED_FUNCS | TRICK_ORDER_EXCLUDED_WINNERS)
 
 
 def ranking_gated_slots(node: object) -> tuple[tuple[str, str], ...]:
     """The round slots in `node` that read `ranking:`, as (slot, name): a trick
-    round's winner in `RANKING_GATED_WINNERS`, a climbing round's query in
-    `RANKING_GATED_CLIMB_QUERIES`. The one test for the slot gate, asked by
+    round's winner in `RANKING_GATED_WINNERS`. No climbing round's slot reads
+    it: the registered engine carries its own orders, and a follows function
+    is gated where it calls a reader. The one test for the slot gate, asked by
     `_check_round_ranking` and by resolve's `uses`-line check."""
     if isinstance(node, n.TrickRound) and node.winner_fn in RANKING_GATED_WINNERS:
         return (("round winner", node.winner_fn),)
-    if isinstance(node, n.ClimbRound):
-        return tuple(
-            ("climb query", q)
-            for q in (node.combos_fn, node.follows_fn)
-            if q in RANKING_GATED_CLIMB_QUERIES
-        )
     return ()
 
 

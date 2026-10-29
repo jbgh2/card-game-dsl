@@ -79,8 +79,9 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "declared_engine"
 MINIMAL = (FIXTURES / "minimal.cardlang").read_text()
-BIG_TWO = (FIXTURES / "big-two.cardlang").read_text()
-PRESIDENT = (FIXTURES / "president.cardlang").read_text()
+GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
+BIG_TWO = (GAMES / "big-two.cardlang").read_text()
+PRESIDENT = (GAMES / "president.cardlang").read_text()
 
 _SEQUENCE = "  sequence: A 2 3 4 5 6 7 8 9 10 J Q K A\n"
 _ROWS = re.compile(r"combinations climb \{\n(?P<rows>.*?)\n\}", re.DOTALL)

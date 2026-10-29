@@ -7,24 +7,26 @@ property:        A climb round over a combination catalogue numbers exactly
                  that a row names and the follows function admits, in action-id
                  order with the pass after them, answers the same with its
                  result cache on and off, and refuses a follows function that
-                 reads the absent standing play. Run over the Big Two and
-                 President witnesses, it offers at every climb ask exactly the
-                 list the registered engines offer (the swap proof), and the
-                 proof goes red under each planted fault.
+                 reads the absent standing play. Big Two and President offer
+                 at every climb ask exactly the list their registered engines
+                 offered (the swap proof), and the proof goes red under each
+                 planted fault.
 domain:          universe: shape rows (`catalogue.SHAPE_PARTS` ×
                  `SHAPE_QUALIFIERS` × `SHAPE_FORMS`) × decks
                  (`values.DECKS`: a subset deck, a duplicate deck, standard52);
-                 candidates: the two witnesses' hands at every climb ask of
-                 the seeds below; the swap proof: every climb ask of the seeds
-                 below, for both witnesses; planted faults: the wheel, a
-                 qualifier, the threes' absorption.
+                 candidates: every corpus game declaring a catalogue, at every
+                 climb ask of the seeds below; the swap proof: every climb ask
+                 of the seeds the frozen digests hold, for every game they
+                 hold; planted faults: the wheel, a qualifier, the threes'
+                 absorption.
 registry:        `cardlang.catalogue`; `cardlang.runtime.values.DECKS`; the
-                 witnesses in tests/fixtures/declared_engine/.
+                 corpus (`docs/games/*.cardlang`); tests/golden/climb_ask_digests.json
+                 and climb_action_ids.json.
 held by:         execution. Each oracle is written from the definitions in
                  decisions.md ("Combination Catalogues"), never from the
-                 engine; the swap proof's reference is the registered engines,
-                 an independent implementation that shares no code with a
-                 Declared Engine.
+                 engine; the swap proof's reference is the registered engines'
+                 offers, frozen while they played the games, an independent
+                 implementation that shares no code with a Declared Engine.
 does not prove:  That a check-time refusal fires (tests/test_combination_catalogue.py);
                  anything about Tichu (issue #989).
 """
@@ -32,6 +34,7 @@ does not prove:  That a check-time refusal fires (tests/test_combination_catalog
 from __future__ import annotations
 
 import itertools
+import json
 import random
 import re
 from collections import Counter
@@ -49,6 +52,19 @@ from cardlang.runtime.values import Card, build_deck, deck_ranks
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "declared_engine"
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
+GOLDEN = Path(__file__).resolve().parent / "golden"
+# Every corpus game declaring a catalogue, and the games the registered
+# engines' offers were frozen for.
+DECLARING = sorted(p.stem for p in GAMES.glob("*.cardlang") if "\ncombinations " in p.read_text())
+FROZEN = sorted(json.loads((GOLDEN / "climb_ask_digests.json").read_text()))
+FROZEN_IDS = sorted(json.loads((GOLDEN / "climb_action_ids.json").read_text()))
+
+
+def test_every_frozen_game_declares_its_plays() -> None:
+    """The frozen offers and ids are of games that declare a catalogue, so
+    the swap proof and the id table ask something of a Declared Engine."""
+    assert FROZEN and FROZEN_IDS
+    assert set(FROZEN) | set(FROZEN_IDS) <= set(DECLARING)
 MINIMAL = (FIXTURES / "minimal.cardlang").read_text()
 
 _ROWS = re.compile(r"combinations climb \{\n(?P<rows>.*?)\n\}", re.DOTALL)
@@ -216,7 +232,7 @@ def test_a_duplicate_decks_copies_are_distinct_plays() -> None:
     assert all(v == 1 for v in got.values())
 
 
-@pytest.mark.parametrize("witness", ["big-two", "president"])
+@pytest.mark.parametrize("witness", FROZEN_IDS)
 def test_a_witness_numbers_the_frozen_table(witness: str) -> None:
     """The witness's catalogue numbers, id for id, the table the registered
     engine's universe froze (tests/golden/climb_action_ids.json)."""
@@ -225,7 +241,7 @@ def test_a_witness_numbers_the_frozen_table(witness: str) -> None:
     from cardlang.runtime.values import card_to_action
 
     frozen = json.loads((Path(__file__).parent / "golden" / "climb_action_ids.json").read_text())[witness]
-    space = ActionSpace.for_game(check_source(str(FIXTURES / f"{witness}.cardlang")))
+    space = ActionSpace.for_game(check_source(str(GAMES / f"{witness}.cardlang")))
     rows = [" ".join(str(i) for i in sorted(card_to_action(c) for c in p.cards)) for p in space._combos]
     assert rows == frozen
 
@@ -256,9 +272,9 @@ def _asks(game: Any, seeds: range) -> Iterator[tuple[Any, list[Any]]]:
     yield from seen
 
 
-@pytest.mark.parametrize("witness", ["big-two", "president"])
-def test_a_witness_offers_its_plays_in_id_order_with_the_pass_last(witness: str) -> None:
-    game = check_source(str(FIXTURES / f"{witness}.cardlang"))
+@pytest.mark.parametrize("witness", DECLARING)
+def test_a_witness_offers_its_plays_in_id_order_with_the_pass_last_each_in_card_order(witness: str) -> None:
+    game = check_source(str(GAMES / f"{witness}.cardlang"))
     space = ActionSpace.for_game(game)
     asks = 0
     for _, offered in _asks(game, _SEEDS):
@@ -266,30 +282,21 @@ def test_a_witness_offers_its_plays_in_id_order_with_the_pass_last(witness: str)
         assert offered[: len(plays)] == plays
         ids = [space.encode(p) for p in plays]
         assert ids == sorted(set(ids))
+        for p in plays:
+            assert tuple(p.cards) == primitives.in_card_order(p.cards), p
         asks += 1
     assert asks > 0
 
 
 # ---------------------------------------------------------------------------
-# The swap proof: a Declared Engine offers what the registered engine offers.
+# The swap proof: a Declared Engine offers what the registered engine offered.
 # ---------------------------------------------------------------------------
-
-SWAP_SEEDS = range(5)
 
 
 def _ask_lists(game: Any, seeds: range) -> list[list[Multiset | str]]:
     return [
         [c if isinstance(c, str) else _key(c.cards) for c in offered] for _, offered in _asks(game, seeds)
     ]
-
-
-@pytest.mark.parametrize("witness", ["big-two", "president"])
-def test_the_declared_engine_offers_what_the_registered_engine_offers_at_every_ask(witness: str) -> None:
-    registered = _ask_lists(check_source(str(GAMES / f"{witness}.cardlang")), SWAP_SEEDS)
-    declared = _ask_lists(check_source(str(FIXTURES / f"{witness}.cardlang")), SWAP_SEEDS)
-    assert len(registered) == len(declared) > 0
-    for i, (a, b) in enumerate(zip(registered, declared, strict=True)):
-        assert a == b, f"ask {i} of {len(registered)}"
 
 
 def _ask_digests(game: Any, seeds: range) -> dict[str, dict[str, object]]:
@@ -309,15 +316,23 @@ def _ask_digests(game: Any, seeds: range) -> dict[str, dict[str, object]]:
     return out
 
 
-@pytest.mark.parametrize("witness", ["big-two", "president"])
-def test_the_declared_engine_offers_the_frozen_registered_lists_at_every_ask(witness: str) -> None:
-    """The registered engines' offered lists at every climb ask of ten seeds,
-    frozen before those engines were retired (tests/golden/climb_ask_digests.json),
-    are what the Declared Engine offers, digest for digest."""
+def _frozen(witness: str) -> dict[str, dict[str, object]]:
     import json
 
-    frozen = json.loads((Path(__file__).parent / "golden" / "climb_ask_digests.json").read_text())[witness]
-    game = check_source(str(FIXTURES / f"{witness}.cardlang"))
+    frozen: dict[str, dict[str, object]] = json.loads(
+        (Path(__file__).parent / "golden" / "climb_ask_digests.json").read_text()
+    )[witness]
+    return frozen
+
+
+@pytest.mark.parametrize("witness", FROZEN)
+def test_the_declared_engine_offers_the_frozen_registered_lists_at_every_ask(witness: str) -> None:
+    """The registered engines' offered lists at every climb ask of ten seeds,
+    frozen while those engines played the witnesses
+    (tests/golden/climb_ask_digests.json), are what the Declared Engine
+    offers, digest for digest."""
+    frozen = _frozen(witness)
+    game = check_source(str(GAMES / f"{witness}.cardlang"))
     assert _ask_digests(game, range(len(frozen))) == frozen
 
 
@@ -337,11 +352,11 @@ PLANTED_FAULTS = [
 
 @pytest.mark.parametrize(("witness", "old", "new"), PLANTED_FAULTS)
 def test_the_swap_proof_goes_red_under_each_planted_fault(witness: str, old: str, new: str) -> None:
-    text = (FIXTURES / f"{witness}.cardlang").read_text()
+    text = (GAMES / f"{witness}.cardlang").read_text()
     assert old in text
     faulty = check_dsl(text.replace(old, new, 1), f"{witness}.cardlang")
-    registered = _ask_lists(check_source(str(GAMES / f"{witness}.cardlang")), SWAP_SEEDS)
-    assert _ask_lists(faulty, SWAP_SEEDS) != registered
+    frozen = _frozen(witness)
+    assert _ask_digests(faulty, range(len(frozen))) != frozen
 
 
 # ---------------------------------------------------------------------------
@@ -349,11 +364,11 @@ def test_the_swap_proof_goes_red_under_each_planted_fault(witness: str, old: str
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("witness", ["big-two", "president"])
+@pytest.mark.parametrize("witness", DECLARING)
 def test_the_follows_cache_changes_no_answer(witness: str, monkeypatch: pytest.MonkeyPatch) -> None:
     from cardlang.runtime import declared
 
-    game = check_source(str(FIXTURES / f"{witness}.cardlang"))
+    game = check_source(str(GAMES / f"{witness}.cardlang"))
     cached = _ask_lists(game, _SEEDS)
     monkeypatch.setattr(declared, "CACHE", False)
     assert _ask_lists(game, _SEEDS) == cached

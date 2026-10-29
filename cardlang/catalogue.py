@@ -78,7 +78,9 @@ COMBINATION_FIELDS: Mapping[str, str | None] = MappingProxyType(
 # derives every play the catalogue names at check time, and the action space
 # numbers them; a catalogue past this bound needs an arithmetic codec composed
 # from its rows, which issue #989 holds. It is a fixed engine limit with no
-# game-side setting.
+# game-side setting, sized so the check-time enumeration stays under a second
+# (measured 2026-10-29: `declared.universe` derives a `4 cards` catalogue's
+# 270,725 plays over standard52 in 2.0s).
 ENUMERATED_UNIVERSE_BOUND = 100_000
 
 assert set(SHAPE_PARTS) == set(get_args(ShapePartKind))

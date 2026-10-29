@@ -705,9 +705,10 @@ class ClimbRound:
     One combination-climbing trick (Big Two, Tichu). The leader leads a
     combination from the engine, then each participant beats the standing play or
     passes; the trick ends when action returns to the last player who played, or
-    `termination` holds (a player has shed out). `combos_fn` / `follows_fn` name
-    the game-local combination-engine queries (the engines differ across games,
-    so the construct depends only on their interface). The last player to play is
+    `termination` holds (a player has shed out). `combos_fn` / `follows_fn` are
+    the two slot names as written: the game's Combination Catalogue and follows
+    function, or a registered engine's lead and follows queries; `engine` is
+    which. The last player to play is
     bound as `winner`; there is no winner *function*. `hosted` is the round's
     [[hosted-poll]], or None.
     """

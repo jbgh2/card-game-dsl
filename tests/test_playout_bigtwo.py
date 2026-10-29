@@ -1,23 +1,27 @@
-"""Big Two: combination-engine unit tests plus a random playout.
+"""Big Two: the declared plays on hands built for each shape, plus a random playout.
 
-The combination engine is the heart of a climbing game, so it gets direct unit
-tests (what a hand can form; which plays legally beat a led combination, with Big
-Two's suit tie-breaks and the cross-type five-card hierarchy). The playout then
-checks the conservation census (52 cards), that every hand ends with exactly one
-player emptied, that penalty scoring matches an *independent* recompute from the
+The catalogue and its follows function are the heart of a climbing game, so
+they get direct tests on built hands (what a hand can form; which plays
+legally beat a led combination, with Big Two's suit tie-breaks and the
+cross-type five-card hierarchy); tests/test_bigtwo_combinations.py holds them
+to an independent oracle over sampled hands. The playout then checks the
+conservation census (52 cards), that every hand ends with exactly one player
+emptied, that penalty scoring matches an *independent* recompute from the
 cards left behind, and that the match terminates with the lowest total winning.
 """
 
 from __future__ import annotations
 
 import random
+from functools import cache
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from cardlang.pipeline import check_source
-from cardlang.runtime.bigtwo import _RANK, Play, _combos, _legal_follows
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import Card, Combination
+from tests.test_bigtwo_combinations import _asker
 
 BIG_TWO = Path(__file__).parent.parent / "docs" / "games" / "big-two.cardlang"
 _SUIT = {"s": "spades", "h": "hearts", "c": "clubs", "d": "diamonds"}
@@ -27,42 +31,61 @@ def _hand(*specs: str) -> list[Card]:
     return [Card(r, _SUIT[s]) for r, s in (spec.split("@") for spec in specs)]
 
 
-def _only(kind: str, *specs: str) -> Play:
-    """The first combination of `kind` a hand forms (for building led plays)."""
-    return next(p for p in _combos(_hand(*specs)) if p.kind == kind)
+@cache
+def _ask() -> Callable[[list[Card], Combination | None], list[Combination]]:
+    return _asker(opened=True)
 
 
-def test_combination_engine() -> None:
+def _combos(hand: list[Card]) -> list[Combination]:
+    """Every play a hand may lead."""
+    return _ask()(hand, None)
+
+
+def _legal_follows(hand: list[Card], standing: Combination) -> list[Combination]:
+    return _ask()(hand, standing)
+
+
+def _only(shape: str, *specs: str) -> Combination:
+    """The first play of `shape` a hand forms (for building led plays)."""
+    return next(p for p in _combos(_hand(*specs)) if p.shape == shape)
+
+
+def _beats(a: Combination, b: Combination) -> bool:
+    return any(p.cards == a.cards for p in _legal_follows(list(a.cards), b))
+
+
+def test_the_catalogue_on_built_hands() -> None:
     # Pairs/triples are formed by rank, every suit choice offered: three 7s are
     # three pairs and one triple.
     sevens = _combos(_hand("7@s", "7@h", "7@c"))
-    assert sum(p.kind == "pair" for p in sevens) == 3
-    assert sum(p.kind == "triple" for p in sevens) == 1
+    assert sum(p.shape == "pair" for p in sevens) == 3
+    assert sum(p.shape == "triple" for p in sevens) == 1
 
-    # The 2 is the highest single rank, the 3 the lowest.
-    assert _RANK["2"] > _RANK["A"] > _RANK["3"]
+    # The 2 is the highest single, the 3 the lowest.
+    two, ace, three = (_only("single", spec) for spec in ("2@s", "A@s", "3@s"))
+    assert _beats(two, ace) and _beats(ace, three) and not _beats(three, ace)
 
-    # The wheel A-2-3-4-5 is the lowest straight (top card the 5); 2-3-4-5-6 sits
-    # just above it; J-Q-K-A-2 is not a straight at all (no wrap-around).
-    wheel = [p for p in _combos(_hand("A@s", "2@h", "3@c", "4@d", "5@s")) if p.kind == "straight"]
-    assert wheel and wheel[0].key[1] == 5
-    win6 = [p for p in _combos(_hand("2@s", "3@h", "4@c", "5@d", "6@s")) if p.kind == "straight"]
-    assert win6 and win6[0].key[1] == 6 and win6[0].key > wheel[0].key
-    assert not any(p.kind == "straight" for p in _combos(_hand("J@s", "Q@h", "K@c", "A@d", "2@s")))
+    # The wheel A-2-3-4-5 is the lowest straight; 2-3-4-5-6 sits just above it;
+    # J-Q-K-A-2 is not a straight at all (no wrap-around).
+    wheel = _only("straight", "A@s", "2@h", "3@c", "4@d", "5@s")
+    win6 = _only("straight", "2@s", "3@h", "4@c", "5@d", "6@s")
+    assert _beats(win6, wheel) and not _beats(wheel, win6)
+    assert not any(p.shape == "straight" for p in _combos(_hand("J@s", "Q@h", "K@c", "A@d", "2@s")))
 
     # The five-card hierarchy: straight < flush < full house < quads < straight flush.
-    straight = win6[0]
-    flush = next(p for p in _combos(_hand("2@s", "5@s", "7@s", "9@s", "J@s")) if p.kind == "flush")
-    full = next(p for p in _combos(_hand("5@s", "5@h", "5@c", "9@s", "9@h")) if p.kind == "fullhouse")
-    quad = next(p for p in _combos(_hand("8@s", "8@h", "8@c", "8@d", "3@s")) if p.kind == "quads")
-    assert quad.cards[4] == Card("3", "spades")  # the mandatory kicker
-    sflush = next(p for p in _combos(_hand("5@s", "6@s", "7@s", "8@s", "9@s")) if p.kind == "straightflush")
-    assert straight.key < flush.key < full.key < quad.key < sflush.key
+    flush = _only("flush", "2@s", "5@s", "7@s", "9@s", "J@s")
+    full = _only("full_house", "5@s", "5@h", "5@c", "9@s", "9@h")
+    quad = _only("quads", "8@s", "8@h", "8@c", "8@d", "3@s")
+    assert Card("3", "spades") in quad.cards  # the mandatory kicker
+    sflush = _only("straight_flush", "5@s", "6@s", "7@s", "8@s", "9@s")
+    ladder = [win6, flush, full, quad, sflush]
+    for low, high in zip(ladder, ladder[1:]):
+        assert _beats(high, low) and not _beats(low, high), (low, high)
 
     # Five consecutive cards of one suit are a straight flush only — never offered
     # as a plain straight or flush (they can only be played monochrome).
     mono = _combos(_hand("5@s", "6@s", "7@s", "8@s", "9@s"))
-    assert not any(p.kind in ("straight", "flush") for p in mono)
+    assert not any(p.shape in ("straight", "flush") for p in mono)
 
 
 def test_climbing_legality() -> None:
@@ -71,17 +94,17 @@ def test_climbing_legality() -> None:
     assert any(p.cards[0].suit == "spades" for p in _legal_follows(_hand("7@s"), led_seven))
     assert _legal_follows(_hand("7@c"), led_seven) == []
     # No cross-size beating: an 8-pair hand following a single offers only singles.
-    assert all(p.size == 1 for p in _legal_follows(_hand("8@s", "8@h"), led_seven))
+    assert all(len(p.cards) == 1 for p in _legal_follows(_hand("8@s", "8@h"), led_seven))
 
     # A pair is followed only by a higher pair (a single 8 cannot follow it).
     led_pair = _only("pair", "7@s", "7@h")
     follows = _legal_follows(_hand("8@s", "8@h", "9@c"), led_pair)
-    assert follows and all(p.size == 2 for p in follows)
+    assert follows and all(len(p.cards) == 2 for p in follows)
 
     # A higher-type five-card hand beats a lower-type one of the same size.
     led_straight = _only("straight", "3@s", "4@h", "5@c", "6@d", "7@s")
     flush_hand = _hand("2@h", "5@h", "7@h", "9@h", "J@h")
-    assert any(p.kind == "flush" for p in _legal_follows(flush_hand, led_straight))
+    assert any(p.shape == "flush" for p in _legal_follows(flush_hand, led_straight))
 
 
 def _expected_penalty(cards_left: int) -> int:

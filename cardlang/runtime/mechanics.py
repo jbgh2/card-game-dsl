@@ -475,9 +475,10 @@ class ClimbForm:
     (everyone else passed one full lap, `next_actor` ⇒ `None`), or when the `until`
     predicate holds (a player has shed out, ending the hand mid-trick). The last
     player to play is the [[winner]], bound as `winner` for the surrounding body,
-    which routes the pile and sets the next lead. The combination engine is
-    game-local, so this depends only on the queries' interface — a sequence
-    of plays conforming to `primitives.ClimbPlay`. Players
+    which routes the pile and sets the next lead. The engine is the game's
+    Combination Catalogue (`runtime.declared`) or a registered Primitive pair,
+    so this depends only on their interface — a sequence of plays conforming
+    to `primitives.ClimbPlay`. Players
     already shed out (Tichu) are skipped with no chooser draw — INCLUDING the
     named leader, who in a continue-after-going-out game may have shed their
     last card on the play that won them the lead; the lead then falls to the
@@ -489,13 +490,13 @@ class ClimbForm:
     pops it into `last_round_state`, so the body reads `state.lead_ended_trick` (did a
     trick-ending lead close it?) and `state.shed_first` / `state.shed_second`
     (the first two players who played their last cards this trick, in play
-    order — finishing order is score-bearing in Tichu). Big Two reads none of
-    these; its goldens gate the no-change.
+    order — finishing order is score-bearing in Tichu).
 
     Contract:
-      assumes      the lead and follows queries return plays conforming to
+      assumes      the engine's plays conform to
                    `primitives.ClimbPlay` (mypy checks each registered
-                   engine's return type against the protocol); a play whose
+                   engine's return type, and a Declared Engine's
+                   `values.Combination`, against the protocol); a play whose
                    `announce` is non-empty names tokens the engine's
                    `climb_announcements` row declares.
       establishes  three regimes of `next_actor` — the ring, the

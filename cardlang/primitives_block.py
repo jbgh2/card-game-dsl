@@ -134,7 +134,7 @@ def regime(game: n.Game) -> Regime:
     no entries (declared, and every Primitive call in the game is therefore
     refused). The empty block is a real declaration — "this game borrows no
     Python" — the way an empty declared-reads row is
-    (`reads.PRIMITIVE_READS`, president.py's row)."""
+    (`reads.PRIMITIVE_READS`)."""
     return Regime.LEGACY if game.primitives is None else Regime.DECLARED
 
 

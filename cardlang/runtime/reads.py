@@ -6,8 +6,8 @@ computation (library.md "Native functions"; kernel-migration.md). It reads
 live `RuntimeState` by the zone / [[state-variable]] name the game file
 declares —
 a coupling the front-end pipeline cannot see: nothing about
-`state { opened : Boolean = false }` tells resolve or typecheck that
-`bigtwo.py` also spells this name. Undeclared, that coupling surfaces as a
+`state { wish : Integer = 0 }` tells resolve or typecheck that
+`tichu.py` also spells this name. Undeclared, that coupling surfaces as a
 `KeyError` mid-playout the first time either side renames
 (tests/metamorphic/rename.py first found it empirically).
 
@@ -332,18 +332,6 @@ def _fs(*names: str) -> frozenset[str]:
 
 
 PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
-    PrimitiveReads(
-        module="cardlang/runtime/bigtwo.py",
-        game_file="big-two.cardlang",
-        state_vars=_fs("opened"),
-    ),
-    # An empty row, not a missing one: president.py's climb queries are pure
-    # over their arguments, but the climb binder keys the module's bundle
-    # from this row (primitives.climb_row), so the row must exist.
-    PrimitiveReads(
-        module="cardlang/runtime/president.py",
-        game_file="president.cardlang",
-    ),
     # Tichu's CLIMB row, and its call-position Primitives are not on it: the
     # game declares `tichu_dragon_won` and `tichu_wish_after_trick` in its own
     # block. What keeps the row is `primitives.climb_row`, which hands the

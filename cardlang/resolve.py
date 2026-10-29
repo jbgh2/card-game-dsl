@@ -1820,11 +1820,9 @@ def _trick_order_excluded_winners(node: object, game: n.Game) -> tuple[str, ...]
     return ()
 
 
-# EVERY registered climbing query, not the `ranking:`-reading subset: a climb
-# query carries its own card order whether it reads `rank_index` (president's)
-# or hard-codes one (the bigtwo_* and tichu_* engines), and either way a game
-# naming one beside a Trick Order has two orders that the engine runs side by
-# side.
+# EVERY registered climbing query: a climb query carries its own card order
+# (the tichu_* engine hard-codes one), so a game naming one beside a Trick
+# Order has two orders that the engine runs side by side.
 _CLIMB_QUERIES = PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
 
 

@@ -315,16 +315,16 @@ def test_existing_games_keep_the_standard_52_card_block() -> None:
 
 
 def test_combo_round_trip_and_match() -> None:
-    from cardlang.runtime.bigtwo import bigtwo_universe
+    from tests.test_bigtwo_universe import _universe
 
     space = _space("big-two.cardlang")
-    play = next(p for p in bigtwo_universe() if p.kind == "fullhouse")
+    play = next(p for p in _universe() if p.shape == "full_house")
     aid = space.encode(play)
     decoded = space.decode(aid)
     assert isinstance(decoded, ComboAction)
     assert decoded.cards == card_multiset(play.cards)
     assert space.match(aid, [play, "pass"]) is play
-    assert space.to_string(aid).startswith("fullhouse[")
+    assert space.to_string(aid).startswith("full_house[")
 
 
 def test_encode_rejects_out_of_space_values() -> None:

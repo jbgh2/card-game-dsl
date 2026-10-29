@@ -175,28 +175,20 @@ def test_early_predicates_are_dispatchable() -> None:
 
 
 def test_climb_action_space_is_derivable() -> None:
-    """`ActionSpace.for_game` derives a climbing game's combo block from the
-    arithmetic codec, else the enumerable universe — so the codec and universe
-    registries must JOINTLY cover PRIMITIVE_CLIMB_LEADS. A lead query in neither is
-    accepted by resolve and by both climb-query dispatchers above, and fails
-    only when the adapter first builds the action space. Replays the adapter's
-    own branch (openspiel/encoding.py) rather than a second copy of the
-    mapping. Quantifier: that the branch reaches a dispatch arm — that each
-    universe enumerates correctly is the per-game golden's property, not this
-    pin's.
+    """`ActionSpace.for_game` derives a registered climb engine's combo block
+    from its arithmetic codec, so the codec registry must cover
+    PRIMITIVE_CLIMB_LEADS. A lead query outside it is accepted by resolve and
+    by both climb-query dispatchers above, and fails only when the adapter
+    first builds the action space.
 
-    red under: delete the `case "president_lead_options"` arm from
-    `climb_universe_function` (cardlang/runtime/primitives.py).
+    red under: delete the `case "tichu_lead_options"` arm from
+    `climb_codec_function` (cardlang/runtime/primitives.py).
     """
     from cardlang.builtins.functions import PRIMITIVE_CLIMB_LEADS
-    from cardlang.runtime.primitives import (
-        climb_codec_function,
-        climb_universe_function,
-    )
+    from cardlang.runtime.primitives import climb_codec_function
 
     for name in PRIMITIVE_CLIMB_LEADS:
-        if climb_codec_function(name) is None:
-            assert callable(climb_universe_function(name))
+        assert climb_codec_function(name).size > 0
 
 
 @pytest.mark.expects_shadow_guard

@@ -11,9 +11,9 @@ the integer block `0..ceiling` (games with `choose`, sized to the game's
 largest declared `choose` ceiling — decisions.md "Declared parameter domains");
 the [[offering]] block (moves
 flattened over their parameter domains, declared order); and the combination
-block — the climb engine's enumerated `universe()` query (canonically ordered
-and golden-pinned; Big Two) or, when the universe is too large to enumerate,
-the engine's arithmetic codec (`climb_codec_function`; Tichu, whose codec's
+block — a Combination Catalogue's plays, numbered from its rows in
+action-id order (`runtime.declared`; golden-pinned), or a registered climb
+engine's arithmetic codec (`climb_codec_function`; Tichu, whose codec's
 `size` states the universe), whose ids are pure functions of the play's
 identity.
 
@@ -68,7 +68,7 @@ from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate, render_play
 from cardlang.runtime import declared
-from cardlang.runtime.primitives import ComboCodec, action_order, card_multiset, play_identity
+from cardlang.runtime.primitives import ComboCodec, card_multiset, play_identity
 from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
 # The card block's numbering is stated beside the suit and rank orders it
@@ -427,9 +427,6 @@ class ActionSpace:
             match engine:
                 case n.RegisteredEngine():
                     combo_codec = primitives.climb_codec_function(engine.lead)
-                    if combo_codec is None:
-                        universe = primitives.climb_universe_function(engine.lead)()
-                        combos = action_order(universe)
                 case n.DeclaredEngine():
                     combos = list(declared.game_universe(game, engine).plays)
                 case _:

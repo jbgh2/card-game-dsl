@@ -30,7 +30,7 @@ precedes the Trick Order, so the construct is not built on top of them):
 
 * THE RANK-TO-ORDER-TABLE CLASS — every runtime site where a card's rank
   indexes the game's declared rank-strength order (`rs.rank_index`, aliased
-  `order` in cribbage.py and `strength` in president.py). A partial
+  `order` in cribbage.py). A partial
   `ranking:` is a supported feature (Canasta's eleven meldable ranks;
   tests/test_ranking_guard.py's ledger), so which cards reach a strength
   read is a RUNTIME fact — zone contents — and the guard is the runtime's
@@ -63,7 +63,7 @@ registry:   winners -- `cardlang.builtins.functions.TRICK_WINNER_NAMES`
             matches_the_bodies` against the executed `reads_trump`;
             decks -- `cardlang.runtime.values.DECKS` with `deck_suits` /
             `deck_ranks`; consumers -- typecheck's `RANKING_GATED_FUNCS |
-            RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES` (the
+            RANKING_GATED_WINNERS` (the
             #256 census), each crossed with an authored DRIVER (a member
             with no driver fails, `test_every_ranking_reader_has_a_driver`);
             the round clause's type axis is `_TRUMP_SPELLINGS`, authored
@@ -85,7 +85,7 @@ does not prove:  three things.
             `typecheck._check_operand` with expected `Suit?`, so what stands
             for `Suit?` is `types.coercible`'s own domain -- a spelling
             outside the representatives is ruled on there, never here.
-            The rank-to-order Primitives (belote, cribbage, president) are
+            The rank-to-order Primitives (belote, cribbage) are
             driven at their Python entry with an unranked rank rather than
             through a whole game, so what a green establishes for them is the
             lookup site's channel, not that a designer reaches that site
@@ -156,7 +156,6 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import DECKS, SUITS, Card, Seating, TeamOf, deck_ranks, deck_suits
 from cardlang.typecheck import (
-    RANKING_GATED_CLIMB_QUERIES,
     RANKING_GATED_FUNCS,
     RANKING_GATED_WINNERS,
 )
@@ -642,7 +641,7 @@ def test_state_trump_is_unpublished() -> None:
 # --- the rank-to-order-table class ------------------------------------------
 
 _READERS: tuple[str, ...] = tuple(
-    sorted(RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES)
+    sorted(RANKING_GATED_FUNCS | RANKING_GATED_WINNERS)
 )
 _PARTIAL = MappingProxyType({"A": 2, "K": 1, "Q": 0})  # `ranking: A K Q`
 
@@ -756,36 +755,6 @@ def _drive_scopa(entry: str) -> Callable[[], None]:
     return drive
 
 
-def _drive_president(query: str) -> Callable[[], None]:
-    def drive() -> None:
-        from cardlang.runtime import president, reads
-        from cardlang.runtime.narrowing import EngineFacts
-
-        facts = EngineFacts(
-            seating=Seating(2),
-            team_of=TeamOf({}),
-            rank_index=_PARTIAL,
-            round_state=None,
-            last_round_state=None,
-            actor=None,
-        )
-        gr = reads.GameReads(
-            state=MappingProxyType({}),
-            families=MappingProxyType({}),
-            singles=MappingProxyType({}),
-        )
-        hand = [Card("2", "clubs"), Card("2", "hearts")]
-        if query == "president_lead_options":
-            president.president_lead_options(facts, gr, hand)
-        else:
-            standing = president.president_lead_options(
-                facts, gr, [Card("A", "spades")]
-            )[0]
-            president.president_follows(facts, gr, hand, standing)
-
-    return drive
-
-
 # member -> the executed route that reaches its strength lookup with a rank
 # outside `ranking: A K Q`. The MEMBER axis is the registry; only this
 # correspondence is authored, and a member without a row fails below.
@@ -796,8 +765,6 @@ _DRIVERS: Mapping[str, Callable[[], None]] = {
     "peg_run_points": _drive_peg_run_points,
     "salvo_combos": _drive_salvo_combos,
     "scopa_sums_to": _drive_scopa("scopa_sums_to"),
-    "president_lead_options": _drive_president("president_lead_options"),
-    "president_follows": _drive_president("president_follows"),
 }
 
 
