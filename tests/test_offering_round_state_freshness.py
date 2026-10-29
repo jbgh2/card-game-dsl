@@ -300,8 +300,8 @@ ROUNDS: dict[str, Rounds] = {
         persistent=frozenset(
             {
                 "below_current", "contract_level", "cur_level", "cur_strain",
-                "dealer", "declarer", "doubled", "doubled_mult", "dummy",
-                "games_won", "high_bidder", "leader", "total_score",
+                "dealer", "deals_played", "declarer", "doubled", "doubled_mult",
+                "dummy", "games_won", "high_bidder", "leader", "total_score",
                 "tricks_taken", "trump_suit",
             }
         ),

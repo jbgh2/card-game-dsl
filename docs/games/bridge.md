@@ -1,17 +1,20 @@
-# Bridge (rubber, simplified)
+# Bridge (rubber, simplified; play stops after twelve deals)
 
 The companion formal file is [bridge.cardlang](bridge.cardlang); this is the
 readable twin. Rubber Bridge with the standard below-the-line / above-the-line
 scoring, game and rubber bonuses, slam bonuses, and vulnerability; honors and
 the finer doubled-penalty table are simplified. One rubber is played (first side
-to two games) and the side with the higher total wins. **Players:** 4, in fixed
-partnerships sitting across. **Deck:** standard 52.
+to two games), and play stops after twelve deals if the rubber is not finished
+by then; the side with the higher total wins. **Players:** 4, in fixed
+partnerships sitting across. **Deck:** standard 52. **Rules source:**
+[Pagat, Contract Bridge](https://www.pagat.com/auctionwhist/bridge.html).
 
 Each hand:
 
 1. Deal 13 cards each.
-2. **Auction** — ascending bids over the strain order C D H S NT, with double and
-   redouble; the auction ends when three passes follow a call. The final bid is
+2. **Auction** — ascending bids over the strain order C D H S NT, from one club
+   to seven no-trumps, with double and redouble; the auction ends when three
+   passes follow a call. The final bid is
    the contract; declarer is the first of that side to have named the strain.
    (If all four pass, the hand is redealt.)
 3. **Play** — the declarer's left-hand opponent leads; thirteen tricks, follow
@@ -25,6 +28,10 @@ Each hand:
    (bonus 300, or 500 when vulnerable), the below-the-line counters reset, and a
    second game ends the rubber (bonus 500/700).
 
+If the twelfth deal ends with the rubber unfinished, play stops there: a side
+with a game scores 300, and a side with a part score toward the uncompleted game
+scores 100 (Pagat's rule for a rubber left unfinished).
+
 The thirteen tricks run on the trick form of the kernel `round` construct; the
 auction is a `turns` ring over the four seats, each asked by `offer` to pass,
 bid, double or redouble, until three passes follow a call (four with none),
@@ -36,10 +43,7 @@ bid the final strain (each side's first bidder of each strain is recorded as
 the bids are made); the `produces:` consumer either routes on into play or
 skips the passed-out hand (see [decisions.md](../decisions.md) "Typed phase
 outcomes").
-Random bids are capped at level 3 so rubbers stay
-a realistic dozen-odd hands — game-level and slam contracts are unreachable under
-random play (their scoring is implemented but unexercised; issue #415 holds the
-cap's own reckoning). The dummy is modelled: once a contract stands, declarer's
+The dummy is modelled: once a contract stands, declarer's
 partner lays their thirteen cards into `dummy_hand`, a `PublicHand` every seat
 sees in full, and declarer decides dummy's plays through the Delegated Play
 helpers (`chooser_for` / `play_source_for`, [decisions.md](../decisions.md)

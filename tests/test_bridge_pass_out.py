@@ -1,8 +1,8 @@
 """The Bridge auction's `all_pass` arm, forced.
 
-Under random capped-level bidding a pass-out essentially never happens (0 of 684
-auctions across the 50-seed sweep), so the byte-identical characterization leaves
-the `all_pass` arm + `skip to next hand` unexercised. Force a pass-out on the
+Under uniform random bidding a pass-out essentially never happens (each opening
+seat passes one time in six), so the byte-identical characterization leaves the
+`all_pass` arm + `skip to next hand` unexercised. Force a pass-out on the
 first hand with a scripted chooser and check the arm end-to-end.
 
 If `skip to next hand` failed to bypass the play phase, the no-contract hand would
