@@ -51,8 +51,6 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures" / "declared_engine"
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
 MINIMAL = (FIXTURES / "minimal.cardlang").read_text()
 
-PENDING = pytest.mark.xfail(strict=True, reason="issue #251 stage B: the Declared Engine")
-
 _ROWS = re.compile(r"combinations climb \{\n(?P<rows>.*?)\n\}", re.DOTALL)
 _SEQ_LINE = "  sequence: A 2 3 4 5 6 7 8 9 10 J Q K A\n"
 
@@ -198,7 +196,6 @@ def test_the_universe_rows_reach_every_part_qualifier_and_form() -> None:
     assert {"schnapsen20", "pinochle48", "standard52"} <= set(_DECKS)
 
 
-@PENDING
 @pytest.mark.parametrize(("deck", "row"), UNIVERSE_CELLS, ids=[f"{d}-{_phrase(r)}" for d, r in UNIVERSE_CELLS])
 def test_a_catalogue_numbers_exactly_the_multisets_its_rows_name(deck: str, row: Row) -> None:
     sequence = _DECKS[deck].split()
@@ -208,7 +205,6 @@ def test_a_catalogue_numbers_exactly_the_multisets_its_rows_name(deck: str, row:
     assert got == Counter(dict.fromkeys(want, 1)), (len(got), len(want))
 
 
-@PENDING
 def test_a_duplicate_decks_copies_are_distinct_plays() -> None:
     """pinochle48 holds two copies of each card: `1 card` and `2 of a kind`
     name 24 singles and the pairs of one rank — 36 distinct-card pairs and 24
@@ -220,7 +216,6 @@ def test_a_duplicate_decks_copies_are_distinct_plays() -> None:
     assert all(v == 1 for v in got.values())
 
 
-@PENDING
 @pytest.mark.parametrize("witness", ["big-two", "president"])
 def test_a_witness_numbers_the_frozen_table(witness: str) -> None:
     """The witness's catalogue numbers, id for id, the table the registered
@@ -261,7 +256,6 @@ def _asks(game: Any, seeds: range) -> Iterator[tuple[Any, list[Any]]]:
     yield from seen
 
 
-@PENDING
 @pytest.mark.parametrize("witness", ["big-two", "president"])
 def test_a_witness_offers_its_plays_in_id_order_with_the_pass_last(witness: str) -> None:
     game = check_source(str(FIXTURES / f"{witness}.cardlang"))
@@ -289,7 +283,6 @@ def _ask_lists(game: Any, seeds: range) -> list[list[Multiset | str]]:
     ]
 
 
-@PENDING
 @pytest.mark.parametrize("witness", ["big-two", "president"])
 def test_the_declared_engine_offers_what_the_registered_engine_offers_at_every_ask(witness: str) -> None:
     registered = _ask_lists(check_source(str(GAMES / f"{witness}.cardlang")), SWAP_SEEDS)
@@ -316,7 +309,6 @@ def _ask_digests(game: Any, seeds: range) -> dict[str, dict[str, object]]:
     return out
 
 
-@PENDING
 @pytest.mark.parametrize("witness", ["big-two", "president"])
 def test_the_declared_engine_offers_the_frozen_registered_lists_at_every_ask(witness: str) -> None:
     """The registered engines' offered lists at every climb ask of ten seeds,
@@ -343,7 +335,6 @@ PLANTED_FAULTS = [
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("witness", "old", "new"), PLANTED_FAULTS)
 def test_the_swap_proof_goes_red_under_each_planted_fault(witness: str, old: str, new: str) -> None:
     text = (FIXTURES / f"{witness}.cardlang").read_text()
@@ -358,7 +349,6 @@ def test_the_swap_proof_goes_red_under_each_planted_fault(witness: str, old: str
 # ---------------------------------------------------------------------------
 
 
-@PENDING
 @pytest.mark.parametrize("witness", ["big-two", "president"])
 def test_the_follows_cache_changes_no_answer(witness: str, monkeypatch: pytest.MonkeyPatch) -> None:
     from cardlang.runtime import declared
@@ -369,7 +359,6 @@ def test_the_follows_cache_changes_no_answer(witness: str, monkeypatch: pytest.M
     assert _ask_lists(game, _SEEDS) == cached
 
 
-@PENDING
 def test_reading_the_absent_standing_play_is_refused_at_the_first_lead() -> None:
     source = re.sub(
         r"function climb_follows\(.*",
@@ -383,7 +372,6 @@ def test_reading_the_absent_standing_play_is_refused_at_the_first_lead() -> None
         driver.play_game(game, random.Random(0))
 
 
-@PENDING
 def test_a_lead_the_follows_function_refuses_entirely_is_a_loud_error() -> None:
     source = re.sub(
         r"function climb_follows\(.*",

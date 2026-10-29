@@ -6188,10 +6188,11 @@ def _stamp_follows_reads(game: n.Game) -> n.Game:
     its two plays, through every function it calls: the state variables and
     zones, by their classified names, which key the function's cached answers
     at runtime. A zone a Builtin reads without the call naming it
-    (`BUILTIN_IMPLICIT_READS`) joins the zones; a pronoun or a round's
-    published state (`state.x`) is a read no key can hold, so the function is
-    not cached."""
+    (`BUILTIN_IMPLICIT_READS`) joins the zones; a pronoun, a round's published
+    state (`state.x`) or a declared Primitive's `reads` is a read no key holds,
+    so the function is not cached."""
     functions = {f.name: f for f in game.functions}
+    primitives = {d.name for d in game.primitives.decls} if game.primitives else set()
 
     def stamp(nd: n.ClimbRound) -> n.ClimbRound:
         engine = nd.engine
@@ -6220,6 +6221,8 @@ def _stamp_follows_reads(game: n.Game) -> n.Game:
                         frontier.append(functions[node.func])
                     elif node.func in BUILTIN_IMPLICIT_READS:
                         zones.add(BUILTIN_IMPLICIT_READS[node.func][0])
+                    elif node.func in primitives:
+                        cacheable = False
         return replace(
             nd,
             engine=replace(

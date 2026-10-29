@@ -156,7 +156,7 @@ def president_universe() -> list[Play]:
 
 
 @functools.cache
-def _action_rank() -> dict[tuple[frozenset[Card], int | None], int]:
+def _action_rank() -> dict[primitives.Identity, int]:
     return primitives.action_rank(president_universe())
 
 

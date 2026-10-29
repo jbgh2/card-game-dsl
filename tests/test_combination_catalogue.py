@@ -24,11 +24,15 @@ domain:          the axes below, each derived from its registry:
                  forms, membership, `COMBINATION_FIELDS` and an unknown field,
                  the refused operations); the label namespace (every kind of
                  declared or deck name); the swept climb guards; hidden reads
-                 and the play zone's visibility; the program identity.
+                 and the play zone's visibility (every unowned zone type);
+                 the deck (every registered deck four seats are dealt four
+                 cards from); the program identity.
 registry:        `cardlang.catalogue` (SHAPE_PARTS, SHAPE_QUALIFIERS,
                  SHAPE_FORMS, COMBINATION_FIELDS, ENUMERATED_UNIVERSE_BOUND);
                  `cardlang.builtins.functions.PRIMITIVE_CLIMB_ENGINES`;
-                 `cardlang.runtime.values.build_deck`; the grammar's
+                 `cardlang.runtime.values.build_deck` and `DECKS`;
+                 `cardlang.stdlib.zones.LIBRARY_ZONE_TYPES` and
+                 `ZONE_PROJECTIONS`; the grammar's
                  `shape_part` / `shape_qualifier` / `shape_phrase` aliases
                  (pinned equal to the registries below).
 held by:         the registries are the single owners of the vocabulary, and
@@ -70,6 +74,7 @@ from cardlang import catalogue
 from cardlang.builtins.functions import PRIMITIVE_CLIMB_ENGINES
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, game_identity
+from cardlang.runtime.values import DECKS, RANKS, SUITS, build_deck, deck_ranks
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "declared_engine"
@@ -655,6 +660,32 @@ PLAY_ZONE_CELLS: list[tuple[str, Expected]] = [
 @pytest.mark.parametrize(("zone_type", "expected"), PLAY_ZONE_CELLS)
 def test_a_climb_plays_into_a_zone_every_seat_sees(zone_type: str, expected: Expected) -> None:
     source = MINIMAL.replace("    trick_pile   : TrickPile", f"    trick_pile   : {zone_type}", 1)
+    _assert(source, expected)
+
+
+# ---------------------------------------------------------------------------
+# The deck a catalogue ranges over.
+# ---------------------------------------------------------------------------
+
+# Every registered deck that four seats can be dealt four cards from.
+DECK_CELLS: list[tuple[str, Expected]] = [
+    (
+        d,
+        CHECKS
+        if all(c.suit in SUITS and c.rank in RANKS for c in build_deck(d))
+        else _refused(f"`{d}`", "standard cards", "issue #989"),
+    )
+    for d in sorted(DECKS)
+    if len(build_deck(d)) >= 16
+]
+
+
+@pytest.mark.parametrize(("deck", "expected"), DECK_CELLS)
+def test_a_catalogue_ranges_over_a_deck_of_standard_cards(deck: str, expected: Expected) -> None:
+    source = _rows("single: 1 card")
+    source = source.replace("cards: standard52", f"cards: {deck}", 1)
+    source = source.replace("ranking: aces high", "ranking: " + " ".join(deck_ranks(deck)), 1)
+    source = source.replace("deal 13 cards", "deal 4 cards", 1)
     _assert(source, expected)
 
 

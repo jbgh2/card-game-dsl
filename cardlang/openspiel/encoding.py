@@ -59,7 +59,7 @@ import dataclasses
 import itertools
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
@@ -67,7 +67,8 @@ from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate, render_play
-from cardlang.runtime.primitives import ComboCodec, action_order, play_identity
+from cardlang.runtime import declared
+from cardlang.runtime.primitives import ComboCodec, action_order, card_multiset, play_identity
 from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
 
 # The card block's numbering is stated beside the suit and rank orders it
@@ -139,14 +140,15 @@ def _derived_card_block(deck_name: str) -> list[Card] | None:
 
 @dataclass(frozen=True)
 class ComboAction:
-    """A decoded combination action: the card-set it moves, and the rank
+    """A decoded combination action: the card multiset it moves
+    (`primitives.card_multiset`), and the rank
     value a wildcard among those cards stands for (`None` for a play with no
     wildcard, or one whose wildcard value is contextual). Matched against
     engine plays by both: a card-set holding a wildcard can denote two plays
     (Tichu's {Phoenix,3,4,5,6} is 2-6 or 3-7), and the pair is the play's
     identity — a pinned invariant of every combo universe."""
 
-    cards: frozenset[Card]
+    cards: tuple[Card, ...]
     wild: int | None = None
 
 
@@ -315,7 +317,7 @@ class ActionSpace:
         int_ceiling: int | None = None
         combos: list[Any] = []
         mt_index = {m.name: m for m in game.move_types}
-        climb_engines: list[str] = []
+        climb_engines: list[n.ClimbEngine] = []
         joint_engines: list[str | None] = []
         # The move-parameter domains, sourced from the game AST. Suits come
         # from `runtime.values.deck_suits` — the deck's actual card suits,
@@ -376,8 +378,9 @@ class ActionSpace:
                         entries = _offering_entries(mt, sources)
                         offering.extend(e for e in entries if e not in offering)
             elif isinstance(node, n.ClimbRound):
-                if node.combos_fn not in climb_engines:
-                    climb_engines.append(node.combos_fn)
+                assert node.engine is not None, "resolve stamps every climb round's engine"
+                if node.engine not in climb_engines:
+                    climb_engines.append(node.engine)
             elif isinstance(node, n.Transfer) and node.joint:
                 # A joint selection's candidates are card SUBSETS — what the combo
                 # block deals in, exactly like climb plays. The subset
@@ -394,10 +397,20 @@ class ActionSpace:
         combo_codec: ComboCodec | None = None
         engine_names: frozenset[str] = frozenset()
         if climb_engines:
-            assert len(climb_engines) == 1, "one climb engine per game for now"
-            # The climb form's own names beside the plays: the pass, the
-            # engine's announcement tokens, and its interrupt decline.
-            tokens = primitives.climb_actions(climb_engines[0])
+            # Shadow Guard: resolve refuses a game with two climb engines
+            # (`_resolve_climb_engines`).
+            assert len(climb_engines) == 1, "one climb engine per game"
+            (engine,) = climb_engines
+            # The climb form's own names beside the plays: the pass, and a
+            # registered engine's announcement tokens and interrupt decline.
+            engine_name = (
+                engine.lead if isinstance(engine, n.RegisteredEngine) else engine.catalogue
+            )
+            tokens = (
+                primitives.climb_actions(engine.lead)
+                if isinstance(engine, n.RegisteredEngine)
+                else (primitives.CLIMB_PASS,)
+            )
             engine_names = frozenset(tokens)
             for token in tokens:
                 if token in names:
@@ -407,14 +420,20 @@ class ActionSpace:
                     raise ShadowGuardError(
                         "resolve._check_climb_action_names",
                         f"move type `{token}` is offered, and the climb engine "
-                        f"`{climb_engines[0]}` names one of its own actions "
+                        f"`{engine_name}` names one of its own actions "
                         f"`{token}` — one action id cannot name both",
                     )
                 names.append(token)
-            combo_codec = primitives.climb_codec_function(climb_engines[0])
-            if combo_codec is None:
-                universe = primitives.climb_universe_function(climb_engines[0])()
-                combos = action_order(universe)
+            match engine:
+                case n.RegisteredEngine():
+                    combo_codec = primitives.climb_codec_function(engine.lead)
+                    if combo_codec is None:
+                        universe = primitives.climb_universe_function(engine.lead)()
+                        combos = action_order(universe)
+                case n.DeclaredEngine():
+                    combos = list(declared.game_universe(game, engine).plays)
+                case _:
+                    assert_never(engine)
         if joint_engines:
             # Corpus-first guards, all loud (issue #139 records the deferrals):
             # the combo block serves one subset universe per game, so a game
@@ -530,7 +549,7 @@ class ActionSpace:
                         f"wildcard value {wild} is outside the codec's declared "
                         f"wilds {sorted(self._combo_codec.wilds)}",
                     )
-                return self._combo_base + int(self._combo_codec.encode(cards, wild))
+                return self._combo_base + int(self._combo_codec.encode(frozenset(cards), wild))
             return self._combo_base + self._combo_ids[(cards, wild)]
         raise ValueError(f"cannot encode action value {value!r}")
 
@@ -546,7 +565,7 @@ class ActionSpace:
         if self._combo_base <= aid < self.num_distinct_actions:
             if self._combo_codec is not None:
                 cards, wild = self._combo_codec.decode(aid - self._combo_base)
-                return ComboAction(frozenset(cards), wild)
+                return ComboAction(card_multiset(cards), wild)
             return ComboAction(*play_identity(self._combos[aid - self._combo_base]))
         raise ValueError(f"action {aid} out of range 0..{self.num_distinct_actions - 1}")
 

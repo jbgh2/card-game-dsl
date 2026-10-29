@@ -39,9 +39,9 @@ the dependency absent is what keeps the two halves independently readable.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 
 from cardlang.runtime import narrowing, reads, winners
 from cardlang.runtime.state import Ctx
@@ -212,15 +212,29 @@ class ComboCodec(Protocol):
     def kind_of(self, index: int) -> str: ...
 
 
-def play_identity(play: Any) -> tuple[frozenset[Card], int | None]:
+Identity = tuple[tuple[Card, ...], int | None]
+
+
+def card_multiset(cards: Iterable[Card]) -> tuple[Card, ...]:
+    """Cards as a multiset: sorted by suit and rank, an order every deck's
+    cards have, so copies of one card stay distinct members."""
+    return tuple(sorted(cards, key=lambda c: (c.suit, c.rank)))
+
+
+def play_identity(play: Any) -> Identity:
     """A combination's identity, which its combo-block id is a function of:
-    its card-set and the rank value a wildcard among those cards stands for
-    (`None` for a combination with no `wild` member — a joint selection's or
-    a capture's card set, or a play of an engine without wildcards)."""
-    return frozenset(play.cards), getattr(play, "wild", None)
+    its card multiset (`card_multiset`), so a duplicate deck's copies stay
+    distinct plays' cards; and the rank value a wildcard among those cards
+    stands for (`None` for a combination with no `wild` member — a joint
+    selection's or a capture's card set, or a play of an engine without
+    wildcards)."""
+    return card_multiset(play.cards), getattr(play, "wild", None)
 
 
-def action_order(universe: Sequence[ClimbPlay]) -> list[ClimbPlay]:
+_Play = TypeVar("_Play", bound=ClimbPlay)
+
+
+def action_order(universe: Sequence[_Play]) -> list[_Play]:
     """An enumerated play universe in action-id order: card count, then the
     sorted card ids. The combo block numbers the universe in this order, and
     an enumerated engine offers its candidates in it (`action_rank`), so a
@@ -234,14 +248,14 @@ def action_order(universe: Sequence[ClimbPlay]) -> list[ClimbPlay]:
     )
 
 
-def in_card_order(cards: Sequence[Card]) -> tuple[Card, ...]:
+def in_card_order(cards: Iterable[Card]) -> tuple[Card, ...]:
     """A play's cards in the order it moves them: card-id order. The movement
     observation carries the cards in this order, so an information state is a
     function of the play's cards and never of how an engine generated them."""
     return tuple(sorted(cards, key=card_to_action))
 
 
-def action_rank(universe: Sequence[ClimbPlay]) -> dict[tuple[frozenset[Card], int | None], int]:
+def action_rank(universe: Sequence[ClimbPlay]) -> dict[Identity, int]:
     """Each play identity of `universe`, an engine's whole play universe, at
     its position in `action_order`. An enumerated engine sorts its candidates
     by it, so a play outside its own universe raises a `KeyError` at the

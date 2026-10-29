@@ -1383,9 +1383,11 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # library's OWN definitions are called, fed by the library alone: no
     # bare reference resolves against it, it gates one refusal's wording
     # (`_refuse_bare_always`), and a game's definition reached by name is
-    # the `call` column's leak.
+    # the `call` column's leak. `shapes` is the catalogue's row labels, a
+    # subset of `enums` (where a bare label resolves), read for one
+    # refusal's wording.
     game_fed = {f.name for f in fields(_Categories)} - {
-        "locals", "functions", "flavor", "definitions", "rule_clause"
+        "locals", "functions", "flavor", "definitions", "rule_clause", "shapes"
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():

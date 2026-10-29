@@ -17,6 +17,7 @@ from cardlang.openspiel.encoding import (
     card_to_action,
 )
 from cardlang.runtime import reads, narrowing
+from cardlang.runtime.primitives import card_multiset
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.skat import _BID_SEQUENCE
 from cardlang.runtime.tichu import ROW as TICHU_ROW
@@ -321,7 +322,7 @@ def test_combo_round_trip_and_match() -> None:
     aid = space.encode(play)
     decoded = space.decode(aid)
     assert isinstance(decoded, ComboAction)
-    assert decoded.cards == frozenset(play.cards)
+    assert decoded.cards == card_multiset(play.cards)
     assert space.match(aid, [play, "pass"]) is play
     assert space.to_string(aid).startswith("fullhouse[")
 
@@ -449,7 +450,7 @@ def test_tichu_combo_codec_round_trips_engine_emissions() -> None:
             ids.add(aid)
             decoded = space.decode(aid)
             assert isinstance(decoded, ComboAction)
-            assert decoded.cards == frozenset(play.cards), play
+            assert decoded.cards == card_multiset(play.cards), play
             assert decoded.wild == play.wild, play
             assert space.match(aid, [*plays, "pass"]) is play
             checked += 1

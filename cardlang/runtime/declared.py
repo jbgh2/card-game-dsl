@@ -6,8 +6,9 @@ they name. `universe` derives a catalogue's every play over the game's deck,
 which the catalogue pass judges at check time (counts, qualifiers, overlaps,
 the enumeration bound) and the action space numbers; `DeclaredClimbEngine`
 offers a seat the multisets of its hand that a row names and the game's
-follows function admits, in action-id order, each moving its cards in deck
-order.
+follows function admits, in action-id order, each moving its cards in card-id
+order (`primitives.action_order`, `primitives.in_card_order`: the one owner of
+both orders, which the registered engines share).
 
 Contract:
   assumes:      resolve stamped the round's engine a `DeclaredEngine`, and the
@@ -37,6 +38,7 @@ from functools import cache
 from typing import Any
 
 from cardlang.ast import nodes as n
+from cardlang.runtime.primitives import action_order, in_card_order
 from cardlang.runtime.values import Card, Combination, build_deck
 
 # The follows function's answers are cached by play identity and the values
@@ -45,16 +47,6 @@ from cardlang.runtime.values import Card, Combination, build_deck
 CACHE = True
 
 Identity = tuple[Card, ...]
-
-
-@cache
-def card_order(deck: str) -> dict[Card, int]:
-    """Each card of `deck` at its first place in the deck's own order: the
-    order a play's cards move in, and the order identities sort by."""
-    order: dict[Card, int] = {}
-    for i, card in enumerate(build_deck(deck)):
-        order.setdefault(card, i)
-    return order
 
 
 def _windows(sequence: tuple[str, ...], size: int) -> list[Counter[str]]:
@@ -123,10 +115,10 @@ def _qualified(cards: Sequence[Card], row: n.ShapeRow, sequence: tuple[str, ...]
 
 
 def row_multisets(
-    row: n.ShapeRow, pool: Sequence[Card], sequence: tuple[str, ...], order: dict[Card, int]
+    row: n.ShapeRow, pool: Sequence[Card], sequence: tuple[str, ...]
 ) -> Iterator[Identity]:
     """Every card multiset of `pool` that `row` names, once each, its cards in
-    deck order. A pool may hold copies of one card; two picks of equal cards
+    card-id order. A pool may hold copies of one card; two picks of equal cards
     are one multiset."""
     seen: set[Identity] = set()
     everything = range(len(pool))
@@ -142,7 +134,7 @@ def row_multisets(
         else:
             picks = iter((a,))
         for pick in picks:
-            cards = tuple(sorted((pool[i] for i in pick), key=order.__getitem__))
+            cards = in_card_order([pool[i] for i in pick])
             if cards in seen or not _qualified(cards, row, sequence):
                 continue
             seen.add(cards)
@@ -151,9 +143,8 @@ def row_multisets(
 
 @dataclass(frozen=True)
 class Universe:
-    """A catalogue's every play over its deck, in action-id order: card count,
-    then the cards' deck places (`primitives.action_order`'s order, over the
-    deck's own numbering). `rank` is each identity's place."""
+    """A catalogue's every play over its deck, in action-id order
+    (`primitives.action_order`). `rank` is each identity's place."""
 
     plays: tuple[Combination, ...]
     rank: dict[Identity, int]
@@ -166,16 +157,38 @@ def universe(catalogue: n.CombinationCatalogue, deck: str, sequence: tuple[str, 
     the one row that names it; two rows naming one multiset is the catalogue
     pass's refusal, which runs before anything numbers the universe."""
     pool = build_deck(deck)
-    order = card_order(deck)
     found: dict[Identity, str] = {}
     for row in catalogue.rows:
-        for cards in row_multisets(row, pool, sequence, order):
+        for cards in row_multisets(row, pool, sequence):
             found.setdefault(cards, row.label)
             if len(found) > bound:
                 return None
-    keyed = sorted(found, key=lambda cards: (len(cards), [order[c] for c in cards]))
-    plays = tuple(Combination(found[cards], cards) for cards in keyed)
-    return Universe(plays, {cards: i for i, cards in enumerate(keyed)})
+    plays = tuple(action_order([Combination(label, cards) for cards, label in found.items()]))
+    return Universe(plays, {play.cards: i for i, play in enumerate(plays)})
+
+
+def bounded_universe(catalogue: n.CombinationCatalogue, deck: str, sequence: tuple[str, ...]) -> Universe:
+    """The universe of a catalogue the catalogue pass accepted."""
+    from cardlang.catalogue import ENUMERATED_UNIVERSE_BOUND
+    from cardlang.runtime.errors import ShadowGuardError
+
+    found = universe(catalogue, deck, sequence, ENUMERATED_UNIVERSE_BOUND)
+    if found is None:
+        raise ShadowGuardError(
+            "the catalogue pass (resolve), which refuses a catalogue past the "
+            "enumeration bound",
+            f"catalogue `{catalogue.name}` numbers more than "
+            f"{ENUMERATED_UNIVERSE_BOUND} plays",
+        )
+    return found
+
+
+def game_universe(game: n.Game, engine: n.DeclaredEngine) -> Universe:
+    """The universe of the catalogue `engine` names, over the game's deck and
+    Rank Sequence: the plays the action space numbers."""
+    (catalogue,) = (c for c in game.catalogues if c.name == engine.catalogue)
+    sequence = game.rank_sequence.ranks if game.rank_sequence is not None else ()
+    return bounded_universe(catalogue, game.deck, sequence)
 
 
 class DeclaredClimbEngine:
@@ -184,25 +197,13 @@ class DeclaredClimbEngine:
     a lead), in action-id order."""
 
     def __init__(self, engine: n.DeclaredEngine, ctx: Any) -> None:
-        from cardlang.catalogue import ENUMERATED_UNIVERSE_BOUND
-        from cardlang.runtime.errors import ShadowGuardError
-
         rs = ctx.rs
         self.catalogue: n.CombinationCatalogue = rs.catalogues[engine.catalogue]
         self.follows_fn: n.FunctionDef = rs.function_index[engine.follows]
         self.sequence: tuple[str, ...] = rs.rank_sequence
-        self.order = card_order(rs.deck_name)
-        found = universe(self.catalogue, rs.deck_name, self.sequence, ENUMERATED_UNIVERSE_BOUND)
-        if found is None:
-            raise ShadowGuardError(
-                "the catalogue pass (resolve), which refuses a catalogue past the "
-                "enumeration bound",
-                f"catalogue `{self.catalogue.name}` numbers more than "
-                f"{ENUMERATED_UNIVERSE_BOUND} plays",
-            )
-        self.universe = found
+        self.universe = bounded_universe(self.catalogue, rs.deck_name, self.sequence)
         self.engine = engine
-        self._memo: dict[tuple[object, ...], bool] = {}
+        self._memo: dict[tuple[object, ...], bool] = rs.follows_answers.setdefault(engine.follows, {})
 
     def _admits(self, play: Combination, standing: Combination | None, ctx: Any) -> bool:
         from cardlang.runtime.evaluate import call_user_function
@@ -213,7 +214,7 @@ class DeclaredClimbEngine:
         key = (
             play.cards,
             None if standing is None else standing.cards,
-            tuple(rs.get(v) for v in self.engine.state_reads),
+            tuple(_hashable(rs.get(v)) for v in self.engine.state_reads),
             tuple(_zone_contents(rs, z) for z in self.engine.zone_reads),
         )
         hit = self._memo.get(key)
@@ -226,7 +227,7 @@ class DeclaredClimbEngine:
         offered = [
             play
             for row in self.catalogue.rows
-            for cards in row_multisets(row, hand, self.sequence, self.order)
+            for cards in row_multisets(row, hand, self.sequence)
             if self._admits(play := Combination(row.label, cards), standing, ctx)
         ]
         offered.sort(key=lambda p: self.universe.rank[p.cards])
@@ -237,3 +238,15 @@ def _zone_contents(rs: Any, zone: str) -> object:
     if rs.zones.is_family(zone):
         return tuple(tuple(z.cards) for z in rs.zones.families[zone].values())
     return tuple(rs.zones.single(zone).cards)
+
+
+def _hashable(value: object) -> object:
+    """A state variable's value as a cache-key part: a per-seat or keyed
+    value's entries, sorted, and a list's items, in order."""
+    if isinstance(value, dict):
+        return tuple(sorted((k, _hashable(v)) for k, v in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_hashable(v) for v in value)
+    if isinstance(value, set):
+        return frozenset(value)
+    return value

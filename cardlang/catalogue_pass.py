@@ -27,7 +27,7 @@ from cardlang.catalogue import ENUMERATED_UNIVERSE_BOUND, SHAPE_QUALIFIERS, Shap
 from cardlang.diagnostics import DiagnosticBag
 from cardlang.runtime import declared
 from cardlang.stdlib.enums import rank_names
-from cardlang.runtime.values import Card, build_deck
+from cardlang.runtime.values import RANKS, SUITS, Card, build_deck
 
 _PHRASE = {
     "shape_card": "{n} card",
@@ -96,6 +96,23 @@ def check_catalogues(
                 admissible = False
             if not _check_row(row, game.deck, widest, sequence, bag):
                 admissible = False
+        beyond = sorted({
+            c.rank if c.rank not in RANKS else str(c)
+            for c in deck
+            if c.suit not in SUITS or c.rank not in RANKS
+        })
+        if beyond:
+            # A play's cards move, and its id is numbered, in card-id order
+            # (`values.card_to_action`), which the standard cards alone have.
+            bag.error(
+                f"catalogue `{cat.name}` ranges over `{game.deck}`, which holds "
+                f"cards beyond the standard deck's ({', '.join(beyond[:3])}"
+                f"{', …' if len(beyond) > 3 else ''}) — a catalogue's plays are "
+                f"numbered over standard cards; issue #989 holds a climbing "
+                f"deck with special cards",
+                cat.span,
+            )
+            admissible = False
         if admissible and (sequence is not None or not any(_reads_sequence(r) for r in cat.rows)):
             _check_universe(cat, game.deck, sequence or (), bag)
 
@@ -205,12 +222,11 @@ def _check_row(
 
 def _check_universe(cat: n.CombinationCatalogue, deck: str, sequence: tuple[str, ...], bag: DiagnosticBag) -> None:
     pool = build_deck(deck)
-    order = declared.card_order(deck)
     owner: dict[declared.Identity, str] = {}
     total = 0
     for row in cat.rows:
         named = 0
-        for cards in declared.row_multisets(row, pool, sequence, order):
+        for cards in declared.row_multisets(row, pool, sequence):
             named += 1
             total += 1
             if total > ENUMERATED_UNIVERSE_BOUND:
@@ -236,7 +252,7 @@ def _check_universe(cat: n.CombinationCatalogue, deck: str, sequence: tuple[str,
             bag.error(f"`{row.label}: {phrase(row)}` names no play of `{deck}`", row.span)
             continue
         for q in row.qualifiers:
-            if _removes_nothing(row, q, pool, sequence, order):
+            if _removes_nothing(row, q, pool, sequence):
                 bag.error(
                     f"`{SHAPE_QUALIFIERS[q].strip('`')}` removes nothing from "
                     f"`{row.label}`'s plays — every one of them already is that; "
@@ -250,7 +266,6 @@ def _removes_nothing(
     q: ShapeQualifierKind,
     pool: list[Card],
     sequence: tuple[str, ...],
-    order: dict[Card, int],
 ) -> bool:
     """Whether every multiset the row names without `q` already satisfies
     `q`: the search stops at the first that does not."""
@@ -261,5 +276,5 @@ def _removes_nothing(
     only = replace(row, qualifiers=(q,))
     return all(
         declared._qualified(cards, only, sequence)
-        for cards in declared.row_multisets(bare, pool, sequence, order)
+        for cards in declared.row_multisets(bare, pool, sequence)
     )
