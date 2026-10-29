@@ -234,6 +234,13 @@ def action_order(universe: Sequence[ClimbPlay]) -> list[ClimbPlay]:
     )
 
 
+def in_card_order(cards: Sequence[Card]) -> tuple[Card, ...]:
+    """A play's cards in the order it moves them: card-id order. The movement
+    observation carries the cards in this order, so an information state is a
+    function of the play's cards and never of how an engine generated them."""
+    return tuple(sorted(cards, key=card_to_action))
+
+
 def action_rank(universe: Sequence[ClimbPlay]) -> dict[tuple[frozenset[Card], int | None], int]:
     """Each play identity of `universe`, an engine's whole play universe, at
     its position in `action_order`. An enumerated engine sorts its candidates

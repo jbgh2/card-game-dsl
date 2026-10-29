@@ -2,7 +2,8 @@
 
 property:        At every ask of a climbing round whose engine serves an
                  enumerated play universe, the plays offered are in strictly
-                 increasing combo-block id order, with the pass after them. The
+                 increasing combo-block id order, with the pass after them,
+                 and each moves its cards in card-id order. The
                  random chooser samples the candidate list, so the per-seed
                  goldens pin this order; holding it to the ids makes a
                  candidate list a function of the plays it holds, never of how
@@ -16,7 +17,8 @@ registry:        `cardlang.builtins.functions.PRIMITIVE_CLIMB_ENGINES`;
 held by:         a single owner of the order, `primitives.action_order`, which
                  the encoder numbers the universe by and each enumerated engine
                  sorts its candidates by (`primitives.action_rank`); this module
-                 is a Pin over the engines' use of it. Reddening mutation: drop
+                 is a Pin over the engines' use of it, and of
+                 `primitives.in_card_order`. Reddening mutation: drop
                  `_in_action_order` from either query of either engine.
 does not prove:  Anything about a codec engine (Tichu), whose candidates keep
                  the engine's own order; nor that the offered plays are the
@@ -77,6 +79,8 @@ def test_an_enumerated_engine_offers_its_plays_in_action_id_order(
         assert offered[: len(plays)] == plays, offered
         ids = [space.encode(p) for p in plays]
         assert ids == sorted(set(ids)), (lead, ids)
+        for p in plays:
+            assert tuple(p.cards) == primitives.in_card_order(p.cards), (lead, p)
         asks += 1
         return offered
 

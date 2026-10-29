@@ -185,7 +185,7 @@ def test_every_hand_scores_as_the_page_says(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(engine, "bigtwo_lead_options", recorded_lead)
     monkeypatch.setattr(engine, "bigtwo_follows", recorded_follows)
-    for seed in range(6):
+    for seed in range(10):
         scores[:] = [{p: 0 for p in range(seats)}]
         hand.asks = []
         rng.seed(seed)

@@ -43,6 +43,14 @@ scores and the game's `teams:` without running anything.
 
 A sanctioned regeneration covers `bigtwo_scores.json` here and
 `president_scores.json` (tests/test_playout_president.py) on every seed they
+hold: a climb play moves its cards in card-id order (issue #251's ruled
+design), not in the order its engine generated them. The cards reach the
+discard in that order and the next gather collects them so, so every deal
+after the first trick moves. The order is pinned away from this vector, by
+tests/test_climb_offer_order.py.
+
+A sanctioned regeneration covers `bigtwo_scores.json` here and
+`president_scores.json` (tests/test_playout_president.py) on every seed they
 hold: an enumerated climb engine numbers its plays by their cards alone and
 offers its candidates in that id order (issue #251's ruled design, its first
 step), not in the order its generator walks a hand. The candidate sets do not

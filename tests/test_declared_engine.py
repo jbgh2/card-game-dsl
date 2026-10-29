@@ -298,6 +298,36 @@ def test_the_declared_engine_offers_what_the_registered_engine_offers_at_every_a
         assert a == b, f"ask {i} of {len(registered)}"
 
 
+def _ask_digests(game: Any, seeds: range) -> dict[str, dict[str, object]]:
+    """Each seed's climb asks, as their count and a digest of every offered
+    list (identities by rank and suit, the pass by name), in ask order."""
+    import hashlib
+    import json
+
+    out: dict[str, dict[str, object]] = {}
+    for seed in seeds:
+        lists = [
+            [c if isinstance(c, str) else sorted([x.rank, x.suit] for x in c.cards) for c in offered]
+            for _, offered in _asks(game, range(seed, seed + 1))
+        ]
+        text = json.dumps(lists, separators=(",", ":"))
+        out[str(seed)] = {"asks": len(lists), "sha256": hashlib.sha256(text.encode()).hexdigest()}
+    return out
+
+
+@PENDING
+@pytest.mark.parametrize("witness", ["big-two", "president"])
+def test_the_declared_engine_offers_the_frozen_registered_lists_at_every_ask(witness: str) -> None:
+    """The registered engines' offered lists at every climb ask of ten seeds,
+    frozen before those engines were retired (tests/golden/climb_ask_digests.json),
+    are what the Declared Engine offers, digest for digest."""
+    import json
+
+    frozen = json.loads((Path(__file__).parent / "golden" / "climb_ask_digests.json").read_text())[witness]
+    game = check_source(str(FIXTURES / f"{witness}.cardlang"))
+    assert _ask_digests(game, range(len(frozen))) == frozen
+
+
 PLANTED_FAULTS = [
     # Big Two: the ace no longer stands low in A-2-3-4-5.
     (

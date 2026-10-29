@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import functools
 import itertools
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from cardlang.runtime import primitives, reads
 from cardlang.runtime.narrowing import EngineFacts
@@ -161,6 +161,10 @@ def _action_rank() -> dict[tuple[frozenset[Card], int | None], int]:
 
 
 def _in_action_order(plays: list[Play]) -> list[Play]:
-    """`plays` in their action-id order, the order both queries offer."""
+    """`plays` in their action-id order, the order both queries offer, each
+    moving its cards in card-id order (`primitives.in_card_order`)."""
     rank = _action_rank()
-    return sorted(plays, key=lambda p: rank[primitives.play_identity(p)])
+    return [
+        replace(p, cards=primitives.in_card_order(p.cards))
+        for p in sorted(plays, key=lambda p: rank[primitives.play_identity(p)])
+    ]
