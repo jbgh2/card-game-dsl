@@ -147,7 +147,6 @@ def _aliases(rule: str) -> set[str]:
     }
 
 
-@PENDING
 @pytest.mark.parametrize(
     ("rule", "registry"),
     [
@@ -278,18 +277,17 @@ def test_the_row_axis_covers_every_registered_part_and_qualifier() -> None:
     assert {q for qs in _QUALIFIER_SETS for q in qs} == set(catalogue.SHAPE_QUALIFIERS)
 
 
-WITH_CELLS: list[tuple[str, Expected]] = [
-    ("3 of a kind with 2 of a kind", CHECKS),
-    ("4 of a kind with 1 card", CHECKS),
-    ("2 of a kind with 2 of a kind", CHECKS),
-    ("1 card with 1 card", _refused("`2 cards`")),
-    ("4 of a kind with 4 of a kind", _refused("issue #989")),
-    ("3 of a kind with 2 of a kind with 1 card", _refused("issue #989", syntax=True)),
-    ("3 of a kind with 2 of a kind, all one suit", _refused("one part", syntax=True)),
+WITH_CELLS = [
+    pytest.param("3 of a kind with 2 of a kind", CHECKS, marks=PENDING),
+    pytest.param("4 of a kind with 1 card", CHECKS, marks=PENDING),
+    pytest.param("2 of a kind with 2 of a kind", CHECKS, marks=PENDING),
+    pytest.param("1 card with 1 card", _refused("`2 cards`"), marks=PENDING),
+    pytest.param("4 of a kind with 4 of a kind", _refused("issue #989"), marks=PENDING),
+    ("3 of a kind with 2 of a kind with 1 card", _refused("issue #994")),
+    ("3 of a kind with 2 of a kind, all one suit", _refused("one part")),
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("phrase", "expected"), WITH_CELLS)
 def test_a_with_row_joins_two_parts_of_different_ranks(phrase: str, expected: Expected) -> None:
     _assert(_rows(f"x: {phrase}"), expected)
@@ -571,19 +569,18 @@ def test_a_binder_may_share_a_row_labels_name() -> None:
 # ---------------------------------------------------------------------------
 
 MISSPELLING_CELLS: list[tuple[str, Expected]] = [
-    ("run of 5", _refused("`5 in sequence`", syntax=True)),
-    ("5 in a row", _refused("`5 in sequence`", syntax=True)),
-    ("5 of one suit", _refused("`5 cards, all one suit`", syntax=True)),
-    ("5 cards in sequence", _refused("`5 in sequence`", syntax=True)),
-    ("5 or more in sequence", _refused("issue #989", syntax=True)),
-    ("2 pairs in sequence", _refused("issue #989", syntax=True)),
-    ("Dog", _refused("issue #989", syntax=True)),
-    ("4 of a kind, interrupts", _refused("issue #989", syntax=True)),
-    ("1 card, wild", _refused("issue #989", syntax=True)),
+    ("run of 5", _refused("`5 in sequence`")),
+    ("5 in a row", _refused("`5 in sequence`")),
+    ("5 of one suit", _refused("`5 cards, all one suit`")),
+    ("5 cards in sequence", _refused("`5 in sequence`")),
+    ("5 or more in sequence", _refused("issue #989")),
+    ("2 pairs in sequence", _refused("issue #989")),
+    ("Dog", _refused("issue #989")),
+    ("4 of a kind, interrupts", _refused("issue #989")),
+    ("1 card, wild", _refused("issue #989")),
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("phrase", "expected"), MISSPELLING_CELLS)
 def test_a_growth_or_near_miss_spelling_is_refused_with_its_fix(phrase: str, expected: Expected) -> None:
     _assert(_rows(f"x: {phrase}"), expected)
@@ -676,7 +673,6 @@ def test_a_catalogue_or_sequence_edit_moves_the_game_identity() -> None:
 # ---------------------------------------------------------------------------
 
 
-@PENDING
 def test_the_engine_kinds_are_a_closed_union() -> None:
     from typing import get_args
 

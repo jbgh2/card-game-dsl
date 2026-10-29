@@ -1,0 +1,1 @@
+shape_floor.cardlang:58:13: error: a shape of `5 or more` cards is not one the catalogue declares yet; a shape names a fixed count, and issue #989 holds runs of any length

@@ -63,6 +63,7 @@ require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
             | NAME "(" [parameter ("," parameter)*] ")" ":" payload_type -> require_signature
 
 ?top_item: game
+         | combinations_def
          | rule_def
          | move_type_def
          | function_def
@@ -83,6 +84,7 @@ game: _GAME_KW NAME "{" game_item* "}"
           | board
           | ranking
           | suit_ranking
+          | rank_sequence
           | card_points_table
           | teams
           | max_length
@@ -194,7 +196,35 @@ RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
 // suits. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 suit_ranking: _SUIT_KW _RANKING_KW ":" SUIT_RANKING_NAME+
-SUIT_RANKING_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+
+// The game's Rank Sequence (decisions.md "Combination Catalogues"): its ranks
+// in the order a Combination Shape's `in sequence` reads, lowest place first.
+// Its own clause rather than `ranking:`, because a run's order is not a set's
+// strength order (Big Two runs the ace low and high while its sets rank twos
+// high). Space-separated like `ranking:`, over `card_rank`, so it refuses the
+// game-clause keywords the same way.
+rank_sequence: _SEQUENCE_KW ":" card_rank+
+
+// A Combination Catalogue (decisions.md "Combination Catalogues"): the card
+// multisets that are plays, one Combination Shape per row — its label, then
+// its shape phrase. A top-level declaration named from a climbing round's
+// `combinations` slot, as a function is from `follows`. Rows carry no
+// delimiter (`card_points`'s shape): a phrase cannot continue with a NAME, so
+// a row ends where the next `NAME :` begins. Entry-plus: an empty catalogue
+// declares no plays and is a syntax error. The vocabulary's closed sets are
+// `cardlang.catalogue`'s registries, pinned equal to these aliases.
+combinations_def: _COMBINATIONS_KW NAME "{" combination_row+ "}"
+combination_row: NAME ":" shape_phrase
+shape_phrase: shape_part ("," shape_qualifier)*  -> shape_simple
+            | shape_part _WITH_KW shape_part     -> shape_with
+shape_part: INT _CARD_KW              -> shape_card
+          | INT _CARDS_KW             -> shape_cards
+          | INT OF_A_KIND             -> shape_of_a_kind
+          | INT _IN_KW _SEQUENCE_KW   -> shape_in_sequence
+shape_qualifier: _ALL_KW _ONE_KW _SUIT_KW          -> q_all_one_suit
+               | _NOT_KW _ALL_KW _ONE_KW _SUIT_KW  -> q_not_all_one_suit
+               | _NOT_KW _IN_KW _SEQUENCE_KW       -> q_not_in_sequence
+SUIT_RANKING_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The game's card-point table (decisions.md "Scoring has no constructs of its own"): a block
 // clause beside `cards:`, rank-keyed rows in `ranking:`'s key position, values
@@ -755,7 +785,7 @@ card_literal: card_rank _OF_KW NAME
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
-CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The card-point table's rank-key terminal: `ranking:`'s key position (a NAME
 // or a bare INT — the INT arm is on `card_points_key`), carrying NAME's base
@@ -859,6 +889,9 @@ _CHOOSE_KW: "choose" /(?![A-Za-z0-9_])/
 _CHOSEN_KW: "chosen" /(?![A-Za-z0-9_])/
 _CLIMB_KW: "climb" /(?![A-Za-z0-9_])/
 _COMBINATIONS_KW: "combinations" /(?![A-Za-z0-9_])/
+// One phrase, one terminal: `kind` is a reserved word (the IR node tag) and
+// stays a free NAME everywhere else, and the article never meets the rank `A`.
+OF_A_KIND: /of\s+a\s+kind(?![A-Za-z0-9_])/
 _CONCESSION_KW: "concession" /(?![A-Za-z0-9_])/
 _CONSTRAINS_KW: "constrains" /(?![A-Za-z0-9_])/
 _CONTINUE_KW: "continue" /(?![A-Za-z0-9_])/
@@ -932,6 +965,7 @@ _RULE_KW: "rule" /(?![A-Za-z0-9_])/
 _RUN_KW: "run" /(?![A-Za-z0-9_])/
 _SHUFFLE_KW: "shuffle" /(?![A-Za-z0-9_])/
 _SIMULTANEOUSLY_KW: "simultaneously" /(?![A-Za-z0-9_])/
+_SEQUENCE_KW: "sequence" /(?![A-Za-z0-9_])/
 _SKIP_KW: "skip" /(?![A-Za-z0-9_])/
 _SOME_KW: "some" /(?![A-Za-z0-9_])/
 // `subset` and `subsets` are separate whole words: the anchor keeps the
@@ -961,6 +995,7 @@ _WAGER_KW: "wager" /(?![A-Za-z0-9_])/
 _WHEN_KW: "when" /(?![A-Za-z0-9_])/
 _WHERE_KW: "where" /(?![A-Za-z0-9_])/
 _WINNER_KW: "winner" /(?![A-Za-z0-9_])/
+_WITH_KW: "with" /(?![A-Za-z0-9_])/
 _ZONES_KW: "zones" /(?![A-Za-z0-9_])/
 
 // Keywords that sit where a NAME is also grammatical, and never name a value,

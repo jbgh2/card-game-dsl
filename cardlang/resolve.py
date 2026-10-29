@@ -4726,6 +4726,9 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.FunctionDef() | n.ProcedureDef() | n.OutcomeCase()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
             | n.CardPointsEntry() | n.LoweredSpelling() | n.SuitRanking()
+            # A catalogue's row labels are declarations in the game's namespace
+            # (refused where they collide), never binders a body scopes.
+            | n.RankSequence() | n.ShapePart() | n.ShapeRow() | n.CombinationCatalogue()
             | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
             | n.ActiveRules() | n.LegalMoves() | n.Mode() | n.TransitionTo() | n.MoveEvent()
@@ -4740,6 +4743,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
         case (
             n.RotateStmt() | n.RepeatUntil() | n.IfStmt() | n.AsBlock() | n.AssignStmt()
             | n.Offer() | n.TrickRound() | n.ClimbRound()
+            | n.RegisteredEngine() | n.DeclaredEngine()
             | n.Produce() | n.Produces()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
         ):

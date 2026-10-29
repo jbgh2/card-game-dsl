@@ -5,10 +5,11 @@
 // more under this composition; a twin that derives the text hands the
 // builder its node, and the builder's `*_reject` method raises the message.
 // The main grammar accepts only the language, so nothing here is reachable
-// while a file parses there. No alphabetic word here is one the main lexer
-// knows, but `trump`, the round's clause keyword, which the retired
+// while a file parses there. The alphabetic words here that the main lexer
+// also knows are `trump`, the round's clause keyword, which the retired
 // game-level clause's twin reuses where the language has no game item it
-// opens; the symbol terminals (`:=` / `=`, `:`, `==` / `!=`, `/` / `%`)
+// opens, and the Combination Shape vocabulary's own words, which the shape
+// twins reuse inside a catalogue row; the symbol terminals (`:=` / `=`, `:`, `==` / `!=`, `/` / `%`)
 // overlap the main lexer's, and the composed Earley parse resolves them by
 // position — a hazard under any other parser. Each twin is a COMPLETE production for the string it names,
 // never a prefix, so no sentence of the language gains a second derivation
@@ -132,3 +133,31 @@ DIV_OP: "/" | "%"
 // without the `:` result, as one complete row, and names the row to write.
 %extend require_decl: _FUNCTION_KW NAME "(" [parameter ("," parameter)*] ")" [":" payload_type]  -> require_function_keyword_reject
                     | _PROCEDURE_KW NAME "(" [parameter ("," parameter)*] ")" [":" payload_type] -> require_procedure_keyword_reject
+
+// --- a Combination Shape's near misses, and the shapes not yet declarable --
+// The near misses are the rulebook's other words for a shape (`run of 5`,
+// `5 in a row`, `5 of one suit`, `5 cards in sequence`), each refused naming
+// the phrase the vocabulary uses. The growth shapes are Tichu's and Dou
+// Dizhu's: runs of any length, runs of groups, a named card, a play's
+// behaviour (`, wild`, `, interrupts`), and a third part; each is refused
+// citing the issue that holds it. Every arm derives a whole shape part or
+// phrase, so no row of the language gains a second derivation.
+%extend shape_part: _RUN_KW _OF_KW INT                  -> shape_run_of_reject
+                  | INT _IN_KW _A_ART _ROW_KW            -> shape_in_a_row_reject
+                  | INT _OF_KW _ONE_KW _SUIT_KW          -> shape_of_one_suit_reject
+                  | INT NAME _IN_KW _SEQUENCE_KW         -> shape_groups_in_sequence_reject
+                  | INT _OR_KW _MORE_KW shape_floor_tail -> shape_floor_reject
+                  | NAME                                 -> shape_named_card_reject
+shape_floor_tail: _CARDS_KW
+                | OF_A_KIND
+                | _IN_KW _SEQUENCE_KW
+                | NAME _IN_KW _SEQUENCE_KW
+%extend shape_phrase: shape_part _WITH_KW shape_part (_WITH_KW shape_part)+ -> shape_with_chain_reject
+                    | shape_part _WITH_KW shape_part ("," shape_qualifier)+ -> shape_with_qualifier_reject
+                    | shape_part ("," shape_qualifier)* "," SHAPE_WORD+    -> shape_behaviour_reject
+SHAPE_WORD: /(?!(?:all|not|one|suit|in|sequence|with)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+_A_ART: "a" /(?![A-Za-z0-9_])/
+_ROW_KW: "row" /(?![A-Za-z0-9_])/
+// --- a catalogue written in a library -------------------------------------
+// A catalogue declares a game's plays, as `cards:` declares its deck.
+%extend library_item: combinations_def -> library_catalogue_reject

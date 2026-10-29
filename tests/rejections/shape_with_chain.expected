@@ -1,0 +1,1 @@
+shape_with_chain.cardlang:58:10: error: a shape joins two parts with `with`; a third part is not one the catalogue declares yet, issue #994

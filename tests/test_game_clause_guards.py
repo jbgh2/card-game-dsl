@@ -252,6 +252,7 @@ _CLAUSE_TEXT: dict[str, str] = {
     "board": "board: grid(3, 3)",
     "ranking": "ranking: K Q J",
     "suit_ranking": "suit ranking: spades hearts",
+    "rank_sequence": "sequence: A 2 3 4 5",
     "card_points_table": "card_points { A: 1 }",
     "teams": "teams: [[0, 2], [1, 3]]",
     "max_length": "max_length: 10",
@@ -374,6 +375,7 @@ SINGLE_VALUED: dict[str, str] = {
     "board": "board:",
     "ranking": "ranking:",
     "suit_ranking": "suit ranking:",
+    "rank_sequence": "sequence:",
     "card_points_table": "card_points { }",
     "primitives_block": "primitives { }",
     "teams": "teams:",
@@ -418,6 +420,7 @@ _EXTRA_CLAUSE: dict[str, str] = {
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
     "suit_ranking": "  suit ranking: spades hearts diamonds clubs",
+    "rank_sequence": "  sequence: A 2 3 4 5",
     "teams": "  teams: [[0, 1]]",
     # An EMPTY block, which is well-formed on purpose (the presence, not the
     # contents, picks the game's Primitive regime) — so the duplicate probe

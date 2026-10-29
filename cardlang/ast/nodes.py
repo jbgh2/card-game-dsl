@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass
 from typing import Literal, TypeAlias, get_args
 
+from cardlang.catalogue import ShapePartKind, ShapeQualifierKind
 from cardlang.diagnostics import Span
 from cardlang.types import Flavor
 
@@ -720,7 +721,33 @@ class ClimbRound:
     follows_fn: str
     until: Expr
     hosted: HostedPoll | None = None
+    # The round's engine, materialized once by resolve from the two slot
+    # names: a registered Primitive pair, or the game's own catalogue and
+    # follows function. None before resolve, never after.
+    engine: ClimbEngine | None = None
     span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegisteredEngine:
+    """A climb round's engine as a registered Primitive pair: the lead and
+    follows queries of `PRIMITIVE_CLIMB_ENGINES` (Tichu)."""
+
+    lead: str
+    follows: str
+
+
+@dataclass(frozen=True, slots=True)
+class DeclaredEngine:
+    """A climb round's engine as the game's own Combination Catalogue, which
+    declares the plays, and the game function that says when a play follows
+    the standing one (decisions.md "Combination Catalogues")."""
+
+    catalogue: str
+    follows: str
+
+
+ClimbEngine = RegisteredEngine | DeclaredEngine
 
 
 @dataclass(frozen=True, slots=True)
@@ -873,6 +900,47 @@ class SuitRanking:
     refusals land."""
 
     suits: tuple[str, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RankSequence:
+    """The `sequence:` clause: the game's ranks in the order a Combination
+    Shape's `in sequence` reads, lowest place first. A rank may stand at both
+    ends (Big Two's `A 2 … K A`) and nowhere else twice."""
+
+    ranks: tuple[str, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ShapePart:
+    """One part of a Combination Shape: `count` cards, of one of the closed
+    kinds (`catalogue.SHAPE_PARTS`)."""
+
+    kind: ShapePartKind
+    count: int
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ShapeRow:
+    """One row of a Combination Catalogue: its label, then one part with its
+    qualifiers, or two parts joined by `with` (no qualifiers)."""
+
+    label: str
+    parts: tuple[ShapePart, ...]
+    qualifiers: tuple[ShapeQualifierKind, ...] = ()
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CombinationCatalogue:
+    """`combinations <name> { <label>: <shape phrase> … }`: the card multisets
+    that are plays (decisions.md "Combination Catalogues")."""
+
+    name: str
+    rows: tuple[ShapeRow, ...]
     span: Span | None = None
 
 
@@ -1458,6 +1526,8 @@ class Game:
     ranking_convention: str | None = None
     # The `suit ranking:` clause, or None for a game declaring none.
     suit_ranking: SuitRanking | None = None
+    # The `sequence:` clause, or None for a game declaring none.
+    rank_sequence: RankSequence | None = None
     teams: tuple[tuple[int, ...], ...] = ()
     # Declared position domains (`positions { column : 1..7 }`) — per-game
     # integer index/parameter domains (decisions.md "Position domains and
@@ -1485,6 +1555,8 @@ class Game:
     # decision sites a second time, on top of the copies spliced at the call
     # sites, and size the action space wrong.
     procedures: tuple[ProcedureDef, ...] = ()
+    # The game's Combination Catalogues, in source order.
+    catalogues: tuple[CombinationCatalogue, ...] = ()
     # The `primitives { }` clause, or None for a game that writes none. The ONE
     # source of which [[primitive]]s this game may call: with a block, its
     # entries plus the Builtins are the whole native namespace, and a
@@ -1532,6 +1604,10 @@ Node = (
     | CardPointsEntry
     | LoweredSpelling
     | SuitRanking
+    | RankSequence
+    | ShapePart
+    | ShapeRow
+    | CombinationCatalogue
     | TypeRef
     | TypeArg
     | StateBlock
@@ -1565,6 +1641,8 @@ Node = (
     | Offer
     | TrickRound
     | ClimbRound
+    | RegisteredEngine
+    | DeclaredEngine
     | HostedPoll
     | Produce
     | ProduceArm

@@ -1,0 +1,1 @@
+libraries/library_catalogue.cardlang:5:3: error: a combination catalogue declares a game's plays and is written in the game's file, not a library

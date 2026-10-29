@@ -1,0 +1,9 @@
+// Guard: parse.py's `library_catalogue_reject` (diagnostics.lark). A
+// combination catalogue declares a game's plays, as `cards:` declares its
+// deck, so it is written in the game's file.
+library climbing {
+  combinations sets {
+    single: 1 card
+    pair:   2 of a kind
+  }
+}

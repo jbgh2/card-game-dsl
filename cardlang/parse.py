@@ -106,6 +106,7 @@ from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
 from cardlang.ast import nodes as n
+from cardlang.catalogue import ShapePartKind, ShapeQualifierKind
 from cardlang.diagnostics import (
     Diagnostic,
     DiagnosticBag,
@@ -162,6 +163,15 @@ class _CardPointsTable:
     entries: tuple[n.CardPointsEntry, ...]
     else_value: int | None
     span: Span
+
+
+@dataclass(frozen=True, slots=True)
+class _ShapePhrase:
+    """A Combination Shape's phrase, carried to its row: one part with its
+    qualifiers, or the two parts of a `with`."""
+
+    parts: tuple[n.ShapePart, ...]
+    qualifiers: tuple[ShapeQualifierKind, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -473,6 +483,54 @@ class _Builder(Transformer[Token, n.Game]):
     def suit_ranking(self, meta: Meta, c: list[Token]) -> n.SuitRanking:
         return n.SuitRanking(tuple(str(t) for t in c), span=self._span(meta))
 
+    # --- the Rank Sequence and the Combination Catalogue ---
+
+    def rank_sequence(self, meta: Meta, c: list[str]) -> n.RankSequence:
+        return n.RankSequence(tuple(c), span=self._span(meta))
+
+    def _shape_part(self, kind: ShapePartKind, meta: Meta, c: list[Token]) -> n.ShapePart:
+        return n.ShapePart(kind, int(c[0]), span=self._span(meta))
+
+    def shape_card(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        return self._shape_part("shape_card", meta, c)
+
+    def shape_cards(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        return self._shape_part("shape_cards", meta, c)
+
+    def shape_of_a_kind(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        return self._shape_part("shape_of_a_kind", meta, c)
+
+    def shape_in_sequence(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        return self._shape_part("shape_in_sequence", meta, c)
+
+    def q_all_one_suit(self, meta: Meta, c: list[object]) -> ShapeQualifierKind:
+        return "q_all_one_suit"
+
+    def q_not_all_one_suit(self, meta: Meta, c: list[object]) -> ShapeQualifierKind:
+        return "q_not_all_one_suit"
+
+    def q_not_in_sequence(self, meta: Meta, c: list[object]) -> ShapeQualifierKind:
+        return "q_not_in_sequence"
+
+    def shape_simple(self, meta: Meta, c: list[object]) -> _ShapePhrase:
+        part, *qualifiers = c
+        assert isinstance(part, n.ShapePart)
+        return _ShapePhrase((part,), cast(tuple[ShapeQualifierKind, ...], tuple(qualifiers)))
+
+    def shape_with(self, meta: Meta, c: list[n.ShapePart]) -> _ShapePhrase:
+        return _ShapePhrase(tuple(c), ())
+
+    def combination_row(self, meta: Meta, c: list[object]) -> n.ShapeRow:
+        label, phrase = c
+        assert isinstance(phrase, _ShapePhrase)
+        return n.ShapeRow(str(label), phrase.parts, phrase.qualifiers, span=self._span(meta))
+
+    def combinations_def(self, meta: Meta, c: list[object]) -> n.CombinationCatalogue:
+        name, *rows = c
+        return n.CombinationCatalogue(
+            str(name), cast(tuple[n.ShapeRow, ...], tuple(rows)), span=self._span(meta)
+        )
+
     # --- the card-point table (`card_points { }`) ---
 
     def card_points_key(self, meta: Meta, c: list[Token]) -> str:
@@ -614,10 +672,80 @@ class _Builder(Transformer[Token, n.Game]):
                 Severity.ERROR,
                 "a collection type (`Collection<Card>`) is spellable in a "
                 "`primitives { }` entry only — everywhere else a set of cards "
-                "is a zone, and `move chosen some cards ... where jointly` is "
-                "how a game picks one",
+                "is a zone, `move chosen some cards ... where jointly` is "
+                "how a game picks one, and a function reading a climbing "
+                "play takes it as a `Combination`",
                 self._span(meta),
             )
+        )
+
+    # --- a Combination Shape's near misses and growth spellings ---
+
+    def _shape_reject(self, meta: Meta, message: str) -> NoReturn:
+        raise DiagnosticError(Diagnostic(Severity.ERROR, message, self._span(meta)))
+
+    def shape_run_of_reject(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        self._shape_reject(meta, f"a run is written `{c[0]} in sequence` — the shape reads the game's `sequence:`")
+
+    def shape_in_a_row_reject(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        self._shape_reject(meta, f"a run is written `{c[0]} in sequence` — the shape reads the game's `sequence:`")
+
+    def shape_of_one_suit_reject(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        self._shape_reject(meta, f"a flush is written `{c[0]} cards, all one suit`")
+
+    def shape_groups_in_sequence_reject(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        count, noun = c[0], str(c[1])
+        if noun in ("card", "cards"):
+            self._shape_reject(meta, f"a run is written `{count} in sequence`, without the noun")
+        self._shape_reject(
+            meta,
+            f"a run of groups (`{count} {noun} in sequence`) is not a shape the "
+            "catalogue declares yet; issue #989 holds it",
+        )
+
+    def shape_floor_reject(self, meta: Meta, c: list[object]) -> n.ShapePart:
+        self._shape_reject(
+            meta,
+            f"a shape of `{c[0]} or more` cards is not one the catalogue declares "
+            "yet; a shape names a fixed count, and issue #989 holds runs of any length",
+        )
+
+    def shape_named_card_reject(self, meta: Meta, c: list[Token]) -> n.ShapePart:
+        self._shape_reject(
+            meta,
+            f"`{c[0]}` is no shape part — a part is a count and a noun (`1 card`, "
+            "`2 of a kind`, `5 in sequence`, `5 cards`); a shape naming a "
+            "card is not one the catalogue declares yet, issue #989",
+        )
+
+    def shape_with_chain_reject(self, meta: Meta, c: list[object]) -> _ShapePhrase:
+        self._shape_reject(
+            meta,
+            "a shape joins two parts with `with`; a third part is not one the "
+            "catalogue declares yet, issue #994",
+        )
+
+    def shape_with_qualifier_reject(self, meta: Meta, c: list[object]) -> _ShapePhrase:
+        self._shape_reject(
+            meta,
+            "a qualifier stands on one part: a `with` shape takes none",
+        )
+
+    def shape_behaviour_reject(self, meta: Meta, c: list[object]) -> _ShapePhrase:
+        words = " ".join(str(x) for x in c if isinstance(x, Token) and x.type == "SHAPE_WORD")
+        self._shape_reject(
+            meta,
+            f"`{words}` is no qualifier — the qualifiers are `all one suit`, "
+            "`not all one suit` and `not in sequence`; a play that is wild, "
+            "interrupts or ends the trick is not one the catalogue declares "
+            "yet, issue #989",
+        )
+
+    def library_catalogue_reject(self, meta: Meta, c: list[object]) -> None:
+        self._shape_reject(
+            meta,
+            "a combination catalogue declares a game's plays and is written in "
+            "the game's file, not a library",
         )
 
     def collection_optional_reject(self, meta: Meta, c: list[Token]) -> str:
@@ -1870,6 +1998,7 @@ class _Builder(Transformer[Token, n.Game]):
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
         suit_ranking: n.SuitRanking | None = None
+        rank_sequence: n.RankSequence | None = None
         # The answers the block spellings lower to, in source order.
         lowered: list[n.FunctionDef] = []
         primitives: n.PrimitivesBlock | None = None
@@ -1932,6 +2061,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, n.SuitRanking):
                 once("suit ranking:", item.span)
                 suit_ranking = item
+            elif isinstance(item, n.RankSequence):
+                once("sequence:", item.span)
+                rank_sequence = item
             elif isinstance(item, _CardPointsTable):
                 once("card_points { }", item.span, merge_hint=True)
                 lowered.append(_lower_card_points(item))
@@ -2023,6 +2155,7 @@ class _Builder(Transformer[Token, n.Game]):
             ranking=ranking,
             ranking_convention=ranking_convention,
             suit_ranking=suit_ranking,
+            rank_sequence=rank_sequence,
             primitives=primitives,
             functions=tuple(lowered),
             teams=teams,
@@ -2229,18 +2362,37 @@ class _Builder(Transformer[Token, n.Game]):
                 )
             )
         game = games[0]
-        rules = tuple(x for x in c if isinstance(x, n.RuleDef))
-        move_types = tuple(x for x in c if isinstance(x, n.MoveTypeDef))
+        rules: list[n.RuleDef] = []
+        move_types: list[n.MoveTypeDef] = []
+        written: list[n.FunctionDef] = []
+        procedures: list[n.ProcedureDef] = []
+        catalogues: list[n.CombinationCatalogue] = []
+        # Exhaustive over `?top_item`'s builders: an item this arm is not
+        # taught about would otherwise vanish from the game unread.
+        for item in c:
+            if isinstance(item, n.Game):
+                continue
+            if isinstance(item, n.RuleDef):
+                rules.append(item)
+            elif isinstance(item, n.MoveTypeDef):
+                move_types.append(item)
+            elif isinstance(item, n.FunctionDef):
+                written.append(item)
+            elif isinstance(item, n.ProcedureDef):
+                procedures.append(item)
+            elif isinstance(item, n.CombinationCatalogue):
+                catalogues.append(item)
+            else:
+                raise AssertionError(f"unexpected top-level item: {item!r}")
         # The game block's lowered answers first, then the written functions,
         # each in source order.
-        functions = game.functions + tuple(x for x in c if isinstance(x, n.FunctionDef))
-        procedures = tuple(x for x in c if isinstance(x, n.ProcedureDef))
         return replace(
             game,
-            rules=rules,
-            move_types=move_types,
-            functions=functions,
-            procedures=procedures,
+            rules=tuple(rules),
+            move_types=tuple(move_types),
+            functions=game.functions + tuple(written),
+            procedures=tuple(procedures),
+            catalogues=tuple(catalogues),
         )
 
 
@@ -2313,6 +2465,7 @@ _WORD_OVERRIDES: dict[str, str] = {
     "CARD_POINTS_KEY": "a name",
     "CARD_RANK_NAME": "a rank name",
     "SUIT_RANKING_NAME": "a suit name",
+    "OF_A_KIND": "`of a kind`",
     "INT": "a whole number",
     "STRING": "a quoted string",
     "LINE_COMMENT": "a `//` comment",
