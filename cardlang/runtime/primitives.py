@@ -45,7 +45,7 @@ from typing import Any, Protocol
 
 from cardlang.runtime import narrowing, reads, winners
 from cardlang.runtime.state import Ctx
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.values import Card, Player, card_to_action
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +210,36 @@ class ComboCodec(Protocol):
     def decode(self, index: int) -> tuple[frozenset[Card], int | None]: ...
 
     def kind_of(self, index: int) -> str: ...
+
+
+def play_identity(play: Any) -> tuple[frozenset[Card], int | None]:
+    """A combination's identity, which its combo-block id is a function of:
+    its card-set and the rank value a wildcard among those cards stands for
+    (`None` for a combination with no `wild` member — a joint selection's or
+    a capture's card set, or a play of an engine without wildcards)."""
+    return frozenset(play.cards), getattr(play, "wild", None)
+
+
+def action_order(universe: Sequence[ClimbPlay]) -> list[ClimbPlay]:
+    """An enumerated play universe in action-id order: card count, then the
+    sorted card ids. The combo block numbers the universe in this order, and
+    an enumerated engine offers its candidates in it (`action_rank`), so a
+    candidate list is a function of the plays it holds and never of how the
+    engine generated them. A play's kind takes no part: an id is a function
+    of the cards alone, so no label an engine or a game gives a shape can
+    move one."""
+    return sorted(
+        universe,
+        key=lambda p: (len(p.cards), sorted(card_to_action(c) for c in p.cards)),
+    )
+
+
+def action_rank(universe: Sequence[ClimbPlay]) -> dict[tuple[frozenset[Card], int | None], int]:
+    """Each play identity of `universe`, an engine's whole play universe, at
+    its position in `action_order`. An enumerated engine sorts its candidates
+    by it, so a play outside its own universe raises a `KeyError` at the
+    offer rather than reaching the combo block unnumbered."""
+    return {play_identity(p): i for i, p in enumerate(action_order(universe))}
 
 
 # The climbing ring's own word for a seat that does not play: every engine's,

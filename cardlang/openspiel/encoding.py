@@ -67,8 +67,12 @@ from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate, render_play
-from cardlang.runtime.primitives import ComboCodec
+from cardlang.runtime.primitives import ComboCodec, action_order, play_identity
 from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
+
+# The card block's numbering is stated beside the suit and rank orders it
+# reads, and is this module's API beside `action_to_card`.
+from cardlang.runtime.values import card_to_action as card_to_action
 
 NUM_DISTINCT_ACTIONS = len(SUITS) * len(RANKS)  # 52 — the standard card block
 
@@ -89,10 +93,6 @@ COMBO_VERB = "<combo>"
 # and what each block's ids mean is `decode`'s answer at the granularity the
 # module docstring states.
 BLOCKS: tuple[str, ...] = ("card", "name", "integer", "offering", "combination")
-
-
-def card_to_action(card: Card) -> int:
-    return SUITS.index(card.suit) * len(RANKS) + RANKS.index(card.rank)
 
 
 def action_to_card(action: int) -> Card:
@@ -148,12 +148,6 @@ class ComboAction:
 
     cards: frozenset[Card]
     wild: int | None = None
-
-
-def _play_identity(play: Any) -> tuple[frozenset[Card], int | None]:
-    """An engine play's identity for the combo block: its card-set and its
-    wildcard value (absent on every play of an engine without wildcards)."""
-    return frozenset(play.cards), getattr(play, "wild", None)
 
 
 def _walk(node: Any) -> Iterator[Any]:
@@ -309,7 +303,7 @@ class ActionSpace:
         self.num_distinct_actions = self._combo_base + combo_count
         self._name_ids = {v: i for i, v in enumerate(names)}
         self._offering_ids = {v: i for i, v in enumerate(offering)}
-        self._combo_ids = {_play_identity(p): i for i, p in enumerate(combos)}
+        self._combo_ids = {play_identity(p): i for i, p in enumerate(combos)}
         assert len(self._combo_ids) == len(combos), "combo play identities must be unique"
 
     @staticmethod
@@ -420,10 +414,7 @@ class ActionSpace:
             combo_codec = primitives.climb_codec_function(climb_engines[0])
             if combo_codec is None:
                 universe = primitives.climb_universe_function(climb_engines[0])()
-                combos = sorted(
-                    universe,
-                    key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
-                )
+                combos = action_order(universe)
         if joint_engines:
             # Corpus-first guards, all loud (issue #139 records the deferrals):
             # the combo block serves one subset universe per game, so a game
@@ -525,7 +516,7 @@ class ActionSpace:
                 return self._name_base + self._name_ids[name]
             return self._offering_base + self._offering_ids[value]
         if getattr(value, "cards", None) is not None:
-            cards, wild = _play_identity(value)
+            cards, wild = play_identity(value)
             if self._combo_codec is not None:
                 if wild is not None and wild not in self._combo_codec.wilds:
                     # Shadow Guard. The Owner is the climb engine's enumerator,
@@ -556,7 +547,7 @@ class ActionSpace:
             if self._combo_codec is not None:
                 cards, wild = self._combo_codec.decode(aid - self._combo_base)
                 return ComboAction(frozenset(cards), wild)
-            return ComboAction(*_play_identity(self._combos[aid - self._combo_base]))
+            return ComboAction(*play_identity(self._combos[aid - self._combo_base]))
         raise ValueError(f"action {aid} out of range 0..{self.num_distinct_actions - 1}")
 
     def match(self, aid: int, pool: list[Any]) -> Any:
@@ -570,7 +561,7 @@ class ActionSpace:
                     c
                     for c in pool
                     if getattr(c, "cards", None) is not None
-                    and _play_identity(c) == (value.cards, value.wild)
+                    and play_identity(c) == (value.cards, value.wild)
                 ),
                 _missing,
             )

@@ -27,6 +27,14 @@ RANKS: tuple[str, ...] = ("2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q"
 _RANK_INDEX = {r: i for i, r in enumerate(RANKS)}
 
 
+def card_to_action(card: Card) -> int:
+    """A standard card's id in the OpenSpiel card block, suit-major. It is
+    stated here, beside the suit and rank orders it reads, because the
+    runtime's climb engines order their candidates by the same ids the
+    encoder assigns (`primitives.action_order`)."""
+    return SUITS.index(card.suit) * len(RANKS) + RANKS.index(card.rank)
+
+
 @dataclass(frozen=True, slots=True)
 class Deck:
     """A named deck: the ranks each suit carries (high to low is set by the
