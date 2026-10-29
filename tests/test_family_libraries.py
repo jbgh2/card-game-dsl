@@ -1383,9 +1383,11 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # library's OWN definitions are called, fed by the library alone: no
     # bare reference resolves against it, it gates one refusal's wording
     # (`_refuse_bare_always`), and a game's definition reached by name is
-    # the `call` column's leak.
+    # the `call` column's leak. `shapes` is the catalogue's row labels, a
+    # subset of `enums` (where a bare label resolves), read for one
+    # refusal's wording.
     game_fed = {f.name for f in fields(_Categories)} - {
-        "locals", "functions", "flavor", "definitions", "rule_clause"
+        "locals", "functions", "flavor", "definitions", "rule_clause", "shapes"
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():
@@ -1729,14 +1731,14 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
     "ClimbRound.source_zone": (
         "move_type m {{ effect {{ round climb play_combination from actor "
         "over all players source {read} into pile "
-        "combinations bigtwo_lead_options follows bigtwo_follows until true }} }}",
+        "combinations tichu_lead_options follows tichu_follows until true }} }}",
         "hand",
         None,
     ),
     "ClimbRound.play_zone": (
         "move_type m {{ effect {{ round climb play_combination from actor "
         "over all players source pile into {read} "
-        "combinations bigtwo_lead_options follows bigtwo_follows until true }} }}",
+        "combinations tichu_lead_options follows tichu_follows until true }} }}",
         "hand",
         None,
     ),
@@ -2583,7 +2585,7 @@ _INTRODUCE: tuple[_Site, ...] = (
         "HostedPoll", "shared", True,
         "legal_moves: [play_combination]\n"
         "    round climb play_combination from 0 over all players source hand "
-        "into pile combinations president_lead_options follows president_follows "
+        "into pile combinations tichu_lead_options follows tichu_follows "
         "until true before asking shared { score[shared] := 1 }",
         fresh=True,
     ),

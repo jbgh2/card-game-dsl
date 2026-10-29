@@ -1,0 +1,1 @@
+shape_named_card.cardlang:58:8: error: `Dog` is no shape part — a part is a count and a noun (`1 card`, `2 of a kind`, `5 in sequence`, `5 cards`); a shape naming a card is not one the catalogue declares yet, issue #989

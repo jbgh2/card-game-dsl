@@ -384,6 +384,9 @@ def play_game(
     rs.rule_index = {r.name: r for r in game.rules}
     rs.move_type_index = {m.name: m for m in game.move_types}
     rs.function_index = {f.name: f for f in game.functions}
+    rs.deck_name = game.deck
+    rs.catalogues = {c.name: c for c in game.catalogues}
+    rs.rank_sequence = game.rank_sequence.ranks if game.rank_sequence is not None else ()
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:

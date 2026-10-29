@@ -57,7 +57,7 @@ domain:          the Builtin members of each clause gate, and the node members:
                  or suit string are type-layer gates, told through the
                  splice's origin stamp (tests/test_library_type_gates.py).
 registry:        gate members: `typecheck.RANKING_GATED_FUNCS`,
-                 `RANKING_GATED_WINNERS`, `RANKING_GATED_CLIMB_QUERIES`;
+                 `RANKING_GATED_WINNERS`;
                  `builtins.functions.TRICK_ORDER_GATED_FUNCS`,
                  `TRICK_ORDER_EXCLUDED_FUNCS`, `BOARD_ONLY_CALL_FUNCS`,
                  `DECK_ONLY_CALL_FUNCS`, `TRICK_WINNER_NAMES`,
@@ -131,7 +131,6 @@ from cardlang.parse import parse_library, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import walled_namespace_of
 from cardlang.typecheck import (
-    RANKING_GATED_CLIMB_QUERIES,
     RANKING_GATED_FUNCS,
     RANKING_GATED_WINNERS,
     RANKING_TRICK_ORDER_TWINS,
@@ -556,13 +555,12 @@ def _corpus_witness(member: str) -> str:
 @dataclass(frozen=True)
 class RankingCase:
     member: str
-    position: str  # "call", "winner", "climb"
+    position: str  # "call", "winner"
 
 
 def _ranking_cases() -> list[RankingCase]:
     cases = [RankingCase(m, "call") for m in sorted(RANKING_GATED_FUNCS)]
     cases += [RankingCase(m, "winner") for m in sorted(RANKING_GATED_WINNERS)]
-    cases += [RankingCase(m, "climb") for m in sorted(RANKING_GATED_CLIMB_QUERIES)]
     return cases
 
 
@@ -591,16 +589,7 @@ def _ranking_game(case: RankingCase, *, ranking: bool, twin: bool = False) -> st
         if not twin and case.member in TRUMP_READING_WINNERS:
             round_text += " trump hearts"
         return _game_text(clauses, uses=False, game_fn="", tag=tag, statement=round_text)
-    # The member's own engine fills the other slot: a round pairing two
-    # engines' queries is refused at resolve, before this clause gate runs.
-    lead, follows = (
-        (case.member, PRIMITIVE_CLIMB_ENGINES[case.member])
-        if case.member in PRIMITIVE_CLIMB_LEADS
-        else (next(k for k, v in PRIMITIVE_CLIMB_ENGINES.items() if v == case.member), case.member)
-    )
-    return _game_text(
-        clauses, uses=False, game_fn="", tag=tag, statement=_climb_round(lead, follows)
-    )
+    raise AssertionError(f"no ranking-gated position {case.position!r}")
 
 
 def _rendered(text: str) -> str | None:
@@ -825,14 +814,6 @@ _SLOT_ROUNDS: dict[str, str] = {
     **{
         w: _trick_round(w) + (" trump none" if w in TRUMP_READING_WINNERS else "")
         for w in sorted(RANKING_GATED_WINNERS | TRICK_ORDER_GATED_WINNERS)
-    },
-    **{
-        q: (
-            _climb_round(q, "bigtwo_follows")
-            if q in PRIMITIVE_CLIMB_LEADS
-            else _climb_round("bigtwo_lead_options", q)
-        )
-        for q in sorted(RANKING_GATED_CLIMB_QUERIES)
     },
 }
 
@@ -1342,14 +1323,6 @@ def _round_members() -> list[NodeMember]:
                 NodeGame(no_order), NodeGame(with_order), requires=_ROUND_ZONES,
             )
         )
-        if query in RANKING_GATED_CLIMB_QUERIES:
-            members.append(
-                NodeMember(
-                    "ranking_slot", f"climb_{query}", definition, query, "ranking:",
-                    NodeGame(no_order), NodeGame(replace(_CARD, ranking=False)),
-                    requires=_ROUND_ZONES,
-                )
-            )
     return members
 
 

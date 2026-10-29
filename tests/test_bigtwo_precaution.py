@@ -15,16 +15,16 @@ property:        Every hand of a played match scores as the page says: when
                  seat alone takes every loser's penalty; every other hand
                  scores 1/2/3 per card left.
 domain:          Whole matches of `docs/games/big-two.cardlang`, every ask's
-                 live hand and standing play read where the engine receives
-                 them, every choice where the chooser makes it; the precaution
+                 live hand and standing play read where the climb round
+                 asks, every choice where the chooser makes it; the precaution
                  judged on the seat asked just before the winner's last play,
                  in all three of its situations — a lead, a pass and a single
                  in a trick of singles.
 registry:        the combination oracle: tests/test_bigtwo_combinations.py
                  (`classify`, `legal_plays`), which shares nothing with the
-                 engine; turn order: the game's `direction:`.
+                 game file; turn order: the game's `direction:`.
 held by:         this differential (a Pin): the rule is written in the game
-                 file, and nothing in the engine could state it.
+                 file, and no type could state it.
 does not prove:  That the rule's reading of "singles are being played" is the
                  page's when a pass precedes the winner's own lead; this
                  module reads it so, as the game file does, and the shared
@@ -41,11 +41,9 @@ from typing import Any
 
 import pytest
 
-import cardlang.runtime.bigtwo as engine
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_source
-from cardlang.runtime import narrowing, reads
-from cardlang.runtime.bigtwo import _RANK, _SUIT, Play
+from cardlang.runtime import mechanics
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState
@@ -107,36 +105,21 @@ def _liable(asks: list[_Ask], seats: int, step: int) -> int | None:
     return before.seat if _single(held[-1]) > _single(played) else None
 
 
-def test_the_declared_card_orders_are_the_engines() -> None:
-    """The game file's `ranking:` and `suit ranking:` order singles for the
-    precaution rule; the engine orders them by its own tables. One order.
-
-    red under: swap clubs and diamonds in the game file's `suit ranking:`."""
-    game = check_source(BIG_TWO)
-    assert list(game.ranking) == sorted(_RANK, key=lambda r: _RANK[r], reverse=True)
-    assert game.suit_ranking is not None
-    assert list(game.suit_ranking.suits) == sorted(_SUIT, key=lambda s: _SUIT[s], reverse=True)
-
-
 def test_every_hand_scores_as_the_page_says(monkeypatch: pytest.MonkeyPatch) -> None:
     """red under: the game file paying the liable seat only its own penalty."""
     game = check_source(BIG_TWO)
     step = -1 if game.direction == "counterclockwise" else 1
     seats = game.players.count
-    lead, follows = engine.bigtwo_lead_options, engine.bigtwo_follows
+    asked = mechanics.ClimbForm.candidates
     pending: list[_Ask] = []
     hand = _Hand()
     situations: dict[tuple[str, bool], int] = {}
 
-    def recorded_lead(facts: narrowing.EngineFacts, gr: reads.GameReads, cards: list[Card]) -> list[Play]:
-        pending.append(_Ask(-1, frozenset(cards), None))
-        return lead(facts, gr, cards)
-
-    def recorded_follows(
-        facts: narrowing.EngineFacts, gr: reads.GameReads, cards: list[Card], current: Play
-    ) -> list[Play]:
-        pending.append(_Ask(-1, frozenset(cards), frozenset(current.cards)))
-        return follows(facts, gr, cards, current)
+    def recorded(self: mechanics.ClimbForm, actor: int, state: Any, ctx: Any) -> list[Any]:
+        current = state["current"]
+        cards = self.hands[actor].cards
+        pending.append(_Ask(-1, frozenset(cards), None if current is None else frozenset(current.cards)))
+        return asked(self, actor, state, ctx)
 
     rng = random.Random(0)
 
@@ -183,9 +166,8 @@ def test_every_hand_scores_as_the_page_says(monkeypatch: pytest.MonkeyPatch) -> 
             situations[(kind, liable is not None)] = situations.get((kind, liable is not None), 0) + 1
         hand.asks = []
 
-    monkeypatch.setattr(engine, "bigtwo_lead_options", recorded_lead)
-    monkeypatch.setattr(engine, "bigtwo_follows", recorded_follows)
-    for seed in range(6):
+    monkeypatch.setattr(mechanics.ClimbForm, "candidates", recorded)
+    for seed in range(10):
         scores[:] = [{p: 0 for p in range(seats)}]
         hand.asks = []
         rng.seed(seed)

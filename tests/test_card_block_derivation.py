@@ -97,6 +97,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.state import ChooserAbort
 from cardlang.runtime.values import Card
+from tests.climb_asks import SETS_CATALOGUE
 
 GAMES_DIR = Path(__file__).resolve().parent.parent / "docs" / "games"
 
@@ -214,9 +215,10 @@ ARMS: list[Arm] = [
         """    legal_moves: [play_combination]
     round climb play_combination from 0 over players where hand[player] is not empty
           source hand into trick_pile
-          combinations president_lead_options follows president_follows
+          combinations sets follows beats
           until (any player where hand[player] is empty)
     move all cards from trick_pile to pile[winner]""",
+        move_types=SETS_CATALOGUE,
     ),
     # --- execute._select_from / _select_filtered / _select_joint ------------
     Arm(

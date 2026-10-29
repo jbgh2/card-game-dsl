@@ -429,12 +429,14 @@ def test_a_move_type_may_be_named_like_its_row(stake: str) -> None:
 def _climb_actions_by_game() -> list[tuple[str, str]]:
     """Every own action of every climb engine a registered game plays, beside
     that game's file: the engines from the games, the actions from the
-    registry (`primitives.climb_actions`)."""
+    engine's kind (`primitives.engine_actions`)."""
     cells: list[tuple[str, str]] = []
     for file_name in sorted(REGISTERED.values()):
         game = check_dsl((GAMES / file_name).read_text(), file_name)
-        engines = sorted({nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)})
-        cells += [(file_name, action) for engine in engines for action in primitives.climb_actions(engine)]
+        engines = {nd.engine for nd in _walk(game) if isinstance(nd, n.ClimbRound) and nd.engine is not None}
+        cells += sorted(
+            {(file_name, action) for engine in engines for action in primitives.engine_actions(engine)}
+        )
     return cells
 
 
@@ -578,8 +580,8 @@ def test_move_type_of_names_exactly_the_ids_a_move_type_minted(short_name: str) 
     then stands for a move type)."""
     game, space = load(str(GAMES / REGISTERED[short_name]))
     move_types = {mt.name for mt in game.move_types}
-    engines = {nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)}
-    tokens = {action for engine in engines for action in primitives.climb_actions(engine)}
+    engines = {nd.engine for nd in _walk(game) if isinstance(nd, n.ClimbRound) and nd.engine is not None}
+    tokens = {action for engine in engines for action in primitives.engine_actions(engine)}
     for aid in _ids_before_combinations(space):
         block = space.block_of(aid)
         named = space.move_type_of(aid)

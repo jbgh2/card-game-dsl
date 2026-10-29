@@ -1,0 +1,1 @@
+shape_run_of.cardlang:58:13: error: a run is written `5 in sequence` — the shape reads the game's `sequence:`

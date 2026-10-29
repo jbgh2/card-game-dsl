@@ -134,7 +134,7 @@ def regime(game: n.Game) -> Regime:
     no entries (declared, and every Primitive call in the game is therefore
     refused). The empty block is a real declaration — "this game borrows no
     Python" — the way an empty declared-reads row is
-    (`reads.PRIMITIVE_READS`, president.py's row)."""
+    (`reads.PRIMITIVE_READS`)."""
     return Regime.LEGACY if game.primitives is None else Regime.DECLARED
 
 
@@ -526,6 +526,9 @@ UNDECLARABLE_TYPE_CONSTRUCTORS: dict[str, str] = {
     "TLine": "a board line, produced by `lines(k)` alone (issue #547)",
     "TDir": "the board-minted direction domain — a board-frame token "
     "(issue #547)",
+    "TCombination": "a climbing play, which only a follows function and the "
+    "helpers it passes one to hold (decisions.md \"Combination Catalogues\"); "
+    "designed constraint",
 }
 
 

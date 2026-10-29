@@ -1,19 +1,20 @@
-"""The Big Two combination engine held to Pagat's basic game by an independent oracle.
+"""Big Two's declared plays held to Pagat's basic game by an independent oracle.
 
 `classify` is a validator written from the rules source
 (https://www.pagat.com/climbing/bigtwo.html, "Playable Combinations") that
-never calls the engine it judges: given a card-set it answers which
+never reads the game file it judges: given a card-set it answers which
 combination it is and a strength that orders it against every other
 combination of the same size, or None. The differential runs both directions
 over every subset of sampled hands:
 
-- **completeness** — every card-set the oracle accepts is offered by the
-  engine's lead query (no legal play withheld), and on the match's opening
+- **completeness** — every card-set the oracle accepts is offered at a lead
+  by the game's Declared Engine (its `combinations big_two` catalogue and
+  `big_two_follows`; no legal play withheld), and on the match's opening
   lead every legal combination holding the 3♦ is offered;
-- **soundness** — every play the engine offers is a combination of the kind
-  it claims, offered once;
-- **follows** — the engine's legal follows over a standing play are exactly
-  the hand's combinations the oracle says beat it;
+- **soundness** — every play offered is a combination of the shape it
+  claims, offered once;
+- **follows** — the legal follows over a standing play are exactly the
+  hand's combinations the oracle says beat it;
 - **live** — across whole matches of the game file, every lead and follow
   the climbing round asks for is the oracle's set on the live hand and
   standing play, and every hand's opening lead is the 3♦ holder's.
@@ -24,20 +25,21 @@ drawing from narrowed decks.
 
 What a green here does not prove: nothing about the climbing ring (who is
 asked, when a trick ends — `tests/test_round_forms.py` and the pass witness
-in `tests/test_playout_bigtwo.py`), nothing about the action-id bijection (`tests/test_bigtwo_universe.py`
-pins the universe), and nothing about play order in live games (the goldens).
+in `tests/test_playout_bigtwo.py`), nothing about the action-id bijection
+(`tests/test_declared_engine.py` pins the universe against the frozen ids),
+and nothing about play order in live games (the goldens).
 
 Completeness ledger:
   domain      : every subset of a hand of size 1, 2, 3, 5 — Big Two has no
                 four-card play and nothing larger than five (Pagat) — so the
                 candidate domain is closed and enumerated whole per hand.
   oracle      : `classify`, written from the page, sharing no table or
-                function with `cardlang/runtime/bigtwo.py`.
-  held by     : this differential (a Pin), the engine having no type that
+                function with docs/games/big-two.cardlang.
+  held by     : this differential (a Pin), the catalogue having no type that
                 could state "every subset the rules accept".
-  red under   : any candidate the engine withholds — the one-representative-
-                per-rank enumeration this module replaced fails completeness
-                on the first sampled hand holding a rank twice.
+  red under   : any candidate the engine withholds or any comparison the
+                follows function gets wrong (tests/test_declared_engine.py
+                plants three).
 """
 
 from __future__ import annotations
@@ -45,15 +47,20 @@ from __future__ import annotations
 import itertools
 import random
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from cardlang.runtime import narrowing, reads
-from cardlang.runtime.bigtwo import ROW, Play, bigtwo_follows, bigtwo_lead_options, bigtwo_universe
-from cardlang.runtime.state import RuntimeState, ZoneStore
-from cardlang.runtime.values import RANKS, SUITS, Card, Seating
+from cardlang.ast import nodes as n
+from cardlang.pipeline import check_source
+from cardlang.resolve import _walk
+from cardlang.runtime import declared, driver, mechanics
+from tests import climb_asks
+from cardlang.runtime.values import RANKS, SUITS, Card, Combination
+
+BIG_TWO = Path(__file__).resolve().parent.parent / "docs" / "games" / "big-two.cardlang"
 
 # ---------------------------------------------------------------------------
 # The oracle: the page's rules, restated without the engine's tables
@@ -72,7 +79,7 @@ _SUIT_ORDER = {"spades": 4, "hearts": 3, "clubs": 2, "diamonds": 1}
 _NATURAL = "A 2 3 4 5 6 7 8 9 10 J Q K A".split()
 # "In ascending order they are: straight, flush, full house, four of a kind,
 # straight flush."
-_TYPE = {"straight": 1, "flush": 2, "fullhouse": 3, "quads": 4, "straightflush": 5}
+_TYPE = {"straight": 1, "flush": 2, "full_house": 3, "quads": 4, "straight_flush": 5}
 
 
 def _straight_top(ranks: list[str]) -> int | None:
@@ -108,7 +115,7 @@ def classify(cards: frozenset[Card]) -> tuple[str, tuple[int, ...]] | None:
         top_card = next(c for c in cs if c.rank == _NATURAL[top])
         # "When the ranks are the same, the suit of the top card determines";
         # straight flushes: "the rank of the highest card … then … the higher suit"
-        kind = "straightflush" if len(suits) == 1 else "straight"
+        kind = "straight_flush" if len(suits) == 1 else "straight"
         return kind, (_TYPE[kind], top, _SUIT_ORDER[top_card.suit])
     if len(suits) == 1:
         # "A flush in a higher suit beats a flush in a lower suit, irrespective of
@@ -118,7 +125,7 @@ def classify(cards: frozenset[Card]) -> tuple[str, tuple[int, ...]] | None:
     shape = sorted(ranks.values())
     if shape == [2, 3]:
         triple = next(r for r, k in ranks.items() if k == 3)
-        return "fullhouse", (_TYPE["fullhouse"], _ORDER[triple])
+        return "full_house", (_TYPE["full_house"], _ORDER[triple])
     if shape == [1, 4]:
         # "all four cards of one rank, plus any fifth card"
         four = next(r for r, k in ranks.items() if k == 4)
@@ -161,20 +168,22 @@ def _hands() -> Iterator[list[Card]]:
         yield rng.sample([c for c in DECK if c.suit in two], 13)
 
 
-def _bundles(opened: bool) -> tuple[narrowing.EngineFacts, reads.GameReads]:
-    """The bundles a Big Two climb query receives, built for real: the row's
-    one state read is `opened`."""
-    from cardlang.ast import nodes as n
-
-    decls = (n.ZoneDecl(name="hand", index="player", type_ref=n.TypeRef(name="Hand")),)
-    rs = RuntimeState(Seating(4), ZoneStore(decls, (0, 1, 2, 3)), random.Random(0))
-    rs.push_frame()
-    rs.declare("opened", False, opened)
-    return narrowing.bind(rs, None, ROW)
+def _asker(opened: bool) -> Callable[[list[Card], Combination | None], list[Combination]]:
+    """The game's offer for a hand against a standing play (None at a
+    lead), with `opened` set as given."""
+    ask = climb_asks.asker(BIG_TWO, opened=opened)
+    return lambda hand, standing: ask(hand, standing, ())
 
 
-def _offered(plays: list[Play]) -> Counter[frozenset[Card]]:
+def _offered(plays: list[Combination]) -> Counter[frozenset[Card]]:
     return Counter(frozenset(p.cards) for p in plays)
+
+
+def _universe() -> list[Combination]:
+    game = check_source(str(BIG_TWO))
+    (engine,) = {nd.engine for nd in _walk(game) if isinstance(nd, n.ClimbRound)}
+    assert isinstance(engine, n.DeclaredEngine)
+    return list(declared.game_universe(game, engine).plays)
 
 
 # ---------------------------------------------------------------------------
@@ -231,10 +240,10 @@ def test_every_combination_a_hand_holds_is_offered_once() -> None:
     """Completeness and soundness of the lead query (the open lead, any
     combination): exactly the oracle's set, each card-set once, each at the
     oracle's kind."""
-    bundles = _bundles(opened=True)
+    ask = _asker(opened=True)
     for hand in _hands():
         expected = legal_plays(hand)
-        plays = bigtwo_lead_options(*bundles, hand)
+        plays = ask(hand, None)
         offered = _offered(plays)
         dup = [k for k, n in offered.items() if n > 1]
         assert not dup, f"offered twice: {dup}"
@@ -243,28 +252,28 @@ def test_every_combination_a_hand_holds_is_offered_once() -> None:
         assert not missing, f"withheld {len(missing)} legal plays, e.g. {sorted(missing, key=len)[:3]}"
         assert not extra, f"offered {len(extra)} non-combinations, e.g. {list(extra)[:3]}"
         for p in plays:
-            assert p.kind == expected[frozenset(p.cards)][0], p
+            assert p.shape == expected[frozenset(p.cards)][0], p
 
 
 def test_the_opening_lead_offers_every_combination_holding_the_three_of_diamonds() -> None:
     """Pagat: the 3♦ "must be played, either alone or as part of a legal
     combination" — every such combination, the single 3♦ among them."""
     three = Card("3", "diamonds")
-    bundles = _bundles(opened=False)
+    ask = _asker(opened=False)
     rng = random.Random(9620)
     threes_first = [c for c in DECK if c.rank in {"3", "4", "5", "6", "7"}]
     for pool in [DECK] * 40 + [threes_first] * 40:
         rest = [c for c in pool if c != three]
         hand = [three, *rng.sample(rest, 12)]
         expected = {k for k in legal_plays(hand) if three in k}
-        offered = _offered(bigtwo_lead_options(*bundles, hand))
+        offered = _offered(ask(hand, None))
         assert set(offered) == expected
         assert frozenset({three}) in offered
 
 
 def test_legal_follows_are_exactly_the_combinations_that_beat_the_standing_play() -> None:
-    universe = {frozenset(p.cards): p for p in bigtwo_universe()}
-    bundles = _bundles(opened=True)
+    universe = {frozenset(p.cards): p for p in _universe()}
+    ask = _asker(opened=True)
     rng = random.Random(9621)
     for hand in _hands():
         held = set(hand)
@@ -272,20 +281,20 @@ def test_legal_follows_are_exactly_the_combinations_that_beat_the_standing_play(
         outside = [p for k, p in universe.items() if not (k & held)]
         for standing in rng.sample(outside, 30):
             kind, power = classify(frozenset(standing.cards)) or ("", ())
-            assert kind == standing.kind, standing
+            assert kind == standing.shape, standing
             expected = {
                 k for k, (_, s) in mine.items() if len(k) == len(standing.cards) and s > power
             }
-            offered = _offered(bigtwo_follows(*bundles, hand, standing))
+            offered = _offered([p for p in ask(hand, standing)])
             assert set(offered) == expected, (standing, set(offered) ^ expected)
 
 
 def test_every_universe_play_is_the_combination_it_names() -> None:
     """The action universe's soundness against the oracle: each of its plays
     classifies as the kind it carries."""
-    for p in bigtwo_universe():
+    for p in _universe():
         found = classify(frozenset(p.cards))
-        assert found is not None and found[0] == p.kind, p
+        assert found is not None and found[0] == p.shape, p
 
 
 def test_every_live_ask_of_a_played_match_offers_the_rules_set(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,45 +303,38 @@ def test_every_live_ask_of_a_played_match_offers_the_rules_set(monkeypatch: pyte
     oracle on the live hand and standing play — and every hand's opening lead
     is made by the 3♦'s holder, offered exactly its combinations holding it.
 
-    red under: the one-representative-per-rank enumeration (completeness
-    fails on the first live hand holding a rank twice)."""
-    import cardlang.runtime.bigtwo as engine
-    from cardlang.pipeline import check_source
-    from cardlang.runtime.driver import play_game
-
+    red under: any planted fault of tests/test_declared_engine.py's."""
     three = Card("3", "diamonds")
-    lead, follows = engine.bigtwo_lead_options, engine.bigtwo_follows
     asks = {"lead": 0, "opening": 0, "follow": 0}
+    orig = mechanics.ClimbForm.candidates
 
-    def checked_lead(facts: narrowing.EngineFacts, gr: reads.GameReads, hand: list[Card]) -> list[Play]:
-        plays = lead(facts, gr, hand)
-        expected = set(legal_plays(hand))
-        if not gr.state["opened"]:
-            assert three in hand, "the opening lead is not the 3♦'s holder's"
-            expected = {k for k in expected if three in k}
-            asks["opening"] += 1
+    def checked(self: mechanics.ClimbForm, actor: Any, state: Any, ctx: Any) -> list[Any]:
+        offered_all = orig(self, actor, state, ctx)
+        plays = [p for p in offered_all if isinstance(p, Combination)]
+        hand = list(self.hands[actor].cards)
+        current = state["current"]
         offered = _offered(plays)
-        assert set(offered) == expected and max(offered.values()) == 1
-        asks["lead"] += 1
-        return plays
+        assert all(k == 1 for k in offered.values())
+        if current is None:
+            expected = set(legal_plays(hand))
+            if not ctx.rs.get("opened"):
+                assert three in hand, "the opening lead is not the 3♦'s holder's"
+                expected = {k for k in expected if three in k}
+                asks["opening"] += 1
+            assert set(offered) == expected
+            asks["lead"] += 1
+        else:
+            found = classify(frozenset(current.cards))
+            assert found is not None and found[0] == current.shape
+            expected = {
+                k for k, (_, s) in legal_plays(hand).items() if len(k) == len(current.cards) and s > found[1]
+            }
+            assert set(offered) == expected
+            asks["follow"] += 1
+        return offered_all
 
-    def checked_follows(
-        facts: narrowing.EngineFacts, gr: reads.GameReads, hand: list[Card], current: Play
-    ) -> list[Play]:
-        plays = follows(facts, gr, hand, current)
-        found = classify(frozenset(current.cards))
-        assert found is not None and found[0] == current.kind
-        expected = {
-            k for k, (_, s) in legal_plays(hand).items() if len(k) == len(current.cards) and s > found[1]
-        }
-        offered = _offered(plays)
-        assert set(offered) == expected and all(n == 1 for n in offered.values())
-        asks["follow"] += 1
-        return plays
-
-    monkeypatch.setattr(engine, "bigtwo_lead_options", checked_lead)
-    monkeypatch.setattr(engine, "bigtwo_follows", checked_follows)
-    game = check_source(Path(__file__).resolve().parent.parent / "docs" / "games" / "big-two.cardlang")
+    monkeypatch.setattr(mechanics.ClimbForm, "candidates", checked)
+    game = check_source(str(BIG_TWO))
     for seed in range(4):
-        play_game(game, random.Random(seed))
+        driver.play_game(game, random.Random(seed))
     assert asks["opening"] > 0 and asks["lead"] > asks["opening"] and asks["follow"] > 0, asks

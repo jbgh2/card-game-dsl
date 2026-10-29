@@ -16,7 +16,7 @@ from cardlang.runtime import builtins, observe, primitives, reads, subsets
 from cardlang.runtime.chooser import decide
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, Move, Zone, elements
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import Card, Combination
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
 
@@ -341,6 +341,14 @@ def _member_eval(e: n.Member, ctx: Ctx) -> Any:
         # ("side"->"suit", "kind"->"rank"). One source (rs.axis_attr, set by the
         # driver) so member access matches the flavor-keyed field table.
         return getattr(obj, ctx.rs.axis_attr.get(e.field, e.field))
+    if isinstance(obj, Combination):
+        if e.field == "shape":
+            return obj.shape
+        raise ShadowGuardError(
+            "typecheck's Member arm, which refuses every field of a Combination "
+            "but `shape` (`catalogue.COMBINATION_FIELDS`)",
+            f"a play's `{e.field}` was read",
+        )
     return _member(obj, e.field)
 
 
@@ -480,7 +488,7 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             # float (math.ceil loses precision at magnitude).
             return -((-left) // right)
         case "in":
-            return left in elements(right)
+            return left in _card_source(e.right, right)
         case _:
             raise AssertionError(f"unknown operator '{e.op}'")
 
@@ -576,9 +584,23 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
             raise AssertionError(f"unknown player-query kind '{e.kind}'")
 
 
+def _card_source(source: n.Expr, value: Any) -> Any:
+    """A source's elements (`state.elements`), refused when the source is
+    an absent optional: the follows function's `standing` at a lead, read
+    before it is tested."""
+    if value is None:
+        name = source.name if isinstance(source, n.NameRef) else "this value"
+        raise OwnerGuardError(
+            f"`{name}` is none here, and its cards were read — test it first, "
+            f"`{name} is none or …` (issue #990 holds the checker's refusal of "
+            f"an optional read untested)"
+        )
+    return elements(value)
+
+
 def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
-    cards = list(elements(source))
+    cards = list(_card_source(e.source, source))
     if e.where is None:  # the bare `number of cards in <zone>` size idiom
         assert e.kind == "count"  # parse builds a pred-less query only for that idiom
         return len(cards)
@@ -783,7 +805,7 @@ def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
 
 def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
-    items = list(elements(source))
+    items = list(_card_source(e.source, source))
     if e.where is not None:
         items = [
             x

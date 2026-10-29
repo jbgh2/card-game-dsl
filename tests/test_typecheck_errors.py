@@ -320,7 +320,7 @@ def test_every_type_union_member_is_classified_by_the_member_arm() -> None:
 
     # Types carrying user-accessible fields: each has its own arm that checks
     # the field name against the declared set.
-    fielded = {"TCard"}
+    fielded = {"TCard", "TCombination"}
     # Its own arm, with an aggregate-instead message.
     collection = {"TCollection"}
     # Structural: unwrapped to its payload before the chain, so a bare

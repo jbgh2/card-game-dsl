@@ -14,7 +14,8 @@ property:   a round written in family-library text names in each query slot
             reference namespace a library reaches admits a Primitive, so
             these slots and the call position are the whole class.
 domain:     query slot x name. The slot axis is every `_REFERENCE_SLOTS` row
-            whose namespace is `primitive_query`. The name axis is every
+            whose namespace may hold a registered round query
+            (`resolve._PRIMITIVE_QUERY_NAMESPACES`). The name axis is every
             member of every `WALLED_NAMESPACES` set, every trick-winner name
             (`VALUE_NAMES`), the alphabetically first call-position Primitive
             (`PRIMITIVE_CALL_FUNCS`) and a name nothing declares. Each cell
@@ -24,8 +25,7 @@ domain:     query slot x name. The slot axis is every `_REFERENCE_SLOTS` row
             offers. The expected column is the oracle's verdict plus the
             Primitive rule, so the grid reads each slot's registry by
             execution rather than restating it; each host declares the
-            clauses every query its slots accept reads (Big Two's own
-            `ranking: twos high`), so the oracle's clean verdict is the
+            clauses every query its slots accept reads, so the oracle's clean verdict is the
             slot's. Only `winner` holds names a library may write: every
             climb query and every early-termination predicate is a
             Primitive, so a family library holds no climbing round and no
@@ -37,9 +37,8 @@ domain:     query slot x name. The slot axis is every `_REFERENCE_SLOTS` row
             every `closed:` row of `_LIBRARY_UNSWEPT`, with the Primitives.
             The misuse probes run the routes and neighbours a designer
             reaches for: a library procedure holding the round, Getaway's
-            own trick as a library, and importers whose clauses a game-clause
-            gate on climb queries reads (a Trick Order, no
-            `ranking:`).
+            own trick as a library, and an importer whose clauses a
+            game-clause gate on climb queries reads (a Trick Order).
 registry:   slots: `cardlang.resolve._REFERENCE_SLOTS`; each slot's accepted
             names: `cardlang.resolve._ROUND_QUERY_REGISTRIES`; Primitives:
             `cardlang.builtins.functions.PRIMITIVE_CALL_FUNCS`,
@@ -81,7 +80,12 @@ from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import WALLED_NAMESPACES
-from cardlang.resolve import _LIBRARY_UNSWEPT, _REFERENCE_SLOTS, _library_slot_names
+from cardlang.resolve import (
+    _LIBRARY_UNSWEPT,
+    _PRIMITIVE_QUERY_NAMESPACES,
+    _REFERENCE_SLOTS,
+    _library_slot_names,
+)
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
@@ -93,7 +97,7 @@ _PRIMITIVES = frozenset(PRIMITIVE_CALL_FUNCS).union(*WALLED_NAMESPACES.values())
 
 # The slot axis, from the registry.
 _SLOTS: tuple[tuple[type, str], ...] = tuple(
-    slot for slot, namespace in _REFERENCE_SLOTS.items() if namespace == "primitive_query"
+    slot for slot, namespace in _REFERENCE_SLOTS.items() if namespace in _PRIMITIVE_QUERY_NAMESPACES
 )
 
 _UNKNOWN = "frobnicate"
@@ -183,19 +187,23 @@ def _between(game: str, first: str, last: str) -> str:
     return text[text.index(first) : text.index(last) + len(last)]
 
 
-# Big Two declares its own rank order, so every climb query the slot accepts
-# is admitted by the host's clauses: the oracle's verdict is then the slot's,
-# not the `ranking:` gate's. Deleting the line makes an importer with none.
-_CLIMB_RANKING = "  ranking: twos high\n"
+# Tichu's queries carry their own orders and read no `ranking:`, which the
+# game does not declare: an importer with none.
 _CLIMB = _Host(
-    "big-two.cardlang",
-    _between("big-two.cardlang", "        round climb play_combination from leader\n", "        leader := winner\n"),
+    "tichu.cardlang",
+    _between(
+        "tichu.cardlang",
+        "        round climb play_combination from leader\n",
+        "          leader := winner\n        }\n",
+    ),
     "discard",
-    {"combos_fn": "bigtwo_lead_options", "follows_fn": "bigtwo_follows"},
+    {"combos_fn": "tichu_lead_options", "follows_fn": "tichu_follows"},
     "round climb play_combination from actor over players where hand[player] "
     "is not empty source hand into trick_pile combinations {combos_fn} "
     "follows {follows_fn} until (any player where hand[player] is empty)",
-    after="    opened := true\n",
+    # The Dragon's gift is offered in the lifted trick body; the host still
+    # offers it, so its two move types stay reachable.
+    after="    if tichu_dragon_won() { offer to leader one of [dragon_to_left, dragon_to_right] }\n",
 )
 _TRICK = _Host(
     "getaway.cardlang",
@@ -348,8 +356,8 @@ def test_the_hosts_round_as_the_game_writes_it_checks_clean(form: type) -> None:
 
 def test_the_slot_axis_is_every_round_query_slot() -> None:
     """The hosts, the defaults and `_ROUND_QUERY_REGISTRIES` all cover exactly
-    the registry's `primitive_query` slots, and every name a slot accepts is on
-    the name axis. red under: add a `primitive_query` row to
+    the registry's slots that may hold a registered round query, and every
+    name a slot accepts is on the name axis. red under: add a `primitive_query` row to
     `_REFERENCE_SLOTS`, or a name to a round-query registry outside
     `VALUE_NAMES` and `WALLED_NAMESPACES`."""
     from cardlang.resolve import _ROUND_QUERY_REGISTRIES
@@ -429,11 +437,7 @@ def test_a_tochoo_library_is_refused_for_its_early_predicate(
 _CLAUSE_TRIGGERS: dict[str, tuple[dict[str, str | None], tuple[str, str]]] = {
     "a Trick Order": (
         _CLIMB.defaults,
-        ("\ngame BigTwo {", "\nfunction is_trump(card : Card) = false\ngame BigTwo {"),
-    ),
-    "no ranking": (
-        {"combos_fn": "president_lead_options", "follows_fn": "president_follows"},
-        (_CLIMB_RANKING, ""),
+        ("\ngame Tichu {", "\nfunction is_trump(card : Card) = false\ngame Tichu {"),
     ),
 }
 
@@ -501,8 +505,8 @@ def test_a_gated_call_inside_a_refused_round_asks_the_importer_nothing(
     assert round_text.count(until) == 1
     _patch(monkeypatch, _CLIMB.library_text(round_text.replace(until, gated)))
     text = _CLIMB.game_text(uses=True, game_local_round=None)
-    assert text.count(_CLIMB_RANKING) == 1
-    got = _diagnostics(text.replace(_CLIMB_RANKING, ""), _CLIMB.game)
+    assert "\n  ranking:" not in text
+    got = _diagnostics(text, _CLIMB.game)
     assert got == [
         (_LIBRARY_FILE, _primitive_rule(name)) for name in _CLIMB.defaults.values() if name
     ]

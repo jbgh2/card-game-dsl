@@ -273,6 +273,28 @@ class Card:
 
 
 @dataclass(frozen=True, slots=True)
+class Combination:
+    """A climbing play of a Declared Engine (decisions.md "Combination
+    Catalogues"): the label of the catalogue row it is, and its cards in deck
+    order. Its identity, which its action id is a function of, is its card
+    multiset; `primitives.ClimbPlay`'s behaviours all take their defaults, since
+    no row of a catalogue declares one yet (issue #989)."""
+
+    shape: str
+    cards: tuple[Card, ...]
+    wild: int | None = None
+    ends_trick: bool = False
+    compelled: bool = False
+    announce: tuple[str, ...] = ()
+    interrupt: bool = False
+
+    @property
+    def kind(self) -> str:
+        """`primitives.ClimbPlay.kind`: the play's shape."""
+        return self.shape
+
+
+@dataclass(frozen=True, slots=True)
 class CardSet:
     """A joint-selection [[candidate]]: one subset of a [[transfer]]'s source pool
     (`where jointly` — decisions.md "Joint-predicate selection"). Exposes
@@ -419,8 +441,8 @@ def expand_ranking_convention(convention: str, deck_name: str) -> tuple[str, ...
 def rank_strength(rank_index: Mapping[str, int], rank: str, reader: str) -> int:
     """A rank's strength under the game's declared `ranking:` — the ONE
     lookup every consumer of `rs.rank_index` routes through (the two Builtin
-    winners, `rank_value`, Belote's winner, cribbage's run/show scorers, the
-    President climb queries; the census is typecheck's `RANKING_GATED_*`,
+    winners, `rank_value`, Belote's winner, cribbage's run/show scorers; the
+    census is typecheck's `RANKING_GATED_*`,
     and tests/test_trump_slot_class.py drives every member through here).
 
     A rank the order does not rank is the game author's: `ranking:` may be a
@@ -431,7 +453,7 @@ def rank_strength(rank_index: Mapping[str, int], rank: str, reader: str) -> int:
     runtime's channel, naming the reader (the DSL-visible function), the
     rank, and the declared order, so the fix is in the message. An EMPTY
     order is a different case: typecheck's `RANKING_GATED_FUNCS` /
-    `RANKING_GATED_WINNERS` / `RANKING_GATED_CLIMB_QUERIES` gates refuse
+    `RANKING_GATED_WINNERS` gates refuse
     every reader in a game that declares no `ranking:`, so a reader meeting
     no order at all is an engine gap — the Shadow Guard behind those gates,
     addressed to the maintainer."""
@@ -440,8 +462,7 @@ def rank_strength(rank_index: Mapping[str, int], rank: str, reader: str) -> int:
         return strength
     if not rank_index:
         raise ShadowGuardError(
-            "typecheck RANKING_GATED_FUNCS / RANKING_GATED_WINNERS / "
-            "RANKING_GATED_CLIMB_QUERIES",
+            "typecheck RANKING_GATED_FUNCS / RANKING_GATED_WINNERS",
             f"{reader} read a rank strength in a game with no `ranking:` — "
             f"the ranking gates admit no strength reader without one",
         )

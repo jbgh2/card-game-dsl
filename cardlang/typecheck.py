@@ -125,6 +125,8 @@ from cardlang.primitives_block import (
     implementation_sig,
     regime,
 )
+from cardlang.catalogue import COMBINATION_FIELDS
+from cardlang.catalogue_pass import SHAPE_ENUM, shape_labels
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
@@ -135,6 +137,7 @@ from cardlang.types import (
     TBoolean,
     TCard,
     TCell,
+    TCombination,
     TCollection,
     TDir,
     TEnum,
@@ -185,6 +188,11 @@ _ENUM_TYPES = frozenset({"Suit", "Rank", "SeatDirection"})
 # validates every declaration's type_name against this set, so a typo ('Integar') is a diagnostic, never a silent
 # TAny (closed-domain completeness, decisions.md).
 KNOWN_TYPE_NAMES: frozenset[str] = frozenset(_SCALAR_TYPES) | _ENUM_TYPES
+
+# The climbing play's type name (`types.TCombination`): a function parameter's
+# type only, so it is no member of `KNOWN_TYPE_NAMES`, which every declaring
+# position shares.
+COMBINATION_TYPE_NAME = "Combination"
 
 # The procedure parameter domain of whole numbers from 1 up. It is no value
 # type, since a procedure body reads the parameter as an Integer; the domain
@@ -260,10 +268,9 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #     legal. An UNANSWERED `card_strength` defaults to `rank_value(card)`
 #     and is gated by `_check_kernel_answers`' own ranking guard, which is where
 #     a Trick Order game meets this rule.
-#   climb queries, gated via RANKING_GATED_CLIMB_QUERIES at the climb
-#     round's `combinations`/`follows` slots: president_lead_options,
-#     president_follows (president.py reads facts.rank_index). NON-members:
-#     the bigtwo_* and tichu_* engines, which carry their own orders.
+#   NON-members at the climb round's `combinations`/`follows` slots: the
+#     tichu_* engine carries its own orders, and a follows function is
+#     gated where it calls a member above.
 #   NON-members elsewhere: peg_pair_points (rank equality only),
 #     on_play_off_led_suit (suit only). The Rank
 #     move-parameter domain is resolve's gate; `card_points` is gated by its
@@ -282,32 +289,24 @@ RANKING_GATED_FUNCS: frozenset[str] = frozenset(
 RANKING_GATED_WINNERS: frozenset[str] = frozenset(
     {"highest_of_led_suit", "highest_trump_or_led_suit"}
 )
-RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
-    {"president_lead_options", "president_follows"}
-)
 
 # The ranking-gated names a Trick Order replaces. Beside a Trick Order each is
 # refused in favour of the Trick Order winner, whose strengths are the game's
 # `card_strength` answer, so naming that winner instead clears this gate too. For every other member, declaring `ranking:` is the one fix,
 # and the refusal offers no other.
 RANKING_TRICK_ORDER_TWINS: frozenset[str] = (
-    RANKING_GATED_FUNCS | RANKING_GATED_WINNERS | RANKING_GATED_CLIMB_QUERIES
+    RANKING_GATED_FUNCS | RANKING_GATED_WINNERS
 ) & (TRICK_ORDER_EXCLUDED_FUNCS | TRICK_ORDER_EXCLUDED_WINNERS)
 
 
 def ranking_gated_slots(node: object) -> tuple[tuple[str, str], ...]:
     """The round slots in `node` that read `ranking:`, as (slot, name): a trick
-    round's winner in `RANKING_GATED_WINNERS`, a climbing round's query in
-    `RANKING_GATED_CLIMB_QUERIES`. The one test for the slot gate, asked by
+    round's winner in `RANKING_GATED_WINNERS`. No climbing round's slot reads
+    it: the registered engine carries its own orders, and a follows function
+    is gated where it calls a reader. The one test for the slot gate, asked by
     `_check_round_ranking` and by resolve's `uses`-line check."""
     if isinstance(node, n.TrickRound) and node.winner_fn in RANKING_GATED_WINNERS:
         return (("round winner", node.winner_fn),)
-    if isinstance(node, n.ClimbRound):
-        return tuple(
-            ("climb query", q)
-            for q in (node.combos_fn, node.follows_fn)
-            if q in RANKING_GATED_CLIMB_QUERIES
-        )
     return ()
 
 
@@ -411,6 +410,10 @@ def type_from_name(
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
         base = TEnum(name)
+    elif name == COMBINATION_TYPE_NAME:
+        # Admitted at a function parameter alone; resolve refuses the name at
+        # every other declaring position (`combination_outside_a_parameter`).
+        base = TCombination()
     else:
         base = TAny()
     return TOptional(base) if optional else base
@@ -437,6 +440,8 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
         m[rank] = TEnum(rank_enum)
     for direction in SEAT_DIRECTION_VALUES:
         m[direction] = TEnum("SeatDirection")
+    for label in shape_labels(game):
+        m[label] = TEnum(SHAPE_ENUM)
     return m
 
 
@@ -880,6 +885,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 # The content item's fields are a closed pair (flavor-keyed);
                 # `_check_expr` rejects anything else on a known-item receiver.
                 return env.item_fields.get(e.field, TAny())
+            if isinstance(_bare(obj), TCombination) and e.field == "shape":
+                # `_check_expr` refuses every other field (`COMBINATION_FIELDS`).
+                return TEnum(SHAPE_ENUM)
             return TAny()  # pronoun member access / sugar: deferred
         case n.ListLit():
             elem: Type | None = infer(e.elements[0], env)
@@ -1950,6 +1958,14 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
     because a player IS an integer seat here (`coercible(TInteger, TPlayer)`), so
     `turn is 0` and `responder is actor` keep working."""
     lbare, rbare = _bare(infer(e.left, env)), _bare(infer(e.right, env))
+    if isinstance(lbare, TCombination) and isinstance(rbare, TCombination):
+        bag.error(
+            f"two plays are compared by what is read of them — their cards "
+            f"(`cards in play`) and their shape (`play.shape`) — never as "
+            f"wholes",
+            e.span,
+        )
+        return
     if isinstance(lbare, TEnum):
         _check_enum_operand(lbare, e.right, rbare, env, bag)
         return
@@ -2005,7 +2021,13 @@ def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
         bare = _bare(infer(operand, env))
         if isinstance(bare, (TAny, TInteger)):
             continue
-        if isinstance(bare, TEnum) and bare.name == "Rank":
+        if isinstance(bare, TCombination):
+            bag.error(
+                f"'{e.op}' compares Integers, and a play is no number — "
+                f"count its cards with `number of cards in play`",
+                operand.span,
+            )
+        elif isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
                 f"'{e.op}' compares Integers — enum values have no "
                 "arithmetic order — compare strength via rank_value(...)",
@@ -2024,6 +2046,43 @@ def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
             )
 
 
+def _combination_argument(func: str, got: Type, param: Type, builtin: bool) -> str | None:
+    """The refusal of a call argument on either side of a `Combination`: a
+    play passed where another type is taken, or anything but a play passed
+    to a `Combination` parameter. None when neither side is one, or both are
+    (optionality is `_check_operand`'s). A Builtin's `TAny` parameter takes a
+    card or a zone handle (`builtins.signatures.SIGS`), never a play."""
+    got_play = isinstance(_bare(got), TCombination)
+    takes_play = isinstance(_bare(param), TCombination)
+    if got_play == takes_play or isinstance(_bare(got), TAny):
+        return None
+    if isinstance(_bare(param), TAny):
+        if not builtin:
+            return None
+        return (
+            f"`{func}` takes a card or a zone, and a play is the cards a seat "
+            f"lays down together — read one through `any card in play where ...`"
+        )
+    if takes_play:
+        return (
+            f"`{func}` takes a climbing play, and only a round holds one: its "
+            f"follows function's `play` and `standing` are passed on, never "
+            f"made — give `{func}` the play its caller was given"
+        )
+    if isinstance(_bare(param), TCard):
+        return (
+            f"`{func}` takes a card, and a play is the cards a seat lays down "
+            f"together — read one through `any card in play where ...`"
+        )
+    if isinstance(_bare(param), TCollection):
+        return (
+            f"`{func}` takes a zone or collection, and a play is neither: it "
+            f"has no top card and no order of its own — read its cards as "
+            f"`cards in play`"
+        )
+    return f"`{func}` takes {_type_name(param)}, and a play is no {_type_name(param)}"
+
+
 def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`+ - *` and rounded division: only Integers are numeric in this
     language. A concrete enum operand is the worst case for `+` — it
@@ -2039,7 +2098,13 @@ def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         bare = _bare(infer(operand, env))
         if isinstance(bare, (TAny, TInteger)):
             continue
-        if isinstance(bare, TEnum) and bare.name == "Rank":
+        if isinstance(bare, TCombination):
+            bag.error(
+                f"'{word}' expects Integer operands, and a play is no number — "
+                f"count its cards with `number of cards in play`",
+                operand.span,
+            )
+        elif isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
                 f"'{word}' expects Integer operands — enum values have no "
                 "numeric value — compare strength via rank_value(...)",
@@ -2147,6 +2212,15 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         )
         return
     right_t = infer(e.right, env)
+    if isinstance(_bare(right_t), TCombination):
+        # A card is in a climbing play when the play moves it.
+        if join(lbare, TCard()) is None:
+            bag.error(
+                f"the left-hand side of `in` a Combination is a card, got "
+                f"{_type_name(lbare)}",
+                e.span,
+            )
+        return
     if not isinstance(right_t, (TCollection, TAny)):
         bag.error(
             "the right-hand side of `in` must be a collection (a zone or "
@@ -2407,6 +2481,17 @@ def _check_card_source(
     bare_src = _bare(src_t)
     if isinstance(bare_src, TAny):
         return
+    if isinstance(bare_src, TCombination):
+        # A climbing play's cards are a card source for the queries that read
+        # them; a subset of a play is no play the catalogue names.
+        if lists_zones:
+            bag.error(
+                f"{_side(_name_of(source))} is a Combination, and a Combination is "
+                f"no subset source — a play is one set of cards; read its cards "
+                f"with `cards in`, `any card in` or `number of cards in`",
+                source.span,
+            )
+        return
     if not isinstance(bare_src, TCollection):
         # A non-collection source is wrong even when it is card-TYPED: a
         # single Card unifies with TCard, but iterating it at runtime is a
@@ -2603,6 +2688,14 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
     bare = _bare(t)
     if e.kind in ("empty", "not_empty"):
         surface = "is empty" if e.kind == "empty" else "is not empty"
+        if isinstance(bare, TCombination):
+            bag.error(
+                f"`{surface}` asks a zone or collection, and a play holds at "
+                f"least one card — at a lead no play stands, which reads "
+                f"`standing is none`",
+                e.operand.span,
+            )
+            return
         _check_operand(
             e.operand, t, _UNKEYED_COLLECTION, env, bag,
             f"`{surface}` asks a zone or collection — got {_type_name(bare)}",
@@ -2846,6 +2939,57 @@ def _check_round_actors(
         "`round … over` names the participants",
         stmt.span,
     )
+
+
+def _check_follows_signature(
+    engine: n.DeclaredEngine, stmt: n.ClimbRound, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """A Declared Engine's follows function takes the play and the play it
+    beats, `(play : Combination, standing : Combination?)`, and answers a
+    Boolean: the climb form asks it of every play a hand holds, with the
+    standing play `none` at a lead."""
+    sig = env.functions.get(engine.follows)
+    if sig is None:
+        raise ShadowGuardError(
+            "resolve._resolve_climb_engines, which pairs a catalogue only with a "
+            "function of the game",
+            f"the follows function `{engine.follows}` has no signature",
+        )
+    shape = "`(play : Combination, standing : Combination?)`"
+    name = f"`{engine.follows}`"
+    if len(sig.params) != 2:
+        bag.error(
+            f"the follows function {name} takes two parameters, the play and the "
+            f"play it beats: {shape}",
+            stmt.span,
+        )
+        return
+    play_t, standing_t = sig.params
+    if play_t != TCombination():
+        bag.error(
+            f"the follows function {name}'s first parameter is the play a hand "
+            f"holds, a `Combination`: {shape}",
+            stmt.span,
+        )
+    if standing_t == TCombination():
+        bag.error(
+            f"the follows function {name}'s second parameter is the play it "
+            f"beats, and at a lead no play stands, so it is `none` there: its "
+            f"type is `Combination?`",
+            stmt.span,
+        )
+    elif standing_t != TOptional(TCombination()):
+        bag.error(
+            f"the follows function {name}'s second parameter is the play it "
+            f"beats, a `Combination?` (`none` at a lead): {shape}",
+            stmt.span,
+        )
+    if not isinstance(_bare(sig.ret), TBoolean):
+        bag.error(
+            f"the follows function {name} answers whether the play follows, a "
+            f"Boolean, and its body is {_type_name(sig.ret)}",
+            stmt.span,
+        )
 
 
 def _check_round_ranking(
@@ -3134,6 +3278,12 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             else:
                 for arg, param in zip(args, sig.params):
                     got = infer(arg, env)
+                    combination = _combination_argument(
+                        e.func, got, param, builtin=e.func not in env.functions
+                    )
+                    if combination is not None:
+                        bag.error(combination, arg.span or e.span)
+                        continue
                     _check_operand(
                         arg, got, param, env, bag,
                         _named(env, "function", e.func, f"{e.func}()")
@@ -3288,6 +3438,24 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 noun = content_noun(env.flavor, plural=False).capitalize()
                 bag.error(
                     f"{noun} has no field '{e.field}' (its fields are {field_list})",
+                    e.span,
+                )
+        elif isinstance(bare, TCombination):
+            # A climbing play's fields are `COMBINATION_FIELDS`: its shape is
+            # read here, its cards through the card-source forms.
+            if e.field not in COMBINATION_FIELDS:
+                bag.error(
+                    f"a Combination has no field `{e.field}` — its one field is "
+                    f"`shape`, and its cards are read `cards in "
+                    f"{_name_of(e.obj) or 'play'}`",
+                    e.span,
+                )
+            elif COMBINATION_FIELDS[e.field] is None:
+                bag.error(
+                    f"a Combination's `{e.field}` is the rank a wild card in the "
+                    f"play stands for, and no row of a catalogue stands one yet — "
+                    f"issue #989 holds "
+                    f"wild cards in a combination",
                     e.span,
                 )
         elif isinstance(bare, TCollection):
@@ -3713,6 +3881,8 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             _check_round_actors(stmt, env, bag)
             _check_round_ranking(stmt, env, bag)
             _check_bool(stmt.until, env, bag, "round `until` condition")
+            if isinstance(stmt.engine, n.DeclaredEngine):
+                _check_follows_signature(stmt.engine, stmt, env, bag)
         case n.Transfer():
             _check_transfer(stmt, env, bag)
         case n.EpistemicOp():

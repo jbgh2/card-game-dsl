@@ -1,0 +1,62 @@
+// Guard: parse.py's `shape_behaviour_reject` (diagnostics.lark). A play's behaviour (a bomb interrupting) is no qualifier; it is one the
+// catalogue does not declare yet.
+game Climb {
+
+  players: 4
+  max_length: 5000
+
+  cards: standard52
+  ranking: aces high
+  sequence: A 2 3 4 5 6 7 8 9 10 J Q K A
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile
+    discard      : Discard
+  }
+
+  state {
+    score[player] : Integer = 0
+    leader        : Player? = none
+  }
+
+  phase hand_sequence repeat until (any player where score[player] >= 1) {
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 13 cards from deck to each hand
+      leader := 0
+    }
+
+    phase play {
+      legal_moves: [play_combination]
+
+      repeat until (any player where hand[player] is empty) {
+        round climb play_combination from leader
+              over players where hand[player] is not empty
+              source hand into trick_pile
+              combinations climb follows climb_follows
+              until (any player where hand[player] is empty)
+        move all cards from trick_pile to discard
+        leader := winner
+      }
+    }
+
+    phase scoring {
+      for each player p:
+        if hand[p] is empty {
+          score[p] += 1
+        }
+    }
+  }
+
+  winner: highest score
+}
+
+combinations climb {
+  bomb: 4 of a kind, interrupts
+}
+
+function climb_follows(play : Combination, standing : Combination?) =
+  standing is none or (number of cards in play) is (number of cards in standing)

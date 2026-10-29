@@ -2153,6 +2153,23 @@ WALKERS: dict[str, str] = {
     "typecheck._check_contracted_results": "test_a_library_reaching_the_games_text[contract-row-*]",
     "typecheck._check_stmt_exprs": "types a `run`'s arguments at the run site",
     "expand._expansion": "splices a procedure body: refuses nothing",
+    "resolve._HiddenReads._walk_game": (
+        "judges a Declared Engine's follows function at the asked seat: the "
+        "function is the game's own, since no library function takes a "
+        "`Combination`; a library function it calls is crossed by `reads_of`"
+    ),
+    "resolve._stamp_follows_reads": (
+        "follows a follows function's calls to stamp what it reads: refuses nothing"
+    ),
+    "resolve.stamp": (
+        "the per-round stamps of `_resolve_climb_engines` and "
+        "`_stamp_follows_reads`, over the game's own function, since no library "
+        "function takes a `Combination`"
+    ),
+    "typecheck._check_follows_signature": (
+        "types a round's follows function at the round: the game's own, since no "
+        "library function takes a `Combination`"
+    ),
 }
 
 

@@ -139,6 +139,18 @@ _PARSE_LEVEL_CASES = frozenset(
         "suit_ranking_in_ranking",
         "trick_order_retired",
         "trump_clause_retired",
+        # The Combination Shape twins: each raises in the builder, so none
+        # leaves a tree.
+        "shape_behaviour",
+        "shape_cards_in_sequence",
+        "shape_floor",
+        "shape_groups_in_sequence",
+        "shape_in_a_row",
+        "shape_named_card",
+        "shape_of_one_suit",
+        "shape_run_of",
+        "shape_with_chain",
+        "shape_with_qualifier",
     }
 )
 

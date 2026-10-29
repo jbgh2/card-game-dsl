@@ -51,13 +51,21 @@ tests/test_bridge_scoring.py and tests/test_playout_bridge.py.
 
 A sanctioned regeneration covers `bigtwo_scores.json` here and
 `president_scores.json` (tests/test_playout_president.py) on every seed they
+hold: a climb play moves its cards in card-id order (issue #251's ruled
+design), not in the order its engine generated them. The cards reach the
+discard in that order and the next gather collects them so, so every deal
+after the first trick moves. The order is pinned away from this vector, by
+tests/test_declared_engine.py.
+
+A sanctioned regeneration covers `bigtwo_scores.json` here and
+`president_scores.json` (tests/test_playout_president.py) on every seed they
 hold: an enumerated climb engine numbers its plays by their cards alone and
 offers its candidates in that id order (issue #251's ruled design, its first
 step), not in the order its generator walks a hand. The candidate sets do not
 change; Big Two's five-card ids are renumbered once and President's keep their
 places (tests/test_climb_action_ids.py). The chooser samples the list, so
 every seed's draws move from the first ask. The order is pinned away from this
-vector, by tests/test_climb_offer_order.py.
+vector, by tests/test_declared_engine.py.
 
 A sanctioned regeneration covers `bigtwo_scores.json` on every seed it
 holds: Big Two is played for money and carries Pagat's precaution rule

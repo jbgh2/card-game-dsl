@@ -17,6 +17,7 @@ from cardlang.openspiel.encoding import (
     card_to_action,
 )
 from cardlang.runtime import reads, narrowing
+from cardlang.runtime.primitives import card_multiset
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.skat import _BID_SEQUENCE
 from cardlang.runtime.tichu import ROW as TICHU_ROW
@@ -314,16 +315,16 @@ def test_existing_games_keep_the_standard_52_card_block() -> None:
 
 
 def test_combo_round_trip_and_match() -> None:
-    from cardlang.runtime.bigtwo import bigtwo_universe
+    from tests.test_bigtwo_universe import _universe
 
     space = _space("big-two.cardlang")
-    play = next(p for p in bigtwo_universe() if p.kind == "fullhouse")
+    play = next(p for p in _universe() if p.shape == "full_house")
     aid = space.encode(play)
     decoded = space.decode(aid)
     assert isinstance(decoded, ComboAction)
-    assert decoded.cards == frozenset(play.cards)
+    assert decoded.cards == card_multiset(play.cards)
     assert space.match(aid, [play, "pass"]) is play
-    assert space.to_string(aid).startswith("fullhouse[")
+    assert space.to_string(aid).startswith("full_house[")
 
 
 def test_encode_rejects_out_of_space_values() -> None:
@@ -449,7 +450,7 @@ def test_tichu_combo_codec_round_trips_engine_emissions() -> None:
             ids.add(aid)
             decoded = space.decode(aid)
             assert isinstance(decoded, ComboAction)
-            assert decoded.cards == frozenset(play.cards), play
+            assert decoded.cards == card_multiset(play.cards), play
             assert decoded.wild == play.wild, play
             assert space.match(aid, [*plays, "pass"]) is play
             checked += 1

@@ -81,25 +81,24 @@ clockwise.
 ## How the description maps to the DSL
 
 - **The hand runs fully on the kernel.** Each climbing trick is one
-  `round climb` over the game-local combination engine
-  (`president_lead_options` / `president_follows` in
-  `cardlang/runtime/president.py` — game-local like Big Two's and Tichu's,
-  because a play moves a specific computed card-set where the movement
-  vocabulary moves cards by count). The trick loop, the pile routing, the
-  finishing order, the exchange, and the scoring are DSL.
+  `round climb` over the game's own Combination Catalogue (`combinations
+  president`: one to four cards of a rank) and the follows function
+  `president_beats`. The plays and their comparison, the trick loop, the pile
+  routing, the finishing order, the exchange, and the scoring are DSL.
 - **The hand ends mid-trick by the round's `until` predicate** — the instant
   one player remains with cards — so the last holder never plays into a
   finished hand (Pagat: the hand is over when one player remains). Finishing
   order comes from the round's terminal state (`state.shed_first` /
   `state.shed_second`), folded into `out_first` / `out_second` exactly as in
   Tichu.
-- **Transparent threes live entirely in the follows query.** The climb form
-  threads the standing play but never compares plays itself, so a pure-threes
-  follow is constructed with the *standing* play's key: when it becomes the
-  standing play, the next follower's legality is computed against the rank it
-  absorbed. Its action id is just its card-set's (the same id as leading those
-  threes naturally) — what the play *means* is carried by the public trick
-  context, exactly as at a real table.
+- **Transparent threes live entirely in the follows function.** The climb
+  form threads the standing play but never compares plays itself, so
+  `president_beats` reads the rank the trick stands at off the public trick
+  pile — its highest set that is not threes — and a set of threes follows any
+  set its size: when one becomes the standing play, the next follower's
+  legality is computed against the rank it absorbed. Its action id is just its
+  card-set's (the same id as leading those threes naturally) — what the play
+  *means* is carried by the public trick context, exactly as at a real table.
 - **The exchange derives its information sets from the zone projections.**
   The Scum's give is a draw-free filtered movement (`where rank_value(card)
   is scum_top_strength`, against the hoisted highest strength in their hand —
@@ -109,7 +108,7 @@ clockwise.
   identity of the card on their own side and every bystander sees a one-card
   count — nobody learns the exchanged cards but the pair, and nobody authors
   an observation rule to make it so.
-- **Suits never matter** to legality or strength, yet the engine offers every
+- **Suits never matter** to legality or strength, yet a seat is offered every
   suit subset of each (rank, size): which of three sevens a seat plays as a
   pair is the seat's choice, and the cards played are public. The OpenSpiel
   indistinguishability class for hidden hands is exactly "same rank, any

@@ -13,13 +13,14 @@ with an `offer` body (decisions.md "The `turns` form").
 from __future__ import annotations
 
 import itertools
-from typing import Any, Final, Protocol
+from typing import Any, Final, Protocol, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS
 from cardlang.domains import DomainSources, Role, enumerate_domain, role_of
 from cardlang.runtime import active_rules, delegation, narrowing, observe, primitives, reads, rules
 from cardlang.runtime.chooser import decide
+from cardlang.runtime.declared import DeclaredClimbEngine
 from cardlang.runtime.delegation import FORM_CONSTRUCTS
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate
@@ -474,9 +475,10 @@ class ClimbForm:
     (everyone else passed one full lap, `next_actor` ⇒ `None`), or when the `until`
     predicate holds (a player has shed out, ending the hand mid-trick). The last
     player to play is the [[winner]], bound as `winner` for the surrounding body,
-    which routes the pile and sets the next lead. The combination engine is
-    game-local, so this depends only on the queries' interface — a sequence
-    of plays conforming to `primitives.ClimbPlay`. Players
+    which routes the pile and sets the next lead. The engine is the game's
+    Combination Catalogue (`runtime.declared`) or a registered Primitive pair,
+    so this depends only on their interface — a sequence of plays conforming
+    to `primitives.ClimbPlay`. Players
     already shed out (Tichu) are skipped with no chooser draw — INCLUDING the
     named leader, who in a continue-after-going-out game may have shed their
     last card on the play that won them the lead; the lead then falls to the
@@ -488,13 +490,13 @@ class ClimbForm:
     pops it into `last_round_state`, so the body reads `state.lead_ended_trick` (did a
     trick-ending lead close it?) and `state.shed_first` / `state.shed_second`
     (the first two players who played their last cards this trick, in play
-    order — finishing order is score-bearing in Tichu). Big Two reads none of
-    these; its goldens gate the no-change.
+    order — finishing order is score-bearing in Tichu).
 
     Contract:
-      assumes      the lead and follows queries return plays conforming to
+      assumes      the engine's plays conform to
                    `primitives.ClimbPlay` (mypy checks each registered
-                   engine's return type against the protocol); a play whose
+                   engine's return type, and a Declared Engine's
+                   `values.Combination`, against the protocol); a play whose
                    `announce` is non-empty names tokens the engine's
                    `climb_announcements` row declares.
       establishes  three regimes of `next_actor` — the ring, the
@@ -557,14 +559,28 @@ class ClimbForm:
         self.until: n.Expr = stmt.until
         self.hosted: n.HostedPoll | None = stmt.hosted
         self.leader: Player = evaluate(stmt.leader, ctx)
-        self.lead_query = primitives.climb_lead_function(stmt.combos_fn)
-        self.follow_query = primitives.climb_follow_function(stmt.follows_fn)
-        self.climb_row = primitives.climb_row(stmt.combos_fn)
-        self.announcements = primitives.climb_announcements(stmt.combos_fn)
-        self.decline = primitives.climb_interrupt_decline(stmt.combos_fn)
-        # The engine's own words, refused by the registry where two coincide:
-        # two decisions would fold into one rendering.
-        primitives.climb_actions(stmt.combos_fn)
+        # A Declared Engine plays the game's catalogue; a registered one, its
+        # Primitive pair. The registered pair's behaviours (announcements, an
+        # interrupt window) are no Declared Engine's (issue #989).
+        self.declared: DeclaredClimbEngine | None = None
+        self.announcements: tuple[str, ...] = ()
+        self.decline: str | None = None
+        match stmt.engine:
+            case n.DeclaredEngine() as engine:
+                self.declared = DeclaredClimbEngine(engine, ctx)
+            case n.RegisteredEngine() as engine:
+                self.lead_query = primitives.climb_lead_function(engine.lead)
+                self.follow_query = primitives.climb_follow_function(engine.follows)
+                self.climb_row = primitives.climb_row(engine.lead)
+                self.announcements = primitives.climb_announcements(engine.lead)
+                self.decline = primitives.climb_interrupt_decline(engine.lead)
+                # The engine's own words, refused by the registry where two
+                # coincide: two decisions would fold into one rendering.
+                primitives.climb_actions(engine.lead)
+            case None:
+                raise AssertionError("resolve stamps every climb round's engine")
+            case _:
+                assert_never(stmt.engine)
         self.seating = ctx.rs.seating
         self.hands = ctx.rs.zones.families[stmt.source_zone]
         self.pile = ctx.rs.zones.single(stmt.play_zone)
@@ -667,6 +683,8 @@ class ClimbForm:
         if state["pending"] is not None:
             tokens: tuple[str, ...] = state["pending"][1]
             return list(tokens)
+        if self.declared is not None:
+            return self._declared_candidates(self.declared, actor, state, ctx)
         # The climb engines are game-local, so they get the same value
         # bundles every other primitive does rather than the live ctx — and
         # their hand argument is deep_frozen for the same reason `call()`
@@ -693,6 +711,30 @@ class ClimbForm:
         follows = list(self.follow_query(facts, gr, hand, standing))
         compelled = [p for p in follows if p.compelled]
         return compelled or [*follows, primitives.CLIMB_PASS]
+
+    def _declared_candidates(
+        self, engine: DeclaredClimbEngine, actor: Player, state: RoundState, ctx: Ctx
+    ) -> list[Any]:
+        """The catalogue's plays the actor's hand holds that the follows
+        function admits against the standing play, then the pass; at a lead,
+        the plays alone, of which there must be one. The function is asked
+        for the actor, so a bare per-seat zone it reads is the actor's."""
+        standing = state["current"]
+        plays: list[Any] = engine.candidates(
+            self.hands[actor].cards, standing, ctx.derive(current_player=actor)
+        )
+        if standing is not None:
+            return [*plays, primitives.CLIMB_PASS]
+        if not plays:
+            # Runtime DATA: the follows function admits no play of this hand
+            # at a lead, and a lead cannot pass.
+            raise OwnerGuardError(
+                f"round climb: seat {actor} leads and the follows function "
+                f"`{engine.follows_fn.name}` admits no play of its hand "
+                f"— at a lead `standing` is none, and the function must admit "
+                f"some play there (`standing is none or …`)"
+            )
+        return plays
 
     def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
         if state["pending"] is not None:

@@ -87,6 +87,8 @@ _EXEMPT_RAW_ACCESS: dict[str, str] = {
     "delegation.py": "engine core — the round's declared source family, from"
     " the form the loop is running (decisions.md \"Delegated play\")",
     "driver.py": "engine core — names come from the AST, resolve-guarded",
+    "declared.py": "engine core — the follows cache key reads the state and"
+    " zones resolve stamps on the round's engine",
     "evaluate.py": "engine core — names come from the AST, resolve-guarded",
     "execute.py": "engine core — names come from the AST, resolve-guarded",
     "mechanics.py": "engine core — names from the AST plus the magic `hand`"
@@ -795,7 +797,10 @@ def _declarer_disagreements(games: list[tuple[str, n.Game]]) -> list[str]:
 
 
 def _climb_rows_of_other_games(games: list[tuple[str, n.Game]]) -> list[str]:
-    """Every climb query a game names whose binder row serves another game."""
+    """Every registered climb query a game names whose binder row serves
+    another game; a slot naming the game's own catalogue or function binds no
+    row."""
+    from cardlang.builtins.functions import PRIMITIVE_CLIMB_FOLLOWS, PRIMITIVE_CLIMB_LEADS
     from cardlang.runtime.primitives import climb_row
 
     return [
@@ -804,7 +809,8 @@ def _climb_rows_of_other_games(games: list[tuple[str, n.Game]]) -> list[str]:
         for node in _resolve_walk(game)
         if isinstance(node, n.ClimbRound)
         for query in (node.combos_fn, node.follows_fn)
-        if (row := climb_row(query)).game_file != file_name
+        if query in PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
+        and (row := climb_row(query)).game_file != file_name
     ]
 
 
@@ -825,7 +831,7 @@ def test_every_game_declaring_a_primitive_declares_the_same_reads() -> None:
 
 def test_every_climb_query_a_game_names_binds_that_games_row() -> None:
     """red under: `test_probe_a_climb_query_of_another_game_is_named`'s
-    plant — President's round naming Big Two's queries."""
+    plant — Big Two's round naming Tichu's queries."""
     assert not _climb_rows_of_other_games(_corpus_games())
 
 
@@ -851,9 +857,9 @@ def test_probe_a_second_declarer_missing_a_read_is_named() -> None:
 def test_probe_a_climb_query_of_another_game_is_named() -> None:
     from cardlang.parse import parse_text
 
-    source = (GAMES_DIR / "president.cardlang").read_text()
-    planted = source.replace("president_lead_options", "bigtwo_lead_options").replace(
-        "president_follows", "bigtwo_follows"
-    )
-    problems = _climb_rows_of_other_games([("president.cardlang", parse_text(planted, "president.cardlang"))])
-    assert len(problems) == 2 and all("big-two.cardlang" in p for p in problems)
+    source = (GAMES_DIR / "big-two.cardlang").read_text()
+    slots = "combinations big_two follows big_two_follows"
+    assert source.count(slots) == 1
+    planted = source.replace(slots, "combinations tichu_lead_options follows tichu_follows")
+    problems = _climb_rows_of_other_games([("big-two.cardlang", parse_text(planted, "big-two.cardlang"))])
+    assert len(problems) == 2 and all("tichu.cardlang" in p for p in problems)

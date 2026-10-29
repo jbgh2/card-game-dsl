@@ -18,6 +18,7 @@ from cardlang.diagnostics import DiagnosticError, Span
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from tests.climb_asks import SETS_CATALOGUE
 
 
 def _run(src: str) -> None:
@@ -313,12 +314,12 @@ game G {
     round climb play_combination from 2
           over players where x[player] < 0
           source hand into trick_pile
-          combinations president_lead_options follows president_follows
+          combinations sets follows beats
           until false
   }
   winner: highest x
 }
-"""
+""" + SETS_CATALOGUE
 
 
 def test_climb_round_with_no_participants_raises() -> None:

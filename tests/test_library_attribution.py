@@ -197,6 +197,10 @@ _UNROUTED: dict[str, str] = {
     "resolve._check_implicit_pools": "certificate",
     "typecheck._call_sig": "certificate",
     "typecheck._check_stmt_exprs": "certificate",
+    "resolve._HiddenReads._walk_game": "game text",
+    "resolve._stamp_follows_reads": "refuses nothing",
+    "resolve.stamp": "game text",
+    "typecheck._check_follows_signature": "game text",
 }
 
 

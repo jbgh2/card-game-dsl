@@ -12,9 +12,9 @@ domain:     CALL_FUNCS (the whole registry) x {builtins, declared}; every
             `runtime/stdlib.py` x {exists, imported}; the retired legacy
             dispatch seam x {the dispatcher, its callers, the set that
             classified it}
-            Three key sets -- `climb_universe_function`,
-            `climb_codec_function`, `joint_codec_function` -- carry a home
-            row and no membership row, and that is not a gap: each exists
+            Two key sets -- `climb_codec_function`, `joint_codec_function`
+            -- carry a home row and no membership row, and that is not a
+            gap: each exists
             only inside its own `match`, so there is no registry for a
             membership row to quantify over.
 registry:   `cardlang/builtins/functions.py` for the name axis --
@@ -100,7 +100,6 @@ DISPATCHER_HOMES: dict[str, str] = {
     "climb_row": "primitives",
     "climb_lead_function": "primitives",
     "climb_follow_function": "primitives",
-    "climb_universe_function": "primitives",
     "joint_codec_function": "primitives",
     "climb_codec_function": "primitives",
     "climb_announcements": "primitives",

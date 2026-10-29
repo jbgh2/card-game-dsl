@@ -57,6 +57,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from tests.climb_asks import SETS_CATALOGUE
 
 # --- shared minimal-game builders (mirrors tests/test_domain_completion.py) ---
 
@@ -494,49 +495,19 @@ def test_rejects_the_trick_order_winner_when_the_strength_is_omitted() -> None:
 _CLIMB_ROUND = (
     "round climb play_combination from 0 over all players\n"
     "          source hand into pile\n"
-    "          combinations president_lead_options follows president_follows\n"
+    "          combinations sets follows beats\n"
     "          until (number of players where hand[player] is not empty) <= 1"
 )
 
 
-def _climb_round(combos: str, follows: str) -> str:
-    return (
-        f"round climb play_combination from 0 over all players\n"
-        f"          source hand into pile\n"
-        f"          combinations {combos} follows {follows}\n"
-        f"          until (number of players where hand[player] is not empty) <= 1"
-    )
+def test_rejects_a_follows_function_reading_rank_strength_with_no_declared_ranking() -> None:
+    # A climbing round's slots read no `ranking:` of their own; its follows
+    # function is gated where it calls a reader, as any function is.
+    _rejects(_game(_CLIMB_ROUND, ranking="") + SETS_CATALOGUE, "rank_value")
 
 
-def _rejects_naming(src: str, needle: str) -> None:
-    """Refused, with `needle` among ALL the diagnostics — not only the first
-    the channel renders."""
-    with pytest.raises(DiagnosticError) as ei:
-        check_dsl(src, "mini.cardlang")
-    rendered = "\n".join(getattr(ei.value, "__notes__", None) or [str(ei.value)])
-    assert needle in rendered, rendered
-
-
-def test_rejects_the_lead_climb_query_with_no_declared_ranking() -> None:
-    # One cell per MEMBER, each asserting its own member's refusal over every
-    # diagnostic: President's two queries are both ranking-gated, and a round
-    # may only pair one engine's queries, so each cell reads its member's line
-    # by name rather than isolating it with a non-member sibling.
-    _rejects_naming(
-        _game(_climb_round("president_lead_options", "president_follows"), ranking=""),
-        "climb query president_lead_options reads a card's rank strength from ranking:",
-    )
-
-
-def test_rejects_the_follows_climb_query_with_no_declared_ranking() -> None:
-    _rejects_naming(
-        _game(_climb_round("president_lead_options", "president_follows"), ranking=""),
-        "climb query president_follows reads a card's rank strength from ranking:",
-    )
-
-
-def test_accepts_ranking_reading_climb_queries_with_a_declared_ranking() -> None:
-    _accepts(_game(_CLIMB_ROUND))
+def test_accepts_a_follows_function_reading_rank_strength_with_a_declared_ranking() -> None:
+    _accepts(_game(_CLIMB_ROUND) + SETS_CATALOGUE)
 
 
 def test_ranking_gate_does_not_touch_other_native_calls() -> None:

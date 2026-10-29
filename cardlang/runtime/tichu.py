@@ -136,8 +136,8 @@ def tichu_dragon_won(facts: EngineFacts, gr: reads.GameReads) -> bool:
 # ---------------------------------------------------------------------------
 #
 # The OpenSpiel adapter needs one stable global action id per distinct play
-# the engine can ever emit. Big Two enumerates its universe; Tichu's is too
-# large (straights under free suit assignment dominate — the size is
+# the engine can ever emit. A Combination Catalogue's universe is enumerated
+# from its rows; Tichu's is too large (straights under free suit assignment dominate — the size is
 # `TICHU_COMBO_CODEC.size`, derived below from the block sizes), so its ids
 # are *computed*: a fixed block layout, one block per row of `KINDS` in that
 # registry's order — dog, single, pair, triple, bomb (four of a rank, then

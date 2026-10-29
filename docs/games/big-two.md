@@ -56,10 +56,12 @@ Each hand:
    single.
 
 The hand runs on the kernel **`round climb`** construct: one combination-climbing
-trick per round, with the combination engine named as the game-local Primitive
-queries `bigtwo_lead_options` (lead candidates, 3♦-filtered on each hand's opening
-lead) and `bigtwo_follows` (legal follows). The engine offers **every combination a
-hand holds** — each suit choice of a pair or triple, every straight over its
+trick per round, over the game's own Combination Catalogue (`combinations
+big_two`, the eight shapes, with a straight all of one suit a straight flush and
+never a straight or a flush) and the follows function `big_two_follows` (same
+size and stronger; on each hand's opening lead, a play holding the 3♦). The
+`sequence:` clause reads the ace low in A-2-3-4-5 and high in 10-J-Q-K-A. A seat
+is offered **every combination its hand holds** — each suit choice of a pair or triple, every straight over its
 window, every five cards of a suit, every pairing of a full house, and any kicker
 with four of a kind — since which cards a seat keeps back for later tricks is a
 decision of the game. The climbing loop, the pile routing, the shed-out finish,

@@ -103,18 +103,14 @@ PRIMITIVE_EARLY_PREDICATES: frozenset[str] = frozenset(
 # - a *lead* query    (`combinations`): (hand, ctx) -> list[Play]
 # - a *follows* query (`follows`)     : (hand, current, ctx) -> list[Play]
 #
-# The engines are game-local (Big Two's and Tichu's combination rules differ), so
-# these grow corpus-first, one pair per climbing game.
+# A climbing game declares its plays in its own file (a Combination
+# Catalogue and a follows function; decisions.md "Combination Catalogues");
+# an engine here serves a game whose plays no catalogue declares yet
+# (issue #989).
 PRIMITIVE_CLIMB_ENGINES: dict[str, str] = {
-    # Big Two: every combination (3♦-filtered on the opening lead) / the
-    # combinations that beat the standing play (same size)
-    "bigtwo_lead_options": "bigtwo_follows",
     # Tichu: every combination + the special-card lead singles / same kind and
     # length and higher, any bomb, Dragon/Phoenix answers
     "tichu_lead_options": "tichu_follows",
-    # President: every equal-rank set of 1-4 cards / same-size higher-rank sets
-    # + transparent threes
-    "president_lead_options": "president_follows",
 }
 """Each climb engine as its lead query -> its follows query: the one table
 both registries below derive from, so a follows query exists only beside the

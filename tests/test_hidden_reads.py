@@ -106,6 +106,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.stdlib import zones as Z
+from tests.climb_asks import SETS_CATALOGUE
 
 _REPO = Path(__file__).resolve().parent.parent
 
@@ -1087,7 +1088,7 @@ def test_every_decision_point_names_its_pool() -> None:
 _CLIMB = (
     "legal_moves: [play_combination] "
     "round climb play_combination from 0 over all players source hand into pile "
-    "combinations bigtwo_lead_options follows bigtwo_follows until flag"
+    "combinations sets follows beats until flag"
 )
 _PICK = "move_type pick(c : Card) { effect { } }"
 
@@ -1095,7 +1096,7 @@ _PICK = "move_type pick(c : Card) { effect { } }"
 # each probed through the game's `hand`. member -> (its row, body, defs).
 _IMPLICIT_POOLS: dict[str, tuple[str, str, str]] = {
     "trick-source": ("TrickRound", "phase play { " + _TRICK + " }", ""),
-    "climb-source": ("ClimbRound", "phase play { " + _CLIMB + " }", ""),
+    "climb-source": ("ClimbRound", "phase play { " + _CLIMB + " }", SETS_CATALOGUE),
     "card-parameter-offered": ("execute._offer", _OFFER_TAKE.replace("take", "pick"), _PICK),
 }
 

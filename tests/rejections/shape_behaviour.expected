@@ -1,0 +1,1 @@
+shape_behaviour.cardlang:58:9: error: `interrupts` is no qualifier — the qualifiers are `all one suit`, `not all one suit` and `not in sequence`; a play that is wild, interrupts or ends the trick is not one the catalogue declares yet, issue #989

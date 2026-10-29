@@ -119,6 +119,7 @@ _ENGINE_CORE: dict[str, str] = {
     "evaluate.py": "engine core — the expression interpreter",
     "execute.py": "engine core — the statement interpreter",
     "mechanics.py": "engine core — the round machinery",
+    "declared.py": "engine core — the Declared Engine, which asks the game's\n        follows function in Ctx",
     "observe.py": "engine core — the projection substrate",
     "active_rules.py": "engine core — active-rule computation for a phase",
     "reads.py": "the declared-reads accessors (the sanctioned raw-access site)",
@@ -307,10 +308,6 @@ NARROWED: frozenset[str] = frozenset(
         "belote.py::belote_decl_slot",
         "belote.py::belote_decl_trump",
         "belote.py::belote_royal_player",
-        "bigtwo.py::ROW",
-        "bigtwo.py::bigtwo_follows",
-        "bigtwo.py::bigtwo_lead_options",
-        "bigtwo.py::bigtwo_universe",
         "canasta.py::canasta_can_start",
         "canasta.py::canasta_can_take_pile",
         "canasta.py::canasta_canasta_bonus",
@@ -341,10 +338,6 @@ NARROWED: frozenset[str] = frozenset(
         "pinochle.py::pinochle_meld_size",
         "pinochle.py::pinochle_meld_slot",
         "pinochle.py::pinochle_meld_value",
-        "president.py::ROW",
-        "president.py::president_follows",
-        "president.py::president_lead_options",
-        "president.py::president_universe",
         "salvo.py::salvo_combos",
         "skat.py::skat_bid_at",
         "skat.py::skat_matadors",
@@ -374,8 +367,6 @@ MIGRATED: frozenset[str] = frozenset(
         "belote_decl_slot",
         "belote_decl_trump",
         "belote_royal_player",
-        "bigtwo_follows",
-        "bigtwo_lead_options",
         "canasta_can_start",
         "canasta_can_take_pile",
         "canasta_canasta_bonus",
@@ -401,8 +392,6 @@ MIGRATED: frozenset[str] = frozenset(
         "pinochle_meld_slot",
         "pinochle_meld_value",
         "pot_share",
-        "president_follows",
-        "president_lead_options",
         "salvo_combos",
         "skat_matadors",
         "tarot_excuse_player",
@@ -528,8 +517,8 @@ def _scan_module(name: str) -> ModuleScan:
 class Site:
     """One implementation SITE: `module::func`. The cell key is the site, not
     the primitive name, because the dispatch layer routes one name to several
-    implementations — `climb_universe_function` sends `bigtwo_lead_options` to
-    `bigtwo_universe`, `climb_codec_function` sends `tichu_lead_options` to
+    implementations — `climb_lead_function` sends `tichu_lead_options` to
+    `tichu_lead_options`, `climb_codec_function` sends it to
     `TICHU_COMBO_CODEC`. Keying by name let a handle-free sibling mask a
     `Ctx`-taking function, so the name is NOT the domain."""
 
@@ -1259,18 +1248,14 @@ def test_deep_freeze_and_walker_reject_a_frozen_but_non_slotted_dataclass() -> N
 
 
 def test_corpus_play_types_are_slotted() -> None:
-    """The three climb `Play` types flow through `round_state["current"]`, so
-    they must be truly immutable (frozen AND slotted), not just frozen —
+    """The climb play types flow through `round_state["current"]`, so they
+    must be truly immutable (frozen AND slotted), not just frozen —
     otherwise deep_freeze would refuse them mid-playout."""
-    from cardlang.runtime.bigtwo import Play as BigTwoPlay
-    from cardlang.runtime.president import Play as PresidentPlay
     from cardlang.runtime.tichu_combinations import Play as CombinationsPlay
+    from cardlang.runtime.values import Combination
 
-    for cls in (BigTwoPlay, CombinationsPlay, PresidentPlay):
-        # The `key` field types differ across the three (tuple/float/int); the
-        # values are irrelevant to the slots check, so ignore the arg types.
-        inst = cls("single", 1, 5, ())  # type: ignore[arg-type]
-        assert not hasattr(inst, "__dict__"), f"{cls.__module__}.Play is not slotted"
+    for inst in (CombinationsPlay("single", 1, 5.0, ()), Combination("single", ())):
+        assert not hasattr(inst, "__dict__"), f"{type(inst).__name__} is not slotted"
         # deep_freeze does not refuse it (frozen+slots), but COPIES it — never
         # returns the engine's live object by identity (see the confinement
         # test below for why).
@@ -1458,8 +1443,8 @@ def test_climb_follow_freezes_the_standing_play() -> None:
     `object.__setattr__` its key/kind/cards and corrupt the engine's play.
     Driven via `object.__new__` with a capturing follow query."""
     from cardlang.runtime import reads as reads_mod2
-    from cardlang.runtime.bigtwo import Play
     from cardlang.runtime.mechanics import ClimbForm
+    from cardlang.runtime.tichu_combinations import Play
     from cardlang.runtime.state import Ctx, RuntimeState, Zone, ZoneStore
 
     seen: dict[str, Any] = {}
@@ -1469,13 +1454,14 @@ def test_climb_follow_freezes_the_standing_play() -> None:
         return []
 
     form = object.__new__(ClimbForm)
+    form.declared = None
     form.climb_row = reads_mod2.PrimitiveReads(module="x", game_file="y")  # empty
     form.hands = {0: Zone([Card("7", "hearts")])}
     form.lead_query = lambda f, g, h: []
     form.follow_query = follow
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
-    standing = Play("single", 1, (5,), (Card("8", "spades"),))
+    standing = Play("single", 1, 5.0, (Card("8", "spades"),))
     form.candidates(0, {"current": standing, "last": 0, "pending": None, "window": None}, ctx)
 
     assert seen["current"] == standing and seen["current"] is not standing, (

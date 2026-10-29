@@ -1,0 +1,86 @@
+{
+  "big-two": {
+    "0": {
+      "asks": 2382,
+      "sha256": "2609befa605dc834e616570334870e9be4bef5321e149735709f449129874049"
+    },
+    "1": {
+      "asks": 1216,
+      "sha256": "505227f66a53258c5245a3e90b08fc85f7dcd3939e0ec654e45b37dc9b32a004"
+    },
+    "2": {
+      "asks": 2299,
+      "sha256": "63ae1c48b075090eb6f9b8154f13bc784b0d7f22f72719318ea2fb99b53303d6"
+    },
+    "3": {
+      "asks": 2730,
+      "sha256": "cf676ebae28ca131b9a67149e53e6632391559603045698e17950a0ae1128463"
+    },
+    "4": {
+      "asks": 2220,
+      "sha256": "f6e2fab63094d26b26bb847d60e3ce1d658a9119ffc2a0da5fe8cc1718518084"
+    },
+    "5": {
+      "asks": 2345,
+      "sha256": "b6d4fc3acbbeaacee95e53dc77227cb2d6e59fa932ecbc4d23a6081c5a687629"
+    },
+    "6": {
+      "asks": 2541,
+      "sha256": "e6afb5051be38df69187f59e9435bac697c9c9e2042279fe8fb1f80b7ffd2d0a"
+    },
+    "7": {
+      "asks": 2096,
+      "sha256": "63a9f5b386c10f51f2ffe9febe250748e557f11b8387fd412e2a0f86a76aad8d"
+    },
+    "8": {
+      "asks": 1394,
+      "sha256": "b707e1b3c483034d901efa2d4a9e98a419d9b6559eacdbe9ff56ef5807ce23fd"
+    },
+    "9": {
+      "asks": 2461,
+      "sha256": "e28815192a7e9b46f95865a06be9de042339dd3e5dfa7d51ca0ebf62867fd2fd"
+    }
+  },
+  "president": {
+    "0": {
+      "asks": 2017,
+      "sha256": "1394e4cc4da77406a06daa7b3ea789e392f3a91971cb1f72856abb4864cf36c7"
+    },
+    "1": {
+      "asks": 1776,
+      "sha256": "e2558ad1935935b950cbd6610e9fb23c6e7c25fa4d81a7f49a59032ea4f68d5a"
+    },
+    "2": {
+      "asks": 1667,
+      "sha256": "b27cbe519ebb1e2d01892705f142b9532fc9b7ff64a2bfacde3bf2dc8d3ff23e"
+    },
+    "3": {
+      "asks": 1785,
+      "sha256": "959713c1432f54fa2b480eeab25366e6bf1aa0d3c4b0d26cfba831986c0fef63"
+    },
+    "4": {
+      "asks": 1129,
+      "sha256": "e20d372aad6e95b68e06b9459e586c25f51842cffc357894a309015d622e23a9"
+    },
+    "5": {
+      "asks": 1228,
+      "sha256": "1bc40d72424acfcc51643043023388b026bc938b603553e8581881456effd923"
+    },
+    "6": {
+      "asks": 1663,
+      "sha256": "aa4137e3d2c96ceedcac1ba955f78a0a5c01c7a48a18ce385efeac77964496ef"
+    },
+    "7": {
+      "asks": 1455,
+      "sha256": "20e474ccb590e7ac68fe25e54242884eb617f5cf0f9d9ab1442befbe9be1a6de"
+    },
+    "8": {
+      "asks": 1182,
+      "sha256": "454d21d8b7797e96a71220f457460a0d110c75a1e01807e320064f752f2a66fb"
+    },
+    "9": {
+      "asks": 1725,
+      "sha256": "9544a23b3b638e8684560517a233653235982670c077c8fd54bf6658ea273497"
+    }
+  }
+}

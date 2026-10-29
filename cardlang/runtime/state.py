@@ -23,7 +23,7 @@ from cardlang.domains import (
     role_static_members,
 )
 from cardlang.runtime.errors import Located, OwnerGuardError, ShadowGuardError
-from cardlang.runtime.values import Card, Player, Seating, TeamOf
+from cardlang.runtime.values import Card, Combination, Player, Seating, TeamOf
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.builtins.signatures import Sig
@@ -196,8 +196,9 @@ def elements(value: Any) -> Any:
     comprehension result, and every other collection-typed expression
     already evaluate to a concrete `list`.  Callers that need a fresh,
     independent list (card-query, comprehension) wrap the result in
-    `list(...)` themselves; single-pass consumers use it as-is."""
-    return value.cards if isinstance(value, Zone) else value
+    `list(...)` themselves; single-pass consumers use it as-is. A climbing
+    play (`values.Combination`) yields its cards likewise."""
+    return value.cards if isinstance(value, (Zone, Combination)) else value
 
 
 class ZoneStore:
@@ -375,6 +376,15 @@ class RuntimeState:
         # cleared) by a later-sibling `produces:` block.
         self.phase_outcomes: dict[str, tuple[str, list[Any]]] = {}
         self.deck_zone: str = ""  # the Deck-typed zone (initialized full at start)
+        self.deck_name: str = ""  # the `cards:` deck, which a catalogue's universe ranges over
+        # The game's Combination Catalogues by name, and its Rank Sequence
+        # (empty for a game declaring none); read by a Declared Engine.
+        self.catalogues: dict[str, n.CombinationCatalogue] = {}
+        self.rank_sequence: tuple[str, ...] = ()
+        # Each Declared Engine's cached follows answers, by follows function,
+        # for the whole game: an answer's key holds everything it reads
+        # (`runtime.declared`), so it outlives the round that asked it.
+        self.follows_answers: dict[str, dict[tuple[object, ...], bool]] = {}
         self.score_var: str | None = None  # the winner's score var (None for loser games)
         self.teams: tuple[int, ...] = ()  # team ids (empty for teamless games)
         self.team_of: TeamOf = TeamOf({})  # player -> their team id
