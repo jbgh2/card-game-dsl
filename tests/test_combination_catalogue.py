@@ -58,6 +58,12 @@ Completeness ledger (the judgment the grid cannot state itself):
 - A wrapping Rank Sequence (`2 3 … A 2`, which runs K-A-2) checks: its ends
   repeat as Big Two's `A … A` does, and a game allowing round-the-corner
   straights declares exactly that. Only an interior repeat is refused.
+- The deck axis skips the decks too small to deal the four-seat probe
+  (kuhn3, leduc6); every card of each is a standard card, the side the
+  refusal's predicate already holds for standard52.
+- A library is reached on the one route it has to a play: a function naming
+  `Combination` (both spellings), refused in the library's file. A library
+  round over the game's catalogue is refused at the round.
 """
 
 from __future__ import annotations
@@ -632,6 +638,30 @@ def test_a_library_function_taking_a_combination_is_refused(
         "combinations climb follows climb_follows", "combinations climb follows lib_follows", 1
     )
     _assert(source, _refused("'fam'", f"'{spelling}'", "keep the definition in the game"))
+
+
+def test_a_library_round_over_the_games_catalogue_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A library's climbing round naming the importing game's catalogue is
+    refused at the round, in the library's file: a catalogue is one game's."""
+    from cardlang.parse import parse_library
+
+    library = parse_library(
+        "library fam {\n"
+        "  requires { hand[player] : Hand<player>  trick_pile : TrickPile  discard : Discard }\n"
+        "  move_type start_trick {\n    effect {\n"
+        "      round climb play_combination from actor over players where hand[player] is not empty\n"
+        "            source hand into trick_pile combinations climb follows climb_follows\n"
+        "            until (any player where hand[player] is empty)\n"
+        "      move all cards from trick_pile to discard\n    }\n  }\n}\n",
+        "docs/libraries/fam.cardlang",
+    )
+    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"fam"}))
+    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    round_text = MINIMAL[MINIMAL.index("        round climb") : MINIMAL.index("        leader := winner\n")]
+    source = MINIMAL.replace("  players: 4", "  uses fam\n  players: 4", 1).replace(
+        round_text, "        offer to leader one of [start_trick]\n", 1
+    ).replace("legal_moves: [play_combination]", "legal_moves: [start_trick]", 1)
+    _assert(source, _refused("`climb`", "catalogue", "write the round in the game"))
 
 
 # ---------------------------------------------------------------------------
