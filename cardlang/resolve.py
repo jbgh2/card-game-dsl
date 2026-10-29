@@ -2972,6 +2972,19 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "after the splice, at the library's span — the registries are the same for "
         "every importing game, so no game can feed the slot a name"
     ),
+    "climb_lead": (
+        "guarded elsewhere: a registered lead query is refused to the library's "
+        "author by `_round_slot_primitives`; a name nothing declares by "
+        "`_resolve_climb_engines` after the splice, at the library's span; and "
+        "the importing game's own catalogue, the one name a game feeds the slot, "
+        "by `_resolve_climb_engines`'s library-origin arm"
+    ),
+    "climb_follows": (
+        "guarded elsewhere: a registered follows query is refused by "
+        "`_round_slot_primitives`; a game function is followed by only beside a "
+        "catalogue, which a library's round may not name "
+        "(`_resolve_climb_engines`'s library-origin arm)"
+    ),
     "round_state": (
         "closed: `ROUND_STATE_FIELDS`, the fields a round publishes, identical for a "
         "library and a game; typecheck refuses any other `state.` field"
@@ -6046,10 +6059,24 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
     numbers one universe of plays."""
     catalogues = {c.name for c in game.catalogues}
     functions = {f.name for f in game.functions}
+    origins = n.library_origins(game)
 
     def stamp(nd: n.ClimbRound) -> n.ClimbRound:
         lead, follows = nd.combos_fn, nd.follows_fn
         if lead in catalogues:
+            origin = origins.get(id(nd))
+            if origin is not None:
+                # A library declares no catalogue (`library_catalogue_reject`),
+                # so the name is the importing game's: a slot the game feeds.
+                bag.error(
+                    cite_origin(origin, nd.span) + f" holds a climbing round over "
+                    f"`{lead}`, this game's combination catalogue — a catalogue "
+                    f"belongs to the one game that declares it, so a library "
+                    f"that several games import may not name one: write the "
+                    f"round in the game",
+                    nd.span,
+                )
+                return nd
             if follows in functions:
                 return replace(nd, engine=n.DeclaredEngine(lead, follows))
             if follows in PRIMITIVE_CLIMB_FOLLOWS:

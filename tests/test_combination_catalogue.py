@@ -402,10 +402,25 @@ def _expected_pairing(combos: str, follows: str) -> Expected:
     return _refused("'climbx'", "catalogue")
 
 
-PAIRING_CELLS = [(c, f) for c in _COMBOS_SLOT for f in _FOLLOWS_SLOT]
+# The cells resolve's engine pairing decides alone; the rest also need the
+# catalogue pass and the `Combination` type.
+_PAIRING_LANDED = {
+    ("catalogue", "registered follows"),
+    ("catalogue", "unknown"),
+    ("registered lead", "game function"),
+    ("registered lead", "registered follows"),
+    ("registered lead", "unknown"),
+    ("unknown", "game function"),
+    ("unknown", "registered follows"),
+    ("unknown", "unknown"),
+}
+PAIRING_CELLS = [
+    pytest.param(c, f, marks=() if (c, f) in _PAIRING_LANDED else PENDING)
+    for c in _COMBOS_SLOT
+    for f in _FOLLOWS_SLOT
+]
 
 
-@PENDING
 @pytest.mark.parametrize(("combos", "follows"), PAIRING_CELLS)
 def test_a_climb_round_pairs_a_catalogue_with_a_function_and_an_engine_with_its_own(
     combos: str, follows: str
@@ -416,6 +431,10 @@ def test_a_climb_round_pairs_a_catalogue_with_a_function_and_an_engine_with_its_
         1,
     )
     if combos == "registered lead":
+        # A registered engine's game declares no catalogue, sequence or
+        # Combination-typed function of its own.
+        source = _ROWS.sub("", source, count=1).replace(_SEQUENCE, "", 1)
+        source = _FOLLOWS.sub("function climb_follows(x : Integer) = x > 0\n", source, count=1)
         source = source.replace("ranking: aces high", "ranking: twos high")
         source = source.replace(
             "    leader        : Player? = none", "    leader        : Player? = none\n    opened : Boolean = false"
@@ -514,10 +533,10 @@ READ_CELLS: list[tuple[str, Expected]] = [
     ("rank_value(top_of(play)) > 3", _refused("no top card")),
     ("play is empty", _refused("`standing is none`")),
     ("standing is empty", _refused("`standing is none`")),
-    ("play is standing", _refused("Combination")),
-    ("play + 1 > 2", _refused("Combination")),
-    ("suit_of(play) is hearts", _refused("`suit_of`", "Combination")),
-    ("any subset of 2 cards in play where true", _refused("Combination")),
+    ("play is standing", _refused("compared by")),
+    ("play + 1 > 2", _refused("no number")),
+    ("suit_of(play) is hearts", _refused("`suit_of`", "a card")),
+    ("any subset of 2 cards in play where true", _refused("no subset source")),
 ]
 
 
@@ -609,13 +628,11 @@ def test_a_catalogue_in_a_library_is_refused() -> None:
 # ---------------------------------------------------------------------------
 
 
-@PENDING
 def test_a_move_type_named_like_the_climb_pass_is_refused_beside_a_catalogue() -> None:
     source = MINIMAL + "\nmove_type pass {\n  effect { }\n}\n"
     _assert(source, _refused("`pass`"))
 
 
-@PENDING
 def test_a_game_with_two_climb_engines_is_refused_at_check_time() -> None:
     source = MINIMAL.replace(
         "        move all cards from trick_pile to discard\n",
