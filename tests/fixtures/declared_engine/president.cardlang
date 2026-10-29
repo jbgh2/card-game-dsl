@@ -1,0 +1,148 @@
+// President — formalized DSL (parser/checker/runtime target).
+//
+// Companion to president.md. Five-player climbing/shedding game on the standard
+// 52 (no jokers), ranked 2 high down to 3 low, suits irrelevant. The basic
+// multi-round game plus ONE variant: transparent threes (a set of threes beats
+// any equal-sized set and takes on the beaten set's rank). Each hand: deal the
+// whole deck out; from the second hand on, the Scum gives their highest card to
+// the President and the President returns any card; then climbing tricks — a
+// play is 1-4 equal-ranked cards, a follow is the same size and strictly higher
+// (or transparent threes), a pass keeps you in — until one player remains with
+// cards. First out is President (+2), second out Vice-President (+1), last
+// holding is Scum. First to 11 points ends the game; highest score wins.
+//
+// The hand runs fully on the kernel. Each climbing trick is one `round climb`
+// over the game's own combination catalogue (`combinations president`), and a
+// play follows when `president_beats` says it does. The trick's `until`
+// predicate ends it — and with it the hand — the instant only one player still
+// holds cards (Pagat: the hand is over when one player remains, so the last
+// holder never plays into a spent hand). Transparent threes live entirely in
+// `president_beats`: a set of threes follows any set its size, and the rank the
+// trick stands at is the highest set in it that is not threes, so the next
+// follower must beat the rank the threes absorbed. Finishing order comes from
+// the round's terminal state (`state.shed_first` / `state.shed_second`), folded
+// into out_first/out_second exactly as in Tichu. The exchange is two
+// hand-to-hand movements: the Scum's give is a draw-free filtered movement (their
+// highest card — forced, not a decision), the President's return a chosen one;
+// zone projections make both private to the two participants (everyone else
+// sees a one-card count move each way).
+
+game President {
+
+  players: 5
+  direction: clockwise
+  max_length: 10000   // measured max 2053 decisions over 60 random seeds; the
+                      // hand count is structurally bounded (~17: 3 points enter
+                      // play per hand, the game ends at 11)
+
+  cards: standard52
+  ranking: twos high   // suits are irrelevant
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile          // the climbing trick in progress
+    discard      : Discard            // spent tricks (no capture in President)
+  }
+
+  state {
+    // Game-level: persists across hands.
+    score[player] : Integer = 0       // President +2, Vice-President +1 per hand
+  }
+
+  phase hand_sequence repeat until (any player where score[player] >= 11) {
+    state {
+      // Last hand's offices, carried into the next hand's exchange and lead.
+      president : Player? = none      // first out last hand; leads the next hand
+      scum      : Player? = none      // last holding cards; gives their best card
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      // 52 over 5: the whole deck, dealt round-robin — seats 0 and 1 hold 11.
+      deal all cards from deck as-equally-as-possible to each hand
+    }
+
+    phase play {
+      state {
+        out_first  : Player? = none   // finishing order (public), first two only —
+        out_second : Player? = none   //   all the scoring ever reads
+        leader     : Player? = none
+      }
+
+      legal_moves: [play_combination]
+
+      // --- The exchange (hands after the first): the Scum's give is forced
+      // (their highest card — a draw-free filtered movement), the President's
+      // return is any card they choose.
+      if president is not none {
+        let scum_top_strength = highest rank_value(card) over cards in hand[scum] or 0
+        move one card from hand[scum] where rank_value(card) is scum_top_strength to hand[president]
+        as president { move chosen one card from hand[president] to hand[scum] }
+      }
+
+      // Hand 1: seat 0 leads (the player to the implicit dealer's left, the
+      // dealer sitting at the last seat); thereafter the President leads.
+      leader := (if president is none then 0 else president)
+
+      // Climbing tricks until one player remains with cards. The trick itself
+      // ends mid-lap the instant that happens (its `until` predicate), so the
+      // hand never plays on past its end.
+      repeat until (number of players where hand[player] is not empty) <= 1 {
+        round climb play_combination from leader
+              over players where hand[player] is not empty
+              source hand into trick_pile
+              combinations president follows president_beats
+              until (number of players where hand[player] is not empty) <= 1
+        // Fold this trick's sheds (play order) into the finishing order.
+        if state.shed_first is not none {
+          if out_first is none { out_first := state.shed_first }
+          else { if out_second is none { out_second := state.shed_first } }
+        }
+        if state.shed_second is not none {
+          if out_first is none { out_first := state.shed_second }
+          else { if out_second is none { out_second := state.shed_second } }
+        }
+        move all cards from trick_pile to discard
+        leader := winner
+      }
+
+      // --- Scoring: first out is President (+2), second Vice-President (+1),
+      // the one player still holding cards is the Scum. With five players four
+      // shed before the hand ends, so both offices are always filled; the
+      // guards are the totality Shadow Guard, never taken.
+      scum := the player where hand[player] is not empty
+      president := out_first
+      if out_first is not none { score[out_first] += 2 }
+      if out_second is not none { score[out_second] += 1 }
+    }
+  }
+
+  winner: highest score
+}
+
+// === What a play is ===
+
+// A play is one to four cards of a rank.
+combinations president {
+  single: 1 card
+  pair:   2 of a kind
+  triple: 3 of a kind
+  four:   4 of a kind
+}
+
+// A set follows the standing set when it is as large and outranks the rank
+// the trick stands at; a set of threes follows any set its size. A set may
+// lead whenever no set stands.
+function president_beats(play : Combination, standing : Combination?) =
+  standing is none
+  or ((number of cards in play) is (number of cards in standing)
+      and ((all cards in play where card.rank is "3")
+           or (highest rank_value(card) over cards in play or 0) > trick_rank()))
+
+// The rank the trick stands at: its highest set that is not threes, since
+// each natural set outranks the one before it and threes take on the rank
+// they beat.
+function trick_rank() =
+  highest rank_value(card) over cards in trick_pile where card.rank is not "3" or -1

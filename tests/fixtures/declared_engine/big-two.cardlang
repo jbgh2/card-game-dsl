@@ -1,0 +1,276 @@
+// Big Two — formalized DSL (parser/checker/runtime target).
+//
+// Companion to big-two.md. Pagat's basic game, four players, standard 52 (no
+// jokers), played anticlockwise. Players are dealt 13 cards each; the holder of
+// the 3♦ leads every hand and must play it, alone or in a combination. Players
+// climb: each play has the *same number of cards* as the standing combination
+// and beats it, or passes; a pass does not stop a player playing at a later
+// turn of the same trick; a trick ends when action returns to the last player
+// who played (everyone else passed), who then leads again. The hand ends the
+// instant one player sheds out — the others score penalty points for the cards
+// they still hold (1 per card up to nine, 2 for ten–twelve, 3 for a full
+// thirteen). The game is played for money at a stake per penalty point, so the
+// page's precaution rule holds: a player whose next seat holds one card must
+// play their highest single when singles are being played, and when leading
+// must lead a combination of more than one card if they can, otherwise their
+// highest single; one who does not, and so lets that seat go out on its last
+// card, pays every loser's penalty for the hand. Pagat sets no end to a
+// session; this file's match ends when a player's penalty total reaches 100,
+// and the lowest total wins.
+//
+// The hand runs on the kernel `round climb` construct over the game's own
+// combination catalogue (`combinations big_two`): the plays are the catalogue's
+// rows, and a play follows when `big_two_follows` says it does — the two rank
+// orders (2 high for sets; natural for straights), suit tie-breaks, and the
+// straight < flush < full house < quads < straight flush hierarchy. The
+// climbing trick loop, the 3♦ opening, pile routing to the discard, the
+// shed-out finish, and penalty scoring are DSL as well.
+
+game BigTwo {
+
+  players: 4
+  direction: counterclockwise
+  max_length: 25000
+
+  cards: standard52
+  // The single-card order: rank first (2 high, 3 low), then suit.
+  ranking: twos high
+  suit ranking: spades hearts clubs diamonds
+  // Five cards in sequence run in this order: the ace stands low in
+  // A-2-3-4-5 and high in 10-J-Q-K-A, and nothing runs past it.
+  sequence: A 2 3 4 5 6 7 8 9 10 J Q K A
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile          // the climbing trick in progress
+    discard      : Discard            // spent tricks (no capture in Big Two)
+    shown[player] : PublicHand<player> // a hand shown to settle the precaution rule
+  }
+
+  state {
+    // Game-level: persist across hands.
+    score[player] : Integer = 0       // cumulative penalty points (lower is better)
+    opened        : Boolean = false   // has this hand's opening (3♦) lead been played?
+    leader        : Player? = none    // who leads the current trick
+    // The precaution rule's public record: the last two asks of the hand —
+    // the seat asked, the trick pile's size, the strength of the pile's top
+    // card (-1 on an empty pile), and the size of the trick's lead (0 at a
+    // lead) — and the seat liable for the hand, once settled.
+    last_seat     : Player? = none
+    prev_seat     : Player? = none
+    last_pile     : Integer = 0
+    prev_pile     : Integer = 0
+    last_top      : Integer = -1
+    prev_top      : Integer = -1
+    last_lead     : Integer = 0
+    prev_lead     : Integer = 0
+    trick_lead    : Integer = 0
+    liable        : Player? = none
+    hand_total    : Integer = 0       // every loser's penalty for the hand, summed
+  }
+
+  // The match runs until a player's penalty total reaches 100 (this file's
+  // bound; Pagat sets none). Penalties only accumulate — three of the four
+  // players gain points every hand — so every match reaches it.
+  phase hand_sequence repeat until (any player where score[player] >= 100) {
+    before_each {
+      move all cards to deck
+      shuffle deck
+      deal 13 cards from deck to each hand
+      // The 3♦ holder leads every hand, and must play it.
+      opened := false
+      leader := player_holding(3 of diamonds)
+      last_seat := none
+      prev_seat := none
+      last_pile := 0
+      prev_pile := 0
+      last_top := -1
+      prev_top := -1
+      last_lead := 0
+      prev_lead := 0
+      trick_lead := 0
+      liable := none
+    }
+
+    phase play {
+      legal_moves: [play_combination]
+
+      // One climbing trick per `round climb`; the body routes the spent pile to
+      // the discard and passes the lead to the trick's winner. The `until`
+      // predicate ends the trick the instant a player sheds out (which also ends
+      // the hand), so the rest of that trick is not offered.
+      repeat until (any player where hand[player] is empty) {
+        round climb play_combination from leader
+              over players where hand[player] is not empty
+              source hand into trick_pile
+              combinations big_two follows big_two_follows
+              until (any player where hand[player] is empty)
+              before asking seat {
+                prev_seat := last_seat
+                prev_pile := last_pile
+                prev_top := last_top
+                prev_lead := last_lead
+                if (number of cards in trick_pile) is 0 {
+                  trick_lead := 0
+                } else {
+                  if trick_lead is 0 {
+                    trick_lead := number of cards in trick_pile
+                  }
+                }
+                last_seat := seat
+                last_pile := number of cards in trick_pile
+                last_top := (if (number of cards in trick_pile) is 0 then -1 else single_strength(top_of(trick_pile)))
+                last_lead := trick_lead
+              }
+        // The precaution rule, settled the instant the hand ends: the winner
+        // went out on a single card on the ask after the seat before them, so
+        // that seat was bound to play its highest single (singles were being
+        // played) or to lead a combination if it could, else its highest
+        // single. Its hand is shown, and it is liable if it held what it
+        // should have played.
+        if any player where hand[player] is empty {
+          for each player o:
+            if o is prev_seat and last_seat is winner
+               and (number of cards in trick_pile) - last_pile is 1
+               and winner is (the first player from o where player is not o) {
+              let led = prev_pile is 0
+              let passed = (not led) and (last_pile is 0 or last_pile is prev_pile)
+              let single = (not passed) and last_pile - prev_pile is 1
+              if (led and single) or ((not led) and prev_lead is 1 and (passed or single)) {
+                move all cards from hand[o] to shown[o]
+                if (led and (combination_held(o, last_top) or stronger_held(o, last_top)))
+                   or ((not led) and passed and stronger_held(o, prev_top))
+                   or ((not led) and single and stronger_held(o, last_top)) {
+                  liable := o
+                }
+              }
+            }
+        }
+        opened := true
+        move all cards from trick_pile to discard
+        leader := winner
+      }
+    }
+
+    phase scoring {
+      // The shed-out player (the last trick's winner) carries no penalty; the
+      // others lose 1/2/3 points per card still held — unless the precaution
+      // rule made a seat liable, which pays every loser's penalty alone.
+      hand_total := 0
+      for each player p:
+        hand_total += bigtwo_penalty(cards_held(p))
+      for each player p:
+        if liable is none {
+          score[p] += bigtwo_penalty(cards_held(p))
+        } else {
+          if p is liable {
+            score[p] += hand_total
+          }
+        }
+    }
+  }
+
+  winner: lowest score
+}
+
+// === Big Two scoring ===
+
+// Penalty for the cards a non-winner still holds: 1 per card up to nine, 2 per
+// card for ten–twelve, 3 per card for a full thirteen (39).
+function bigtwo_penalty(n : Integer) = if n <= 9 then n elif n <= 12 then 2 * n else 3 * n
+
+// The cards a player still holds at the hand's end, a shown hand included.
+function cards_held(p : Player) = (number of cards in hand[p]) + (number of cards in shown[p])
+
+// === The precaution rule ===
+
+// A single card's strength: rank first (the declared `ranking:`), then suit.
+function single_strength(c : Card) = 4 * rank_value(c) + suit_value(suit_of(c))
+
+// A strength's rank value and suit value, read back.
+function rank_of_strength(s : Integer) = s divided by 4 rounded down
+function suit_of_strength(s : Integer) = s - 4 * rank_of_strength(s)
+
+// A rank value's place in a straight: the 2 low (2), the 3 to the ace 3–14;
+// the ace also stands low, as 1, in the A-2-3-4-5 wheel.
+function straight_place(rv : Integer) = if rv is 12 then 2 else rv + 3
+
+// A shown hand holds a single stronger than strength `s`.
+function stronger_held(p : Player, s : Integer) = any card in shown[p] where single_strength(card) > s
+
+// The shown hand plus the led single (strength `x`) holds a card at straight
+// place `i`.
+function place_held(p : Player, x : Integer, i : Integer) =
+  (any card in shown[p] where straight_place(rank_value(card)) is i or (i is 1 and rank_value(card) is 11))
+  or straight_place(rank_of_strength(x)) is i or (i is 1 and rank_of_strength(x) is 11)
+
+function straight_from(p : Player, x : Integer, i : Integer) =
+  place_held(p, x, i) and place_held(p, x, i + 1) and place_held(p, x, i + 2)
+  and place_held(p, x, i + 3) and place_held(p, x, i + 4)
+
+// The shown hand plus the led single (strength `x`) could have led a
+// combination of more than one card: a pair (which every triple, full house
+// and four of a kind holds), five of a suit, or five in sequence.
+function combination_held(p : Player, x : Integer) =
+  (any subset of 2 cards in shown[p] where (all cards in subset where card.rank is (top_of(subset)).rank))
+  or (any card in shown[p] where rank_value(card) is rank_of_strength(x))
+  or (any suit where (number of cards in shown[p] where suit_of(card) is suit) + (if suit_value(suit) is suit_of_strength(x) then 1 else 0) >= 5)
+  or straight_from(p, x, 1) or straight_from(p, x, 2) or straight_from(p, x, 3)
+  or straight_from(p, x, 4) or straight_from(p, x, 5) or straight_from(p, x, 6)
+  or straight_from(p, x, 7) or straight_from(p, x, 8) or straight_from(p, x, 9)
+  or straight_from(p, x, 10)
+
+// === What a play is ===
+
+// Every play is one of these. A straight all of one suit is a straight flush
+// and never a straight or a flush, so the rows say so.
+combinations big_two {
+  single:         1 card
+  pair:           2 of a kind
+  triple:         3 of a kind
+  straight:       5 in sequence, not all one suit
+  flush:          5 cards, all one suit, not in sequence
+  full_house:     3 of a kind with 2 of a kind
+  quads:          4 of a kind with 1 card
+  straight_flush: 5 in sequence, all one suit
+}
+
+// A play follows the standing play when it holds as many cards and is
+// stronger. With no standing play it leads, and the hand's opening lead
+// holds the 3 of diamonds.
+function big_two_follows(play : Combination, standing : Combination?) =
+  if standing is none then opened or (3 of diamonds) in play
+  else (number of cards in play) is (number of cards in standing)
+       and strength(play) > strength(standing)
+
+// A five-card play ranks by its shape first -- straight, flush, full house,
+// quads, straight flush -- then within it: a straight by its top card, a
+// flush by its suit and then its highest card, a full house or quads by the
+// rank of its group. A single or a pair ranks by its highest card, a triple
+// by its rank.
+function strength(play : Combination) =
+  if play.shape is straight_flush then 5000 + sequence_strength(play)
+  elif play.shape is quads then 4000 + group_rank(play, 4)
+  elif play.shape is full_house then 3000 + group_rank(play, 3)
+  elif play.shape is flush
+    then 2000 + 20 * (highest suit_value(suit_of(card)) over cards in play or 0)
+         + (highest rank_value(card) over cards in play or 0)
+  elif play.shape is straight then 1000 + sequence_strength(play)
+  elif play.shape is triple then group_rank(play, 3)
+  else highest single_strength(card) over cards in play or 0
+
+// A sequence's top card, by its place and then its suit; the ace is the
+// low card of the A-2-3-4-5.
+function sequence_strength(play : Combination) =
+  highest 4 * sequence_place(play, card) + suit_value(suit_of(card)) over cards in play or 0
+
+function sequence_place(play : Combination, c : Card) =
+  if c.rank is A and (any card in play where card.rank is "2") then 1
+  else straight_place(rank_value(c))
+
+// The rank held `n` times in a play.
+function group_rank(play : Combination, n : Integer) =
+  highest rank_value(card) over cards in play where rank_count(play, card) is n or -1
+
+function rank_count(play : Combination, c : Card) = number of cards in play where card.rank is c.rank
