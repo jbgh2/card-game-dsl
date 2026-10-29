@@ -717,9 +717,12 @@ class ClimbForm:
     ) -> list[Any]:
         """The catalogue's plays the actor's hand holds that the follows
         function admits against the standing play, then the pass; at a lead,
-        the plays alone, of which there must be one."""
+        the plays alone, of which there must be one. The function is asked
+        for the actor, so a bare per-seat zone it reads is the actor's."""
         standing = state["current"]
-        plays: list[Any] = engine.candidates(self.hands[actor].cards, standing, ctx)
+        plays: list[Any] = engine.candidates(
+            self.hands[actor].cards, standing, ctx.derive(current_player=actor)
+        )
         if standing is not None:
             return [*plays, primitives.CLIMB_PASS]
         if not plays:

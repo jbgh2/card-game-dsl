@@ -374,6 +374,53 @@ def test_the_follows_cache_changes_no_answer(witness: str, monkeypatch: pytest.M
     assert _ask_lists(game, _SEEDS) == cached
 
 
+def _seat_relative_probe() -> str:
+    """A climb over a duplicate deck whose follows function reads the asked
+    seat's own hand by its bare name: two seats can hold equal plays while
+    their hands differ in size."""
+    source = MINIMAL.replace("cards: standard52", "cards: pinochle48", 1)
+    source = source.replace("ranking: aces high", "ranking: A 10 K Q J 9", 1)
+    source = source.replace(_SEQ_LINE, "", 1).replace("deal 13 cards", "deal 12 cards", 1)
+    source = _ROWS.sub(lambda _m: "combinations climb {\n  single: 1 card\n}", source, count=1)
+    return re.sub(
+        r"function climb_follows\(.*",
+        "function climb_follows(play : Combination, standing : Combination?) =\n"
+        "  standing is none or (number of cards in hand) > 3\n",
+        source,
+        flags=re.DOTALL,
+    )
+
+
+@pytest.mark.parametrize("cached", [True, False])
+def test_a_follows_function_reads_the_asked_seats_own_hand(cached: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The follows function is asked for the seat about to play: a bare
+    per-seat zone is that seat's, and its cached answers are that seat's.
+
+    red under: evaluate the follows function in the round's own context (no
+    seat bound), or key its cache without the asked seat."""
+    from cardlang.runtime import declared
+
+    monkeypatch.setattr(declared, "CACHE", cached)
+    game = check_dsl(_seat_relative_probe(), "probe.cardlang")
+    orig = mechanics.ClimbForm.candidates
+    follows = 0
+
+    def checked(self: mechanics.ClimbForm, actor: Any, state: Any, ctx: Any) -> list[Any]:
+        nonlocal follows
+        offered = orig(self, actor, state, ctx)
+        if state["current"] is not None:
+            plays = [c for c in offered if c != primitives.CLIMB_PASS]
+            held = len(self.hands[actor].cards)
+            assert bool(plays) == (held > 3), (actor, held, offered)
+            follows += 1
+        return offered
+
+    monkeypatch.setattr(mechanics.ClimbForm, "candidates", checked)
+    for seed in range(4):
+        driver.play_game(game, random.Random(seed))
+    assert follows > 0
+
+
 def test_reading_the_absent_standing_play_is_refused_at_the_first_lead() -> None:
     source = re.sub(
         r"function climb_follows\(.*",

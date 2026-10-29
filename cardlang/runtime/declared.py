@@ -204,6 +204,9 @@ class DeclaredClimbEngine:
         self.universe = bounded_universe(self.catalogue, rs.deck_name, self.sequence)
         self.engine = engine
         self._memo: dict[tuple[object, ...], bool] = rs.follows_answers.setdefault(engine.follows, {})
+        # A per-seat zone the function reads may be read bare, as the asked
+        # seat's own, so its answers are that seat's.
+        self.seat_keyed = any(rs.zones.is_family(z) for z in engine.zone_reads)
 
     def _admits(self, play: Combination, standing: Combination | None, ctx: Any) -> bool:
         from cardlang.runtime.evaluate import call_user_function
@@ -214,6 +217,7 @@ class DeclaredClimbEngine:
         key = (
             play.cards,
             None if standing is None else standing.cards,
+            ctx.current_player if self.seat_keyed else None,
             tuple(_hashable(rs.get(v)) for v in self.engine.state_reads),
             tuple(_zone_contents(rs, z) for z in self.engine.zone_reads),
         )
