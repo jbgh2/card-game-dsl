@@ -70,6 +70,7 @@ from cardlang import catalogue
 from cardlang.builtins.functions import PRIMITIVE_CLIMB_ENGINES
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, game_identity
+from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "declared_engine"
 MINIMAL = (FIXTURES / "minimal.cardlang").read_text()
@@ -442,7 +443,7 @@ SIGNATURE_CELLS: list[tuple[str, Expected]] = [
     ("(play : Combination, standing : Combination?) = 1", _refused("Boolean")),
     (
         "(play : Collection<Card>, standing : Collection<Card>) = true",
-        _refused("`Combination`", syntax=True),
+        _refused("`Combination`"),
     ),
 ]
 
@@ -515,7 +516,7 @@ READ_CELLS: list[tuple[str, Expected]] = [
     ("play.shape is flush", _refused("`flush`", "`single`")),
     ("play.wild is none", _refused("`wild`", "issue #989")),
     ("play.kind is single", _refused("`kind`", "`shape`")),
-    ("number of cards in play.cards is 1", _refused("`cards in play`")),
+    ("play.cards is none", _refused("`cards`", "`cards in play`")),
     ("rank_value(top_of(play)) > 3", _refused("no top card")),
     ("play is empty", _refused("`standing is none`")),
     ("standing is empty", _refused("`standing is none`")),
@@ -643,7 +644,15 @@ def test_the_follows_function_reads_only_what_the_asked_seat_sees(expr: str, exp
     _assert(_in_follows(expr), expected)
 
 
-@pytest.mark.parametrize(("zone_type", "expected"), [("TrickPile", CHECKS), ("HiddenPile", _refused("trick_pile"))])
+# Every unowned zone type: the play zone is one zone, never a family.
+PLAY_ZONE_CELLS: list[tuple[str, Expected]] = [
+    (t, CHECKS if identity_to_all(t) else _refused("`trick_pile`", f"`{t}`", "`TrickPile`"))
+    for t, owned in sorted(LIBRARY_ZONE_TYPES.items())
+    if not owned
+]
+
+
+@pytest.mark.parametrize(("zone_type", "expected"), PLAY_ZONE_CELLS)
 def test_a_climb_plays_into_a_zone_every_seat_sees(zone_type: str, expected: Expected) -> None:
     source = MINIMAL.replace("    trick_pile   : TrickPile", f"    trick_pile   : {zone_type}", 1)
     _assert(source, expected)

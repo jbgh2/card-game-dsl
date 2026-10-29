@@ -1967,6 +1967,14 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
     because a player IS an integer seat here (`coercible(TInteger, TPlayer)`), so
     `turn is 0` and `responder is actor` keep working."""
     lbare, rbare = _bare(infer(e.left, env)), _bare(infer(e.right, env))
+    if isinstance(lbare, TCombination) and isinstance(rbare, TCombination):
+        bag.error(
+            f"two plays are compared by what is read of them — their cards "
+            f"(`cards in play`) and their shape (`play.shape`) — never as "
+            f"wholes",
+            e.span,
+        )
+        return
     if isinstance(lbare, TEnum):
         _check_enum_operand(lbare, e.right, rbare, env, bag)
         return
@@ -2022,7 +2030,13 @@ def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
         bare = _bare(infer(operand, env))
         if isinstance(bare, (TAny, TInteger)):
             continue
-        if isinstance(bare, TEnum) and bare.name == "Rank":
+        if isinstance(bare, TCombination):
+            bag.error(
+                f"'{e.op}' compares Integers, and a play is no number — "
+                f"count its cards with `number of cards in play`",
+                operand.span,
+            )
+        elif isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
                 f"'{e.op}' compares Integers — enum values have no "
                 "arithmetic order — compare strength via rank_value(...)",
@@ -2041,6 +2055,43 @@ def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
             )
 
 
+def _combination_argument(func: str, got: Type, param: Type, builtin: bool) -> str | None:
+    """The refusal of a call argument on either side of a `Combination`: a
+    play passed where another type is taken, or anything but a play passed
+    to a `Combination` parameter. None when neither side is one, or both are
+    (optionality is `_check_operand`'s). A Builtin's `TAny` parameter takes a
+    card or a zone handle (`builtins.signatures.SIGS`), never a play."""
+    got_play = isinstance(_bare(got), TCombination)
+    takes_play = isinstance(_bare(param), TCombination)
+    if got_play == takes_play or isinstance(_bare(got), TAny):
+        return None
+    if isinstance(_bare(param), TAny):
+        if not builtin:
+            return None
+        return (
+            f"`{func}` takes a card or a zone, and a play is the cards a seat "
+            f"lays down together — read one through `any card in play where ...`"
+        )
+    if takes_play:
+        return (
+            f"`{func}` takes a climbing play, and only a round holds one: its "
+            f"follows function's `play` and `standing` are passed on, never "
+            f"made — give `{func}` the play its caller was given"
+        )
+    if isinstance(_bare(param), TCard):
+        return (
+            f"`{func}` takes a card, and a play is the cards a seat lays down "
+            f"together — read one through `any card in play where ...`"
+        )
+    if isinstance(_bare(param), TCollection):
+        return (
+            f"`{func}` takes a zone or collection, and a play is neither: it "
+            f"has no top card and no order of its own — read its cards as "
+            f"`cards in play`"
+        )
+    return f"`{func}` takes {_type_name(param)}, and a play is no {_type_name(param)}"
+
+
 def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`+ - *` and rounded division: only Integers are numeric in this
     language. A concrete enum operand is the worst case for `+` — it
@@ -2056,7 +2107,13 @@ def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         bare = _bare(infer(operand, env))
         if isinstance(bare, (TAny, TInteger)):
             continue
-        if isinstance(bare, TEnum) and bare.name == "Rank":
+        if isinstance(bare, TCombination):
+            bag.error(
+                f"'{word}' expects Integer operands, and a play is no number — "
+                f"count its cards with `number of cards in play`",
+                operand.span,
+            )
+        elif isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
                 f"'{word}' expects Integer operands — enum values have no "
                 "numeric value — compare strength via rank_value(...)",
@@ -2640,6 +2697,14 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
     bare = _bare(t)
     if e.kind in ("empty", "not_empty"):
         surface = "is empty" if e.kind == "empty" else "is not empty"
+        if isinstance(bare, TCombination):
+            bag.error(
+                f"`{surface}` asks a zone or collection, and a play holds at "
+                f"least one card — at a lead no play stands, which reads "
+                f"`standing is none`",
+                e.operand.span,
+            )
+            return
         _check_operand(
             e.operand, t, _UNKEYED_COLLECTION, env, bag,
             f"`{surface}` asks a zone or collection — got {_type_name(bare)}",
@@ -2918,8 +2983,8 @@ def _check_follows_signature(
     if standing_t == TCombination():
         bag.error(
             f"the follows function {name}'s second parameter is the play it "
-            f"beats, and at a lead no play stands, so it is `none` there: "
-            f"`standing : Combination?`",
+            f"beats, and at a lead no play stands, so it is `none` there: its "
+            f"type is `Combination?`",
             stmt.span,
         )
     elif standing_t != TOptional(TCombination()):
@@ -3222,6 +3287,12 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             else:
                 for arg, param in zip(args, sig.params):
                     got = infer(arg, env)
+                    combination = _combination_argument(
+                        e.func, got, param, builtin=e.func not in env.functions
+                    )
+                    if combination is not None:
+                        bag.error(combination, arg.span or e.span)
+                        continue
                     _check_operand(
                         arg, got, param, env, bag,
                         _named(env, "function", e.func, f"{e.func}()")
@@ -3383,15 +3454,16 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             # read here, its cards through the card-source forms.
             if e.field not in COMBINATION_FIELDS:
                 bag.error(
-                    f"a Combination has no field '{e.field}' — its shape is "
-                    f"`.shape`, and its cards are read `cards in "
+                    f"a Combination has no field `{e.field}` — its one field is "
+                    f"`shape`, and its cards are read `cards in "
                     f"{_name_of(e.obj) or 'play'}`",
                     e.span,
                 )
             elif COMBINATION_FIELDS[e.field] is None:
                 bag.error(
-                    f"`.{e.field}` is the rank a wild card in the play stands for, "
-                    f"and no row of a catalogue stands one yet — issue #989 holds "
+                    f"a Combination's `{e.field}` is the rank a wild card in the "
+                    f"play stands for, and no row of a catalogue stands one yet — "
+                    f"issue #989 holds "
                     f"wild cards in a combination",
                     e.span,
                 )

@@ -4636,6 +4636,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_actor_alias_comparisons(game, bag)
     _check_delegation(game, bag)
     _check_implicit_pools(game, bag)
+    _check_climb_play_zones(game, bag)
     _check_hidden_reads(game, bag)
     game = _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
@@ -6327,6 +6328,30 @@ def _check_unoffered_move_types(
         )
 
 
+def _check_climb_play_zones(game: n.Game, bag: DiagnosticBag) -> None:
+    """A climbing round plays into a zone every seat sees the cards of.
+
+    The Owner Guard for the standing play's visibility: each seat's offer is
+    judged against the play standing in the round's play zone, so a zone whose
+    type hides its cards from some seat (`stdlib.zones.identity_to_all`) offers
+    that seat plays judged against cards it cannot see."""
+    zone_types = {z.name: z.type_ref.name for z in game.zones}
+    for node in _walk(game):
+        if not isinstance(node, n.ClimbRound):
+            continue
+        ztype = zone_types.get(node.play_zone)
+        if ztype is None or ztype not in ZONE_PROJECTIONS or identity_to_all(ztype):
+            continue
+        bag.error(
+            f"a climb round plays into `{node.play_zone}`, a `{ztype}`, which "
+            f"hides its cards from some seat — every seat's play is judged "
+            f"against the play standing there, so every seat sees it. Declare "
+            f"`{node.play_zone}` a type that shows every seat its cards "
+            f"(`TrickPile`)",
+            node.span,
+        )
+
+
 def _check_implicit_pools(game: n.Game, bag: DiagnosticBag) -> None:
     """Every implicit decision pool shows its decider the cards in it.
 
@@ -7602,6 +7627,9 @@ class _Categories:
     flavor: Flavor = "card"
     # Inside a rule's clauses, where a bare `hand` is the Play Source.
     rule_clause: bool = False
+    # The game's catalogue row labels, the values a play's `.shape` takes
+    # (also in `enums`, where a bare label resolves).
+    shapes: frozenset[str] = frozenset()
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -7651,6 +7679,7 @@ def _categories(game: n.Game) -> _Categories:
         ranks=rank_names(game.deck) if _component_known(game.deck) else frozenset(),
         suits=suit_names(game.deck) if _component_known(game.deck) else frozenset(),
         flavor=game.content_flavor,
+        shapes=shape_labels(game),
     )
 
 
@@ -10384,6 +10413,22 @@ def _refuse_bare_always(pred: object, clause: str, cats: _Categories, bag: Diagn
     return True
 
 
+def _unknown_shape_label(node: n.BinOp, cats: _Categories) -> n.NameRef | None:
+    """The bare name a `<x>.shape is <name>` comparison sets against a play's
+    shape when it names nothing of the game, or None."""
+    for side, other in ((node.left, node.right), (node.right, node.left)):
+        if (
+            isinstance(side, n.Member)
+            and side.field == "shape"
+            and isinstance(other, n.NameRef)
+            and other.ref_kind is None
+            and other.name not in cats.locals
+            and _classify(other.name, cats) is None
+        ):
+            return other
+    return None
+
+
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     if isinstance(node, n.AppliesWhen) and _refuse_bare_always(
         node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
@@ -10407,6 +10452,24 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         rest = _rewrite(replace(node, trump=None), cats, bag)
         assert isinstance(rest, n.TrickRound)
         return replace(rest, trump=node.trump)
+    if (
+        isinstance(node, n.BinOp)
+        and node.op in ("is", "is_not")
+        and cats.shapes
+        and (label := _unknown_shape_label(node, cats)) is not None
+    ):
+        bag.error(
+            f"`{label.name}` is no row label of this game's catalogue — a "
+            f"play's `.shape` is one of "
+            f"{', '.join(f'`{x}`' for x in sorted(cats.shapes))}",
+            label.span,
+        )
+        # The label is told once here; its side stays unclassified.
+        other = node.left if node.right is label else node.right
+        side = cast(n.Expr, _rewrite(other, cats, bag))
+        if other is node.left:
+            return replace(node, left=side)
+        return replace(node, right=side)
     if isinstance(node, n.NameRef):
         if node.ref_kind is not None:
             # Classified by an earlier step of this pass from a fact it held
@@ -10750,8 +10813,8 @@ def _combination_outside_a_parameter(type_name: str, where: str) -> str | None:
     if type_name.removesuffix("?") != COMBINATION_TYPE_NAME:
         return None
     return (
-        f"`{type_name}` is a function parameter's type only — a climbing play "
-        f"exists while a round's follows function reads it, so {where} cannot "
+        f"`{COMBINATION_TYPE_NAME}` is a function parameter's type only (`{type_name}` "
+        f"here) — a climbing play exists while a round's follows function reads it, so {where} cannot "
         f"hold one"
     )
 
@@ -13479,6 +13542,21 @@ class _HiddenReads:
             self.library_text.append(mt.origin is not None)
             self._stmts(mt.effect, scope, _Seat("the acting seat"))
             self.library_text.pop()
+        # A Declared Engine asks its follows function at each seat's climb
+        # decision: what it admits is what that seat may play.
+        follows = sorted({
+            node.engine.follows for node in _walk(self.game)
+            if isinstance(node, n.ClimbRound) and isinstance(node.engine, n.DeclaredEngine)
+        })
+        for name in follows:
+            fn = self.functions.get(name)
+            if fn is None:
+                continue
+            self._judge(
+                "the follows function " + cite_named(fn, f"`{fn.name}`"),
+                self.reads_of(fn.body, _ACTOR_SCOPE.shadow(tuple(p.name for p in fn.params))),
+                _Seat("the acting seat"), fn.body.span,
+            )
         rule_scope, rule_seat = _ACTOR_SCOPE, _Seat("the acting seat")
         # The seat evaluating a clause, which makes a `choose` nested in it
         # (`RULE_CLAUSE_SEATS`): the attributed seat. Where it is not the

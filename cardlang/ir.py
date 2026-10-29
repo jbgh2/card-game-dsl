@@ -102,6 +102,17 @@ def emit(game: n.Game) -> IRDict:
         "rules": [_rule(r) for r in game.rules],
         "move_types": [_move_type(m) for m in game.move_types],
         "functions": [_function(f) for f in game.functions],
+        # Keyed ONLY when declared, the `suit_ranking` precedent.
+        **(
+            {"rank_sequence": list(game.rank_sequence.ranks)}
+            if game.rank_sequence is not None
+            else {}
+        ),
+        **(
+            {"catalogues": [_catalogue(c) for c in game.catalogues]}
+            if game.catalogues
+            else {}
+        ),
     }
 
 
@@ -115,6 +126,43 @@ def to_json(game: n.Game) -> str:
 
 def _players(p: n.PlayersSpec) -> IRDict:
     return {"kind": "players", "count": p.count}
+
+
+def _catalogue(c: n.CombinationCatalogue) -> IRDict:
+    """A [[combination-catalogue]], its rows in source order: the order is the
+    designer's, and the plays a catalogue names do not depend on it."""
+    return {
+        "kind": "combination_catalogue",
+        "name": c.name,
+        "rows": [
+            {
+                "kind": "shape_row",
+                "label": r.label,
+                "parts": [{"kind": p.kind, "count": p.count} for p in r.parts],
+                "qualifiers": list(r.qualifiers),
+            }
+            for r in c.rows
+        ],
+    }
+
+
+def _climb_engine(e: n.ClimbEngine | None) -> IRDict:
+    match e:
+        case n.RegisteredEngine():
+            return {"kind": "registered_engine", "lead": e.lead, "follows": e.follows}
+        case n.DeclaredEngine():
+            return {
+                "kind": "declared_engine",
+                "catalogue": e.catalogue,
+                "follows": e.follows,
+                "state_reads": list(e.state_reads),
+                "zone_reads": list(e.zone_reads),
+                "cacheable": e.cacheable,
+            }
+        case None:
+            raise AssertionError("resolve stamps every climb round's engine")
+        case _:
+            assert_never(e)
 
 
 def _primitives(b: n.PrimitivesBlock) -> IRDict:
@@ -421,6 +469,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "play_zone": s.play_zone,
                 "combos_fn": s.combos_fn,
                 "follows_fn": s.follows_fn,
+                "engine": _climb_engine(s.engine),
                 "until": _expr(s.until),
                 "hosted": (
                     {

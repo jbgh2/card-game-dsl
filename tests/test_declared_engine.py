@@ -361,7 +361,7 @@ def test_the_swap_proof_goes_red_under_each_planted_fault(witness: str, old: str
 @PENDING
 @pytest.mark.parametrize("witness", ["big-two", "president"])
 def test_the_follows_cache_changes_no_answer(witness: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    from cardlang.runtime import declared  # type: ignore[attr-defined]
+    from cardlang.runtime import declared
 
     game = check_source(str(FIXTURES / f"{witness}.cardlang"))
     cached = _ask_lists(game, _SEEDS)
