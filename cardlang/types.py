@@ -99,6 +99,16 @@ class TLine:
 
 
 @dataclass(frozen=True, slots=True)
+class TCombination:
+    """A climbing play of a Declared Engine (decisions.md "Combination
+    Catalogues"): the cards it moves and the label of the catalogue row it
+    is. A function parameter's type only — a round's follows function and the
+    helpers it passes one to read it — and never a `Collection<Card>`: its
+    cards are read through the card-source forms (`cards in play`), its shape
+    as `play.shape`. Its runtime representation is `values.Combination`."""
+
+
+@dataclass(frozen=True, slots=True)
 class TEnum:
     """A deck / built-in value enum: ``Suit``, ``Rank``, ``Direction``."""
 
@@ -213,6 +223,7 @@ Type: TypeAlias = (
     | TCell
     | TDir
     | TLine
+    | TCombination
     | TEnum
     | TOptional
     | TCollection

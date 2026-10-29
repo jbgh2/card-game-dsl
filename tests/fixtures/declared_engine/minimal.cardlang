@@ -59,6 +59,7 @@ game Climb {
 
 combinations climb {
   single: 1 card
+  run:    3 in sequence
 }
 
 function climb_follows(play : Combination, standing : Combination?) =

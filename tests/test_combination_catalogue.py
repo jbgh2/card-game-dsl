@@ -76,10 +76,6 @@ MINIMAL = (FIXTURES / "minimal.cardlang").read_text()
 BIG_TWO = (FIXTURES / "big-two.cardlang").read_text()
 PRESIDENT = (FIXTURES / "president.cardlang").read_text()
 
-# Every cell is red until stage B of issue #251 lands; each mark comes off with
-# the change that turns its cell green, so a strict XPASS is a cell to unmark.
-PENDING = pytest.mark.xfail(strict=True, reason="issue #251 stage B: the catalogue surface")
-
 _SEQUENCE = "  sequence: A 2 3 4 5 6 7 8 9 10 J Q K A\n"
 _ROWS = re.compile(r"combinations climb \{\n(?P<rows>.*?)\n\}", re.DOTALL)
 _FOLLOWS = re.compile(r"function climb_follows\(.*", re.DOTALL)
@@ -115,10 +111,13 @@ def _assert(source: str, expected: Expected) -> None:
 
 
 def _rows(*rows: str) -> str:
-    """The minimal game with its catalogue's rows replaced."""
+    """The minimal game with its catalogue's rows replaced, and its
+    `sequence:` line kept only where a row reads it."""
     body = "\n".join(f"  {r}" for r in rows)
     out = _ROWS.sub(lambda _m: f"combinations climb {{\n{body}\n}}", MINIMAL, count=1)
     assert body in out
+    if "sequence" not in body:
+        out = out.replace(_SEQUENCE, "", 1)
     return out
 
 
@@ -262,7 +261,6 @@ ROW_CELLS = [
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("part", "n", "quals"), ROW_CELLS)
 def test_a_shape_row_checks_exactly_when_the_spec_admits_it(
     part: str, n: int, quals: tuple[str, ...]
@@ -278,11 +276,11 @@ def test_the_row_axis_covers_every_registered_part_and_qualifier() -> None:
 
 
 WITH_CELLS = [
-    pytest.param("3 of a kind with 2 of a kind", CHECKS, marks=PENDING),
-    pytest.param("4 of a kind with 1 card", CHECKS, marks=PENDING),
-    pytest.param("2 of a kind with 2 of a kind", CHECKS, marks=PENDING),
-    pytest.param("1 card with 1 card", _refused("`2 cards`"), marks=PENDING),
-    pytest.param("4 of a kind with 4 of a kind", _refused("issue #989"), marks=PENDING),
+    pytest.param("3 of a kind with 2 of a kind", CHECKS),
+    pytest.param("4 of a kind with 1 card", CHECKS),
+    pytest.param("2 of a kind with 2 of a kind", CHECKS),
+    pytest.param("1 card with 1 card", _refused("`2 cards`")),
+    pytest.param("4 of a kind with 4 of a kind", CHECKS),
     ("3 of a kind with 2 of a kind with 1 card", _refused("issue #994")),
     ("3 of a kind with 2 of a kind, all one suit", _refused("one part")),
 ]
@@ -327,12 +325,10 @@ def test_the_overlap_axis_drops_every_qualifier_of_the_witness() -> None:
     assert {q for _, q, _ in OVERLAP_CELLS} == set(_QUALIFIER.values())
 
 
-@PENDING
 def test_the_big_two_witness_checks_with_its_overlaps_settled() -> None:
     _assert(BIG_TWO, CHECKS)
 
 
-@PENDING
 @pytest.mark.parametrize(("label", "dropped", "phrase"), OVERLAP_CELLS)
 def test_a_dropped_qualifier_leaves_an_overlap_refused(label: str, dropped: str, phrase: str) -> None:
     m = _BIG_TWO_ROWS.search(BIG_TWO)
@@ -340,14 +336,18 @@ def test_a_dropped_qualifier_leaves_an_overlap_refused(label: str, dropped: str,
     rows = m.group("rows")
     old = next(line for line in rows.splitlines() if line.strip().startswith(f"{label}:"))
     source = BIG_TWO.replace(old, f"  {label}: {phrase}", 1)
+    if (label, dropped) == ("flush", "all one suit"):
+        # `5 cards, not in sequence` alone numbers past the enumeration bound,
+        # which the pass meets before any overlap.
+        _assert(source, _refused("issue #989"))
+        return
     _assert(source, _refused("both", f"`{label}`", "settle it"))
 
 
-@PENDING
 @pytest.mark.parametrize(
     ("rows", "expected"),
     [
-        (("single: 1 card", "one: 1 card"), _refused("both", "`single`", "`one`")),
+        (("single: 1 card", "solo: 1 card"), _refused("both", "`single`", "`solo`")),
         (("single: 1 card", "single: 2 of a kind"), _refused("`single`", "twice")),
     ],
 )
@@ -370,7 +370,6 @@ SEQUENCE_CELLS: list[tuple[str, str, Expected]] = [
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("case", "line", "expected"), SEQUENCE_CELLS, ids=[c[0] for c in SEQUENCE_CELLS])
 def test_the_rank_sequence_is_declared_where_it_is_read(case: str, line: str, expected: Expected) -> None:
     source = MINIMAL.replace(_SEQUENCE, line, 1)
@@ -402,20 +401,8 @@ def _expected_pairing(combos: str, follows: str) -> Expected:
     return _refused("'climbx'", "catalogue")
 
 
-# The cells resolve's engine pairing decides alone; the rest also need the
-# catalogue pass and the `Combination` type.
-_PAIRING_LANDED = {
-    ("catalogue", "registered follows"),
-    ("catalogue", "unknown"),
-    ("registered lead", "game function"),
-    ("registered lead", "registered follows"),
-    ("registered lead", "unknown"),
-    ("unknown", "game function"),
-    ("unknown", "registered follows"),
-    ("unknown", "unknown"),
-}
 PAIRING_CELLS = [
-    pytest.param(c, f, marks=() if (c, f) in _PAIRING_LANDED else PENDING)
+    pytest.param(c, f)
     for c in _COMBOS_SLOT
     for f in _FOLLOWS_SLOT
 ]
@@ -460,7 +447,6 @@ SIGNATURE_CELLS: list[tuple[str, Expected]] = [
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("signature", "expected"), SIGNATURE_CELLS)
 def test_the_follows_function_takes_the_play_and_the_play_it_beats(signature: str, expected: Expected) -> None:
     _assert(_follows(f"function climb_follows{signature}"), expected)
@@ -478,7 +464,9 @@ TYPE_HOST_CELLS: list[tuple[str, Callable[[str], str], Expected]] = [
     ),
     (
         "state declaration",
-        lambda t: MINIMAL.replace("    leader        : Player? = none", f"    leader : Player? = none\n    last : {t}"),
+        lambda t: MINIMAL.replace(
+            "    leader        : Player? = none", f"    leader : Player? = none\n    last : {t} = none"
+        ),
         _refused("`Combination`", "function parameter"),
     ),
     (
@@ -495,7 +483,6 @@ TYPE_HOST_CELLS: list[tuple[str, Callable[[str], str], Expected]] = [
 TYPE_SPELLINGS = ("Combination", "Combination?")
 
 
-@PENDING
 @pytest.mark.parametrize("spelling", TYPE_SPELLINGS)
 @pytest.mark.parametrize(("host", "build", "expected"), TYPE_HOST_CELLS, ids=[c[0] for c in TYPE_HOST_CELLS])
 def test_a_combination_is_a_function_parameter_only(
@@ -504,7 +491,6 @@ def test_a_combination_is_a_function_parameter_only(
     _assert(build(spelling), expected)
 
 
-@PENDING
 def test_only_a_play_reaches_a_combination_parameter() -> None:
     source = MINIMAL + (
         "\nfunction size_of(p : Combination?) = p is none\n"
@@ -518,7 +504,7 @@ def test_only_a_play_reaches_a_combination_parameter() -> None:
 # ---------------------------------------------------------------------------
 
 READ_CELLS: list[tuple[str, Expected]] = [
-    ("standing is none or number of cards in play is number of cards in standing", CHECKS),
+    ("standing is none or (number of cards in play) is (number of cards in standing)", CHECKS),
     ("standing is none or (any card in play where card.rank is A)", CHECKS),
     ("standing is none or (all cards in play where card.suit is hearts)", CHECKS),
     ("standing is none or (highest rank_value(card) over cards in play or 0) > 3", CHECKS),
@@ -540,7 +526,6 @@ READ_CELLS: list[tuple[str, Expected]] = [
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("expr", "expected"), READ_CELLS)
 def test_a_combination_reads_as_its_cards_and_its_shape(expr: str, expected: Expected) -> None:
     _assert(_in_follows(expr), expected)
@@ -569,13 +554,11 @@ LABEL_CELLS: list[tuple[str, str, Expected]] = [
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("kind", "label", "expected"), LABEL_CELLS, ids=[c[0] for c in LABEL_CELLS])
 def test_a_row_label_names_nothing_else(kind: str, label: str, expected: Expected) -> None:
     _assert(_rows(f"{label}: 1 card"), expected)
 
 
-@PENDING
 def test_a_binder_may_share_a_row_labels_name() -> None:
     """Big Two's precaution binds `let single` beside its `single` row; a
     binder shadows a label as it shadows a suit."""
@@ -610,17 +593,15 @@ def test_a_growth_or_near_miss_spelling_is_refused_with_its_fix(phrase: str, exp
 # ---------------------------------------------------------------------------
 
 
-@PENDING
 def test_a_catalogue_no_round_names_is_refused() -> None:
     _assert(MINIMAL + "\ncombinations spare {\n  single: 1 card\n}\n", _refused("`spare`", "no round"))
 
 
-@PENDING
 def test_a_catalogue_in_a_library_is_refused() -> None:
-    from cardlang.pipeline import check_library_text  # type: ignore[attr-defined]
+    from cardlang.parse import parse_library
 
     with pytest.raises(DiagnosticError, match="catalogue"):
-        check_library_text("library fam {\n  combinations c {\n    single: 1 card\n  }\n}\n", "fam.cardlang")
+        parse_library("library fam {\n  combinations c {\n    single: 1 card\n  }\n}\n", "fam.cardlang")
 
 
 # ---------------------------------------------------------------------------
@@ -657,13 +638,11 @@ HIDDEN_READ_CELLS: list[tuple[str, Expected]] = [
 ]
 
 
-@PENDING
 @pytest.mark.parametrize(("expr", "expected"), HIDDEN_READ_CELLS)
 def test_the_follows_function_reads_only_what_the_asked_seat_sees(expr: str, expected: Expected) -> None:
     _assert(_in_follows(expr), expected)
 
 
-@PENDING
 @pytest.mark.parametrize(("zone_type", "expected"), [("TrickPile", CHECKS), ("HiddenPile", _refused("trick_pile"))])
 def test_a_climb_plays_into_a_zone_every_seat_sees(zone_type: str, expected: Expected) -> None:
     source = MINIMAL.replace("    trick_pile   : TrickPile", f"    trick_pile   : {zone_type}", 1)
@@ -675,7 +654,6 @@ def test_a_climb_plays_into_a_zone_every_seat_sees(zone_type: str, expected: Exp
 # ---------------------------------------------------------------------------
 
 
-@PENDING
 def test_a_catalogue_or_sequence_edit_moves_the_game_identity() -> None:
     base = game_identity(check_dsl(_rows("single: 1 card", "run: 5 in sequence"), "a.cardlang"))
     row = game_identity(check_dsl(_rows("single: 1 card", "run: 6 in sequence"), "b.cardlang"))
@@ -699,6 +677,5 @@ def test_the_engine_kinds_are_a_closed_union() -> None:
     assert kinds == {"RegisteredEngine", "DeclaredEngine"}
 
 
-@PENDING
 def test_the_president_witness_checks() -> None:
     _assert(PRESIDENT, CHECKS)

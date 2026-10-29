@@ -423,6 +423,7 @@ from cardlang.domains import (
 )
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
+from cardlang.catalogue_pass import check_catalogues, shape_labels
 from cardlang.libraries import library_names, load_library
 from cardlang.runtime.delegation import CHOOSER_HELPER, SOURCE_HELPER
 from cardlang.runtime.errors import OwnerGuardError
@@ -451,6 +452,7 @@ from cardlang.stdlib.zones import (
     reveals,
 )
 from cardlang.typecheck import (
+    COMBINATION_TYPE_NAME,
     KNOWN_TYPE_NAMES,
     POSITIVE_PARAM_DOMAIN,
     RANKING_GATED_FUNCS,
@@ -988,6 +990,10 @@ _METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.RegisteredEngine, "follows"),
         (n.DeclaredEngine, "catalogue"),
         (n.DeclaredEngine, "follows"),
+        # The follows function's reads, stamped from its classified names by
+        # `_stamp_follows_reads`.
+        (n.DeclaredEngine, "state_reads"),
+        (n.DeclaredEngine, "zone_reads"),
     }
 )
 
@@ -4534,6 +4540,8 @@ def resolve(game: n.Game) -> n.Game:
     _check_piece_rounds(game, bag)
     _check_duplicate_names(game, bag)
     _check_climb_action_names(game, bag)
+    if game.catalogues or game.rank_sequence is not None:
+        check_catalogues(game, _label_namesakes(game).get, bag)
     _check_reserved_params(game, bag)
     _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
@@ -4602,6 +4610,7 @@ def resolve(game: n.Game) -> n.Game:
     # card literals, and the rotate/winner targets.
     cats = _categories(game)
     game = _classify_names(game, cats, bag)
+    game = _stamp_follows_reads(game)
     _validate_refs(game, cats, bag)
     _check_play_source(game, own_rules, bag)
     _check_bare_family_refs(game, bag)
@@ -6146,6 +6155,85 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
     return stamped
 
 
+def _label_namesakes(game: n.Game) -> dict[str, str]:
+    """Every name a Combination Shape's label may not take, with what it
+    already names: a label is a value of the game's `Shape` enum, read bare
+    (`play.shape is flush`), so it shares the namespace a deck's ranks and
+    suits, the game's declarations and the language's round queries live
+    in."""
+    out: dict[str, str] = {}
+    if _component_known(game.deck):
+        out.update(dict.fromkeys(rank_names(game.deck), "a rank of the deck"))
+        out.update(dict.fromkeys(suit_names(game.deck), "a suit of the deck"))
+    out.update(dict.fromkeys(SEAT_DIRECTION_VALUES, "a seat direction"))
+    out.update(dict.fromkeys(_ROUND_QUERY_NAMES, "a registered round query"))
+    out.update(dict.fromkeys(LIBRARY_MOVE_TYPES, "a move type"))
+    for nd in _walk(game):
+        if isinstance(nd, n.StateDecl):
+            out[nd.name] = "a state variable"
+        elif isinstance(nd, n.Phase):
+            out[nd.name] = "a phase"
+    out.update({z.name: "a zone" for z in game.zones})
+    out.update({f.name: "a function" for f in game.functions})
+    out.update({p.name: "a procedure" for p in game.procedures})
+    out.update({m.name: "a move type" for m in game.move_types})
+    out.update({r.name: "a rule" for r in game.rules})
+    out.update({c.name: "a combination catalogue" for c in game.catalogues})
+    return out
+
+
+def _stamp_follows_reads(game: n.Game) -> n.Game:
+    """Stamp each Declared Engine with what its follows function reads beyond
+    its two plays, through every function it calls: the state variables and
+    zones, by their classified names, which key the function's cached answers
+    at runtime. A zone a Builtin reads without the call naming it
+    (`BUILTIN_IMPLICIT_READS`) joins the zones; a pronoun or a round's
+    published state (`state.x`) is a read no key can hold, so the function is
+    not cached."""
+    functions = {f.name: f for f in game.functions}
+
+    def stamp(nd: n.ClimbRound) -> n.ClimbRound:
+        engine = nd.engine
+        if not isinstance(engine, n.DeclaredEngine) or engine.follows not in functions:
+            return nd
+        state: set[str] = set()
+        zones: set[str] = set()
+        cacheable = True
+        seen: set[str] = set()
+        frontier = [functions[engine.follows]]
+        while frontier:
+            fn = frontier.pop()
+            if fn.name in seen:
+                continue
+            seen.add(fn.name)
+            for node in _walk(fn.body):
+                if isinstance(node, n.NameRef):
+                    if node.ref_kind == "state_var":
+                        state.add(node.name)
+                    elif node.ref_kind == "zone":
+                        zones.add(node.name)
+                    elif node.ref_kind == "pronoun":
+                        cacheable = False
+                elif isinstance(node, n.Call):
+                    if node.func in functions:
+                        frontier.append(functions[node.func])
+                    elif node.func in BUILTIN_IMPLICIT_READS:
+                        zones.add(BUILTIN_IMPLICIT_READS[node.func][0])
+        return replace(
+            nd,
+            engine=replace(
+                engine,
+                state_reads=tuple(sorted(state)),
+                zone_reads=tuple(sorted(zones)),
+                cacheable=cacheable,
+            ),
+        )
+
+    stamped = _map_climb_rounds(game, stamp)
+    assert isinstance(stamped, n.Game)
+    return stamped
+
+
 def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
     """In a game with a climbing round, no move type is spelled like one of
     the engine's own actions (`primitives.climb_actions`: its pass,
@@ -7552,7 +7640,8 @@ def _categories(game: n.Game) -> _Categories:
         state_vars=frozenset(state_vars),
         definitions=frozenset(definitions),
         zones=frozenset(z.name for z in game.zones),
-        enums=enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES,
+        enums=(enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES)
+        | shape_labels(game),
         # Card-literal validation asks "does this card EXIST in the deck",
         # so ranks derive from the deck like `suits` below — never from
         # `ranking:`, which is an ORDERING (optional, and legitimately
@@ -10653,6 +10742,20 @@ def _report_recursion(
     )
 
 
+def _combination_outside_a_parameter(type_name: str, where: str) -> str | None:
+    """The refusal of `Combination` declared anywhere but a function's
+    parameter, or None for any other type name. A climbing play exists while
+    a round asks its follows function about it, so only that function and
+    the helpers it passes one to may name its type."""
+    if type_name.removesuffix("?") != COMBINATION_TYPE_NAME:
+        return None
+    return (
+        f"`{type_name}` is a function parameter's type only — a climbing play "
+        f"exists while a round's follows function reads it, so {where} cannot "
+        f"hold one"
+    )
+
+
 def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     """A function parameter's and a outcome payload's declared type name names
     a real type.
@@ -10682,6 +10785,8 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     # on a move parameter.
     position_names = {p.name for p in game.positions}
     known = KNOWN_TYPE_NAMES | position_names
+    # A function parameter is the one position a climbing play is named in.
+    parameter_known = known | {COMBINATION_TYPE_NAME}
 
     def base_of(type_name: str) -> str:
         # A trailing `?` marks a nullable domain/payload (`Suit?`), not part of
@@ -10690,7 +10795,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
 
     for fn in game.functions:
         for p in fn.params:
-            if base_of(p.type_name) not in known:
+            if base_of(p.type_name) not in parameter_known:
                 bag.error(
                     f"unknown type '{p.type_name}' in parameter '{p.name}' of "
                     f"function " + cite_named(fn, f"'{fn.name}'"),
@@ -10701,7 +10806,10 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
             continue
         for case in phase.outcome_cases:
             for payload in case.payload_types:
-                if base_of(payload) not in known:
+                refused = _combination_outside_a_parameter(payload, "an outcome's payload")
+                if refused is not None:
+                    bag.error(refused, case.span or phase.span)
+                elif base_of(payload) not in known:
                     bag.error(
                         f"unknown type '{payload}' in payload of case "
                         f"'{case.tag}'",
@@ -11131,7 +11239,10 @@ def _check_procedures(
                 proc.span,
             )
         for p in proc.params:
-            if p.type_name not in _PROCEDURE_PARAM_DOMAINS:
+            refused = _combination_outside_a_parameter(p.type_name, "a procedure's parameter")
+            if refused is not None:
+                bag.error(refused, p.span)
+            elif p.type_name not in _PROCEDURE_PARAM_DOMAINS:
                 bag.error(
                     f"procedure parameter '{p.name}: {p.type_name}' has an "
                     f"unsupported domain — procedure parameters support "
@@ -11344,6 +11455,11 @@ def _check_move_params(
     the move contributes zero candidates — a crash where a compile-time
     diagnostic belongs (CLAUDE.md "Surface totality")."""
     types = [p.type_name for p in mt.params]
+    for p in mt.params:
+        refused = _combination_outside_a_parameter(p.type_name, "a move type's parameter")
+        if refused is not None:
+            bag.error(refused, span)
+            return
     # A piece game has no suit/rank/card domain to enumerate, so a move
     # parameterized by one has no candidate space. Checked before the
     # ranking / unsupported-domain arms so the diagnostic names the KIND
@@ -11872,7 +11988,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # One arm, both checks: a match runs its first matching arm
                 # only, so two guarded StateDecl arms would report at most one
                 # of two independent errors on the same declaration.
-                if nd.type_name not in KNOWN_TYPE_NAMES:
+                refused = _combination_outside_a_parameter(nd.type_name, "a state variable")
+                if refused is not None:
+                    bag.error(refused, nd.span)
+                elif nd.type_name not in KNOWN_TYPE_NAMES:
                     bag.error(
                         f"unknown type '{nd.type_name}' in declaration of "
                         + cite_named(nd, f"'{nd.name}'"),

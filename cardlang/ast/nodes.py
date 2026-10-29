@@ -745,6 +745,14 @@ class DeclaredEngine:
 
     catalogue: str
     follows: str
+    # What the follows function reads beyond its two plays, transitively
+    # through the functions it calls, stamped by resolve once names are
+    # classified: the state variables and zones whose values key its cached
+    # answers, or `cacheable` False when it reads what no key can hold (a
+    # round's published state, a pronoun).
+    state_reads: tuple[str, ...] = ()
+    zone_reads: tuple[str, ...] = ()
+    cacheable: bool = True
 
 
 ClimbEngine = RegisteredEngine | DeclaredEngine

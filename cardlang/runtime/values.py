@@ -273,6 +273,28 @@ class Card:
 
 
 @dataclass(frozen=True, slots=True)
+class Combination:
+    """A climbing play of a Declared Engine (decisions.md "Combination
+    Catalogues"): the label of the catalogue row it is, and its cards in deck
+    order. Its identity, which its action id is a function of, is its card
+    multiset; `primitives.ClimbPlay`'s behaviours all take their defaults, since
+    no row of a catalogue declares one yet (issue #989)."""
+
+    shape: str
+    cards: tuple[Card, ...]
+    wild: int | None = None
+    ends_trick: bool = False
+    compelled: bool = False
+    announce: tuple[str, ...] = ()
+    interrupt: bool = False
+
+    @property
+    def kind(self) -> str:
+        """`primitives.ClimbPlay.kind`: the play's shape."""
+        return self.shape
+
+
+@dataclass(frozen=True, slots=True)
 class CardSet:
     """A joint-selection [[candidate]]: one subset of a [[transfer]]'s source pool
     (`where jointly` — decisions.md "Joint-predicate selection"). Exposes

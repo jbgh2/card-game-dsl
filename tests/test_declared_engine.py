@@ -175,7 +175,8 @@ def _phrase(row: Row) -> str:
 def _probe(deck: str, rows: list[Row]) -> str:
     body = "\n".join(f"  r{i}: {_phrase(r)}" for i, r in enumerate(rows))
     source = MINIMAL.replace("cards: standard52", f"cards: {deck}", 1)
-    source = source.replace(_SEQ_LINE, f"  sequence: {_DECKS[deck]}\n", 1)
+    reads = any("sequence" in _phrase(r) for r in rows)
+    source = source.replace(_SEQ_LINE, f"  sequence: {_DECKS[deck]}\n" if reads else "", 1)
     source = source.replace("deal 13 cards", "deal 4 cards", 1)
     return _ROWS.sub(lambda _m: f"combinations climb {{\n{body}\n}}", source, count=1)
 

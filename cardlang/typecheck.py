@@ -125,6 +125,8 @@ from cardlang.primitives_block import (
     implementation_sig,
     regime,
 )
+from cardlang.catalogue import COMBINATION_FIELDS
+from cardlang.catalogue_pass import SHAPE_ENUM, shape_labels
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
@@ -135,6 +137,7 @@ from cardlang.types import (
     TBoolean,
     TCard,
     TCell,
+    TCombination,
     TCollection,
     TDir,
     TEnum,
@@ -185,6 +188,11 @@ _ENUM_TYPES = frozenset({"Suit", "Rank", "SeatDirection"})
 # validates every declaration's type_name against this set, so a typo ('Integar') is a diagnostic, never a silent
 # TAny (closed-domain completeness, decisions.md).
 KNOWN_TYPE_NAMES: frozenset[str] = frozenset(_SCALAR_TYPES) | _ENUM_TYPES
+
+# The climbing play's type name (`types.TCombination`): a function parameter's
+# type only, so it is no member of `KNOWN_TYPE_NAMES`, which every declaring
+# position shares.
+COMBINATION_TYPE_NAME = "Combination"
 
 # The procedure parameter domain of whole numbers from 1 up. It is no value
 # type, since a procedure body reads the parameter as an Integer; the domain
@@ -411,6 +419,10 @@ def type_from_name(
         base = _SCALAR_TYPES[name]()
     elif name in _ENUM_TYPES:
         base = TEnum(name)
+    elif name == COMBINATION_TYPE_NAME:
+        # Admitted at a function parameter alone; resolve refuses the name at
+        # every other declaring position (`combination_outside_a_parameter`).
+        base = TCombination()
     else:
         base = TAny()
     return TOptional(base) if optional else base
@@ -437,6 +449,8 @@ def value_enum_map(game: Game) -> dict[str, TEnum]:
         m[rank] = TEnum(rank_enum)
     for direction in SEAT_DIRECTION_VALUES:
         m[direction] = TEnum("SeatDirection")
+    for label in shape_labels(game):
+        m[label] = TEnum(SHAPE_ENUM)
     return m
 
 
@@ -880,6 +894,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 # The content item's fields are a closed pair (flavor-keyed);
                 # `_check_expr` rejects anything else on a known-item receiver.
                 return env.item_fields.get(e.field, TAny())
+            if isinstance(_bare(obj), TCombination) and e.field == "shape":
+                # `_check_expr` refuses every other field (`COMBINATION_FIELDS`).
+                return TEnum(SHAPE_ENUM)
             return TAny()  # pronoun member access / sugar: deferred
         case n.ListLit():
             elem: Type | None = infer(e.elements[0], env)
@@ -2147,6 +2164,15 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         )
         return
     right_t = infer(e.right, env)
+    if isinstance(_bare(right_t), TCombination):
+        # A card is in a climbing play when the play moves it.
+        if join(lbare, TCard()) is None:
+            bag.error(
+                f"the left-hand side of `in` a Combination is a card, got "
+                f"{_type_name(lbare)}",
+                e.span,
+            )
+        return
     if not isinstance(right_t, (TCollection, TAny)):
         bag.error(
             "the right-hand side of `in` must be a collection (a zone or "
@@ -2406,6 +2432,17 @@ def _check_card_source(
     src_t = infer(source, env)
     bare_src = _bare(src_t)
     if isinstance(bare_src, TAny):
+        return
+    if isinstance(bare_src, TCombination):
+        # A climbing play's cards are a card source for the queries that read
+        # them; a subset of a play is no play the catalogue names.
+        if lists_zones:
+            bag.error(
+                f"{_side(_name_of(source))} is a Combination, and a Combination is "
+                f"no subset source — a play is one set of cards; read its cards "
+                f"with `cards in`, `any card in` or `number of cards in`",
+                source.span,
+            )
         return
     if not isinstance(bare_src, TCollection):
         # A non-collection source is wrong even when it is card-TYPED: a
@@ -2846,6 +2883,57 @@ def _check_round_actors(
         "`round … over` names the participants",
         stmt.span,
     )
+
+
+def _check_follows_signature(
+    engine: n.DeclaredEngine, stmt: n.ClimbRound, env: TypeEnv, bag: DiagnosticBag
+) -> None:
+    """A Declared Engine's follows function takes the play and the play it
+    beats, `(play : Combination, standing : Combination?)`, and answers a
+    Boolean: the climb form asks it of every play a hand holds, with the
+    standing play `none` at a lead."""
+    sig = env.functions.get(engine.follows)
+    if sig is None:
+        raise ShadowGuardError(
+            "resolve._resolve_climb_engines, which pairs a catalogue only with a "
+            "function of the game",
+            f"the follows function `{engine.follows}` has no signature",
+        )
+    shape = "`(play : Combination, standing : Combination?)`"
+    name = f"`{engine.follows}`"
+    if len(sig.params) != 2:
+        bag.error(
+            f"the follows function {name} takes two parameters, the play and the "
+            f"play it beats: {shape}",
+            stmt.span,
+        )
+        return
+    play_t, standing_t = sig.params
+    if play_t != TCombination():
+        bag.error(
+            f"the follows function {name}'s first parameter is the play a hand "
+            f"holds, a `Combination`: {shape}",
+            stmt.span,
+        )
+    if standing_t == TCombination():
+        bag.error(
+            f"the follows function {name}'s second parameter is the play it "
+            f"beats, and at a lead no play stands, so it is `none` there: "
+            f"`standing : Combination?`",
+            stmt.span,
+        )
+    elif standing_t != TOptional(TCombination()):
+        bag.error(
+            f"the follows function {name}'s second parameter is the play it "
+            f"beats, a `Combination?` (`none` at a lead): {shape}",
+            stmt.span,
+        )
+    if not isinstance(_bare(sig.ret), TBoolean):
+        bag.error(
+            f"the follows function {name} answers whether the play follows, a "
+            f"Boolean, and its body is {_type_name(sig.ret)}",
+            stmt.span,
+        )
 
 
 def _check_round_ranking(
@@ -3290,6 +3378,23 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"{noun} has no field '{e.field}' (its fields are {field_list})",
                     e.span,
                 )
+        elif isinstance(bare, TCombination):
+            # A climbing play's fields are `COMBINATION_FIELDS`: its shape is
+            # read here, its cards through the card-source forms.
+            if e.field not in COMBINATION_FIELDS:
+                bag.error(
+                    f"a Combination has no field '{e.field}' — its shape is "
+                    f"`.shape`, and its cards are read `cards in "
+                    f"{_name_of(e.obj) or 'play'}`",
+                    e.span,
+                )
+            elif COMBINATION_FIELDS[e.field] is None:
+                bag.error(
+                    f"`.{e.field}` is the rank a wild card in the play stands for, "
+                    f"and no row of a catalogue stands one yet — issue #989 holds "
+                    f"wild cards in a combination",
+                    e.span,
+                )
         elif isinstance(bare, TCollection):
             # A zone-family subscript (`hand[p]`) is typed as the zone's
             # content collection rather than a single Card, so a dot-form
@@ -3713,6 +3818,8 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             _check_round_actors(stmt, env, bag)
             _check_round_ranking(stmt, env, bag)
             _check_bool(stmt.until, env, bag, "round `until` condition")
+            if isinstance(stmt.engine, n.DeclaredEngine):
+                _check_follows_signature(stmt.engine, stmt, env, bag)
         case n.Transfer():
             _check_transfer(stmt, env, bag)
         case n.EpistemicOp():
