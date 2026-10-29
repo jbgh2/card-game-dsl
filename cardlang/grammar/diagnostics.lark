@@ -8,7 +8,7 @@
 // while a file parses there. The alphabetic words here that the main lexer
 // also knows are `trump`, the round's clause keyword, which the retired
 // game-level clause's twin reuses where the language has no game item it
-// opens, and the Combination Shape vocabulary's own words, which the shape
+// opens, and the Combination Shape phrases' own words, which the shape
 // twins reuse inside a catalogue row; the symbol terminals (`:=` / `=`, `:`, `==` / `!=`, `/` / `%`)
 // overlap the main lexer's, and the composed Earley parse resolves them by
 // position — a hazard under any other parser. Each twin is a COMPLETE production for the string it names,
@@ -137,7 +137,7 @@ DIV_OP: "/" | "%"
 // --- a Combination Shape's near misses, and the shapes not yet declarable --
 // The near misses are the rulebook's other words for a shape (`run of 5`,
 // `5 in a row`, `5 of one suit`, `5 cards in sequence`), each refused naming
-// the phrase the vocabulary uses. The growth shapes are Tichu's and Dou
+// the phrase the catalogue uses. The growth shapes are Tichu's and Dou
 // Dizhu's: runs of any length, runs of groups, a named card, a play's
 // behaviour (`, wild`, `, interrupts`), and a third part; each is refused
 // citing the issue that holds it. Every arm derives a whole shape part or

@@ -210,7 +210,12 @@ def test_the_string_valued_class_is_swept_not_patched() -> None:
     wrong."""
     members = _string_valued_but_not_str_annotated()
     assert members == [
-        "Game.content_flavor", "LoweredSpelling.form", "MoveTypeDef.stake", "NameRef.ref_kind"
+        "Game.content_flavor",
+        "LoweredSpelling.form",
+        "MoveTypeDef.stake",
+        "NameRef.ref_kind",
+        "ShapePart.kind",
+        "ShapeRow.qualifiers",
     ], (
         f"the string-valued-but-not-str-annotated class is {members} — every "
         f"member must be in the registry's domain, so widening it means "

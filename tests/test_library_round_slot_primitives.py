@@ -14,7 +14,8 @@ property:   a round written in family-library text names in each query slot
             reference namespace a library reaches admits a Primitive, so
             these slots and the call position are the whole class.
 domain:     query slot x name. The slot axis is every `_REFERENCE_SLOTS` row
-            whose namespace is `primitive_query`. The name axis is every
+            whose namespace may hold a registered round query
+            (`resolve._PRIMITIVE_QUERY_NAMESPACES`). The name axis is every
             member of every `WALLED_NAMESPACES` set, every trick-winner name
             (`VALUE_NAMES`), the alphabetically first call-position Primitive
             (`PRIMITIVE_CALL_FUNCS`) and a name nothing declares. Each cell
@@ -81,7 +82,12 @@ from cardlang.diagnostics import DiagnosticError, line_kind
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import WALLED_NAMESPACES
-from cardlang.resolve import _LIBRARY_UNSWEPT, _REFERENCE_SLOTS, _library_slot_names
+from cardlang.resolve import (
+    _LIBRARY_UNSWEPT,
+    _PRIMITIVE_QUERY_NAMESPACES,
+    _REFERENCE_SLOTS,
+    _library_slot_names,
+)
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
@@ -93,7 +99,7 @@ _PRIMITIVES = frozenset(PRIMITIVE_CALL_FUNCS).union(*WALLED_NAMESPACES.values())
 
 # The slot axis, from the registry.
 _SLOTS: tuple[tuple[type, str], ...] = tuple(
-    slot for slot, namespace in _REFERENCE_SLOTS.items() if namespace == "primitive_query"
+    slot for slot, namespace in _REFERENCE_SLOTS.items() if namespace in _PRIMITIVE_QUERY_NAMESPACES
 )
 
 _UNKNOWN = "frobnicate"
@@ -348,8 +354,8 @@ def test_the_hosts_round_as_the_game_writes_it_checks_clean(form: type) -> None:
 
 def test_the_slot_axis_is_every_round_query_slot() -> None:
     """The hosts, the defaults and `_ROUND_QUERY_REGISTRIES` all cover exactly
-    the registry's `primitive_query` slots, and every name a slot accepts is on
-    the name axis. red under: add a `primitive_query` row to
+    the registry's slots that may hold a registered round query, and every
+    name a slot accepts is on the name axis. red under: add a `primitive_query` row to
     `_REFERENCE_SLOTS`, or a name to a round-query registry outside
     `VALUE_NAMES` and `WALLED_NAMESPACES`."""
     from cardlang.resolve import _ROUND_QUERY_REGISTRIES

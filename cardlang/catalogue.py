@@ -1,8 +1,8 @@
-"""The Combination Catalogue's closed vocabulary — the one home of its words.
+"""The Combination Catalogue's closed words — the one home of its phrases.
 
 A game's `combinations <name> { <label>: <shape phrase> … }` block declares
 which card multisets are plays (decisions.md, "Combination Catalogues"). Its
-phrases are a closed vocabulary, keyed here by the grammar alias each one
+phrases are a closed set, keyed here by the grammar alias each one
 parses to: the grammar's `shape_part`, `shape_qualifier` and `shape_phrase`
 alternatives are exactly these keys (pinned by
 tests/test_combination_catalogue.py), so a phrase added to the grammar with no

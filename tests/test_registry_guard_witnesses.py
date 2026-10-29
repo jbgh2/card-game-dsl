@@ -737,6 +737,16 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # (tests/test_subset_binder_grid.py), and the movement's own at
     # tests/test_jointly_selection.py.
     "runtime/subsets.py": ["len(pool) > ENUMERATION_BOUND"],
+    # The Combination Shape kinds the AST carries (`Literal`s) reconciled at
+    # import with the registries keyed by them: a kind added to one and not the
+    # other stops `cardlang` importing at all. An Owner Guard over the pair; the
+    # registries' own witness is their pin to the grammar's aliases,
+    # test_each_shape_registry_is_its_rules_alias_set
+    # (tests/test_combination_catalogue.py).
+    "catalogue.py": [
+        "set(SHAPE_PARTS) == set(get_args(ShapePartKind))",
+        "set(SHAPE_QUALIFIERS) == set(get_args(ShapeQualifierKind))",
+    ],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
     # Salvo's location argument, bounded by the registry's own LENGTH: the
     # Integer a call writes indexes `LOCATIONS`, so a location added to the

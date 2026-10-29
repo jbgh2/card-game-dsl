@@ -155,7 +155,7 @@ def _aliases(rule: str) -> set[str]:
         ("shape_phrase", catalogue.SHAPE_FORMS),
     ],
 )
-def test_each_vocabulary_registry_is_its_rules_alias_set(rule: str, registry: object) -> None:
+def test_each_shape_registry_is_its_rules_alias_set(rule: str, registry: object) -> None:
     assert isinstance(registry, dict) or hasattr(registry, "keys")
     assert _aliases(rule) == set(registry), rule  # type: ignore[call-overload]
 
@@ -249,7 +249,7 @@ def _expected_row(part: str, n: int, quals: tuple[str, ...]) -> Expected:
         if _universe(part, n, rest) == count:
             return _refused("removes nothing", _QUALIFIER[q])
     if count > catalogue.ENUMERATED_UNIVERSE_BOUND:
-        return _refused("issue #989", str(count))
+        return _refused("issue #989")
     assert bare >= count
     return CHECKS
 
@@ -394,12 +394,12 @@ def _expected_pairing(combos: str, follows: str) -> Expected:
             return CHECKS
         if follows == "registered follows":
             return _refused("catalogue", "function of the game")
-        return _refused("`climb_followz`")
+        return _refused("'climb_followz'")
     if combos == "registered lead":
         if follows == "registered follows":
             return CHECKS
         return _refused(f"'{_REG_FOLLOWS}'")
-    return _refused("`climbx`", "catalogue")
+    return _refused("'climbx'", "catalogue")
 
 
 PAIRING_CELLS = [(c, f) for c in _COMBOS_SLOT for f in _FOLLOWS_SLOT]

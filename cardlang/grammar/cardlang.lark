@@ -211,7 +211,7 @@ rank_sequence: _SEQUENCE_KW ":" card_rank+
 // `combinations` slot, as a function is from `follows`. Rows carry no
 // delimiter (`card_points`'s shape): a phrase cannot continue with a NAME, so
 // a row ends where the next `NAME :` begins. Entry-plus: an empty catalogue
-// declares no plays and is a syntax error. The vocabulary's closed sets are
+// declares no plays and is a syntax error. The phrases' closed sets are
 // `cardlang.catalogue`'s registries, pinned equal to these aliases.
 combinations_def: _COMBINATIONS_KW NAME "{" combination_row+ "}"
 combination_row: NAME ":" shape_phrase

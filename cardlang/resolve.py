@@ -744,6 +744,8 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.ProcedureDef, "name"): "procedure",
     (n.Parameter, "name"): "param",
     (n.PrimitiveDecl, "name"): "primitive",
+    (n.CombinationCatalogue, "name"): "catalogue",
+    (n.ShapeRow, "label"): "shape_label",
     (n.OutcomeCase, "tag"): "outcome_tag",
     # `let` declares a name and scopes it to the statements after it, so it is
     # both — filed as the declaration, since that is the half a name registry
@@ -829,14 +831,18 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # a library naming one is refused at `_check_library_encapsulation`.
     (n.TrickRound, "winner_fn"): "primitive_query",
     (n.TrickRound, "early_termination"): "primitive_query",
-    (n.ClimbRound, "combos_fn"): "primitive_query",
-    (n.ClimbRound, "follows_fn"): "primitive_query",
+    # A climbing round's two slots name its engine: a Combination Catalogue
+    # and a function of the game, or a registered engine's two queries
+    # (`_resolve_climb_engines` classifies the pair).
+    (n.ClimbRound, "combos_fn"): "climb_lead",
+    (n.ClimbRound, "follows_fn"): "climb_follows",
     # Deck-derived values, held as strings rather than classified names.
     (n.CardLiteral, "rank"): "deck_rank",
     (n.CardLiteral, "suit"): "deck_suit",
     (n.Game, "ranking"): "deck_rank",
     (n.CardPointsEntry, "rank"): "deck_rank",
     (n.SuitRanking, "suits"): "deck_suit",
+    (n.RankSequence, "ranks"): "deck_rank",
     (n.Game, "direction"): "enum_value",
     (n.RotateStmt, "values"): "enum_value",
     (n.Game, "deck"): "component_set",
@@ -938,6 +944,11 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         # Annotated `Stake` (a `Literal`): the row word the `move_stake`
         # production put there, never a name.
         (n.MoveTypeDef, "stake"),
+        # A Combination Shape's part kind and qualifiers: `Literal`s keyed by
+        # the grammar alias that put them there (`catalogue.SHAPE_PARTS`,
+        # `SHAPE_QUALIFIERS`), never names.
+        (n.ShapePart, "kind"),
+        (n.ShapeRow, "qualifiers"),
     }
 )
 
@@ -970,6 +981,13 @@ _METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.LibraryOrigin, "where"),
         (n.LibraryOrigin, "provided"),
         (n.LibraryOrigin, "contracted_zones"),
+        # A climbing round's engine: its two slot names, copied off the round
+        # by `_resolve_climb_engines` as the classified pair, never a second
+        # channel a sweep resolves.
+        (n.RegisteredEngine, "lead"),
+        (n.RegisteredEngine, "follows"),
+        (n.DeclaredEngine, "catalogue"),
+        (n.DeclaredEngine, "follows"),
     }
 )
 
@@ -997,6 +1015,11 @@ _UNION_NAMESPACES: dict[str, frozenset[str]] = {
     # declarations: a `state { }` variable or a `zones { }` zone
     # (`_classify_primitive_read`).
     "primitive_read": frozenset({"state", "zone"}),
+    # A climbing round's `combinations` slot: a Combination Catalogue of the
+    # game, or a registered engine's lead query; its `follows` slot: a
+    # function of the game, or a registered engine's follows query.
+    "climb_lead": frozenset({"catalogue", "primitive_query"}),
+    "climb_follows": frozenset({"function", "primitive_query"}),
 }
 
 
@@ -3441,6 +3464,13 @@ def _primitive_in_library(
     )
 
 
+# The reference namespaces whose slot may hold a registered round query.
+_PRIMITIVE_QUERY_NAMESPACES = frozenset(
+    ns for ns, members in {"primitive_query": {"primitive_query"}, **_UNION_NAMESPACES}.items()
+    if "primitive_query" in members
+)
+
+
 def _round_slot_primitives(library: n.Library) -> list[tuple[object, str]]:
     """Every (node, name) where a round in `library` names, in a query slot, a
     Primitive that slot's registry holds. A name outside the registry is left
@@ -3448,7 +3478,7 @@ def _round_slot_primitives(library: n.Library) -> list[tuple[object, str]]:
     found: list[tuple[object, str]] = []
     for node in _walk(library):
         for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
-            if slot_namespace(node, field_name) != "primitive_query":
+            if slot_namespace(node, field_name) not in _PRIMITIVE_QUERY_NAMESPACES:
                 continue
             accepted = _ROUND_QUERY_REGISTRIES[(type(node), field_name)]
             found.extend(
@@ -4486,6 +4516,7 @@ def resolve(game: n.Game) -> n.Game:
     refused_clauses: set[str] = set()
     game = _resolve_card_points(game, bag, refused_clauses)
     _resolve_suit_ranking(game, bag, refused_clauses)
+    game = _resolve_climb_engines(game, bag)
     _check_trick_order_partition(game, bag, refused_clauses)
     _check_piece_rounds(game, bag)
     _check_duplicate_names(game, bag)
@@ -5993,6 +6024,101 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
             ),
         )
 
+def _map_climb_rounds(node: object, step: Callable[[n.ClimbRound], n.ClimbRound]) -> object:
+    """`node` with `step` applied to every climbing round in it, rebuilding
+    only the nodes on the path to one (`_traverse` keeps every untouched
+    subtree's identity)."""
+    if isinstance(node, tuple):
+        mapped = tuple(_map_climb_rounds(x, step) for x in node)
+        return node if all(a is b for a, b in zip(mapped, node, strict=True)) else mapped
+    if isinstance(node, n.ClimbRound):
+        node = step(node)
+    return _traverse(node, lambda _field, value: _map_climb_rounds(value, step))
+
+
+def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
+    """Stamp each climbing round's engine (`n.ClimbEngine`) from its two slot
+    names, the Owner Guard of the pairing: a `combinations` name is one of
+    the game's Combination Catalogues, paired with a function of the game,
+    or a registered lead query (`PRIMITIVE_CLIMB_ENGINES`), paired with its
+    own follows query. Every later reader of a round's engine reads the
+    stamp, never the names. A game runs one climb engine: the action space
+    numbers one universe of plays."""
+    catalogues = {c.name for c in game.catalogues}
+    functions = {f.name for f in game.functions}
+
+    def stamp(nd: n.ClimbRound) -> n.ClimbRound:
+        lead, follows = nd.combos_fn, nd.follows_fn
+        if lead in catalogues:
+            if follows in functions:
+                return replace(nd, engine=n.DeclaredEngine(lead, follows))
+            if follows in PRIMITIVE_CLIMB_FOLLOWS:
+                bag.error(
+                    f"climb round over the catalogue '{lead}' names `follows` query "
+                    f"'{follows}', a registered engine's; a catalogue's plays "
+                    f"follow by a function of the game — write "
+                    f"`function {follows}_play(play : Combination, standing : "
+                    f"Combination?) = …` and name it",
+                    nd.span,
+                )
+            else:
+                bag.error(
+                    f"climb round over the catalogue '{lead}': `follows` names "
+                    f"'{follows}', which is no function of this game",
+                    nd.span,
+                )
+            return nd
+        if lead in PRIMITIVE_CLIMB_ENGINES:
+            own = PRIMITIVE_CLIMB_ENGINES[lead]
+            if follows == own:
+                return replace(nd, engine=n.RegisteredEngine(lead, follows))
+            if follows in PRIMITIVE_CLIMB_FOLLOWS:
+                # The runtime keys the engine by the lead query alone, so a
+                # follows query from another engine would run over the wrong
+                # engine's plays.
+                bag.error(
+                    f"climb round pairs `combinations` query '{lead}' "
+                    f"with `follows` query '{follows}', which is another "
+                    f"engine's; '{lead}' follows with '{own}'",
+                    nd.span,
+                )
+            elif follows in functions:
+                bag.error(
+                    f"climb round `follows` names '{follows}', a function of this "
+                    f"game; the registered engine '{lead}' follows with its own "
+                    f"query '{own}'",
+                    nd.span,
+                )
+            else:
+                bag.error(
+                    f"climb round `follows` query '{follows}' is not a "
+                    f"combination follows query; '{lead}' follows with '{own}'",
+                    nd.span,
+                )
+            return nd
+        bag.error(
+            f"climb round `combinations` query '{lead}' is not a combination "
+            f"lead query, nor a combination catalogue of this game",
+            nd.span,
+        )
+        return nd
+
+    stamped = _map_climb_rounds(game, stamp)
+    assert isinstance(stamped, n.Game)
+    engines = {nd.engine for nd in _walk(stamped) if isinstance(nd, n.ClimbRound) and nd.engine}
+    if len(engines) > 1:
+        names = sorted(
+            e.catalogue if isinstance(e, n.DeclaredEngine) else e.lead for e in engines
+        )
+        bag.error(
+            f"a game runs one climb engine, and this one names {len(engines)}: "
+            + ", ".join(f"'{x}'" for x in names)
+            + " — the action space numbers one universe of plays",
+            game.span,
+        )
+    return stamped
+
+
 def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
     """In a game with a climbing round, no move type is spelled like one of
     the engine's own actions (`primitives.climb_actions`: its pass,
@@ -6005,11 +6131,20 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
     carries the sentence the game's author reads (`attribution`)."""
     from cardlang.runtime import primitives
 
-    engines = sorted(
-        {nd.combos_fn for nd in _walk(game) if isinstance(nd, n.ClimbRound)}
-        & PRIMITIVE_CLIMB_LEADS
-    )
-    owner = {action: engine for engine in engines for action in primitives.climb_actions(engine)}
+    owner: dict[str, str] = {}
+    for nd in _walk(game):
+        if not isinstance(nd, n.ClimbRound):
+            continue
+        match nd.engine:
+            case n.RegisteredEngine(lead=lead):
+                owner.update(dict.fromkeys(primitives.climb_actions(lead), lead))
+            case n.DeclaredEngine(catalogue=catalogue):
+                # A Declared Engine's one action of its own is the pass.
+                owner[primitives.CLIMB_PASS] = catalogue
+            case None:
+                pass  # an unpaired round, refused by `_resolve_climb_engines`
+            case _:
+                assert_never(nd.engine)
     for mt in game.move_types:
         engine = owner.get(mt.name)
         if engine is None:
@@ -12053,32 +12188,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"'{nd.move_type}' is not runnable on it (roadmap.md)",
                         nd.span,
                     )
-                if nd.combos_fn not in _ROUND_QUERY_REGISTRIES[(n.ClimbRound, "combos_fn")]:
-                    bag.error(
-                        f"climb round `combinations` query '{nd.combos_fn}' is not a "
-                        f"combination lead query",
-                        nd.span,
-                    )
-                if nd.follows_fn not in _ROUND_QUERY_REGISTRIES[(n.ClimbRound, "follows_fn")]:
-                    bag.error(
-                        f"climb round `follows` query '{nd.follows_fn}' is not a "
-                        f"combination follows query",
-                        nd.span,
-                    )
-                elif (
-                    nd.combos_fn in PRIMITIVE_CLIMB_ENGINES
-                    and PRIMITIVE_CLIMB_ENGINES[nd.combos_fn] != nd.follows_fn
-                ):
-                    # The runtime keys the engine by the lead query alone, so a
-                    # follows query from another engine would run over the
-                    # wrong engine's plays.
-                    bag.error(
-                        f"climb round pairs `combinations` query '{nd.combos_fn}' "
-                        f"with `follows` query '{nd.follows_fn}', which is another "
-                        f"engine's; '{nd.combos_fn}' follows with "
-                        f"'{PRIMITIVE_CLIMB_ENGINES[nd.combos_fn]}'",
-                        nd.span,
-                    )
+                # The two slot names are the engine's, paired and stamped by
+                # `_resolve_climb_engines`.
             case n.TrickRound():
                 zone_names = {z.name for z in game.zones}
                 if nd.source_zone not in zone_names:
