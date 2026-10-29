@@ -26,7 +26,10 @@ held by:         a single owner — `PRIMITIVE_CLIMB_ENGINES` defines the lead a
                  table, and this grid reconciles it against the runtime's
                  dispatch.
 does not prove:  That a pairing an engine owns plays correctly (each engine's
-                 own combination tests and the readiness proofs do).
+                 own combination tests and the readiness proofs do); nor
+                 anything about a round pairing a registered engine's slot
+                 with a game's catalogue or function
+                 (tests/test_combination_catalogue.py, the slot-pairing grid).
 """
 
 from __future__ import annotations
@@ -95,17 +98,17 @@ def test_the_pairing_table_defines_both_registries() -> None:
     ("combinations", "follows", "refusal"),
     [
         # the two slots swapped
-        ("bigtwo_follows", "bigtwo_lead_options", "is not a combination lead query"),
+        ("tichu_follows", "tichu_lead_options", "is not a combination lead query"),
         # the lead query written in both slots
-        ("bigtwo_lead_options", "bigtwo_lead_options", "is not a combination follows query"),
+        ("tichu_lead_options", "tichu_lead_options", "is not a combination follows query"),
         # the follows query written in both slots
-        ("bigtwo_follows", "bigtwo_follows", "is not a combination lead query"),
+        ("tichu_follows", "tichu_follows", "is not a combination lead query"),
         # one character off the follows query
-        ("bigtwo_lead_options", "bigtwo_follow", "is not a combination follows query"),
+        ("tichu_lead_options", "tichu_follow", "is not a combination follows query"),
     ],
 )
 def test_the_plausible_wrong_pairings_are_refused(combinations: str, follows: str, refusal: str) -> None:
-    name, source = _game_for("bigtwo_lead_options")
+    name, source = _game_for("tichu_lead_options")
     probe = _SLOT.sub(f"combinations {combinations} follows {follows}", source, count=1)
     with pytest.raises(DiagnosticError, match=refusal):
         check_dsl(probe, name)

@@ -37,6 +37,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from tests.climb_asks import SETS_CATALOGUE
 
 
 def _game(body: str, block: str = "") -> str:
@@ -443,13 +444,13 @@ def test_action_space_walls_a_climb_plus_joint_game() -> None:
         "  phase p {\n"
         "    round climb play_combination from 0 over all players\n"
         "          source hand into trick_pile\n"
-        "          combinations president_lead_options follows president_follows\n"
+        "          combinations sets follows beats\n"
         "          until false\n"
         "    as dealer { move chosen some cards from hand[dealer]\n"
         "            where jointly gin_valid_meld(cards) to discard }\n"
         "  }\n"
         "}\n"
-    )
+    ) + SETS_CATALOGUE
     game = check_dsl(dsl, "t.cardlang")
     with pytest.raises(NotImplementedError, match="climb"):
         ActionSpace.for_game(game)

@@ -684,7 +684,7 @@ class ClimbForm:
             tokens: tuple[str, ...] = state["pending"][1]
             return list(tokens)
         if self.declared is not None:
-            return self._declared_candidates(actor, state, ctx)
+            return self._declared_candidates(self.declared, actor, state, ctx)
         # The climb engines are game-local, so they get the same value
         # bundles every other primitive does rather than the live ctx — and
         # their hand argument is deep_frozen for the same reason `call()`
@@ -712,13 +712,14 @@ class ClimbForm:
         compelled = [p for p in follows if p.compelled]
         return compelled or [*follows, primitives.CLIMB_PASS]
 
-    def _declared_candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
+    def _declared_candidates(
+        self, engine: DeclaredClimbEngine, actor: Player, state: RoundState, ctx: Ctx
+    ) -> list[Any]:
         """The catalogue's plays the actor's hand holds that the follows
         function admits against the standing play, then the pass; at a lead,
         the plays alone, of which there must be one."""
-        assert self.declared is not None
         standing = state["current"]
-        plays: list[Any] = self.declared.candidates(self.hands[actor].cards, standing, ctx)
+        plays: list[Any] = engine.candidates(self.hands[actor].cards, standing, ctx)
         if standing is not None:
             return [*plays, primitives.CLIMB_PASS]
         if not plays:
@@ -726,7 +727,7 @@ class ClimbForm:
             # at a lead, and a lead cannot pass.
             raise OwnerGuardError(
                 f"round climb: seat {actor} leads and the follows function "
-                f"`{self.declared.follows_fn.name}` admits no play of its hand "
+                f"`{engine.follows_fn.name}` admits no play of its hand "
                 f"— at a lead `standing` is none, and the function must admit "
                 f"some play there (`standing is none or …`)"
             )

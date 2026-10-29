@@ -257,7 +257,7 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               action ids name it. And, in a game with a climbing round, a
               move type spelled like one of the engine's own actions
               (``_check_climb_action_names``, over
-              ``primitives.climb_actions``): the action space's name block
+              ``primitives.engine_actions``): the action space's name block
               and every rendering may therefore assume no move type and no
               climb action share a word.
               And, anywhere in what a [[hosted-poll]] body can execute — its
@@ -3618,6 +3618,18 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 getattr(leak.node, "span", None),
             )
             continue
+        if leak.namespace == "type" and leak.name.removesuffix("?") == COMBINATION_TYPE_NAME:
+            # The one built-in type no library names: a climbing play exists
+            # while a game's round asks the game's own follows function.
+            bag.error(
+                cite_library(library.name, getattr(leak.node, "span", None)) + f" names "
+                f"the type '{leak.name}', a climbing play of a game's own "
+                f"combination catalogue, which only that game's follows "
+                f"function and the helpers it passes one to hold — keep the "
+                f"definition in the game",
+                getattr(leak.node, "span", None),
+            )
+            continue
         bag.error(
             cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
             f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
@@ -6142,9 +6154,9 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
     assert isinstance(stamped, n.Game)
     engines = {nd.engine for nd in _walk(stamped) if isinstance(nd, n.ClimbRound) and nd.engine}
     if len(engines) > 1:
-        names = sorted(
-            e.catalogue if isinstance(e, n.DeclaredEngine) else e.lead for e in engines
-        )
+        from cardlang.runtime.primitives import engine_label
+
+        names = sorted(engine_label(e) for e in engines)
         bag.error(
             f"a game runs one climb engine, and this one names {len(engines)}: "
             + ", ".join(f"'{x}'" for x in names)
@@ -6238,8 +6250,8 @@ def _stamp_follows_reads(game: n.Game) -> n.Game:
 
 def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
     """In a game with a climbing round, no move type is spelled like one of
-    the engine's own actions (`primitives.climb_actions`: its pass,
-    announcements and interrupt decline). The two would render and announce
+    the engine's own actions (`primitives.engine_actions`: its pass, and a
+    registered engine's announcements and interrupt decline). The two would render and announce
     alike to every seat, report one verb, and — for a nullary move an `offer`
     presents — share one action id, so the refusal is by name, whatever
     presents the move type and whether or not anything does. A library move
@@ -6252,16 +6264,10 @@ def _check_climb_action_names(game: n.Game, bag: DiagnosticBag) -> None:
     for nd in _walk(game):
         if not isinstance(nd, n.ClimbRound):
             continue
-        match nd.engine:
-            case n.RegisteredEngine(lead=lead):
-                owner.update(dict.fromkeys(primitives.climb_actions(lead), lead))
-            case n.DeclaredEngine(catalogue=catalogue):
-                # A Declared Engine's one action of its own is the pass.
-                owner[primitives.CLIMB_PASS] = catalogue
-            case None:
-                pass  # an unpaired round, refused by `_resolve_climb_engines`
-            case _:
-                assert_never(nd.engine)
+        if nd.engine is None:
+            continue  # an unpaired round, refused by `_resolve_climb_engines`
+        label = primitives.engine_label(nd.engine)
+        owner.update(dict.fromkeys(primitives.engine_actions(nd.engine), label))
     for mt in game.move_types:
         engine = owner.get(mt.name)
         if engine is None:
@@ -8889,6 +8895,8 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     "ranking": "refused",
     "ranking_convention": "refused",
     "suit_ranking": "refused",
+    "rank_sequence": "refused",
+    "catalogues": "refused",
     "teams": "refused",
     "positions": "refused",
     "board": "refused",

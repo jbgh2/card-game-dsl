@@ -26,13 +26,15 @@ ordinary statements, registered in `cardlang/openspiel/game.py:GAMES` with
 the readiness proofs green (`tests/openspiel_ready/`).
 
 The per-game `runtime/*.py` modules that remain hold no mechanic — only pure
-Primitives the DSL calls: Stud's poker evaluator and `pot_share`; Big Two's combination engine; Pinochle's meld evaluator; Tarot's
+Primitives the DSL calls: Stud's poker evaluator and `pot_share`; Pinochle's meld evaluator; Tarot's
 completed-trick Excuse query and settlement arithmetic; Cribbage's pegging/show scorers
 and provenance decoder; Skat's bid
 ladder, matador count, and overbid arithmetic; 500's bid ladder and contract
 values; Tichu's climb queries over the shared `combinations.py` engine,
-team/finishing lookups, and the OpenSpiel combo codec. Coup and Schnapsen
-carry no module at all. Schnapsen's
+team/finishing lookups, and the OpenSpiel combo codec. Coup, Schnapsen,
+Big Two and President carry no module at all: the two climbing games declare
+their plays in Combination Catalogues ([decisions.md](decisions.md),
+"Combination Catalogues"). Schnapsen's
 trick resolution is the `highest_trump_or_led_suit` call form over the
 kernel's Arrival Record ([decisions.md](decisions.md), "Knowledge,
 visibility, and the projection model" — The Arrival Record), and the playout
@@ -345,21 +347,28 @@ library once a third instance arrives).
 **Status — done for both climbing games.** The kernel `round climb` construct
 (a `ClimbForm` hook bundle over the shared `run_decision_round` interpreter in
 `mechanics.py`, dispatched in `execute.py`, with the grammar / AST / IR / resolve /
-typecheck wiring) plays one combination-climbing trick over a pair of game-local
-engine queries. Its runtime is one of the three form bundles over the single
+typecheck wiring) plays one combination-climbing trick over the round's engine:
+the game's own Combination Catalogue and follows function, or a registered pair
+of game-local engine queries. Its runtime is one of the three form bundles over the single
 per-step decision loop (`docs/design-notes/kernel-extensibility.md` §4, §9 step 2),
 not a standalone loop. **Big Two** runs fully on it
-(`docs/games/big-two.cardlang`) — the climbing loop, the 3♦ opening, pile routing,
-the shed-out finish, and penalty scoring are DSL; its engine (`bigtwo.py`) is named
-as the `bigtwo_lead_options` / `bigtwo_follows` queries — and reproduces its pinned
-net (`tests/golden/bigtwo_scores.json`, 50 seeds) byte-for-byte. The `run_bigtwo_hand`
-monolith and the `BigTwoHand` mechanic are deleted. **Tichu** runs fully on it
+(`docs/games/big-two.cardlang`), and so does **President**
+(`docs/games/president.cardlang`): each declares its plays in a Combination
+Catalogue and its follows rule in a DSL function, so the climbing loop, the
+plays and their comparison, the 3♦ opening, pile routing, the shed-out finish
+and the scoring are all DSL, and each offers at every climb ask exactly the
+list its retired Python engine offered (`tests/golden/climb_ask_digests.json`,
+`tests/test_declared_engine.py`). **Tichu** runs fully on it
 too (`docs/games/tichu.cardlang`; `run_tichu_hand` deleted, byte-identical
 against `tichu_scores.json` and the 811-hand `tichu_hands.json`): the push is
 chosen movements into per-player gift piles distributed giver-major, each
 trick one `round climb` over `tichu_lead_options` / `tichu_follows`
 (the engine stays `combinations.py`), and the special-card flows ride two
 climb-form facilities plus two rng primitives (below).
+
+**Remaining scope:** Tichu's plays — runs of any length, runs of pairs, the
+wild Phoenix, bombs, the Dog and the wish — are phrases no Combination
+Catalogue declares yet, so Tichu keeps its registered engine (issue #989).
 
 The design the construct settled:
 
@@ -371,16 +380,17 @@ The design the construct settled:
   beside `TrickForm` over the shared interpreter): it enumerates
   candidates from the engine, runs one climbing trick (lead → beat-or-pass; the
   trick ends when action returns to the last player, or the `until` predicate
-  holds), and performs the card movement itself. There is *no* DSL-visible `Combination` value and no runtime-query move
-  parameter — the construct depends only on the engine's *interface*
-  (`combos(hand, ctx)`, `legal_follows(hand, led, ctx)`, `play.cards`).
-- **Two engines, one construct interface.** Tichu's and Big Two's combination
-  engines differ — Big Two keys on (rank, suit) because suit breaks every tie,
-  carries flushes/quads, and follows cross-type within the five-card group, where
-  Tichu keys rank-only, has bombs, and the special cards. So the engines stay
-  game-local (beside the promote-at-the-third-instance rule — Pinochle melds would
-  be a further instance), each named as a `combinations` / `follows` query
-  pair on the `round climb`. The divergent *routing* lives in the DSL body, not the
+  holds), and performs the card movement itself. There is no runtime-query move
+  parameter — the construct depends only on the engine's *interface*: the plays
+  it admits, each conforming to `primitives.ClimbPlay`.
+- **Two engine kinds, one construct interface.** A game's plays are its own
+  declaration — Big Two keys on (rank, suit) because suit breaks every tie,
+  carries flushes/quads, and follows cross-type within the five-card group;
+  President compares sets by rank with transparent threes — so each declares
+  them in its file, a Combination Catalogue and a follows function. Tichu's
+  rank-only keys, bombs and special cards need phrases no catalogue has yet, so
+  its engine is a registered `combinations` / `follows` query pair on the
+  `round climb` (issue #989). The divergent *routing* lives in the DSL body, not the
   construct (the trick-form discipline): the climb form's `outcome` hook returns the
   winner (the last player to play, bound as `winner`), and the body routes the pile
   and the next lead — Big Two: `move trick_pile to discard`, the winner leads.
@@ -400,8 +410,10 @@ The design the construct settled:
   calls landed at migration as rng draws at the monolith's exact RNG sites;
   Workstream 5's Tichu half has since upgraded both to real announced
   decisions (see the WS5 section).
-- **The OpenSpiel combo block is computed for Tichu, enumerated for Big
-  Two.** Big Two's play universe is enumerated and golden-pinned; Tichu's
+- **The OpenSpiel combo block is computed for Tichu, numbered from the
+  catalogue for Big Two and President.** A catalogue's play universe is
+  numbered from its rows and golden-pinned
+  (`tests/golden/climb_action_ids.json`); Tichu's
   (the codec's `size`; Phoenix straights under free suit assignment
   dominate) is too large to enumerate, so its ids come from an arithmetic
   codec (`runtime/tichu.py::TichuComboCodec` via
@@ -416,8 +428,8 @@ The design the construct settled:
   Mahjong's wish its Play Announcement (decisions.md, "The climbing form of
   `round`"): two further regimes of the form's own order function beside
   the ring, opened by attributes of the plays an engine returns and by the
-  engine's registry rows, so Big Two and President — which declare neither —
-  run unchanged. Neither is a seventh hook.
+  engine's registry rows, so Big Two and President — whose Declared Engines
+  have neither — run unchanged. Neither is a seventh hook.
 
 ## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen)
 

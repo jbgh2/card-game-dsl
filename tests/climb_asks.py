@@ -1,4 +1,5 @@
-"""A climbing game's Declared Engine, asked about hands a test builds.
+"""A climbing game's Declared Engine, asked about hands a test builds, and
+the smallest catalogue a probe game's climbing round can name.
 
 `asker` plays the game file to its first climb ask and holds that ask's
 engine and context, so a test asks the engine what it offers a hand against
@@ -17,6 +18,26 @@ from typing import Any
 from cardlang.pipeline import check_source
 from cardlang.runtime import driver, mechanics
 from cardlang.runtime.values import Card, Combination
+
+# A catalogue of singles and pairs that follow by size and rank strength, and
+# the round slot naming it: what a probe game's climbing round plays when the
+# probe is about the form, not about what its plays are. Appended after the
+# probe's `game { }` block; it reads the probe's `ranking:`.
+SETS_CATALOGUE = """
+combinations sets {
+  single: 1 card
+  pair:   2 of a kind
+}
+
+function beats(play : Combination, standing : Combination?) =
+  standing is none
+  or ((number of cards in play) is (number of cards in standing)
+      and (highest rank_value(card) over cards in play or 0)
+          > (highest rank_value(card) over cards in standing or 0))
+"""
+SETS_SLOTS = "combinations sets follows beats"
+# The catalogue for a probe spelled as a `str.format` template.
+SETS_CATALOGUE_TEMPLATE = SETS_CATALOGUE.replace("{", "{{").replace("}", "}}")
 
 Ask = Callable[[Sequence[Card], Combination | None, Sequence[Card]], list[Combination]]
 

@@ -41,8 +41,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar, assert_never
 
+from cardlang.ast import nodes as n
 from cardlang.runtime import narrowing, reads, winners
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player, card_to_action
@@ -275,6 +276,32 @@ def climb_actions(name: str) -> tuple[str, ...]:
         # tests/test_move_stake.py::test_every_climb_engine_spells_its_own_actions_apart.
         raise AssertionError(f"climb engine '{name}' spells two of its own actions alike: {actions}")
     return actions
+
+
+def engine_actions(engine: n.ClimbEngine) -> tuple[str, ...]:
+    """Every bare-name action a climbing round's engine offers of its own,
+    by its kind: a registered engine's `climb_actions`, and a Declared
+    Engine's pass, its one action that is no play. The one answer the
+    checker, the action space and the tests read."""
+    match engine:
+        case n.RegisteredEngine():
+            return climb_actions(engine.lead)
+        case n.DeclaredEngine():
+            return (CLIMB_PASS,)
+        case _:
+            assert_never(engine)
+
+
+def engine_label(engine: n.ClimbEngine) -> str:
+    """The name a climbing round's slots give its engine: a registered
+    engine's lead query, or the game's catalogue."""
+    match engine:
+        case n.RegisteredEngine():
+            return engine.lead
+        case n.DeclaredEngine():
+            return engine.catalogue
+        case _:
+            assert_never(engine)
 
 
 def climb_announcements(name: str) -> tuple[str, ...]:

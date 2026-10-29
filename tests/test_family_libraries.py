@@ -1731,14 +1731,14 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
     "ClimbRound.source_zone": (
         "move_type m {{ effect {{ round climb play_combination from actor "
         "over all players source {read} into pile "
-        "combinations bigtwo_lead_options follows bigtwo_follows until true }} }}",
+        "combinations tichu_lead_options follows tichu_follows until true }} }}",
         "hand",
         None,
     ),
     "ClimbRound.play_zone": (
         "move_type m {{ effect {{ round climb play_combination from actor "
         "over all players source pile into {read} "
-        "combinations bigtwo_lead_options follows bigtwo_follows until true }} }}",
+        "combinations tichu_lead_options follows tichu_follows until true }} }}",
         "hand",
         None,
     ),
@@ -2585,7 +2585,7 @@ _INTRODUCE: tuple[_Site, ...] = (
         "HostedPoll", "shared", True,
         "legal_moves: [play_combination]\n"
         "    round climb play_combination from 0 over all players source hand "
-        "into pile combinations president_lead_options follows president_follows "
+        "into pile combinations tichu_lead_options follows tichu_follows "
         "until true before asking shared { score[shared] := 1 }",
         fresh=True,
     ),

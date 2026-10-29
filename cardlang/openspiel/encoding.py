@@ -403,14 +403,8 @@ class ActionSpace:
             (engine,) = climb_engines
             # The climb form's own names beside the plays: the pass, and a
             # registered engine's announcement tokens and interrupt decline.
-            engine_name = (
-                engine.lead if isinstance(engine, n.RegisteredEngine) else engine.catalogue
-            )
-            tokens = (
-                primitives.climb_actions(engine.lead)
-                if isinstance(engine, n.RegisteredEngine)
-                else (primitives.CLIMB_PASS,)
-            )
+            engine_name = primitives.engine_label(engine)
+            tokens = primitives.engine_actions(engine)
             engine_names = frozenset(tokens)
             for token in tokens:
                 if token in names:

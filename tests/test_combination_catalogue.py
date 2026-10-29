@@ -611,6 +611,29 @@ def test_a_catalogue_in_a_library_is_refused() -> None:
         parse_library("library fam {\n  combinations c {\n    single: 1 card\n  }\n}\n", "fam.cardlang")
 
 
+@pytest.mark.parametrize("spelling", TYPE_SPELLINGS)
+def test_a_library_function_taking_a_combination_is_refused(
+    spelling: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A library may supply functions a game calls, but a play is the game's
+    own catalogue's: a library function naming `Combination` is refused in
+    the library's file, and the fix is the definition kept in the game."""
+    from cardlang.parse import parse_library
+
+    library = parse_library(
+        "library fam {\n"
+        f"  function lib_follows(play : {spelling}) = true\n"
+        "}\n",
+        "docs/libraries/fam.cardlang",
+    )
+    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"fam"}))
+    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    source = MINIMAL.replace("  players: 4", "  uses fam\n  players: 4", 1).replace(
+        "combinations climb follows climb_follows", "combinations climb follows lib_follows", 1
+    )
+    _assert(source, _refused("'fam'", f"'{spelling}'", "keep the definition in the game"))
+
+
 # ---------------------------------------------------------------------------
 # The climb guards keyed on a round's engine see a Declared Engine too.
 # ---------------------------------------------------------------------------

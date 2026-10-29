@@ -104,7 +104,14 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'tag:subset_query',
         'tag:transition_to', 
         'tag:trick_round', 'tag:turns',
-        'tag:type_ref', 'tag:winner', 'tag:zone'
+        'tag:type_ref', 'tag:winner', 'tag:zone',
+        # The Combination Catalogue, the Rank Sequence and a climb round's
+        # stamped engine.
+        'key:cacheable', 'key:catalogue', 'key:catalogues', 'key:engine',
+        'key:follows', 'key:label', 'key:lead', 'key:parts', 'key:qualifiers',
+        'key:rank_sequence', 'key:rows', 'key:state_reads', 'key:zone_reads',
+        'tag:combination_catalogue', 'tag:declared_engine',
+        'tag:registered_engine', 'tag:shape_row',
     }
 )
 

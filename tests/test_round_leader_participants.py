@@ -91,6 +91,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import ChooserAbort
 from cardlang.runtime.values import GAME_DIRECTIONS
+from tests.climb_asks import SETS_CATALOGUE_TEMPLATE
 
 # --- the axes, each derived from the registry that defines it ---
 
@@ -249,12 +250,12 @@ game G {{
     deal 5 cards from deck to each hand
     round climb play_combination from {leader} over players where {pred}
           source hand into trick_pile
-          combinations president_lead_options follows president_follows
+          combinations sets follows beats
           until false
   }}
   winner: highest x
 }}
-"""
+""" + SETS_CATALOGUE_TEMPLATE
 
 
 TURNS = """

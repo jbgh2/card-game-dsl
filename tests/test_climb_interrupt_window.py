@@ -154,8 +154,7 @@ def test_every_climb_play_member_is_classified() -> None:
 
 
 def test_every_climb_engine_has_a_corpus_game() -> None:
-    """red under: name `bigtwo_lead_options` in the `combinations` slot of
-    docs/games/president.cardlang."""
+    """red under: register a climb engine no corpus game's round names."""
     assert set(_engine_games()) == PRIMITIVE_CLIMB_LEADS
 
 

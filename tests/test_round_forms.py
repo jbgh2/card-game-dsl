@@ -55,6 +55,7 @@ from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
+from tests.climb_asks import SETS_CATALOGUE_TEMPLATE
 from tests import round_axes as axes
 
 # --- fixtures -----------------------------------------------------------------
@@ -108,7 +109,7 @@ game G {{
       round climb play_combination from leader
             over players where hand[player] is not empty
             source hand into trick_pile
-            combinations president_lead_options follows president_follows
+            combinations sets follows beats
             until (any player where hand[player] is empty){before}
       leader := winner
       taken[winner] += 1
@@ -117,7 +118,7 @@ game G {{
   }}
   winner: highest taken
 }}
-"""
+""" + SETS_CATALOGUE_TEMPLATE
 
 _TEMPLATES = {"round_stmt": _TRICK, "climb_stmt": _CLIMB}
 

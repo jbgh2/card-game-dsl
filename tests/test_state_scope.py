@@ -272,14 +272,17 @@ def test_every_game_field_is_decided() -> None:
     # a decision rather than joining whichever side it happens to land on.
     walked = sorted(fields - _GAME_LEVEL_SKIP)
     assert walked == [
-        "board", "content_flavor", "deck", "direction", "loser",
+        "board",
+        # Shape rows and rank names — no expression, like `ranking`.
+        "catalogues",
+        "content_flavor", "deck", "direction", "loser",
         "max_length",
         "name", "players", "positions",
         # `primitives` holds names and type names only — no expression, so no
         # state reference to find; walked (the conservative side) rather than
         # skipped.
         "primitives",
-        "ranking", "ranking_convention", "span",
+        "rank_sequence", "ranking", "ranking_convention", "span",
         # Suit names only, like `ranking`.
         "suit_ranking",
         "teams", "uses", "winner", "zones",

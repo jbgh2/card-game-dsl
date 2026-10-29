@@ -354,6 +354,8 @@ POSITIONS: dict[str, Position | str] = {
     "ranking": "rank names",
     "ranking_convention": "a convention keyword",
     "suit_ranking": "suit names: the clause itself",
+    "rank_sequence": "rank names",
+    "catalogues": "shape rows: labels, counts and qualifier keywords",
     "max_length": "an integer",
     "span": "a source location",
 }
