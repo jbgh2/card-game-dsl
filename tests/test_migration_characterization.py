@@ -42,6 +42,14 @@ it is read from, so a golden's winners are checkable against its own
 scores and the game's `teams:` without running anything.
 
 A sanctioned regeneration covers `bridge_scores.json` on every seed it
+holds: Bridge scores a doubled contract by Pagat's table (issue #992) — 50
+for making a doubled contract and 100 a redoubled one, and doubled
+undertricks tiered 100/200/200/300 not vulnerable and 200/300 vulnerable,
+twice that redoubled. The choosers' draws do not move, so every seed plays
+the same hands; a seed's scores move at its first doubled hand. The table is
+pinned away from this vector, by tests/test_bridge_scoring.py.
+
+A sanctioned regeneration covers `bridge_scores.json` on every seed it
 holds: Bridge bids as Pagat states it, one club to seven no-trumps, and play
 stops after twelve deals with the rubber unfinished, scored by Pagat's
 unfinished-rubber bonuses (epic #445, issue #415). The first auction offers

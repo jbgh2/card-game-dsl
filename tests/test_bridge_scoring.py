@@ -15,8 +15,8 @@ to the rules too (red under: drop `and first_<strain>[side] is none` from
 `submit_bid`'s effect — the last bidder becomes declarer and the wrong hand
 is laid down).
 
-Two choosers drive it. A uniform draw exercises the redoubled-undertrick tier
-(x4 -> 400/200) heavily and ends almost every rubber at the deal bound. A uniform
+Two choosers drive it. A uniform draw doubles and redoubles often, mostly
+into long undertrick runs, and ends almost every rubber at the deal bound. A uniform
 bidder almost never MAKES a slam, so an aimed chooser — one that reads every
 hand, bids the stronger side's longest suit to a set level, and has the
 defenders throw their tricks — makes small and grand slams, vulnerable and
@@ -24,7 +24,10 @@ not, so both slam arms are executed and their bonuses held to Pagat's figures
 (red under: restore a `when:` level cap below 6 on `submit_bid`, or change a
 slam bonus). Aimed at one-level contracts it leaves part scores and single
 games standing when play stops, which reaches both unfinished-rubber bonuses,
-and it finishes rubbers at their second game. The aimed chooser is an
+and it finishes rubbers at their second game. Aimed at doubled and redoubled
+slam-level contracts it goes down by every count in Pagat's undertrick table,
+vulnerable and not, and sometimes makes them, which reaches both bonuses for
+making a doubled contract. The aimed chooser is an
 instrument for reaching those arms, not a Playout Policy: it reads hands no
 seat can see.
 """
@@ -105,6 +108,21 @@ class _Auction:
             "strain": self.strain,
             "doubled_mult": self.doubled,
         }
+
+
+def _undertrick_penalty(under: int, dm: int, vuln: bool) -> int:
+    """Pagat's undertrick table, one undertrick at a time."""
+    if dm == 1:
+        return (100 if vuln else 50) * under
+    doubled = 0
+    for k in range(1, under + 1):
+        if k == 1:
+            doubled += 200 if vuln else 100
+        elif k <= 3:
+            doubled += 300 if vuln else 200
+        else:
+            doubled += 300
+    return doubled * (dm // 2)
 
 
 def _recompute(
@@ -193,6 +211,9 @@ def _recompute(
                     over = actual - required
                     ov = pt if dm == 1 else (200 if vuln else 100) if dm == 2 else (400 if vuln else 200)
                     total[dt] += ov * over
+                    if dm > 1:
+                        total[dt] += 50 if dm == 2 else 100
+                        census[("made doubled", dm)] += 1
                     if level == 6:
                         total[dt] += 750 if vuln else 500
                         census[("small slam", vuln)] += 1
@@ -208,10 +229,9 @@ def _recompute(
                             total[dt] += 700 if games_won[ot] == 0 else 500
                 else:
                     under = required - actual
-                    pu = (100 if vuln else 50) if dm == 1 else (200 if vuln else 100) if dm == 2 else (400 if vuln else 200)
-                    total[ot] += pu * under
-                    if dm == 4:
-                        census["redoubled down"] += 1
+                    total[ot] += _undertrick_penalty(under, dm, vuln)
+                    if dm > 1:
+                        census[("down doubled", dm, vuln, min(under, 4))] += 1
             # The traced hand_end carries the runtime's total_score per team.
             assert data == total, f"seed {seed}: recompute {total} != runtime {data}"
             contract = None
@@ -240,8 +260,10 @@ def test_bridge_scoring_matches_independent_recompute() -> None:
     census: Counter[Any] = Counter()
     for seed in range(25):
         census += _recompute(game, seed)
-    # The redoubled-undertrick tier is genuinely exercised (not a vacuous pass).
-    assert census["redoubled down"] > 0, census
+    # A uniform draw doubles and redoubles often, so the doubled undertrick
+    # table is genuinely exercised here (not a vacuous pass).
+    for dm in (2, 4):
+        assert any(k[:2] == ("down doubled", dm) for k in census if isinstance(k, tuple)), census
 
 
 def _beats(card: Card, best: Card, trump: str | None) -> bool:
@@ -256,15 +278,17 @@ class _SlamAimer:
 
     Each deal, the side with more high-card points declares in the suit the
     side holds most of: its seats bid that suit each turn until the standing
-    bid reaches `level`, and every other call is a pass. In play the declaring
+    bid reaches `level`. With `doubling` 2 the defenders double every bid, and
+    with 4 the declaring side also redoubles; every other call is a pass. In play the declaring
     side wins each trick as cheaply as it can and leads its best card, trumps
     first; the defenders play their lowest card, keeping their trumps.
     """
 
     HCP = {"A": 4, "K": 3, "Q": 2, "J": 1}
 
-    def __init__(self, level: int) -> None:
+    def __init__(self, level: int, doubling: int = 1) -> None:
         self.level = level
+        self.doubling = doubling
         self.rs: RuntimeState | None = None
         self.plan: tuple[int, str] | None = None
         self.trick: list[tuple[Player, Card]] = []
@@ -304,6 +328,10 @@ class _SlamAimer:
             bid = ("submit_bid", strain)
             if TEAM[player] == team and bid in candidates and self.rs.get("cur_level") < self.level:
                 return [bid]
+            if self.doubling >= 2 and ("double", None) in candidates:
+                return [("double", None)]
+            if self.doubling == 4 and ("redouble", None) in candidates:
+                return [("redouble", None)]
             return [("pass", None)]
         assert self.plan is not None
         return [self._card(player, candidates, *self.plan)]
@@ -341,3 +369,24 @@ def test_aimed_slams_score_as_pagat_states() -> None:
     # Both ways a rubber stops are reached, and both unfinished-rubber bonuses.
     for cell in ("rubber finished", "unfinished: game", "unfinished: part score"):
         assert census[cell] > 0, f"{cell!r} never reached: {census}"
+
+
+def test_aimed_doubled_contracts_score_as_pagat_states() -> None:
+    """Slam-level contracts, doubled and redoubled, go down by every count in
+    Pagat's undertrick table and are sometimes made, so each tier of the table
+    and both bonuses for making a doubled contract are held to the recompute
+    (red under: a flat doubled undertrick rate, or a dropped 50/100 bonus)."""
+    game = check_source(BRIDGE)
+    census: Counter[Any] = Counter()
+    for doubling in (2, 4):
+        for seed in range(12):
+            aimer = _SlamAimer(6, doubling)
+            census += _recompute(
+                game, seed, chooser=aimer, on_first_decision=aimer.attach, tap=aimer.tap
+            )
+    for dm in (2, 4):
+        assert census[("made doubled", dm)] > 0, census
+        for vuln in (False, True):
+            for tier in (1, 2, 3, 4):
+                cell = ("down doubled", dm, vuln, tier)
+                assert census[cell] > 0, f"{cell} never reached: {census}"
