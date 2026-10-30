@@ -1,9 +1,10 @@
-// Bridge (rubber, simplified; play stops after twelve deals) — formalized DSL
-// (parser/checker/runtime target).
+// Bridge (rubber, without honours; play stops after twelve deals) — formalized
+// DSL (parser/checker/runtime target).
 //
 // Companion to bridge.md. Rubber Bridge with the standard below-the-line /
-// above-the-line scoring, game and rubber bonuses, slam bonuses, and
-// vulnerability; honors and the finer penalty table are simplified. One rubber
+// above-the-line scoring, game, rubber and slam bonuses, the bonus for making
+// a doubled contract, the doubled undertrick table, and vulnerability; honours
+// are not scored, as players often agree. One rubber
 // is played (first side to two games), stopping after twelve deals if it is
 // not finished by then; an unfinished rubber scores Pagat's unfinished-rubber
 // bonuses. The side with the higher total wins.
@@ -169,6 +170,10 @@ game Bridge {
                       elif doubled_mult is 2 then (if vuln then 200 else 100)
                       else (if vuln then 400 else 200)
         total_score[dteam] += ov_each * over
+        // Making a doubled contract scores 50 above the line, a redoubled one 100.
+        total_score[dteam] += if doubled_mult is 1 then 0
+                              elif doubled_mult is 2 then 50
+                              else 100
 
         if contract_level is 6 { total_score[dteam] += if vuln then 750 else 500 }
         if contract_level is 7 { total_score[dteam] += if vuln then 1500 else 1000 }
@@ -184,10 +189,15 @@ game Bridge {
         }
       } else {
         let under = required - actual
-        let per_under = if doubled_mult is 1 then (if vuln then 100 else 50)
-                        elif doubled_mult is 2 then (if vuln then 200 else 100)
-                        else (if vuln then 400 else 200)            // redoubled
-        total_score[oteam] += per_under * under
+        // Doubled undertricks: not vulnerable, 100 for the first, 200 each for
+        // the second and third, 300 each after; vulnerable, 200 for the first
+        // and 300 each after. Redoubled undertricks cost twice as much.
+        let doubled_under = if vuln then 200 + 300 * (under - 1)
+                            elif under <= 3 then 200 * under - 100
+                            else 300 * under - 400
+        total_score[oteam] += if doubled_mult is 1 then (if vuln then 100 else 50) * under
+                              elif doubled_mult is 2 then doubled_under
+                              else 2 * doubled_under
       }
     }
   }

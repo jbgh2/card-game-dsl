@@ -1562,6 +1562,61 @@
                   }
                 },
                 {
+                  "kind": "assign",
+                  "target": "total_score",
+                  "index_expr": {
+                    "kind": "name",
+                    "name": "dteam",
+                    "ref": "local"
+                  },
+                  "op": "+=",
+                  "value": {
+                    "kind": "if_expr",
+                    "cond": {
+                      "kind": "binop",
+                      "op": "is",
+                      "left": {
+                        "kind": "name",
+                        "name": "doubled_mult",
+                        "ref": "state_var"
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 1
+                      }
+                    },
+                    "then": {
+                      "kind": "int",
+                      "value": 0
+                    },
+                    "elifs": [
+                      [
+                        {
+                          "kind": "binop",
+                          "op": "is",
+                          "left": {
+                            "kind": "name",
+                            "name": "doubled_mult",
+                            "ref": "state_var"
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 2
+                          }
+                        },
+                        {
+                          "kind": "int",
+                          "value": 50
+                        }
+                      ]
+                    ],
+                    "otherwise": {
+                      "kind": "int",
+                      "value": 100
+                    }
+                  }
+                },
+                {
                   "kind": "if",
                   "cond": {
                     "kind": "binop",
@@ -1842,8 +1897,114 @@
                 },
                 {
                   "kind": "let",
-                  "name": "per_under",
+                  "name": "doubled_under",
                   "index": null,
+                  "value": {
+                    "kind": "if_expr",
+                    "cond": {
+                      "kind": "name",
+                      "name": "vuln",
+                      "ref": "local"
+                    },
+                    "then": {
+                      "kind": "binop",
+                      "op": "+",
+                      "left": {
+                        "kind": "int",
+                        "value": 200
+                      },
+                      "right": {
+                        "kind": "binop",
+                        "op": "*",
+                        "left": {
+                          "kind": "int",
+                          "value": 300
+                        },
+                        "right": {
+                          "kind": "binop",
+                          "op": "-",
+                          "left": {
+                            "kind": "name",
+                            "name": "under",
+                            "ref": "local"
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 1
+                          }
+                        }
+                      }
+                    },
+                    "elifs": [
+                      [
+                        {
+                          "kind": "binop",
+                          "op": "<=",
+                          "left": {
+                            "kind": "name",
+                            "name": "under",
+                            "ref": "local"
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 3
+                          }
+                        },
+                        {
+                          "kind": "binop",
+                          "op": "-",
+                          "left": {
+                            "kind": "binop",
+                            "op": "*",
+                            "left": {
+                              "kind": "int",
+                              "value": 200
+                            },
+                            "right": {
+                              "kind": "name",
+                              "name": "under",
+                              "ref": "local"
+                            }
+                          },
+                          "right": {
+                            "kind": "int",
+                            "value": 100
+                          }
+                        }
+                      ]
+                    ],
+                    "otherwise": {
+                      "kind": "binop",
+                      "op": "-",
+                      "left": {
+                        "kind": "binop",
+                        "op": "*",
+                        "left": {
+                          "kind": "int",
+                          "value": 300
+                        },
+                        "right": {
+                          "kind": "name",
+                          "name": "under",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 400
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "assign",
+                  "target": "total_score",
+                  "index_expr": {
+                    "kind": "name",
+                    "name": "oteam",
+                    "ref": "local"
+                  },
+                  "op": "+=",
                   "value": {
                     "kind": "if_expr",
                     "cond": {
@@ -1860,20 +2021,29 @@
                       }
                     },
                     "then": {
-                      "kind": "if_expr",
-                      "cond": {
+                      "kind": "binop",
+                      "op": "*",
+                      "left": {
+                        "kind": "if_expr",
+                        "cond": {
+                          "kind": "name",
+                          "name": "vuln",
+                          "ref": "local"
+                        },
+                        "then": {
+                          "kind": "int",
+                          "value": 100
+                        },
+                        "elifs": [],
+                        "otherwise": {
+                          "kind": "int",
+                          "value": 50
+                        }
+                      },
+                      "right": {
                         "kind": "name",
-                        "name": "vuln",
+                        "name": "under",
                         "ref": "local"
-                      },
-                      "then": {
-                        "kind": "int",
-                        "value": 100
-                      },
-                      "elifs": [],
-                      "otherwise": {
-                        "kind": "int",
-                        "value": 50
                       }
                     },
                     "elifs": [
@@ -1892,64 +2062,24 @@
                           }
                         },
                         {
-                          "kind": "if_expr",
-                          "cond": {
-                            "kind": "name",
-                            "name": "vuln",
-                            "ref": "local"
-                          },
-                          "then": {
-                            "kind": "int",
-                            "value": 200
-                          },
-                          "elifs": [],
-                          "otherwise": {
-                            "kind": "int",
-                            "value": 100
-                          }
+                          "kind": "name",
+                          "name": "doubled_under",
+                          "ref": "local"
                         }
                       ]
                     ],
                     "otherwise": {
-                      "kind": "if_expr",
-                      "cond": {
+                      "kind": "binop",
+                      "op": "*",
+                      "left": {
+                        "kind": "int",
+                        "value": 2
+                      },
+                      "right": {
                         "kind": "name",
-                        "name": "vuln",
+                        "name": "doubled_under",
                         "ref": "local"
-                      },
-                      "then": {
-                        "kind": "int",
-                        "value": 400
-                      },
-                      "elifs": [],
-                      "otherwise": {
-                        "kind": "int",
-                        "value": 200
                       }
-                    }
-                  }
-                },
-                {
-                  "kind": "assign",
-                  "target": "total_score",
-                  "index_expr": {
-                    "kind": "name",
-                    "name": "oteam",
-                    "ref": "local"
-                  },
-                  "op": "+=",
-                  "value": {
-                    "kind": "binop",
-                    "op": "*",
-                    "left": {
-                      "kind": "name",
-                      "name": "per_under",
-                      "ref": "local"
-                    },
-                    "right": {
-                      "kind": "name",
-                      "name": "under",
-                      "ref": "local"
                     }
                   }
                 }

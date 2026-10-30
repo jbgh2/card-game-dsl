@@ -1,9 +1,10 @@
-# Bridge (rubber, simplified; play stops after twelve deals)
+# Bridge (rubber, without honours; play stops after twelve deals)
 
 The companion formal file is [bridge.cardlang](bridge.cardlang); this is the
 readable twin. Rubber Bridge with the standard below-the-line / above-the-line
-scoring, game and rubber bonuses, slam bonuses, and vulnerability; honors and
-the finer doubled-penalty table are simplified. One rubber is played (first side
+scoring, game, rubber and slam bonuses, the bonus for making a doubled contract,
+the doubled undertrick table, and vulnerability. Honours are not scored, as
+players often agree (Pagat notes it). One rubber is played (first side
 to two games), and play stops after twelve deals if the rubber is not finished
 by then; the side with the higher total wins. **Players:** 4, in fixed
 partnerships sitting across. **Deck:** standard 52. **Rules source:**
@@ -22,11 +23,21 @@ Each hand:
    contract's strain, or none for a no-trump contract.
 4. **Score** — the contract is *made* if declarer's side took 6 + level tricks.
    Made: the trick value goes below the line (20/trick in a minor, 30 in a major,
-   30 + 10 in no-trump), times the doubling multiplier; overtricks and slam
-   bonuses go above the line. Set: the defenders score the undertrick penalty
-   above the line. When a side's below-the-line total crosses 100 it wins a game
+   30 + 10 in no-trump), times the doubling multiplier; overtricks, slam
+   bonuses, and 50 for making a doubled contract (100 redoubled) go above the
+   line. Set: the defenders score the undertrick penalty above the line (table
+   below). When a side's below-the-line total crosses 100 it wins a game
    (bonus 300, or 500 when vulnerable), the below-the-line counters reset, and a
    second game ends the rubber (bonus 500/700).
+
+| Undertrick penalty | not vulnerable | vulnerable |
+| --- | --- | --- |
+| not doubled, each | 50 | 100 |
+| doubled, first | 100 | 200 |
+| doubled, second and third, each | 200 | 300 |
+| doubled, fourth and after, each | 300 | 300 |
+
+Redoubled undertricks cost twice the doubled figures.
 
 If the twelfth deal ends with the rubber unfinished, play stops there: a side
 with a game scores 300, and a side with a part score toward the uncompleted game

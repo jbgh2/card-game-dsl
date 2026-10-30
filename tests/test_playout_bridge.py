@@ -1,4 +1,4 @@
-"""Random-playout harness for Bridge (rubber, simplified).
+"""Random-playout harness for Bridge (rubber, without honours).
 
 Bridge reuses the ordinary Trick engine (its play needs only follow-suit) but
 adds a real auction (ascending bids over C D H S NT, double/redouble) and rubber
