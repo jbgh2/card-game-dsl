@@ -268,13 +268,14 @@ checklist for resolving this question.
   game:* a replayed line asserts the registered pyspiel game's rendering —
   current player, legal actions, every player's information-state string —
   equals the DSL-level rendering at every step, which doubles as a per-game
-  determinism check across independent replays. The eight games whose greedy
-  line terminates walk to the end and assert the terminal returns agree
-  (reaching Terminal is itself asserted, so the comparison cannot rot into
-  dead code); the seven that do not — six multi-hand score-target games
-  plus Coup, whose greedy line is legally unbounded at interactive scope —
-  record `terminal=False`, their returns exercised only by the conformance
-  sim. That comparison holds the adapter against its own replay route, so
+  determinism check across independent replays. The games whose greedy
+  line ends within an affordable cap walk to the end and assert the
+  terminal returns agree (reaching Terminal is itself asserted, so the
+  comparison cannot rot into dead code), Coup's among them: its greedy line
+  is legally unbounded at interactive scope and ends at its `max_length`,
+  a Length Stop the record names (`ended_by`). The multi-hand
+  score-target games whose greedy line runs past any affordable cap record
+  `terminal=False`, their returns exercised only by the conformance sim. That comparison holds the adapter against its own replay route, so
   it cannot see a divergence both share. *Covered across routes:*
   `tests/test_route_agreement.py` holds a native playout — the route the
   table, the rigs and the playout tests take — against pyspiel at sampled
