@@ -10398,6 +10398,18 @@ _ALWAYS_SITES: dict[type, _AlwaysSite] = {
 ALWAYS_HOLDERS: dict[str, str] = {site.clause: site.holder for site in _ALWAYS_SITES.values()}
 
 
+#: The refusal of `max_length` read as a value, undeclared. The bound is a game
+#: clause the engine stops at (decisions.md "Game length as a declared
+#: contract"), not state a rule can read, and the two things a designer
+#: writing it means each have a spelling.
+MAX_LENGTH_AS_VALUE = (
+    "`max_length` is the bound the engine stops a game at, not a value a rule "
+    "can read. To end the game after a number of turns by its rules, count the "
+    "turns in a state variable and write that number. To stop it at the bound, "
+    "write nothing: the engine stops it there, and the game is a tie"
+)
+
+
 def _always_message(clause: str) -> str:
     return f"`always` is not a condition — {ALWAYS_HOLDERS[clause]} has no `{clause}` line; leave it out"
 
@@ -10505,6 +10517,9 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                 hint = " (`player` is bound only inside a player query or quantifier)"
             elif (outside := _slot_name_outside_slot(node.name)) is not None:
                 bag.error(outside, node.span)
+                return replace(node, ref_kind=kind)
+            elif node.name == "max_length":
+                bag.error(MAX_LENGTH_AS_VALUE, node.span)
                 return replace(node, ref_kind=kind)
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
         return replace(node, ref_kind=kind)

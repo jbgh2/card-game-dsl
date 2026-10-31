@@ -65,8 +65,8 @@ from cardlang.openspiel.replay import DecisionNode, TerminalNode, run
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.chance import RefusingRandom, chance_sites, is_chance_free
 from cardlang.runtime.chooser import random_chooser
-from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
+from cardlang.runtime.driver import EndedBy, play_game
+from cardlang.runtime.errors import ShadowGuardError
 
 GAMES_DIR = Path(__file__).resolve().parent.parent / "docs" / "games"
 
@@ -96,15 +96,13 @@ def _play_counting(game: n.Game, policy_seed: int = 1) -> tuple[int, bool]:
     `driver.play_game` would otherwise build `random_chooser(rng)` over the
     same generator, and the policy's draws would count as the game's.
 
-    A playout may exhaust its declared `max_length` on a long random line; the
-    draws taken before that are still what the run consumed, so the count is
-    returned either way and the completion flag carries the difference."""
+    A playout may reach its declared `max_length` on a long random line and
+    end there; the draws taken before that are still what the run consumed, so
+    the count is returned either way and the completion flag says whether the
+    game's rules ended it."""
     rng = _Counting(0)
-    try:
-        play_game(game, rng, chooser=random_chooser(random.Random(policy_seed)))
-    except OwnerGuardError:
-        return rng.draws, False
-    return rng.draws, True
+    result = play_game(game, rng, chooser=random_chooser(random.Random(policy_seed)))
+    return rng.draws, result.ended_by is EndedBy.RULES
 
 
 # =============================================================================

@@ -352,7 +352,7 @@ def channel_coverage(path: str, clause: str) -> None:
     pytest.importorskip("pyspiel")
     from tests.openspiel_ready.harness import greedy_line
 
-    line, returns, ended_by = greedy_line(path, SEED, BOUND)  # type: ignore[misc]
+    line, returns, ended_by = greedy_line(path, SEED, BOUND)
     assert len(line) == BOUND
     assert returns == [0.0] * _seats(clause)
     assert getattr(ended_by, "value", None) == "length"
@@ -381,17 +381,6 @@ def expected(site: str, clause: str, position: str, channel: str) -> str:
     return "stop"
 
 
-# The designed red of a `stop` cell on a tree where reaching the bound is a
-# refusal: the bound's `OwnerGuardError` escapes a run, a command prints a
-# refusal where the stop line belongs, and the harness's walk has no
-# `ended_by` to hand back.
-_RED = pytest.mark.xfail(
-    strict=True,
-    raises=(OwnerGuardError, AssertionError, ValueError, TypeError),
-    reason="reaching max_length is still a refusal on this tree",
-)
-
-
 def _cells() -> list[Any]:
     out = []
     for site in SITES:
@@ -399,12 +388,10 @@ def _cells() -> list[Any]:
             for position in POSITIONS:
                 for channel in CHANNELS:
                     want = expected(site, clause, position, channel)
-                    marks = [_RED] if want == "stop" else []
                     out.append(
                         pytest.param(
                             site, clause, position, channel, want,
                             id=f"{site}|{clause}|{position}|{channel}",
-                            marks=marks,
                         )
                     )
     return out
@@ -473,9 +460,8 @@ def test_each_position_asks_at_its_decision_point(
     assert seen == {(row.point, construct)}
 
 
-@pytest.mark.xfail(strict=True, raises=ImportError, reason="the result names no way it ended")
 def test_ended_by_has_two_arms() -> None:
-    from cardlang.runtime.driver import EndedBy  # type: ignore[attr-defined]
+    from cardlang.runtime.driver import EndedBy
 
     assert {arm.value for arm in EndedBy} == {"rules", "length"}
 
@@ -506,7 +492,6 @@ def _spin_game(site: str) -> str:
 
 
 @pytest.mark.parametrize("site", sorted(_SPINS))
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the refusal does not say the loop made no decision")
 def test_a_decisionless_spin_is_refused(site: str) -> None:
     """A loop running more than `max_length` boundaries with no pick between
     them is the author's defect, refused after a pick has been made, in words
@@ -546,7 +531,7 @@ _ALTERNATING = {
 
 @pytest.mark.parametrize(
     "site",
-    [pytest.param(s, marks=_RED) for s in sorted(_ALTERNATING)],
+    sorted(_ALTERNATING),
 )
 def test_a_loop_making_picks_on_some_boundaries_stops_by_length(site: str) -> None:
     game = check_dsl(
@@ -570,7 +555,6 @@ def test_a_loop_making_picks_on_some_boundaries_stops_by_length(site: str) -> No
 # --- the world a stop scores ----------------------------------------------------
 
 
-@_RED
 def test_a_stop_runs_no_statement_past_the_stopped_pick() -> None:
     """The stop falls inside an iteration: its `after_each` does not run, the
     statement after the stopped pick does not run, every frame stands and the
@@ -610,7 +594,6 @@ def test_a_stop_runs_no_statement_past_the_stopped_pick() -> None:
 # --- the route agreement on a straddling call -----------------------------------
 
 
-@_RED
 def test_native_and_replay_routes_stop_a_straddling_call_at_one_length() -> None:
     """A call for three picks against a bound of two: the native Chooser
     answers all three at once and the third is discarded, the replay route
@@ -654,7 +637,6 @@ def node_logs(path: str, history: tuple[int, ...]) -> dict[int, list[tuple[Any, 
     return logs
 
 
-@_RED
 def test_a_call_beginning_at_the_bound_is_never_asked() -> None:
     """The first call fills the bound exactly, so the pick past it is the
     first of the next call: that call's decider is not told it is being
@@ -685,7 +667,6 @@ def bounded_tic_tac_toe() -> str:
     return text.replace("  max_length: 30\n", "  max_length: 5\n")
 
 
-@_RED
 def test_a_one_pick_turn_stops_by_the_pick_count_with_the_turns_guard_silent() -> None:
     """One placement per turn and a bound of five: the sixth turn boundary is
     reached with five picks made, and what ends the game is the sixth pick,
@@ -705,7 +686,6 @@ def test_a_one_pick_turn_stops_by_the_pick_count_with_the_turns_guard_silent() -
 # --- the solved first witness ----------------------------------------------------
 
 
-@_RED
 @pytest.mark.parametrize("seed", range(5))
 def test_the_shuttle_stops_at_exactly_its_bound_as_a_tie(seed: int) -> None:
     """Every line of the shuttle is infinite and its value is a tie by
@@ -726,7 +706,6 @@ def test_the_shuttle_stops_at_exactly_its_bound_as_a_tie(seed: int) -> None:
     assert end.returns == [0.0, 0.0]
 
 
-@_RED
 def test_the_shuttle_is_terminal_in_openspiel_after_exactly_its_bound() -> None:
     pyspiel = pytest.importorskip("pyspiel")
     from cardlang.openspiel.game import register_game_file
@@ -778,7 +757,6 @@ MAX_LENGTH_AS_VALUE = (
         pytest.param("(turns_played > 3) or (turns_played >= max_length)", id="behind an or"),
     ],
 )
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the name is refused as unresolved")
 def test_max_length_read_as_a_value_is_refused_in_designer_words(until: str) -> None:
     from cardlang.diagnostics import DiagnosticError
 
@@ -787,7 +765,6 @@ def test_max_length_read_as_a_value_is_refused_in_designer_words(until: str) -> 
     assert MAX_LENGTH_AS_VALUE in str(refused.value.diagnostic.message)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the name is refused as unresolved")
 def test_max_length_read_in_a_state_default_is_refused_in_designer_words() -> None:
     from cardlang.diagnostics import DiagnosticError
 
@@ -810,7 +787,6 @@ BOUND_NEEDS_NO_CLAUSE = "`max_length:` takes a whole number and nothing more"
         pytest.param("max_length: 30 decisions", id="a unit"),
     ],
 )
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the parse refusal names no rule")
 def test_a_clause_on_max_length_is_a_parse_refusal_naming_the_rule(length: str) -> None:
     from cardlang.diagnostics import DiagnosticError
 

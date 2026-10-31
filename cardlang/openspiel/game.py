@@ -448,6 +448,10 @@ def _plan(
         min_utility=-100000.0,  # loose static bounds; true scores are far inside
         max_utility=100000.0,
         utility_sum=None,
+        # A promise every registered game keeps: a run that reaches its
+        # `max_length` picks ends there (`chooser.decide`, a [[length-stop]]),
+        # so `is_terminal()` holds after at most this many non-chance actions
+        # on every line.
         max_game_length=game_ast.max_length,
     )
 

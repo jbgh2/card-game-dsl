@@ -38,7 +38,8 @@ from cardlang.runtime.chooser import decide
 from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
-    ChooserAbort,
+    HALTS,
+    DecisionlessSpin,
     Ctx,
     IllegalMove,
     Zone,
@@ -782,23 +783,14 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     # The go-again flag dies with its ring: whatever ends the ring -- its
     # `until`, a `produce`, a hand skip, a jump -- consumes a flag its last
     # turn wrote, so it never buys the next ring's leader a turn. A decision
-    # suspended mid-turn (`ChooserAbort`) leaves the paused world as it is.
+    # halted mid-turn (`state.HALTS`) leaves the world standing as it is.
     suspended = False
     try:
         current: Player | None = None
-        guard = 0
+        spin = DecisionlessSpin(ctx.rs)
         while not bool(evaluate(stmt.until, ctx)):
-            # The same non-termination Owner Guard as `_repeat_until` (one loop
-            # class, one guard): a body that makes no decisions is invisible to
-            # the max_length DECISION counter, so the turn count itself is
-            # bounded too.
-            guard += 1
-            if guard > ctx.rs.max_length:
-                raise OwnerGuardError(
-                    f"turns exceeded the game's declared max_length "
-                    f"({ctx.rs.max_length}) turns — non-termination, or raise "
-                    "max_length if this game genuinely runs this long"
-                )
+            if spin.boundary():
+                raise OwnerGuardError(spin.refusal("a `turns` ring"))
             if current is None:
                 leader = evaluate(stmt.leader, ctx)
                 if leader not in order:
@@ -825,7 +817,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
             body_ctx = ctx.with_local(stmt.binder, player).acting_as(player)
             run_body(stmt.body, body_ctx)
             current = player
-    except ChooserAbort:
+    except HALTS:
         suspended = True
         raise
     finally:
@@ -1011,13 +1003,8 @@ def _apply_pass(
 
 
 def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:
-    guard = 0
+    spin = DecisionlessSpin(ctx.rs)
     while not evaluate(stmt.until, ctx):
         run_body(stmt.body, ctx)
-        guard += 1
-        if guard > ctx.rs.max_length:
-            raise OwnerGuardError(
-                f"repeat-until exceeded the game's declared max_length "
-                f"({ctx.rs.max_length}) iterations — non-termination, or raise "
-                "max_length if this game genuinely runs this long"
-            )
+        if spin.boundary():
+            raise OwnerGuardError(spin.refusal("a `repeat until` loop"))

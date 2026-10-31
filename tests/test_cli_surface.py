@@ -158,10 +158,10 @@ CHEAT = REPO / "docs" / "games" / "cheat.cardlang"
 # seat's own by identity while the hand is live and are mucked at the finish,
 # so it is where a mid-hand view differs from the terminal one.
 HOLDEM = REPO / "docs" / "games" / "holdem-heads-up.cardlang"
-# Checks clean, then exceeds its declared `max_length` on every seed — the
-# runtime half of the failure rendering, reached without tying the test to one
-# corpus game's random line.
-OVERRUNS = REPO / "tests" / "fixtures" / "exceeds_max_length.cardlang"
+# Checks clean, then spins a loop with no decision in it past its declared
+# `max_length` on every seed -- the runtime half of the failure rendering,
+# reached without tying the test to one corpus game's random line.
+SPINS = REPO / "tests" / "fixtures" / "decisionless_spin.cardlang"
 # Checks clean, then refuses at a `move chosen` against a hand an earlier phase
 # emptied — on every seed, and only after each seat has already made a
 # decision, so an option that reports decisions has something it could report.
@@ -1362,10 +1362,11 @@ def test_a_runtime_failure_renders_without_a_traceback(
     """A game that is legal to the checker and illegal at play time is the
     game author's to fix, so it arrives as a message naming the layer and what
     they can do — never as a traceback, which addresses nobody who can act."""
-    assert main(["demo", str(OVERRUNS)]) == 1
+    assert main(["demo", str(SPINS)]) == 1
     err = capsys.readouterr().err
     assert "Traceback" not in err
     assert "max_length" in err
+    assert "no decision made" in err
     assert "playing" in err, "the message must say which layer refused"
 
 

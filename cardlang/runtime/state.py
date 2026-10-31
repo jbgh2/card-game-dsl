@@ -82,6 +82,28 @@ class ChooserAbort(Exception):
         self.rs: RuntimeState | None = None
 
 
+class LengthStop(Exception):
+    """Raised by `chooser.decide` when a pick would carry the run past the
+    game's `max_length`: the game ends there, a [[length-stop]].
+
+    A signal, not a refusal: reaching the bound is an end the game meets, so
+    the class sits outside `runtime/errors.py`'s defect tree, and only
+    `driver.play_game` catches it, to read the result at the stopped pick.
+    """
+
+    def __init__(self, made: int) -> None:
+        super().__init__(f"the game reached its max_length at {made} decisions")
+        self.made = made
+
+
+# The signals that halt a run at a decision with every phase frame standing:
+# a Chooser suspending the run, and the run reaching its bound. Every site
+# that would otherwise run code on the way out of a frame (an `after_each`, a
+# frame pop, a `turns` flag reset) holds it back for both, so the world the
+# caller is handed is the one standing at the decision.
+HALTS: tuple[type[Exception], ...] = (ChooserAbort, LengthStop)
+
+
 @dataclass(frozen=True, slots=True)
 class Arrival:
     """One entry of a zone's [[arrival-record]]: the attributed [[actor]], the
@@ -476,6 +498,43 @@ class RuntimeState:
 
     def set(self, name: str, value: Any) -> None:
         self._frame_of(name)[name] = value
+
+
+class DecisionlessSpin:
+    """The iteration guards' count: a loop's consecutive boundaries with no
+    pick made between them, reset whenever the pick count has advanced.
+
+    A loop that makes picks cannot be refused for running long -- its picks
+    reach `max_length`, and the game ends there (`chooser.decide`, a
+    [[length-stop]]). What only a guard on the loop sees is a loop that makes
+    none: more than `max_length` boundaries of it, with no pick to end the
+    game and an `until` that has not held, is its author's defect. The three
+    loops (`repeat until` as a phase qualifier and as a statement, and
+    `turns`) each hold one of these."""
+
+    def __init__(self, rs: RuntimeState) -> None:
+        self.rs = rs
+        self.made: int = rs.decisions_made
+        self.count = 0
+
+    def boundary(self) -> bool:
+        """Count one boundary; True once the run without a pick has passed
+        `max_length` boundaries."""
+        if self.rs.decisions_made != self.made:
+            self.made = self.rs.decisions_made
+            self.count = 0
+        self.count += 1
+        return bool(self.count > self.rs.max_length)
+
+    def refusal(self, loop: str) -> str:
+        """The refusal's sentence, which the guard raises as an
+        `OwnerGuardError`: the loop is its author's to fix."""
+        return (
+            f"{loop} went round {self.count} times with no decision made and its "
+            f"`until` never holding, more than the game's declared max_length "
+            f"({self.rs.max_length}) — non-termination, or raise max_length if "
+            "this game genuinely runs this long"
+        )
 
 
 @dataclass(frozen=True, slots=True)

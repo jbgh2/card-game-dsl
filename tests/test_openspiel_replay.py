@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, returns_for, run
-from cardlang.runtime.driver import play_game
+from cardlang.runtime.driver import EndedBy, play_game
 from tests.playout_policy import reference_policy_for
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
@@ -122,6 +122,7 @@ def test_returns_for_team_scored_game_maps_players_through_teams() -> None:
         winners=frozenset(game.teams[0]),
         loser=None,
         hands_played=1,
+        ended_by=EndedBy.RULES,
     )
     rets = returns_for(game, result)
     assert len(rets) == 4
@@ -140,6 +141,7 @@ def test_returns_for_loser_game() -> None:
         winners=frozenset(range(n)) - {2},
         loser=2,
         hands_played=1,
+        ended_by=EndedBy.RULES,
     )
     rets = returns_for(game, result)
     assert rets[2] == float(-(n - 1))

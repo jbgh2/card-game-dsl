@@ -13,20 +13,32 @@ text it escaped — the statement executor stamps the sentences it dispatches,
 and `_evaluate_stamped` below stamps the expressions the phase tree owns and
 the driver evaluates itself, which the executor never sees; `run_phase` adds
 the phase around both, so a position outside every phase carries its
-expression and names no phase, because none is running. And a finished game's
-`GameResult.winners` is the non-empty set of seats sharing the best seat score
--- read through the `winner:` clause's stamped index role, so a team-keyed
-target names every member of the best team -- or, for a `loser:` game, every
-seat but the selected one, which is a seat of the table. Illegal after this:
+expression and names no phase, because none is running. `play_game` returns a
+`GameResult` for a run that ends by its rules and for one that reaches its
+`max_length` (a [[length-stop]]), and `GameResult.ended_by` says which. A
+stopped run's world is the one standing at the stopped pick: no statement past
+it runs, no `after_each`, every phase frame stands, and the `game_end` trace
+fires. A finished game's `GameResult.winners` is the non-empty set of seats
+sharing the best seat score -- read through the `winner:` clause's stamped
+index role, so a team-keyed target names every member of the best team -- or,
+for a `loser:` game, every seat but the selected one, which is a seat of the
+table; or every seat, when the game ended by length, which is a tie by
+default: no loser, and neither the `winner:` target nor the `loser:` selection
+read. The phase-level `repeat until` guard refuses only a run of more than
+`max_length` boundaries with no pick between them. Illegal after this:
 handing game text to `evaluate` from this module without that helper —
 `tests/test_runtime_refusal_location.py` derives the driver's evaluation sites
 from the module, so a new one arrives unstamped only by going around it. And a
 second site mapping a seat to its score key (`seat_scores_of` is the one), or
-picking one winner out of `scores` by iteration order.
+picking one winner out of `scores` by iteration order. And a
+`GameDescriptionError` for a bound reached by picks; an iteration guard firing
+on a stretch in which a pick was made; a consumer deriving how a game ended by
+comparing a count to its bound.
 """
 
 from __future__ import annotations
 
+import enum
 import random
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -51,9 +63,12 @@ from cardlang.runtime.evaluate import answer_context, evaluate
 from cardlang.runtime.execute import REFUSALS, execute
 from cardlang.runtime.execute import run_body as run_stmts
 from cardlang.runtime.state import (
+    HALTS,
     Chooser,
     ChooserAbort,
     Ctx,
+    DecisionlessSpin,
+    LengthStop,
     RuntimeState,
     ZoneStore,
     _ContinueTo,
@@ -98,6 +113,14 @@ def _evaluate_stamped(expr: n.Expr, ctx: Ctx) -> Any:
         raise
 
 
+class EndedBy(enum.Enum):
+    """How a game ended: by its own rules, or at its declared `max_length`, a
+    [[length-stop]] (decisions.md "Game length as a declared contract")."""
+
+    RULES = "rules"
+    LENGTH = "length"
+
+
 @dataclass(frozen=True, slots=True)
 class GameResult:
     """A finished game's result (decisions.md "Game result: `winner:` and
@@ -109,13 +132,22 @@ class GameResult:
     (`seat_scores_of`), and `winners` is every seat sharing the best of them:
     both members of a winning team, every tied seat. An elimination game has
     no scores, and its winners are the seats it did not select as `loser`.
+    A game that ended by length is a tie: nothing scored, every seat a
+    winner, no loser.
     """
 
-    scores: dict[int, int]  # empty for a `loser:` game, which keeps no score
-    seat_scores: tuple[int, ...]  # one per seat; empty for a `loser:` game
+    scores: dict[int, int]  # empty for a `loser:` game and for a tie at the bound
+    seat_scores: tuple[int, ...]  # one per seat; empty for either of those
     winners: frozenset[Player]  # never empty
     loser: Player | None
     hands_played: int
+    ended_by: EndedBy
+
+    @property
+    def tied_at_the_bound(self) -> bool:
+        """Whether this is the tie a game that ended by length is by default:
+        every seat a winner and nothing scored."""
+        return self.ended_by is EndedBy.LENGTH and not self.seat_scores and self.loser is None
 
 
 # How a seat finds its own key in a `winner:` target, per index role: its own
@@ -391,29 +423,9 @@ def play_game(
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:
         rs.score_var = game.winner.state_var  # loser games have no score var
+    # Every pick is counted against `max_length` where it is recorded, in
+    # `chooser.decide`, whichever Chooser makes it.
     base_chooser = chooser or random_chooser(rng)
-
-    uncounted = base_chooser
-
-    def _counted(player: Player, candidates: list[Any], n: int) -> list[Any]:
-        # The declared max_length's other half (docs/decisions.md, "Game
-        # length as a declared contract"): the loop guards below only bound
-        # iteration counts, which can be far coarser than decisions (a single
-        # `repeat until` iteration may make many chooser calls) — this counts
-        # every decision itself, the unit max_length's corpus values are
-        # actually sized against (measured per-game random-playout lengths),
-        # so a structurally-terminating loop that makes unboundedly many
-        # decisions per iteration is caught here, not silently under-bounded.
-        rs.decisions_made += n
-        if rs.decisions_made > rs.max_length:
-            raise OwnerGuardError(
-                f"the game made {rs.decisions_made} decisions, exceeding its "
-                f"declared max_length ({rs.max_length}) — non-termination, or "
-                "raise max_length if this game genuinely runs this long"
-            )
-        return uncounted(player, candidates, n)
-
-    base_chooser = _counted
     if on_first_decision is not None:
         # The deal-injection seam (SP1 proof harness): fire once, inside the
         # first chooser call, before delegating. NOTE: the first decider's
@@ -449,6 +461,20 @@ def play_game(
         # world so the caller can inspect the paused decision point.
         abort.rs = rs
         raise
+    except LengthStop:
+        # The game ends at its bound, every frame standing where the stopped
+        # pick left them. The default result is a tie, and neither result
+        # clause is read: a `loser:` selection asked at a position no rule
+        # ended would name a seat nobody's play made the loser.
+        ctx.trace("game_end", _final_card_census(rs, ctx))
+        return GameResult(
+            scores={},
+            seat_scores=(),
+            winners=frozenset(rs.seating.players),
+            loser=None,
+            hands_played=hands.value,
+            ended_by=EndedBy.LENGTH,
+        )
 
     ctx.trace("game_end", _final_card_census(rs, ctx))
 
@@ -503,6 +529,7 @@ def play_game(
         winners=winners,
         loser=loser,
         hands_played=hands.value,
+        ended_by=EndedBy.RULES,
     )
 
 
@@ -600,22 +627,11 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
             # guarded off). Scoped to descendants, so a sibling/ancestor outcome
             # pending across this loop is preserved.
             loop_outcomes = _subtree_outcome_names(phase)
-            guard = 0
+            spin = DecisionlessSpin(ctx.rs)
             while not _evaluate_stamped(q.expr, ctx):
-                # A `repeat until` whose condition never holds (e.g. a win
-                # threshold unreachable under random play) would otherwise hang
-                # forever — fail loudly so non-termination surfaces as a test
-                # failure, not a stuck process, against the game's declared
-                # `max_length` (docs/decisions.md, "Game length as a declared
-                # contract"). The statement-level `repeat until` has the same
-                # Owner Guard.
-                guard += 1
-                if guard > ctx.rs.max_length:
+                if spin.boundary():
                     raise OwnerGuardError(
-                        f"phase '{phase.name}' repeated {guard} times without its "
-                        "`repeat until` condition holding, exceeding the game's "
-                        f"declared max_length ({ctx.rs.max_length}) — non-termination, "
-                        "or raise max_length if this game genuinely runs this long"
+                        spin.refusal(f"phase '{phase.name}', repeated until its condition,")
                     )
                 for nm in loop_outcomes:
                     ctx.rs.phase_outcomes.pop(nm, None)
@@ -625,12 +641,13 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                     _run_phase_body(phase, ctx, hands)
                 except _SkipHand:
                     pass  # `skip to next hand`: abort the rest, run after_each
-                except ChooserAbort:
+                except HALTS:
                     suspended = True
                     raise
                 finally:
-                    # Guaranteed on every exit from the iteration. A suspended
-                    # run has not exited it: the decision is still being asked.
+                    # Guaranteed on every exit from the iteration. A halted
+                    # run has not exited it: the decision is still being
+                    # asked, or the game ended at it.
                     if after is not None and not suspended:
                         run_stmts(after.body, ctx)
                 if ctx.rs.score_var is not None:  # loser games keep no per-hand score
@@ -640,7 +657,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                 _run_phase_body(phase, ctx, hands)
         else:
             _run_phase_body(phase, ctx, hands)
-    except ChooserAbort:
+    except HALTS:
         suspended = True
         raise
     except REFUSALS as exc:
@@ -653,10 +670,10 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
         exc.locate(phase=phase.name)
         raise
     finally:
-        # Always pop, even on a _ContinueTo/_SkipHand unwind — except where a
-        # Chooser suspended the run (`ChooserAbort`): the world `play_game`
-        # hands the caller is the one the decision is asked in, every phase
-        # frame standing and no `after_each` run past it.
+        # Always pop, even on a _ContinueTo/_SkipHand unwind -- except where the
+        # run halted at a decision (`state.HALTS`): the world `play_game` hands
+        # the caller, or scores at the bound, is the one the decision is asked
+        # in, every phase frame standing and no `after_each` run past it.
         if not suspended:
             ctx.rs.pop_frame()
             # The phase that ran a round ends that round's window.

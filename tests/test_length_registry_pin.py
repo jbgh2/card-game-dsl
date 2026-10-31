@@ -87,6 +87,12 @@ HEADROOM: dict[str, tuple[int, str]] = {
         "bounded by its rules at nine placements; the bound of 30 is 3.3x the "
         "most any line can make",
     ),
+    "pinochle": (
+        2,
+        "measured 2026-09-21 under the reference policy over 250 seeds: 3517 "
+        "picks at most (tests/test_playout_pinochle.py), 2.8x under 10000 "
+        "(issue #1005)",
+    ),
     "tichu": (
         3,
         "measured 2026-10-31 under the reference policy over the manifest: "
@@ -94,20 +100,9 @@ HEADROOM: dict[str, tuple[int, str]] = {
     ),
 }
 
-# The walks the lowest-id line takes to its terminal, by short name; a game
-# missing here is walked.
-NOT_WALKED: dict[str, str] = {}
-
 
 def _stem(path: Path) -> str:
     return path.stem
-
-
-_RED = pytest.mark.xfail(
-    strict=True,
-    raises=(OwnerGuardError, AssertionError, ValueError, TypeError),
-    reason="a run carries no `ended_by` on this tree",
-)
 
 
 def _ended_by(thing: object) -> object:
@@ -119,10 +114,8 @@ def test_every_table_row_names_a_registered_game() -> None:
     stems = {_stem(p) for p in REGISTERED.values()}
     assert set(REFERENCE_POLICIES) <= stems
     assert set(HEADROOM) <= stems
-    assert set(NOT_WALKED) <= set(REGISTERED)
 
 
-@_RED
 @pytest.mark.parametrize("seed", manifest())
 @pytest.mark.parametrize("short_name", sorted(REGISTERED))
 def test_a_registered_game_ends_by_its_rules_with_headroom(short_name: str, seed: int) -> None:
@@ -146,23 +139,21 @@ def test_a_registered_game_ends_by_its_rules_with_headroom(short_name: str, seed
     )
 
 
-@_RED
 @pytest.mark.parametrize("short_name", sorted(REGISTERED))
 def test_the_lowest_id_line_reaches_a_terminal_within_the_advertised_length(short_name: str) -> None:
     """`max_game_length` is the declared `max_length`, and the lowest-id line
-    a greedy OpenSpiel consumer walks ends at or before it."""
-    if short_name in NOT_WALKED:
-        pytest.skip(NOT_WALKED[short_name])
+    a greedy OpenSpiel consumer walks ends at or before it, for every
+    registered game: the longest of these walks, Tichu's, measured 25s
+    (2026-10-31)."""
     path = REGISTERED[short_name]
     game = check_source(path)
     assert game.max_length is not None
-    line, returns, ended_by = greedy_line(str(path), SWAP_SEEDS[0], game.max_length)  # type: ignore[misc]
+    line, returns, ended_by = greedy_line(str(path), SWAP_SEEDS[0], game.max_length)
     assert returns is not None
     assert len(line) <= game.max_length
     assert getattr(ended_by, "value", None) in ("rules", "length")
 
 
-@_RED
 def test_coup_under_first_is_a_length_stop() -> None:
     """A table whose every seat takes the first pick repeats one exchange:
     Coup's lines are legally unbounded, and this one ends by length, a tie."""
@@ -174,7 +165,6 @@ def test_coup_under_first_is_a_length_stop() -> None:
     assert end.returns == [0.0, 0.0, 0.0, 0.0]
 
 
-@_RED
 def test_tichu_under_the_uniform_chooser_is_a_length_stop() -> None:
     """A uniform Chooser calls tichu at about half of every offer and the race
     to 1000 diverges: seed 0 reaches the bound."""

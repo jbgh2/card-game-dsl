@@ -21,10 +21,9 @@ from pathlib import Path
 from typing import Any
 
 from cardlang.pipeline import check_source
-from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.driver import EndedBy, play_game
 from cardlang.runtime.values import Card
-from tests.playout_policy import PlayoutPolicy, is_length_guard
+from tests.playout_policy import PlayoutPolicy
 
 SPADES = Path(__file__).parent.parent / "docs" / "games" / "spades.cardlang"
 
@@ -107,33 +106,26 @@ WITNESS_FLOOR = 20
 def _termini(seeds: int, use_policy: bool) -> Counter[str]:
     """How each seed ended: the win, the collapse, or the declared bound.
 
-    `max_length` is a counted outcome rather than an error. It is a per-game
-    declared contract sized against measured random playouts, and a policy
-    that keeps a team solvent plays more hands than a random one — so a few
-    seeds spend the budget. The bucket is the record.
-
-    Only THAT guard is bucketed. `OwnerGuardError` is the currency of every
-    authoring refusal the policy path can reach — the un-attached refusal, an
-    unregistered Candidate shape, `random_chooser`'s `n > len(candidates)` —
-    and catching the type would file each of them as "this game ran long".
-    That is not hypothetical: a policy fault planted on 7 of 30 seeds bucketed
-    as `max_length` and left the witness green, because 21 still cleared the
-    floor. Anything but the length bound propagates.
+    A game that reaches `max_length` ends there, a Length Stop, and is a
+    counted outcome: the bound is sized against measured random playouts, and
+    a policy that keeps a team solvent plays more hands than a random one, so
+    a few seeds spend the budget. The bucket is the record. The bucket reads
+    the result's own `ended_by`, so every refusal the policy path can reach --
+    the un-attached refusal, an unregistered Candidate shape,
+    `random_chooser`'s `n > len(candidates)` -- propagates rather than being
+    filed as "this game ran long".
     """
     game = _spades()
     out: Counter[str] = Counter()
     for seed in range(seeds):
         rng = random.Random(seed)
         policy = PlayoutPolicy(rng, game) if use_policy else None
-        try:
-            result = (
-                play_game(game, rng, chooser=policy, on_first_decision=policy.attach)
-                if policy is not None
-                else play_game(game, rng)
-            )
-        except OwnerGuardError as exc:
-            if not is_length_guard(exc):
-                raise
+        result = (
+            play_game(game, rng, chooser=policy, on_first_decision=policy.attach)
+            if policy is not None
+            else play_game(game, rng)
+        )
+        if result.ended_by is EndedBy.LENGTH:
             out["max_length"] += 1
             continue
         out["+500" if max(result.scores.values()) >= 500 else "-200"] += 1
