@@ -1,0 +1,71 @@
+// The two-piece shuttle: the solved witness for the Length Stop
+// (docs/decisions.md, "Game length as a declared contract"). Not a corpus
+// game; a test fixture whose value is known by construction.
+//
+// One mark a side on a 2 x 2 board, one on each rank. A turn slides your
+// mark to an adjacent empty square. Nothing is captured and nothing wins, and
+// a mark always has an empty neighbour (each square has two orthogonal
+// neighbours and only one other mark stands on the board),
+// so every line is infinite and the game's only end is its `max_length`.
+// Information is perfect: the board and both reserves are public.
+//
+// What a run must therefore show, on every seed and under every policy: the
+// game ends after exactly `max_length` picks, by length; it is a tie (both
+// seats win, no seat loses); its returns are [0, 0].
+
+game Shuttle {
+
+  players: 2
+  direction: clockwise
+  max_length: 12
+
+  board: grid(2, 2)
+  pieces: xo_marks
+
+  zones {
+    box             : Deck                // the unplaced set, emptied at setup
+    square[cell]    : Cell<cell>          // the four board squares
+    reserve[player] : PlayerPile<player>  // each side's unused marks, public
+  }
+
+  state {
+    result[player] : Integer = 0       // never written: no line is won
+    placed[player] : Boolean = false   // whether a side's mark is on the board
+  }
+
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+    for each cell c: if (c in far_row(1)) and not placed[0] {
+      move one piece from reserve[0] to square[c]
+      placed[0] := true
+    }
+    for each cell c: if (c in far_row(0)) and not placed[1] {
+      move one piece from reserve[1] to square[c]
+      placed[1] := true
+    }
+  }
+
+  phase play {
+    turns t from 0 over all players until false {
+      offer to t one of [slide]
+    }
+  }
+
+  winner: highest result
+}
+
+function side_of(p : Player) = if p is 0 then x else o
+
+// Slide your own mark to an adjacent empty square: two squares are adjacent
+// when they make up a line of two on the board.
+move_type slide(from : cell, to : cell) {
+  when: (square[from] is not empty)
+        and (top_of(square[from]).side is side_of(actor))
+        and (square[to] is empty)
+        and (any line in lines(2)
+               where all cells in line where (cell is from) or (cell is to))
+  effect {
+    move one piece from square[from] to square[to]
+  }
+}

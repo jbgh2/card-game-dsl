@@ -1,0 +1,37 @@
+// A chosen movement whose picks straddle the game's bound: the first call asks
+// for three cards against a `max_length` of two. Checks clean; every run
+// reaches the bound inside that call.
+//
+// The witness for the Length Stop's unit (docs/decisions.md, "Game length as
+// a declared contract"): the stop falls at exactly `max_length` picks whether
+// the Chooser answers a call at once or one pick at a time, and a call it
+// cuts short moves no card (tests/test_length_stop.py).
+game Straddle {
+  players: 2
+  direction: clockwise
+  max_length: 2
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    pile         : Discard
+  }
+
+  state {
+    took[player] : Integer = 0
+  }
+
+  phase setup {
+    shuffle deck
+    deal 5 cards from deck to each hand
+  }
+
+  phase play {
+    as 0 { move chosen 3 cards from hand[0] to pile }
+    as 1 { move chosen 3 cards from hand[1] to pile }
+  }
+
+  winner: highest took
+}
