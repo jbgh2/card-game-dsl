@@ -19,7 +19,7 @@ PER-HAND rates, and each per-offer gate is derived from its rate and the
 number of offers a seat takes in a hand (grand: one poll per card of the first eight,
 tichu.cardlang): a per-offer gate copied across the eight polls calls grand in
 28% of hands, and the race diverges exactly as under the uniform chooser
-(measured 2026-09-26 at the probe: 45 of 300 games refused at `max_length`).
+(measured 2026-09-26 at the probe: 45 of 300 games reached `max_length`).
 """
 
 from __future__ import annotations

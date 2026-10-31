@@ -1005,6 +1005,6 @@ def _apply_pass(
 def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:
     spin = DecisionlessSpin(ctx.rs)
     while not evaluate(stmt.until, ctx):
-        run_body(stmt.body, ctx)
         if spin.boundary():
             raise OwnerGuardError(spin.refusal("a `repeat until` loop"))
+        run_body(stmt.body, ctx)

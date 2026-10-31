@@ -24,8 +24,9 @@ index role, so a team-keyed target names every member of the best team -- or,
 for a `loser:` game, every seat but the selected one, which is a seat of the
 table; or every seat, when the game ended by length, which is a tie by
 default: no loser, and neither the `winner:` target nor the `loser:` selection
-read. The phase-level `repeat until` guard refuses only a run of more than
-`max_length` boundaries with no pick between them. Illegal after this:
+read. The phase-level `repeat until` guard refuses only a loop that, at a
+head whose condition does not hold, has completed more than `max_length`
+bodies with no pick in them (`state.DecisionlessSpin`). Illegal after this:
 handing game text to `evaluate` from this module without that helper —
 `tests/test_runtime_refusal_location.py` derives the driver's evaluation sites
 from the module, so a new one arrives unstamped only by going around it. And a
@@ -631,7 +632,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
             while not _evaluate_stamped(q.expr, ctx):
                 if spin.boundary():
                     raise OwnerGuardError(
-                        spin.refusal(f"phase '{phase.name}', repeated until its condition,")
+                        spin.refusal(f"the `repeat until` loop of phase '{phase.name}'")
                     )
                 for nm in loop_outcomes:
                     ctx.rs.phase_outcomes.pop(nm, None)
@@ -672,7 +673,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
     finally:
         # Always pop, even on a _ContinueTo/_SkipHand unwind -- except where the
         # run halted at a decision (`state.HALTS`): the world `play_game` hands
-        # the caller, or scores at the bound, is the one the decision is asked
+        # the caller, or ends at the bound, is the one the decision is asked
         # in, every phase frame standing and no `after_each` run past it.
         if not suspended:
             ctx.rs.pop_frame()

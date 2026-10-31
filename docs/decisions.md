@@ -1709,23 +1709,30 @@ game is worth at its bound is the one thing a game's own declaration may change
 
 The result says how the game ended, in every channel. `GameResult.ended_by` is
 a closed pair, `rules` or `length`; the adapter's terminal node and a live
-line's end carry the same field, and the readiness battery's coverage record
-carries it beside `terminal`. `cardlang demo` leads its summary with the stop,
+line's end carry the same field, a registered game's pyspiel State answers it
+at a terminal (`ended_by()`, since the returns alone cannot tell the bound's
+tie from one the rules declared), the playtest report counts length stops
+apart and credits no seat a finish for one, and the readiness battery's
+coverage record carries it beside `terminal`. `cardlang demo` leads its summary with the stop,
 in the uniform-random voice, and exits 1: the sizing rule below says
 uniform-random play never approaches the bound, so the game file is where to
 look. `cardlang play` says the game is over, names the stop in the table's
 voice with who chose for each seat, and exits 0: the people at the table
 played it there, and the game finished.
 
-**A loop that makes no picks is still refused.** The three loops whose `until`
-can fail to hold -- the phase-level `repeat until`, the statement-level
-`repeat until`, and the `turns` ring -- each count their consecutive boundaries
-with no pick between them, starting again whenever a pick is made, and refuse
-past `max_length` of them, as the author's defect (`OwnerGuardError`) and in
-words naming the loop, non-termination, and raising the bound. A loop that
-makes picks cannot be refused for running long: its picks reach the bound
-first. The decisionless loop (`repeat until false {}`) is the shape no pick
-count sees, and nothing else bounds it.
+**A loop that makes no picks is still refused.** The four loops whose
+`until` can fail to hold -- the phase-level `repeat until`, the
+statement-level `repeat until`, the `turns` ring, and a climbing round's ring
+-- each count, at their head once the `until` has been read false, the bodies
+they have completed with no pick made in them, starting again whenever a body
+makes a pick; past `max_length` such bodies they refuse, as the author's
+defect (`OwnerGuardError`) and in words naming the loop and how many bodies it
+completed. A loop whose `until` holds after its last body is never refused,
+however many bodies it ran. A loop that makes picks cannot be refused for
+running long: its picks reach the bound first. The decisionless loop
+(`repeat until false {}`) is the shape no pick count sees, and nothing else
+bounds it; the four loops are the constructions of the one guard that counts
+them (`state.DecisionlessSpin`), which `tests/test_length_stop.py` derives.
 
 **The adapter's length is a promise every registered game keeps.**
 `is_terminal()` holds after at most `max_length` non-chance actions on every
@@ -1734,13 +1741,17 @@ longer than the line it replays is refused as a `HistoryMismatch` addressed to
 whoever supplied it.
 
 **The stop is common knowledge.** It is a function of how many picks the line
-has made, and every pick reaches every seat: an `offer`'s move and a `choose`
-are announced to every seat, a round's plays are announced or land in a pile
-every seat sees, and a chosen movement reaches every seat that sees either
-side of it. A chosen movement's source is a zone its decider can see
-("Knowledge, visibility, and the projection model"), and every zone type that
-shows its owner identity shows every other seat at least a count
-(`tests/test_zone_projections.py`), so no pick is invisible to a bystander.
+has made, and every pick a call applies reaches every seat: an `offer`'s move
+and a `choose` are announced to every seat, a round's plays are announced or
+land in a pile every seat sees, and a chosen movement reaches every seat that
+sees either side of it. A chosen movement's source is a zone its decider can
+see ("Knowledge, visibility, and the projection model"), and every zone type
+that shows its owner identity shows every other seat at least a count
+(`tests/test_zone_projections.py`), so no applied pick is invisible to a
+bystander. The picks of a call not yet applied reach only their decider, and
+no other seat decides until the call is done: a call the stop cuts short
+reaches only its decider and ends the game, so no seat is ever asked without
+knowing the count.
 The stop emits no event of its own, and information sets do not move: two
 worlds a seat cannot tell apart reach the stop together, which the swap
 proof's terminal assertion (`harness.replay_pair`) holds.

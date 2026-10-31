@@ -454,8 +454,8 @@ class RuntimeState:
         # boardless game; the driver builds it from `game.board`. The cell/line
         # query verbs read it (decisions.md "Boards and cells").
         self.board: BoardEntry | None = None
-        self.max_length: int = 0  # the game's declared non-termination bound
-        self.decisions_made: int = 0  # every chooser pick, checked against max_length
+        self.max_length: int = 0  # the game's declared bound: a game ends at it
+        self.decisions_made: int = 0  # every pick made, counted by `chooser.decide`
         # Content flavor ("card"/"piece") and the axis->Card-attribute map for a
         # piece set (identity for a card deck): the driver sets both from the
         # game's component set; `_card_pred`/`_select_joint` bind the flavor noun,
@@ -500,40 +500,56 @@ class RuntimeState:
         self._frame_of(name)[name] = value
 
 
+# Where a `DecisionlessSpin` stands between two of its loop's heads: the pick
+# count at the last head, and how many bodies have completed since a pick was
+# last made. The first head has no completed body behind it.
+SpinMark = tuple[int, int]
+SPIN_START: SpinMark = (-1, 0)
+_SPIN_REMEDY = "non-termination, or raise max_length if this game genuinely runs this long"
+
+
 class DecisionlessSpin:
-    """The iteration guards' count: a loop's consecutive boundaries with no
-    pick made between them, reset whenever the pick count has advanced.
+    """The iteration guards' count: how many bodies a loop has completed with
+    no pick made in them, taken at the loop's head once its `until` has been
+    read false, and started again whenever a body makes a pick.
 
     A loop that makes picks cannot be refused for running long -- its picks
     reach `max_length`, and the game ends there (`chooser.decide`, a
     [[length-stop]]). What only a guard on the loop sees is a loop that makes
-    none: more than `max_length` boundaries of it, with no pick to end the
-    game and an `until` that has not held, is its author's defect. The three
-    loops (`repeat until` as a phase qualifier and as a statement, and
-    `turns`) each hold one of these."""
+    none: at a head whose `until` does not hold, more than `max_length`
+    completed bodies with no pick in them is its author's defect. Every loop
+    whose `until` can fail to hold keeps one, and the four that do (`repeat
+    until` as a phase qualifier and as a statement, the `turns` ring, and a
+    climbing round's ring) are the sites `tests/test_length_stop.py` derives
+    by scraping this class's constructions. `mark` is the count as two
+    integers, for a loop whose working memory is a round-state frame, which
+    holds no live object."""
 
-    def __init__(self, rs: RuntimeState) -> None:
+    def __init__(self, rs: RuntimeState, mark: SpinMark = SPIN_START) -> None:
         self.rs = rs
-        self.made: int = rs.decisions_made
-        self.count = 0
+        self.made, self.count = mark
+
+    @property
+    def mark(self) -> SpinMark:
+        return (self.made, self.count)
 
     def boundary(self) -> bool:
-        """Count one boundary; True once the run without a pick has passed
-        `max_length` boundaries."""
+        """One head of the loop, its `until` read false; True once more than
+        `max_length` bodies have completed since a pick was made."""
         if self.rs.decisions_made != self.made:
             self.made = self.rs.decisions_made
             self.count = 0
-        self.count += 1
+        else:
+            self.count += 1
         return bool(self.count > self.rs.max_length)
 
-    def refusal(self, loop: str) -> str:
+    def refusal(self, loop: str, remedy: str = _SPIN_REMEDY) -> str:
         """The refusal's sentence, which the guard raises as an
         `OwnerGuardError`: the loop is its author's to fix."""
         return (
-            f"{loop} went round {self.count} times with no decision made and its "
-            f"`until` never holding, more than the game's declared max_length "
-            f"({self.rs.max_length}) — non-termination, or raise max_length if "
-            "this game genuinely runs this long"
+            f"{loop} completed {self.count} times with no decision made and its "
+            f"`until` still does not hold, more than the game's declared "
+            f"max_length ({self.rs.max_length}) — {remedy}"
         )
 
 

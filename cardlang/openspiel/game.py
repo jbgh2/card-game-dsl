@@ -20,6 +20,18 @@ does NOT get is the readiness proof battery, which runs per corpus game from a
 hand-authored module and has no way in by path (issue #25): a game registered
 by path has the adapter's derived information states and no proof they are
 sound.
+
+Contract
+--------
+Assumes: `replay.run` is what every query of a state's ``(seed, script,
+history)`` answers. Establishes: a registered game's `max_game_length` is its
+declared `max_length`, and `is_terminal()` holds after at most that many
+non-chance actions on every line; a terminal state's `returns()` is the
+driver's result translated by `replay.returns_for`, and its `ended_by()` says
+whether the game's rules ended it (``"rules"``) or it reached its bound
+(``"length"``, a [[length-stop]], a tie by default). Illegal after this: a
+consumer that reports how a game ended reading it off the returns or the
+history's length instead of `ended_by()`.
 """
 
 from __future__ import annotations
@@ -219,6 +231,17 @@ class CardlangState(pyspiel.State):
 
     def is_terminal(self) -> bool:
         return self._seed is not None and isinstance(self._run(), replay.TerminalNode)
+
+    def ended_by(self) -> str | None:
+        """How the game ended, at a terminal state: ``"rules"`` when its rules
+        ended it, ``"length"`` when it reached its `max_length` (a
+        [[length-stop]], whose returns are a tie by default). None at every
+        other state. Not a pyspiel method: the returns alone cannot tell a
+        tie the rules declared from a game stopped at its bound."""
+        if self._seed is None:
+            return None
+        r = self._run()
+        return r.ended_by.value if isinstance(r, replay.TerminalNode) else None
 
     def returns(self) -> list[float]:
         if self._seed is None:

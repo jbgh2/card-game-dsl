@@ -14,7 +14,7 @@ findings: []
 
 The result is a tie by default: every seat a [[winner]], no loser, every seat's return 0, with neither the `winner:` target nor the `loser:` selection read. It says how the game ended in every channel: `GameResult.ended_by` names one of two arms, `rules` or `length`; the adapter's terminal node and a live line's end carry the same; `demo` leads its summary with it and `play` names it when the game is over.
 
-A Length Stop is an end, not a defect, and is never a refusal. What stays refused is a loop that makes no pick and never ends: the iteration guards count a loop's boundaries with no pick between them, and refuse past `max_length` of them.
+A Length Stop is an end, not a defect, and is never a refusal. What stays refused is a loop that makes no pick and never ends: the iteration guards count the bodies a loop completes with no pick in them, and refuse once more than `max_length` of them leave its `until` still false.
 
 **Interop.** OpenSpiel's `max_game_length` is the declared `max_length`, and the Length Stop is what makes it true: `is_terminal()` holds after at most that many non-chance actions on every line, as spiel.h's "maximum length of any one game (in terms of number of decision nodes visited in the game tree)" requires.
 

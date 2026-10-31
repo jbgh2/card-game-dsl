@@ -29,23 +29,35 @@ Completeness ledger
 property:        a run that reaches `max_length` picks ends there, after
                  exactly `max_length` picks on every route, as a tie (every
                  seat a winner, no loser, zero returns) flagged
-                 `ended_by == length`; a run of more than `max_length` loop
-                 boundaries with no pick between them is refused.
-domain:          SITES x CLAUSES x POSITIONS x CHANNELS below. The adapter
+                 `ended_by == length`, in every channel the pyspiel State
+                 included; a loop whose `until` does not hold at a head after
+                 more than `max_length` bodies with no pick in them is
+                 refused, and one whose `until` holds there is not.
+domain:          SITES x CLAUSES x POSITIONS x CHANNELS below; the sites are
+                 the pick count alone and every loop the decisionless-spin
+                 guard counts, the climbing round's ring through the climb
+                 position. The adapter
                  numbers no inline `where jointly` pick
                  (`ActionSpace.for_game` refuses the game before a run), so
                  the joint position's adapter-routed channels expect that
                  refusal, and its `demo` and `GameResult` cells run natively.
                  The decisionless-spin rows cover each iteration guard; the
                  alternating rows cover a loop whose picks fall on some
-                 boundaries only. A Hosted Poll's ask is a round's decision
-                 point, not a row of its own, and its stop is Tichu's under
-                 the uniform Chooser.
+                 boundaries only; the boundary rows cover an `until` holding
+                 after exactly `max_length` and `max_length + 1` decisionless
+                 bodies at each statement-shaped loop, and refused one body
+                 later. A climbing round's `until` is read only once a play
+                 stands, so a ring that asks nobody never reaches it: its row
+                 is the refusal alone. A Hosted Poll's ask is a round's
+                 decision point, not a row of its own, and its stop is
+                 Tichu's under the uniform Chooser.
 registry:        clause axis: `driver.SEAT_KEY_BY_ROLE` x
                  `resolve._RANKABLE_TYPES`, plus `loser:`; position axis:
                  `delegation.DECISION_POINTS` and `delegation.FORM_CONSTRUCTS`,
                  reconciled by `test_the_positions_are_the_decision_points`
                  and reached by `test_each_position_asks_at_its_decision_point`;
+                 site axis: the constructions of `state.DecisionlessSpin`,
+                 reconciled by `test_every_spin_guard_is_a_grid_row`;
                  channel axis: `EndedBy` members by
                  `test_ended_by_has_two_arms`; the Hosted Poll's stop:
                  tests/test_length_registry_pin.py::test_tichu_under_the_uniform_chooser_is_a_length_stop;
@@ -64,6 +76,7 @@ does not prove:  that a corpus game ends by its rules (the registry pin,
 
 from __future__ import annotations
 
+import ast
 import io
 import random
 import sys
@@ -74,6 +87,7 @@ from typing import Any
 
 import pytest
 
+import cardlang
 from cardlang.cli import main
 from cardlang.domains import Role
 from cardlang.openspiel.encoding import ActionSpace
@@ -201,17 +215,39 @@ POSITIONS: dict[str, Position] = {
         "        move all cards from trick_pile to pile",
         _SETS,
     ),
-    # A Decision Episode: the decision sits inside a procedure's body.
+    # The decision sits inside a procedure's body, spliced at its call.
+    "procedure": Position(
+        "execute._offer",
+        None,
+        "run asking({who})",
+        _TICK + "\nprocedure asking(who : Player) {\n  as who {\n    offer to who one of [tick]\n  }\n}\n",
+    ),
+    # A Decision Episode: a flag window, an offer-bearing `repeat until` gated
+    # on a Boolean state variable, open (non-idle) while its offers are asked.
     "episode": Position(
         "execute._offer",
         None,
-        "run episode({who})",
-        _TICK + "\nprocedure episode(who : Player) {\n  as who {\n    offer to who one of [tick]\n  }\n}\n",
+        "window_open := true\n"
+        "        repeat until not window_open {{\n"
+        "          offer to {who} one of [tick]\n"
+        "        }}\n"
+        "        window_open := false",
+        _TICK,
     ),
 }
 
 
 # --- the site axis ------------------------------------------------------------
+
+# The guard each loop site is counted by (`state.DecisionlessSpin`'s
+# constructions), and the climbing round's ring, which the climb position's
+# own plays are made inside.
+SPIN_GUARDS: dict[str, str] = {
+    "driver.run_phase": "phase repeat until",
+    "execute._repeat_until": "statement repeat until",
+    "execute._turns": "turns",
+    "mechanics.ClimbForm.next_actor": "climb",
+}
 
 SITES: dict[str, str] = {
     # More statements than the bound has picks, and no loop at all.
@@ -246,6 +282,7 @@ def cell_source(site: str, clause_name: str, position: str) -> str:
         f"    {clause.decl}\n"
         "    ticks  : Integer = 0\n"
         "    picked : Integer = 0\n"
+        "    window_open : Boolean = false\n"
         "  }\n"
         "  phase setup {\n"
         "    shuffle deck\n"
@@ -363,17 +400,38 @@ def channel_coverage(path: str, clause: str) -> None:
     assert getattr(ended_by, "value", None) == "length"
 
 
+def channel_pyspiel(path: str, clause: str) -> None:
+    """The registered pyspiel game, walked by its first legal action: terminal
+    after exactly the bound, its State saying the bound ended it."""
+    pyspiel = pytest.importorskip("pyspiel")
+    from cardlang.openspiel.game import register_game_file
+
+    state = pyspiel.load_game(register_game_file(path)).new_initial_state()
+    steps = 0
+    while not state.is_terminal():
+        if state.is_chance_node():
+            state.apply_action(state.chance_outcomes()[0][0])
+            continue
+        assert state.ended_by() is None
+        state.apply_action(state.legal_actions()[0])
+        steps += 1
+    assert steps == BOUND
+    assert state.ended_by() == "length"
+    assert state.returns() == [0.0] * _seats(clause)
+
+
 CHANNELS: dict[str, Callable[..., None]] = {
     "GameResult": channel_result,
     "TerminalNode": channel_terminal_node,
     "LiveEnd": channel_live_end,
+    "pyspiel State": channel_pyspiel,
     "demo": channel_demo,
     "play": channel_play,
     "coverage record": channel_coverage,
 }
 
 # The channels that reach the game through the adapter's action space.
-ADAPTER_CHANNELS = frozenset({"TerminalNode", "LiveEnd", "play", "coverage record"})
+ADAPTER_CHANNELS = frozenset({"TerminalNode", "LiveEnd", "pyspiel State", "play", "coverage record"})
 
 
 def expected(site: str, clause: str, position: str, channel: str) -> str:
@@ -465,6 +523,45 @@ def test_each_position_asks_at_its_decision_point(
     assert seen == {(row.point, construct)}
 
 
+def _spin_guard_sites() -> set[str]:
+    """`module.function` (or `module.Class.method`) of every construction of
+    `DecisionlessSpin` in the package, read from source."""
+    root = Path(str(cardlang.__file__)).parent
+    found: set[str] = set()
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text())
+        module = path.stem
+
+        def walk(node: ast.AST, scope: list[str]) -> None:
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    walk(child, [*scope, child.name])
+                    continue
+                if (
+                    isinstance(child, ast.Call)
+                    and isinstance(child.func, ast.Name)
+                    and child.func.id == "DecisionlessSpin"
+                ):
+                    found.add(".".join([module, *scope]))
+                walk(child, scope)
+
+        walk(tree, [])
+    return found
+
+
+def test_every_spin_guard_is_a_grid_row() -> None:
+    """Every loop the decisionless-spin guard counts is a site of the grid, or
+    the climb position for the climbing round's ring, so a fifth loop cannot
+    arrive unlisted. red under: construct a `DecisionlessSpin` in a new
+    function."""
+    assert _spin_guard_sites() == set(SPIN_GUARDS)
+    for row in SPIN_GUARDS.values():
+        assert row in SITES or row in POSITIONS, row
+    assert set(SITES) - {"pick count"} == {
+        row for row in SPIN_GUARDS.values() if row in SITES
+    }
+
+
 def test_ended_by_has_two_arms() -> None:
     from cardlang.runtime.driver import EndedBy
 
@@ -498,16 +595,94 @@ def _spin_game(site: str) -> str:
 
 @pytest.mark.parametrize("site", sorted(_SPINS))
 def test_a_decisionless_spin_is_refused(site: str) -> None:
-    """A loop running more than `max_length` boundaries with no pick between
-    them is the author's defect, refused after a pick has been made, in words
-    naming what the loop lacks."""
+    """A loop that completes more than `max_length` bodies with no pick in
+    them, its `until` still false, is the author's defect, refused after a
+    pick has been made, in words naming what the loop lacks and how many
+    bodies it ran."""
     game = check_dsl(_spin_game(site), "spin.cardlang")
     with pytest.raises(OwnerGuardError) as refused:
         play_game(game, random.Random(0))
     message = str(refused.value)
+    assert "completed 6 times with no decision made" in message
     assert "max_length (5)" in message
     assert "non-termination" in message
-    assert "no decision" in message
+
+
+_CLIMB_SPIN = """game ClimbSpin {
+  players: 2
+  max_length: 5
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
+  state { n[player] : Integer = 0 }
+  phase play {
+    round climb play_combination from 0 over all players
+          source hand into trick_pile combinations sets follows beats
+          until false
+  }
+  winner: highest n
+}
+""" + _SETS
+
+
+def test_a_climbing_ring_that_asks_nobody_is_refused() -> None:
+    """Nobody holds a card, so the ring skips every seat and asks no one: past
+    `max_length` steps it is refused, with the climbing round's remedies."""
+    game = check_dsl(_CLIMB_SPIN, "climb_spin.cardlang")
+    with pytest.raises(OwnerGuardError) as refused:
+        play_game(game, random.Random(0))
+    message = str(refused.value)
+    assert "a climbing round's ring completed 6 times with no decision made" in message
+    assert "max_length (5)" in message
+    assert "drop players who can never play from the `over` clause" in message
+
+
+# The statement-shaped loops, each running decisionless bodies until a lap
+# count reaches `{k}`.
+_LAPS = {
+    "phase repeat until": "  phase spin repeat until laps >= {k} {{\n    laps += 1\n  }}\n",
+    "statement repeat until": (
+        "  phase spin {{\n    repeat until laps >= {k} {{\n      laps += 1\n    }}\n  }}\n"
+    ),
+    "turns": (
+        "  phase spin {{\n    turns t from 0 over all players until laps >= {k} {{\n"
+        "      laps += 1\n    }}\n  }}\n"
+    ),
+}
+
+_SPIN_BOUND = 5
+
+
+@pytest.mark.parametrize(
+    ("site", "bodies", "refused"),
+    [
+        (site, bodies, bodies > _SPIN_BOUND + 1)
+        for site in sorted(_LAPS)
+        for bodies in (_SPIN_BOUND, _SPIN_BOUND + 1, _SPIN_BOUND + 2)
+    ],
+)
+def test_an_until_holding_at_the_bound_ends_by_its_rules(site: str, bodies: int, refused: bool) -> None:
+    """The loop's `until` holds once `bodies` decisionless bodies have run. At
+    `max_length` and `max_length + 1` bodies it holds at the head where the
+    count is read, so the loop ends by its rules; one body later the head
+    finds `max_length + 1` decisionless bodies and an `until` still false."""
+    game = check_dsl(
+        "game Laps {\n  players: 2\n"
+        f"  max_length: {_SPIN_BOUND}\n"
+        "  cards: standard52\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { n[player] : Integer = 0  laps : Integer = 0 }\n"
+        + _LAPS[site].format(k=bodies)
+        + "  winner: highest n\n}\n",
+        "laps.cardlang",
+    )
+    if refused:
+        with pytest.raises(OwnerGuardError) as refusal:
+            play_game(game, random.Random(0))
+        assert f"completed {_SPIN_BOUND + 1} times" in str(refusal.value)
+        return
+    result = play_game(game, random.Random(0))
+    assert _ended_by(result) == "rules"
 
 
 # A loop whose picks fall on every other boundary: its boundaries outrun the
@@ -727,6 +902,46 @@ def test_the_shuttle_is_terminal_in_openspiel_after_exactly_its_bound() -> None:
         steps += 1
     assert steps == game_ast.max_length
     assert state.returns() == [0.0, 0.0]
+    assert state.ended_by() == "length"
+
+
+def test_the_pyspiel_state_says_how_a_game_its_rules_ended_ended() -> None:
+    """The other arm: tic-tac-toe's every line ends by its rules.
+    red under: drop `ended_by` from `CardlangState`."""
+    pyspiel = pytest.importorskip("pyspiel")
+    import cardlang.openspiel.game  # noqa: F401  (registers on import)
+
+    state = pyspiel.load_game("cardlang_tic_tac_toe").new_initial_state()
+    while not state.is_terminal():
+        assert state.ended_by() is None
+        state.apply_action(state.legal_actions()[0])
+    assert state.ended_by() == "rules"
+
+
+def test_the_playtest_report_counts_length_stops_and_credits_them_to_no_seat() -> None:
+    """Every rollout of the shuttle ends by length: none of them is a finish
+    any seat earned. red under: credit a length stop's best return in
+    `report.playtest_report`."""
+    pytest.importorskip("pyspiel")
+    from cardlang.openspiel.game import register_game_file
+    from cardlang.openspiel.report import playtest_report
+
+    report = playtest_report(register_game_file(SHUTTLE), num_games=3, seed=0)
+    assert report["length_stops"] == 3
+    assert report["best_seat_counts"] == [0, 0]
+
+
+def test_a_stop_inside_a_decision_episode_leaves_its_window_open(cell_dir: Path) -> None:
+    """The stop falls while the flag window's offers are asked, so the
+    window's state variable stands non-idle in the world the stop is read
+    at, and the result is the tie."""
+    for site in SITES:
+        game = check_source(Path(cell_path(cell_dir, site, "winner-player-Integer", "episode")))
+        world: list[RuntimeState] = []
+        result = play_game(game, random.Random(SEED), on_first_decision=world.append)
+        assert _ended_by(result) == "length", site
+        assert world[0].frames[0]["window_open"] is True, site
+        _assert_tie(result.winners, result.loser, None, 2)
 
 
 # --- the designer's misuse ----------------------------------------------------

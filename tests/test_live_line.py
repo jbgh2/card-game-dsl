@@ -26,7 +26,8 @@ domain:          Positions: one uniform line per registered game at `_SEED`,
                  time (a live line, the adapter's replay), beside the per-call
                  uniform chooser. Fixture games stand in for the shapes no
                  registered game has: a call for more cards than the pool holds,
-                 a game with no decision, a line refused at its `max_length`, and
+                 a game with no decision, a line refused for a loop with no decision in
+                 it after its picks, and
                  a decision inside `after_each`.
 registry:        games: `cardlang.openspiel.registry.GAMES`; the generator rule:
                  `cardlang.openspiel.replay.generator_for`, over

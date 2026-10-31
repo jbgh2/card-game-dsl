@@ -6581,10 +6581,10 @@ def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
 def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
     if game.max_length is None:
         bag.error(
-            f"game '{game.name}' must declare `max_length: <n>` — a bound on "
-            "decision/loop iterations the runtime enforces and the OpenSpiel "
-            "adapter reports (docs/decisions.md, \"Game length as a declared "
-            "contract\")",
+            f"game '{game.name}' must declare `max_length: <n>` — the most "
+            "decisions a run makes: a game that reaches it ends there as a "
+            "tie, and the OpenSpiel adapter reports it as the game's length "
+            "(docs/decisions.md, \"Game length as a declared contract\")",
             game.span,
         )
     elif game.max_length <= 0:

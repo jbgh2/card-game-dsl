@@ -14,9 +14,10 @@ Completeness ledger
 property:        every registered game, on every seed of the manifest,
                  under its reference playout policy, ends by its rules
                  (`ended_by == rules`) after fewer than `max_length / dial`
-                 picks; its lowest-id line reaches a terminal at or before
-                 its bound; Coup under `first` and Tichu under the uniform
-                 Chooser end by length, as ties.
+                 picks; its lowest-id line, walked natively, reaches a
+                 terminal at or before its bound, ended the way
+                 `LOWEST_ID_ENDS` names; Coup under `first` and Tichu under
+                 the uniform Chooser end by length, as ties.
 domain:          the games this process registers at import, the corpus
                  (`registry.GAMES`) and every file `CARDLANG_GAMES` names,
                  crossed with the coverage manifest. A game registered later
@@ -26,8 +27,8 @@ registry:        games: `cardlang.openspiel.registry.GAMES` and
                  `cardlang.openspiel.game._entry_files`; policies:
                  `tests.playout_policy.REFERENCE_POLICIES`; seeds:
                  `tests.openspiel_ready.harness.SWAP_SEEDS`; dials: `HEADROOM`
-                 below, reconciled by
-                 `test_every_table_row_names_a_registered_game`.
+                 below and the lowest-id line's ends: `LOWEST_ID_ENDS`, both
+                 reconciled by `test_every_table_row_names_a_registered_game`.
 held by:         Born-Green Pin: whether a game's lines end by its rules is a
                  fact about its runs, which no type holds and the engine
                  cannot decide.
@@ -37,7 +38,9 @@ does not prove:  that a line no policy in the table walks ends by its rules:
 
 red under: register tests/test_length_stop.py's `bounded_tic_tac_toe()`
 (tic-tac-toe at `max_length: 5`) through `CARDLANG_GAMES`; a uniform line that
-places five marks without a win stops by length.
+places five marks without a win stops by length. And: make `chooser.decide`'s
+`admit` admit every pick; no line stops at its bound, and every game in
+`LOWEST_ID_ENDS` walks past it.
 """
 
 from __future__ import annotations
@@ -101,6 +104,19 @@ HEADROOM: dict[str, tuple[int, str]] = {
 }
 
 
+# How the lowest-id line of seed `SWAP_SEEDS[0]` ends, for the games whose
+# line their rules never end (measured 2026-10-31): a table taking the first
+# pick at every decision loops, and the line ends at the bound. Every other
+# registered game's ends by its rules.
+LOWEST_ID_ENDS: dict[str, str] = {
+    "belote": "length",
+    "coup": "length",
+    "gin-rummy": "length",
+    "klondike": "length",
+    "tichu": "length",
+}
+
+
 def _stem(path: Path) -> str:
     return path.stem
 
@@ -114,6 +130,7 @@ def test_every_table_row_names_a_registered_game() -> None:
     stems = {_stem(p) for p in REGISTERED.values()}
     assert set(REFERENCE_POLICIES) <= stems
     assert set(HEADROOM) <= stems
+    assert set(LOWEST_ID_ENDS) <= stems
 
 
 @pytest.mark.parametrize("seed", manifest())
@@ -141,17 +158,24 @@ def test_a_registered_game_ends_by_its_rules_with_headroom(short_name: str, seed
 
 @pytest.mark.parametrize("short_name", sorted(REGISTERED))
 def test_the_lowest_id_line_reaches_a_terminal_within_the_advertised_length(short_name: str) -> None:
-    """`max_game_length` is the declared `max_length`, and the lowest-id line
-    a greedy OpenSpiel consumer walks ends at or before it, for every
+    """The lowest-id line, walked natively through `play_game` (the line a
+    greedy OpenSpiel consumer takes, without the adapter's replay cost), ends
+    at or before the declared `max_length` the adapter advertises as
+    `max_game_length`, and ends the way `LOWEST_ID_ENDS` says, for every
     registered game: the longest of these walks, Tichu's, measured 25s
     (2026-10-31)."""
     path = REGISTERED[short_name]
     game = check_source(path)
     assert game.max_length is not None
     line, returns, ended_by = greedy_line(str(path), SWAP_SEEDS[0], game.max_length)
-    assert returns is not None
+    assert returns is not None, f"{short_name}: the line ran past its bound"
     assert len(line) <= game.max_length
-    assert getattr(ended_by, "value", None) in ("rules", "length")
+    expected = LOWEST_ID_ENDS.get(_stem(path), "rules")
+    assert ended_by is not None and ended_by.value == expected, (
+        f"{short_name}: the lowest-id line ended by {ended_by}, not {expected}"
+    )
+    if expected == "length":
+        assert len(line) == game.max_length
 
 
 def test_coup_under_first_is_a_length_stop() -> None:
