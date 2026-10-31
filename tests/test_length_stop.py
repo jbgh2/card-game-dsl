@@ -38,14 +38,19 @@ domain:          SITES x CLAUSES x POSITIONS x CHANNELS below. The adapter
                  refusal, and its `demo` and `GameResult` cells run natively.
                  The decisionless-spin rows cover each iteration guard; the
                  alternating rows cover a loop whose picks fall on some
-                 boundaries only.
+                 boundaries only. A Hosted Poll's ask is a round's decision
+                 point, not a row of its own, and its stop is Tichu's under
+                 the uniform Chooser.
 registry:        clause axis: `driver.SEAT_KEY_BY_ROLE` x
                  `resolve._RANKABLE_TYPES`, plus `loser:`; position axis:
                  `delegation.DECISION_POINTS` and `delegation.FORM_CONSTRUCTS`,
                  reconciled by `test_the_positions_are_the_decision_points`
                  and reached by `test_each_position_asks_at_its_decision_point`;
                  channel axis: `EndedBy` members by
-                 `test_ended_by_has_two_arms`.
+                 `test_ended_by_has_two_arms`; the Hosted Poll's stop:
+                 tests/test_length_registry_pin.py::test_tichu_under_the_uniform_chooser_is_a_length_stop;
+                 a chosen movement's source visible to its decider:
+                 tests/test_rejections.py::test_rejection_case[hidden_read_blind_draw].
 held by:         the end's kind is a closed enum (`driver.EndedBy`) every
                  consumer matches exhaustively (Unrepresentable); the one
                  counting site is `chooser.decide`'s Contract, pinned here by

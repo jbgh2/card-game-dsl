@@ -1370,6 +1370,45 @@ def test_a_runtime_failure_renders_without_a_traceback(
     assert "playing" in err, "the message must say which layer refused"
 
 
+@pytest.mark.parametrize(("seed", "stops"), [(1, True), (4, False)])
+def test_a_bounded_game_given_a_short_bound_exits_1_under_demo_when_it_stops(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], seed: int, stops: bool
+) -> None:
+    """Tic-tac-toe at `max_length: 5`: a uniform line that places five marks
+    without a win ends by length, and `demo` leads with the stop and exits 1,
+    the bound being the author's to size; a line its rules end exits 0."""
+    from tests.test_length_stop import bounded_tic_tac_toe
+
+    path = tmp_path / "p6_bounded_game_short_bound.cardlang"
+    path.write_text(bounded_tic_tac_toe())
+    code = main(["demo", str(path), "--seed", str(seed)])
+    out, err = capsys.readouterr()
+    first = out.splitlines()[0]
+    assert ("reached TicTacToe's max_length (5 decisions)" in first) is stops, first
+    assert code == (1 if stops else 0), err
+    assert "non-termination" not in out + err
+
+
+def test_coup_played_to_its_bound_at_a_table_exits_0(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A person answering the first pick at every prompt, every other seat
+    `first`: the table repeats one exchange until Coup reaches its bound, and
+    the session says the game is over and names the stop, exit 0."""
+    monkeypatch.setattr(sys, "stdin", io.StringIO("1\n" * 500 + "q\n"))
+    code = main(["play", str(REPO / "docs" / "games" / "coup.cardlang"),
+                 "--seed", "1", "--vs", "all=first"])
+    out, err = capsys.readouterr()
+    over = out[out.index("the game is over"):]
+    assert "Coup reached its max_length, 500 decisions" in over
+    assert "the game is a tie" in over
+    assert "P0 was you" in over
+    assert "returns      P0 0, P1 0, P2 0, P3 0" in over
+    assert "non-termination" not in out + err
+    assert "static checks passed" not in out + err
+    assert code == 0, err
+
+
 # ---------------------------------------------------------------------------
 # The two invocation forms.
 # ---------------------------------------------------------------------------
