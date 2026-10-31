@@ -524,11 +524,11 @@ earned. Board-specific criteria, in priority order:
    the staging in §4 is this criterion, operationalized.
 3. **Structural termination before open-ended play.** Monotone games
    (placement fills, pieces only advance, shots accumulate) cannot
-   cycle, so they land before
-   [open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md)
-   is settled; cyclic games (morris, draughts) are gated on it —
-   [domain-map.md](domain-map.md)'s "settle before the first
-   open-ended board game", honored in the ordering.
+   cycle, so they land first; cyclic games (morris, draughts) follow,
+   their cyclic lines ending by their own draw rules where the published
+   rules state one and otherwise at the game's `max_length`, a Length Stop
+   ([decisions.md](../decisions.md), "Game length as a declared
+   contract").
 4. **Perfect information before hidden, hidden in capability order**
    (C1 → C2 → C3/C6), per the requirements doc's ranking.
 5. **Exact variant pins with public rule sources.** Pagat is a card
@@ -600,13 +600,16 @@ does not move.
    `nine_mens_morris`). Adds the enumerated non-grid graph, the
    place→move→fly phase shift, mills as declared lines with a removal
    decision (and the may-not-remove-from-a-mill-unless-forced
-   restriction), blockade loss, and the first cyclic movement — gated
-   on settling unbounded-lines-and-max-length (the draw rule: align
-   the pin with the oracle's termination rule at entry time).
+   restriction), blockade loss, and the first cyclic movement. Faithful:
+   the two rule termini only, its cyclic lines ending at its
+   `max_length` as Length Stops, and the oracle's 200-turn cap kept in
+   the harness as the differential's truncation point.
 8. **English draughts** (8×8, 12 men; captures mandatory, chosen jump
-   sequences completed, crowning ends the move; 40-move no-capture
-   draw, matching the oracle `checkers`, which implements forced
-   captures and that exact draw rule). Adds rule-driven demand
+   sequences completed, crowning ends the move; the federation's draw
+   in its automatic form, a counter reset by any capture and by any
+   uncrowned man's move and drawn at eighty plies, while the oracle
+   `checkers` implements forced captures and a forty-ply capture-only
+   draw kept in the harness). Adds rule-driven demand
    narrowing (mandatory capture as rule composition — with morris,
    the forcing pair for binding rules at every decision site,
    [open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)),
@@ -727,10 +730,11 @@ parse them.
   with its own sign-off.
 - **Stage 6 — fixed points.** `reachable`/`region` as bounded
   built-ins with deterministic frontier order. Witness: hex.
-- **Stage 7 — open-ended play.** Settle
-  unbounded-lines-and-max-length (draw rules; counter-based state
-  idioms; repetition history stays out unless that settlement pulls
-  it in), and **generalize declarative-rule binding to every kernel
+- **Stage 7 -- open-ended play.** Cyclic lines end at a game's bound as
+  Length Stops and a published draw rule is a counter in `state` read by
+  the ring's `until` (decisions.md, "Game length as a declared
+  contract"); repetition history stays out, and is admitted for
+  perfect-information games only when a witness forces it; and **generalize declarative-rule binding to every kernel
   decision site** via the decision interpreter's candidate hook.
   This is the stage where
   [open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)
@@ -767,9 +771,10 @@ questions, not silently deciding them:
   (Barrage's two-square tracking), and the draughts chain anchor
   reuses it — public like all state, with the state-type set growing
   by declared position domains.
-- **The draw/repetition settlement** — already
-  [open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md);
-  wave C is its forcing set.
+- **Repetition history** -- out: a draw rule is a counter, a cyclic line
+  ends at the bound (decisions.md, "Game length as a declared
+  contract"), and a repetition rule, when a witness forces it, is
+  admitted for perfect-information games only.
 - **Mutable topology** (Quoridor-class walls, growth) and the
   **in-file board form** (Catan-class maps): each waits on its
   witness; both are named Owner Guards until then.

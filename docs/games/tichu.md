@@ -114,8 +114,8 @@ tracking: before the push nobody has played; after it, exactly the players
 still holding 14 cards haven't. One honest
 consequence of real calls: under *indiscriminate* calling the 1000-point
 race diverges (a random call is worth about −50 in expectation), so a table
-of maniacs never finishes — the corpus's second legally-unbounded line
-([open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md));
+of maniacs never finishes, and such a line ends at the game's `max_length` as
+a tie ([decisions.md](../decisions.md) "Game length as a declared contract");
 the playout tests drive the call windows through a reference policy
 instead, whose grand- and small-tichu gates are each derived per hand from
 the number of offers a seat takes in a hand.
