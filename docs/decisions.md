@@ -1731,8 +1731,9 @@ completed. A loop whose `until` holds after its last body is never refused,
 however many bodies it ran. A loop that makes picks cannot be refused for
 running long: its picks reach the bound first. The decisionless loop
 (`repeat until false {}`) is the shape no pick count sees, and nothing else
-bounds it; the four loops are the constructions of the one guard that counts
-them (`state.DecisionlessSpin`), which `tests/test_length_stop.py` derives.
+bounds it; the four loops are the closed set of sites of the one guard that
+counts them (`state.SpinSite`), each a row of `tests/test_length_stop.py`'s
+grid.
 
 **The adapter's length is a promise every registered game keeps.**
 `is_terminal()` holds after at most `max_length` non-chance actions on every

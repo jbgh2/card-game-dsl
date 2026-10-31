@@ -628,7 +628,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
             # guarded off). Scoped to descendants, so a sibling/ancestor outcome
             # pending across this loop is preserved.
             loop_outcomes = _subtree_outcome_names(phase)
-            spin = DecisionlessSpin(ctx.rs)
+            spin = DecisionlessSpin(ctx.rs, "phase repeat until")
             while not _evaluate_stamped(q.expr, ctx):
                 if spin.boundary():
                     raise OwnerGuardError(

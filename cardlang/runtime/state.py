@@ -13,7 +13,7 @@ import random
 from collections.abc import Callable, Iterable, Mapping
 import dataclasses
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.domains import (
@@ -507,6 +507,30 @@ SpinMark = tuple[int, int]
 SPIN_START: SpinMark = (-1, 0)
 _SPIN_REMEDY = "non-termination, or raise max_length if this game genuinely runs this long"
 
+# The loops whose `until` can fail to hold, each keeping a `DecisionlessSpin`:
+# a closed set, so a loop that keeps one names its member here, and
+# `tests/test_length_stop.py` holds every member to a row of its grid.
+SpinSite = Literal["phase repeat until", "statement repeat until", "turns", "climbing ring"]
+
+
+def _spin_words(site: SpinSite) -> tuple[str, str]:
+    """The loop a site's refusal names, and the remedy it offers."""
+    match site:
+        case "phase repeat until":
+            return "a phase's `repeat until` loop", _SPIN_REMEDY
+        case "statement repeat until":
+            return "a `repeat until` loop", _SPIN_REMEDY
+        case "turns":
+            return "a `turns` ring", _SPIN_REMEDY
+        case "climbing ring":
+            return (
+                "a climbing round's ring",
+                "make the `until` predicate reachable, or drop players who can "
+                "never play from the `over` clause",
+            )
+        case _ as unreachable:
+            assert_never(unreachable)
+
 
 class DecisionlessSpin:
     """The iteration guards' count: how many bodies a loop has completed with
@@ -518,15 +542,13 @@ class DecisionlessSpin:
     [[length-stop]]). What only a guard on the loop sees is a loop that makes
     none: at a head whose `until` does not hold, more than `max_length`
     completed bodies with no pick in them is its author's defect. Every loop
-    whose `until` can fail to hold keeps one, and the four that do (`repeat
-    until` as a phase qualifier and as a statement, the `turns` ring, and a
-    climbing round's ring) are the sites `tests/test_length_stop.py` derives
-    by scraping this class's constructions. `mark` is the count as two
-    integers, for a loop whose working memory is a round-state frame, which
-    holds no live object."""
+    whose `until` can fail to hold keeps one and names itself by its member
+    of `SpinSite`. `mark` is the count as two integers, for a loop whose
+    working memory is a round-state frame, which holds no live object."""
 
-    def __init__(self, rs: RuntimeState, mark: SpinMark = SPIN_START) -> None:
+    def __init__(self, rs: RuntimeState, site: SpinSite, mark: SpinMark = SPIN_START) -> None:
         self.rs = rs
+        self.site: SpinSite = site
         self.made, self.count = mark
 
     @property
@@ -543,9 +565,12 @@ class DecisionlessSpin:
             self.count += 1
         return bool(self.count > self.rs.max_length)
 
-    def refusal(self, loop: str, remedy: str = _SPIN_REMEDY) -> str:
+    def refusal(self, loop: str | None = None) -> str:
         """The refusal's sentence, which the guard raises as an
-        `OwnerGuardError`: the loop is its author's to fix."""
+        `OwnerGuardError`: the loop is its author's to fix. `loop` names the
+        loop more closely than its site's word does, where a site can."""
+        words, remedy = _spin_words(self.site)
+        loop = words if loop is None else loop
         return (
             f"{loop} completed {self.count} times with no decision made and its "
             f"`until` still does not hold, more than the game's declared "

@@ -56,8 +56,9 @@ registry:        clause axis: `driver.SEAT_KEY_BY_ROLE` x
                  `delegation.DECISION_POINTS` and `delegation.FORM_CONSTRUCTS`,
                  reconciled by `test_the_positions_are_the_decision_points`
                  and reached by `test_each_position_asks_at_its_decision_point`;
-                 site axis: the constructions of `state.DecisionlessSpin`,
-                 reconciled by `test_every_spin_guard_is_a_grid_row`;
+                 site axis: `state.SpinSite`, the sites of
+                 `state.DecisionlessSpin`, reconciled by
+                 `test_every_spin_guard_is_a_grid_row`;
                  channel axis: `EndedBy` members by
                  `test_ended_by_has_two_arms`; the Hosted Poll's stop:
                  tests/test_length_registry_pin.py::test_tichu_under_the_uniform_chooser_is_a_length_stop;
@@ -66,7 +67,11 @@ registry:        clause axis: `driver.SEAT_KEY_BY_ROLE` x
 held by:         the end's kind is a closed enum (`driver.EndedBy`) every
                  consumer matches exhaustively (Unrepresentable); the one
                  counting site is `chooser.decide`'s Contract, pinned here by
-                 the picks each cell counts (Derived and Pinned).
+                 the picks each cell counts (Derived and Pinned); every loop
+                 that keeps a spin guard names a member of the closed
+                 `state.SpinSite`, which the type checker holds at each
+                 construction (Unrepresentable), and each member's grid row
+                 is pinned (Derived and Pinned).
 does not prove:  that a corpus game ends by its rules (the registry pin,
                  tests/test_length_registry_pin.py, measures that), or that
                  the stop is common knowledge to every seat (the swap proof's
@@ -76,18 +81,16 @@ does not prove:  that a corpus game ends by its rules (the registry pin,
 
 from __future__ import annotations
 
-import ast
 import io
 import random
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 
-import cardlang
 from cardlang.cli import main
 from cardlang.domains import Role
 from cardlang.openspiel.encoding import ActionSpace
@@ -100,7 +103,7 @@ from cardlang.runtime import evaluate, execute, mechanics
 from cardlang.runtime.delegation import DECISION_POINTS, FORM_CONSTRUCTS
 from cardlang.runtime.driver import SEAT_KEY_BY_ROLE, GameResult, play_game
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.state import RuntimeState
+from cardlang.runtime.state import RuntimeState, SpinSite
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SHUTTLE = FIXTURES / "shuttle.cardlang"
@@ -239,14 +242,14 @@ POSITIONS: dict[str, Position] = {
 
 # --- the site axis ------------------------------------------------------------
 
-# The guard each loop site is counted by (`state.DecisionlessSpin`'s
-# constructions), and the climbing round's ring, which the climb position's
-# own plays are made inside.
+# The grid row covering each site of the decisionless-spin guard
+# (`state.SpinSite`): a site of the grid, or the climb position, whose own
+# plays are made inside the climbing round's ring.
 SPIN_GUARDS: dict[str, str] = {
-    "driver.run_phase": "phase repeat until",
-    "execute._repeat_until": "statement repeat until",
-    "execute._turns": "turns",
-    "mechanics.ClimbForm.next_actor": "climb",
+    "phase repeat until": "phase repeat until",
+    "statement repeat until": "statement repeat until",
+    "turns": "turns",
+    "climbing ring": "climb",
 }
 
 SITES: dict[str, str] = {
@@ -523,38 +526,13 @@ def test_each_position_asks_at_its_decision_point(
     assert seen == {(row.point, construct)}
 
 
-def _spin_guard_sites() -> set[str]:
-    """`module.function` (or `module.Class.method`) of every construction of
-    `DecisionlessSpin` in the package, read from source."""
-    root = Path(str(cardlang.__file__)).parent
-    found: set[str] = set()
-    for path in sorted(root.rglob("*.py")):
-        tree = ast.parse(path.read_text())
-        module = path.stem
-
-        def walk(node: ast.AST, scope: list[str]) -> None:
-            for child in ast.iter_child_nodes(node):
-                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                    walk(child, [*scope, child.name])
-                    continue
-                if (
-                    isinstance(child, ast.Call)
-                    and isinstance(child.func, ast.Name)
-                    and child.func.id == "DecisionlessSpin"
-                ):
-                    found.add(".".join([module, *scope]))
-                walk(child, scope)
-
-        walk(tree, [])
-    return found
-
-
 def test_every_spin_guard_is_a_grid_row() -> None:
-    """Every loop the decisionless-spin guard counts is a site of the grid, or
-    the climb position for the climbing round's ring, so a fifth loop cannot
-    arrive unlisted. red under: construct a `DecisionlessSpin` in a new
-    function."""
-    assert _spin_guard_sites() == set(SPIN_GUARDS)
+    """Every site of the decisionless-spin guard is a site of the grid, or
+    the climb position for the climbing round's ring: a loop that keeps the
+    guard names its member of `SpinSite` (the type checker holds the
+    constructions), and a member with no grid row reddens here.
+    red under: add a fifth member to `state.SpinSite`."""
+    assert set(get_args(SpinSite)) == set(SPIN_GUARDS)
     for row in SPIN_GUARDS.values():
         assert row in SITES or row in POSITIONS, row
     assert set(SITES) - {"pick count"} == {

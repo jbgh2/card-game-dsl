@@ -787,10 +787,10 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     suspended = False
     try:
         current: Player | None = None
-        spin = DecisionlessSpin(ctx.rs)
+        spin = DecisionlessSpin(ctx.rs, "turns")
         while not bool(evaluate(stmt.until, ctx)):
             if spin.boundary():
-                raise OwnerGuardError(spin.refusal("a `turns` ring"))
+                raise OwnerGuardError(spin.refusal())
             if current is None:
                 leader = evaluate(stmt.leader, ctx)
                 if leader not in order:
@@ -1003,8 +1003,8 @@ def _apply_pass(
 
 
 def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:
-    spin = DecisionlessSpin(ctx.rs)
+    spin = DecisionlessSpin(ctx.rs, "statement repeat until")
     while not evaluate(stmt.until, ctx):
         if spin.boundary():
-            raise OwnerGuardError(spin.refusal("a `repeat until` loop"))
+            raise OwnerGuardError(spin.refusal())
         run_body(stmt.body, ctx)

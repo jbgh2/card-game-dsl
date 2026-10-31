@@ -664,17 +664,11 @@ class ClimbForm:
             # changes nothing it reads. A step that asks a seat makes a pick,
             # and only a run of steps that ask nobody is refused
             # (`DecisionlessSpin`).
-            spin = DecisionlessSpin(ctx.rs, state["guard"])
+            spin = DecisionlessSpin(ctx.rs, "climbing ring", state["guard"])
             spinning = spin.boundary()
             state["guard"] = spin.mark
             if spinning:
-                raise OwnerGuardError(
-                    spin.refusal(
-                        "a climbing round's ring",
-                        "make the `until` predicate reachable, or drop players "
-                        "who can never play from the `over` clause",
-                    )
-                )
+                raise OwnerGuardError(spin.refusal())
             pointer: int = state["idx"]
             turn = ring[pointer % len(ring)]
             if state["current"] is not None and turn == state["last"]:
