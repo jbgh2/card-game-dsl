@@ -11813,7 +11813,7 @@ def _check_subset_source(sq: n.SubsetQuery, bag: DiagnosticBag) -> None:
 
 
 def _minted_directions(game: n.Game) -> frozenset[str]:
-    """The movement-direction domains the game's board minted: `{dir}` once the
+    """The board direction domains the game's board minted: `{dir}` once the
     board validated, `{}` for a boardless game or a board that failed
     (decisions.md "Boards and cells").
 
@@ -11847,7 +11847,7 @@ def _no_board_for_directions(game: n.Game, name: str) -> str:
     if not _directions_need_a_board(game, name):
         return ""
     return (
-        f" -- `{DIRECTION_DOMAIN}` is the movement-direction domain a "
+        f" -- `{DIRECTION_DOMAIN}` is the board direction domain a "
         f"`board:` mints, and the game declares no `board:`"
     )
 
@@ -11873,8 +11873,8 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
         directions = _minted_directions(game)
         if _directions_need_a_board(game, nd.binder):
             bag.error(
-                f"`{phrase} {nd.spelled}` ranges over a board's movement "
-                f"directions, but the game declares no `board:`",
+                f"`{phrase} {nd.spelled}` ranges over the board directions, "
+                f"but the game declares no `board:`",
                 nd.span,
             )
             return
@@ -11885,7 +11885,7 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
         )
         if directions:
             universe += (
-                "; the board's movement-direction domain: "
+                "; the board direction domain: "
                 + ", ".join(sorted(directions))
             )
         if nd.binder in _COLLECTION_NOUNS and nd.binder not in declared:

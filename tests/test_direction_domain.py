@@ -520,6 +520,8 @@ def _plural_slip_cells() -> list[Any]:
 
 @pytest.mark.parametrize(("kind", "needle"), _plural_slip_cells())
 def test_bare_quantifier_over_dir_plural_slip(kind: str, needle: str) -> None:
+    # Red under (the `any` cell): `_check_domain_query` admitting an `any`
+    # noun whose singular is `dir` (`nd.binder.removesuffix("s")`).
     assert needle in _reject(_pick_guard(_quantified(kind, _slipped_noun(kind))))
 
 
@@ -544,6 +546,8 @@ def test_a_declared_dir_domain_in_a_boardless_game_is_an_integer_quantifier() ->
     # With no board, nothing mints `dir`, so a declared `positions { dir : ... }`
     # is an integer position domain like any other, and its quantifier binds
     # an Integer (the ordering is legal, which no direction admits).
+    # Red under: `resolve._directions_need_a_board` ignoring the declared
+    # position domains.
     check_dsl(
         boardless_game(
             positions="  positions { dir : 1..3 }\n",
@@ -616,6 +620,7 @@ def test_boardless_dir_parameter_is_unsupported() -> None:
     # A boardless game has no `dir` source, so a `dir` move parameter is an
     # unsupported parameter domain (the standing `_check_move_params` guard),
     # refused naming the missing `board:` as at every position admitting `dir`.
+    # Red under: `_check_move_params` dropping `_no_board_for_directions`.
     src = (
         "game Boardless {\n"
         "  players: 2\n"

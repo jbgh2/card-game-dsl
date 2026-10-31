@@ -1,4 +1,4 @@
-// Guard: resolve's `_check_domain_query`. `dir` is the movement-direction
+// Guard: resolve's `_check_domain_query`. `dir` is the board direction
 // domain a `board:` mints, and a board game quantifies over it (`any dir
 // where ...`); this game declares no `board:`, so nothing mints `dir`, and the
 // quantifier is refused naming the missing clause.

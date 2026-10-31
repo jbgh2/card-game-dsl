@@ -1,6 +1,6 @@
 """The board's direction domain as a quantifier noun and a declared type.
 
-A `board:` game mints the movement-direction domain `dir`
+A `board:` game mints the board direction domain `dir`
 (`cardlang/board_domains.py`, `DIRECTION_DOMAIN`). Beside the move parameter,
 the name is admitted at the bare quantifier family (`any dir where`, `all dirs
 where`, `number of dirs where`, binder typed `TDir`) and at the two declared-
@@ -532,7 +532,7 @@ def test_a_direction_payload_types_dir(produce: str, arm: str, needle: str) -> N
         # The turn-order word for the movement noun: the universe names `dir`.
         pytest.param(
             board_game(when="any direction where is_diagonal(direction)"),
-            "movement-direction domain: dir",
+            "board direction domain: dir",
         ),
         # A direction parameter on a procedure: the procedure domains stay closed.
         (
@@ -553,6 +553,10 @@ def test_a_direction_payload_types_dir(produce: str, arm: str, needle: str) -> N
     ids=["turn-order word", "procedure parameter", "optional move parameter", "state type"],
 )
 def test_a_plausible_wrong_sentence_is_refused(source: str, needle: str) -> None:
+    """Red under, per cell: `"dir"` added to `resolve._PROCEDURE_PARAM_DOMAINS`
+    (procedure parameter); `_check_move_params` looking `t.removesuffix("?")`
+    up in the directions (optional move parameter); the `StateDecl` arm of
+    `_validate_refs` admitting `_minted_directions(game)` (state type)."""
     assert needle in _reject(source)
 
 
@@ -572,14 +576,21 @@ def test_a_library_naming_dir_is_refused_in_its_own_file(
     body: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A library cannot assume the importing game's board, so `dir` stays a
-    name a library lacks, as `cell` is; the refusal stands in the library's
-    file. Its words are issue #1008."""
+    name a library lacks, as `cell` is; the first refusal stands in the
+    library's file and names `dir`. Its words are issue #1008.
+
+    Red under: `dir` added to the library-alone `"position"` namespace
+    (quantifier), to its `"type"` namespace (function parameter), or to
+    `_check_signature_row`'s function-row domain (requires row) -- the last
+    moves the first refusal to the game's `uses` line."""
     library = parse_library(f"library {_LIB} {{\n{body}\n}}\n", f"docs/libraries/{_LIB}.cardlang")
     monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
     monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
-    msg = _reject(board_game().replace("  players: 2\n", f"  uses {_LIB}\n  players: 2\n", 1))
-    assert f"docs/libraries/{_LIB}.cardlang" in msg
-    assert "'dir'" in msg or "d : dir" in msg
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(board_game().replace("  players: 2\n", f"  uses {_LIB}\n  players: 2\n", 1), "lift.cardlang")
+    first = exc.value.diagnostic.format()
+    assert first.startswith(f"docs/libraries/{_LIB}.cardlang:"), first
+    assert "'dir'" in first or "d : dir" in first, first
 
 
 def test_a_frame_free_direction_scan_checks_at_any_seat_count() -> None:

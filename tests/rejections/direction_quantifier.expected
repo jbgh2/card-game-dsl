@@ -1,1 +1,1 @@
-direction_quantifier.cardlang:29:9: error: `any dir` ranges over a board's movement directions, but the game declares no `board:`
+direction_quantifier.cardlang:29:9: error: `any dir` ranges over the board directions, but the game declares no `board:`
