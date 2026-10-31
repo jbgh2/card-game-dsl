@@ -3431,11 +3431,12 @@ enumerates its range.
 
 **The cell/line query register.** The bare quantifier forms range a
 binder over any declared position domain ("Position domains and
-positional zones"); the board adds two collection forms and the
+positional zones") and over the board's direction domain (below); the
+board adds two collection forms and the
 `lines(k)` call that feeds them. A bare form's noun is the domain name,
 validated against the game's declared domains (a board's `cell`, an
-integer `positions { }` name), with `any` taking the singular noun and
-`all`/`number of` the plural:
+integer `positions { }` name) and the board's direction domain `dir`,
+with `any` taking the singular noun and `all`/`number of` the plural:
 
 ```text
 any cell where square[cell] is empty
@@ -3477,16 +3478,26 @@ are the seat-relative forward directions `ahead`, `ahead_left`,
 move_type step(from : cell, along : dir) { when: … effect { … } }
 ```
 
-`dir` is a **move-parameter domain only** — a separate source from the
-`positions { }` union, so it never reaches the zone-index, quantifier, or
-`for each` surfaces (a direction is not a position). It types as `TDir`,
-distinct from `TCell`: `along is a1` (direction against cell), `along is
-3`, `along < along2`, and `along[…]` are all type errors, and a direction
-member is not expression-nameable — naming `ahead` in an expression is an
-unknown name, exactly as a cell name is (the meaning of a direction is
-read through the verbs below, never a literal). `step(from : cell, along
-: dir)` enumerates one action per (cell, direction) pair, in member
-order.
+`dir` is a separate source from the `positions { }` union. A direction
+is not a position, so `dir` never reaches the zone index or `for each`;
+it is a closed domain, so the bare quantifier family and the declared-type
+positions admit it, typed `TDir`: a move parameter, `any dir where`,
+`all dirs where` and `number of dirs where`, and the type of a function
+parameter or an outcome payload. A game with no `board:` mints no `dir`,
+and naming it at any of those positions is refused naming `board:`.
+`TDir` is distinct from `TCell`: `along is a1` (direction against cell),
+`along is 3`, `along < along2`, and `along[…]` are all type errors, and a
+direction member is not expression-nameable — naming `ahead` in an
+expression is an unknown name, exactly as a cell name is (the meaning of
+a direction is read through the verbs below, never a literal).
+`step(from : cell, along : dir)` enumerates one action per (cell,
+direction) pair, in member order, and a bare quantifier over `dir` reads
+the same members in the same order.
+
+```text
+function can_jump(p : Player) =
+  any cell where mine(cell, p) and (any dir where jump_ok(cell, dir, p))
+```
 
 **Per-player frames.** A grid's directions are seat-relative: `ahead` is
 one player's forward and the other's backward, because the second seat's

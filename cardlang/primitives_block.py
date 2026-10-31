@@ -511,7 +511,8 @@ def declarable_type_names(game: n.Game) -> frozenset[str]:
     return DECLARABLE_BUILTIN_TYPE_NAMES | frozenset(p.name for p in game.positions)
 
 
-# The `Type` constructors NO declared spelling reaches, each with the reason.
+# The `Type` constructors no `primitives { }` entry's declared spelling
+# reaches, each with the reason.
 # The complement of what `declarable_type_names` can produce, listed rather
 # than derived by subtraction so a constructor added to `types.Type` lands
 # unclassified and the partition test names it.

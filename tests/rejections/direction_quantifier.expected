@@ -1,1 +1,1 @@
-direction_quantifier.cardlang:32:9: error: unknown position domain 'dir' -- declared position domains: cell
+direction_quantifier.cardlang:29:9: error: `any dir` ranges over a board's movement directions, but the game declares no `board:`

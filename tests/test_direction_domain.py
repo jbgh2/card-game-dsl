@@ -12,8 +12,8 @@ FOR FREE by the existing guards -- a direction is not a position. It is a
 closed domain, so the name is admitted where a closed domain is: the
 move-parameter enumeration (`DomainSources.directions`, the sibling of
 `positions`), the bare quantifier family, and the declared types of function
-parameters and outcome payloads, each through resolve's one gate on the
-board having minted it. Direction values type as `TDir`; a member name is
+parameters and outcome payloads, each through resolve's one
+`_minted_directions` gate. Direction values type as `TDir`; a member name is
 NOT expression-nameable (no direction literals -- `ahead` stays an unknown
 name, the cell-literal twin).
 
@@ -429,9 +429,6 @@ def boardless_game(
 # The refusal a boardless game's `dir` earns at every admitting position.
 NO_BOARD = "declares no `board:`"
 
-_NOT_BUILT = "the dir lift is not built yet"
-
-
 def _function_parameter(spelled: str, build: Callable[..., str]) -> str:
     return build(extra=f"function f(x : {spelled}) = 1\n")
 
@@ -453,14 +450,12 @@ _DECLARED_TYPE_HOSTS: dict[str, Callable[[str, Callable[..., str]], str]] = {
 }
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason=_NOT_BUILT)
 @pytest.mark.parametrize("spelled", ["dir", "dir?"])
 @pytest.mark.parametrize("host", sorted(_DECLARED_TYPE_HOSTS))
 def test_dir_declared_type_is_admitted_in_a_board_game(host: str, spelled: str) -> None:
     check_dsl(_DECLARED_TYPE_HOSTS[host](spelled, direction_game), "dir.cardlang")
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason=_NOT_BUILT)
 @pytest.mark.parametrize("spelled", ["dir", "dir?"])
 @pytest.mark.parametrize("host", sorted(_DECLARED_TYPE_HOSTS))
 def test_dir_declared_type_in_a_boardless_game_names_board(host: str, spelled: str) -> None:
@@ -499,7 +494,6 @@ def _quantified(kind: str, spelled: str) -> str:
     return f"(({q}) > 0)" if kind == "count" else q
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason=_NOT_BUILT)
 @pytest.mark.parametrize("kind", QUANTIFIER_KINDS)
 def test_bare_quantifier_over_dir_is_admitted(kind: str) -> None:
     check_dsl(_pick_guard(_quantified(kind, _plural_noun(kind))), "dir.cardlang")
@@ -519,7 +513,6 @@ def _plural_slip_cells() -> list[Any]:
                     kind,
                     f"needs the plural noun -- write `{phrase} {spelled}s`",
                     id=kind,
-                    marks=pytest.mark.xfail(raises=AssertionError, strict=True, reason=_NOT_BUILT),
                 )
             )
     return cells
@@ -542,7 +535,6 @@ def _boardless_noun_cells() -> list[tuple[str, str]]:
     ]
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason=_NOT_BUILT)
 @pytest.mark.parametrize(("kind", "spelled"), _boardless_noun_cells())
 def test_bare_quantifier_over_dir_in_a_boardless_game_names_board(kind: str, spelled: str) -> None:
     assert NO_BOARD in _reject(boardless_game(when=_quantified(kind, spelled)))
@@ -622,7 +614,8 @@ def test_dir_collides_with_a_declared_position_name() -> None:
 
 def test_boardless_dir_parameter_is_unsupported() -> None:
     # A boardless game has no `dir` source, so a `dir` move parameter is an
-    # unsupported parameter domain (the standing `_check_move_params` guard).
+    # unsupported parameter domain (the standing `_check_move_params` guard),
+    # refused naming the missing `board:` as at every position admitting `dir`.
     src = (
         "game Boardless {\n"
         "  players: 2\n"
@@ -639,7 +632,9 @@ def test_boardless_dir_parameter_is_unsupported() -> None:
         "}\n"
         "move_type pick(along : dir) { effect { done := true } }\n"
     )
-    assert "unsupported parameter domain 'dir'" in _reject(src)
+    msg = _reject(src)
+    assert "unsupported parameter domain 'dir'" in msg
+    assert NO_BOARD in msg
 
 
 def test_direction_domain_name_is_dir_not_direction() -> None:

@@ -96,7 +96,7 @@ flowchart LR
 | **Description** (core) | The language: text to checked program, with family libraries and the Stdlib spliced in | grammar productions; AST unions; diagnostics; the totality Owner Guards |
 | **Attribution** (supporting) | Which file a refusal is told in, in whose words — the compile-time Failure Channel | `CROSSING_KINDS`; `FIX_TABLE`; the Library Witnesses |
 | **Table** | Where physical things are | zone types + `ZONE_PROJECTIONS`; `COMPONENT_SETS` |
-| **Topology** (within Table) | Where a board's cells are and how they line up | `BOARD_FAMILIES`; the `cell` position domain and `dir` parameter domain a `board:` clause mints |
+| **Topology** (within Table) | Where a board's cells are and how they line up | `BOARD_FAMILIES`; the `cell` position domain and `dir` direction domain a `board:` clause mints |
 | **Decision** (core) | Who may do what, when, from which candidates | move types + guards; declared parameter domains; `DECISION_POINTS`; `ActionSpace` |
 | **Observation** (core, the moat) | Who knows what — derived from declared visibility, never authored per game | event vocabulary; per-observer logs; `information_state` |
 | **Control** | When things happen; termination | round forms; seating; `ROUND_STATE_FIELDS`; `max_length` |

@@ -56,7 +56,12 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               field the game's component set lacks, on the game's `uses`
               line. A string literal where a content-axis value is wanted is
               judged by one spelling rule at a comparison and at every
-              operand alike (``_check_enum_literal``).
+              operand alike (``_check_enum_literal``). A bare quantifier's
+              binder, and a parameter or outcome payload declared over the
+              board's direction domain, type ``TDir`` from
+              ``TypeEnv.directions``; a bare noun in neither the position nor
+              the direction source raises ``ShadowGuardError`` naming
+              ``resolve._check_domain_query``.
 Now illegal:  a type-invalid program, per the Owner Guards above and their
               completeness ledgers. Also a `Sig` built from an entry's
               spelling anywhere but ``_param_type``, a declared collection
@@ -454,27 +459,27 @@ def function_registry(game: Game, bag: DiagnosticBag) -> dict[str, Sig]:
 def _payload_type(
     name: str,
     positions: Mapping[str, Type] | None = None,
+    directions: Mapping[str, Type] | None = None,
 ) -> Type:
     """Resolve a outcome payload type name; a trailing `?` marks it nullable.
 
-    `positions` is threaded because resolve admits a declared position domain
-    here: without it the name resolves to the top, and the `produces:` arm
-    binder carrying that payload exempts its whole body from every type Owner Guard.
-    The board-minted `dir` domain is deliberately NOT admitted here: `dir` is a
-    move-parameter domain only, so resolve rejects a `dir` payload (`unknown
-    type 'dir'`) before this pass -- the reason `directions` is not threaded.
+    `positions` and `directions` are threaded because resolve admits a
+    declared position domain and the board-minted `dir` domain here: without
+    them the name resolves to the top, and the `produces:` arm binder carrying
+    that payload exempts its whole body from every type Owner Guard.
     """
     if name.endswith("?"):
-        return type_from_name(name[:-1], True, positions)
-    return type_from_name(name, False, positions)
+        return type_from_name(name[:-1], True, positions, directions)
+    return type_from_name(name, False, positions, directions)
 
 
 def _outcome_cases(
     cases: tuple[n.OutcomeCase, ...],
     positions: Mapping[str, Type] | None = None,
+    directions: Mapping[str, Type] | None = None,
 ) -> dict[str, tuple[Type, ...]]:
     return {
-        c.tag: tuple(_payload_type(t, positions) for t in c.payload_types)
+        c.tag: tuple(_payload_type(t, positions, directions) for t in c.payload_types)
         for c in cases
     }
 
@@ -482,6 +487,7 @@ def _outcome_cases(
 def outcome_registry(
     game: Game,
     positions: Mapping[str, Type] | None = None,
+    directions: Mapping[str, Type] | None = None,
 ) -> dict[str, TOutcome]:
     """Build the outcome type of each outcome-declaring `phase`: its case tags
     mapped to their declared payload types."""
@@ -490,7 +496,7 @@ def outcome_registry(
         if phase.outcome_cases:
             outcomes[phase.name] = TOutcome(
                 name=phase.name,
-                cases=_outcome_cases(phase.outcome_cases, positions),
+                cases=_outcome_cases(phase.outcome_cases, positions, directions),
             )
     return outcomes
 
@@ -541,12 +547,12 @@ class TypeEnv:
     # kind?".
     positions: Mapping[str, Type] = field(default_factory=dict)
     # The board-minted movement-direction domains (decisions.md "Boards and
-    # cells", rung-2 movement) — name -> the member type a `dir` move parameter,
-    # let binder or payload carries: `TDir`. A SEPARATE map from `positions`
-    # (the `dir` domain is deliberately absent from `game.positions`), so a
-    # direction is admitted only at a move parameter / payload and the position
-    # Owner Guards never see it. Membership (`name in env.directions`) answers "is this
-    # a direction domain?".
+    # cells", rung-2 movement) — name -> the member type a `dir` move or
+    # function parameter, quantifier binder, let binder or payload carries:
+    # `TDir`. A SEPARATE map from `positions` (the `dir` domain is deliberately
+    # absent from `game.positions`), so the zone-index and `for each` Owner
+    # Guards, which read `positions`, never see it. Membership
+    # (`name in env.directions`) answers "is this a direction domain?".
     directions: Mapping[str, Type] = field(default_factory=dict)
     # Each zone family indexed by a declared INTEGER position domain -> (the
     # domain's name, its low end, its high end), so a literal key can be ranged
@@ -695,12 +701,19 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_domain_query_binder_type", "positions"): ClauseRead(
         "typing", reason="a position query's binder"
     ),
+    ("_domain_query_binder_type", "directions"): ClauseRead(
+        "typing", reason="a direction query's binder"
+    ),
     ("_index_domain_spelling", "positions"): ClauseRead(
         "typing", reason="names a position domain in a message"
     ),
     ("_scoped_env", "positions"): ClauseRead("typing", reason="a `for each` binder's type"),
-    ("typecheck", "positions"): ClauseRead("typing", reason="a move parameter's binder"),
-    ("typecheck", "directions"): ClauseRead("typing", reason="a move parameter's binder"),
+    ("typecheck", "positions"): ClauseRead(
+        "typing", reason="a move parameter's binder and an outcome payload's type"
+    ),
+    ("typecheck", "directions"): ClauseRead(
+        "typing", reason="a move parameter's binder and an outcome payload's type"
+    ),
 }
 
 
@@ -2735,13 +2748,23 @@ def _domain_query_binder_type(
     e: n.DomainQuery, env: TypeEnv, bag: DiagnosticBag
 ) -> Type:
     """The type a DomainQuery binds its element to, plus (for collection forms)
-    the source-shape Owner Guard. A BARE form binds the position domain's member type
-    (`TCell` for a board's `cell`, `TInteger` for an integer domain -- resolve
-    validated the noun, so a lookup miss falls back to the permissive top). A
-    COLLECTION form's noun fixes BOTH the binder type and the required source
-    type: `line` iterates a collection of lines, `cell` iterates one line."""
+    the source-shape Owner Guard. A BARE form binds the member type of the
+    domain its noun names: a position domain's (`TCell` for a board's `cell`,
+    `TInteger` for an integer domain), else the board-minted direction
+    domain's (`TDir`). Resolve's `_check_domain_query` admits no other noun,
+    so a noun in neither source raises as its Shadow Guard. A COLLECTION
+    form's noun fixes BOTH the binder type and the required source type:
+    `line` iterates a collection of lines, `cell` iterates one line."""
     if e.source is None:
-        return env.positions.get(e.binder, TAny())
+        if e.binder in env.positions:
+            return env.positions[e.binder]
+        if e.binder in env.directions:
+            return env.directions[e.binder]
+        raise ShadowGuardError(
+            "resolve._check_domain_query",
+            f"the bare quantifier noun '{e.binder}' names neither a position "
+            f"domain nor a direction domain of this game",
+        )
     want, desc = (
         (TCollection(TLine()), "a collection of lines (e.g. `lines(3)`)")
         if e.binder == "line"
@@ -4653,7 +4676,7 @@ def typecheck(game: Game) -> Game:
 
     env = replace(env_from_game(game), functions=function_registry(game, bag))
     _check_contracted_results(game, env, bag)
-    outcomes = outcome_registry(game, env.positions)
+    outcomes = outcome_registry(game, env.positions, env.directions)
     for stmt, binders in _all_statements_scoped(game):
         senv = _scoped_env(env, binders)
         _check_stmt_exprs(stmt, senv, bag)

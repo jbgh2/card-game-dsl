@@ -68,9 +68,10 @@ registry:   kinds: cardlang/ast/nodes.py::DOMAIN_QUERY_KIND_PHRASE; Builtin
             primitive entry's refusal:
             tests/test_primitives_block.py::test_an_unspellable_type_name_is_refused.
 held by:    Derived and Pinned. The admission is one Owner Guard over one
-            gate in resolve, which the move parameter, the bare quantifier
-            and the declared type all read, so the three positions cannot
-            disagree on whether a board minted `dir`; the binder's type and
+            gate, `resolve._minted_directions`, which the move parameter,
+            the bare quantifier and the declared type all read, so the
+            three positions cannot disagree on whether a board minted `dir`;
+            the binder's type and
             the evaluator's members each read the one direction source behind
             it, and each raises as a Shadow Guard on a noun in neither source.
             The noun is a string resolved against a per-game source, which no
@@ -279,7 +280,6 @@ def test_the_skeleton_checks_and_plays() -> None:
     play_game(game, random.Random(0))
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize("host", sorted(HOSTS))
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_direction_quantifier_checks_in_every_host(kind: str, host: str) -> None:
@@ -308,24 +308,27 @@ def _entry() -> Any:
 
 
 def _played_state(source: str, *names: str) -> dict[str, Any]:
-    """Play `source` to its end with the first seat stopping at once, and read
-    the named game-level state variables off the live world."""
+    """Play `source` with the first seat stopping at once, and read the named
+    game-level state variables off the live world at that first decision,
+    after setup has run."""
     game = check_dsl(source, "lift.cardlang")
     held: list[RuntimeState] = []
+    seen: dict[str, Any] = {}
 
     def stop(player: int, candidates: list[Any], k: int) -> list[Any]:
+        if not seen:
+            seen.update({name: held[0].get(name) for name in names})
         return [next(c for c in candidates if c == ("stop", None))]
 
     play_game(game, random.Random(0), chooser=stop, on_first_decision=held.append)
-    assert held, "the game made no decision"
-    return {name: held[0].get(name) for name in names}
+    assert seen, "the game made no decision"
+    return seen
 
 
 def _state_type(kind: str) -> str:
     return "Integer = 0" if kind == "count" else "Boolean = false"
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_function_body_folds_the_board_directions(kind: str) -> None:
     entry = _entry()
@@ -338,7 +341,6 @@ def test_a_function_body_folds_the_board_directions(kind: str) -> None:
     assert _played_state(source, "probe") == {"probe": expected}
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_state_default_folds_the_board_directions(kind: str) -> None:
     # The predicate holds of every member, so the fold reads the member count.
@@ -350,7 +352,6 @@ def test_a_state_default_folds_the_board_directions(kind: str) -> None:
     assert _played_state(source, "probe") == {"probe": expected}
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize("seat", [0, 1])
 @pytest.mark.parametrize("kind", ["any", "all"])
 def test_a_nested_scan_reads_each_seat_frame(kind: str, seat: int) -> None:
@@ -413,7 +414,6 @@ def test_the_direction_builtins_are_the_movement_verbs() -> None:
         assert {type(p) for p in sig.params} <= set(_FILLERS)
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize("name", sorted(_DIR_SIGS))
 def test_the_binder_fills_every_direction_slot(name: str) -> None:
     args = [_FILLERS[type(p)] for p in CALL_SIGS[name].params]
@@ -434,7 +434,6 @@ def _wrong_slot_cells() -> list[tuple[str, int, str, Type, Type]]:
     return cells
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize(("name", "slot", "arg", "want", "got"), _wrong_slot_cells())
 def test_a_wrong_slot_argument_is_refused(name: str, slot: int, arg: str, want: Type, got: Type) -> None:
     args = [_FILLERS[type(p)] for p in CALL_SIGS[name].params]
@@ -455,7 +454,6 @@ _OPERAND_MISUSES: dict[str, tuple[str, str]] = {
 }
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize("use", sorted(_OPERAND_MISUSES))
 def test_the_binder_is_an_opaque_member(use: str) -> None:
     pred, needle = _OPERAND_MISUSES[use]
@@ -469,7 +467,6 @@ def test_the_binder_is_an_opaque_member(use: str) -> None:
 # --- GRID T: the declared type is TDir, never the top -------------------------
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 def test_a_direction_parameter_reaches_the_movement_verbs() -> None:
     check_dsl(
         board_game(
@@ -483,7 +480,6 @@ def test_a_direction_parameter_reaches_the_movement_verbs() -> None:
     )
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize(
     ("body", "needle"),
     [
@@ -510,12 +506,10 @@ def _payload_game(*, produce: str = "produce Lost", arm: str = "") -> str:
     )
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 def test_a_direction_payload_binds_a_direction() -> None:
     check_dsl(_payload_game(arm="if is_diagonal(x) { done := false }"), "lift.cardlang")
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.parametrize(
     ("produce", "arm", "needle"),
     [
@@ -539,9 +533,6 @@ def test_a_direction_payload_types_dir(produce: str, arm: str, needle: str) -> N
         pytest.param(
             board_game(when="any direction where is_diagonal(direction)"),
             "movement-direction domain: dir",
-            marks=pytest.mark.xfail(
-                raises=AssertionError, strict=True, reason="the dir lift is not built yet"
-            ),
         ),
         # A direction parameter on a procedure: the procedure domains stay closed.
         (
@@ -591,7 +582,6 @@ def test_a_library_naming_dir_is_refused_in_its_own_file(
     assert "'dir'" in msg or "d : dir" in msg
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 def test_a_frame_free_direction_scan_checks_at_any_seat_count() -> None:
     """`is_diagonal` reads no seat's frame, so a three-seat grid game scans its
     directions; the frame verbs' two-seat gate is theirs alone."""
@@ -603,7 +593,6 @@ def test_a_frame_free_direction_scan_checks_at_any_seat_count() -> None:
     )
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 def test_a_nested_direction_binder_shadows_the_outer() -> None:
     """The inner `dir` rebinds, as a nested `cell` does: legal, and the inner
     binder is the one the predicate reads."""
@@ -628,7 +617,6 @@ def _unknown_noun_query() -> tuple[n.Game, n.DomainQuery]:
     return game, replace(expr, binder="nowhere", spelled="nowhere")
 
 
-@pytest.mark.xfail(raises=pytest.fail.Exception, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.expects_shadow_guard
 def test_the_binder_type_refuses_a_noun_in_neither_source() -> None:
     """Red under: the bare arm of `typecheck._domain_query_binder_type` falling
@@ -639,7 +627,6 @@ def test_the_binder_type_refuses_a_noun_in_neither_source() -> None:
         _domain_query_binder_type(query, env, DiagnosticBag())
 
 
-@pytest.mark.xfail(raises=KeyError, strict=True, reason="the dir lift is not built yet")
 @pytest.mark.expects_shadow_guard
 def test_the_evaluator_refuses_a_noun_in_neither_source() -> None:
     """Red under: the bare arm of `evaluate._domain_query` indexing the position
@@ -656,8 +643,10 @@ def test_the_evaluator_refuses_a_noun_in_neither_source() -> None:
 # Breakthrough's board and men; a man steps one square forward onto an empty
 # square, and captures by a diagonal jump over an adjacent enemy man to the
 # empty square beyond. Capture is mandatory: a seat that can jump must jump
-# (the conditional offer). The `else` branch offers `jump` beside `step` so a
-# jump the scan missed would surface as a candidate there.
+# (the conditional offer). The ruled draughts spelling offers `step` alone in
+# the `else` branch; this instrument offers `jump` beside it, so a jump the
+# scan missed surfaces as a candidate there. Under agreement the two spellings
+# offer the same candidates.
 WITNESS = """
 game MandatoryCaptureProbe {
   players: 2
@@ -758,7 +747,6 @@ def _candidate_kind(candidate: Any) -> str:
     return candidate[0]
 
 
-@pytest.mark.xfail(raises=DiagnosticError, strict=True, reason="the dir lift is not built yet")
 def test_the_capture_scan_agrees_with_the_jump_offer() -> None:
     """At every decision of a uniform playout: when `can_jump` holds, the
     offer is jumps only and is not empty (an empty one ends in the

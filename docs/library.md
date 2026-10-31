@@ -829,7 +829,7 @@ rejected at resolve.
 
 A board mints two named-member domains: the position domain `cell`
 (its cells, on the declared-position substrate) and, for transfer, the
-move-parameter domain `dir` (its directions). See
+direction domain `dir` (its directions). See
 [decisions.md](decisions.md), "Boards and cells".
 
 ## Built-in state

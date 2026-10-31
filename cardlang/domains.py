@@ -153,8 +153,8 @@ class DomainSources:
     # The board-minted movement-direction domain (decisions.md "Boards and
     # cells", rung-2 movement): name -> ordered members. A SEPARATE source
     # from `positions` (the `dir` domain is deliberately absent from
-    # `game.positions`), consulted ONLY by the move-parameter enumeration --
-    # never a zone index, quantifier binder or `for each` role. Both builders
+    # `game.positions`): here it feeds the move-parameter enumeration, and it
+    # is never a zone index or a `for each` role. Both builders
     # read it off the same board family entry (`board_domains.directions_of`):
     # `driver.py` via `rs.direction_domains`, `openspiel/encoding.py` from the
     # game AST -- so the runtime candidate enumeration and the static action

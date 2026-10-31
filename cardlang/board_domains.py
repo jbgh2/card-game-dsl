@@ -30,9 +30,11 @@ BOARD_DOMAIN = "cell"
 # The name of the SECOND domain a `board:` clause mints -- the movement
 # directions (decisions.md "Boards and cells", rung-2 movement). Unlike
 # `cell`, `dir` is NOT injected into `game.positions`: it is a separate
-# per-game source (`directions_of`) consulted ONLY by the move-parameter
-# enumeration, so the position Owner Guards (zone index, quantifier,
-# `for each`) reject `dir` for free. The collision Owner Guard in
+# per-game source (`directions_of`), so the zone-index and `for each` Owner
+# Guards, which read `game.positions`, reject `dir` for free -- a direction is
+# not a position. It is a closed domain, so the move parameter, the bare
+# quantifier and the declared types of function parameters and outcome
+# payloads admit it (`resolve._minted_directions`). The collision Owner Guard in
 # `_resolve_board` keeps it from clashing with a declared `positions { }`
 # name (the `cell` twin); `direction` is a reserved clause keyword and the
 # turn-order enum's tag, hence `dir`.

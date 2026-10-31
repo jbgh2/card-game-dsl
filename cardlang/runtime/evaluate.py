@@ -286,8 +286,9 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
         case "enum_value":
             # Suits, bare ranks and the SEAT directions (`resolve._categories`
             # keys `enum_value` on `SEAT_DIRECTION_VALUES`) are their own string
-            # value. A BOARD direction never reaches here: it binds as a move
-            # parameter typed `TDir` and arrives as a local.
+            # value. A BOARD direction never reaches here: it binds as a move or
+            # function parameter or a quantifier binder typed `TDir` and arrives
+            # as a local.
             return e.name
         case "pronoun":
             return _pronoun(e.name, ctx)
@@ -771,15 +772,27 @@ def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
 
 def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
     """The positional quantifier register (decisions.md "Boards and cells").
-    A BARE form (`source is None`) enumerates a declared position domain in
-    its ordered members (`rs.position_domains[binder]` -- the board's cells,
-    an integer domain's range); a COLLECTION form iterates the evaluated
+    A BARE form (`source is None`) enumerates the domain its noun names in its
+    ordered members: a position domain's (`rs.position_domains[binder]` --
+    the board's cells, an integer domain's range), else the board's direction
+    domain's (`rs.direction_domains[binder]`, the board entry's fixed order);
+    a noun in neither raises as the Shadow Guard behind resolve's
+    `_check_domain_query`. A COLLECTION form iterates the evaluated
     `line`/`cell` collection. `any`/`all` fold Boolean, short-circuiting like
     the card queries; `count` returns how many members satisfy the predicate.
     Resolve/typecheck have already validated the noun and the source kind, so
-    this arm reads uniformly over both member kinds."""
+    this arm reads uniformly over every member kind."""
     if e.source is None:
-        members: Any = ctx.rs.position_domains[e.binder]
+        if e.binder in ctx.rs.position_domains:
+            members: Any = ctx.rs.position_domains[e.binder]
+        elif e.binder in ctx.rs.direction_domains:
+            members = ctx.rs.direction_domains[e.binder]
+        else:
+            raise ShadowGuardError(
+                "resolve._check_domain_query",
+                f"the bare quantifier noun '{e.binder}' names neither a position "
+                f"domain nor a direction domain of this game",
+            )
     else:
         members = elements(evaluate(e.source, ctx))
     results = (evaluate(e.where, ctx.with_local(e.binder, m)) for m in members)
