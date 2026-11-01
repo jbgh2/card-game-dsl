@@ -4599,8 +4599,9 @@ def resolve(game: n.Game) -> n.Game:
     written = game
     game = _instantiate_rules(game, library_rules, bag)
 
+    rule_move_types = {m.name: m for m in game.move_types}
     for rule in game.rules:
-        _resolve_rule(rule, bag)
+        _resolve_rule(rule, rule_move_types, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
     _check_rule_removes(game.phases, known_rule_names, bag)
     _check_rules_reach_a_trick(game, bag)
@@ -5228,7 +5229,8 @@ def _check_rules_reach_a_trick(game: n.Game, bag: DiagnosticBag) -> None:
             f"<move> from ... source ... into ...`), so none of it would ever "
             f"apply — move it to the phase that runs the trick round, or, for a "
             f"trick played with chosen moves, filter the move instead (`where "
-            f"follows_lead(card, <pile>)`)",
+            f"follows_lead(card, <pile>)`), or, for a move made by an `offer`, "
+            f"state the condition in the move type's `when:`",
             (slots[0] if slots else modes[0]).span,
         )
 
@@ -7369,61 +7371,77 @@ def _check_nested_ring_flags(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
-def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
-    """Reject rule surface no decision site can consult (decisions.md "Surface
-    totality"): accepted-but-ignored is the worst failure mode for a designer
-    tool, so a clause that enforces nothing is refused rather than parsed and
-    dropped. Every test is the COMPLEMENT of what `rules.legal_cards` actually
-    reads, never a list of the dead spellings — `LIBRARY_MOVE_TYPES` grows as
-    games land, and an enumeration of the dead would silently re-open this
-    hole for the new member.
+def _check_rule_reaches_a_reader(
+    rule: n.RuleDef, move_types: Mapping[str, n.MoveTypeDef], bag: DiagnosticBag
+) -> None:
+    """Refuse a rule no decision site consults (decisions.md "Rule demand
+    forms", "Surface totality"). A rule binds at the trick round's card
+    decision and nowhere else, so its `constrains:` is accepted only when it
+    names the move type that decision asks about, and every other target is
+    refused once, with the fix its class calls for: a move type the game
+    declares (its own or a family library's) takes the condition in its
+    `when:`; a kernel move type the game does not declare, or an absent
+    clause, is a rule no site consults; any other spelling is unknown. The
+    accepted target is the complement of what `rules.legal_cards` is asked
+    about, never a list of the dead spellings, so a move type a game or
+    `LIBRARY_MOVE_TYPES` adds is refused by the arm its class names.
 
-    Runs after `_instantiate_rules`, so spliced library rules and instantiated
-    templates are checked on the same path as hand-written ones.
-
-    Where rules should bind beyond the trick round's card decision is
-    docs/open-questions/rule-scope-beyond-trick-play.md.
+    Runs after `_instantiate_rules`, so spliced library rules and
+    instantiated templates are checked on the same path as hand-written ones;
+    `move_types` is the game's after the splice, a family library's included.
     """
-    where = "docs/open-questions/rule-scope-beyond-trick-play.md"
-    if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
-        return  # already reported as an unknown move type; one error, not two
-    if rule.constrains != RULE_ENFORCED_MOVE_TYPE:
-        named = (
-            f"'{rule.constrains}'"
-            if rule.constrains is not None
-            else "no move type (the `constrains:` clause is absent)"
+    target = rule.constrains
+    named = cite_named(rule, f"'{rule.name}'")
+    trick = (
+        f"a rule binds only at the trick round's card decision, which asks "
+        f"about `{RULE_ENFORCED_MOVE_TYPE}`, so this rule would never fire"
+    )
+    if target == RULE_ENFORCED_MOVE_TYPE:
+        if rule.demands is None and rule.exempts is None:
+            bag.error(
+                "rule " + named + " enforces nothing: it declares neither a "
+                "`demands:` card set nor an `exempts:` set, so activating it "
+                "cannot change which cards are legal. Give it a `demands:` (with "
+                "its `if_impossible:` fallback) or an `exempts:`, or delete it — "
+                "`applies_when:` alone selects when a rule fires, not what it "
+                "does.",
+                rule.span,
+            )
+        return
+    declared = move_types.get(target) if target is not None else None
+    if declared is not None:
+        whose: Said = (
+            "a move type this game declares"
+            if declared.origin is None
+            else "a move type from " + cite_library(declared.origin.library, declared.span)
         )
         bag.error(
-            f"rule " + cite_named(rule, f"'{rule.name}'") + f" constrains {named}, which no decision site "
-            f"consults: rules are applied at exactly one place — the trick "
-            f"round's card decision, which asks about "
-            f"`{RULE_ENFORCED_MOVE_TYPE}` — so this rule would never fire. "
-            f"Constrain `{RULE_ENFORCED_MOVE_TYPE}`, or enforce the "
-            f"constraint where the move is made (a movement's `chosen N`, a "
-            f"move type's `when:` guard). Widening rule scope is an open "
-            f"question ({where}).",
+            "rule " + named + f" constrains `{target}`, " + whose + f", but {trick}: "
+            f"write the condition in `{target}`'s `when:` instead; a condition "
+            f"that reads the whole position is a function the `when:` calls",
             rule.span,
         )
-        return  # the clause Owner Guard below would pile onto the same broken rule
-    if rule.demands is None and rule.exempts is None:
-        bag.error(
-            f"rule " + cite_named(rule, f"'{rule.name}'") + f" enforces nothing: it declares neither a "
-            f"`demands:` card set nor an `exempts:` set, so activating it "
-            f"cannot change which cards are legal. Give it a `demands:` (with "
-            f"its `if_impossible:` fallback) or an `exempts:`, or delete it — "
-            f"`applies_when:` alone selects when a rule fires, not what it "
-            f"does.",
-            rule.span,
-        )
+        return
+    if target is not None and target not in LIBRARY_MOVE_TYPES:
+        bag.error("rule " + named + f" constrains unknown move type '{target}'", rule.span)
+        return
+    what = (
+        f"'{target}'" if target is not None
+        else "no move type (the `constrains:` clause is absent)"
+    )
+    bag.error(
+        "rule " + named + f" constrains {what}, which no decision site consults: "
+        f"{trick}. Constrain `{RULE_ENFORCED_MOVE_TYPE}`, or state the constraint "
+        f"where the move is made: a movement's `chosen N`, or the move type's "
+        f"`when:`.",
+        rule.span,
+    )
 
 
-def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
-    if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
-        bag.error(
-            f"rule " + cite_named(rule, f"'{rule.name}'") + f" constrains unknown move type '{rule.constrains}'",
-            rule.span,
-        )
-    _check_rule_reaches_a_reader(rule, bag)
+def _resolve_rule(
+    rule: n.RuleDef, move_types: Mapping[str, n.MoveTypeDef], bag: DiagnosticBag
+) -> None:
+    _check_rule_reaches_a_reader(rule, move_types, bag)
     # A `demands` can filter the legal set to empty; the rule must say what
     # happens then (`if_impossible`) rather than relying on a silent default.
     if rule.demands is not None and rule.if_impossible is None:

@@ -21,6 +21,4 @@ game ConstrainsGameMoveType {
 move_type step { effect { score[actor] := 1 } }
 rule MandatoryCapture {
   constrains: step
-  demands: hand
-  if_impossible: hand
 }

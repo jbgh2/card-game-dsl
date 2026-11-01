@@ -186,21 +186,8 @@ def _expected(target: Target) -> str | None:
     )
 
 
-# The cells whose refusal this change rewords or reroutes; the marks come
-# off with the implementation.
-_DESIGNED_RED = {"absent", "kernel", "declared"}
-
 CELLS = [
-    pytest.param(
-        origin,
-        target,
-        id=f"{origin}-{target.id}",
-        marks=(
-            [pytest.mark.xfail(strict=True, raises=AssertionError, reason="refusal rewritten")]
-            if target.kind in _DESIGNED_RED and _expected(target) is not None
-            else []
-        ),
-    )
+    pytest.param(origin, target, id=f"{origin}-{target.id}")
     for origin in ORIGINS
     for target in _targets()
 ]
@@ -273,15 +260,7 @@ PROBES = {
 @pytest.mark.parametrize(
     "probe",
     [
-        pytest.param(
-            key,
-            marks=(
-                [pytest.mark.xfail(strict=True, raises=AssertionError, reason="refusal rewritten")]
-                if key in {"rule_on_a_declared_move", "trick_rule_active_at_an_offer"}
-                else []
-            ),
-        )
-        for key in PROBES
+        key for key in PROBES
     ],
 )
 def test_a_misuse_probe_is_refused_with_a_span(probe: str) -> None:
