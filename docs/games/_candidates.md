@@ -39,7 +39,7 @@ executable tiebreaker where one exists.
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_); Belote (now in the corpus) supplies the in-play announce-and-show data point — see the question file |
 | [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md) | board-shaped instances of the compound hidden-function probe, extending the Cheat-anchored constructive world generator to spatial hiding | **[battleship](#battleship)** (shot result = public predicate of a hidden board), [stratego-barrage](#stratego-barrage) (combat double-reveal) |
-| [rule-scope-beyond-trick-play](../open-questions/rule-scope-beyond-trick-play.md) | a reusable declarative constraint on a non-trick decision site | **[english-draughts](#english-draughts)** (mandatory capture), [nine-mens-morris](#nine-mens-morris) (in-mill removal restriction) — the pair forcing rules to bind at every kernel decision site |
+| [rule-scope-beyond-trick-play](../open-questions/rule-scope-beyond-trick-play.md) | a reusable declarative constraint on a non-trick decision site | **[english-draughts](#english-draughts)** (mandatory capture), [nine-mens-morris](nine-mens-morris.md) (in-mill removal restriction) — the pair forcing rules to bind at every kernel decision site |
 
 `higher-order-knowledge` is no longer listed: the verified pass found no
 card game whose *rules* read second-order knowledge (Hanabi and
@@ -510,6 +510,18 @@ move advances or removes a man — so no draw machinery. Invented by Dan
 Troyka, 2000; OpenSpiel's native `breakthrough` is the differential
 oracle.)
 
+(Nine men's morris, the ladder's seventh rung, is now in the corpus
+([nine-mens-morris.md](nine-mens-morris.md)): the non-grid rung — an
+enumerated-graph board whose adjacency and sixteen mills are declared
+data, `neighbors` for the slide, the place, slide and fly phases as the
+offer's branch on one board, mill-triggered removal as a second decision
+inside the turn with the in-mill restriction as its When Clause, blockade
+loss detected in the turn body, and the ladder's first cyclic movement:
+no rules body states a move cap or a repetition draw, so a line that
+never ends stops at the game's `max_length`, a tie
+([decisions.md](../decisions.md), "Game length as a declared contract").
+OpenSpiel's native `nine_mens_morris` is the differential oracle.)
+
 ### backgammon
 
 2 players, the 24-point track + bar + bear-off, 15 checkers each, two
@@ -602,30 +614,6 @@ information: everything else is wave-A machinery.
 to match the oracle default. OpenSpiel `hex` (`board_size=11`,
 `swap=false`) is the oracle.
 
-### nine-mens-morris
-
-2 players, the 24-point mill board (an enumerated graph, not a grid),
-9 men each. Phase 1: alternate placing; phase 2: move to adjacent
-points; a player reduced to 3 men flies anywhere. Forming a mill
-(three declared collinear points) removes an opponent man — not from
-an opponent mill unless nothing else is available. Reduce the opponent
-to two men, or block them from moving, to win.
-
-**Why interesting.** The non-grid rung: an enumerated graph entry with
-declared mills, the place→move→fly phase shift on one board,
-mill-triggered removal (a second decision inside the turn, with the
-in-mill removal restriction as its guard), blockade loss
-(no-legal-move as a termination predicate), and the ladder's first
-cyclic movement. No rules body states a move cap or a repetition draw
-for morris, so its cyclic lines end at its `max_length` as Length
-Stops ([decisions.md](../decisions.md), "Game length as a declared
-contract"), and the oracle's 200-turn cap is a harness bound, kept in
-the differential.
-
-**Notes.** Standard rules with the flying phase (flying is
-variant-divergent across sources — the pin names it explicitly).
-OpenSpiel `nine_mens_morris` is the oracle.
-
 ### english-draughts
 
 2 players, 8×8 board (dark squares), 12 men each. Men move/capture
@@ -638,7 +626,7 @@ uncrowned man moved.
 
 **Why interesting.** The rule-composition rung: mandatory capture as a
 rule whose demand narrows the vocabulary to jumps when any exist —
-with [nine-mens-morris](#nine-mens-morris)'s in-mill removal
+with [nine-mens-morris](nine-mens-morris.md)'s in-mill removal
 restriction, the forcing pair for
 [rule-scope-beyond-trick-play](../open-questions/rule-scope-beyond-trick-play.md)
 (rules constraining non-trick decision sites are validated but

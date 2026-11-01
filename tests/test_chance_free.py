@@ -61,7 +61,7 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.openspiel.registry import GAMES
-from cardlang.openspiel.replay import DecisionNode, TerminalNode, run
+from cardlang.openspiel.replay import generator_for
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.chance import RefusingRandom, chance_sites, is_chance_free
 from cardlang.runtime.chooser import random_chooser
@@ -448,25 +448,33 @@ def test_chance_free_game_plays_to_terminal_under_a_refusing_generator(
     short_name: str,
 ) -> None:
     """The executed half of the collapse's licence, stated per game: a full
-    greedy line reaches a terminal node while the generator refuses every draw.
+    line ends by the game's rules while the generator refuses every draw.
     This is what replaces a cross-seed comparison -- once the seed cannot reach
     a draw, comparing seeds asserts nothing, while a line that completes under
     refusal can fail.
 
+    The line is a uniform chooser's, walked once under the generator every
+    replay of the game plays under (`replay.generator_for`), with the chooser
+    drawing from a stream of its own. Not the greedy `legal[0]` line: a game
+    whose lowest ids cycle (nine men's morris shuttles one man between two
+    points) ends that line only at its `max_length`, and replaying it once per
+    step costs the square of that length.
+
     red under: add `shuffle box` to a phase of `docs/games/tic-tac-toe.cardlang`
     and set `EPISTEMIC_OP_DRAWS["shuffle"] = False` -- one fault, that the
     enumeration does not know `shuffle` draws. The game then classifies
-    Chance-Free, `run` gives it the refusing generator, and the line dies at the
-    shuffle with `ShadowGuardError` naming the leaked classifier (verified)."""
+    Chance-Free, `generator_for` gives it the refusing generator, and the line
+    dies at the shuffle with `ShadowGuardError` naming the leaked classifier."""
     path = str(GAMES_DIR / GAMES[short_name])
-    history: list[int] = []
-    r: Any = run(path, 0, ())
-    steps = 0
-    while isinstance(r, DecisionNode) and steps < 500:
-        history.append(r.legal[0])
-        r = run(path, 0, tuple(history))
-        steps += 1
-    assert isinstance(r, TerminalNode), (
-        f"{short_name}: the greedy line did not reach a terminal node in "
-        f"{steps} steps"
+    generator = generator_for(path, 0)
+    assert isinstance(generator, RefusingRandom), (
+        f"{short_name}: a Chance-Free Game's replays play under a generator "
+        f"that draws"
+    )
+    result = play_game(
+        check_source(path), generator, chooser=random_chooser(random.Random(0))
+    )
+    assert result.ended_by is EndedBy.RULES, (
+        f"{short_name}: the uniform line ended by {result.ended_by}, not by "
+        f"the game's rules"
     )

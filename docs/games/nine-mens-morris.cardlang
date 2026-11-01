@@ -41,7 +41,7 @@ game NineMensMorris {
 
   state {
     result[player]   : Integer = 0     // +1 win, -1 loss, 0 running
-    men_left[player] : Integer = 9     // men in reserve or on the board
+    men_left[player] : Integer = 9     // men in reserve or on the board (state, not a count: issue #1017)
     milled           : Boolean = false // the move just made closed a mill
   }
 

@@ -17,7 +17,8 @@ playout, and once more against the terminal position:
   one; every other decision alternates seats;
 - `men_left[p]` equals `9 - |captured[p]|` at every decision — the
   Derived-and-Pinned holder of "the men a side has left", whose one writer is
-  `remove`'s decrement beside its one movement to `captured`;
+  `remove`'s decrement beside its one movement to `captured` (a piece game
+  has no count form over a zone to derive it from: issue #1017);
 - conservation — the eighteen men are always split across the points, the
   reserves and the captured piles;
 - the terminal result is (+1, -1) or (-1, +1), ended by the rules, and the
@@ -268,6 +269,7 @@ def _playout(seed: int, policy: Policy = uniform) -> Playout:
     as it goes."""
     game = _game()
     assert game.max_length is not None
+    cap = game.max_length
     rng = random.Random(seed)
     rs_ref: dict[str, RuntimeState] = {}
     families: Counter[str] = Counter()
@@ -279,7 +281,7 @@ def _playout(seed: int, policy: Policy = uniform) -> Playout:
         rs = rs_ref["rs"]
         pos = _position(rs)
         count[0] += 1
-        assert count[0] <= game.max_length, "the playout ran past the declared max_length"
+        assert count[0] <= cap, "the playout ran past the declared max_length"
         assert k == 1, f"morris offers one move at a time; got k={k}"
         on_board = sum(1 for v in pos.board.values() if v is not None)
         assert on_board + sum(pos.reserve) + sum(pos.captured) == TOTAL_MEN, (

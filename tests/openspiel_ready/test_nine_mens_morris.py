@@ -70,7 +70,6 @@ from __future__ import annotations
 import random
 from typing import Any
 
-import pyspiel
 import pytest
 
 from cardlang.openspiel.infostate import information_state
@@ -278,6 +277,7 @@ def test_adapter_returns_agree_on_a_rules_ended_line() -> None:
 
     red under: make `CardlangState.returns` (cardlang/openspiel/game.py)
     answer zeros at a terminal node."""
+    pyspiel = pytest.importorskip("pyspiel")
     game = pyspiel.load_game("cardlang_nine_mens_morris")
     state = game.new_initial_state()
     rng = random.Random(ONE_SEED[0])
