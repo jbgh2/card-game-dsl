@@ -12,5 +12,5 @@ findings: []
 
 A [[rule]] binds at the trick round's card decision and nowhere else, so a
 constraint on any other decision is its move type's When Clause. A condition
-that reads the whole position ("a capture is available") is a named function
-the clause calls.
+that reads the whole position ("every enemy man stands in a mill",
+`in_mill(at)`) is a named function the clause calls.

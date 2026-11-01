@@ -304,29 +304,28 @@ projections, which a trick round already must show their owner — so a
 rule's reads derive the same information sets as the round's own offer.
 
 **State the constraint where the move is made instead.** A transfer's
-`chosen N` binds a count (Hearts' pass is `move chosen 3 cards` — the
-`3` *is* the "pass exactly three" law); a move type's `when:` guard binds
-its parameters (Stud's bring-in amount). These are the enforcing forms
-today, which is why no corpus game loses a constraint to the guards above.
+`chosen N` binds a count (Hearts' pass is `move chosen 3 cards` -- the
+`3` *is* the "pass exactly three" law); a move type's When Clause binds
+its parameters (Stud's bring-in amount), which is why no corpus game
+loses a constraint to the guards above.
 
-**A rule binds at the trick round's card decision and nowhere else, by
-design.** Every other decision is legal or not by the construct that makes
-it: a move type's When Clause (`when:`) admits or refuses each candidate,
-and a condition that reads the whole position -- "a capture is available",
-"every enemy man stands in a mill" -- is a named function the clause calls;
-a chosen transfer's `where` filter and `chosen N` bind a card choice; a
-decision that exists only under a condition is an `offer` behind an `if`.
-These are the enforcing forms, and a constraint a family shares is a
-function a family library carries, never a rule. The refusals above are
-therefore permanent: a rule naming any move type but `play_to_trick`, or
-activated where no trick round runs, is refused naming the When Clause as
-the fix. The in-mill removal restriction is `remove`'s When Clause over a
-named function (`in_mill(at)`); mandatory capture is the rulebook's own
-branch, an `offer` behind an `if` over `can_jump(t)`. What would reopen
-this is a legality over the offered list as a whole -- a maximum over the
-offer -- which neither a When Clause nor a card-shaped rule states; it
-arrives as its own construct, and no corpus game or ladder candidate has
-one.
+**The one site is the design, not a deferral.** Every other decision is
+legal or not by the construct that makes it: a move type's When Clause
+(`when:`) admits or refuses each candidate, and a condition that reads the
+whole position -- "every enemy man stands in a mill", `in_mill(at)` -- is
+a named function the clause calls; a chosen transfer's `where` filter and
+`chosen N` bind a card choice; a decision that exists only under a
+condition is an `offer` behind an `if`. These are the enforcing forms, and
+a constraint a family shares is a function a family library carries, never
+a rule. The refusals above are therefore permanent: a rule naming any move
+type but `play_to_trick`, or activated where no trick round runs, is
+refused naming the enforcing form its condition belongs in. The in-mill
+removal restriction is `remove`'s When Clause over that function;
+mandatory capture is the rulebook's own branch, an `offer` behind an `if`
+over `can_jump(t)`. What would reopen this is a legality over the offered
+list as a whole -- a maximum over the offer -- which neither a When Clause
+nor a card-shaped rule states; it arrives as its own construct, and no
+corpus game or ladder candidate has one.
 
 **The move under inspection is bound as `action`.** A predicate over a
 player's move — the `when <move-type> where …` trigger of a sub-phase

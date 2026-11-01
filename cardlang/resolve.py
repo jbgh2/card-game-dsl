@@ -7378,10 +7378,14 @@ def _check_rule_reaches_a_reader(
     forms", "Surface totality"). A rule binds at the trick round's card
     decision and nowhere else, so its `constrains:` is accepted only when it
     names the move type that decision asks about, and every other target is
-    refused once, with the fix its class calls for: a move type the game
-    declares (its own or a family library's) takes the condition in its
-    `when:`; a kernel move type the game does not declare, or an absent
-    clause, is a rule no site consults; any other spelling is unknown. The
+    refused once, with a fix the game can take: a move type the game
+    declares takes the condition in its `when:`; a family library's move
+    type, whose `when:` the game cannot change, is replaced by a move type
+    of the game's own or offered behind an `if`; a kernel move type the game
+    does not declare is declared by it, the climbing form's points at its
+    `follows` function, and an absent clause names the trick move type; any
+    other spelling is unknown. Each fix is checked to pass by
+    tests/test_rule_constrains.py. The
     accepted target is the complement of what `rules.legal_cards` is asked
     about, never a list of the dead spellings, so a move type a game or
     `LIBRARY_MOVE_TYPES` adds is refused by the arm its class names.
@@ -7409,31 +7413,48 @@ def _check_rule_reaches_a_reader(
             )
         return
     declared = move_types.get(target) if target is not None else None
-    if declared is not None:
-        whose: Said = (
-            "a move type this game declares"
-            if declared.origin is None
-            else "a move type from " + cite_library(declared.origin.library, declared.span)
-        )
+    if declared is not None and declared.origin is None:
         bag.error(
-            "rule " + named + " constrains " + cite_named(declared, f"`{target}`") + ", "
-            + whose + f", but {trick}: write the condition in its `when:` instead; a "
-            f"condition that reads the whole position is a function the `when:` calls",
+            "rule " + named + " constrains " + cite_named(declared, f"`{target}`")
+            + f", a move type this game declares, but {trick}: write the condition "
+            f"in its `when:` instead; a condition that reads the whole position is "
+            f"a function the `when:` calls",
+            rule.span,
+        )
+        return
+    if declared is not None and declared.origin is not None:
+        bag.error(
+            "rule " + named + " constrains " + cite_named(declared, f"`{target}`")
+            + ", a move type of " + cite_library(declared.origin.library, declared.span)
+            + f" whose `when:` this game cannot change, but {trick}: offer a move "
+            f"type of the game's own with the condition in its `when:`, or put "
+            f"the offer behind an `if`",
             rule.span,
         )
         return
     if target is not None and target not in LIBRARY_MOVE_TYPES:
         bag.error("rule " + named + f" constrains unknown move type '{target}'", rule.span)
         return
-    what = (
-        f"'{target}'" if target is not None
-        else "no move type (the `constrains:` clause is absent)"
-    )
+    if target is None:
+        bag.error(
+            "rule " + named + " constrains no move type (the `constrains:` clause is "
+            f"absent), which no decision site consults: {trick}. Name "
+            f"`{RULE_ENFORCED_MOVE_TYPE}` in its `constrains:`.",
+            rule.span,
+        )
+        return
+    if target == CLIMB_DECISION_MOVE_TYPE:
+        bag.error(
+            "rule " + named + f" constrains '{target}', which no decision site "
+            f"consults: {trick}. A climb round's play is legal by the round's "
+            f"`follows` function: state the condition there.",
+            rule.span,
+        )
+        return
     bag.error(
-        "rule " + named + f" constrains {what}, which no decision site consults: "
-        f"{trick}. Constrain `{RULE_ENFORCED_MOVE_TYPE}`, or state the constraint "
-        f"where the move is made: a movement's `chosen N`, or the move type's "
-        f"`when:`.",
+        "rule " + named + f" constrains '{target}', which no decision site consults: "
+        f"{trick}. Declare `{target}` as a move type of the game, with the condition "
+        f"in its `when:`, and offer it.",
         rule.span,
     )
 
