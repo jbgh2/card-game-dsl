@@ -225,7 +225,7 @@ shape_part: INT _CARD_KW              -> shape_card
 shape_qualifier: _ALL_KW _ONE_KW _SUIT_KW          -> q_all_one_suit
                | _NOT_KW _ALL_KW _ONE_KW _SUIT_KW  -> q_not_all_one_suit
                | _NOT_KW _IN_KW _SEQUENCE_KW       -> q_not_in_sequence
-SUIT_RANKING_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+SUIT_RANKING_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at|beyond|after)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The game's card-point table (decisions.md "Scoring has no constructs of its own"): a block
 // clause beside `cards:`, rank-keyed rows in `ranking:`'s key position, values
@@ -796,7 +796,7 @@ card_literal: card_rank _OF_KW NAME
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
-CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at|beyond|after)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // A result ranking's state variable name (`winner:` and the Stop Result's
 // ranking): a NAME refusing every game-clause keyword, as CARD_RANK_NAME
@@ -805,7 +805,7 @@ CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction
 // Refused there instead, "expected a state variable name". Pinned against
 // `?game_item` by
 // tests/test_game_clause_guards.py::test_a_result_ranking_target_excludes_every_clause_keyword.
-RESULT_VAR_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+RESULT_VAR_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at|beyond|after)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The card-point table's rank-key terminal: `ranking:`'s key position (a NAME
 // or a bare INT — the INT arm is on `card_points_key`), carrying NAME's base

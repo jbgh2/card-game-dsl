@@ -74,7 +74,7 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:ranking', 'key:ranking_convention', 'key:ref', 'key:refs', 'key:right',
         'key:role', 'key:rules', 'key:selection', 'key:selection_mode',
         'key:size_mode',
-        'key:source', 'key:source_zone', 'key:stake', 'key:state', 'key:state_var', 'key:suit',
+        'key:source', 'key:source_zone', 'key:stake', 'key:state', 'key:state_var', 'key:stop_result', 'key:suit',
         'key:suit_ranking',
         'key:tag', 'key:target', 'key:teams', 'key:then', 'key:transitions',
         'key:primitives', 'key:reads', 'key:return_type',

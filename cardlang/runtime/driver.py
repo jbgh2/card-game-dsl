@@ -540,6 +540,7 @@ def _stopped_result(game: n.Game, rs: RuntimeState, hands_played: int) -> GameRe
             assert game.winner is not None, "resolve refuses `as it stands` without `winner:`"
             return _ranked(game.winner, rs, hands_played, EndedBy.LENGTH)
         case "ranking":
+            # Shadow guard for mypy: `kind` is "ranking" only for a declared clause.
             assert stop is not None
             return _ranked(stop, rs, hands_played, EndedBy.LENGTH)
         case _ as unreachable:
@@ -553,6 +554,7 @@ def _ranked(
     the one declaration a ranking may name (resolve's `_check_state_scope`),
     which a phase frame standing at a Length Stop may shadow."""
     rank_dir, state_var = ranking.rank_dir, ranking.state_var
+    # Shadow guard behind parse: the builder sets both exactly for a ranking.
     assert rank_dir is not None and state_var is not None, "a ranking names its target"
     if rank_dir not in RANK_DIR_TO_PICK:
         # Internal invariant, not a user diagnostic: the grammar's RANK_DIR
@@ -593,6 +595,7 @@ def stop_result_words(game: n.Game) -> str:
                 f"{game.winner.rank_dir} {game.winner.state_var}`"
             )
         case "ranking":
+            # Shadow guard for mypy: `kind` is "ranking" only for a declared clause.
             assert stop is not None
             return (
                 f"the game is scored by its `at max_length: {stop.rank_dir} "
