@@ -11,8 +11,9 @@
 // without end is drawn when the engine stops it at its bound. The rules body
 // is the Welt-Muehlespiel-Dachverband's; the traditional in-mill restriction
 // pinned here is the one it has since relaxed (nine-mens-morris.md). The
-// native differential against OpenSpiel's `nine_mens_morris` is issue #978;
-// that implementation's 200-turn cap is not a rule of the game.
+// native differential against OpenSpiel's `nine_mens_morris` is
+// tests/test_differential_nine_mens_morris.py; that implementation's 200-turn
+// cap is not a rule of the game, and the differential stops comparing there.
 //
 // Perfect information throughout — the board, the reserves and the captured
 // piles are public, and the one count-projected zone (box) empties at setup,

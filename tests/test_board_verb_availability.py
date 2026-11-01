@@ -69,8 +69,10 @@ held by:    the availability refusal is Derived and Pinned: `BOARD_VERB_NEEDS`
             for the board verbs alone would give one registry two shapes.
             The edge data is a Born-Green Pin: the edges are authored with no
             source above them in the tree, so the pin is GRID E's hand table,
-            and part-03's differential against the oracle's own neighbour
-            table (issue #978) is its executed witness. The mills are
+            and the differential against the oracle
+            (tests/test_differential_nine_mens_morris.py), which plays every
+            directed edge as a slide and closes every mill at nodes the
+            oracle agrees on, is its executed witness. The mills are
             Unrepresentable: `lines(3)` on `morris9` is derived from the one
             edge set and the points' file and rank, so a mill off the edges
             cannot be written. A frameless family minting no `dir` is
@@ -80,7 +82,8 @@ held by:    the availability refusal is Derived and Pinned: `BOARD_VERB_NEEDS`
 does not prove:  that `neighbors` is the adjacency a player of the real game
             knows: the hand table is checked against itself and the derived
             mills, and the differential against OpenSpiel's
-            `nine_mens_morris` (issue #978) carries that. Nor that an
+            `nine_mens_morris` (tests/test_differential_nine_mens_morris.py)
+            carries that. Nor that an
             answered verb returns the right cells: GRID V runs each answered
             probe; the frame verbs' values are tests/test_boards_registry.py's
             and tests/test_movement_verbs.py's, and `neighbors`' are the
