@@ -8,7 +8,9 @@
 // while a file parses there. The alphabetic words here that the main lexer
 // also knows are `trump`, the round's clause keyword, which the retired
 // game-level clause's twin reuses where the language has no game item it
-// opens, and the Combination Shape phrases' own words, which the shape
+// opens; `max_length` and the Stop Result's value words, which the
+// misplaced-lead twin reuses after a lead word the language lacks; and the
+// Combination Shape phrases' own words, which the shape
 // twins reuse inside a catalogue row; the symbol terminals (`:=` / `=`, `:`, `==` / `!=`, `/` / `%`)
 // overlap the main lexer's, and the composed Earley parse resolves them by
 // position — a hazard under any other parser. Each twin is a COMPLETE production for the string it names,
@@ -63,6 +65,13 @@ _CARD_VALUES_KW: "card_values" /(?![A-Za-z0-9_])/
 // keyword; at game level no production of the language opens with it.
 %extend game_item: _RETIRED_TRICK_ORDER_KW [":"] "{" (retired_row [","])* "}" -> trick_order_retired_reject
                  | _TRUMP_KW [":"] expr                                       -> trump_clause_retired_reject
+// --- the Stop Result led by the wrong preposition -------------------------
+// The game ends AT its bound, so nothing lies beyond or after it. Neither
+// lead word is a word of the language, so no parse recovers it; the twin
+// takes the whole clause, every value included.
+                 | (_BEYOND_KW | _AFTER_KW) _MAX_LENGTH_KW ":" stop_value      -> stop_result_lead_reject
+_BEYOND_KW: "beyond" /(?![A-Za-z0-9_])/
+_AFTER_KW: "after" /(?![A-Za-z0-9_])/
 retired_row: RETIRED_ROW_KEY (":" | ":=" | "=") expr
 RETIRED_ROW_KEY: /(?!(?:all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 _RETIRED_TRICK_ORDER_KW: "trick_order" /(?![A-Za-z0-9_])/

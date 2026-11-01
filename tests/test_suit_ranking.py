@@ -341,6 +341,7 @@ POSITIONS: dict[str, Position | str] = {
     ),
     "state": Position(state="  base : Integer = suit_value(spades)"),
     "winner": "names a state variable, never an expression",
+    "stop_result": "names a state variable, never an expression",
     "primitives": "declares Python signatures; a body is Python, never a call",
     "board": "a board family and integer arguments",
     "zones": "zone declarations",

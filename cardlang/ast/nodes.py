@@ -1374,6 +1374,30 @@ class Loser:
     span: Span | None = None
 
 
+# The Stop Result's three members (decisions.md "Game result: `winner:` and
+# `loser:`"), one per `stop_value` alternative of the grammar, pinned equal by
+# tests/test_stop_result.py::test_the_declarations_are_the_stop_values.
+StopKind = Literal["tie", "as_it_stands", "ranking"]
+STOP_KINDS: tuple[StopKind, ...] = get_args(StopKind)
+
+
+@dataclass(frozen=True, slots=True)
+class StopResult:
+    """`at max_length: tie | as it stands | <rank-dir> <target>` -- what a game
+    is worth when it ends by a [[length-stop]].
+
+    `rank_dir` and `state_var` are the ranking's, set exactly when `kind` is
+    `"ranking"` (the builder constructs no other shape). `keyed_by` is the
+    target declaration's index role, stamped by resolve as on `Winner`;
+    `None` before resolve and for the other two members."""
+
+    kind: StopKind
+    rank_dir: str | None = None
+    state_var: str | None = None
+    span: Span | None = None
+    keyed_by: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class UsesDecl:
     """`uses <library>` — one family-library import. Carries its own span so the
@@ -1555,6 +1579,8 @@ class Game:
     phases: tuple[Phase, ...] = ()
     winner: Winner | None = None
     loser: Loser | None = None
+    # The `at max_length:` clause, or None for a game declaring none: a tie.
+    stop_result: StopResult | None = None
     rules: tuple[RuleDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
     functions: tuple[FunctionDef, ...] = ()
@@ -1603,6 +1629,7 @@ Node = (
     | PlayersSpec
     | Winner
     | Loser
+    | StopResult
     | MoveTypeDef
     | Parameter
     | PrimitiveRead

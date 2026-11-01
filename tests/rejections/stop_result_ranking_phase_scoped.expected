@@ -1,0 +1,1 @@
+stop_result_ranking_phase_scoped.cardlang:7:3: error: `at max_length:` ranks on state variable 'tally', which is declared in phase 'play' and so exists only while that phase runs; the bound can stop the game in any phase, so the stop cannot be scored from it. Declare it at game level

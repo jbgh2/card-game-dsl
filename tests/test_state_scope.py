@@ -283,6 +283,9 @@ def test_every_game_field_is_decided() -> None:
         # skipped.
         "primitives",
         "rank_sequence", "ranking", "ranking_convention", "span",
+        # A bare-`str` target and grammar words, like `winner` -- no
+        # expression; its target is `_check_state_scope`'s ranking arm.
+        "stop_result",
         # Suit names only, like `ranking`.
         "suit_ranking",
         "teams", "uses", "winner", "zones",

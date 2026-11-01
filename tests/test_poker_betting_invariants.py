@@ -44,7 +44,7 @@ import pytest
 from tests.poker_probe import probe_betting
 
 from cardlang.pipeline import check_dsl
-from cardlang.runtime.driver import play_game
+from cardlang.runtime.driver import EndedBy, play_game
 from cardlang.runtime.state import RuntimeState
 
 
@@ -180,8 +180,8 @@ def test_no_walk_drives_the_bookkeeping_incoherent(name: str) -> None:
     from `call`'s payment and the tiny profiles drive a stack negative; drop
     `raise`'s `level` advance and the first full raise leaves the band; drop
     `call`'s stack deduction and conservation names the seat. Termination is
-    the `until` closing on `pending`, backstopped by `max_length` — a walk
-    that hits the cap fails the play itself.
+    the `until` closing on `pending`, bounded by `max_length` -- a walk that
+    reaches the bound ends there, and the walk asserts its rules ended it.
 
     The monotonicity assertions have no reddening mutation in today's library:
     `raise`'s guard requires the stack to exceed the call, so its wager always
@@ -222,7 +222,10 @@ def _walk_one(game: Any, profile: tuple[int, ...], name: str, seed: int) -> None
             )
         return [candidates[rng.randrange(len(candidates))]]
 
-    play_game(game, random.Random(seed), None, chooser, None, on_first)
+    result = play_game(game, random.Random(seed), None, chooser, None, on_first)
+    assert result.ended_by is EndedBy.RULES, (
+        f"{name} seed {seed}: the walk reached max_length without its `until` closing"
+    )
     assert decisions >= 2, (
         f"{name} seed {seed}: the walk closed after {decisions} decisions, "
         f"so the snapshot never fired and the final action went unobserved"

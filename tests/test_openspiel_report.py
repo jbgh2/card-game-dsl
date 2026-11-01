@@ -16,4 +16,4 @@ def test_playtest_report_shape() -> None:
     assert rep["num_games"] == 2
     assert rep["mean_length"] > 0 and rep["mean_branching"] >= 1
     assert len(rep["mean_returns"]) == 4
-    assert sum(rep["best_seat_counts"]) == 2
+    assert sum(rep["best_seat_counts"]) + rep["length_stops"] == 2

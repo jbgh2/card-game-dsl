@@ -65,7 +65,8 @@ from cardlang.openspiel.replay import (
 )
 from cardlang.play.view import render_view
 from cardlang.runtime.values import Card
-from cardlang.runtime.driver import play_game
+from cardlang.runtime.chooser import sequential_decisions
+from cardlang.runtime.driver import EndedBy, play_game
 
 from .partition import (
     all_hidden,
@@ -368,12 +369,12 @@ class GameSpec:
     # Set it and the adapter-agreement
     # proof walks the line to the end and ASSERTS the DSL and pyspiel terminal
     # returns agree (it fails loudly if the line stops terminating, rather
-    # than silently skipping). None = the greedy line does not terminate in
-    # affordable steps (the multi-hand score-target games — Bridge, Hearts,
-    # Oh Hell, Seven-Card Stud, Skat, Tichu, all still past 400 greedy
-    # steps — and Coup, whose greedy line is legally unbounded at
-    # interactive scope), and the walk stops at `depth` with
-    # `terminal=False` in the coverage record.
+    # than silently skipping). A line whose rules never end it ends at the
+    # game's `max_length`, and the record says which (`ended_by`): Coup's is
+    # one. None = the greedy line does not terminate in affordable steps (the
+    # multi-hand score-target games -- Bridge, Hearts, Oh Hell, Seven-Card
+    # Stud, Skat, Tichu, all still past 400 greedy steps), and the walk stops
+    # at `depth` with `terminal=False` in the coverage record.
     adapter_terminal_steps: int | None = None
 
     @property
@@ -520,9 +521,10 @@ def greedy_pick(space: Any, ids: list[int], prefers: tuple[str, ...]) -> int:
 @cache
 def greedy_line(
     path: str, seed: int, cap: int, prefers: tuple[str, ...] = ()
-) -> tuple[tuple[int, ...], list[float] | None]:
+) -> tuple[tuple[int, ...], list[float] | None, EndedBy | None]:
     """The `legal[0]` line, walked ONCE and linearly: the action ids it takes,
-    and the terminal returns if it ends within `cap`.
+    and, if it ends within `cap`, the terminal returns and whether its rules
+    ended it or it reached its `max_length`.
 
     Identical to the line a caller gets by repeatedly replaying a growing
     history and taking `DecisionNode.legal[0]` — `legal` is `sorted({encode(c) for c in
@@ -536,29 +538,30 @@ def greedy_line(
     line costs 418 re-simulations (44.4s on belote) to learn a line one
     simulation already knows.
 
+    The line is walked one pick at a time through `sequential_decisions`, the
+    way the adapter's tree numbers a call, so a call the game's bound cuts
+    short records exactly the picks the adapter's history holds.
+
     red under: pick `max` instead of `min` — every game with
     `adapter_terminal_steps` fails the prefix cross-check at step 0."""
     game, space = load(path)
     ids: list[int] = []
 
+    def pick(player: int, pool: list[Any]) -> Any:
+        aid = greedy_pick(space, [space.encode(c) for c in pool], prefers)
+        ids.append(aid)
+        if len(ids) > cap:
+            raise _GreedyCap
+        return space.match(aid, pool)
+
     def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
-        pool = list(candidates)
-        picked: list[Any] = []
-        for _ in range(k):
-            aid = greedy_pick(space, [space.encode(c) for c in pool], prefers)
-            choice = space.match(aid, pool)
-            pool.remove(choice)
-            picked.append(choice)
-            ids.append(aid)
-            if len(ids) > cap:
-                raise _GreedyCap
-        return picked
+        return sequential_decisions(player, candidates, k, pick)
 
     try:
         result = play_game(game, random.Random(seed), chooser=chooser)
     except _GreedyCap:
-        return tuple(ids), None
-    return tuple(ids), returns_for(game, result)
+        return tuple(ids), None, None
+    return tuple(ids), returns_for(game, result), result.ended_by
 
 
 def verb_status(verb: str, applied: frozenset[str], exempt: frozenset[str]) -> str:
@@ -1496,6 +1499,7 @@ class ReadinessProofs:
             steps += 1
         cap = spec.adapter_terminal_steps
         dsl_returns = r.returns if isinstance(r, TerminalNode) else None
+        ended_by = r.ended_by if isinstance(r, TerminalNode) else None
         if cap is not None:
             # Continue the greedy line to the end of the game. The line comes
             # from ONE linear walk rather than a replay per step (`greedy_line`
@@ -1503,7 +1507,7 @@ class ReadinessProofs:
             # expensive phase above walked — so the terminal returns compared
             # below belong to the line whose information states were checked,
             # not merely to a line derived the same way.
-            line, returns = greedy_line(spec.path, seed, cap, spec.greedy_prefers)
+            line, returns, ended_by = greedy_line(spec.path, seed, cap, spec.greedy_prefers)
             assert list(line[: len(history)]) == history, (
                 f"{spec.short_name}: the linear greedy walk diverges from the "
                 f"replayed one at step "
@@ -1528,5 +1532,6 @@ class ReadinessProofs:
             )
         record(spec.short_name, "adapter", seed=seed, steps=steps,
                terminal=dsl_returns is not None,
+               ended_by=None if ended_by is None else ended_by.value,
                returns_compared=dsl_returns is not None,
                action_strings_compared=compared)

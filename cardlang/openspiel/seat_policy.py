@@ -65,7 +65,7 @@ class FirstSeatPolicy:
 
     A baseline that answers a position the same way every time, so a table
     whose every seat takes the first pick can repeat one exchange until the
-    game's `max_length` refuses it (issue #698)."""
+    game reaches its `max_length` and ends there, a [[length-stop]]."""
 
     def __call__(self, view: SeatView, legal: Sequence[int]) -> int:
         return legal[0]

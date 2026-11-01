@@ -55,7 +55,9 @@ def _ctx(game: n.Game, hand_cards: list[Card], chooser: Any) -> Ctx:
     rs = RuntimeState(Seating(1), ZoneStore(game.zones, (0,)), random.Random(0))
     rs.zones.instance("hand", 0).add_all(hand_cards)
     # A decision is asked inside a phase (the grammar admits statements
-    # nowhere else), so a context built by hand binds one too.
+    # nowhere else) and under the game's bound, so a context built by hand
+    # binds a phase, and a bound its picks do not reach.
+    rs.max_length = 10
     return Ctx(rs=rs, chooser=chooser, current_phase=_PHASE).acting_as(0)
 
 
@@ -172,6 +174,7 @@ def _deal_ctx(game: n.Game, n_players: int, deck_cards: list[Card]) -> Ctx:
         Seating(n_players), ZoneStore(game.zones, players), random.Random(0)
     )
     rs.zones.single("deck").add_all(deck_cards)
+    rs.max_length = 10  # a bound the picks below do not reach
     # A round-robin deal never draws; the chooser is present but unused.
     return Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]), current_phase=_PHASE)
 
