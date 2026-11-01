@@ -870,7 +870,7 @@ _UNSPELLABLE = sorted(
 def test_a_library_cannot_spell_a_cell_or_direction(
     member: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A board verb taking a cell or a direction never reaches a game through a
+    """A board verb taking a direction never reaches a game through a
     library: a library declares no positions, so the parameter's type is
     refused in its own file, to its own author.
 
