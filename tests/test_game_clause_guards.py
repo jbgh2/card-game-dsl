@@ -186,6 +186,25 @@ def test_card_rank_excludes_every_clause_keyword(terminal: str) -> None:
     )
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the Stop Result (issue #967)")
+def test_a_result_ranking_target_excludes_every_clause_keyword() -> None:
+    """`winner:` and the Stop Result's ranking each end with one state
+    variable name, so a ranking whose name is left off reads the next
+    clause's keyword as its name. The name terminal refuses every clause
+    keyword, derived as for the name runs above, so the slip is refused AT
+    the next clause, "expected a state variable name".
+
+    red under: delete `phase` from RESULT_VAR_NAME's exclusion list."""
+    keywords = {_clause_keyword(rule) for rule in _game_item_alternatives()}
+    missing = keywords - _terminal_excluded("RESULT_VAR_NAME")
+    assert not missing, (
+        f"game clause keyword(s) {sorted(missing)} are still legal names in "
+        f"RESULT_VAR_NAME, so a ranking with its name left off reads the next "
+        f"clause as its target — add them to RESULT_VAR_NAME's exclusion list "
+        f"in cardlang.lark"
+    )
+
+
 @pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
 def test_no_clause_is_absorbed_when_it_follows_suit_ranking(rule_name: str) -> None:
     """Every clause still parses as ITSELF when written after a `suit ranking:`

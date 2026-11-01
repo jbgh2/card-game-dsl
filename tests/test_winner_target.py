@@ -24,12 +24,16 @@ Integer-only rule would refuse two corpus games.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
-property:   a `winner:` target names a game-level state variable that is
+property:   a result ranking's target (`winner:`, or the Stop Result's
+            ranking) names a game-level state variable that is
             INDEXED by an indexable role and declared with a rankable,
             non-optional type (`Integer` or `Boolean`); anything else is a
             check-time diagnostic naming the declaration, never a Python
             error at playout and never a silent ranking.
-domain:     {index} x {declared type}. {index} = every `domains.Role`
+domain:     {slot} x {index} x {declared type}. {slot} = every production
+            ranking a `RESULT_VAR_NAME`, `winner:` and the Stop Result's
+            ranking, refused in words addressed to the slot.
+            {index} = every `domains.Role`
             member plus the unindexed case. {declared type} = every
             `typecheck.KNOWN_TYPE_NAMES` member, each in its plain and
             optional form. The rank DIRECTION
@@ -48,7 +52,8 @@ registry:   `tests/winner_axes.py` derives both axes in code — the index
             declared type reddens the pin instead of silently dropping its
             rows from the parametrization.
             The rank-direction set, against the grammar terminal:
-            `test_rank_dir_set_is_pinned`.
+            `test_rank_dir_set_is_pinned`. The slot axis, against the
+            grammar's productions: `test_the_slots_are_the_ranking_productions`.
             An index naming a declared position domain, refused at the
             state declaration —
             tests/rejections/positions_state_indexed_by_position.cardlang
@@ -118,8 +123,47 @@ def test_default_table_covers_every_declared_type() -> None:
     assert set(DEFAULTS) == set(KNOWN_TYPE_NAMES)
 
 
-def game_source(index: str | None, written: str, default: str) -> str:
-    slot = f"[{index}]" if index else ""
+# The slots a result ranking is written in, each as the line ranking `probe`
+# and the line that keeps the game's `winner:` clause valid beside it. The
+# grammar's productions taking `RESULT_VAR_NAME` are the axis, reconciled by
+# `test_the_slots_are_the_ranking_productions`.
+SLOTS: dict[str, tuple[str, str]] = {
+    "winner": ("winner: highest probe", ""),
+    "stop_ranking": ("at max_length: highest probe", "winner: highest score"),
+}
+
+# How the ranking guard addresses each slot.
+SLOT_LEADS: dict[str, str] = {
+    "winner": "`winner:` ranks the game on state variable",
+    "stop_ranking": "`at max_length:` ranks the stopped game on state variable",
+}
+
+_RED = pytest.mark.xfail(
+    strict=True, raises=(DiagnosticError, AssertionError), reason="the Stop Result (issue #967)"
+)
+
+
+def _ranking_productions() -> set[str]:
+    from cardlang.parse import _parser
+
+    return {
+        str(rule.alias or rule.origin.name)
+        for rule in _parser().rules
+        if any(getattr(sym, "name", None) == "RESULT_VAR_NAME" for sym in rule.expansion)
+    }
+
+
+@_RED
+def test_the_slots_are_the_ranking_productions() -> None:
+    """Every production that ranks a state variable is a slot of the grid.
+    red under: give a third production `rank_dir RESULT_VAR_NAME`."""
+    assert _ranking_productions() == set(SLOTS)
+
+
+def game_source(index: str | None, written: str, default: str, slot: str = "winner") -> str:
+    subscript = f"[{index}]" if index else ""
+    line, beside = SLOTS[slot]
+    score = "  score[player] : Integer = 0" if beside else ""
     return (
         "game WinnerTarget {\n"
         "  players: 4\n"
@@ -129,15 +173,16 @@ def game_source(index: str | None, written: str, default: str) -> str:
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
         "  zones { deck : Deck  hand[player] : Hand<player> }\n"
-        f"  state {{ probe{slot} : {written} = {default}  done : Boolean = false }}\n"
+        f"  state {{ probe{subscript} : {written} = {default}  done : Boolean = false{score} }}\n"
         "  phase setup { deal 3 cards from deck to each hand }\n"
         "  phase play {\n"
         "    turns t from 0 over all players until done {\n"
         "      offer to t one of [stop]\n"
         "    }\n"
         "  }\n"
-        "  winner: highest probe\n"
-        "}\n"
+        f"  {line}\n"
+        + (f"  {beside}\n" if beside else "")
+        + "}\n"
         "move_type stop { effect { done := true } }\n"
     )
 
@@ -167,22 +212,33 @@ def expected_verdict(index: str | None, written: str) -> str:
 
 
 GRID = [
-    pytest.param(index, written, default, id=cell_id)
+    pytest.param(
+        index, written, default, slot,
+        id=f"{slot}|{cell_id}",
+        marks=_RED if slot != "winner" else (),
+    )
+    for slot in SLOTS
     for cell_id, index, written, default, _optional in cells()
 ]
 
 
-@pytest.mark.parametrize(("index", "written", "default"), GRID)
-def test_winner_target_cell(index: str | None, written: str, default: str) -> None:
+@pytest.mark.parametrize(("index", "written", "default", "slot"), GRID)
+def test_winner_target_cell(index: str | None, written: str, default: str, slot: str) -> None:
+    """One cell of the declaration grid, in one slot: the ranking guard is
+    one Owner Guard, and it speaks to the slot it fires in."""
     verdict = expected_verdict(index, written)
-    source = game_source(index, written, default)
+    source = game_source(index, written, default, slot)
     if verdict == "accept":
-        check_dsl(source, "winner_target.cardlang")
+        game = check_dsl(source, "winner_target.cardlang")
+        ranked = game.winner if slot == "winner" else getattr(game, "stop_result", None)
+        assert ranked is not None and ranked.keyed_by == index
         return
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(source, "winner_target.cardlang")
     message = exc.value.diagnostic.message
     assert REFUSAL_PHRASES[verdict] in message, message
+    if verdict != "reject:declaration":
+        assert message.startswith(SLOT_LEADS[slot]), message
 
 
 # --- misuse probes: the sentences the grid's fixed game context cannot reach --
@@ -193,7 +249,17 @@ def test_winner_target_cell(index: str | None, written: str, default: str) -> No
 # be refused by a named wall rather than reaching a playout.
 
 
-def test_a_winner_target_naming_a_zone_is_refused_by_the_name_guard() -> None:
+@pytest.mark.parametrize(
+    ("slot", "words"),
+    [
+        pytest.param("winner", "winner references unknown variable 'hand'", id="winner"),
+        pytest.param(
+            "stop_ranking", "`at max_length:` references unknown variable 'hand'",
+            id="stop_ranking", marks=_RED,
+        ),
+    ],
+)
+def test_a_winner_target_naming_a_zone_is_refused_by_the_name_guard(slot: str, words: str) -> None:
     """`winner: highest hand` — a zone, not a state variable.
 
     The grammar's `winner:` takes a bare NAME, so nothing syntactic stops an
@@ -209,13 +275,13 @@ def test_a_winner_target_naming_a_zone_is_refused_by_the_name_guard() -> None:
     with a message about a phase-declared variable, which is the wrong
     account of a zone name.
     """
-    source = game_source("player", "Integer", "0").replace(
-        "winner: highest probe", "winner: highest hand"
+    source = game_source("player", "Integer", "0", slot).replace(
+        "highest probe", "highest hand"
     )
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(source, "winner_target.cardlang")
     message = exc.value.diagnostic.message
-    assert "winner references unknown variable 'hand'" in message, message
+    assert words in message, message
 
 
 def test_a_team_indexed_target_in_a_teamless_game_is_refused() -> None:
@@ -250,7 +316,27 @@ def test_a_team_indexed_target_in_a_teamless_game_is_refused() -> None:
     assert "is indexed by 'team' but the game declares no `teams:`" in message, message
 
 
-def test_a_target_declared_inside_a_phase_is_refused_by_the_scope_guard() -> None:
+@pytest.mark.parametrize(
+    ("slot", "words"),
+    [
+        pytest.param(
+            "winner",
+            "and so does not exist when the winner is decided — the phase has exited by then",
+            id="winner",
+        ),
+        # At a Length Stop the phase may still be running, so the slot's
+        # reason is the stop's, not the exited phase's.
+        pytest.param(
+            "stop_ranking",
+            "`at max_length:` ranks on state variable 'tally', which is declared in "
+            "phase 'setup' and so exists only while that phase runs; the bound can "
+            "stop the game in any phase, so the stop cannot be scored from it. "
+            "Declare it at game level",
+            id="stop_ranking", marks=_RED,
+        ),
+    ],
+)
+def test_a_target_declared_inside_a_phase_is_refused_by_the_scope_guard(slot: str, words: str) -> None:
     """A `winner:` naming a phase-local declaration.
 
     The second half of `_check_state_scope`'s class, and the other reason
@@ -263,12 +349,12 @@ def test_a_target_declared_inside_a_phase_is_refused_by_the_scope_guard() -> Non
     game.winner.state_var not in top:` to `if False:`. The game is then
     ACCEPTED outright (`DID NOT RAISE`).
     """
-    source = game_source("player", "Integer", "0").replace(
+    source = game_source("player", "Integer", "0", slot).replace(
         "  phase setup { deal 3 cards from deck to each hand }\n",
         "  phase setup { state { tally[player] : Integer = 0 }\n"
         "                deal 3 cards from deck to each hand }\n",
-    ).replace("winner: highest probe", "winner: highest tally")
+    ).replace("highest probe", "highest tally")
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(source, "winner_target.cardlang")
     message = exc.value.diagnostic.message
-    assert "tally" in message, message
+    assert words in message, message
