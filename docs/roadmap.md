@@ -134,16 +134,15 @@ Integer state; moving resources through zones is undesigned). Elsewhere:
 phase with no iteration, transition events other than `play_to_trick`, a
 trick or climb round naming a move type its form cannot run, and duplicate
 `state { }` blocks.
-Rules bind at one decision site — the trick round's card decision — so the
-rule surface that cannot fire there is rejected with it: a `constrains:`
-naming another move type or omitted entirely, and a rule carrying neither `demands:` nor
-`exempts:` (it cannot change what is legal). Counts and move shapes are
-stated where the move is made instead — a transfer's `chosen N`, a move
-type's `when:` guard. These lift together when rule application widens
-beyond trick play, which is
-[open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)
-— the same cliff as the already-deferred non-`play_to_trick` transition
-events above. One consequence is recorded here because it was a real
+A rule binds at the trick round's card decision and nowhere else, by
+design (decisions.md, "Rule demand forms"), so the rule surface that cannot
+fire there is refused permanently, not deferred: a `constrains:` naming
+another move type or omitted entirely, and a rule carrying neither
+`demands:` nor `exempts:` (it cannot change what is legal). Counts and move
+shapes are stated where the move is made instead -- a transfer's `chosen
+N`, a move type's When Clause. The non-`play_to_trick` transition events
+above are a deferral of their own.
+One consequence is recorded here because it was a real
 narrowing: a family library could not declare a rule, because an
 enforceable rule must name a zone and a `requires { }` contract named
 state only. **The contract now names zones too**, so that particular

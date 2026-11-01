@@ -39,7 +39,6 @@ executable tiebreaker where one exists.
 | [memory-event-syntax](../open-questions/memory-event-syntax.md) | an event composition can't express | **[hanabi](#hanabi)** (partial-identity hint over an inverted hand — forces it; _dedicated deck, out of scope_), [cabo](#cabo) (composable from existing ops) |
 | [knowledge-events](../open-questions/knowledge-events.md) | phase outcome observed unequally | **[mascarade](#mascarade)**, [love-letter](#love-letter) (both _dedicated deck, out of scope_); Belote (now in the corpus) supplies the in-play announce-and-show data point — see the question file |
 | [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md) | board-shaped instances of the compound hidden-function probe, extending the Cheat-anchored constructive world generator to spatial hiding | **[battleship](#battleship)** (shot result = public predicate of a hidden board), [stratego-barrage](#stratego-barrage) (combat double-reveal) |
-| [rule-scope-beyond-trick-play](../open-questions/rule-scope-beyond-trick-play.md) | a reusable declarative constraint on a non-trick decision site | **[english-draughts](#english-draughts)** (mandatory capture), [nine-mens-morris](nine-mens-morris.md) (in-mill removal restriction) — the pair forcing rules to bind at every kernel decision site |
 
 `higher-order-knowledge` is no longer listed: the verified pass found no
 card game whose *rules* read second-order knowledge (Hanabi and
@@ -624,14 +623,13 @@ ways; lose with no pieces or no legal move; the federation's 40-move
 rule draws, in its automatic form: eighty plies with no capture and no
 uncrowned man moved.
 
-**Why interesting.** The rule-composition rung: mandatory capture as a
-rule whose demand narrows the vocabulary to jumps when any exist —
-with [nine-mens-morris](nine-mens-morris.md)'s in-mill removal
-restriction, the forcing pair for
-[rule-scope-beyond-trick-play](../open-questions/rule-scope-beyond-trick-play.md)
-(rules constraining non-trick decision sites are validated but
-unenforced today; the ladder resolves that by binding rules at every
-kernel decision site) — jump
+**Why interesting.** The move-existence rung: mandatory capture as the
+rulebook's own branch, an `offer` behind an `if` over a named function
+`can_jump(t)`, the first writer of the direction quantifier and of
+`dir`-typed function parameters; with
+[nine-mens-morris](nine-mens-morris.md)'s in-mill removal restriction (a
+When Clause), the board witnesses of the one-site law
+([decisions.md](../decisions.md), "Rule demand forms") -- jump
 `(from, over, to)` triples as declared relation data, multi-jump
 chains on the `turns` form's `again` axis with a position-typed chain
 anchor (reusing the guard-lift the [stratego-barrage](#stratego-barrage)

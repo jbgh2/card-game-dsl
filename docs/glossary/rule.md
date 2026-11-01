@@ -1,11 +1,11 @@
 ---
 term: Rule
-definition: A named constraint on a move type (`constrains` / `applies_when` / `demands` / `exempts` / `if_impossible`). A **rule template** is a parameterized rule; instantiation substitutes arguments.
+definition: A named constraint on the trick round's card play (`constrains` / `applies_when` / `demands` / `exempts` / `if_impossible`), the one decision a rule binds at; every other decision's legality is its move type's [[when-clause]]. A **rule template** is a parameterized rule; instantiation substitutes arguments.
 layer: kernel
 status: canonical
 reserved: true
 home: `n.RuleDef`
-see: []
+see: [when-clause]
 retired_spellings: []
 findings: []
 ---
