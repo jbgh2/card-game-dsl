@@ -403,7 +403,10 @@ class BoardEntry:
         return self.edges
 
     def _borders(self, reader: str) -> tuple[SeatBorders, SeatBorders]:
-        # The `_frame` twin for each seat's borders.
+        # Resolve's availability row (`resolve._check_board_call`, the
+        # `borders` row of `_BOARD_NEED_GATES`) refuses a border verb on a
+        # borderless board, and the runtime's `_board_of` stands behind it;
+        # reaching here without borders is the registry's own caller's bug.
         if self.borders is None:
             raise ValueError(
                 f"BoardEntry {reader} reads seat borders, but board family "

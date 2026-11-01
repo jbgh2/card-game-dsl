@@ -1,7 +1,7 @@
-// Guard: resolve's two-seat row (cardlang/resolve.py, `_check_board_call`,
-// `_SEAT_CALL_FUNCS`). `near_edge` reads the board from one of its two
-// seats; a three-seat game has a seat the board defines no border for, so
-// the call is refused naming the player count.
+// Guard: resolve's two-seat row for the parts a seat verb reads
+// (cardlang/resolve.py, `_check_board_call`, `_SEAT_GATES`). `near_edge`
+// reads a seat's own two edges; a three-seat game has a seat the board gives
+// no edges to, so the call is refused naming the player count.
 game NearEdgeThreeSeats {
   players: 3
   max_length: 30

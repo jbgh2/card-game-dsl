@@ -333,6 +333,23 @@ def test_verb_evaluates_to_expected_value(
     assert call(verb, list(args), ctx) == expected
 
 
+# (verb, seat, expected) on a hex_rhombus(3), hand-written from the Hex rule:
+# seat 0 joins rank 1 to rank 3, seat 1 file `a` to file `c`.
+@pytest.mark.parametrize(
+    "verb,seat,expected",
+    [
+        pytest.param("near_edge", 0, ("a1", "b1", "c1"), id="near_edge-p0"),
+        pytest.param("near_edge", 1, ("a1", "a2", "a3"), id="near_edge-p1"),
+        pytest.param("far_edge", 0, ("a3", "b3", "c3"), id="far_edge-p0"),
+        pytest.param("far_edge", 1, ("c1", "c2", "c3"), id="far_edge-p1"),
+    ],
+)
+def test_border_verb_evaluates_to_expected_value(verb: str, seat: int, expected: object) -> None:
+    """red under: `runtime/builtins._near_edge` reading `.far_edge`."""
+    ctx = _board_ctx("hex_rhombus", (3,))
+    assert call(verb, [seat], ctx) == expected
+
+
 def test_neighbor_offboard_shadow_guard_raises() -> None:
     """`neighbor` is total-with-Shadow-Guard: an off-board step (unreachable in a
     game because every call site is `has_step`-gated) is refused here in the
@@ -481,9 +498,15 @@ _HOME_SETUP = (
     [("  players: 3\n", "3"), ("  players: 4\n", "4")],
 )
 def test_frame_verb_in_a_non_two_player_game_is_rejected(players_line: str, count: str) -> None:
+    """The refusal says why from the part the verb reads, the frame, and
+    nothing of a seat's borders.
+
+    red under: building every `resolve._SEAT_GATES` row's reason from
+    `_SEAT_NEED_REASONS["borders"]`."""
     msg = _reject(_grid_game(players_line, _HOME_SETUP))
-    assert "`home` reads the board from one of its two seats" in msg
-    assert f"declares {count} players" in msg
+    assert "`home` reads the board's movement frame, which faces two seats" in msg
+    assert f"declares `players: {count}`" in msg
+    assert "hex" not in msg and "border" not in msg
 
 
 def test_frame_verb_in_a_two_player_game_is_accepted() -> None:

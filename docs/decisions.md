@@ -3497,9 +3497,8 @@ positions admit it, typed `TDir`: a move parameter, `any dir where`,
 `all dirs where` and `number of dirs where`, and the type of a function
 parameter or an outcome payload. A game with no `board:` mints no `dir`,
 and neither does a board whose family has no movement frame (`morris9`,
-`hex_rhombus`);
-naming it at any of those positions is refused naming `board:`, or the
-family and how a move on its board names its destination. Beside a
+`hex_rhombus`); naming it at any of those positions is refused naming
+`board:`, or the family and how a move on its board names a cell. Beside a
 frameless board, `positions { dir : ... }` is an ordinary declared
 position domain; beside a grid it collides with the minted one.
 `TDir` is distinct from `TCell`: `along is a1` (direction against cell),

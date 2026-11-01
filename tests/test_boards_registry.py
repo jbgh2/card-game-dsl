@@ -777,6 +777,7 @@ def _borders(
         (dict(edges=_edges(("a1", "z9"))), "join two distinct cells"),
         (dict(edges=frozenset({frozenset({"a1"})})), "join two distinct cells"),
         (dict(edges=_edges(("a1", "b1"))), "reach every cell"),
+        (dict(edges=frozenset(), cells=("a1", "b1")), "reach every cell"),
         (dict(line_lengths=(3,)), "exactly one topology"),
         (dict(edges=_edges(("a1", "b1"), ("b1", "c1")), line_lengths=(3, 2)), "increasing order"),
         (
@@ -791,15 +792,21 @@ def _borders(
         (dict(borders=_borders(near=("a1", "a1"))), "near border must be distinct cells"),
         (dict(borders=_borders(far=("c1", "a1"))), "far border must be in board order"),
     ],
-    ids=["edge-off-board", "self-loop", "unjoined-cell", "lines-without-topology",
+    ids=["edge-off-board", "self-loop", "unjoined-cell", "two-cells-no-edge",
+         "lines-without-topology",
          "lengths-out-of-order", "frame-off-cells",
          "border-off-board", "border-empty", "border-duplicate", "border-out-of-order"],
 )
 def test_entry_topology_pins_refuse_a_registry_bug(kwargs: dict[str, object], message: str) -> None:
     """Each __post_init__ topology pin, fed the one bad builder output it
-    names, refuses in the registry-bug channel."""
+    names, refuses in the registry-bug channel; the probe board is three
+    cells unless the row names its own.
+
+    red under: `len(cellset) > 2` in place of `> 1` in
+    `BoardEntry._check_edge_integrity` (the two-cell row)."""
+    fields: dict[str, object] = {"family": "probe", "args": (), "cells": ("a1", "b1", "c1")}
     with pytest.raises(ValueError, match=message) as caught:
-        BoardEntry(family="probe", args=(), cells=("a1", "b1", "c1"), **kwargs)  # type: ignore[arg-type]
+        BoardEntry(**{**fields, **kwargs})  # type: ignore[arg-type]
     assert not isinstance(caught.value, OwnerGuardError)
 
 
@@ -976,10 +983,13 @@ def test_hex_rhombus_cell_ids_and_borders_agree_with_the_native_oracle() -> None
     """OpenSpiel's `hex` prints action id i as the name of cell i, for every
     cell of `board_size=11`; and on `board_size=2` black (seat 0) on `a1`
     and `a2`, rank 1 to rank 2, wins, as white on `a1` and `b1`, file `a`
-    to file `b`, wins for white -- the borders each seat joins.
+    to file `b`, wins for white -- the borders each seat joins; and black on
+    `b1` and `a2` wins while black on `a1` and `b2` beside white's `b1` does
+    not -- the diagonal the adjacency runs along.
 
     red under: transposing file and rank in `boards._cell_name` (the cell
-    order), or swapping the two seats' borders in `boards._hex_rhombus`."""
+    order); swapping the two seats' borders in `boards._hex_rhombus`; (+1, +1)
+    in place of (+1, -1) in `boards._HEX_FORWARD_OFFSETS` (the orientation)."""
     pyspiel = pytest.importorskip("pyspiel")
     entry = board_entry("hex_rhombus", (11,))
     state = pyspiel.load_game("hex", {"board_size": 11}).new_initial_state()
@@ -1000,3 +1010,13 @@ def test_hex_rhombus_cell_ids_and_borders_agree_with_the_native_oracle() -> None
     white = play("b2", "a1", "a2", "b1")
     assert white.is_terminal() and white.returns()[1] > 0
     assert "a1" in two.near_edge(1) and "b1" in two.far_edge(1)
+
+    # The diagonal's orientation, which tells the two shears apart: black on
+    # `b1` and `a2` joins rank 1 to rank 2, so they touch; black on `a1` and
+    # `b2` beside white's `b1` joins nothing, so they do not.
+    joined = play("b1", "a1", "a2")
+    assert joined.is_terminal() and joined.returns()[0] > 0
+    assert "a2" in two.neighbors("b1")
+    apart = play("a1", "b1", "b2")
+    assert not apart.is_terminal()
+    assert "b2" not in two.neighbors("a1")

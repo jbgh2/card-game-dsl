@@ -380,7 +380,10 @@ GATES: tuple[Gate, ...] = (
     Gate("suit_ranking", resolve_module._SUIT_RANKING_CALLS, "`suit ranking:`"),
     Gate("teams", resolve_module._TEAM_CALL_FUNCS, "teams:"),
     Gate("board", BOARD_ONLY_CALL_FUNCS, "board:"),
-    Gate("two_seats", resolve_module._SEAT_CALL_FUNCS, "players"),
+    # The seat verbs, one row per part they read (`resolve._SEAT_GATES`),
+    # authored here from the family-by-verb matrix.
+    Gate("two_seats_frame", frozenset({"far_row", "has_step", "home", "neighbor"}), "players"),
+    Gate("two_seats_borders", frozenset({"far_edge", "near_edge"}), "players"),
     # The one board verb whose ARGUMENT is judged against the board's size
     # (`resolve._check_board_call`): a literal `k` past the board's span.
     Gate("board_span", frozenset({"lines"}), "grid(2, 2)"),
@@ -486,7 +489,7 @@ def _unmet(gate: Gate, member: str) -> Clauses:
             return _HEX
         case "board_borders":
             return _BOARD
-        case "two_seats":
+        case "two_seats_frame" | "two_seats_borders":
             return replace(home, players=3)
         case "cards":
             return _PIECES

@@ -154,7 +154,8 @@ def _positions() -> list[str]:
 
 # The expected column, authored from the family-by-verb matrices of issues
 # #976 and #969: the positions each family answers; every other position is
-# refused.
+# refused. `hex_rhombus` answering `neighbors` is the one cell #969's matrix
+# does not list: its adjacency is declared as edges, which that verb reads.
 ANSWERS: dict[str, frozenset[str]] = {
     "grid": frozenset(
         {
@@ -559,7 +560,7 @@ def test_morris9_mills_are_the_sixteen_lines_and_each_point_is_in_two() -> None:
             _game(
                 "hex_rhombus", setup="    probe := number of cells where cell in near_edge(0)\n"
             ).replace("players: 2", "players: 3"),
-            "`near_edge` reads the board from one of its two seats",
+            "`near_edge` reads a seat's own two edges of the board",
             id="near_edge in a three-seat game",
         ),
         pytest.param(
