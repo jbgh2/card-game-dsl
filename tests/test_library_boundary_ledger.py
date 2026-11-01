@@ -1775,8 +1775,7 @@ def test_every_clause_gate_has_a_witness() -> None:
     spells neither (`test_library_clause_gates`, the cell and direction
     refusals in the library's own file), so no library reaches it.
 
-    red under: add a Builtin gate to `test_library_clause_gates.GATES` whose
-    members take no cell or direction and no library can spell."""
+    red under: `_clause_witnesses` skipping the `teams` gate."""
     from cardlang.builtins.signatures import CALL_SIGS
     from cardlang.types import TCell, TDir
 

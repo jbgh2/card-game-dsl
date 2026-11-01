@@ -13,6 +13,17 @@ action space) -- call this one function rather than each writing the
 `{p.name: p.members ...}` comprehension, so the runtime and the advertised
 action space cannot diverge. A leaf module (it imports only the AST) so both
 the runtime and the OpenSpiel front end read it without a cycle.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      a resolved game, whose `board:` clause `board_entry` accepts.
+Establishes:  a game's position domains and its direction domains, each
+              read from one source; the `dir` domain exists exactly where
+              the board's family has a movement frame.
+Now illegal:  a `dir` member read from anywhere but the board entry's frame.
+Held by:      Unrepresentable -- `BoardEntry.frame` is optional and
+              `directions_of` is its one reader for `dir`, so a frameless
+              board's direction source is empty by construction.
 """
 
 from __future__ import annotations

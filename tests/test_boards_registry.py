@@ -289,11 +289,14 @@ def test_lines_is_total_over_the_family_registry() -> None:
     # second enumeration of the family names. The args are the minimal valid
     # ones, derived per row (`lo` repeated `arity` times), so a new family is
     # covered without hand-listing.
-    # red under: deleting the `_straight_runs` branch of `BoardEntry.lines`
-    # (an edge family then reads the absent frame).
+    # red under: replacing the `_straight_runs` branch of `BoardEntry.lines`
+    # with the grid geometry (an edge family then reads the absent frame).
     for family, spec in BOARD_FAMILIES.items():
         entry = board_entry(family, (spec.lo,) * spec.arity)
-        assert entry.line_lengths, family
+        assert entry.line_lengths, (
+            f"{family} declares no line length: unskip the `board_lines` cells "
+            "of tests/test_library_clause_gates.py rather than give it lines"
+        )
         for k in entry.line_lengths:
             assert entry.lines(k), (family, k)
 

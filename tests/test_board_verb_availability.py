@@ -18,7 +18,9 @@ entry, and the misuse probes:
     family-by-verb matrix of issue #976, never read off `BOARD_VERB_NEEDS`.
     An answered cell checks and plays its probe; a refused cell is refused at
     resolve on a line naming the position and the family, and a call's
-    refusal names every verb the family answers.
+    refusal names every verb the family answers. Behind it, each refused
+    (family, verb) cell, and `lines` on an entry declaring no topology, is
+    called at play and meets the runtime Shadow Guard.
   * GRID E -- over every family's built entry: cells unique, nonempty and
     within the position-domain ceiling; edges joining two distinct cells,
     total over the cells; every line a straight run of declared length along
@@ -100,8 +102,11 @@ from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from cardlang.stdlib.boards import BOARD_FAMILIES, board_entry
-from cardlang.types import TBoolean, TCell, TCollection, TDir, TPlayer
+from cardlang.runtime.errors import ShadowGuardError
+from cardlang.runtime.evaluate import native_call
+from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
+from cardlang.types import TBoolean, TCell, TCollection, TDir, TInteger, TPlayer
+from tests.test_cell_queries import _board_ctx
 
 _FILE = "availability.cardlang"
 
@@ -351,6 +356,48 @@ def test_a_board_position_is_answered_or_refused_naming_the_family(
         assert any(all(f"`{v}`" in line for v in ANSWERED_VERBS[family]) for line in hits), hits
 
 
+# --- the runtime Shadow Guard behind the availability refusal ------------------
+
+# A board entry declaring no topology at all: no edges, no line lengths, no
+# frame. No family builds one; it is the board on which `lines` is refused.
+_BARE = BoardEntry(family="bare", args=(), cells=("a1", "b1"))
+
+
+def _shadow_cells() -> list[tuple[str, str]]:
+    """Every (family, verb) the expected column refuses at a call, plus
+    `lines` on the topology-free entry."""
+    verbs = sorted(BOARD_ONLY_CALL_FUNCS)
+    cells = [
+        (family, verb)
+        for family in sorted(ANSWERED_VERBS)
+        for verb in verbs
+        if verb not in ANSWERED_VERBS[family]
+    ]
+    return cells + [("bare", "lines")]
+
+
+_SHADOW_ARGS = {TCell: "a1", TDir: "ahead", TPlayer: 0, TInteger: 3}
+
+
+@pytest.mark.expects_shadow_guard
+@pytest.mark.parametrize(("family", "verb"), _shadow_cells())
+def test_a_verb_on_a_board_lacking_its_part_meets_the_runtime_shadow_guard(
+    family: str, verb: str
+) -> None:
+    """Should a board verb reach play on a board whose family does not declare
+    what it reads, the runtime refuses it in its own channel, naming the
+    resolve check that should have refused it -- never a registry-bug
+    `ValueError` from inside the entry.
+
+    red under: deleting the `answers` check in `runtime/builtins._board_of`."""
+    game = check_dsl(_game("grid"), _FILE)
+    ctx = _board_ctx(game, {})
+    ctx.rs.board = _BARE if family == "bare" else board_entry(family, _args(family))
+    args = [_SHADOW_ARGS[type(p)] for p in CALL_SIGS[verb].params]
+    with pytest.raises(ShadowGuardError, match="resolve._check_board_call"):
+        native_call(verb, args, ctx)
+
+
 # --- GRID E: the integrity of every family's built entry -----------------------
 
 
@@ -372,7 +419,11 @@ def test_every_entry_holds_its_topology_together(family: str) -> None:
         for c in cells:
             nbrs = entry.neighbors(c)
             assert nbrs == tuple(x for x in cells if frozenset((c, x)) in entry.edges)
-    assert entry.line_lengths, f"{family} declares no line length"
+    assert entry.line_lengths, (
+        f"{family} declares no line length: a lineless family is the witness the "
+        "`board_lines` cells of tests/test_library_clause_gates.py wait on, so "
+        "unskip them rather than give the family lines"
+    )
     for k in entry.line_lengths:
         lines = entry.lines(k)
         assert lines == entry.lines(k)
