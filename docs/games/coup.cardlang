@@ -40,6 +40,9 @@ game Coup {
   players: 4
   direction: clockwise
   max_length: 500
+  // A table that only ever exchanges plays on without end; stopped at its
+  // bound, the exiled have lost by the rules and the survivors share the win.
+  at max_length: as it stands
 
   cards: coup15
 

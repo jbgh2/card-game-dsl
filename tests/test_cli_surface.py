@@ -1394,16 +1394,17 @@ def test_coup_played_to_its_bound_at_a_table_exits_0(
 ) -> None:
     """A person answering the first pick at every prompt, every other seat
     `first`: the table repeats one exchange until Coup reaches its bound, and
-    the session says the game is over and names the stop, exit 0."""
+    the session says the game is over, names the stop and the result Coup
+    declares for it, and pays every surviving seat, exit 0."""
     monkeypatch.setattr(sys, "stdin", io.StringIO("1\n" * 500 + "q\n"))
     code = main(["play", str(REPO / "docs" / "games" / "coup.cardlang"),
                  "--seed", "1", "--vs", "all=first"])
     out, err = capsys.readouterr()
     over = out[out.index("the game is over"):]
     assert "Coup reached its max_length, 500 decisions" in over
-    assert "the game is a tie" in over
+    assert "the game is scored as it stands, by its `winner: highest alive`" in over
     assert "P0 was you" in over
-    assert "returns      P0 0, P1 0, P2 0, P3 0" in over
+    assert "returns      P0 1, P1 1, P2 1, P3 1" in over
     assert "non-termination" not in out + err
     assert "static checks passed" not in out + err
     assert code == 0, err

@@ -80,6 +80,9 @@ game Tichu {
   teams: [[0, 2], [1, 3]]   // partners sit across
   direction: counterclockwise
   max_length: 40000
+  // A table that never reaches 1000 plays on without end; stopped at its
+  // bound, the race's standings are the result.
+  at max_length: as it stands
 
   cards: tichu56
   // The sparse point table: K and 10 score 10, 5 scores 5, the Dragon 25,

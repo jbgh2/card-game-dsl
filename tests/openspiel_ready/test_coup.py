@@ -14,8 +14,8 @@ from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 class TestReadiness(ReadinessProofs):
     # Interactive Coup's greedy (lowest-id) line loops on the coin-neutral
     # exchange and never challenges, so no forced coup ever fires and its
-    # rules never end it: the line ends at the game's `max_length`, a tie
-    # (decisions.md, "Game length as a declared contract"), and the adapter
+    # rules never end it: the line ends at the game's `max_length`, scored as
+    # it stands (decisions.md, "Game length as a declared contract"), and the adapter
     # proof walks it there.
     spec = GameSpec(
         "cardlang_coup",
