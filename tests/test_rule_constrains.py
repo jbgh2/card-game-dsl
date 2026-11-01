@@ -193,7 +193,7 @@ def _expected(target: Target) -> str | None:
     if target.spelling == RULE_ENFORCED_MOVE_TYPE and target.declaration is None:
         return None
     if target.kind == "declared":
-        return f"write the condition in `{target.spelling}`'s `when:`"
+        return "write the condition in its `when:` instead"
     return (
         "state the constraint where the move is made: a movement's `chosen N`, "
         "or the move type's `when:`"
@@ -223,6 +223,8 @@ def test_a_constrains_target_is_accepted_or_refused_with_its_remedy(
     errors = _errors(exc.value)
     carrying = [e for e in errors if expected in e]
     assert len(carrying) == 1, errors
+    if target.kind == "declared":
+        assert f"constrains `{target.spelling}`, a move type" in carrying[0], carrying
     rule_errors = [e for e in errors if "rule " in e and "Probe" in e]
     assert rule_errors == carrying, errors
 
@@ -238,7 +240,7 @@ PROBES = {
         "move_type step { effect { score[actor] := 1 } }\n"
         "rule MandatoryCapture { constrains: step\n demands: hand\n if_impossible: hand }",
         "    offer to 0 one of [step]",
-        "write the condition in `step`'s `when:`",
+        "write the condition in its `when:`",
     ),
     # the move type's name in another case
     "rule_on_a_miscased_move": (

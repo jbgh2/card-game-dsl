@@ -7416,9 +7416,9 @@ def _check_rule_reaches_a_reader(
             else "a move type from " + cite_library(declared.origin.library, declared.span)
         )
         bag.error(
-            "rule " + named + f" constrains `{target}`, " + whose + f", but {trick}: "
-            f"write the condition in `{target}`'s `when:` instead; a condition "
-            f"that reads the whole position is a function the `when:` calls",
+            "rule " + named + " constrains " + cite_named(declared, f"`{target}`") + ", "
+            + whose + f", but {trick}: write the condition in its `when:` instead; a "
+            f"condition that reads the whole position is a function the `when:` calls",
             rule.span,
         )
         return
