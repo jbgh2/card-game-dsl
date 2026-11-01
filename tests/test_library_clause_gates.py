@@ -27,7 +27,9 @@ domain:          the Builtin members of each clause gate, and the node members:
                  clause and every climbing query in a round a move type's
                  effect holds (each against the content flavor too, since a
                  piece game declares none of the clauses that decide them),
-                 and a literal position into every board region.
+                 and a literal position into every board region whose length
+                 the sentence states (a cell's region, `neighbors(c)`, holds
+                 a play-time count).
                  Each member is crossed with {clause met, clause unmet} and
                  {written in the game, reached through a library}; a
                  clause-free member is run met, as the control. A climbing
@@ -60,6 +62,8 @@ registry:        gate members: `typecheck.RANKING_GATED_FUNCS`,
                  `RANKING_GATED_WINNERS`;
                  `builtins.functions.TRICK_ORDER_GATED_FUNCS`,
                  `TRICK_ORDER_EXCLUDED_FUNCS`, `BOARD_ONLY_CALL_FUNCS`,
+                 `BOARD_VERB_NEEDS` (the board-need rows, one per
+                 `stdlib.boards.BOARD_NEEDS` member),
                  `DECK_ONLY_CALL_FUNCS`, `TRICK_WINNER_NAMES`,
                  `TRICK_ORDER_GATED_WINNERS`, `TRICK_ORDER_EXCLUDED_WINNERS`,
                  `PRIMITIVE_CLIMB_LEADS`, `PRIMITIVE_CLIMB_FOLLOWS`; the Trick
@@ -88,7 +92,10 @@ does not prove:  that a member outside the Trick Order twin set has no Trick
                  home is the construct test, and a gate in the type layer, or
                  the Trick Order partition's two branches, reads the clause
                  itself, so the clause half of a row agrees with its gate only
-                 as far as the cells run both channels.
+                 as far as the cells run both channels. Nor that the
+                 `board_lines` row refuses: every registered board family
+                 declares lines, so no game lacks them and its unmet cells
+                 are skipped.
 """
 
 from __future__ import annotations
@@ -1368,6 +1375,11 @@ def _region_members() -> list[NodeMember]:
     on one too small."""
     members: list[NodeMember] = []
     for region in sorted(resolve_module._REGION_CALL_FUNCS):
+        if isinstance(CALL_SIGS[region].params[0], TCell):
+            # A cell's region (`neighbors(c)`) holds as many cells as the board
+            # joins to that cell, which is play-time data: its positions are
+            # the runtime positional guard's (`resolve._static_length`).
+            continue
         seat = isinstance(CALL_SIGS[region].params[0], TPlayer)
         members.append(
             NodeMember(

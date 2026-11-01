@@ -174,6 +174,26 @@ def test_the_expected_column_covers_every_position() -> None:
         assert set(ANSWERED_VERBS[family]) == calls | {"lines"}
 
 
+def test_every_board_verb_reads_one_declared_part() -> None:
+    """`BOARD_VERB_NEEDS` is total over the board verbs, each mapped to a part
+    a `BoardEntry` declares, and resolve holds one availability row per part
+    whose members are exactly that part's verbs.
+
+    red under: adding a board verb to `BOARD_ONLY_CALL_FUNCS` with no
+    `BOARD_VERB_NEEDS` row."""
+    import cardlang.resolve as resolve_module
+    from cardlang.builtins.functions import BOARD_VERB_NEEDS
+    from cardlang.stdlib.boards import BOARD_NEEDS
+
+    assert set(BOARD_VERB_NEEDS) == BOARD_ONLY_CALL_FUNCS
+    assert set(BOARD_VERB_NEEDS.values()) <= set(BOARD_NEEDS)
+    rows = [row.members for row in resolve_module._BOARD_NEED_GATES]
+    assert rows == [
+        frozenset(v for v, need in BOARD_VERB_NEEDS.items() if need == part) for part in BOARD_NEEDS
+    ]
+    assert all(row in resolve_module._CLAUSE_GATES for row in resolve_module._BOARD_NEED_GATES)
+
+
 def _game(
     family: str,
     *,
@@ -300,11 +320,12 @@ def _stop(player: int, candidates: list[Any], k: int) -> list[Any]:
 
 
 def _word(position: str) -> str:
-    """What a refusal of `position` must name: the verb, or `dir`."""
+    """What a refusal of `position` must name: the verb, the length it was
+    asked for, or `dir`."""
     if position.startswith("call "):
         return f"`{position.removeprefix('call ')}`"
     if position.startswith("lines("):
-        return position
+        return f"got {position.removeprefix('lines(').removesuffix(')')}"
     return "dir"
 
 
@@ -512,7 +533,7 @@ def test_a_morris_game_places_men_on_points_by_neighbors() -> None:
     def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
         for c in candidates:
             if c[0] == "slide":
-                seen.append((c[1]["from"], c[1]["to"]))
+                seen.append((c[1][0], c[1][1]))
         return [random.Random(len(seen)).choice(candidates)]
 
     play_game(game, random.Random(0), chooser=chooser)

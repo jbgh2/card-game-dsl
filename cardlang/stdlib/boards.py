@@ -2,27 +2,71 @@
 (cardlang/runtime/values.py). A game selects a board by family name and
 integer arguments (docs/design-notes/board-topology.md S2.1); this module
 turns that selection into a BoardEntry -- the cells of the `cell`
-[[position-domain]] and their lines -- never by hand-enumerating cells per
-game. Only the grid family is registered at rung
-1; relations, regions, frames, and jump triples are later rungs' additions
-(issue #124), not fields of BoardEntry today.
+[[position-domain]] and the topology a family declares over them -- never by
+hand-enumerating cells per game.
+
+A family's topology is data on its entry, and each board verb reads one part
+of it (`builtins.functions.BOARD_VERB_NEEDS`): the declared adjacency
+(`edges`, read by `neighbors`), the line lengths it answers (`line_lengths`,
+read by `lines(k)`), and the movement frame (`frame`, a grid's seat-relative
+forward directions and its two seats' regions, read by `neighbor`,
+`has_step`, `is_diagonal`, `home`, `far_row` and the `dir` domain). A part a
+family does not declare is absent (`None`, or no line lengths), and a verb
+reading it is refused at resolve naming the family. Relations beyond one
+adjacency set, jump triples, track frames and in-file boards are later
+rungs' additions (issue #124).
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      nothing; every entry is built here from registry data.
+Establishes:  every built entry's cells are nonempty, unique and within the
+              position-domain ceiling; its edges join two distinct cells of
+              the board and cover every cell; it answers `lines(k)` for
+              exactly its declared lengths, each line a straight run along
+              its frame's geometry or its edges; a frame's directions,
+              offsets and regions are self-consistent. A registry-bug
+              refusal is a `ValueError`; a game author's misuse of a board
+              (`board_entry`'s arguments, an undeclared `k`) is an
+              `OwnerGuardError`.
+Now illegal:  a frameless entry answering a frame verb or minting a
+              direction; an entry answering `neighbors` without edges; a
+              line that is not a straight run of its family's topology.
+Held by:      the frame and the edges are Unrepresentable as absent-but-read:
+              `BoardEntry.frame` and `.edges` are optional and each verb reads
+              its field through `_frame` / `_edges`, which refuse a missing
+              one. The mills are Unrepresentable as a second list: an edge
+              family's lines are derived from its edges and the cells' file
+              and rank (`_straight_runs`), so a line off the edges cannot be
+              written. The edge data itself is a Born-Green Pin: authored here
+              with no source above it in the tree, pinned by the hand tables
+              of tests/test_board_verb_availability.py (GRID E), with the
+              native-oracle differential (issue #978) as its executed witness.
 """
 
 from __future__ import annotations
 
+import typing
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Literal
 
 from cardlang.runtime.errors import OwnerGuardError
 
 _FILES = "abcdefghijklmnop"  # grid's declared arg ceiling is 16
 
+# What a board verb reads off its board's entry: the line lengths it answers,
+# its declared adjacency, or its movement frame. `BoardEntry.answers` says
+# whether an entry declares each; `builtins.functions.BOARD_VERB_NEEDS` maps
+# every board verb to one.
+BoardNeed = Literal["lines", "edges", "frame"]
+BOARD_NEEDS: tuple[BoardNeed, ...] = typing.get_args(BoardNeed)
+
 # The seat-relative forward directions a grid mints, in fixed order (decisions.md
 # "Boards and cells", rung-2 movement). One member per forward direction a piece
-# may step. `directions()` returns these NAMES; the offsets/diagonal flag below
-# carry the geometry behind them. Kept as an independently-authored tuple (not
-# derived from _GRID_DIRECTION_OFFSETS) so the integrity pin that the two agree
-# is a real cross-check, not a tautology.
+# may step. The grid builder packs these NAMES and the offsets below into its
+# entry's frame. Kept as an independently-authored tuple (not derived from
+# _GRID_DIRECTION_OFFSETS) so the integrity pin that the two agree is a real
+# cross-check, not a tautology.
 _GRID_DIRECTIONS = ("ahead", "ahead_left", "ahead_right")
 
 # Player-0 base offset (drow, dcol) for each forward direction; player 0
@@ -39,6 +83,38 @@ _GRID_DIRECTION_OFFSETS: dict[str, tuple[int, int]] = {
     "ahead_right": (1, 1),
 }
 
+# The mill board's twenty-four points in board order, row-major from a1 in the
+# WMD notation: the file letter counted from the left, the rank from the
+# bottom (Rosenberger, Muehle-Lehrbuch v1.9, 2.1).
+_MORRIS9_CELLS: tuple[str, ...] = tuple(
+    "a1 d1 g1 b2 d2 f2 c3 d3 e3 a4 b4 c4 e4 f4 g4 c5 d5 e5 b6 d6 f6 a7 d7 g7".split()
+)
+
+# The mill board's adjacency: three concentric squares, each side joined at
+# its midpoint to the next square's.
+_MORRIS9_EDGES: tuple[tuple[str, str], ...] = (
+    # the outer square
+    ("a1", "d1"), ("d1", "g1"), ("g1", "g4"), ("g4", "g7"),
+    ("g7", "d7"), ("d7", "a7"), ("a7", "a4"), ("a4", "a1"),
+    # the middle square
+    ("b2", "d2"), ("d2", "f2"), ("f2", "f4"), ("f4", "f6"),
+    ("f6", "d6"), ("d6", "b6"), ("b6", "b4"), ("b4", "b2"),
+    # the inner square
+    ("c3", "d3"), ("d3", "e3"), ("e3", "e4"), ("e4", "e5"),
+    ("e5", "d5"), ("d5", "c5"), ("c5", "c4"), ("c4", "c3"),
+    # the spokes joining the squares' midpoints
+    ("d1", "d2"), ("d2", "d3"), ("g4", "f4"), ("f4", "e4"),
+    ("d7", "d6"), ("d6", "d5"), ("a4", "b4"), ("b4", "c4"),
+)
+
+
+def board_spelling(family: str, args: tuple[int, ...]) -> str:
+    """A board as a designer writes it after `board:`: `grid(8, 8)`, or a
+    zero-argument family's bare name, `morris9`."""
+    if not args:
+        return family
+    return f"{family}({', '.join(map(str, args))})"
+
 
 def _cell_name(column: int, row: int) -> str:
     # column, row are 0-based. File (column) runs a..p left to right; rank
@@ -54,11 +130,6 @@ def _cell_coords(name: str) -> tuple[int, int]:
 
 
 def _grid_lines(width: int, height: int, k: int) -> tuple[tuple[str, ...], ...]:
-    span = max(width, height)
-    if not (1 <= k <= span):
-        raise OwnerGuardError(
-            f"lines(k) requires k in 1..{span} for grid({width}, {height}), got {k}"
-        )
     found: set[tuple[str, ...]] = set()
     if width >= k:
         for row in range(height):
@@ -76,14 +147,70 @@ def _grid_lines(width: int, height: int, k: int) -> tuple[tuple[str, ...], ...]:
     return tuple(sorted(found))
 
 
+def _collinear(path: list[str]) -> bool:
+    # One file (the letter) or one rank (the number) throughout.
+    return len({c[0] for c in path}) == 1 or len({c[1:] for c in path}) == 1
+
+
+def _straight_runs(
+    cells: tuple[str, ...], edges: frozenset[frozenset[str]], k: int
+) -> tuple[tuple[str, ...], ...]:
+    """The lines of `k` cells an edge family answers: every run of `k`
+    distinct cells, each consecutive pair joined by an edge, along one file
+    or one rank, written in board order."""
+    order = {c: i for i, c in enumerate(cells)}
+    adjacent = {c: [x for x in cells if frozenset((c, x)) in edges] for c in cells}
+    found: set[tuple[str, ...]] = set()
+
+    def extend(path: list[str]) -> None:
+        if len(path) == k:
+            found.add(tuple(sorted(path, key=order.__getitem__)))
+            return
+        for nxt in adjacent[path[-1]]:
+            if nxt not in path and _collinear([*path, nxt]):
+                extend([*path, nxt])
+
+    for cell in cells:
+        extend([cell])
+    return tuple(sorted(found))
+
+
+def _lengths_phrase(lengths: tuple[int, ...]) -> str:
+    # A run from 1 is a span (`k in 1..8`, a grid's every length up to its
+    # longer side); one other length is named alone (`k = 3`).
+    if lengths == tuple(range(1, lengths[-1] + 1)):
+        return f"k in 1..{lengths[-1]}"
+    if len(lengths) == 1:
+        return f"k = {lengths[0]}"
+    return "k in " + ", ".join(map(str, lengths))
+
+
+@dataclass(frozen=True)
+class GridFrame:
+    """A grid's movement frame: its width and height, the seat-relative
+    forward directions in fixed order -- the members of the `dir` domain --
+    and each direction's player-0 offset (drow, dcol)."""
+
+    width: int
+    height: int
+    directions: tuple[str, ...]
+    offsets: tuple[tuple[str, tuple[int, int]], ...]
+
+
 @dataclass(frozen=True)
 class BoardEntry:
     """One instantiated board: closed static data, integrity-pinned from
-    birth (docs/decisions.md, "Closed-domain completeness")."""
+    birth (docs/decisions.md, "Closed-domain completeness"). `edges` is the
+    declared symmetric adjacency, each edge the pair of cells it joins;
+    `line_lengths` the `k` for which `lines(k)` answers; `frame` the movement
+    frame. A family declares the parts it has and leaves the rest absent."""
 
     family: str
     args: tuple[int, ...]
     cells: tuple[str, ...]
+    edges: frozenset[frozenset[str]] | None = None
+    line_lengths: tuple[int, ...] = ()
+    frame: GridFrame | None = None
 
     def __post_init__(self) -> None:
         if not self.cells:
@@ -100,33 +227,73 @@ class BoardEntry:
                 "BoardEntry.cells must not exceed 256 (registry bug: family builder produced "
                 f"{len(self.cells)})"
             )
-        if self.family == "grid":
+        if self.edges is not None:
+            self._check_edge_integrity(self.edges)
+        if self.line_lengths:
+            if list(self.line_lengths) != sorted(set(self.line_lengths)) or self.line_lengths[0] < 1:
+                raise ValueError(
+                    "BoardEntry.line_lengths must be distinct positive lengths in "
+                    f"increasing order (registry bug: {self.line_lengths})"
+                )
+            if (self.frame is None) == (self.edges is None):
+                raise ValueError(
+                    "BoardEntry lines are derived from exactly one topology, a frame "
+                    f"or edges (registry bug: board family {self.family!r})"
+                )
+        if self.frame is not None:
             self._check_movement_integrity()
 
+    @property
+    def spelling(self) -> str:
+        return board_spelling(self.family, self.args)
+
+    def answers(self, need: BoardNeed) -> bool:
+        """Whether this board declares what a verb with `need` reads."""
+        match need:
+            case "lines":
+                return bool(self.line_lengths)
+            case "edges":
+                return self.edges is not None
+            case "frame":
+                return self.frame is not None
+
     def lines(self, k: int) -> tuple[tuple[str, ...], ...]:
-        if self.family == "grid":
-            width, height = self.args
-            return _grid_lines(width, height, k)
-        raise ValueError(
-            f"unknown board family {self.family!r} (registry only mints: {sorted(BOARD_FAMILIES)})"
-        )
+        """The board's lines of `k` cells. A `k` the family does not declare is
+        the game author's to fix, refused naming the lengths it does."""
+        if not self.line_lengths:
+            raise OwnerGuardError(f"lines(k) reads lines, but {self.spelling} declares none")
+        if k not in self.line_lengths:
+            raise OwnerGuardError(
+                f"lines(k) requires {_lengths_phrase(self.line_lengths)} for "
+                f"{self.spelling}, got {k}"
+            )
+        if self.frame is not None:
+            return _grid_lines(self.frame.width, self.frame.height, k)
+        return _straight_runs(self.cells, self._edges("lines"), k)
+
+    def neighbors(self, cell: str) -> tuple[str, ...]:
+        """The cells joined to `cell` by an edge, in board order -- the
+        declared adjacency `neighbors(c)` reads."""
+        edges = self._edges("neighbors")
+        if cell not in self.cells:
+            raise ValueError(
+                f"BoardEntry cell {cell!r} is not on {self.spelling} "
+                "(registry bug: cell not on this board)"
+            )
+        return tuple(c for c in self.cells if frozenset((cell, c)) in edges)
 
     def directions(self) -> tuple[str, ...]:
-        """The seat-relative forward directions this board mints, in fixed
-        order -- the members of the `dir` move-parameter domain (decisions.md
-        "Boards and cells", rung-2 movement). The per-player offsets and the
-        diagonal flag behind these names are `_offset`/`is_diagonal`."""
-        if self.family == "grid":
-            return _GRID_DIRECTIONS
-        raise ValueError(
-            f"unknown board family {self.family!r} (registry only mints: {sorted(BOARD_FAMILIES)})"
-        )
+        """The seat-relative forward directions this board's frame mints, in
+        fixed order -- the members of the `dir` move-parameter domain
+        (decisions.md "Boards and cells", rung-2 movement). The per-player
+        offsets and the diagonal flag behind these names are
+        `_offset`/`is_diagonal`."""
+        return self._frame("directions").directions
 
     def is_diagonal(self, direction: str) -> bool:
         """True iff a step along `direction` changes file (dcol != 0) -- the
         capturing directions, matching the oracle's straight-never-captures
         rule. Player-independent: the 180-degree flip preserves |dcol|."""
-        self._grid_args()
         return self._base_offset(direction)[1] != 0
 
     def neighbor(self, cell: str, direction: str, player: int) -> str | None:
@@ -135,7 +302,8 @@ class BoardEntry:
         stdlib verb wraps it total-with-Shadow-Guard; a guard's `has_step` gates
         it). Generated from cell coords + the actor-resolved offset, never a
         literal per-cell table."""
-        width, height = self._grid_args()
+        frame = self._frame("neighbor")
+        width, height = frame.width, frame.height
         col, row = self._require_cell(cell, width, height)
         drow, dcol = self._offset(direction, player)
         nc, nr = col + dcol, row + drow
@@ -154,7 +322,8 @@ class BoardEntry:
         Player 0 advances toward higher ranks, so its back is the low ranks;
         player 1's is the high ranks (the mirror). Generated from the grid,
         clamped on boards too short for two ranks."""
-        width, height = self._grid_args()
+        frame = self._frame("home")
+        width, height = frame.width, frame.height
         self._require_player(player)
         if player == 0:
             rows = [r for r in (0, 1) if r < height]
@@ -166,26 +335,38 @@ class BoardEntry:
         """The single rank at the far edge of `player`'s frame -- the
         opponent's back row, the reach-to-win goal. Player 0's is the top rank,
         player 1's the bottom (the mirror of `home`)."""
-        width, height = self._grid_args()
+        frame = self._frame("far_row")
         self._require_player(player)
-        r = height - 1 if player == 0 else 0
-        return tuple(_cell_name(c, r) for c in range(width))
+        r = frame.height - 1 if player == 0 else 0
+        return tuple(_cell_name(c, r) for c in range(frame.width))
 
-    def _grid_args(self) -> tuple[int, int]:
-        if self.family != "grid":
+    def _frame(self, reader: str) -> GridFrame:
+        # Resolve's availability row refuses a frame verb on a frameless
+        # board, and the runtime's `_board_of` stands behind it; reaching here
+        # without a frame is the registry's own caller's bug.
+        if self.frame is None:
             raise ValueError(
-                f"unknown board family {self.family!r} (registry only mints: {sorted(BOARD_FAMILIES)})"
+                f"BoardEntry {reader} reads a movement frame, but board family "
+                f"{self.family!r} has none (registry bug: unguarded frame read)"
             )
-        width, height = self.args
-        return width, height
+        return self.frame
 
-    @staticmethod
-    def _base_offset(direction: str) -> tuple[int, int]:
-        offset = _GRID_DIRECTION_OFFSETS.get(direction)
+    def _edges(self, reader: str) -> frozenset[frozenset[str]]:
+        # The `_frame` twin for the declared adjacency.
+        if self.edges is None:
+            raise ValueError(
+                f"BoardEntry {reader} reads declared edges, but board family "
+                f"{self.family!r} has none (registry bug: unguarded edge read)"
+            )
+        return self.edges
+
+    def _base_offset(self, direction: str) -> tuple[int, int]:
+        offsets = dict(self._frame("a direction's offset").offsets)
+        offset = offsets.get(direction)
         if offset is None:
             raise ValueError(
                 f"BoardEntry has no offset for direction {direction!r} "
-                f"(registry bug: not one of {sorted(_GRID_DIRECTION_OFFSETS)})"
+                f"(registry bug: not one of {sorted(offsets)})"
             )
         return offset
 
@@ -221,23 +402,46 @@ class BoardEntry:
         sign = self._player_sign(player)
         return (sign * drow, sign * dcol)
 
+    def _check_edge_integrity(self, edges: frozenset[frozenset[str]]) -> None:
+        """Registry-bug refusal for a declared adjacency: every edge joins two
+        distinct cells of this board, and every cell has at least one."""
+        cellset = set(self.cells)
+        for edge in edges:
+            if len(edge) != 2 or not edge <= cellset:
+                raise ValueError(
+                    "BoardEntry edges must each join two distinct cells of the board "
+                    f"(registry bug: {sorted(edge)})"
+                )
+        joined: set[str] = set().union(*edges)
+        if joined != cellset:
+            raise ValueError(
+                "BoardEntry edges must reach every cell "
+                f"(registry bug: {sorted(cellset - joined)} unjoined)"
+            )
+
     def _check_movement_integrity(self) -> None:
-        """Registry-bug refusal for the grid family's directions, frames, and
+        """Registry-bug refusal for a frame's directions, seat frames, and
         regions -- the runtime half of the closed-domain pins (the static half
-        is tests/test_boards_registry.py). Universal pins hold for every grid;
+        is tests/test_boards_registry.py). Universal pins hold for every frame;
         the adequacy pins (no dead direction, home disjoint, home size) hold
         only where the board is a real face-off -- width >= 2 and height >= 4,
         the conjunction of the per-pin thresholds (disjoint needs height >= 4,
         |home| == 2*width needs height >= 2, a live diagonal needs width >= 2).
         Degenerate grids like tic-tac-toe's 3x3 skip them: their homes
         legitimately overlap, which is not a registry bug."""
-        width, height = self.args
+        frame = self._frame("integrity")
+        width, height = frame.width, frame.height
         dirs = self.directions()
 
-        if set(_GRID_DIRECTION_OFFSETS) != set(dirs):
+        if set(self.cells) != {_cell_name(c, r) for r in range(height) for c in range(width)}:
+            raise ValueError(
+                "BoardEntry frame must cover exactly the board's cells "
+                f"(registry bug: frame {width}x{height} on {len(self.cells)} cells)"
+            )
+        if set(dict(frame.offsets)) != set(dirs):
             raise ValueError(
                 "BoardEntry direction offsets must cover exactly directions() "
-                f"(registry bug: {sorted(_GRID_DIRECTION_OFFSETS)} vs {sorted(dirs)})"
+                f"(registry bug: {sorted(dict(frame.offsets))} vs {sorted(dirs)})"
             )
         for d in dirs:
             o0 = self._offset(d, 0)
@@ -298,13 +502,36 @@ class BoardEntry:
 def _grid(args: tuple[int, ...]) -> BoardEntry:
     width, height = args
     cells = tuple(_cell_name(c, r) for r in range(height) for c in range(width))
-    return BoardEntry(family="grid", args=args, cells=cells)
+    frame = GridFrame(
+        width=width,
+        height=height,
+        directions=_GRID_DIRECTIONS,
+        offsets=tuple(_GRID_DIRECTION_OFFSETS.items()),
+    )
+    return BoardEntry(
+        family="grid",
+        args=args,
+        cells=cells,
+        line_lengths=tuple(range(1, max(width, height) + 1)),
+        frame=frame,
+    )
+
+
+def _morris9(args: tuple[int, ...]) -> BoardEntry:
+    return BoardEntry(
+        family="morris9",
+        args=args,
+        cells=_MORRIS9_CELLS,
+        edges=frozenset(frozenset(edge) for edge in _MORRIS9_EDGES),
+        line_lengths=(3,),
+    )
 
 
 @dataclass(frozen=True)
 class BoardFamily:
     """One BOARD_FAMILIES row: declared argument arity and per-argument
-    bounds, plus the builder that turns validated args into a BoardEntry."""
+    bounds, plus the builder that turns validated args into a BoardEntry. A
+    zero-arity family's bounds bound nothing."""
 
     arity: int
     lo: int
@@ -314,6 +541,7 @@ class BoardFamily:
 
 BOARD_FAMILIES: dict[str, BoardFamily] = {
     "grid": BoardFamily(arity=2, lo=1, hi=16, build=_grid),
+    "morris9": BoardFamily(arity=0, lo=0, hi=0, build=_morris9),
 }
 
 

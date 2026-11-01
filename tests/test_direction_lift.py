@@ -150,7 +150,7 @@ from cardlang.runtime.evaluate import evaluate, native_call
 from cardlang.runtime.state import Ctx, RuntimeState
 from cardlang.stdlib.boards import BOARD_FAMILIES, board_entry
 from cardlang.typecheck import TypeEnv, _domain_query_binder_type, _type_name
-from cardlang.types import TAny, TBoolean, TCell, TDir, TOptional, TPlayer, Type
+from cardlang.types import TAny, TBoolean, TCell, TCollection, TDir, TOptional, TPlayer, Type
 from tests.test_cell_queries import _board_ctx, _checked_board_expr, _unused_chooser
 
 KINDS = tuple(n.DOMAIN_QUERY_KIND_PHRASE)
@@ -523,6 +523,8 @@ def _call(name: str, args: list[str]) -> str:
     ret = CALL_SIGS[name].ret
     if isinstance(ret, TBoolean):
         return call
+    if isinstance(ret, TCollection) and isinstance(ret.element, TCell):
+        return f"(any cell where (cell in {call}))"
     assert isinstance(ret, TCell), f"{name} returns {ret}; give it a Boolean reading here"
     return f"(square[{call}] is empty)"
 
@@ -821,10 +823,20 @@ def _optional_call_game(name: str, slot: int, value: str) -> str:
         call = f"has_step({', '.join(names)}) and {call}"
     args = {TCell: "at", TDir: "along", TPlayer: "actor"}
     actuals = [value if i == slot else args[type(p)] for i, p in enumerate(sig.params)]
-    return board_game(
+    source = board_game(
         when=f"(not done) and (probe({', '.join(actuals)}) or true)",
         extra=f"function probe({', '.join(params)}) = {call}\n",
     )
+    if name in _ADJACENCY_VERBS:
+        # Answered by the mill board alone, which mints no `dir`.
+        source = source.replace("  board: grid(3, 3)\n", "  board: morris9\n").replace(
+            "pick(at : cell, along : dir)", "pick(at : cell)"
+        )
+    return source
+
+
+# The verbs that read a board's declared adjacency, which the grid lacks.
+_ADJACENCY_VERBS = frozenset({"neighbors"})
 
 
 @pytest.mark.parametrize(("name", "slot"), _BOARD_NONE_CELLS, ids=[f"{n_}-{i}" for n_, i in _BOARD_NONE_CELLS])

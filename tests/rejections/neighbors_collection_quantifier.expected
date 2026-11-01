@@ -1,0 +1,1 @@
+neighbors_collection_quantifier.cardlang:31:30: error: `any cell in …` iterates a single line, but the source is Collection<Cell>

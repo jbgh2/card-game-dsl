@@ -1,5 +1,11 @@
 """BOARDS registry: the grid family's cells, lines, directions, frames, and
-regions, integrity-pinned.
+regions, the mill board's points, adjacency and lines, integrity-pinned.
+
+The family-by-verb grid and the entry-integrity grid over every family are
+tests/test_board_verb_availability.py; this module holds the grid family's
+geometry sweeps, each family's argument refusals, the mill board's
+`neighbors` and `lines(k)` tables, and the `__post_init__` pins' reddening
+witnesses.
 
 property:   every BOARD_FAMILIES row builds a BoardEntry whose cells are
             unique, nonempty, and within the 256-member position-domain cap;
@@ -30,18 +36,23 @@ domain:     BOARD_FAMILIES rows x argument space (arity,
             neighbor-in-cells-or-None, regions subset/sized/edged, and the
             adequacy pins) over a grid sweep spanning degenerate,
             breakthrough-shaped, and non-square boards.
+            The topology pins (edges joining two distinct board cells and
+            reaching every cell, line lengths increasing and derived from
+            exactly one topology, a frame covering exactly the cells) are
+            each fed the one bad builder output they name.
             A group of board features sits outside BoardEntry, and none is a
-            gap in this registry's own domain: relations (adjacency graphs),
-            jump triples (draughts), track frames (backgammon), crownhead /
-            arbitrary-depth home regions, and frames for more than two seats
-            -- each waiting on a witness game that needs it (issue #124).
-            What is here is what breakthrough witnesses: the two-seat 180
-            frame, the seat-relative forward directions, and the
-            back-two-ranks / far-rank regions. Non-grid families (hex,
-            track, enumerated graphs) are a later rung's registry rows.
+            gap in this registry's own domain: relations beyond one adjacency
+            set, jump triples (draughts), track frames (backgammon),
+            crownhead / arbitrary-depth home regions, and frames for more
+            than two seats -- each waiting on a witness game that needs it
+            (issue #124). The frame is what breakthrough witnesses: the
+            two-seat 180 frame, the seat-relative forward directions, and the
+            back-two-ranks / far-rank regions; the declared adjacency is what
+            nine men's morris witnesses.
 registry:   cardlang.stdlib.boards.BOARD_FAMILIES, .board_entry, .BoardEntry
-            (.lines, .directions, .is_diagonal, .neighbor, .has_step, .home,
-            .far_row), and the _GRID_DIRECTION_OFFSETS table.
+            (.lines, .neighbors, .directions, .is_diagonal, .neighbor,
+            .has_step, .home, .far_row), .GridFrame, and the grid builder's
+            _GRID_DIRECTION_OFFSETS table.
 does not prove:  that `lines(k)` is right at 16x16 by independent
             reconstruction. Brute force over every k-combination of 256 cells
             is infeasible, so at that size the sweep holds the generator
@@ -273,19 +284,18 @@ def test_morris9_neighbors_hand_table() -> None:
 
 
 def test_lines_is_total_over_the_family_registry() -> None:
-    # `BoardEntry.lines()` dispatches on `self.family` with a hardcoded
-    # `if self.family == "grid": … else: raise` — a SECOND enumeration of the
-    # family set beside BOARD_FAMILIES, unlike cell generation which is
-    # registry-driven (`spec.build`). A family added to the registry but not to
-    # `lines()` would mint cells yet raise "unknown board family" the first time
-    # a game asks for its win-lines. This pins `lines()` total over the
-    # registry: every family produces `lines(1)` without raising. The args are
-    # the minimal valid ones, derived per row (`lo` repeated `arity` times), so
-    # a new family is covered without hand-listing.
-    # red under: narrowing `BoardEntry.lines`'s `if self.family == "grid"` to a
-    # name no family uses reddens this — grid's `lines(1)` then hits the raise.
+    # Every family answers `lines(k)` for each length it declares, from the
+    # topology it declares (a frame's geometry or its edges), never from a
+    # second enumeration of the family names. The args are the minimal valid
+    # ones, derived per row (`lo` repeated `arity` times), so a new family is
+    # covered without hand-listing.
+    # red under: deleting the `_straight_runs` branch of `BoardEntry.lines`
+    # (an edge family then reads the absent frame).
     for family, spec in BOARD_FAMILIES.items():
-        board_entry(family, (spec.lo,) * spec.arity).lines(1)
+        entry = board_entry(family, (spec.lo,) * spec.arity)
+        assert entry.line_lengths, family
+        for k in entry.line_lengths:
+            assert entry.lines(k), (family, k)
 
 
 # ---------------------------------------------------------------------------
@@ -373,11 +383,11 @@ def test_lines_k_5_on_2x5_returns_the_two_vertical_only_lines() -> None:
     assert len(lines) == 2
 
 
-def test_lines_rejects_a_family_outside_the_registry() -> None:
-    # Unreachable through board_entry() today (BOARD_FAMILIES has only
-    # "grid"); pins the loud refusal for direct BoardEntry construction.
+def test_lines_refuses_an_entry_that_declares_none() -> None:
+    # An entry built with no topology declares no lines; a game asking for
+    # them is told so in its own channel, naming the board.
     entry = BoardEntry(family="hex", args=(1,), cells=("a1",))
-    with pytest.raises(ValueError, match="unknown board family"):
+    with pytest.raises(OwnerGuardError, match="hex\\(1\\) declares none"):
         entry.lines(1)
 
 
@@ -675,19 +685,60 @@ def test_far_row_rejects_bad_player() -> None:
         board_entry("grid", (8, 8)).far_row(2)
 
 
-def test_movement_methods_reject_a_family_outside_the_registry() -> None:
-    # The geometry methods dispatch on family like lines()/directions(); a
-    # non-grid BoardEntry refuses them loudly (the lines() twin). Unreachable
-    # through board_entry() today (only "grid" is registered).
-    entry = BoardEntry(family="hex", args=(1,), cells=("a1",))
-    with pytest.raises(ValueError, match="unknown board family"):
-        entry.is_diagonal("ahead")
-    with pytest.raises(ValueError, match="unknown board family"):
-        entry.neighbor("a1", "ahead", 0)
-    with pytest.raises(ValueError, match="unknown board family"):
-        entry.home(0)
-    with pytest.raises(ValueError, match="unknown board family"):
-        entry.far_row(0)
+def test_frame_methods_refuse_a_frameless_entry() -> None:
+    # The frame verbs read `BoardEntry.frame`; on the mill board, which has
+    # none, each is the registry-bug refusal behind resolve's availability
+    # row, never a grid answer. Likewise `neighbors` on the grid, which
+    # declares no edges.
+    morris = board_entry("morris9", ())
+    for read in (
+        lambda: morris.directions(),
+        lambda: morris.is_diagonal("ahead"),
+        lambda: morris.neighbor("a1", "ahead", 0),
+        lambda: morris.has_step("a1", "ahead", 0),
+        lambda: morris.home(0),
+        lambda: morris.far_row(0),
+    ):
+        with pytest.raises(ValueError, match="reads a movement frame, but board family 'morris9'"):
+            read()
+    with pytest.raises(ValueError, match="reads declared edges, but board family 'grid'"):
+        board_entry("grid", (3, 3)).neighbors("a1")
+
+
+def _edges(*pairs: tuple[str, str]) -> frozenset[frozenset[str]]:
+    return frozenset(frozenset(p) for p in pairs)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        (dict(edges=_edges(("a1", "z9"))), "join two distinct cells"),
+        (dict(edges=frozenset({frozenset({"a1"})})), "join two distinct cells"),
+        (dict(edges=_edges(("a1", "b1"))), "reach every cell"),
+        (dict(line_lengths=(3,)), "exactly one topology"),
+        (dict(edges=_edges(("a1", "b1"), ("b1", "c1")), line_lengths=(3, 2)), "increasing order"),
+        (
+            dict(
+                frame=boards.GridFrame(2, 2, DIRECTIONS, tuple(_BASE_OFFSETS_INDEP.items())),
+                line_lengths=(1,),
+            ),
+            "frame must cover exactly",
+        ),
+    ],
+    ids=["edge-off-board", "self-loop", "unjoined-cell", "lines-without-topology",
+         "lengths-out-of-order", "frame-off-cells"],
+)
+def test_entry_topology_pins_refuse_a_registry_bug(kwargs: dict[str, object], message: str) -> None:
+    """Each __post_init__ topology pin, fed the one bad builder output it
+    names, refuses in the registry-bug channel."""
+    with pytest.raises(ValueError, match=message) as caught:
+        BoardEntry(family="probe", args=(), cells=("a1", "b1", "c1"), **kwargs)  # type: ignore[arg-type]
+    assert not isinstance(caught.value, OwnerGuardError)
+
+
+def test_neighbors_rejects_a_cell_off_the_board() -> None:
+    with pytest.raises(ValueError, match="not on morris9"):
+        board_entry("morris9", ()).neighbors("b1")
 
 
 def test_the_boards_author_split_is_carried_by_the_type() -> None:

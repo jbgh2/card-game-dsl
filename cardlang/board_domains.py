@@ -27,8 +27,9 @@ from cardlang.stdlib.boards import board_entry
 # from clashing with a declared `positions { }` name or a built-in spelling.
 BOARD_DOMAIN = "cell"
 
-# The name of the SECOND domain a `board:` clause mints -- the movement
-# directions (decisions.md "Boards and cells", rung-2 movement). Unlike
+# The name of the SECOND domain a `board:` clause mints where its family has a
+# movement frame -- the movement directions (decisions.md "Boards and cells",
+# rung-2 movement). Unlike
 # `cell`, `dir` is NOT injected into `game.positions`: it is a separate
 # per-game source (`directions_of`), so the zone-index and `for each` Owner
 # Guards, which read `game.positions`, reject `dir` for free -- a direction is
@@ -52,18 +53,26 @@ def position_domains_of(game: n.Game) -> Mapping[str, tuple[int, ...] | tuple[st
 
 def directions_of(game: n.Game) -> Mapping[str, tuple[str, ...]]:
     """A resolved game's movement-direction domains: name -> ordered members.
-    The `board:` clause mints the single `dir` domain (its seat-relative forward
-    directions); a boardless game has none. The SIBLING of `position_domains_of`
-    for the SEPARATE `dir` source (decisions.md "Boards and cells", rung-2
-    movement).
+    A `board:` clause whose family has a movement frame mints the single `dir`
+    domain (its seat-relative forward directions); a boardless game, and a
+    board with no frame (`morris9`), have none. The SIBLING of
+    `position_domains_of` for the SEPARATE `dir` source (decisions.md "Boards
+    and cells", rung-2 movement).
 
     Unlike `position_domains_of`, the members are NOT stored in the AST (`dir`
     is deliberately absent from `game.positions`), so this reads them off the
     board family entry -- the SAME `board_entry` the driver and the OpenSpiel
     encoding instantiate, so the runtime candidate enumeration and the static
     action space cannot diverge. `board_entry` is total on a resolved game
-    (resolve validated the family/args)."""
+    (resolve validated the family/args).
+
+    Held by: Unrepresentable. `BoardEntry.frame` is optional and this is the
+    one reader of it for `dir`, so a frameless board's direction source is
+    empty by construction and every position admitting `dir`
+    (`resolve._minted_directions`) refuses it."""
     if game.board is None:
         return {}
     entry = board_entry(game.board.family, game.board.args)
+    if entry.frame is None:
+        return {}
     return {DIRECTION_DOMAIN: entry.directions()}

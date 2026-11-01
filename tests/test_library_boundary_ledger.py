@@ -405,6 +405,7 @@ _CALL_SPELLINGS: dict[str, tuple[str, str]] = {
     "is_diagonal": ("is_diagonal(who)", ""),
     "home": ("home(who) is empty", ""),
     "far_row": ("far_row(who) is who", ""),
+    "neighbors": ("neighbors(who) is empty", ""),
     "highest_trump_or_led_suit": ("highest_trump_or_led_suit(pile, c.suit) is who", ""),
     "highest_by_trick_order": ("highest_by_trick_order(pile) is who", ""),
     "follows_lead": ("follows_lead(c, pile)", ""),
@@ -1769,14 +1770,28 @@ def test_a_library_reaching_the_games_text(monkeypatch: pytest.MonkeyPatch, witn
 
 
 def test_every_clause_gate_has_a_witness() -> None:
-    """Every gate the clause-gate grid runs has a library-reached witness here.
+    """Every gate the clause-gate grid runs has a library-reached witness here,
+    but a gate whose every member takes a cell or a direction: a library
+    spells neither (`test_library_clause_gates`, the cell and direction
+    refusals in the library's own file), so no library reaches it.
 
     red under: add a Builtin gate to `test_library_clause_gates.GATES` whose
-    members no library can spell."""
+    members take no cell or direction and no library can spell."""
+    from cardlang.builtins.signatures import CALL_SIGS
+    from cardlang.types import TCell, TDir
+
     names = {
         k.removeprefix("clause-gate-") for k in _clause_witnesses() if k.startswith("clause-gate-")
     }
-    assert names == {g.name for g in CG.GATES} | set(CG.NODE_GATES)
+    board_only = {
+        g.name
+        for g in CG.GATES
+        if (members := g.members & BUILTIN_CALL_FUNCS)
+        and all(
+            any(isinstance(p, (TCell, TDir)) for p in CALL_SIGS[m].params) for m in members
+        )
+    }
+    assert names == ({g.name for g in CG.GATES} - board_only) | set(CG.NODE_GATES)
 
 
 def test_every_clause_read_of_the_type_layer_names_its_owner() -> None:
