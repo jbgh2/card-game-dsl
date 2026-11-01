@@ -413,15 +413,16 @@ def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
 # =============================================================================
 # FRAME VERBS x PLAYER COUNT (Codex P2, PR #92): a grid's per-player frame is
 # defined for two opposed seats (one's forward is the other's, the 180-degree
-# opposite), so the board-only verbs that read it -- the ones taking a player --
-# are rejected in a game that is not exactly two players. Without the guard a
+# opposite), so the board-only verbs that read the board from a seat -- the
+# ones taking a player, the frame's and a seat's borders alike -- are rejected
+# in a game that is not exactly two players. Without the guard a
 # 3-plus-player game resolves clean and then dies at play with the frame's
 # registry-bug ValueError for seat 2. `_SEAT_CALL_FUNCS` is DERIVED from the
 # signatures (board-only + a player param), so the guard's domain cannot drift.
 # =============================================================================
 
 
-def test_frame_call_funcs_is_the_player_taking_board_verbs() -> None:
+def test_seat_call_funcs_is_the_player_taking_board_verbs() -> None:
     # The guard's domain, pinned to its derivation rather than hand-listed: the
     # board-only calls whose Sig takes a player. A new player-taking board verb
     # joins _SEAT_CALL_FUNCS -- and the two-seat guard -- by construction; a new

@@ -47,8 +47,9 @@ domain:     BOARD_FAMILIES rows x argument space (arity,
             and the largest side the position-domain cap admits.
             The topology pins (edges joining two distinct board cells and
             reaching every cell, line lengths increasing and derived from
-            exactly one topology, a frame covering exactly the cells) are
-            each fed the one bad builder output they name.
+            exactly one topology, a frame covering exactly the cells, each
+            seat's borders distinct board cells in board order) are each fed
+            the one bad builder output they name.
             A group of board features sits outside BoardEntry, and none is a
             gap in this registry's own domain: relations beyond one adjacency
             set, jump triples (draughts), track frames (backgammon),
@@ -321,7 +322,9 @@ def test_every_family_answers_each_verb_its_entry_declares() -> None:
     of the family names.
 
     red under: replacing the `_straight_runs` branch of `BoardEntry.lines`
-    with the grid geometry (an edge family then reads the absent frame)."""
+    with the grid geometry (an edge family then reads the absent frame);
+    building `boards._hex_rhombus` with `borders=None` (no family then
+    answers `near_edge` or `far_edge`)."""
     answered: set[str] = set()
     for family, spec in BOARD_FAMILIES.items():
         entry = board_entry(family, (spec.lo,) * spec.arity)
@@ -760,6 +763,14 @@ def _edges(*pairs: tuple[str, str]) -> frozenset[frozenset[str]]:
     return frozenset(frozenset(p) for p in pairs)
 
 
+def _borders(
+    near: tuple[str, ...] = ("a1",), far: tuple[str, ...] = ("c1",)
+) -> tuple[boards.SeatBorders, boards.SeatBorders]:
+    """Two seats' borders over the probe's three cells, seat 0's sides
+    replaced as given."""
+    return (boards.SeatBorders(near, far), boards.SeatBorders(("a1",), ("c1",)))
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
@@ -775,9 +786,14 @@ def _edges(*pairs: tuple[str, str]) -> frozenset[frozenset[str]]:
             ),
             "frame must cover exactly",
         ),
+        (dict(borders=_borders(near=("a1", "z9"))), "near border must be distinct cells"),
+        (dict(borders=_borders(near=())), "near border must be distinct cells"),
+        (dict(borders=_borders(near=("a1", "a1"))), "near border must be distinct cells"),
+        (dict(borders=_borders(far=("c1", "a1"))), "far border must be in board order"),
     ],
     ids=["edge-off-board", "self-loop", "unjoined-cell", "lines-without-topology",
-         "lengths-out-of-order", "frame-off-cells"],
+         "lengths-out-of-order", "frame-off-cells",
+         "border-off-board", "border-empty", "border-duplicate", "border-out-of-order"],
 )
 def test_entry_topology_pins_refuse_a_registry_bug(kwargs: dict[str, object], message: str) -> None:
     """Each __post_init__ topology pin, fed the one bad builder output it

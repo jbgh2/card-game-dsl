@@ -174,7 +174,8 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
 
 
 def _seat(ctx: Ctx, fn: str, player: int) -> int:
-    """A frame verb's player argument must be a seat of this game. A LITERAL
+    """A seat verb's player argument (a grid's frame verbs, a seat's
+    borders) must be a seat of this game. A LITERAL
     out-of-range seat is refused statically (typecheck `_check_role_literal`),
     but that check returns early on anything that is not an integer literal, so
     a COMPUTED seat -- `home(1 + 1)` -- reaches here unchallenged. Nothing

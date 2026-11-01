@@ -871,11 +871,11 @@ a family that does not declare what the verb reads.
 - `hex_rhombus(n)` = the Hex board: an n-by-n rhombus of hexagons, `n` in
   `1..16`. Cells are named and ordered as the grid's (`a1 b1 … a2 …`,
   file+rank, row-major from `a1`), the order OpenSpiel's `hex` numbers its
-  actions in. Its declared **adjacency** joins each hexagon to its six
-  neighbours: along its rank, up and down its file, and along the up-left /
-  down-right diagonal (`b1`-`a2`, never `a1`-`b2`), so a corner touches two
-  cells, an obtuse corner three, an edge cell four and an interior cell
-  six (`neighbors(c)` reads it). Its **borders** are each seat's two board
+  actions in. Its declared **adjacency** joins each hexagon to the cells
+  beside it along its rank, up and down its file, and along the up-left /
+  down-right diagonal (`b1`-`a2`, never `a1`-`b2`), so an acute corner
+  touches two cells, an obtuse corner three, an edge cell four and an
+  interior cell six (`neighbors(c)` reads it). Its **borders** are each seat's two board
   edges: `near_edge(0)` is rank `1` and `far_edge(0)` rank `n`, seat 0
   joining bottom to top; `near_edge(1)` is file `a` and `far_edge(1)` the
   last file, seat 1 joining left to right; each corner hexagon is on both

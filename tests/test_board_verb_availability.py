@@ -100,6 +100,8 @@ red under (edges): dropping `("a1", "d1")` from `boards._MORRIS9_EDGES`
 reddens the degree table, the edge count and the mills table of GRID E.
 red under (availability): mapping `neighbors` to `frame` in
 `BOARD_VERB_NEEDS` reddens GRID V's `call neighbors` cells on every family.
+red under (needs): deleting the `"borders"` arm of `BoardEntry.answers` is
+`mypy --strict`'s "Missing return statement" at `answers`.
 red under (borders): mapping `near_edge` to `frame` in `BOARD_VERB_NEEDS`
 reddens GRID V's `call near_edge` cells on `grid` and `hex_rhombus`, every
 `hex_rhombus` refusal's list of the verbs it answers, and the `near_edge`
