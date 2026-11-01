@@ -5,9 +5,10 @@ At every node a walk reaches, the two implementations pose the same decision:
 the same seat is to move, and the game's legal actions, mapped into the
 oracle's action space, are exactly the oracle's legal set. A line the rules
 end ends on both sides with the same returns. The oracle also ends every line
-at two hundred completed turns with returns [0, 0], which is not a rule of the
-game (the game's header says so): there the walk stops comparing, asserts the
-game still offers a decision, and counts the line as truncated.
+at its turn cap, `kMaxNumTurns` in its source (200 completed turns, an
+external constant), with returns [0, 0]. That cap is not a rule of the game
+(the game's header says so): there the walk stops comparing, asserts the game
+still offers a decision, and counts the line as truncated.
 
 The mapping (`to_native`) is a pure function of the decoded action. The
 oracle numbers the points row by row from the top-left corner (`ORACLE_POINTS`
@@ -73,7 +74,8 @@ held by:    the point table is a Born-Green Pin (the bijection, and every
             point's place in pyspiel's rendering); why not higher: the oracle's
             point order is external data with no source in the tree. The
             truncation is Derived: it is read off the oracle's own terminal
-            and returns, never a turn count spelled here. The oracle's version
+            and returns, and no code here counts turns or holds the cap's
+            value. The oracle's version
             is held by the census, which plays slides onto `a7`.
 does not prove:  that the game and the oracle agree past the oracle's turn
             cap, where the oracle has no game to compare; nor at a node no
@@ -82,19 +84,22 @@ does not prove:  that the game and the oracle agree past the oracle's turn
             end in a blockade, which the scripted line carries.
 
 red under (point table): exchanging `a7` and `d7` in `ORACLE_POINTS` reddens
-the anchor test, the policy walk and every scripted line whose play tells the
-two points apart; it leaves green the walks it cannot tell apart: the prefix
-walk, the two removal lines whose mills lie on the top and bottom rows, and
-the shuffle.
+the anchor test, the policy walk, every scripted line whose play tells the two
+points apart (the double mill, both reduction wins, the blockade), and the
+first tripwire, whose own exchange then restores the true table so nothing
+raises. It leaves green the walks it cannot tell apart (the prefix walk, the
+two removal lines whose mills lie on the top and bottom rows, the shuffle) and
+the second tripwire, which walks one of those removal lines.
 red under (removal rule): dropping the in-mill conjunct of `remove`'s When
 Clause in the game reddens `test_scripted_mill_excludes_enemy_mill_men` and
-the policy walk; the second tripwire then fails on its own precondition, the
-conjunct it plants out being already gone.
+the policy walk; the second tripwire then fails on its own precondition,
+naming the conjunct it plants out as already gone.
 """
 
 from __future__ import annotations
 
 import random
+import re
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
@@ -378,6 +383,11 @@ SHUFFLE_PLACEMENTS: tuple[Step, ...] = (
 )
 SHUFFLE_CYCLE: tuple[Step, ...] = (("d3", "d2"), ("f4", "f2"), ("d2", "d3"), ("f2", "f4"))
 
+# The in-mill conjunct of `remove`'s When Clause, whatever its line breaks.
+IN_MILL_CONJUNCT = re.compile(
+    r"\s+and\s+\(\(not\s+in_mill\(at\)\)\s+or\s+all_in_mill\(opponent_of\(actor\)\)\)"
+)
+
 
 def test_mapping_anchors_against_native() -> None:
     """The point table bijects onto the oracle's points and the board's cells,
@@ -557,9 +567,12 @@ def test_dropped_in_mill_conjunct_is_a_tripwire(tmp_path: Path) -> None:
     """The comparison FAILS when the game's removal forgets the in-mill
     restriction: the scratch copy offers Black's mill men beside f2."""
     source = Path(PATH).read_text()
-    conjunct = "\n        and ((not in_mill(at)) or all_in_mill(opponent_of(actor)))"
-    assert source.count(conjunct) == 1
+    found = IN_MILL_CONJUNCT.findall(source)
+    assert len(found) == 1, (
+        f"the plant expects one in-mill conjunct in `remove`'s When Clause and "
+        f"finds {len(found)}: re-spell IN_MILL_CONJUNCT to the game's text"
+    )
     planted = tmp_path / "nine-mens-morris-planted.cardlang"
-    planted.write_text(source.replace(conjunct, ""))
-    with pytest.raises(AssertionError, match="legal actions diverge"):
-        paired_line(scripted(MILL_EXCLUDES), label="planted", path=str(planted))
+    planted.write_text(IN_MILL_CONJUNCT.sub("", source))
+    with pytest.raises(AssertionError, match="mill excludes step 10: legal actions diverge"):
+        paired_line(scripted(MILL_EXCLUDES), label="mill excludes", path=str(planted))

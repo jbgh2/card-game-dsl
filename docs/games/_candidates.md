@@ -521,7 +521,7 @@ never ends stops at the game's `max_length`, a tie
 ([decisions.md](../decisions.md), "Game length as a declared contract").
 The native differential against OpenSpiel's `nine_mens_morris` is
 `tests/test_differential_nine_mens_morris.py`, truncating at that
-implementation's 200-turn cap.)
+implementation's turn cap (`kMaxNumTurns`, 200 completed turns).)
 
 ### backgammon
 

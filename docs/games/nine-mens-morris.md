@@ -13,8 +13,8 @@ stands in one; you lose when you are reduced to two men or have no legal move
 on your turn. There is no move cap and no repetition rule.** Rules are common
 knowledge. The native differential against OpenSpiel's `nine_mens_morris` is
 `tests/test_differential_nine_mens_morris.py`: the two agree at every node it
-walks, and it stops comparing at that implementation's 200-turn cap, which is
-not a rule of the game.
+walks, and it stops comparing at that implementation's turn cap
+(`kMaxNumTurns`, 200 completed turns), which is not a rule of the game.
 
 **Rules source.** The rules body is the Welt-Mühlespiel-Dachverband (WMD).
 Its own pages did not resolve when the file was written (2026-11-01:
