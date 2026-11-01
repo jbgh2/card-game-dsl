@@ -80,7 +80,6 @@ from typing import Any
 import pytest
 
 from cardlang.cli import main
-from cardlang.ast.nodes import STOP_KINDS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.openspiel.replay import LiveLine, TerminalNode, returns_for, run
 from cardlang.openspiel.seat_policy import FirstSeatPolicy
@@ -121,6 +120,8 @@ def test_the_declarations_are_the_stop_values() -> None:
     """Every alternative of `stop_value` is a column of the grid and a member
     of the AST's `StopKind`, and no column names an alternative the grammar
     lacks. red under: add a fourth alternative to `stop_value`."""
+    from cardlang.ast.nodes import STOP_KINDS
+
     assert _stop_value_aliases() == set(DECLARATIONS)
     assert {alias.removeprefix("stop_") for alias in DECLARATIONS} == set(STOP_KINDS)
 
@@ -568,6 +569,22 @@ MISUSE_REFUSED: dict[str, tuple[str, str]] = {
     "3 at the bound": (_misuse("at the bound: tie"), "unexpected `the`; expected `max_length`"),
     "4 beyond": (_misuse("beyond max_length: tie"), STOP_LEAD_TWIN),
     "4 after": (_misuse("after max_length: as it stands"), STOP_LEAD_TWIN),
+    # The twin's lead words after a clause ending in a name. A ranking missing
+    # its name is refused at the lead (red under: drop `beyond` from
+    # RESULT_VAR_NAME's exclusions); after a run of ranks or suits the twin's
+    # whole clause is the only complete parse, so it teaches the lead there.
+    "4 beyond after a ranking missing its name": (
+        _misuse("", "winner: highest\n  beyond max_length: tie"),
+        "unexpected `beyond`; expected a state variable name",
+    ),
+    "4 beyond after the ranks": (
+        _misuse("ranking: A K Q J 10 9 8 7 6 5 4 3 2\n  beyond max_length: tie"),
+        STOP_LEAD_TWIN,
+    ),
+    "4 after after the suits": (
+        _misuse("suit ranking: spades hearts diamonds clubs\n  after max_length: tie"),
+        STOP_LEAD_TWIN,
+    ),
     "5 highest above a clause": (
         _misuse("at max_length: highest"),
         "unexpected `cards`; expected a state variable name",
@@ -646,3 +663,35 @@ def test_a_stop_result_sentence_is_accepted(name: str) -> None:
 def test_a_bound_game_without_the_clause_has_no_stop_result() -> None:
     game = check_dsl(_misuse(""), "absent.cardlang")
     assert getattr(game, "stop_result", None) is None
+
+
+_HAND_LOOP = """game Hands {
+  players: 2
+  max_length: 50
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { target[player] : Integer = 0  hands : Integer = 0 }
+  phase setup { target[0] := 5 }
+  phase play repeat until hands >= 2 {
+    state { target[player] : Integer = 0 }
+    target[1] := 9
+    hands += 1
+  }
+  winner: highest target
+}
+"""
+
+
+def test_the_per_hand_score_trace_reads_the_game_level_frame() -> None:
+    """The `hand_end` trace carries the `winner:` target as the result reads
+    it, though the looping phase's frame stands and shadows it.
+    red under: read it with `ctx.rs.get` in `driver.run_phase`."""
+    game = check_dsl(_HAND_LOOP, "hands.cardlang")
+    traced: list[Any] = []
+    result = play_game(
+        game, random.Random(SEED),
+        tracer=lambda kind, payload: traced.append(payload) if kind == "hand_end" else None,
+    )
+    assert _ended_by(result) == "rules"
+    assert traced == [{0: 5, 1: 0}, {0: 5, 1: 0}]
+    assert result.seat_scores == (5, 0)

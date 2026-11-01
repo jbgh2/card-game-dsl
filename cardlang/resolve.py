@@ -160,7 +160,7 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               written text. The round clause's TYPE (``Suit?``)
               is typecheck's (``_check_round_trump``); its presence against
               its winner is settled here, with the winner namespace. And a
-              result ranking's target (``RANKING_SLOTS``) that is not a
+              result ranking's target (``ranking_slot``) that is not a
               per-member score — unindexed, optional, or declared outside
               ``Integer``/``Boolean`` (``_check_winner_target``, decisions.md "Game result:
               `winner:` and `loser:`"); ``runtime/driver`` may therefore
@@ -5544,7 +5544,7 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
         where = declared_at.get(target, []) if target is not None else []
         if target is not None and target not in top and where:
             home = " or ".join(f"phase '{w}'" for w in where)
-            bag.error(RANKING_SLOTS[type(ranking)].out_of_scope(target, home), ranking.span)
+            bag.error(ranking_slot(ranking).out_of_scope(target, home), ranking.span)
 
 
 # The board verbs that return a positional collection, each the `BoardEntry`
@@ -6487,25 +6487,33 @@ class RankingSlot:
         )
 
 
-#: Every node that ranks a state variable, keyed by its node type. The grid
-#: crossing the target's declaration with the slot is
-#: tests/test_winner_target.py, its slot axis reconciled against the
-#: grammar's productions taking `RESULT_VAR_NAME`.
-RANKING_SLOTS: dict[type, RankingSlot] = {
-    n.Winner: RankingSlot(
-        "`winner:`",
-        "the game",
-        "winner",
-        "does not exist when the winner is decided — the phase has exited by then",
-    ),
-    n.StopResult: RankingSlot(
-        "`at max_length:`",
-        "the stopped game",
-        "`at max_length:`",
-        "exists only while that phase runs; the bound can stop the game in any "
-        "phase, so the stop cannot be scored from it",
-    ),
-}
+_WINNER_SLOT = RankingSlot(
+    "`winner:`",
+    "the game",
+    "winner",
+    "does not exist when the winner is decided — the phase has exited by then",
+)
+_STOP_SLOT = RankingSlot(
+    "`at max_length:`",
+    "the stopped game",
+    "`at max_length:`",
+    "exists only while that phase runs; the bound can stop the game in any "
+    "phase, so the stop cannot be scored from it",
+)
+
+
+def ranking_slot(ranking: n.Winner | n.StopResult) -> RankingSlot:
+    """How the ranking guards address the slot `ranking` is written in. The
+    grid crossing the target's declaration with the slot is
+    tests/test_winner_target.py, its slot axis reconciled against the
+    grammar's productions taking `RESULT_VAR_NAME`."""
+    match ranking:
+        case n.Winner():
+            return _WINNER_SLOT
+        case n.StopResult():
+            return _STOP_SLOT
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 def _result_rankings(game: n.Game) -> tuple[n.Winner | n.StopResult, ...]:
@@ -6524,7 +6532,7 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
     ranked by, and the game it returns carries the target's index role on
     the ranking (`Winner.keyed_by`, `StopResult.keyed_by`) -- the one fact
     the result is keyed through. One Owner Guard for both slots
-    (`RANKING_SLOTS`), each refusal addressed to the slot it fires in.
+    (`ranking_slot`), each refusal addressed to the slot it fires in.
 
     Resolve already walls the NAME -- undeclared, or declared inside a phase
     -- and says nothing about the DECLARATION it lands on. Two of that
@@ -6570,7 +6578,7 @@ def _ranking_target_role(
     decl = next((d for d in game.state.decls if d.name == ranking.state_var), None)
     if decl is None:
         return None
-    slot = RANKING_SLOTS[type(ranking)]
+    slot = ranking_slot(ranking)
     what = f"{slot.clause} ranks {slot.ranks} on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
     if decl.index is None:
         bag.error(
@@ -12475,7 +12483,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             ):
                 bag.error(
                     _slot_name_outside_slot(nd.state_var)
-                    or f"{RANKING_SLOTS[type(nd)].unknown} references unknown "
+                    or f"{ranking_slot(nd).unknown} references unknown "
                     f"variable '{nd.state_var}'",
                     nd.span,
                 )

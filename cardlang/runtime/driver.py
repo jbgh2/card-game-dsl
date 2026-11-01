@@ -25,8 +25,9 @@ so a team-keyed target names every member of the best team -- or, for a
 A stopped game is scored by its [[stop-result]]: every seat a winner and
 nothing read for a tie, the default; the `winner:` clause for `as it stands`;
 the declared ranking for a ranking; never the `loser:` selection. Every
-ranking reads its target from the game-level frame (`_ranked`), so a phase
-frame standing at the stop and shadowing the target is never read, and
+ranking reads its target from the game-level frame (`_ranked`), as the
+per-hand `hand_end` trace does, so a phase frame standing at the stop and
+shadowing the target is never read, and
 `GameResult.scored_by` says which arm scored it. The phase-level `repeat until` guard refuses only a loop that, at a
 head whose condition does not hold, has completed more than `max_length`
 bodies with no pick in them (`state.DecisionlessSpin`). Illegal after this:
@@ -723,7 +724,9 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                     if after is not None and not suspended:
                         run_stmts(after.body, ctx)
                 if ctx.rs.score_var is not None:  # loser games keep no per-hand score
-                    ctx.trace("hand_end", dict(ctx.rs.get(ctx.rs.score_var)))
+                    # The game-level declaration `winner:` names, as `_ranked`
+                    # reads it: this phase's frame stands here and may shadow it.
+                    ctx.trace("hand_end", dict(ctx.rs.frames[0][ctx.rs.score_var]))
         elif q is not None and q.kind == "when":
             if _evaluate_stamped(q.expr, ctx):
                 _run_phase_body(phase, ctx, hands)

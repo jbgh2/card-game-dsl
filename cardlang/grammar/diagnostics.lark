@@ -66,9 +66,9 @@ _CARD_VALUES_KW: "card_values" /(?![A-Za-z0-9_])/
 %extend game_item: _RETIRED_TRICK_ORDER_KW [":"] "{" (retired_row [","])* "}" -> trick_order_retired_reject
                  | _TRUMP_KW [":"] expr                                       -> trump_clause_retired_reject
 // --- the Stop Result led by the wrong preposition -------------------------
-// The game ends AT its bound, and `beyond max_length:` is the habit the
-// public counsel teaches. Neither lead word is a word of the language, so no
-// parse recovers it; the twin takes the whole clause, every value included.
+// The game ends AT its bound, so nothing lies beyond or after it. Neither
+// lead word is a word of the language, so no parse recovers it; the twin
+// takes the whole clause, every value included.
                  | (_BEYOND_KW | _AFTER_KW) _MAX_LENGTH_KW ":" stop_value      -> stop_result_lead_reject
 _BEYOND_KW: "beyond" /(?![A-Za-z0-9_])/
 _AFTER_KW: "after" /(?![A-Za-z0-9_])/

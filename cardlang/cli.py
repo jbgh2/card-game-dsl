@@ -777,7 +777,7 @@ def _summary(game: n.Game, result: GameResult, decisions: int, seed: int) -> str
     """The outcome in per-seat returns, led by the Length Stop's line when the
     game reached its bound.
 
-    `result.scores` is keyed by the `winner:` target's own index domain, so a
+    `result.scores` is keyed by the ranked target's own index domain, so a
     team-scored game's keys are teams and a `loser:` game has none at all
     (`driver.GameResult`); `returns_for` reads the per-seat scores instead, so
     the line pays the seats OpenSpiel pays.
