@@ -1,16 +1,13 @@
-// Guard: resolve's `_check_domain_query`. `dir` is a separate source, NOT a
-// `game.positions` name, so `any dir where ...` -- which the quantifier guard
-// validates against the declared position domains -- rejects for free naming
-// the declared universe (`cell`). A direction is a move parameter only, never
-// a quantifier binder.
+// Guard: resolve's `_check_domain_query`. `dir` is the board direction
+// domain a `board:` mints, and a board game quantifies over it (`any dir
+// where ...`); this game declares no `board:`, so nothing mints `dir`, and the
+// quantifier is refused naming the missing clause.
 game DirQuantifier {
   players: 2
   max_length: 20
-  board: grid(3, 3)
   pieces: xo_marks
   zones {
     box             : Deck
-    square[cell]    : Cell<cell>
     reserve[player] : PlayerPile<player>
   }
   state {

@@ -1,0 +1,30 @@
+// Guard: resolve's literal-`k` check in `_check_board_call`, reading
+// `BoardEntry.lines`. `morris9` declares its lines of three (the mills) and no
+// other length, so `lines(2)` is refused naming the length it answers.
+game Lines2OnMorris9 {
+  players: 2
+  max_length: 30
+  board: morris9
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    point[cell]     : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+    if any line in lines(2) where true { done := false }
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest score
+}
+move_type place(at : cell) {
+  when: point[at] is empty
+  effect { move one piece from reserve[actor] to point[at] }
+}
+move_type stop { effect { done := true } }

@@ -18,6 +18,9 @@ freezes an argument itself.
 Establishes: a value for every generic call, or `NOT_A_BUILTIN` when the name
 belongs to the Primitives half of the registry.
 Illegal after: nothing — this module holds no state.
+Held by: a board verb on a board whose family does not declare what the verb
+reads is resolve's refusal; `_board_of` is its Shadow Guard here, reading the
+one table both read (`BOARD_VERB_NEEDS`, Derived and Pinned).
 
 This module must not import `runtime/primitives.py`. Which half of the registry
 a name belongs to is the caller's question (`runtime/evaluate.py`), and keeping
@@ -32,6 +35,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from cardlang.builtins.functions import BOARD_VERB_NEEDS
 from cardlang.runtime import reads, trick_order, winners
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, IllegalMove
@@ -67,6 +71,8 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _home(ctx, args[0])
         case "far_row":
             return _far_row(ctx, args[0])
+        case "neighbors":
+            return _neighbors(ctx, args[0])
         case "player_holding":
             return _player_holding(args[0], ctx)
         case "team_of":
@@ -126,16 +132,7 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
     `any line in lines(k) where …` register iterates. Reads the board entry
     T5 already computed (`cardlang/stdlib/boards.py`), never re-derives the
     geometry."""
-    board = ctx.rs.board
-    if board is None:
-        # Resolve's Owner Guard rejects `lines()` in a boardless game
-        # (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it in the
-        # runtime's own channel, should the call ever reach here without a
-        # board.
-        raise ShadowGuardError(
-            "resolve._check_board_call",
-            "lines() reads the board's lines, but the game declares no `board:`",
-        )
+    board = _board_of(ctx, "lines")
     # A LITERAL out-of-range `k` is a resolve diagnostic (static bounds check
     # at the call site); a non-literal `k` (no rung-1 witness) is only knowable
     # at runtime. `lines` raises `OwnerGuardError` for both, so there is
@@ -148,16 +145,26 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
 
 
 def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
-    """The instantiated `board:` entry the class-1 movement/region verbs read
-    (the `_lines` twin). Resolve's [[owner-guard]] rejects a board-only call in a
-    boardless game (BOARD_ONLY_CALL_FUNCS); this [[shadow-guard]] stands behind it
-    in the runtime's own channel, naming the missing `board:`, should such a
-    call ever reach here without a board."""
+    """The instantiated `board:` entry every board verb reads. Resolve's
+    [[owner-guard]]s refuse a board verb in a boardless game
+    (BOARD_ONLY_CALL_FUNCS) and on a board whose family does not declare what
+    the verb reads (`BOARD_VERB_NEEDS`, `resolve._BOARD_NEED_GATES`); this
+    [[shadow-guard]] stands behind both in the runtime's own channel, reading
+    the same table, should such a call ever reach here.
+
+    Held by: Derived and Pinned -- one table, `BOARD_VERB_NEEDS`, read here
+    and by the resolve rows, pinned total against BOARD_ONLY_CALL_FUNCS."""
     board = ctx.rs.board
     if board is None:
         raise ShadowGuardError(
             "resolve._check_board_call",
             f"{fn}() reads the `board:`, but the game declares no `board:`",
+        )
+    need = BOARD_VERB_NEEDS[fn]
+    if not board.answers(need):
+        raise ShadowGuardError(
+            "resolve._check_board_call",
+            f"{fn}() reads the board's {need}, but `board: {board.spelling}` declares none",
         )
     return board
 
@@ -218,6 +225,12 @@ def _far_row(ctx: Ctx, player: int) -> tuple[str, ...]:
     """The rank at the far edge of `player`'s frame (the reach-to-win goal)
     -- a Collection<Cell>."""
     return _board_of(ctx, "far_row").far_row(_seat(ctx, "far_row", player))
+
+
+def _neighbors(ctx: Ctx, cell: str) -> tuple[str, ...]:
+    """The cells the board's declared adjacency joins to `cell`, in board
+    order -- a Collection<Cell>."""
+    return _board_of(ctx, "neighbors").neighbors(cell)
 
 
 def _suit_of(value: Any) -> str:

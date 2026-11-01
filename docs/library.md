@@ -799,6 +799,13 @@ conventions:
   ```
   Used by breakthrough.
 
+- `morris_men` = nine men's morris's eighteen men: nine white, nine black,
+  all one kind. White is the first side, seat 0's. Same two-axis shape as
+  `xo_marks`.
+  ```text
+  { side: [white, black], kind: [man], copies: { white: 9, black: 9 } }
+  ```
+
 Each entry captures a set's *composition* only. Card points
 (`card_points { }`), ranking for play (`ranking:`), follow-suit
 semantics, and trump status (`trump:`) are all per-game declarations
@@ -808,10 +815,13 @@ on a deck; a piece set carries none of them.
 
 The spatial boards a game can name in its `board:` line (see
 [decisions.md](decisions.md), "Boards and cells"). A game names a
-**family** with integer arguments — `board: grid(3, 3)` — and the
-closed `BOARDS` registry instantiates it into a fixed set of cells and
-lines; unknown family, wrong arity, or out-of-bounds arguments are
-rejected at resolve.
+**family** with its integer arguments — `board: grid(3, 3)` — or a
+fixed family by its bare name — `board: morris9` — and the closed
+`BOARDS` registry instantiates it into a fixed set of cells and the
+topology the family declares over them: its lines, its adjacency, its
+movement frame. Unknown family, wrong arity, or out-of-bounds arguments
+are rejected at resolve, and so is a board verb on a family that does
+not declare what the verb reads.
 
 - `grid(width, height)` = a rectangular board, `width` files (`a`, `b`,
   … from the left) by `height` ranks (`1`, `2`, … from the bottom),
@@ -824,12 +834,42 @@ rejected at resolve.
   `ahead_right` (its `dir` domain); the per-player **frame** (the second
   seat's is the first's 180-degree rotation); and the **regions**
   `home(player)` (the back two ranks) and `far_row(player)` (the opposite
-  edge). Used by tic-tac-toe (placement only) and breakthrough (the full
+  edge). A grid declares no adjacency, so `neighbors` is refused on it.
+  Used by tic-tac-toe (placement only) and breakthrough (the full
   transfer set).
 
-A board mints two named-member domains: the position domain `cell`
-(its cells, on the declared-position substrate) and, for transfer, the
-move-parameter domain `dir` (its directions). See
+- `morris9` = the nine men's morris board: twenty-four points on three
+  concentric squares, taking no arguments. Points are named in the WMD
+  notation, the file letter from the left and the rank from the bottom,
+  ordered row-major from `a1`:
+  ```text
+  a1 d1 g1 b2 d2 f2 c3 d3 e3 a4 b4 c4 e4 f4 g4 c5 d5 e5 b6 d6 f6 a7 d7 g7
+  ```
+  Its declared **adjacency** joins each square's corners and side
+  midpoints around the square, and each side's midpoint to the next
+  square's (`neighbors(c)` reads it):
+  ```text
+  outer:  a1-d1 d1-g1 g1-g4 g4-g7 g7-d7 d7-a7 a7-a4 a4-a1
+  middle: b2-d2 d2-f2 f2-f4 f4-f6 f6-d6 d6-b6 b6-b4 b4-b2
+  inner:  c3-d3 d3-e3 e3-e4 e4-e5 e5-d5 d5-c5 c5-c4 c4-c3
+  spokes: d1-d2 d2-d3 g4-f4 f4-e4 d7-d6 d6-d5 a4-b4 b4-c4
+  ```
+  It answers `lines(3)` only: every straight run of three points along
+  the adjacency within one file or one rank, which is the sixteen mills,
+  each point in exactly two:
+  ```text
+  a1 d1 g1   b2 d2 f2   c3 d3 e3   a4 b4 c4   e4 f4 g4   c5 d5 e5
+  b6 d6 f6   a7 d7 g7   a1 a4 a7   b2 b4 b6   c3 c4 c5   d1 d2 d3
+  d5 d6 d7   e3 e4 e5   f2 f4 f6   g1 g4 g7
+  ```
+  It has no movement frame, so it mints no `dir` and answers none of
+  `neighbor`, `has_step`, `is_diagonal`, `home` and `far_row`; a move on
+  it names its destination (`to : cell`) and tests `to in
+  neighbors(from)`.
+
+A board mints the position domain `cell` (its cells, on the
+declared-position substrate) and, where its family has a movement
+frame, the direction domain `dir` (its directions). See
 [decisions.md](decisions.md), "Boards and cells".
 
 ## Built-in state
@@ -964,11 +1004,15 @@ and which one is the game's own choice:
   follows_lead(c, pile) else true` — the shape that also gives "void in the
   led class, anything goes". Used by Doppelkopf's `follow_ok`.
 - `lines(k) → Collection<Line>` — the board's straight lines of exactly `k`
-  cells: every run of `k` consecutive cells along a row, a column, or either
-  diagonal (decisions.md "Boards and cells"), for the `any line in lines(k)
-  where …` register. A resolve error in a game with no `board:`, and for a
-  literal `k` outside the board's span. Used by tic-tac-toe (`lines(3)`, the
-  eight winning lines).
+  cells: on a grid every run of `k` consecutive cells along a row, a column,
+  or either diagonal, on `morris9` the sixteen mills (decisions.md "Boards
+  and cells"), for the `any line in lines(k) where …` register. A resolve
+  error in a game with no `board:`, and for a literal `k` the board does not
+  declare. Used by tic-tac-toe (`lines(3)`, the eight winning lines).
+- `neighbors(c) → Collection<Cell>` — the cells the board's declared
+  adjacency joins to `c`, in board order, for the membership form `to in
+  neighbors(from)`. Answered by `morris9`; refused on a grid, which declares
+  no adjacency.
 - `neighbor(from, along, player) → Cell` — the cell one step along direction
   `along` in `player`'s frame. Total by contract: an off-board step is guarded
   by `has_step`, not returned (decisions.md "Boards and cells", transfer).
@@ -980,8 +1024,9 @@ and which one is the game's own choice:
   region).
 - `far_row(player) → Collection<Cell>` — the far edge of `player`'s frame (its
   reach-to-win goal).
-  These board helpers read the `board:` entry (a resolve error in a boardless
-  game, like `lines`). Used by breakthrough.
+  These board helpers read the board's movement frame (a resolve error
+  in a boardless game, like `lines`, and on a board with no frame, like
+  `morris9`). Used by breakthrough.
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are the game-local primitives below, reading `cardlang/runtime/cribbage.py` —

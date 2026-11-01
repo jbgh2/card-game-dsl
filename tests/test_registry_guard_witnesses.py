@@ -780,7 +780,6 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
         "len(_BLOCK_ENDS) == len(KINDS)",
         "wild is not None and (not phoenix or wild not in _RANK_OF_VAL)",
     ],
-    "stdlib/boards.py": ["set(_GRID_DIRECTION_OFFSETS) != set(dirs)"],
     # A `primitives { }` entry's collection element, checked against the
     # block's own allow-list on the way into `TCollection`. It validates a
     # value AGAINST the registry, so admitting a second element widens the

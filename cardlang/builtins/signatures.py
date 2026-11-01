@@ -64,6 +64,10 @@ CALL_SIGS: dict[str, Sig] = {
     "is_diagonal": Sig((TDir(),), TBoolean()),
     "home": Sig((TPlayer(),), TCollection(TCell())),
     "far_row": Sig((TPlayer(),), TCollection(TCell())),
+    # The cells a board's declared adjacency joins to a cell, in board order
+    # (decisions.md "Boards and cells") -- the `home` shape, so `to in
+    # neighbors(from)` and a quantifier narrowed by membership consume it.
+    "neighbors": Sig((TCell(),), TCollection(TCell())),
     "player_holding": Sig((TCard(),), TPlayer()),
     "team_of": Sig((TPlayer(),), TTeam()),
     # `suit_of` accepts a card or a single-card zone (polymorphic arg -> TAny)

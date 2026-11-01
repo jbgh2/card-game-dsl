@@ -2016,7 +2016,11 @@ Where a game needs a value that reads like "nothing happens" but is a real
 domain choice — Hearts' no-pass hand — it gets its *own* enum value
 (`SeatDirection = {left, right, across, hold}`), never `none`. This keeps `none`
 unambiguously "no value": a `Player` that is `none` is unset, not the string
-`"none"`.
+`"none"`. An optional is accepted where its base type is wanted, since the
+language has no flow narrowing, so a `Player?` known to be set reads as a
+`Player`; a `none` that reaches a Builtin or Primitive argument whose type
+holds no `none` (`has_step(c, d, p)` with `d : dir?` unset) is refused at
+play, naming the call and the type it wanted.
 
 `true` and `false` are the two boolean literals, the values a `Boolean` field
 takes (`eliminated[player] : Boolean = false`, `eliminated[p] := true`). Like
@@ -3432,15 +3436,17 @@ to its witness; see issue #118.
 A game with a spatial board declares it with a `board: <family>(<args>)`
 clause: it selects a family from the closed `BOARDS` registry
 ([library.md](library.md), "Built-in boards") and gives its integer
-arguments.
+arguments. A family that takes none is named bare.
 
 ```text
 board: grid(3, 3)
+board: morris9
 ```
 
-The `grid` family builds a rectangular board; unknown family, wrong
-arity, or out-of-bounds arguments are resolve diagnostics (the registry
-declares each family's arity and bounds). A `board:` clause **requires
+The `grid` family builds a rectangular board, and `morris9` the fixed
+twenty-four-point nine men's morris board; unknown family, wrong arity
+(`morris9(3)`, a bare `grid`), or out-of-bounds arguments are resolve
+diagnostics (the registry declares each family's arity and bounds). A `board:` clause **requires
 `pieces:`** — a board holds pieces, not cards — so `board:` in a card
 game is rejected, and the board-plus-`cards:` combination waits on a
 witnessed need.
@@ -3485,11 +3491,12 @@ enumerates its range.
 
 **The cell/line query register.** The bare quantifier forms range a
 binder over any declared position domain ("Position domains and
-positional zones"); the board adds two collection forms and the
+positional zones") and over the board's direction domain (below); the
+board adds two collection forms and the
 `lines(k)` call that feeds them. A bare form's noun is the domain name,
 validated against the game's declared domains (a board's `cell`, an
-integer `positions { }` name), with `any` taking the singular noun and
-`all`/`number of` the plural:
+integer `positions { }` name) and the board's direction domain `dir`,
+with `any` taking the singular noun and `all`/`number of` the plural:
 
 ```text
 any cell where square[cell] is empty
@@ -3504,11 +3511,15 @@ iterate it: `any line in <lines> where <pred>` walks a collection of
 lines (binder `line`, type `TLine`), and `all cells in <line> where
 <pred>` walks the cells of one line (binder `cell`, type `TCell`).
 `lines(k)` is the native call the board's declared length-`k` lines are
-read through — every straight run of `k` cells along a row, column, or
-diagonal — returning a collection of `TLine`, each an ordered tuple of
-cells; `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines. A
-literal `k` outside the board's span is a resolve error; `lines(…)` in a
-boardless game is rejected naming `board:`.
+read through — on a grid every straight run of `k` cells along a row,
+column, or diagonal, on a family with declared adjacency every straight
+run of `k` points along it within one file or rank — returning a
+collection of `TLine`, each an ordered tuple of cells; `grid(3, 3)`'s
+`lines(3)` is the eight tic-tac-toe lines, and `morris9`'s the sixteen
+mills. A family declares the lengths it answers (a grid every `k` up to
+its longer side, `morris9` only `3`), and a literal `k` it does not
+declare is a resolve error; `lines(…)` in a boardless game is rejected
+naming `board:`.
 
 ```text
 any line in lines(3) where all cells in line where square[cell] is not empty
@@ -3531,25 +3542,41 @@ are the seat-relative forward directions `ahead`, `ahead_left`,
 move_type step(from : cell, along : dir) { when: … effect { … } }
 ```
 
-`dir` is a **move-parameter domain only** — a separate source from the
-`positions { }` union, so it never reaches the zone-index, quantifier, or
-`for each` surfaces (a direction is not a position). It types as `TDir`,
-distinct from `TCell`: `along is a1` (direction against cell), `along is
-3`, `along < along2`, and `along[…]` are all type errors, and a direction
-member is not expression-nameable — naming `ahead` in an expression is an
-unknown name, exactly as a cell name is (the meaning of a direction is
-read through the verbs below, never a literal). `step(from : cell, along
-: dir)` enumerates one action per (cell, direction) pair, in member
-order.
+`dir` is a separate source from the `positions { }` union. A direction
+is not a position, so `dir` never reaches the zone index or `for each`;
+it is a closed domain, so the bare quantifier family and the declared-type
+positions admit it, typed `TDir`: a move parameter, `any dir where`,
+`all dirs where` and `number of dirs where`, and the type of a function
+parameter or an outcome payload. A game with no `board:` mints no `dir`,
+and neither does a board whose family has no movement frame (`morris9`);
+naming it at any of those positions is refused naming `board:`, or the
+family and how a move on its board names its destination. Beside a
+frameless board, `positions { dir : ... }` is an ordinary declared
+position domain; beside a grid it collides with the minted one.
+`TDir` is distinct from `TCell`: `along is a1` (direction against cell),
+`along is 3`, `along < along2`, and `along[…]` are all type errors, and a
+direction member is not expression-nameable — naming `ahead` in an
+expression is an unknown name, exactly as a cell name is (the meaning of
+a direction is read through the verbs below, never a literal).
+`step(from : cell, along : dir)` enumerates one action per (cell,
+direction) pair, in member order, and a bare quantifier over `dir` reads
+the same members in the same order.
+
+```text
+function can_jump(p : Player) =
+  any cell where mine(cell, p) and (any dir where jump_ok(cell, dir, p))
+```
 
 **Per-player frames.** A grid's directions are seat-relative: `ahead` is
 one player's forward and the other's backward, because the second seat's
 frame is the 180-degree rotation of the first's — one shared board, a
 declared per-player transform, never a second board. The transform is
 folded into the class-1 verbs, which take the acting player and resolve
-the direction in that player's frame. Five closed Builtin verbs read the
-board entry (rejected in a boardless game naming `board:`, the `lines(k)`
-Shadow Guards):
+the direction in that player's frame. The closed Builtin verbs below read
+the board's movement frame (`BOARD_VERB_NEEDS` in
+`cardlang/builtins/functions.py` maps each board verb to the part it
+reads), rejected in a boardless game naming `board:`, the `lines(k)`
+Shadow Guards, and on a board with no frame naming its family:
 
 - `neighbor(from, along, player)` — the cell one step along `along` in
   `player`'s frame, a `TCell`. It is **total**: an off-board step is a
@@ -3602,6 +3629,46 @@ zone-type rows, double-indexed families, `roll` chance, probes,
 `reachable`, in-file boards — is guarded per rung of the board-topology
 ladder ([design-notes/board-topology.md](design-notes/board-topology.md);
 issue #124).
+
+### Declared adjacency, and which family answers which verb
+
+A family whose points are not a grid declares its topology as data on
+its registry entry rather than as geometry. `board: morris9` mints `cell`
+with the twenty-four points of the mill board, named in the WMD notation
+and ordered row-major from `a1`; its declared adjacency joins three
+concentric squares at their side midpoints ([library.md](library.md),
+"Built-in boards"). `neighbors(c)` returns the points joined to `c`, in
+board order, as a `Collection<Cell>` — the `home(p)` shape — so the
+membership form and a quantifier narrowed by membership consume it:
+
+```text
+move_type slide(from : cell, to : cell) {
+  when: (point[from] is not empty) and (point[to] is empty) and (to in neighbors(from))
+  effect { move one piece from point[from] to point[to] }
+}
+function can_slide_from(c : cell) = any cell where (cell in neighbors(c)) and (point[cell] is empty)
+```
+
+The collection form `any cell in neighbors(c) where …` stays refused:
+`in` iterates a single line, and `neighbors(c)` is a collection of cells.
+
+**A board verb is answered by the families that declare what it reads.**
+Each verb reads one part of its board's entry: `lines` the line lengths
+the family declares, `neighbors` its declared adjacency, and `neighbor`,
+`has_step`, `is_diagonal`, `home` and `far_row` its movement frame — as
+does the direction domain `dir`. A family declares only the parts it has:
+
+| family    | `lines(k)`               | `neighbors` | the frame verbs and `dir` |
+|-----------|--------------------------|-------------|---------------------------|
+| `grid`    | `k` up to its longer side | refused     | answered                  |
+| `morris9` | `k = 3`, the mills        | answered    | refused                   |
+
+A call on a family that does not declare its verb's part is refused at
+the call, naming the board and the verbs it answers; reached through a
+family library, it is refused on the game's `uses` line. The mills are
+never a second list beside the adjacency: an adjacency family's lines are
+the straight runs along its edges, so a line off the edges cannot be
+written.
 
 ## Game result: `winner:` and `loser:`
 

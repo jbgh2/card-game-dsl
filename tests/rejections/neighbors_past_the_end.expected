@@ -1,0 +1,1 @@
+neighbors_past_the_end.cardlang:27:31: error: position 9 is past the end: this collection holds 4, at positions 0 .. 3

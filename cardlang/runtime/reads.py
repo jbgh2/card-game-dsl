@@ -53,6 +53,9 @@ Contract:
                same frame walk as a game-level one — there is no scope arm
                here — and the one miss a scope could explain names the phase
                and resolve's containment check as its Owner (`_scoped_state`).
+               And every native call's arguments are frozen once, and a
+               `none` at a slot whose type holds none is refused as an
+               `OwnerGuardError` naming the call (`coerce_args`).
   illegal after it
                direct name-keyed `RuntimeState`/`ZoneStore` access
                (`rs.get`/`rs.set`/`zones.single`/`zones.instance`/
@@ -78,11 +81,11 @@ from types import MappingProxyType
 from typing import Any, cast
 
 from cardlang.domains import Role, role_of
-from cardlang.runtime.errors import ShadowGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import RuntimeState, Zone, elements
 from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import identity_to_all
-from cardlang.types import TAny, TCollection
+from cardlang.types import TAny, TCell, TCollection, TDir, TEnum, TOptional, Type
 
 # Atomic leaves: immutable, never descended. `str`/`bytes` are sequences (of
 # chars/ints) but must NOT be shredded; `bytearray` is deliberately ABSENT —
@@ -90,9 +93,31 @@ from cardlang.types import TAny, TCollection
 _ATOMIC: tuple[type, ...] = (str, bytes, bool, int, float, type(None), Enum)
 
 
-def coerce_args(sig: Any, args: list[Any]) -> list[Any]:
+def _declared_spelling(t: Type) -> str:
+    """How a designer spells the type of a native call's slot."""
+    if isinstance(t, TCell):
+        return "cell"
+    if isinstance(t, TDir):
+        return "dir"
+    if isinstance(t, TEnum):
+        return t.name
+    if isinstance(t, TCollection):
+        return f"Collection<{_declared_spelling(t.element)}>"
+    return type(t).__name__.removeprefix("T")
+
+
+def coerce_args(sig: Any, args: list[Any], name: str) -> list[Any]:
     """Freeze the argument list of one native call, before it crosses into
-    Builtin or Primitive code.
+    Builtin or Primitive code, refusing a `none` at a slot whose type holds
+    none.
+
+    The refusal is this site's because every native call crosses it, and
+    `types.coercible` admits an optional where its base is wanted by design
+    (the language has no flow narrowing, so a `d : dir?` known to be set reads
+    as a `dir`): a `none` therefore reaches a slot typed `cell`, `dir`,
+    `Player` or any other non-optional, non-top type at play, and the
+    designer is told which call met it, in the runtime's typed channel, rather
+    than the verb failing inside on a value it was never written for.
 
     A collection-typed expression evaluates to either a Zone or a plain list
     (the zone facet is not part of assignability, so `gin_valid_meld(hand[p])`
@@ -121,7 +146,13 @@ def coerce_args(sig: Any, args: list[Any]) -> list[Any]:
     path, so coercing per half would double it.
     """
     coerced: list[Any] = []
-    for p, a in zip(sig.params, args):
+    for slot, (p, a) in enumerate(zip(sig.params, args), start=1):
+        if a is None and not isinstance(p, (TAny, TOptional)):
+            raise OwnerGuardError(
+                f"`{name}` was given none where it needs a `{_declared_spelling(p)}` "
+                f"(argument {slot}): an optional value is none here -- test it "
+                f"with `is none` before passing it"
+            )
         if isinstance(p, TCollection):
             coerced.append(deep_freeze(elements(a)))
         elif isinstance(p, TAny):

@@ -27,7 +27,9 @@ domain:          the Builtin members of each clause gate, and the node members:
                  clause and every climbing query in a round a move type's
                  effect holds (each against the content flavor too, since a
                  piece game declares none of the clauses that decide them),
-                 and a literal position into every board region.
+                 and a literal position into every board region (a cell's
+                 region, `neighbors(c)`, bounded by the board's largest
+                 degree, its cell a `for each cell` binder).
                  Each member is crossed with {clause met, clause unmet} and
                  {written in the game, reached through a library}; a
                  clause-free member is run met, as the control. A climbing
@@ -48,7 +50,8 @@ domain:          the Builtin members of each clause gate, and the node members:
                  its `ranking:` line deleted. Members no library reaches are
                  each pinned by the refusal that bars them in the library's own
                  file: a gated Primitive call, a round in a procedure body, a
-                 board verb taking a cell or a direction. Deck capacity is
+                 board verb taking a direction (a verb taking only a cell is
+                 reached through a `for each cell` binder). Deck capacity is
                  judged at the phase that runs a library's deal, in the game's
                  own file. Members held elsewhere are refused in the library
                  file, each cell marked with its record: a card-axis role in a
@@ -60,6 +63,8 @@ registry:        gate members: `typecheck.RANKING_GATED_FUNCS`,
                  `RANKING_GATED_WINNERS`;
                  `builtins.functions.TRICK_ORDER_GATED_FUNCS`,
                  `TRICK_ORDER_EXCLUDED_FUNCS`, `BOARD_ONLY_CALL_FUNCS`,
+                 `BOARD_VERB_NEEDS` (the board-need rows, one per
+                 `builtins.functions.BOARD_NEEDS` member),
                  `DECK_ONLY_CALL_FUNCS`, `TRICK_WINNER_NAMES`,
                  `TRICK_ORDER_GATED_WINNERS`, `TRICK_ORDER_EXCLUDED_WINNERS`,
                  `PRIMITIVE_CLIMB_LEADS`, `PRIMITIVE_CLIMB_FOLLOWS`; the Trick
@@ -88,7 +93,10 @@ does not prove:  that a member outside the Trick Order twin set has no Trick
                  home is the construct test, and a gate in the type layer, or
                  the Trick Order partition's two branches, reads the clause
                  itself, so the clause half of a row agrees with its gate only
-                 as far as the cells run both channels.
+                 as far as the cells run both channels. Nor that a
+                 registered family lacks lines: every one declares them, so
+                 the `board_lines` row's unmet cells run on a test-only
+                 lineless board (`_PROBE_BOARD`).
 """
 
 from __future__ import annotations
@@ -105,6 +113,7 @@ from cardlang.board_domains import BOARD_DOMAIN
 from cardlang.kernel_contracts import KERNEL_CONTRACT_NAMES
 from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
+    BOARD_VERB_NEEDS,
     BUILTIN_CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
     PRIMITIVE_CLIMB_ENGINES,
@@ -129,6 +138,7 @@ from cardlang.domains import PARAM_DOMAINS as _FIXED_PARAM_DOMAINS
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import parse_library, parse_text
 from cardlang.pipeline import check_dsl
+from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, BoardFamily
 from cardlang.primitives_block import walled_namespace_of
 from cardlang.typecheck import (
     RANKING_GATED_FUNCS,
@@ -165,6 +175,9 @@ class Clauses:
     pieces: bool = False  # `pieces:` rather than `cards:`
     board: bool = False
     board_size: int = 3  # a square grid; the probe asks for `lines(3)`
+    # The board family: a square `grid` of `board_size`, or the fixed mill
+    # board `morris9`, which has adjacency and no movement frame.
+    board_family: str = "grid"
     players: int = 4
     teams: bool = True
     ranking: bool = True
@@ -188,6 +201,37 @@ def _teams_clause(players: int) -> str:
     return "teams: [" + ", ".join(f"[{s}]" for s in range(players)) + "]"
 
 
+def _board_line(c: Clauses) -> str:
+    if not c.board:
+        return ""
+    if c.board_family != "grid":
+        return f"  board: {c.board_family}"
+    return f"  board: grid({c.board_size}, {c.board_size})"
+
+
+# A board no registered family builds, registered for a cell by
+# `_install_probe_board`: three points in a row, joined by two edges, with no
+# lines and no frame. It is the board that lacks lines, which every registered
+# family declares, and the board whose cells' regions are shorter than the
+# mill board's.
+_PROBE_BOARD = "probe_path"
+
+
+def _probe_path(args: tuple[int, ...]) -> BoardEntry:
+    return BoardEntry(
+        family=_PROBE_BOARD,
+        args=args,
+        cells=("a1", "b1", "c1"),
+        edges=frozenset({frozenset({"a1", "b1"}), frozenset({"b1", "c1"})}),
+    )
+
+
+def _install_probe_board(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(
+        BOARD_FAMILIES, _PROBE_BOARD, BoardFamily(arity=0, lo=0, hi=0, build=_probe_path)
+    )
+
+
 def _game_text(
     clauses: Clauses, *, uses: bool, game_fn: str, tag: str, statement: str = ""
 ) -> str:
@@ -206,7 +250,7 @@ def _game_text(
         _teams_clause(c.players) if c.teams else "",
         "  max_length: 1000",
         f"  {content}",
-        f"  board: grid({c.board_size}, {c.board_size})" if c.board else "",
+        _board_line(c),
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2" if c.ranking else "",
         "  card_points { A: 1 else: 0 }" if c.card_points else "",
         "  suit ranking: spades hearts diamonds clubs" if c.suit_ranking else "",
@@ -238,7 +282,9 @@ def _game_text(
 def _arg(param: Type) -> tuple[str, str, bool]:
     """(declaration, argument, a library can spell it) for one parameter of a
     probe call. A family library declares no positions, so it has no spelling
-    for a cell or a direction (`resolve._library_slot_names`)."""
+    for a cell's or a direction's type (`resolve._library_slot_names`); a
+    cell it reaches through a `for each cell` binder (`_function`), a
+    direction not at all."""
     if isinstance(param, TCard):
         return "c : Card", "c", True
     if isinstance(param, TPlayer):
@@ -255,7 +301,7 @@ def _arg(param: Type) -> tuple[str, str, bool]:
     if isinstance(param, (TAny, TCollection)):
         return "", "pile", True
     if isinstance(param, TCell):
-        return "x : cell", "x", False
+        return _CELL_DECL, "x", True
     if isinstance(param, TDir):
         return "d : dir", "d", False
     raise AssertionError(f"no probe argument for parameter type {param!r}")
@@ -284,10 +330,18 @@ def _probe(member: str) -> Probe:
     )
 
 
+_CELL_DECL = "x : cell"
+
+
 def _function(probe: Probe) -> str:
     """The definition holding the probe call. A direction is a move parameter's
     domain and no function's, so a call needing one is written in an offered
-    move type instead, with the acting seat as its player."""
+    move type instead, with the acting seat as its player. A call needing
+    only a cell is written in a procedure, its cell the binder of a `for each
+    cell`, the one spelling of a cell a library has."""
+    if probe.library_spellable and _CELL_DECL in probe.params.split(", "):
+        assert probe.params == _CELL_DECL, f"{probe.call} needs more than a cell"
+        return f"procedure probe_fn() {{ for each cell x: let y = {probe.call} }}"
     if probe.library_spellable:
         return f"function probe_fn({probe.params}) = {probe.call}"
     params = ", ".join(p for p in probe.params.split(", ") if not p.startswith("p :"))
@@ -330,12 +384,30 @@ GATES: tuple[Gate, ...] = (
     # The one board verb whose ARGUMENT is judged against the board's size
     # (`resolve._check_board_call`): a literal `k` past the board's span.
     Gate("board_span", frozenset({"lines"}), "grid(2, 2)"),
+    # What a board family must declare for each board verb to read
+    # (`builtins.functions.BOARD_VERB_NEEDS`), each authored here from the
+    # family-by-verb matrix: a movement frame, a declared adjacency, lines.
+    Gate(
+        "board_frame",
+        frozenset({"far_row", "has_step", "home", "is_diagonal", "neighbor"}),
+        "board: morris9",
+    ),
+    Gate("board_edges", frozenset({"neighbors"}), "board: grid"),
+    Gate("board_lines", frozenset({"lines"}), "board:"),
     Gate("cards", DECK_ONLY_CALL_FUNCS, "piece"),
 )
 
+# The mill board: adjacency and lines of three, no movement frame.
+_MORRIS = replace(_BOARD, board_family="morris9")
+# The test-only lineless path (`_PROBE_BOARD`).
+_PROBE = replace(_BOARD, board_family=_PROBE_BOARD)
+
 
 def _home(member: str) -> Clauses:
-    """A game every gate on `member` is met in."""
+    """A game every gate on `member` is met in: the mill board for a verb
+    reading declared adjacency, which the grid lacks."""
+    if BOARD_VERB_NEEDS.get(member) == "edges":
+        return _MORRIS
     if member in BOARD_ONLY_CALL_FUNCS:
         return _BOARD
     return replace(
@@ -399,6 +471,12 @@ def _unmet(gate: Gate, member: str) -> Clauses:
             return replace(home, board=False)
         case "board_span":
             return replace(home, board_size=2)
+        case "board_frame":
+            return _MORRIS
+        case "board_edges":
+            return _BOARD
+        case "board_lines":
+            return _PROBE
         case "two_seats":
             return replace(home, players=3)
         case "cards":
@@ -414,13 +492,16 @@ def _check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[str, str | None]:
     """Check one cell; return (game text, every rendered diagnostic or None)."""
+    _install_probe_board(monkeypatch)
+    definition = _function(probe)
+    statement = "run probe_fn()" if definition.startswith("procedure") else ""
     if through_library:
         library = parse_library(_library_text(probe), _LIB_FILE)
         monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
         monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
-        text = _game_text(clauses, uses=True, game_fn="", tag=tag)
+        text = _game_text(clauses, uses=True, game_fn="", tag=tag, statement=statement)
     else:
-        text = _game_text(clauses, uses=False, game_fn=_function(probe), tag=tag)
+        text = _game_text(clauses, uses=False, game_fn=definition, tag=tag, statement=statement)
     try:
         check_dsl(text, _GAME_FILE)
     except DiagnosticError as exc:
@@ -489,7 +570,9 @@ def test_clause_gate_cell(cell: Cell, monkeypatch: pytest.MonkeyPatch) -> None:
         return
     assert rendered is not None, "accepted a game that does not meet the gate"
     if not cell.through_library:
-        where = f"{_GAME_FILE}:{_line_of(text, ' probe_fn(')}:"
+        # The definition's line: a procedure is also named by its `run`.
+        needle = "procedure probe_fn(" if "procedure probe_fn(" in text else " probe_fn("
+        where = f"{_GAME_FILE}:{_line_of(text, needle)}:"
         hits = [
             line for line in rendered.splitlines()
             if line.startswith(where) and cell.member in line and cell.gate.clause in line
@@ -1077,7 +1160,7 @@ def _node_game_text(
         f"  {_teams_clause(c.players)}" if c.teams else "",
         "  max_length: 1000",
         f"  {content}",
-        f"  board: grid({c.board_size}, {c.board_size})" if c.board else "",
+        _board_line(c),
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2" if c.ranking else "",
         f"  uses {_LIB}" if through_library else "",
         f"  zones {{ {zones} }}",
@@ -1336,6 +1419,20 @@ def _region_members() -> list[NodeMember]:
     on one too small."""
     members: list[NodeMember] = []
     for region in sorted(resolve_module._REGION_CALL_FUNCS):
+        if isinstance(CALL_SIGS[region].params[0], TCell):
+            # A cell's region holds at most the board's largest degree: four
+            # on the mill board, two on the test-only path. A library reaches
+            # a cell through a `for each cell` binder.
+            members.append(
+                NodeMember(
+                    "board_position", region,
+                    f"procedure probe_fn() {{ for each cell x: let y = {region}(x)[3] }}",
+                    f"{region}(...)[3]", f"board: {_PROBE_BOARD}",
+                    NodeGame(_MORRIS), NodeGame(_PROBE),
+                    game_word="past the end",
+                )
+            )
+            continue
         seat = isinstance(CALL_SIGS[region].params[0], TPlayer)
         members.append(
             NodeMember(
@@ -1436,6 +1533,7 @@ def _check_node(
     member: NodeMember, game: NodeGame, *, through_library: bool, tag: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[str, str | None]:
+    _install_probe_board(monkeypatch)
     if through_library:
         library = parse_library(_node_library_text(member), _LIB_FILE)
         monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
@@ -1569,6 +1667,7 @@ def test_each_node_gate_asks_its_rows_test(
     """red under: restating the team range test inline in the `ForEach` /
     `Quantifier` team arm of `resolve._validate_refs` (`role_of(nd.role) is
     Role.TEAM and not game.teams`) (executed 2026-10-14)."""
+    _install_probe_board(monkeypatch)
     text = _node_game_text(
         member, member.unmet, through_library=False, tag=f"Home{_node_tag(member.id)}"
     )
@@ -1931,6 +2030,7 @@ def test_a_member_written_twice_is_named_in_both_definitions(
     `resolve._check_library_clause_gates` (the Builtin cells); and claiming a
     node row's members by what the refusal calls them rather than by the
     node itself (the node cells) (both executed 2026-10-14)."""
+    _install_probe_board(monkeypatch)
     _with_libraries(monkeypatch, {_LIB: library})
     text = _game_text(clauses, uses=True, game_fn="", tag="Twice")
     rendered = _rendered(text)
