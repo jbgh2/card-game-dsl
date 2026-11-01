@@ -90,6 +90,25 @@ def test_morris_men_composition() -> None:
     assert men[0].suit == "white"
 
 
+def test_hex_stones_composition() -> None:
+    """Hex: one stone per cell of the 11x11 board, split by turn order --
+    sixty-one black, sixty white, one kind. Black is the first side, seat
+    0's, as the OpenSpiel oracle's is.
+
+    red under: changing the black and white copy counts in
+    `COMPONENT_SETS["hex_stones"]` to 62 and 59 (the size still matches
+    `_DECK_SIZE`, so only this pin can see it)."""
+    cs = COMPONENT_SETS["hex_stones"]
+    assert cs.flavor == "piece"
+    assert "hex_stones" not in DECKS
+    stones = build_deck("hex_stones")
+    assert len(stones) == 121
+    assert sum(1 for s in stones if s.suit == "black") == 61
+    assert sum(1 for s in stones if s.suit == "white") == 60
+    assert all(s.rank == "stone" for s in stones)
+    assert stones[0].suit == "black"
+
+
 def test_build_deck_preserves_registry_literal_order() -> None:
     """Order is the registry-literal order by construction: the suits x
     ranks cross product for a uniform deck (sampled on standard52's first
