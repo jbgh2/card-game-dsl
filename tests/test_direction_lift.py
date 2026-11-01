@@ -15,16 +15,22 @@ witness:
   * GRID A -- the quantifier kind (`n.DOMAIN_QUERY_KIND_PHRASE`) crossed with
     the expression host. Each host's template is pinned to the AST field the
     query lands in, so two hosts can never collapse into one position.
-  * GRID R -- the runtime value of each kind, the expected fold computed from
-    the board entry's own geometry (`BoardEntry.directions`, `is_diagonal`,
-    `has_step`), read in a function body, a state default and a nested
-    cell-and-direction scan.
+  * GRID R -- on every board family `BOARD_FAMILIES` registers: the order the
+    bare quantifier visits the directions, against the move parameter's
+    enumeration; the runtime value of each kind, the expected fold computed
+    from the board entry's own geometry (`BoardEntry.directions`,
+    `is_diagonal`, `has_step`), read in a function body, a state default and
+    a nested cell-and-direction scan.
   * GRID C -- the binder at every argument slot of every Builtin whose
     signature takes a `TDir` (`CALL_SIGS`): admitted at the `TDir` slot,
     refused at every other slot, and a cell refused at the `TDir` slot.
   * GRID T -- the declared type at a function parameter and an outcome
     payload types `TDir`, never the permissive top: each is used where only a
     direction is legal, and misused where only a direction is wrong.
+  * GRID N -- a `none` at every Builtin slot whose type holds no `none`
+    (`CALL_SIGS`) is a typed refusal naming the call; every board-domain slot
+    is executed through an optional `cell?` / `dir?` function parameter, both
+    set and `none`.
   * The misuse probes -- the plausible wrong sentences, each refused loud.
   * The witness -- a draughts-shaped probe over breakthrough's board whose
     mandatory capture is the conditional offer over `can_jump`, a function
@@ -37,54 +43,74 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 property:   in a game whose board mints `dir`, every bare quantifier kind over
             `dir` checks in every expression host, binds a `TDir` that every
             `TDir`-consuming Builtin slot admits and every other slot refuses,
-            and evaluates over the board entry's direction members; `dir` at
-            a function parameter or outcome payload types `TDir`; and a
+            and evaluates over the board entry's direction members in the
+            move parameter's order; `dir` at a function parameter or outcome
+            payload types `TDir`; a `none` reaching a Builtin slot whose type
+            holds none is refused at play in the typed channel; and a
             function both a move type's When Clause and a turn-body scan call
             gives the two one answer, so the scan's verdict is the offer's.
 domain:     {kind: `n.DOMAIN_QUERY_KIND_PHRASE`} x {host: function body,
             When Clause, phase predicate, `until`, the result clause's
             selection, effect condition, state default} (GRID A), each host
-            pinned to its AST field; {kind} x {reader: function body, state
-            default} plus the nested cell-and-direction scan (GRID R);
-            {Builtin with a `TDir` parameter in `CALL_SIGS`} x {argument
-            slot} (GRID C); {function parameter, outcome payload} x {use that
-            only a direction admits, misuse that only a direction refuses}
-            (GRID T). Rule clauses sit outside the host axis by construction:
-            a rule binds at a trick round's card decision, and a board game
-            holds pieces, never a trick round. A frame-free scan checks at any
-            seat count. Library text names no board-minted domain, so a
-            library's `dir` -- a quantifier noun, a function parameter, a
-            `requires` row -- is refused in the library's file, as its `cell`
-            is. A `primitives { }` entry, a procedure parameter, a state type
-            and an optional move parameter keep their own closed domains,
-            which hold no `dir`. The noun's spelling, the boardless and
-            invalid-board cells, and the use-positions that stay refused are
-            tests/test_direction_domain.py's GRID 2 and GRID 3.
-registry:   kinds: cardlang/ast/nodes.py::DOMAIN_QUERY_KIND_PHRASE; Builtin
+            pinned to its AST field; {board family: `BOARD_FAMILIES`} x
+            ({member order} + {kind} x {reader: function body, state default}
+            + the nested cell-and-direction scan) (GRID R); {Builtin with a
+            `TDir` parameter in `CALL_SIGS`} x {argument slot} (GRID C);
+            {function parameter, outcome payload} x {use that only a direction
+            admits, misuse that only a direction refuses} (GRID T); {every
+            `CALL_SIGS` slot typed neither the top nor an optional} x {none},
+            and its board-domain slots x {set, none} end to end (GRID N). Rule
+            clauses sit outside the host axis by construction: a rule binds
+            at a trick round's card decision, and a board game holds pieces,
+            never a trick round. A frame-free scan checks at any seat count.
+            Library text names no board-minted domain, so a library's `dir`
+            -- a quantifier noun, a function parameter, a `requires` row -- is
+            refused in the library's file, as its `cell` is. A `primitives { }`
+            entry, a procedure parameter, a state type and an optional move
+            parameter keep their own closed domains, which hold no `dir`. The
+            noun's spelling, the boardless and invalid-board cells, and the
+            use-positions that stay refused are tests/test_direction_domain.py's
+            GRID 2 and GRID 3; the name `dir` at every declared-type position
+            is tests/test_type_name_positions.py's board variant.
+registry:   kinds: cardlang/ast/nodes.py::DOMAIN_QUERY_KIND_PHRASE; board
+            families: cardlang/stdlib/boards.py::BOARD_FAMILIES; Builtin
             slots: cardlang/builtins/signatures.py::CALL_SIGS; direction
             members and geometry: cardlang/stdlib/boards.py::BoardEntry;
             the minted name: cardlang/board_domains.py::DIRECTION_DOMAIN;
             the use-position grid: tests/test_direction_domain.py; the
+            declared-type positions: tests/test_type_name_positions.py; the
             primitive entry's refusal:
             tests/test_primitives_block.py::test_an_unspellable_type_name_is_refused.
 held by:    Derived and Pinned. The admission is one Owner Guard over one
-            gate, `resolve._minted_directions`, which the move parameter,
-            the bare quantifier and the declared type all read, so the
-            three positions cannot disagree on whether a board minted `dir`;
-            the binder's type and
-            the evaluator's members each read the one direction source behind
-            it, and each raises as a Shadow Guard on a noun in neither source.
-            The noun is a string resolved against a per-game source, which no
-            union the type checker sees can hold.
+            gate, `resolve._minted_directions`, which every position admitting
+            `dir` reads, so no two of them can disagree on whether a board
+            minted it; the binder's type and the evaluator's members each read
+            the one direction source behind it, and each raises as a Shadow
+            Guard on a noun in neither source. The noun is a string resolved
+            against a per-game source, which no union the type checker sees
+            can hold. The `none` refusal stands at the one site every native
+            call's arguments cross, `runtime/reads.coerce_args`; it is a
+            runtime refusal because an optional is admitted where its base is
+            wanted by design (`types.coercible`: the language has no flow
+            narrowing), so the case is reachable at play.
 does not prove:  that the host axis is every expression position a
             quantifier can occupy. The hosts are the positions a designer
             writes a board predicate in, authored rather than derived from
             the AST's `Expr` fields; what carries the rest is that resolve
             validates every `DomainQuery` in one walk of the whole game and
             the type checker types every one in one arm, so a host outside
-            this grid reaches the same two sites. And the witness's
-            agreement is measured over the seeds it plays, not proven for
-            every line of the probe.
+            this grid reaches the same two sites. That the members come from
+            the right board: while `grid` is the only family, a member list
+            fixed to the grid's three names agrees with every board the
+            registry can build, so the order cell cannot tell a member list
+            read from this game's board from one read from nowhere; the
+            second family is that cell's witness. That a direction payload
+            carries a direction at play: GRID T's payload cells check and are
+            never run, because no expression a phase body can write produces a
+            `TDir`; the first unit that produces one (the draughts rung, issue
+            #983, or the cell-typed state of issue #980) is its witness. And
+            the witness's agreement is measured over the seeds it plays, not
+            proven for every line of the probe.
 
 red under (witness, game): adding `and (from in home(actor))` to the probe's
 `jump` When Clause makes `jump` stricter than `can_jump`, and the playout ends
@@ -715,27 +741,26 @@ def test_the_none_slot_axis_is_non_empty() -> None:
     assert _NONE_SLOTS
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason="the none refusal is not built yet")
 @pytest.mark.parametrize(("name", "slot"), _NONE_SLOTS, ids=[f"{n_}-{i}" for n_, i in _NONE_SLOTS])
 def test_a_none_at_a_builtin_slot_is_a_typed_refusal(name: str, slot: int) -> None:
     """The one dispatch every Builtin call passes refuses a `none` at a slot
     whose type holds none, in the runtime's typed channel, naming the Builtin
-    and the type it wanted -- never a raw Python error inside the verb."""
+    and the type it wanted -- never a raw Python error inside the verb.
+
+    Red under: the `none` refusal removed from `reads.coerce_args`."""
     game, _ = _checked_board_expr("any cell where true")
     ctx = _board_ctx(game, {})
     ctx.rs.direction_domains = dict(directions_of(game))
     ctx.rs.teams = (0, 1)
-    args: list[Any] = [object() for _ in CALL_SIGS[name].params]
+    args: list[Any] = [0 for _ in CALL_SIGS[name].params]
     args[slot] = None
     outcome = _none_outcome(lambda: native_call(name, args, ctx))
     assert isinstance(outcome, OwnerGuardError), repr(outcome)
-    want = CALL_SIGS[name].params[slot]
-    assert f"`{name}` {NONE_REFUSAL} a `{_declared_spelling(want)}`" in str(outcome), str(outcome)
-
-
-def _declared_spelling(t: Type) -> str:
-    # The spelling a designer declares the slot's type with.
-    return {TCell: "cell", TDir: DIRECTION_DOMAIN}.get(type(t), _type_name(t))
+    assert f"`{name}` {NONE_REFUSAL}" in str(outcome), str(outcome)
+    # A board-domain slot names the type as the designer declares it.
+    spelled = {TCell: "cell", TDir: DIRECTION_DOMAIN}.get(type(CALL_SIGS[name].params[slot]))
+    if spelled is not None:
+        assert f"{NONE_REFUSAL} a `{spelled}` (argument {slot + 1})" in str(outcome), str(outcome)
 
 
 # Every (Builtin, slot) whose type is a board domain, executed end to end: a
@@ -778,7 +803,6 @@ def test_an_optional_board_value_executes_when_it_is_set(name: str, slot: int) -
     play_game(game, random.Random(0))
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason="the none refusal is not built yet")
 @pytest.mark.parametrize(("name", "slot"), _BOARD_NONE_CELLS, ids=[f"{n_}-{i}" for n_, i in _BOARD_NONE_CELLS])
 def test_an_optional_board_value_that_is_none_is_refused_at_play(name: str, slot: int) -> None:
     game = check_dsl(_optional_call_game(name, slot, "none"), "lift.cardlang")

@@ -459,9 +459,12 @@ def test_dir_declared_type_is_admitted_in_a_board_game(host: str, spelled: str) 
 @pytest.mark.parametrize("spelled", ["dir", "dir?"])
 @pytest.mark.parametrize("host", sorted(_DECLARED_TYPE_HOSTS))
 def test_dir_declared_type_in_a_boardless_game_names_board(host: str, spelled: str) -> None:
+    # The name is not unknown -- it is the board's -- so the refusal names the
+    # missing clause rather than calling the type unknown.
     msg = _reject(_DECLARED_TYPE_HOSTS[host](spelled, boardless_game))
-    assert f"unknown type '{spelled}'" in msg
+    assert f"is typed `{spelled}`" in msg
     assert NO_BOARD in msg
+    assert "unknown type" not in msg
 
 
 # --- GRID 2: use-position of the name `dir` (rejected slots, free guards) -------
@@ -616,11 +619,15 @@ def test_dir_collides_with_a_declared_position_name() -> None:
     assert "dir" in msg
 
 
-def test_boardless_dir_parameter_is_unsupported() -> None:
-    # A boardless game has no `dir` source, so a `dir` move parameter is an
-    # unsupported parameter domain (the standing `_check_move_params` guard),
-    # refused naming the missing `board:` as at every position admitting `dir`.
-    # Red under: `_check_move_params` dropping `_no_board_for_directions`.
+@pytest.mark.parametrize("spelled", ["dir", "dir?"])
+def test_boardless_dir_parameter_is_unsupported(spelled: str) -> None:
+    # A boardless game has no `dir` source, so a `dir` (or `dir?`) move
+    # parameter is an unsupported parameter domain (the standing
+    # `_check_move_params` guard), refused naming the missing `board:` as at
+    # every position admitting `dir`.
+    # Red under: `_check_move_params` dropping `_no_board_for_directions`
+    # (both cells); `_no_board_for_directions` matching `dir` exactly (the
+    # `dir?` cell).
     src = (
         "game Boardless {\n"
         "  players: 2\n"
@@ -635,10 +642,10 @@ def test_boardless_dir_parameter_is_unsupported() -> None:
         "  }\n"
         "  winner: highest score\n"
         "}\n"
-        "move_type pick(along : dir) { effect { done := true } }\n"
+        f"move_type pick(along : {spelled}) {{ effect {{ done := true }} }}\n"
     )
     msg = _reject(src)
-    assert "unsupported parameter domain 'dir'" in msg
+    assert f"unsupported parameter domain '{spelled}'" in msg
     assert NO_BOARD in msg
 
 

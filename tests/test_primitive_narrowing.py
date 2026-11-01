@@ -1409,7 +1409,7 @@ def test_collection_args_are_frozen_at_the_call_boundary() -> None:
     assert sig is not None
     z = Zone()
     z.cards.extend([Card("7", "clubs"), Card("8", "clubs")])
-    coerced = coerce_args(sig, [z])[0]
+    coerced = coerce_args(sig, [z], "gin_valid_meld")[0]
     assert coerced is not z.cards, "the argument is still the live zone list"
     assert isinstance(coerced, tuple)  # an immutable snapshot
     assert list(coerced) == [Card("7", "clubs"), Card("8", "clubs")]  # same contents
@@ -1426,7 +1426,7 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     from cardlang.runtime.reads import coerce_args
 
     card = Card("3", "hearts")
-    (coerced,) = coerce_args(CALL_SIGS["rank_value"], [card])
+    (coerced,) = coerce_args(CALL_SIGS["rank_value"], [card], "rank_value")
     assert coerced == card and coerced is not card, "the live engine Card leaked"
     object.__setattr__(coerced, "rank", "K")  # back door, on the copy
     assert card.rank == "3", "mutating the copy reached the engine's Card"
@@ -1434,7 +1434,7 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     # An immutable scalar (a TPlayer int) is a no-op, not refused.
     p_sig = implementation_sig("canasta_stage_ok")  # [TPlayer, TCard]
     assert p_sig is not None
-    assert coerce_args(p_sig, [1, card])[0] == 1
+    assert coerce_args(p_sig, [1, card], "canasta_stage_ok")[0] == 1
 
 
 def test_climb_follow_freezes_the_standing_play() -> None:

@@ -1962,7 +1962,11 @@ Where a game needs a value that reads like "nothing happens" but is a real
 domain choice — Hearts' no-pass hand — it gets its *own* enum value
 (`SeatDirection = {left, right, across, hold}`), never `none`. This keeps `none`
 unambiguously "no value": a `Player` that is `none` is unset, not the string
-`"none"`.
+`"none"`. An optional is accepted where its base type is wanted, since the
+language has no flow narrowing, so a `Player?` known to be set reads as a
+`Player`; a `none` that reaches a Builtin or Primitive argument whose type
+holds no `none` (`has_step(c, d, p)` with `d : dir?` unset) is refused at
+play, naming the call and the type it wanted.
 
 `true` and `false` are the two boolean literals, the values a `Boolean` field
 takes (`eliminated[player] : Boolean = false`, `eliminated[p] := true`). Like

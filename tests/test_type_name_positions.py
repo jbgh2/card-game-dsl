@@ -60,7 +60,12 @@ Completeness ledger
                      `positions {}` declarations,
                      the block's one parameterized value spelling
                      (`COLLECTION_NAME`), and an unknown name as the negative
-                     control.
+                     control. A board variant crosses the same positions
+                     with the names a `board:` mints, plain and optional --
+                     its position domains and the direction domains
+                     `resolve._minted_directions` admits -- read off the
+                     skeleton board game, so its expected column moves with
+                     what the board mints.
                 Two things sit outside these axes, and neither is a gap. The
                 bare constructor word `Collection` is not a column: it is
                 refused at every position, and the split it exposes — a
@@ -78,6 +83,7 @@ Completeness ledger
 
     registry:   A. cardlang/grammar/cardlang.lark (scraped by the pin below)
                 B. typecheck.KNOWN_TYPE_NAMES; domains.PARAM_DOMAINS;
+                   resolve._minted_directions (the board variant);
                    resolve._PROCEDURE_PARAM_DOMAINS; resolve's inline `Card`
                    and `Suit` literals; the game's own PositionDecl
 
@@ -824,7 +830,11 @@ def test_the_board_variant_crosses_every_position() -> None:
 @pytest.mark.parametrize("cell", BOARD_CELLS, ids=[_cell_id(c) for c in BOARD_CELLS])
 def test_the_board_names_grid(cell: tuple[str, str]) -> None:
     """Every (position, board-minted name) cell matches what the board minted
-    and the position's own registry say."""
+    and the position's own registry say.
+
+    red under: drop `_minted_directions(game)` from the admit set of
+    `resolve._check_declared_type_names` -- the P6 and P8 `dir` cells then
+    answer a refusal against an admit."""
     position, name = cell
     actual = _outcome(BOARD_POSITIONS[position](name))
     admitted = name in BOARD_EXPECTED_ADMITS[position]

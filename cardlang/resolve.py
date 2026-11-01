@@ -51,7 +51,7 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               direction domain the board minted, and a move parameter's
               domain, a function parameter's type and an outcome payload's
               type name the direction domain only where the board minted it
-              (``_minted_directions``, the one gate all four read), so a
+              (``_minted_directions``, the one gate each of them reads), so a
               later pass may look any such name up in the position or the
               direction source and find it. Every piece of
               library text spliced into the game -- a family library's move
@@ -10874,15 +10874,18 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
         # the name — strip it before the lookup, never by a blanket rstrip.
         return type_name.removesuffix("?")
 
-    def no_board(type_name: str) -> str:
-        return _no_board_for_directions(game, base_of(type_name))
-
     for fn in game.functions:
         for p in fn.params:
-            if base_of(p.type_name) not in parameter_known:
+            if _directions_need_a_board(game, base_of(p.type_name)):
+                bag.error(
+                    f"parameter '{p.name}' of function " + cite_named(fn, f"'{fn.name}'")
+                    + f" is typed `{p.type_name}`, " + _BOARD_DIRECTION_NEEDS_A_BOARD,
+                    fn.span,
+                )
+            elif base_of(p.type_name) not in parameter_known:
                 bag.error(
                     f"unknown type '{p.type_name}' in parameter '{p.name}' of "
-                    f"function " + cite_named(fn, f"'{fn.name}'") + no_board(p.type_name),
+                    f"function " + cite_named(fn, f"'{fn.name}'"),
                     fn.span,
                 )
     for phase in _walk(game):
@@ -10893,10 +10896,16 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                 refused = _combination_outside_a_parameter(payload, "an outcome's payload")
                 if refused is not None:
                     bag.error(refused, case.span or phase.span)
+                elif _directions_need_a_board(game, base_of(payload)):
+                    bag.error(
+                        f"the payload of case '{case.tag}' is typed `{payload}`, "
+                        + _BOARD_DIRECTION_NEEDS_A_BOARD,
+                        case.span or phase.span,
+                    )
                 elif base_of(payload) not in known:
                     bag.error(
                         f"unknown type '{payload}' in payload of case "
-                        f"'{case.tag}'" + no_board(payload),
+                        f"'{case.tag}'",
                         case.span or phase.span,
                     )
     # Move parameters are deliberately NOT checked here: `_check_move_params`
@@ -11841,15 +11850,20 @@ def _directions_need_a_board(game: n.Game, name: str) -> bool:
     )
 
 
+# How every refusal of a boardless game's `dir` ends: what `dir` is, and the
+# clause the game lacks.
+_BOARD_DIRECTION_NEEDS_A_BOARD = (
+    "the board direction domain a `board:` mints, but the game declares no `board:`"
+)
+
+
 def _no_board_for_directions(game: n.Game, name: str) -> str:
-    """The clause a declared-type refusal of a boardless game's `dir` ends
-    with, naming the missing `board:`; empty for every other name."""
-    if not _directions_need_a_board(game, name):
+    """The clause a move parameter's refusal of a boardless game's `dir` (or
+    `dir?`) ends with, naming the missing `board:`; empty for every other
+    name."""
+    if not _directions_need_a_board(game, name.removesuffix("?")):
         return ""
-    return (
-        f" -- `{DIRECTION_DOMAIN}` is the board direction domain a "
-        f"`board:` mints, and the game declares no `board:`"
-    )
+    return f" -- `{DIRECTION_DOMAIN}` is " + _BOARD_DIRECTION_NEEDS_A_BOARD
 
 
 def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:

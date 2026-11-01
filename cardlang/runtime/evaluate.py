@@ -51,7 +51,7 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     # and `CALL_SIGS` is exactly the Builtins.
     sig = ctx.rs.declared_sigs.get(name) if entry is not None else CALL_SIGS.get(name)
     if sig is not None:
-        args = reads.coerce_args(sig, args)
+        args = reads.coerce_args(sig, args, name)
     if entry is not None:
         return primitives.call_declared(entry, args, ctx)
     result = builtins.call(name, args, ctx)

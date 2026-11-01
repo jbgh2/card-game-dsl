@@ -2254,9 +2254,9 @@ def test_the_freeze_follows_the_declaration_not_the_registry() -> None:
     seen: list[object] = []
     real = reads_mod.coerce_args
 
-    def spy(sig: object, args: list[object]) -> object:
+    def spy(sig: object, args: list[object], name: str) -> object:
         seen.append(sig)
-        return real(sig, args)
+        return real(sig, args, name)
 
     with pytest.MonkeyPatch.context() as mp:
         mp.setitem(
@@ -3322,7 +3322,7 @@ def test_a_declared_collection_argument_is_frozen_at_the_boundary() -> None:
     sig = declared_primitive_sigs(game)["gin_valid_meld"]
     zone = Zone()
     zone.cards.extend([Card("7", "clubs"), Card("8", "clubs")])
-    coerced = coerce_args(sig, [zone])[0]
+    coerced = coerce_args(sig, [zone], "gin_valid_meld")[0]
     assert isinstance(coerced, tuple)
     assert list(coerced) == [Card("7", "clubs"), Card("8", "clubs")]
     # The frozen snapshot, not the zone's live list — a primitive holding the
