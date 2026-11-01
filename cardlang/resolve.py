@@ -6008,7 +6008,7 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
         # (issue #247 is the game declaring both).
         bag.error(
             "`as it stands` reads the game's `winner:` clause at the stop, and "
-            "this game declares `loser:` — the last player holding cards — "
+            "this game declares `loser:` "
             "which a stopped game has not decided: at a Length Stop it would "
             "name nobody, several seats, or the wrong one. Declare `at "
             "max_length: tie` — every seat a winner — or rank a state variable "
