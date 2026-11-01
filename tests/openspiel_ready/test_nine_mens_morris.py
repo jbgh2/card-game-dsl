@@ -55,11 +55,12 @@ Honest caveats
 - ``adapter_terminal_steps`` is None. The greedy ``legal[0]`` line places
   without a mill, removes twice, then shuttles one man between two points and
   never ends by the rules: it reaches the Length Stop at all 6000 picks of
-  ``max_length``, scored a tie (measured 2026-11-01; 81s for one native walk,
-  `tests/test_length_registry_pin.py`'s ``LOWEST_ID_ENDS`` row). The game draws
-  nothing, so every manifest seed walks that same line, and the stop's zeros
-  are not a returns comparison worth five walks. The returns surface is
-  compared instead on a rules-ended uniform line, above.
+  ``max_length``, scored a tie (`tests/test_length_registry_pin.py`'s
+  ``LOWEST_ID_ENDS`` row). Walked to its end the proof would cost about 72s a
+  manifest seed (measured 2026-11-01: 36s for the native walk and 36s more
+  applying it to the adapter), and the game draws nothing, so all five seeds
+  walk the same line to the stop's zeros. The returns surface is compared
+  instead on a rules-ended uniform line, above.
 - ``box`` is a ``Deck`` (count_only), emptied at setup; it renders ``box=#0``
   identically for both observers and hides nothing. The two reserves are
   identity-projected.
