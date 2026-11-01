@@ -803,8 +803,8 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
             return all(results)
         case "count":
             return sum(1 for ok in results if ok)
-        case _:
-            raise AssertionError(f"unknown domain-query kind '{e.kind}'")
+        case unreachable:
+            assert_never(unreachable)
 
 
 def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:

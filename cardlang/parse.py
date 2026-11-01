@@ -1589,7 +1589,7 @@ class _Builder(Transformer[Token, n.Game]):
         return self._implicit_quantifier("all", "rank", meta, c)
 
     def _domain_query(
-        self, kind: str, meta: Meta, noun: object, source: object, pred: object
+        self, kind: n.DomainQueryKind, meta: Meta, noun: object, source: object, pred: object
     ) -> n.DomainQuery:
         # The plural convention is fixed by kind: `any` takes the singular
         # noun, `all`/`number of` the plural. The binder (the scoped name, and

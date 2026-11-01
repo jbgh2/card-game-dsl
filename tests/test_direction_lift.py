@@ -157,17 +157,17 @@ from tests.test_cell_queries import _board_ctx, _checked_board_expr, _unused_cho
 KINDS = tuple(n.DOMAIN_QUERY_KIND_PHRASE)
 
 
-def _noun(kind: str) -> str:
+def _noun(kind: n.DomainQueryKind) -> str:
     # `any` takes the singular noun, `all` and `number of` the plural (the
     # plural convention resolve's `_check_domain_query` holds).
     return DIRECTION_DOMAIN if kind == "any" else DIRECTION_DOMAIN + "s"
 
 
-def _query(kind: str, pred: str) -> str:
+def _query(kind: n.DomainQueryKind, pred: str) -> str:
     return f"{n.DOMAIN_QUERY_KIND_PHRASE[kind]} {_noun(kind)} where {pred}"
 
 
-def _boolean(kind: str, pred: str = f"is_diagonal({DIRECTION_DOMAIN})") -> str:
+def _boolean(kind: n.DomainQueryKind, pred: str = f"is_diagonal({DIRECTION_DOMAIN})") -> str:
     """The kind's query as a Boolean: a count is compared, the folds stand."""
     q = _query(kind, pred)
     return f"(({q}) > 0)" if kind == "count" else f"({q})"
@@ -314,7 +314,7 @@ def test_the_skeleton_checks_and_plays() -> None:
 
 @pytest.mark.parametrize("host", sorted(HOSTS))
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_direction_quantifier_checks_in_every_host(kind: str, host: str) -> None:
+def test_a_direction_quantifier_checks_in_every_host(kind: n.DomainQueryKind, host: str) -> None:
     build, field = HOSTS[host]
     pred = CALL_FREE if host == "state default" else f"is_diagonal({DIRECTION_DOMAIN})"
     game = check_dsl(build(_boolean(kind, pred)), "lift.cardlang")
@@ -360,7 +360,7 @@ def _refused_on_a_frameless_board(family: str, source: str) -> bool:
     return True
 
 
-def _fold(kind: str, truths: list[bool]) -> bool | int:
+def _fold(kind: n.DomainQueryKind, truths: list[bool]) -> bool | int:
     match kind:
         case "any":
             return any(truths)
@@ -407,7 +407,7 @@ def _played_state(source: str, *names: str) -> dict[str, Any]:
     return seen
 
 
-def _state_type(kind: str) -> str:
+def _state_type(kind: n.DomainQueryKind) -> str:
     return "Integer = 0" if kind == "count" else "Boolean = false"
 
 
@@ -449,7 +449,7 @@ def test_the_quantifier_reads_the_move_parameter_order(
 
 @pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_function_body_folds_the_board_directions(kind: str, family: str) -> None:
+def test_a_function_body_folds_the_board_directions(kind: n.DomainQueryKind, family: str) -> None:
     source = board_game(
         board=_board_clause(family),
         state=f"    probe : {_state_type(kind)}\n",
@@ -465,7 +465,7 @@ def test_a_function_body_folds_the_board_directions(kind: str, family: str) -> N
 
 @pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_state_default_folds_the_board_directions(kind: str, family: str) -> None:
+def test_a_state_default_folds_the_board_directions(kind: n.DomainQueryKind, family: str) -> None:
     source = board_game(
         board=_board_clause(family),
         state=f"    probe : {'Integer' if kind == 'count' else 'Boolean'} = "
@@ -481,7 +481,7 @@ def test_a_state_default_folds_the_board_directions(kind: str, family: str) -> N
 @pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("seat", [0, 1])
 @pytest.mark.parametrize("kind", ["any", "all"])
-def test_a_nested_scan_reads_each_seat_frame(kind: str, seat: int, family: str) -> None:
+def test_a_nested_scan_reads_each_seat_frame(kind: n.DomainQueryKind, seat: int, family: str) -> None:
     """`number of cells where <kind> dir... where has_step(cell, dir, p)`: the
     direction binder is the Builtin's `TDir` argument, the cell binder its
     `TCell`, and the seat its frame -- each seat's count from the board entry."""

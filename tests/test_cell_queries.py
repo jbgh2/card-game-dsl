@@ -842,3 +842,13 @@ def test_collection_noun_registries_agree() -> None:
     # red under: adding `"region"` to `_COLLECTION_NOUNS` without a matching
     # `_COLLECTION_BINDER_TYPES` row reddens this assertion.
     assert set(_COLLECTION_BINDER_TYPES) == set(_COLLECTION_NOUNS)
+
+
+def test_the_phrase_table_is_the_kind_literal() -> None:
+    # Every fold the positional register's `DomainQueryKind` holds is spelled
+    # in a diagnostic through `DOMAIN_QUERY_KIND_PHRASE`; a fold with no row
+    # would reach the refusal as a KeyError, the wrong channel. The kind's
+    # own matches are exhaustive under mypy; the table is a dict, which no
+    # type holds total, so this pins it to the Literal, order included.
+    # red under: deleting the `"count"` row of `DOMAIN_QUERY_KIND_PHRASE`.
+    assert tuple(n.DOMAIN_QUERY_KIND_PHRASE) == n.DOMAIN_QUERY_KINDS

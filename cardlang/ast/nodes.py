@@ -282,6 +282,12 @@ class CardQuery:
     span: Span | None = None
 
 
+# The folds of the positional quantifier register, one per bare alternative
+# of the grammar's `quantifier` rule that builds a `DomainQuery`.
+DomainQueryKind = Literal["any", "all", "count"]
+DOMAIN_QUERY_KINDS: tuple[DomainQueryKind, ...] = get_args(DomainQueryKind)
+
+
 @dataclass(frozen=True, slots=True)
 class DomainQuery:
     """The generic position-domain / collection quantifier register
@@ -307,7 +313,7 @@ class DomainQuery:
     is the derived singular (the scoped name and, for bare forms, the domain
     to enumerate)."""
 
-    kind: str  # "any" | "all" | "count"
+    kind: DomainQueryKind
     binder: str  # the singular noun: binder name + (bare) domain to enumerate
     spelled: str  # the noun as written (for the plural diagnostic)
     source: Expr | None  # None for bare forms; the iterated collection for `in`
@@ -316,8 +322,14 @@ class DomainQuery:
 
 
 # The keyword phrase each DomainQuery kind spells in a diagnostic. Owned here
-# beside the node so resolve and typecheck read one table, not two.
-DOMAIN_QUERY_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count": "number of"}
+# beside the node so resolve and typecheck read one table, not two; its keys
+# are `DOMAIN_QUERY_KINDS`, pinned by
+# tests/test_cell_queries.py::test_the_phrase_table_is_the_kind_literal.
+DOMAIN_QUERY_KIND_PHRASE: dict[DomainQueryKind, str] = {
+    "any": "any",
+    "all": "all",
+    "count": "number of",
+}
 
 
 @dataclass(frozen=True, slots=True)

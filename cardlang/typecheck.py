@@ -851,8 +851,13 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 case _:  # "any" | "all"
                     return TBoolean()
         case n.DomainQuery():
-            # `number of <domain>s where …` counts; `any`/`all` are Boolean.
-            return TInteger() if e.kind == "count" else TBoolean()
+            match e.kind:
+                case "count":
+                    return TInteger()
+                case "any" | "all":
+                    return TBoolean()
+                case unreachable_kind:
+                    assert_never(unreachable_kind)
         case n.SubsetQuery():
             if e.agg is not None:
                 # The aggregation register mirrors `Comprehension`: `sum` is an

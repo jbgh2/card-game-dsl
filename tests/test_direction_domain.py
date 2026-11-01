@@ -483,22 +483,22 @@ def test_dir_as_a_zone_index_role_is_rejected() -> None:
 QUANTIFIER_KINDS = tuple(n.DOMAIN_QUERY_KIND_PHRASE)
 
 
-def _plural_noun(kind: str) -> str:
+def _plural_noun(kind: n.DomainQueryKind) -> str:
     # `any` takes the singular noun; `all` and `number of` the plural.
     return DIRECTION_DOMAIN if kind == "any" else DIRECTION_DOMAIN + "s"
 
 
-def _slipped_noun(kind: str) -> str:
+def _slipped_noun(kind: n.DomainQueryKind) -> str:
     return DIRECTION_DOMAIN + "s" if kind == "any" else DIRECTION_DOMAIN
 
 
-def _quantified(kind: str, spelled: str) -> str:
+def _quantified(kind: n.DomainQueryKind, spelled: str) -> str:
     q = f"{n.DOMAIN_QUERY_KIND_PHRASE[kind]} {spelled} where not done"
     return f"(({q}) > 0)" if kind == "count" else q
 
 
 @pytest.mark.parametrize("kind", QUANTIFIER_KINDS)
-def test_bare_quantifier_over_dir_is_admitted(kind: str) -> None:
+def test_bare_quantifier_over_dir_is_admitted(kind: n.DomainQueryKind) -> None:
     check_dsl(_pick_guard(_quantified(kind, _plural_noun(kind))), "dir.cardlang")
 
 
@@ -522,7 +522,7 @@ def _plural_slip_cells() -> list[Any]:
 
 
 @pytest.mark.parametrize(("kind", "needle"), _plural_slip_cells())
-def test_bare_quantifier_over_dir_plural_slip(kind: str, needle: str) -> None:
+def test_bare_quantifier_over_dir_plural_slip(kind: n.DomainQueryKind, needle: str) -> None:
     # Red under (the `any` cell): `_check_domain_query` admitting an `any`
     # noun whose singular is `dir` (`nd.binder.removesuffix("s")`).
     assert needle in _reject(_pick_guard(_quantified(kind, _slipped_noun(kind))))
@@ -541,7 +541,7 @@ def _boardless_noun_cells() -> list[tuple[str, str]]:
 
 
 @pytest.mark.parametrize(("kind", "spelled"), _boardless_noun_cells())
-def test_bare_quantifier_over_dir_in_a_boardless_game_names_board(kind: str, spelled: str) -> None:
+def test_bare_quantifier_over_dir_in_a_boardless_game_names_board(kind: n.DomainQueryKind, spelled: str) -> None:
     assert NO_BOARD in _reject(boardless_game(when=_quantified(kind, spelled)))
 
 
