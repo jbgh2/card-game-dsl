@@ -2335,6 +2335,11 @@ def _check_library_lines_span(
         entry = board_entry(game.board.family, game.board.args)
     except OwnerGuardError:
         return
+    # Shadow Guard: a board that declares no lines at all is the lines row of
+    # `_BOARD_NEED_GATES`'s refusal (its Owner Guard), told on this same line;
+    # the span is judged only where some length is declared.
+    if not entry.answers("lines"):
+        return
     for call, where in calls:
         if call.func != "lines" or len(call.args) != 1:
             continue

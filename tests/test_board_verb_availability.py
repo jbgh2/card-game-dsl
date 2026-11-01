@@ -49,8 +49,9 @@ domain:     `BOARD_FAMILIES` x the positions above x {answered, refused}
             built entry (GRID E). Outside it, by design, each waiting on a
             witness game (issue #124): relations beyond one adjacency set,
             jump triples, track frames, double-indexed families, in-file
-            boards. A family library spells no `cell` and no `dir`, so of the
-            board verbs it reaches only `home`, `far_row` and `lines`; its
+            boards. A family library spells no `cell` type and no `dir`, so
+            of the board verbs it reaches `home`, `far_row` and `lines`, and
+            `neighbors` through a `for each cell` binder; its
             reach is the `uses`-line row of `resolve._CLAUSE_GATES` that the
             game's own call reads (tests/test_library_clause_gates.py).
 registry:   `cardlang.stdlib.boards.BOARD_FAMILIES`, `BoardEntry`;
