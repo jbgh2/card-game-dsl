@@ -102,7 +102,7 @@ def _declared_spelling(t: Type) -> str:
     if isinstance(t, TEnum):
         return t.name
     if isinstance(t, TCollection):
-        return "collection"
+        return f"Collection<{_declared_spelling(t.element)}>"
     return type(t).__name__.removeprefix("T")
 
 
