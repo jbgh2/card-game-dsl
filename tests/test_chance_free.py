@@ -379,7 +379,7 @@ def test_corpus_classification_agrees_with_what_the_game_draws(short_name: str) 
         )
 
 
-def test_the_chance_free_corpus_is_exactly_the_two_board_games() -> None:
+def test_the_chance_free_corpus_is_exactly_the_pinned_set() -> None:
     """Which corpus games are Chance-Free is a fact about the corpus, pinned so
     a game gaining or losing its randomness is a decision someone makes rather
     than a set that quietly moves.
@@ -458,7 +458,10 @@ def test_chance_free_game_plays_to_terminal_under_a_refusing_generator(
     drawing from a stream of its own. Not the greedy `legal[0]` line: a game
     whose lowest ids cycle (nine men's morris shuttles one man between two
     points) ends that line only at its `max_length`, and replaying it once per
-    step costs the square of that length.
+    step costs the square of that length. The line must end by the RULES, not
+    merely reach a terminal: a Length Stop also completes under refusal, but
+    it can cut the game off before a later phase or its result is reached, and
+    a draw site there would never meet the refusing generator.
 
     red under: add `shuffle box` to a phase of `docs/games/tic-tac-toe.cardlang`
     and set `EPISTEMIC_OP_DRAWS["shuffle"] = False` -- one fault, that the

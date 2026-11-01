@@ -11,8 +11,8 @@ men; a mill earns one removal, one even when a single move closes two mills;
 a man standing in a mill may be removed only when every enemy man on the board
 stands in one; you lose when you are reduced to two men or have no legal move
 on your turn. There is no move cap and no repetition rule.** Rules are common
-knowledge, and the differential oracle is OpenSpiel's native
-`nine_mens_morris`.
+knowledge. The native differential against OpenSpiel's `nine_mens_morris` is
+issue #978.
 
 **Rules source.** The rules body is the Welt-Mühlespiel-Dachverband (WMD).
 Its own pages did not resolve when the file was written (2026-11-01:
@@ -21,11 +21,10 @@ authority, does not cover the game (its alphabetical index, 2026-11-01). The
 file follows the two restatements that do resolve, fetched live on
 2026-11-01:
 
-- English Wikipedia, [Nine men's morris](https://en.wikipedia.org/wiki/Nine_men%27s_morris),
-  the oracle's own cited source: placing, moving to an adjacent point, flying
-  at three men, the mill and its removal ("a piece in an opponent's mill …
-  can be removed only if no other pieces are available"), and the two ways to
-  win.
+- English Wikipedia, [Nine men's morris](https://en.wikipedia.org/wiki/Nine_men%27s_morris):
+  placing, moving to an adjacent point, flying at three men, the mill and its
+  removal ("a piece in an opponent's mill … can be removed only if no other
+  pieces are available"), and the two ways to win.
 - German Wikipedia, [Mühle (Spiel)](https://de.wikipedia.org/wiki/M%C3%BChle_(Spiel)),
   its account of the WMD rules: the three phases, flying at three, the loss of
   a player who cannot move, the ban on taking a man from a mill, and the
@@ -36,17 +35,15 @@ Three points are settled outside those pages:
 
 - **One removal for two mills.** Neither page says what a move that closes
   two mills at once earns. The file removes one man, as the operator's ruling
-  on the boards rung says (issue #953) and as the oracle plays (one capture
-  flag per move).
+  on the boards rung says (issue #953).
 - **White moves first.** English Wikipedia leaves the first player to the
-  players; the variant pins White, which is the oracle's player 0.
+  players; the variant pins White.
 - **The in-mill restriction is the traditional one.** Rosenberger's
   *Mühle-Lehrbuch* (v1.9, read during planning on 2026-10-25 and not
   re-fetched) records that the WMD has since lifted the ban on taking from a
   mill altogether, so that any enemy man may be taken. That relaxation is a
   variant this file does not pin; the file plays the restriction with its
-  every-man-in-a-mill exception, which both restatements above and the oracle
-  play.
+  every-man-in-a-mill exception, which both restatements above state.
 
 ## The board
 

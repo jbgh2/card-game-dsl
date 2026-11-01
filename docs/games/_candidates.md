@@ -519,7 +519,8 @@ loss detected in the turn body, and the ladder's first cyclic movement:
 no rules body states a move cap or a repetition draw, so a line that
 never ends stops at the game's `max_length`, a tie
 ([decisions.md](../decisions.md), "Game length as a declared contract").
-OpenSpiel's native `nine_mens_morris` is the differential oracle.)
+The native differential against OpenSpiel's `nine_mens_morris` is issue
+#978.)
 
 ### backgammon
 

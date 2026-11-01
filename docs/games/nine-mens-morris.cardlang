@@ -11,17 +11,16 @@
 // without end is drawn when the engine stops it at its bound. The rules body
 // is the Welt-Muehlespiel-Dachverband's; the traditional in-mill restriction
 // pinned here is the one it has since relaxed (nine-mens-morris.md). The
-// differential oracle is OpenSpiel's native `nine_mens_morris`, whose
-// 200-turn cap is a bound of the harness, not a rule of the game.
+// native differential against OpenSpiel's `nine_mens_morris` is issue #978;
+// that implementation's 200-turn cap is not a rule of the game.
 //
 // Perfect information throughout — the board, the reserves and the captured
 // piles are public, and the one count-projected zone (box) empties at setup,
 // so no zone conceals a man: information sets are singletons and the
 // observation model does not move.
 //
-// result[player] in {+1, -1} (win/loss) so the OpenSpiel returns match the
-// native oracle's zero-sum structure; a game stopped at its bound is a tie,
-// every return 0.
+// result[player] in {+1, -1} (win/loss), so the OpenSpiel returns are
+// zero-sum; a game stopped at its bound is a tie, every return 0.
 
 game NineMensMorris {
 

@@ -4,7 +4,7 @@ The first corpus game on a board that is not a grid, and the first whose turn
 holds two decisions: the move, then the removal a mill earns. Breakthrough
 proved the perfect-information shape survives movement and capture; this
 module proves it holds for placement from a reserve, movement along declared
-adjacency, flying, and removal into a captured pile, for BOTH observers: every
+adjacency, and removal into a captured pile, for BOTH observers: every
 information set is a singleton, nothing an observer is entitled to see is
 dropped, and nothing hidden leaks (there is nothing hidden).
 
@@ -44,8 +44,8 @@ positions, not over piece labellings.
 
 Inherited unchanged
 -------------------
-pyspiel conformance (the full ``random_sim_test``: a uniform game ends by its
-rules in a few hundred actions); the per-visible-fact matrix; seed/rng
+pyspiel conformance (the full ``random_sim_test``, a uniform game the rules
+end); the per-visible-fact matrix; seed/rng
 non-observability (``vacuous_stock``); perfect recall; adapter agreement
 over ``depth`` steps of the greedy line, information states and action
 strings compared at every step.
@@ -54,12 +54,13 @@ Honest caveats
 --------------
 - ``adapter_terminal_steps`` is None. The greedy ``legal[0]`` line places
   without a mill, removes twice, then shuttles one man between two points and
-  never ends by the rules: it reaches the Length Stop at all 6000 picks of
-  ``max_length``, scored a tie (`tests/test_length_registry_pin.py`'s
+  never ends by the rules: it reaches the Length Stop at ``max_length``,
+  scored a tie (`tests/test_length_registry_pin.py`'s
   ``LOWEST_ID_ENDS`` row). Walked to its end the proof would cost about 72s a
   manifest seed (measured 2026-11-01: 36s for the native walk and 36s more
-  applying it to the adapter), and the game draws nothing, so all five seeds
-  walk the same line to the stop's zeros. The returns surface is compared
+  applying it to the adapter), and the game draws nothing, so every seed of
+  the manifest (``harness.SWAP_SEEDS``) walks the same line to the stop's
+  zeros. The returns surface is compared
   instead on a rules-ended uniform line, above.
 - ``box`` is a ``Deck`` (count_only), emptied at setup; it renders ``box=#0``
   identically for both observers and hides nothing. The two reserves are
@@ -234,12 +235,15 @@ def test_moves_and_removals_are_public_identity_events() -> None:
     """Every point- or captured-directed ``move`` event carries full piece
     identity on BOTH sides, and the two observers' subsequences are EQUAL —
     placements, slides and removals alike are common knowledge at the event
-    level. Removals are asserted PRESENT.
+    level. Removals and slides (point to point) are asserted PRESENT.
 
     red under: make ``movement`` (cardlang/runtime/observe.py) emit a
     ``captured``-directed destination as a count; the removal's destination
     view is no longer an identity tuple, so the ``isinstance(dst_view,
-    tuple)`` assertion fails."""
+    tuple)`` assertion fails. And: make ``movement`` emit nothing for a
+    point-to-point transfer; the slide assertion fails, which a filter
+    reading the source alone would not notice, since a removal leaves a
+    point too."""
     _, pause = _advance(PATH, ONE_SEED[0], DEPTH)
     assert isinstance(pause, DecisionNode)
     boards: dict[int, list[tuple[Any, ...]]] = {}
@@ -248,7 +252,11 @@ def test_moves_and_removals_are_public_identity_events() -> None:
         assert moves, f"P{p} logged no board-directed events"
         takes = [e for e in moves if str(e[3]).startswith("captured[")]
         assert takes, f"P{p} logged no removal events — the removal claim is vacuous here"
-        slides = [e for e in moves if str(e[1]).startswith("point[")]
+        slides = [
+            e
+            for e in moves
+            if str(e[1]).startswith("point[") and str(e[3]).startswith("point[")
+        ]
         assert slides, f"P{p} logged no slide events — the movement claim is vacuous here"
         for e in moves:
             src_view, dst_view = e[2], e[4]

@@ -27,8 +27,9 @@ playout, and once more against the terminal position:
 
 Both termini and all four move families are driven non-vacuously: reduction
 and every family under uniform play, blockade under a policy that steers each
-move toward leaving the opponent the fewest moves (uniform play reaches a
-blockade in a few games in a thousand). The every-man-in-a-mill removal arm
+move toward leaving the opponent the fewest moves (uniform play reached a
+blockade in 14 of 3000 native games and 4 of 2000 model games, measured in
+planning on 2026-10-25, issue #977). The every-man-in-a-mill removal arm
 and the two-mills-earn-one-removal rule are scripted placements, each asserting
 the position it reaches before it asserts the rule.
 
