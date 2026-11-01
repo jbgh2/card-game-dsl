@@ -15,7 +15,8 @@ Nothing here is the **[[stdlib]]**, which is the layer written in the language
 
 from __future__ import annotations
 
-from cardlang.stdlib.boards import BoardNeed
+import typing
+from typing import Literal
 
 # Value callbacks referenced by bare name (a `round`'s `winner` callback):
 #
@@ -478,6 +479,12 @@ BOARD_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "neighbors",  # the cells joined to a cell -- reads ctx.rs.board
     }
 )
+
+# What a board verb reads off its board's entry: the line lengths it answers,
+# its declared adjacency, or its movement frame. `stdlib.boards.BoardEntry.
+# answers` says whether an entry declares each.
+BoardNeed = Literal["lines", "edges", "frame"]
+BOARD_NEEDS: tuple[BoardNeed, ...] = typing.get_args(BoardNeed)
 
 # What each board verb reads off its board's `BoardEntry` (`BoardNeed`): the
 # line lengths the family answers, its declared adjacency, or its movement

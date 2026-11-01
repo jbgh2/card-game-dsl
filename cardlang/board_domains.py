@@ -22,7 +22,7 @@ Establishes:  a game's position domains and its direction domains, each
               the board's family has a movement frame.
 Now illegal:  a `dir` member read from anywhere but the board entry's frame.
 Held by:      Unrepresentable -- `BoardEntry.frame` is optional and
-              `directions_of` is its one reader for `dir`, so a frameless
+              `board_directions` is its one reader for `dir`, so a frameless
               board's direction source is empty by construction.
 """
 
@@ -31,7 +31,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from cardlang.ast import nodes as n
-from cardlang.stdlib.boards import board_entry
+from cardlang.stdlib.boards import BoardEntry, board_entry
 
 # The name of the position domain a `board:` clause mints. Fixed (no game
 # names its board's domain); the collision Owner Guards in resolve keep it
@@ -77,13 +77,20 @@ def directions_of(game: n.Game) -> Mapping[str, tuple[str, ...]]:
     action space cannot diverge. `board_entry` is total on a resolved game
     (resolve validated the family/args).
 
-    Held by: Unrepresentable. `BoardEntry.frame` is optional and this is the
-    one reader of it for `dir`, so a frameless board's direction source is
-    empty by construction and every position admitting `dir`
-    (`resolve._minted_directions`) refuses it."""
+    Held by: Unrepresentable. `BoardEntry.frame` is optional and
+    `board_directions` is the one reader of it for `dir`, so a frameless
+    board's direction source is empty by construction and every position
+    admitting `dir` (`resolve._minted_directions`) refuses it."""
     if game.board is None:
         return {}
-    entry = board_entry(game.board.family, game.board.args)
+    return board_directions(board_entry(game.board.family, game.board.args))
+
+
+def board_directions(entry: BoardEntry) -> Mapping[str, tuple[str, ...]]:
+    """The direction domains a built board mints: `dir` with its frame's
+    directions where the family has a movement frame, none where it has not.
+    The one reader of `BoardEntry.frame` for `dir`, which `directions_of` and
+    resolve's checks of a declared board both ask."""
     if entry.frame is None:
         return {}
     return {DIRECTION_DOMAIN: entry.directions()}

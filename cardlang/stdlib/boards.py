@@ -5,12 +5,11 @@ turns that selection into a BoardEntry -- the cells of the `cell`
 [[position-domain]] and the topology a family declares over them -- never by
 hand-enumerating cells per game.
 
-A family's topology is data on its entry, and each board verb reads one part
-of it (`builtins.functions.BOARD_VERB_NEEDS`): the declared adjacency
-(`edges`, read by `neighbors`), the line lengths it answers (`line_lengths`,
-read by `lines(k)`), and the movement frame (`frame`, a grid's seat-relative
-forward directions and its two seats' regions, read by `neighbor`,
-`has_step`, `is_diagonal`, `home`, `far_row` and the `dir` domain). A part a
+A family's topology is data on its entry -- the declared adjacency (`edges`),
+the line lengths it answers (`line_lengths`), and the movement frame
+(`frame`, a grid's seat-relative forward directions and its two seats'
+regions, which the `dir` domain also reads) -- and each board verb reads one
+part of it, as `builtins.functions.BOARD_VERB_NEEDS` maps them. A part a
 family does not declare is absent (`None`, or no line lengths), and a verb
 reading it is refused at resolve naming the family. Relations beyond one
 adjacency set, jump triples, track frames and in-file boards are later
@@ -45,21 +44,13 @@ Held by:      the frame and the edges are Unrepresentable as absent-but-read:
 
 from __future__ import annotations
 
-import typing
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
 
+from cardlang.builtins.functions import BoardNeed
 from cardlang.runtime.errors import OwnerGuardError
 
 _FILES = "abcdefghijklmnop"  # grid's declared arg ceiling is 16
-
-# What a board verb reads off its board's entry: the line lengths it answers,
-# its declared adjacency, or its movement frame. `BoardEntry.answers` says
-# whether an entry declares each; `builtins.functions.BOARD_VERB_NEEDS` maps
-# every board verb to one.
-BoardNeed = Literal["lines", "edges", "frame"]
-BOARD_NEEDS: tuple[BoardNeed, ...] = typing.get_args(BoardNeed)
 
 # The seat-relative forward directions a grid mints, in fixed order (decisions.md
 # "Boards and cells", rung-2 movement). One member per forward direction a piece

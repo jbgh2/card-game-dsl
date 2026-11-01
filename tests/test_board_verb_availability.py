@@ -32,6 +32,9 @@ entry, and the misuse probes:
   * The misuse probes -- the plausible wrong sentences around the new
     family, each refused loud; their rendered diagnostics are pinned in
     `tests/rejections/` as well.
+  * The witness -- a placing-and-sliding morris skeleton whose offered
+    placements and slides equal, at every decision, the sets a hand-drawn
+    adjacency of the board gives.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -78,8 +81,11 @@ does not prove:  that `neighbors` is the adjacency a player of the real game
             mills, and the differential against OpenSpiel's
             `nine_mens_morris` (issue #978) carries that. Nor that an
             answered verb returns the right cells: GRID V runs each answered
-            probe, and the values are tests/test_boards_registry.py's and
-            tests/test_movement_verbs.py's. The availability row for `lines`
+            probe; the frame verbs' values are tests/test_boards_registry.py's
+            and tests/test_movement_verbs.py's, and `neighbors`' are the
+            hand table of tests/test_boards_registry.py and the slide witness
+            here, which holds every offered slide set equal to a hand-drawn
+            adjacency. The availability row for `lines`
             refuses nothing while every family declares lines; its cells are
             marked.
 
@@ -188,7 +194,7 @@ def test_every_board_verb_reads_one_declared_part() -> None:
     `BOARD_VERB_NEEDS` row."""
     import cardlang.resolve as resolve_module
     from cardlang.builtins.functions import BOARD_VERB_NEEDS
-    from cardlang.stdlib.boards import BOARD_NEEDS
+    from cardlang.builtins.functions import BOARD_NEEDS
 
     assert set(BOARD_VERB_NEEDS) == BOARD_ONLY_CALL_FUNCS
     assert set(BOARD_VERB_NEEDS.values()) <= set(BOARD_NEEDS)
@@ -523,6 +529,41 @@ def test_a_plausible_wrong_sentence_is_refused(source: str, needle: str) -> None
     assert rendered is not None and needle in rendered, rendered
 
 
+# A literal position into a board region whose argument the sentence does not
+# fix: the board bounds the region by its largest count over every argument
+# it admits -- every cell for `neighbors(c)` (the mill board's largest degree
+# is four), every declared length for a computed `lines(k)` (on the mill
+# board, the sixteen mills; on `grid(8, 8)` the lines of two, 56 across, 56
+# up and 98 diagonal). (family, region expression, the first position past
+# it.)
+_UNFIXED_REGIONS = [
+    ("morris9", "neighbors(c)", 4),
+    ("morris9", "lines(k)", 16),
+    ("grid", "lines(k)", 210),
+]
+
+
+@pytest.mark.parametrize(("family", "region", "past"), _UNFIXED_REGIONS)
+def test_a_position_past_every_argument_of_a_region_is_refused(
+    family: str, region: str, past: int
+) -> None:
+    """Position `past` is refused where it is written, and the last position
+    inside is not.
+
+    red under: `resolve._static_length` answering None for a cell-parameter
+    region (the `TCell` arm)."""
+    def source(position: int) -> str:
+        return _game(
+            family,
+            extra=f"function f(c : cell, k : Integer) = {region}[{position}]\n",
+        )
+
+    rendered = _rendered(source(past))
+    assert rendered is not None and f"position {past} is past the end" in rendered, rendered
+    inside = _rendered(source(past - 1))
+    assert inside is None or "is past the end" not in inside, inside
+
+
 def test_a_declared_dir_domain_stands_beside_a_frameless_board() -> None:
     """`morris9` mints no `dir`, so a game may declare a position domain of
     that name beside it; on a framed board the same declaration collides with
@@ -537,13 +578,91 @@ def test_a_declared_dir_domain_stands_beside_a_frameless_board() -> None:
     assert rendered is not None and "collides with the declared" in rendered, rendered
 
 
-def test_a_morris_game_places_men_on_points_by_neighbors() -> None:
-    """The witness: a placing-and-sliding morris skeleton checks and plays,
-    its slide legal only to an empty neighbouring point."""
-    source = (
+# The mill board's adjacency, drawn by hand from the board picture: three
+# concentric squares, each walked corner to midpoint to corner, and the four
+# spokes joining the squares' midpoints. Never read off the registry, so the
+# witness below holds `neighbors` against a second definition of the board.
+def _square(files: str, ranks: str) -> list[tuple[str, str]]:
+    f1, f2, f3 = files[0], files[1], files[2]
+    r1, r2, r3 = ranks[0], ranks[1], ranks[2]
+    ring = [f1 + r1, f2 + r1, f3 + r1, f3 + r2, f3 + r3, f2 + r3, f1 + r3, f1 + r2]
+    return list(zip(ring, ring[1:] + ring[:1]))
+
+
+_HAND_EDGES = (
+    _square("adg", "147")
+    + _square("bdf", "246")
+    + _square("cde", "345")
+    + [("d1", "d2"), ("d2", "d3"), ("d5", "d6"), ("d6", "d7")]
+    + [("a4", "b4"), ("b4", "c4"), ("e4", "f4"), ("f4", "g4")]
+)
+HAND_ADJACENCY: dict[str, frozenset[str]] = {
+    p: frozenset({b for a, b in _HAND_EDGES if a == p} | {a for a, b in _HAND_EDGES if b == p})
+    for p in MORRIS9_CELLS
+}
+
+
+def test_the_hand_adjacency_is_the_board_picture() -> None:
+    """The hand picture's own shape: thirty-two edges, every point joined."""
+    assert len({frozenset(e) for e in _HAND_EDGES}) == 32
+    assert all(HAND_ADJACENCY[p] for p in MORRIS9_CELLS)
+
+
+def _member(value: Any) -> Any:
+    return value[0] if isinstance(value, tuple) and len(value) == 1 else value
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_a_morris_game_offers_exactly_the_slides_its_adjacency_draws(seed: int) -> None:
+    """The witness: a placing-and-sliding morris skeleton plays, and at every
+    decision the offered placements are exactly the empty points while the
+    actor holds men in reserve, and the offered slides exactly the pairs
+    (f, t) with the actor's man on f, t empty and t joined to f on the hand
+    picture of the board.
+
+    red under: `runtime/builtins._neighbors` returning
+    `.neighbors(cell)[:1]` -- the offered slides fall short of the hand set."""
+    game = check_dsl(MORRIS_SKELETON, _FILE)
+    owner: dict[str, int] = {}
+    reserve = [9, 9]
+    slide_decisions = [0]
+    rng = random.Random(seed)
+
+    def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+        places = {_member(c[1]) for c in candidates if c[0] == "place"}
+        slides = {tuple(c[1]) for c in candidates if c[0] == "slide"}
+        empty = set(MORRIS9_CELLS) - set(owner)
+        if reserve[player]:
+            assert places == empty, sorted(places ^ empty)
+            assert not slides, sorted(slides)
+        else:
+            expected = {
+                (f, t)
+                for f, who in owner.items()
+                if who == player
+                for t in HAND_ADJACENCY[f]
+                if t in empty
+            }
+            assert not places, sorted(places)
+            assert slides == expected, sorted(slides ^ expected)
+            slide_decisions[0] += 1
+        choice = rng.choice(candidates)
+        if choice[0] == "place":
+            owner[_member(choice[1])] = player
+            reserve[player] -= 1
+        elif choice[0] == "slide":
+            frm, to = choice[1]
+            owner[to] = owner.pop(frm)
+        return [choice]
+
+    play_game(game, random.Random(seed), chooser=chooser)
+    assert slide_decisions[0], "no slide decision was reached"
+
+
+MORRIS_SKELETON = (
         "game MorrisSkeleton {\n"
         "  players: 2\n"
-        "  max_length: 60\n"
+        "  max_length: 80\n"
         "  board: morris9\n"
         "  pieces: morris_men\n"
         "  zones {\n"
@@ -557,18 +676,20 @@ def test_a_morris_game_places_men_on_points_by_neighbors() -> None:
         "    move all pieces from box to reserve[1]\n"
         "  }\n"
         "  phase play {\n"
-        "    turns t from 0 over all players until moves >= 40 {\n"
+        "    turns t from 0 over all players until moves >= 60 {\n"
         "      offer to t one of [place, slide, pass]\n"
         "    }\n"
         "  }\n"
         "  winner: highest result\n"
         "}\n"
+        "function side_of(p : Player) = if p is 0 then white else black\n"
         "move_type place(at : cell) {\n"
         "  when: (reserve[actor] is not empty) and (point[at] is empty)\n"
         "  effect { move one piece from reserve[actor] to point[at]  moves := moves + 1 }\n"
         "}\n"
         "move_type slide(from : cell, to : cell) {\n"
         "  when: (reserve[actor] is empty) and (point[from] is not empty)\n"
+        "        and (top_of(point[from]).side is side_of(actor))\n"
         "        and (point[to] is empty) and (to in neighbors(from))\n"
         "  effect { move one piece from point[from] to point[to]  moves := moves + 1 }\n"
         "}\n"
@@ -576,17 +697,4 @@ def test_a_morris_game_places_men_on_points_by_neighbors() -> None:
         "  when: reserve[actor] is empty\n"
         "  effect { moves := moves + 1 }\n"
         "}\n"
-    )
-    game = check_dsl(source, _FILE)
-    entry = board_entry("morris9", ())
-    seen: list[tuple[str, str]] = []
-
-    def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
-        for c in candidates:
-            if c[0] == "slide":
-                seen.append((c[1][0], c[1][1]))
-        return [random.Random(len(seen)).choice(candidates)]
-
-    play_game(game, random.Random(0), chooser=chooser)
-    assert seen, "no slide was offered"
-    assert all(to in entry.neighbors(frm) for frm, to in seen)
+)

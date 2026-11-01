@@ -3518,9 +3518,11 @@ one player's forward and the other's backward, because the second seat's
 frame is the 180-degree rotation of the first's — one shared board, a
 declared per-player transform, never a second board. The transform is
 folded into the class-1 verbs, which take the acting player and resolve
-the direction in that player's frame. Five closed Builtin verbs read the
-board's movement frame (rejected in a boardless game naming `board:`, the
-`lines(k)` Shadow Guards, and on a board with no frame naming its family):
+the direction in that player's frame. The closed Builtin verbs below read
+the board's movement frame (`BOARD_VERB_NEEDS` in
+`cardlang/builtins/functions.py` maps each board verb to the part it
+reads), rejected in a boardless game naming `board:`, the `lines(k)`
+Shadow Guards, and on a board with no frame naming its family:
 
 - `neighbor(from, along, player)` — the cell one step along `along` in
   `player`'s frame, a `TCell`. It is **total**: an off-board step is a
@@ -3590,7 +3592,7 @@ move_type slide(from : cell, to : cell) {
   when: (point[from] is not empty) and (point[to] is empty) and (to in neighbors(from))
   effect { move one piece from point[from] to point[to] }
 }
-function crowded(c : cell) = any cell where (cell in neighbors(c)) and (point[cell] is empty)
+function can_slide_from(c : cell) = any cell where (cell in neighbors(c)) and (point[cell] is empty)
 ```
 
 The collection form `any cell in neighbors(c) where …` stays refused:

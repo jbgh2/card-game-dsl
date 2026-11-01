@@ -349,14 +349,21 @@ from typing import (
 )
 
 from cardlang.ast import nodes as n
-from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
+from cardlang.board_domains import (
+    BOARD_DOMAIN,
+    DIRECTION_DOMAIN,
+    board_directions,
+    directions_of,
+)
 from cardlang.builtins.functions import (
     ARRIVAL_RECORD_CALLS,
     BUILTIN_ARGUMENT_READS,
     BUILTIN_IMPLICIT_READS,
+    BOARD_NEEDS,
     BOARD_ONLY_CALL_FUNCS,
     BOARD_VERB_NEEDS,
     CALL_FUNCS,
+    BoardNeed,
     DECK_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
@@ -443,13 +450,7 @@ from cardlang.libraries import library_names, load_library
 from cardlang.runtime.delegation import CHOOSER_HELPER, SOURCE_HELPER
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import content_kind_clause, content_noun
-from cardlang.stdlib.boards import (
-    BOARD_NEEDS,
-    BoardEntry,
-    BoardNeed,
-    board_entry,
-    board_spelling,
-)
+from cardlang.stdlib.boards import BoardEntry, board_entry, board_spelling
 from cardlang.stdlib.enums import (
     SEAT_DIRECTION_VALUES,
     enum_values,
@@ -480,7 +481,7 @@ from cardlang.typecheck import (
     card_content_forms,
     ranking_gated_slots,
 )
-from cardlang.types import Flavor, TCollection, TInteger, TPlayer, TTeam
+from cardlang.types import Flavor, TCell, TCollection, TInteger, TPlayer, TTeam
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
 # is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
@@ -5640,8 +5641,12 @@ _REGION_CALL_FUNCS = frozenset(
 def _static_length(obj: n.Expr, game: n.Game) -> int | None:
     """How many members a positional collection holds, where the sentence
     states it: a `[...]` list's own count, or a board region on the declared
-    board. A per-seat region answers the largest seat's count, so a position
-    one seat holds is never refused. None where the count is runtime data."""
+    board. A region whose argument the sentence does not fix answers the
+    largest count over every argument the board admits -- each seat for a
+    per-seat region, each cell for a cell's region (`neighbors(c)`, the
+    board's largest degree), each declared length for `lines(k)` with a
+    computed `k` -- so a position some argument holds is never refused. None
+    where the count is runtime data."""
     if isinstance(obj, n.ListLit):
         return len(obj.elements)
     if not (isinstance(obj, n.Call) and obj.func in _REGION_CALL_FUNCS):
@@ -5649,16 +5654,20 @@ def _static_length(obj: n.Expr, game: n.Game) -> int | None:
     if game.board is None or len(obj.args) != 1:
         return None
     try:
-        method = getattr(board_entry(game.board.family, game.board.args), obj.func)
+        entry = board_entry(game.board.family, game.board.args)
+        method = getattr(entry, obj.func)
         param = CALL_SIGS[obj.func].params[0]
-        if isinstance(param, TPlayer):
-            return max(len(method(seat)) for seat in range(game.players.count))
         arg = obj.args[0]
-        # A length-parameter region (`lines(k)`) states its count for a
-        # literal `k`; a cell-parameter region (`neighbors(c)`) never does.
-        if isinstance(param, TInteger) and isinstance(arg, n.IntLit):
-            return len(method(arg.value))
-        return None
+        admitted: tuple[object, ...]
+        if isinstance(param, TPlayer):
+            admitted = tuple(range(game.players.count))
+        elif isinstance(param, TCell):
+            admitted = entry.cells
+        elif isinstance(param, TInteger):
+            admitted = (arg.value,) if isinstance(arg, n.IntLit) else entry.line_lengths
+        else:
+            return None
+        return max((len(method(a)) for a in admitted), default=None)
     except (OwnerGuardError, ValueError):
         # Refused where it is written: an invalid `board:` clause
         # (`_resolve_board`), or the call itself (`_check_board_call`, the
@@ -6960,7 +6969,7 @@ def _resolve_board(
     # twin. No early return: unlike a `cell` clash, a declared `dir` does not
     # block minting `cell` (they are different names), so the error is
     # emitted and cell minting proceeds; the bag halts the pipeline either way.
-    mints_directions = entry is None or entry.frame is not None
+    mints_directions = entry is None or bool(board_directions(entry))
     if mints_directions and DIRECTION_DOMAIN in declared_positions:
         bag.error(
             f"the board mints a movement-direction domain named "
@@ -11947,7 +11956,7 @@ def _unminted_direction(game: n.Game, name: str) -> str | None:
     if game.board is None:
         return "the game declares no `board:`"
     entry = _declared_board(game)
-    if entry is None or entry.frame is not None:
+    if entry is None or board_directions(entry):
         return None
     destination = "a move on this board names its destination (`to : cell`)"
     if entry.answers("edges"):

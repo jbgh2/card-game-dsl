@@ -1770,27 +1770,14 @@ def test_a_library_reaching_the_games_text(monkeypatch: pytest.MonkeyPatch, witn
 
 
 def test_every_clause_gate_has_a_witness() -> None:
-    """Every gate the clause-gate grid runs has a library-reached witness here,
-    but a gate whose every member takes a cell or a direction: a library
-    spells neither (`test_library_clause_gates`, the cell and direction
-    refusals in the library's own file), so no library reaches it.
+    """Every gate the clause-gate grid runs has a library-reached witness here.
 
-    red under: `_clause_witnesses` skipping the `teams` gate."""
-    from cardlang.builtins.signatures import CALL_SIGS
-    from cardlang.types import TCell, TDir
-
+    red under: add a Builtin gate to `test_library_clause_gates.GATES` whose
+    members no library can spell."""
     names = {
         k.removeprefix("clause-gate-") for k in _clause_witnesses() if k.startswith("clause-gate-")
     }
-    board_only = {
-        g.name
-        for g in CG.GATES
-        if (members := g.members & BUILTIN_CALL_FUNCS)
-        and all(
-            any(isinstance(p, (TCell, TDir)) for p in CALL_SIGS[m].params) for m in members
-        )
-    }
-    assert names == ({g.name for g in CG.GATES} - board_only) | set(CG.NODE_GATES)
+    assert names == {g.name for g in CG.GATES} | set(CG.NODE_GATES)
 
 
 def test_every_clause_read_of_the_type_layer_names_its_owner() -> None:

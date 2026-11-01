@@ -139,6 +139,7 @@ import cardlang.resolve as resolve_module
 import cardlang.runtime.evaluate as evaluate_module
 from cardlang.ast import nodes as n
 from cardlang.board_domains import DIRECTION_DOMAIN, directions_of, position_domains_of
+from cardlang.builtins.functions import BOARD_VERB_NEEDS
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.parse import parse_library
@@ -836,7 +837,7 @@ def _optional_call_game(name: str, slot: int, value: str) -> str:
 
 
 # The verbs that read a board's declared adjacency, which the grid lacks.
-_ADJACENCY_VERBS = frozenset({"neighbors"})
+_ADJACENCY_VERBS = frozenset(v for v, need in BOARD_VERB_NEEDS.items() if need == "edges")
 
 
 @pytest.mark.parametrize(("name", "slot"), _BOARD_NONE_CELLS, ids=[f"{n_}-{i}" for n_, i in _BOARD_NONE_CELLS])
