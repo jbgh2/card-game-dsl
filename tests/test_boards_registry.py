@@ -1,11 +1,13 @@
 """BOARDS registry: the grid family's cells, lines, directions, frames, and
-regions, the mill board's points, adjacency and lines, integrity-pinned.
+regions, the mill board's points, adjacency and lines, and the hex rhombus's
+cells, adjacency and seat borders, integrity-pinned.
 
 The family-by-verb grid and the entry-integrity grid over every family are
 tests/test_board_verb_availability.py; this module holds the grid family's
 geometry sweeps, each family's argument refusals, the mill board's
-`neighbors` and `lines(k)` tables, and the `__post_init__` pins' reddening
-witnesses.
+`neighbors` and `lines(k)` tables, the hex rhombus sweep, the walk of every
+family's minimal entry over the verbs it declares, and the `__post_init__`
+pins' reddening witnesses.
 
 property:   every BOARD_FAMILIES row builds a BoardEntry whose cells are
             unique, nonempty, and within the 256-member position-domain cap;
@@ -22,7 +24,11 @@ property:   every BOARD_FAMILIES row builds a BoardEntry whose cells are
             directions, and home()/far_row() are the back-two-ranks / far-rank
             regions -- refused as a ValueError naming "registry bug" in
             __post_init__, with the adequacy pins (no dead direction, disjoint
-            2*width homes) enforced only where width >= 2 and height >= 4.
+            2*width homes) enforced only where width >= 2 and height >= 4;
+            and `hex_rhombus(n)`'s cells are the grid's names row-major, its
+            edges exactly the pairs at cube distance one, its degrees the
+            closed form's, and each seat's borders the two sides it joins,
+            sharing exactly the corner hexagons.
 domain:     BOARD_FAMILIES rows x argument space (arity,
             per-argument bounds, and the misuse shapes: unknown family,
             wrong arity, out-of-bounds argument) x entry-integrity
@@ -35,7 +41,10 @@ domain:     BOARD_FAMILIES rows x argument space (arity,
             pins (offsets-cover-directions, frames-are-180-rotations,
             neighbor-in-cells-or-None, regions subset/sized/edged, and the
             adequacy pins) over a grid sweep spanning degenerate,
-            breakthrough-shaped, and non-square boards.
+            breakthrough-shaped, and non-square boards; the hex rhombus at
+            n in {1, 2, 3, 11, 16} -- the one-cell board, the smallest with
+            corners of both kinds, the first with an interior, the Hex board,
+            and the largest side the position-domain cap admits.
             The topology pins (edges joining two distinct board cells and
             reaching every cell, line lengths increasing and derived from
             exactly one topology, a frame covering exactly the cells) are
@@ -51,8 +60,19 @@ domain:     BOARD_FAMILIES rows x argument space (arity,
             nine men's morris witnesses.
 registry:   cardlang.stdlib.boards.BOARD_FAMILIES, .board_entry, .BoardEntry
             (.lines, .neighbors, .directions, .is_diagonal, .neighbor,
-            .has_step, .home, .far_row), .GridFrame, and the grid builder's
-            _GRID_DIRECTION_OFFSETS table.
+            .has_step, .home, .far_row, .near_edge, .far_edge), .GridFrame,
+            .SeatBorders, the grid builder's _GRID_DIRECTION_OFFSETS table and
+            the hex builder's _HEX_FORWARD_OFFSETS;
+            cardlang.builtins.functions.BOARD_VERB_NEEDS (the matrix walk);
+            the native oracle: OpenSpiel's `hex` (pyspiel, skipped without
+            it).
+held by:    the hex rhombus's edges and borders are a Born-Green Pin: the
+            cube-distance re-derivation reads no offset list, so a wrong
+            offset in the builder diverges from it, and its red-under
+            mutations below are run; not higher, because the geometry is
+            generated data no type states. The adjacency's symmetry is
+            Unrepresentable (an edge is an unordered pair), so no pin holds
+            it.
 does not prove:  that `lines(k)` is right at 16x16 by independent
             reconstruction. Brute force over every k-combination of 256 cells
             is infeasible, so at that size the sweep holds the generator
@@ -63,7 +83,10 @@ does not prove:  that `lines(k)` is right at 16x16 by independent
             Nor that the movement pins hold on every board the runtime can
             instantiate. They are refused at construction, so the static
             sweep samples grid shapes rather than re-proving each pin on
-            every reachable board.
+            every reachable board. Nor that the hex adjacency is the one a
+            Hex player plays on beyond the oracle's two-board facts: the
+            sweep holds the builder against geometry, and the differential
+            against OpenSpiel's `hex` (issue #973) carries the rest.
 
 red under (naming): transposing the file/rank order in _cell_name --
 swapping `f"{_FILES[column]}{row + 1}"` for `f"{row + 1}{_FILES[column]}"`

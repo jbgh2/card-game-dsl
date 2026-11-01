@@ -156,9 +156,9 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
     ),
     # --- engine maintainer: invariants over the engine's own registry data ---
     ("cardlang/stdlib/boards.py", "ValueError"): (
-        25,
+        28,
         ("BoardEntry.__post_init__ pins the family BUILDER's output, and the "
-        "entry's own frame/edge/cell lookups refuse a read of a part its "
+        "entry's own frame/edge/border/cell lookups refuse a read of a part its "
         "family does not declare; the messages say 'registry bug' and mean "
         "it, and resolve's `_static_length` reads a region's size behind "
         "that ValueError. Deliberately NOT role-typed: "
