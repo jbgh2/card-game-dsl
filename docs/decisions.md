@@ -3626,7 +3626,11 @@ optional, or of any other declared type is refused at check time with a
 diagnostic naming the declaration: an unindexed one has no per-member
 value, an optional one may hold `none`, and the rest either cannot be
 compared or compare fine and mean nothing (a `Player`-typed target would
-deliver seat ids as utilities). See [Winner](glossary/winner.md).
+deliver seat ids as utilities). The variable is never named for a word a game
+clause opens with (`pieces`, `phase`, `at`): the name ends the clause, so a
+ranking whose name is left off would otherwise read the next clause's word as
+its target; the refusal says to rename the variable. See
+[Winner](glossary/winner.md).
 
 An *elimination* game has no score: players drop out until one
 remains, and that survivor is named directly, so `loser: <selection>`

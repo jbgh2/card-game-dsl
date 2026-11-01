@@ -2988,6 +2988,37 @@ _PARSE_HINTS: dict[str, tuple[str | None, str]] = {
 }
 
 
+@lru_cache(maxsize=1)
+def _result_name_patterns() -> tuple[re.Pattern[str], re.Pattern[str]]:
+    """The NAME terminal's pattern and RESULT_VAR_NAME's, read off the
+    grammar: a word the first matches and the second refuses is one the
+    game's clauses reserve."""
+    terminals = {t.name: t for t in _parser().terminals}
+    return (
+        re.compile(terminals["NAME"].pattern.to_regexp()),
+        re.compile(terminals["RESULT_VAR_NAME"].pattern.to_regexp()),
+    )
+
+
+def _reserved_result_name_hint(exc: UnexpectedInput, lexeme: str) -> str:
+    """What to do when a result ranking's name is a word the game's clauses
+    reserve. True at both of its sites: a state variable so named, and a
+    ranking whose name is left off above the next clause."""
+    names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
+    if "RESULT_VAR_NAME" not in {str(getattr(t, "name", t)) for t in names}:
+        return ""
+    word = lexeme.strip("`")
+    name, result_name = _result_name_patterns()
+    if not name.fullmatch(word) or result_name.fullmatch(word):
+        return ""
+    return (
+        f" — `{word}` is reserved by the game's clauses, so it cannot be the "
+        f"state variable a result ranks: if the variable is named `{word}`, "
+        f"rename it (for example `{word}_left`); otherwise write the "
+        f"variable's name before the next clause"
+    )
+
+
 def _parse_hint(text: str, pos: int, line: int, start: str) -> str:
     """Two probes, because Lark points at either end of the offending clause.
 
@@ -3090,7 +3121,9 @@ def _syntax_error(
     # own expectation, computed under a bracket context the missing `}`
     # already broke, would invite exactly the wrong edit beside it.
     expected = "" if names_a_site else _expected_clause(exc, lexeme.strip("`"))
-    hint = _parse_hint(text, pos, raw_line, start)
+    # The reserved-name hint answers the failure position itself, so it
+    # outranks a clause keyword's reminder of where its clause belongs.
+    hint = _reserved_result_name_hint(exc, lexeme) or _parse_hint(text, pos, raw_line, start)
     message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
     return Diagnostic(Severity.ERROR, message, span), pos
 

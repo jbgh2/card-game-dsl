@@ -205,6 +205,32 @@ def test_a_result_ranking_target_excludes_every_clause_keyword() -> None:
     )
 
 
+_BASE_RESERVED = {"all", "one", "some", "jointly", "not", "is", "number"}
+
+
+@pytest.mark.parametrize("slot", ["winner: highest {}", "at max_length: highest {}"])
+@pytest.mark.parametrize("word", sorted(_terminal_excluded("RESULT_VAR_NAME") - _BASE_RESERVED))
+def test_a_state_variable_named_for_a_clause_is_told_to_rename(word: str, slot: str) -> None:
+    """A state variable may be named for a clause keyword (`state { pieces[player]
+    : Integer = 0 }`), but a result ranking may not rank it: the refusal says
+    which word is reserved and how to rename the variable, in words true also
+    of a ranking whose name is left off above the next clause.
+
+    red under: return "" first in parse.py's `_reserved_result_name_hint`."""
+    winner = "" if slot.startswith("winner") else "  winner: highest score\n"
+    src = (
+        "game G {\n  players: 2\n  max_length: 10\n  cards: standard52\n"
+        "  zones { deck : Deck }\n"
+        f"  state {{ {word}[player] : Integer = 0  score[player] : Integer = 0 }}\n"
+        f"{winner}  {slot.format(word)}\n}}\n"
+    )
+    with pytest.raises(DiagnosticError) as refused:
+        parse_text(src, "reserved.cardlang")
+    message = refused.value.diagnostic.message
+    assert f"unexpected `{word}`; expected a state variable name" in message, message
+    assert f"if the variable is named `{word}`, rename it (for example `{word}_left`)" in message, message
+
+
 @pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
 def test_no_clause_is_absorbed_when_it_follows_suit_ranking(rule_name: str) -> None:
     """Every clause still parses as ITSELF when written after a `suit ranking:`

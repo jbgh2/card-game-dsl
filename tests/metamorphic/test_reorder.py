@@ -146,6 +146,7 @@ _PARSE_LEVEL_CASES = frozenset(
         # hint's two sites likewise, and a second clause is the builder's
         # `once`, so none leaves a tree.
         "max_length_clause_after_the_bound",
+        "result_ranking_reserved_name",
         "stop_result_inside_a_phase",
         "stop_result_ranking_name_left_off",
         "stop_result_twice",
