@@ -165,6 +165,9 @@ class Clauses:
     pieces: bool = False  # `pieces:` rather than `cards:`
     board: bool = False
     board_size: int = 3  # a square grid; the probe asks for `lines(3)`
+    # The board family: a square `grid` of `board_size`, or the fixed mill
+    # board `morris9`, which has adjacency and no movement frame.
+    board_family: str = "grid"
     players: int = 4
     teams: bool = True
     ranking: bool = True
@@ -188,6 +191,14 @@ def _teams_clause(players: int) -> str:
     return "teams: [" + ", ".join(f"[{s}]" for s in range(players)) + "]"
 
 
+def _board_line(c: Clauses) -> str:
+    if not c.board:
+        return ""
+    if c.board_family == "morris9":
+        return "  board: morris9"
+    return f"  board: grid({c.board_size}, {c.board_size})"
+
+
 def _game_text(
     clauses: Clauses, *, uses: bool, game_fn: str, tag: str, statement: str = ""
 ) -> str:
@@ -206,7 +217,7 @@ def _game_text(
         _teams_clause(c.players) if c.teams else "",
         "  max_length: 1000",
         f"  {content}",
-        f"  board: grid({c.board_size}, {c.board_size})" if c.board else "",
+        _board_line(c),
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2" if c.ranking else "",
         "  card_points { A: 1 else: 0 }" if c.card_points else "",
         "  suit ranking: spades hearts diamonds clubs" if c.suit_ranking else "",
@@ -330,12 +341,27 @@ GATES: tuple[Gate, ...] = (
     # The one board verb whose ARGUMENT is judged against the board's size
     # (`resolve._check_board_call`): a literal `k` past the board's span.
     Gate("board_span", frozenset({"lines"}), "grid(2, 2)"),
+    # What a board family must declare for each board verb to read
+    # (`builtins.functions.BOARD_VERB_NEEDS`), each authored here from the
+    # family-by-verb matrix: a movement frame, a declared adjacency, lines.
+    Gate(
+        "board_frame",
+        frozenset({"far_row", "has_step", "home", "is_diagonal", "neighbor"}),
+        "board: morris9",
+    ),
+    Gate("board_edges", frozenset({"neighbors"}), "board: grid"),
+    Gate("board_lines", frozenset({"lines"}), "board:"),
     Gate("cards", DECK_ONLY_CALL_FUNCS, "piece"),
 )
+
+# The mill board: adjacency and lines of three, no movement frame.
+_MORRIS = replace(_BOARD, board_family="morris9")
 
 
 def _home(member: str) -> Clauses:
     """A game every gate on `member` is met in."""
+    if member == "neighbors":
+        return _MORRIS
     if member in BOARD_ONLY_CALL_FUNCS:
         return _BOARD
     return replace(
@@ -399,6 +425,12 @@ def _unmet(gate: Gate, member: str) -> Clauses:
             return replace(home, board=False)
         case "board_span":
             return replace(home, board_size=2)
+        case "board_frame":
+            return _MORRIS
+        case "board_edges":
+            return _BOARD
+        case "board_lines":
+            pytest.skip("every registered board family declares lines, so no game lacks them")
         case "two_seats":
             return replace(home, players=3)
         case "cards":
@@ -1077,7 +1109,7 @@ def _node_game_text(
         f"  {_teams_clause(c.players)}" if c.teams else "",
         "  max_length: 1000",
         f"  {content}",
-        f"  board: grid({c.board_size}, {c.board_size})" if c.board else "",
+        _board_line(c),
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2" if c.ranking else "",
         f"  uses {_LIB}" if through_library else "",
         f"  zones {{ {zones} }}",
@@ -1888,7 +1920,8 @@ def _twice(definition: str) -> str:
 def _repeat_cases() -> list[object]:
     cases: list[object] = []
     for gate in GATES:
-        if gate.name == "board_span":
+        # `board_lines` has no game that lacks it (its `_unmet` skips).
+        if gate.name in ("board_span", "board_lines"):
             continue
         member = next(
             (m for m in sorted(gate.members & BUILTIN_CALL_FUNCS) if _probe(m).library_spellable),

@@ -223,13 +223,17 @@ BAD_ARGS_CASES: list[tuple[str, tuple[int, ...], str]] = [
     ("grid", (0, 3), "1..16"),
     ("grid", (3, 17), "1..16"),
     ("grid", (-1, 3), "1..16"),
+    ("morris9", (3,), "takes 0 argument"),
 ]
 
 
 @pytest.mark.parametrize(
     "family, args, expected_substring",
     BAD_ARGS_CASES,
-    ids=["unknown_family", "arity_1", "arity_3", "arg_zero", "arg_17", "arg_negative"],
+    ids=[
+        "unknown_family", "arity_1", "arity_3", "arg_zero", "arg_17", "arg_negative",
+        "morris9_arity_1",
+    ],
 )
 def test_board_entry_rejects_bad_args(
     family: str, args: tuple[int, ...], expected_substring: str
@@ -242,11 +246,30 @@ def test_board_entry_rejects_bad_args(
         board_entry(family, args)
 
 
-def test_board_families_has_exactly_grid() -> None:
-    assert set(BOARD_FAMILIES) == {"grid"}
+def test_board_families_are_grid_and_morris9() -> None:
+    assert set(BOARD_FAMILIES) == {"grid", "morris9"}
     assert BOARD_FAMILIES["grid"].arity == 2
     assert BOARD_FAMILIES["grid"].lo == 1
     assert BOARD_FAMILIES["grid"].hi == 16
+    assert BOARD_FAMILIES["morris9"].arity == 0
+
+
+def test_morris9_answers_lines_of_three_only() -> None:
+    # The designer wrote `lines(2)` on the mill board; the bound's Owner Guard
+    # names the one length it declares.
+    entry = board_entry("morris9", ())
+    for k in (0, 1, 2, 4, 24):
+        with pytest.raises(OwnerGuardError, match="lines\\(k\\) requires k = 3 for morris9"):
+            entry.lines(k)
+
+
+def test_morris9_neighbors_hand_table() -> None:
+    # A corner, an outer midpoint, a middle midpoint, an inner corner.
+    entry = board_entry("morris9", ())
+    assert entry.neighbors("a1") == ("d1", "a4")
+    assert entry.neighbors("d1") == ("a1", "g1", "d2")
+    assert entry.neighbors("d2") == ("d1", "b2", "f2", "d3")
+    assert entry.neighbors("c3") == ("d3", "c4")
 
 
 def test_lines_is_total_over_the_family_registry() -> None:

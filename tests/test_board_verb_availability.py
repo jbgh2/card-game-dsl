@@ -1,0 +1,520 @@
+"""A board verb is answered by a family that declares what it reads, and
+refused, naming the family, by one that does not.
+
+A `board:` family declares its topology as data on `BoardEntry`
+(`cardlang/stdlib/boards.py`): its cells, an optional adjacency (`edges`),
+the line lengths it answers, and an optional movement frame. Every board
+verb reads one of them (`builtins.functions.BOARD_VERB_NEEDS`), and so does
+the board direction domain `dir`, which only a frame mints. This module is
+the family-by-verb grid, the entry-integrity grid over every family's built
+entry, and the misuse probes:
+
+  * GRID V -- {family: `BOARD_FAMILIES`} x {position: each board verb of
+    `BOARD_ONLY_CALL_FUNCS` but `lines` at a call, `lines(k)` for a literal
+    k in 1..4, and `dir` at each position that admits it -- the move
+    parameter, the bare quantifier, a function parameter and an outcome
+    payload}, crossed with {answered, refused naming the family}. The
+    expected column is the hand table `ANSWERS`, authored from the
+    family-by-verb matrix of issue #976, never read off `BOARD_VERB_NEEDS`.
+    An answered cell checks and plays its probe; a refused cell is refused at
+    resolve on a line naming the position and the family, and a call's
+    refusal names every verb the family answers.
+  * GRID E -- over every family's built entry: cells unique, nonempty and
+    within the position-domain ceiling; edges joining two distinct cells,
+    total over the cells; every line a straight run of declared length along
+    the edges where the family declares edges; `neighbors(c)` in board cell
+    order; a frame present exactly where the checked game's board mints
+    `dir`. The `morris9` hand tables (thirty-two edges, the degree sequence,
+    the sixteen mills written out, every point in exactly two) are its
+    independent cross-checks.
+  * The misuse probes -- the plausible wrong sentences around the new
+    family, each refused loud; their rendered diagnostics are pinned in
+    `tests/rejections/` as well.
+
+Completeness ledger (decisions.md "Closed-domain completeness")
+---------------------------------------------------------------
+property:   a board verb, a literal `lines(k)` and the direction domain `dir`
+            are answered on exactly the families that declare what each
+            reads, and refused at resolve, naming the family, the thing it
+            lacks and the verbs it answers, on every other; every built
+            entry's topology is self-consistent; the mills are the straight
+            runs of three along the declared adjacency.
+domain:     `BOARD_FAMILIES` x the positions above x {answered, refused}
+            (GRID V); the entry-integrity properties over every family's
+            built entry (GRID E). Outside it, by design, each waiting on a
+            witness game (issue #124): relations beyond one adjacency set,
+            jump triples, track frames, double-indexed families, in-file
+            boards. A family library spells no `cell` and no `dir`, so of the
+            board verbs it reaches only `home`, `far_row` and `lines`; its
+            reach is the `uses`-line row of `resolve._CLAUSE_GATES` that the
+            game's own call reads (tests/test_library_clause_gates.py).
+registry:   `cardlang.stdlib.boards.BOARD_FAMILIES`, `BoardEntry`;
+            `cardlang.builtins.functions.BOARD_ONLY_CALL_FUNCS`,
+            `BOARD_VERB_NEEDS`; `cardlang.builtins.signatures.CALL_SIGS`;
+            `cardlang.runtime.values.COMPONENT_SETS`; the direction positions
+            `resolve._minted_directions` gates.
+held by:    the availability refusal is Derived and Pinned: `BOARD_VERB_NEEDS`
+            is one table mapping each board verb to the `BoardEntry` field it
+            reads, pinned total against `BOARD_ONLY_CALL_FUNCS`, and the
+            resolve row and the runtime `_board_of` Shadow Guard both read
+            it; not higher, because the Builtin namespace is a string
+            registry throughout (`BUILTIN_CALL_FUNCS`, the `call` match, the
+            arm-home grid of tests/test_native_dispatch_split.py) and an enum
+            for the board verbs alone would give one registry two shapes.
+            The edge data is a Born-Green Pin: the edges are authored with no
+            source above them in the tree, so the pin is GRID E's hand table,
+            and part-03's differential against the oracle's own neighbour
+            table (issue #978) is its executed witness. The mills are
+            Unrepresentable: `lines(3)` on `morris9` is derived from the one
+            edge set and the points' file and rank, so a mill off the edges
+            cannot be written. A frameless family minting no `dir` is
+            Unrepresentable: `BoardEntry.frame` is optional,
+            `board_domains.directions_of` reads it, and the `dir` source is
+            empty without it.
+does not prove:  that `neighbors` is the adjacency a player of the real game
+            knows: the hand table is checked against itself and the derived
+            mills, and the differential against OpenSpiel's
+            `nine_mens_morris` (issue #978) carries that. Nor that an
+            answered verb returns the right cells: GRID V runs each answered
+            probe, and the values are tests/test_boards_registry.py's and
+            tests/test_movement_verbs.py's. The availability row for `lines`
+            refuses nothing while every family declares lines; its cells are
+            marked.
+
+red under (edges): dropping `("a1", "d1")` from `boards._MORRIS9_EDGES`
+reddens the degree table, the edge count and the mills table of GRID E.
+red under (availability): mapping `neighbors` to `frame` in
+`BOARD_VERB_NEEDS` reddens GRID V's `call neighbors` cells on both families.
+"""
+
+from __future__ import annotations
+
+import random
+from typing import Any
+
+import pytest
+
+from cardlang.board_domains import directions_of
+from cardlang.builtins.functions import BOARD_ONLY_CALL_FUNCS
+from cardlang.builtins.signatures import CALL_SIGS
+from cardlang.diagnostics import DiagnosticError
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import play_game
+from cardlang.stdlib.boards import BOARD_FAMILIES, board_entry
+from cardlang.types import TBoolean, TCell, TCollection, TDir, TPlayer
+
+_FILE = "availability.cardlang"
+
+# The `board:` clause each family is checked under, spelled as a designer
+# writes it.
+BOARD_CLAUSES: dict[str, str] = {
+    "grid": "grid(8, 8)",
+    "morris9": "morris9",
+}
+
+LINE_LENGTHS: tuple[int, ...] = (1, 2, 3, 4)
+
+DIR_POSITIONS: tuple[str, ...] = (
+    "dir move parameter",
+    "dir quantifier",
+    "dir function parameter",
+    "dir payload",
+)
+
+
+def _positions() -> list[str]:
+    calls = [f"call {v}" for v in sorted(BOARD_ONLY_CALL_FUNCS - {"lines"})]
+    return calls + [f"lines({k})" for k in LINE_LENGTHS] + list(DIR_POSITIONS)
+
+
+# The expected column, authored from issue #976's family-by-verb matrix: the
+# positions each family answers; every other position is refused.
+ANSWERS: dict[str, frozenset[str]] = {
+    "grid": frozenset(
+        {
+            "call far_row",
+            "call has_step",
+            "call home",
+            "call is_diagonal",
+            "call neighbor",
+            "lines(1)",
+            "lines(2)",
+            "lines(3)",
+            "lines(4)",
+            *DIR_POSITIONS,
+        }
+    ),
+    "morris9": frozenset({"call neighbors", "lines(3)"}),
+}
+
+# The board verbs each family answers, as its refusals list them.
+ANSWERED_VERBS: dict[str, tuple[str, ...]] = {
+    "grid": ("far_row", "has_step", "home", "is_diagonal", "lines", "neighbor"),
+    "morris9": ("lines", "neighbors"),
+}
+
+FAMILIES = sorted(set(BOARD_FAMILIES) | set(ANSWERS))
+
+
+def test_the_expected_column_covers_every_family() -> None:
+    """The hand table names every registered family and no other, so a family
+    added to the registry is a red here until its row is authored."""
+    assert set(ANSWERS) == set(BOARD_FAMILIES)
+    assert set(BOARD_CLAUSES) == set(BOARD_FAMILIES)
+    assert set(ANSWERED_VERBS) == set(BOARD_FAMILIES)
+
+
+def test_the_expected_column_covers_every_position() -> None:
+    """Each family's answered set is drawn from the derived positions, and
+    its answered verbs are the call positions it answers plus `lines`."""
+    positions = set(_positions())
+    for family, answered in ANSWERS.items():
+        assert answered <= positions, sorted(answered - positions)
+        calls = {p.removeprefix("call ") for p in answered if p.startswith("call ")}
+        assert set(ANSWERED_VERBS[family]) == calls | {"lines"}
+
+
+def _game(
+    family: str,
+    *,
+    params: str = "at : cell",
+    state: str = "",
+    setup: str = "",
+    extra: str = "",
+) -> str:
+    """A two-seat piece game on `family`'s board with one `pick` move and a
+    `stop`; each keyword is a position a probe rewrites."""
+    return (
+        "game Availability {\n"
+        "  players: 2\n"
+        "  max_length: 30\n"
+        f"  board: {BOARD_CLAUSES[family]}\n"
+        "  pieces: xo_marks\n"
+        "  zones {\n"
+        "    box             : Deck\n"
+        "    square[cell]    : Cell<cell>\n"
+        "    reserve[player] : PlayerPile<player>\n"
+        "  }\n"
+        "  state {\n"
+        "    result[player] : Integer = 0\n"
+        "    probe : Integer = 0\n"
+        "    flag : Boolean = false\n"
+        "    done : Boolean = false\n"
+        f"{state}"
+        "  }\n"
+        "  phase setup {\n"
+        "    move all pieces from box where piece.side is x to reserve[0]\n"
+        "    move all pieces from box to reserve[1]\n"
+        f"{setup}"
+        "  }\n"
+        "  phase play {\n"
+        "    turns t from 0 over all players until done {\n"
+        "      offer to t one of [pick, stop]\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest result\n"
+        "}\n"
+        f"move_type pick({params}) {{\n"
+        "  when: not done\n"
+        "  effect { done := true }\n"
+        "}\n"
+        "move_type stop { effect { done := true } }\n"
+        f"{extra}"
+    )
+
+
+_DECLS = {TCell: "c : cell", TDir: "d : dir", TPlayer: "p : Player"}
+_ARGS = {TCell: "cell", TDir: "dir", TPlayer: "0"}
+
+
+def _call_probe(family: str, verb: str) -> str:
+    """`verb` in a function whose parameters its signature types, and a setup
+    statement that calls the function over the board's cells (and directions,
+    where the verb takes one), so an answered verb runs at play."""
+    sig = CALL_SIGS[verb]
+    decls = ", ".join(_DECLS[type(p)] for p in sig.params)
+    names = ", ".join(_DECLS[type(p)].split(" : ")[0] for p in sig.params)
+    call = f"probe_fn({', '.join(_ARGS[type(p)] for p in sig.params)})"
+    ret = sig.ret
+    if isinstance(ret, TBoolean):
+        use = call
+    elif isinstance(ret, TCell):
+        use = f"(has_step(cell, dir, 0) and (square[{call}] is empty))"
+    elif isinstance(ret, TCollection) and isinstance(ret.element, TCell):
+        use = f"(cell in {call})"
+    else:
+        raise AssertionError(f"{verb} returns {ret}; give it a reading here")
+    if any(isinstance(p, TDir) for p in sig.params) or "dir" in use:
+        use = f"(any dir where {use})"
+    if "cell" in use:
+        count = f"number of cells where {use}"
+    else:
+        count = f"number of dirs where {use}"
+    return _game(
+        family,
+        setup=f"    probe := {count}\n",
+        extra=f"function probe_fn({decls}) = {verb}({names})\n",
+    )
+
+
+def _source(family: str, position: str) -> str:
+    if position.startswith("call "):
+        return _call_probe(family, position.removeprefix("call "))
+    if position.startswith("lines("):
+        return _game(family, setup=f"    if any line in {position} where true {{ probe := 1 }}\n")
+    match position:
+        case "dir move parameter":
+            return _game(family, params="at : cell, along : dir")
+        case "dir quantifier":
+            return _game(
+                family,
+                setup="    flag := scan(0)\n",
+                extra="function scan(p : Player) = any dir where true\n",
+            )
+        case "dir function parameter":
+            return _game(family, extra="function f(d : dir) = true\n")
+        case "dir payload":
+            return _game(
+                family,
+                setup=(
+                    "    phase d -> outcome { Won(dir) | Lost } { produce Lost }\n"
+                    "    d produces:\n"
+                    "      Won(x) { }\n"
+                    "      Lost   { }\n"
+                ),
+            )
+    raise AssertionError(f"no probe for position {position!r}")
+
+
+def _rendered(source: str) -> str | None:
+    try:
+        check_dsl(source, _FILE)
+    except DiagnosticError as exc:
+        notes = getattr(exc, "__notes__", None)
+        return "\n".join([exc.diagnostic.format(), *(notes or [])])
+    return None
+
+
+def _stop(player: int, candidates: list[Any], k: int) -> list[Any]:
+    return [next(c for c in candidates if c == ("stop", None))]
+
+
+def _word(position: str) -> str:
+    """What a refusal of `position` must name: the verb, or `dir`."""
+    if position.startswith("call "):
+        return f"`{position.removeprefix('call ')}`"
+    if position.startswith("lines("):
+        return position
+    return "dir"
+
+
+@pytest.mark.parametrize("position", _positions())
+@pytest.mark.parametrize("family", FAMILIES)
+def test_a_board_position_is_answered_or_refused_naming_the_family(
+    family: str, position: str
+) -> None:
+    source = _source(family, position)
+    rendered = _rendered(source)
+    if position in ANSWERS.get(family, frozenset()):
+        assert rendered is None, rendered
+        play_game(check_dsl(source, _FILE), random.Random(0), chooser=_stop)
+        return
+    assert rendered is not None, f"`board: {BOARD_CLAUSES[family]}` accepted {position}"
+    hits = [
+        line
+        for line in rendered.splitlines()
+        if _word(position) in line and family in line
+    ]
+    assert hits, rendered
+    if position.startswith("call "):
+        assert any(all(f"`{v}`" in line for v in ANSWERED_VERBS[family]) for line in hits), hits
+
+
+# --- GRID E: the integrity of every family's built entry -----------------------
+
+
+def _args(family: str) -> tuple[int, ...]:
+    row = BOARD_FAMILIES[family]
+    return tuple(min(max(row.lo, 3), row.hi) for _ in range(row.arity))
+
+
+@pytest.mark.parametrize("family", sorted(BOARD_FAMILIES))
+def test_every_entry_holds_its_topology_together(family: str) -> None:
+    entry = board_entry(family, _args(family))
+    cells = entry.cells
+    assert cells and len(set(cells)) == len(cells) and len(cells) <= 256
+    cellset = set(cells)
+    if entry.edges is not None:
+        for edge in entry.edges:
+            assert len(edge) == 2 and edge <= cellset, sorted(edge)
+        assert set().union(*entry.edges) == cellset
+        for c in cells:
+            nbrs = entry.neighbors(c)
+            assert nbrs == tuple(x for x in cells if frozenset((c, x)) in entry.edges)
+    assert entry.line_lengths, f"{family} declares no line length"
+    for k in entry.line_lengths:
+        lines = entry.lines(k)
+        assert lines == entry.lines(k)
+        for line in lines:
+            assert len(line) == k and len(set(line)) == k and set(line) <= cellset
+            if entry.edges is not None:
+                assert all(
+                    frozenset(pair) in entry.edges for pair in zip(line, line[1:])
+                ), line
+
+
+@pytest.mark.parametrize("family", sorted(BOARD_FAMILIES))
+def test_a_frame_stands_exactly_where_the_board_mints_directions(family: str) -> None:
+    game = check_dsl(_game(family), _FILE)
+    entry = board_entry(family, game.board.args if game.board is not None else ())
+    assert (entry.frame is not None) == bool(directions_of(game))
+
+
+# The mill board's hand tables: thirty-two edges, twelve points of degree two,
+# eight of three, four of four, and the sixteen mills written out.
+MORRIS9_CELLS = (
+    "a1 d1 g1 b2 d2 f2 c3 d3 e3 a4 b4 c4 e4 f4 g4 c5 d5 e5 b6 d6 f6 a7 d7 g7"
+).split()
+
+MORRIS9_MILLS: set[tuple[str, ...]] = {
+    ("a1", "d1", "g1"),
+    ("b2", "d2", "f2"),
+    ("c3", "d3", "e3"),
+    ("a4", "b4", "c4"),
+    ("e4", "f4", "g4"),
+    ("c5", "d5", "e5"),
+    ("b6", "d6", "f6"),
+    ("a7", "d7", "g7"),
+    ("a1", "a4", "a7"),
+    ("b2", "b4", "b6"),
+    ("c3", "c4", "c5"),
+    ("d1", "d2", "d3"),
+    ("d5", "d6", "d7"),
+    ("e3", "e4", "e5"),
+    ("f2", "f4", "f6"),
+    ("g1", "g4", "g7"),
+}
+
+
+def test_morris9_cells_are_the_wmd_points_in_board_order() -> None:
+    assert board_entry("morris9", ()).cells == tuple(MORRIS9_CELLS)
+
+
+def test_morris9_edges_hold_the_hand_degree_table() -> None:
+    entry = board_entry("morris9", ())
+    assert entry.edges is not None and len(entry.edges) == 32
+    degrees = [len(entry.neighbors(c)) for c in entry.cells]
+    assert {d: degrees.count(d) for d in set(degrees)} == {2: 12, 3: 8, 4: 4}
+
+
+def test_morris9_mills_are_the_sixteen_lines_and_each_point_is_in_two() -> None:
+    entry = board_entry("morris9", ())
+    assert entry.line_lengths == (3,)
+    mills = entry.lines(3)
+    assert set(mills) == MORRIS9_MILLS and len(mills) == 16
+    assert all(sum(c in m for m in mills) == 2 for c in entry.cells)
+
+
+# --- misuse probes ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("source", "needle"),
+    [
+        pytest.param(
+            _game("morris9").replace("board: morris9", "board: morris9(3)"),
+            "board family 'morris9' takes 0 argument(s), got 1",
+            id="morris9 with an argument",
+        ),
+        pytest.param(
+            _game("grid").replace("board: grid(8, 8)", "board: grid"),
+            "board family 'grid' takes 2 argument(s), got 0",
+            id="grid without its arguments",
+        ),
+        pytest.param(
+            _game(
+                "morris9",
+                setup="    probe := number of cells where (any cell in neighbors(cell) where true)\n",
+            ),
+            "iterates a single line",
+            id="collection quantifier over neighbors",
+        ),
+        pytest.param(
+            _game("morris9").replace("pieces: xo_marks", "pieces: morris_men\n  cards: standard52"),
+            "cards:",
+            id="morris_men beside cards",
+        ),
+    ],
+)
+def test_a_plausible_wrong_sentence_is_refused(source: str, needle: str) -> None:
+    rendered = _rendered(source)
+    assert rendered is not None and needle in rendered, rendered
+
+
+def test_a_declared_dir_domain_stands_beside_a_frameless_board() -> None:
+    """`morris9` mints no `dir`, so a game may declare a position domain of
+    that name beside it; on a framed board the same declaration collides with
+    the minted domain."""
+    positions = "  positions { dir : 1..3 }\n"
+    morris = _game("morris9", params="at : cell, along : dir").replace(
+        "  pieces:", positions + "  pieces:"
+    )
+    play_game(check_dsl(morris, _FILE), random.Random(0), chooser=_stop)
+    grid = _game("grid").replace("  pieces:", positions + "  pieces:")
+    rendered = _rendered(grid)
+    assert rendered is not None and "collides with the declared" in rendered, rendered
+
+
+def test_a_morris_game_places_men_on_points_by_neighbors() -> None:
+    """The witness: a placing-and-sliding morris skeleton checks and plays,
+    its slide legal only to an empty neighbouring point."""
+    source = (
+        "game MorrisSkeleton {\n"
+        "  players: 2\n"
+        "  max_length: 60\n"
+        "  board: morris9\n"
+        "  pieces: morris_men\n"
+        "  zones {\n"
+        "    box             : Deck\n"
+        "    point[cell]     : Cell<cell>\n"
+        "    reserve[player] : PlayerPile<player>\n"
+        "  }\n"
+        "  state { result[player] : Integer = 0  moves : Integer = 0 }\n"
+        "  phase setup {\n"
+        "    move all pieces from box where piece.side is white to reserve[0]\n"
+        "    move all pieces from box to reserve[1]\n"
+        "  }\n"
+        "  phase play {\n"
+        "    turns t from 0 over all players until moves >= 40 {\n"
+        "      offer to t one of [place, slide, pass]\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest result\n"
+        "}\n"
+        "move_type place(at : cell) {\n"
+        "  when: (reserve[actor] is not empty) and (point[at] is empty)\n"
+        "  effect { move one piece from reserve[actor] to point[at]  moves := moves + 1 }\n"
+        "}\n"
+        "move_type slide(from : cell, to : cell) {\n"
+        "  when: (reserve[actor] is empty) and (point[from] is not empty)\n"
+        "        and (point[to] is empty) and (to in neighbors(from))\n"
+        "  effect { move one piece from point[from] to point[to]  moves := moves + 1 }\n"
+        "}\n"
+        "move_type pass {\n"
+        "  when: reserve[actor] is empty\n"
+        "  effect { moves := moves + 1 }\n"
+        "}\n"
+    )
+    game = check_dsl(source, _FILE)
+    entry = board_entry("morris9", ())
+    seen: list[tuple[str, str]] = []
+
+    def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+        for c in candidates:
+            if c[0] == "slide":
+                seen.append((c[1]["from"], c[1]["to"]))
+        return [random.Random(len(seen)).choice(candidates)]
+
+    play_game(game, random.Random(0), chooser=chooser)
+    assert seen, "no slide was offered"
+    assert all(to in entry.neighbors(frm) for frm, to in seen)

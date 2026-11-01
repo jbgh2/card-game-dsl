@@ -512,3 +512,45 @@ def test_integer_position_ir_is_unchanged() -> None:
     assert isinstance(ir_positions, list)
     lane = next(p for p in ir_positions if isinstance(p, dict) and p["name"] == "lane")
     assert lane == {"kind": "position", "name": "lane", "lo": 1, "hi": 2}
+
+
+# --- the mill board: a zero-argument family with named points ------------------
+
+# The twenty-four points of `board: morris9` in board order, row-major from a1
+# in the WMD notation (file letter from the left, rank from the bottom).
+MORRIS_POINTS = (
+    "a1", "d1", "g1", "b2", "d2", "f2", "c3", "d3", "e3", "a4", "b4", "c4",
+    "e4", "f4", "g4", "c5", "d5", "e5", "b6", "d6", "f6", "a7", "d7", "g7",
+)
+
+
+def _morris_game() -> str:
+    return board_game(board="  board: morris9\n", content="  pieces: morris_men\n").replace(
+        "piece.side is x", "piece.side is white"
+    )
+
+
+def test_morris9_mints_its_twenty_four_points_in_board_order() -> None:
+    game = check_dsl(_morris_game(), "board.cardlang")
+    assert position_domains_of(game)["cell"] == MORRIS_POINTS
+    static = enumerate_domain(
+        "cell",
+        DomainSources(suits=(), ranks=(), players=(0, 1), positions=position_domains_of(game)),
+    )
+    assert static == list(MORRIS_POINTS)
+
+
+def test_morris9_place_mints_one_vocab_id_per_point_and_round_trips() -> None:
+    game = check_dsl(_morris_game(), "board.cardlang")
+    space = ActionSpace.for_game(game)
+    ids = []
+    for point in MORRIS_POINTS:
+        aid = space.encode(("place", point))
+        assert space.decode(aid) == ("place", point)
+        ids.append(aid)
+    assert len(set(ids)) == len(MORRIS_POINTS)
+
+
+def test_morris9_with_an_argument_is_rejected() -> None:
+    msg = _reject(board_game(board="  board: morris9(3)\n"))
+    assert "board family 'morris9' takes 0 argument(s), got 1" in msg

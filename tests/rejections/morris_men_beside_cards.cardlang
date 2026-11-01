@@ -1,0 +1,30 @@
+// Guard: the parse builder's `cards:` XOR `pieces:` Owner Guard. A game is
+// played with cards or with pieces, never both; `pieces: morris_men` beside
+// `cards:` is refused.
+game MorrisMenBesideCards {
+  players: 2
+  max_length: 30
+  board: morris9
+  pieces: morris_men
+  cards: standard52
+  zones {
+    box             : Deck
+    point[cell]     : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest score
+}
+move_type place(at : cell) {
+  when: point[at] is empty
+  effect { move one piece from reserve[actor] to point[at] }
+}
+move_type stop { effect { done := true } }

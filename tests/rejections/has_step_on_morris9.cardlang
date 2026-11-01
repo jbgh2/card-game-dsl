@@ -1,0 +1,30 @@
+// Guard: resolve's board availability row (cardlang/resolve.py,
+// `_check_board_call`, `BOARD_VERB_NEEDS`). `has_step` reads a board's
+// movement frame; `morris9` has none, so the call is refused naming the
+// family and the verbs it answers.
+game HasStepOnMorris9 {
+  players: 2
+  max_length: 30
+  board: morris9
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    point[cell]     : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest score
+}
+move_type place(from : cell, at : cell) {
+  when: (point[at] is empty) and has_step(from, at, actor)
+  effect { move one piece from reserve[actor] to point[at] }
+}
+move_type stop { effect { done := true } }

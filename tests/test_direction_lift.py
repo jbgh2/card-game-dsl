@@ -20,7 +20,9 @@ witness:
     enumeration; the runtime value of each kind, the expected fold computed
     from the board entry's own geometry (`BoardEntry.directions`,
     `is_diagonal`, `has_step`), read in a function body, a state default and
-    a nested cell-and-direction scan.
+    a nested cell-and-direction scan. On a family whose board has no frame
+    (`MINTS_DIRECTIONS`) each cell is the refusal of its `dir`, naming the
+    family.
   * GRID C -- the binder at every argument slot of every Builtin whose
     signature takes a `TDir` (`CALL_SIGS`): admitted at the `TDir` slot,
     refused at every other slot, and a cell refused at the `TDir` slot.
@@ -100,11 +102,12 @@ does not prove:  that the host axis is every expression position a
             validates every `DomainQuery` in one walk of the whole game and
             the type checker types every one in one arm, so a host outside
             this grid reaches the same two sites. That the members come from
-            the right board: while `grid` is the only family, a member list
-            fixed to the grid's three names agrees with every board the
-            registry can build, so the order cell cannot tell a member list
-            read from this game's board from one read from nowhere; the
-            second family is that cell's witness. That a direction payload
+            the right board: while `grid` is the only family with a frame, a
+            member list fixed to the grid's three names agrees with every
+            board that mints `dir`, so the order cell cannot tell a member
+            list read from this game's board from one read from nowhere; a
+            frameless family (`morris9`) mints no `dir` and its cells are
+            refusals, so the witness is a second family WITH a frame. That a direction payload
             carries a direction at play: GRID T's payload cells check and are
             never run, because no expression a phase body can write produces a
             `TDir`; the first unit that produces one (the draughts rung, issue
@@ -330,7 +333,30 @@ def _board_args(family: str) -> tuple[int, ...]:
 
 
 def _board_clause(family: str) -> str:
-    return f"  board: {family}({', '.join(str(a) for a in _board_args(family))})\n"
+    args = _board_args(family)
+    spelled = f"{family}({', '.join(str(a) for a in args)})" if args else family
+    return f"  board: {spelled}\n"
+
+
+# Whether each family's board carries a movement frame, and so mints `dir`:
+# authored from the registry rows' design (decisions.md "Boards and cells"),
+# never read off the entry the cells test.
+MINTS_DIRECTIONS: dict[str, bool] = {"grid": True, "morris9": False}
+
+
+def test_the_frame_column_covers_every_family() -> None:
+    assert set(MINTS_DIRECTIONS) == set(BOARD_FAMILIES)
+
+
+def _refused_on_a_frameless_board(family: str, source: str) -> bool:
+    """For a family whose board mints no `dir`, assert the game's `dir` is
+    refused naming the family, and answer True; False for a framed family,
+    whose cell runs as written."""
+    if MINTS_DIRECTIONS[family]:
+        return False
+    msg = _reject(source)
+    assert f"board family '{family}' mints no directions" in msg, msg
+    return True
 
 
 def _fold(kind: str, truths: list[bool]) -> bool | int:
@@ -395,12 +421,13 @@ def test_the_quantifier_reads_the_move_parameter_order(
 
     Red under: reversing the direction members `evaluate._domain_query`
     reads."""
-    game, rs = _first_decision(
-        board_game(
-            board=_board_clause(family),
-            extra=f"function scan(p : Player) = number of {DIRECTION_DOMAIN}s where true\n",
-        )
+    source = board_game(
+        board=_board_clause(family),
+        extra=f"function scan(p : Player) = number of {DIRECTION_DOMAIN}s where true\n",
     )
+    if _refused_on_a_frameless_board(family, source):
+        return
+    game, rs = _first_decision(source)
     query = next(f.body for f in game.functions if f.name == "scan")
     assert isinstance(query, n.DomainQuery)
     ctx = Ctx(rs=rs, chooser=_unused_chooser).acting_as(0)
@@ -422,27 +449,31 @@ def test_the_quantifier_reads_the_move_parameter_order(
 @pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_function_body_folds_the_board_directions(kind: str, family: str) -> None:
-    entry = _entry(family)
-    expected = _fold(kind, [entry.is_diagonal(d) for d in entry.directions()])
     source = board_game(
         board=_board_clause(family),
         state=f"    probe : {_state_type(kind)}\n",
         setup="    probe := scan(0)\n",
         extra=f"function scan(p : Player) = {_query(kind, 'is_diagonal(dir)')}\n",
     )
+    if _refused_on_a_frameless_board(family, source):
+        return
+    entry = _entry(family)
+    expected = _fold(kind, [entry.is_diagonal(d) for d in entry.directions()])
     assert _played_state(source, "probe") == {"probe": expected}
 
 
 @pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_state_default_folds_the_board_directions(kind: str, family: str) -> None:
-    # The predicate holds of every member, so the fold reads the member count.
-    expected = _fold(kind, [True for _ in _entry(family).directions()])
     source = board_game(
         board=_board_clause(family),
         state=f"    probe : {'Integer' if kind == 'count' else 'Boolean'} = "
         f"{_query(kind, CALL_FREE)}\n",
     )
+    if _refused_on_a_frameless_board(family, source):
+        return
+    # The predicate holds of every member, so the fold reads the member count.
+    expected = _fold(kind, [True for _ in _entry(family).directions()])
     assert _played_state(source, "probe") == {"probe": expected}
 
 
@@ -453,14 +484,7 @@ def test_a_nested_scan_reads_each_seat_frame(kind: str, seat: int, family: str) 
     """`number of cells where <kind> dir... where has_step(cell, dir, p)`: the
     direction binder is the Builtin's `TDir` argument, the cell binder its
     `TCell`, and the seat its frame -- each seat's count from the board entry."""
-    entry = _entry(family)
     clause = _board_clause(family)
-    cells = position_domains_of(check_dsl(board_game(board=clause), "lift.cardlang"))["cell"]
-    expected = sum(
-        1
-        for c in cells
-        if _fold(kind, [entry.has_step(c, d, seat) for d in entry.directions()])
-    )
     source = board_game(
         board=clause,
         state="    probe : Integer = 0\n",
@@ -469,6 +493,15 @@ def test_a_nested_scan_reads_each_seat_frame(kind: str, seat: int, family: str) 
             "function scan(p : Player) = number of cells where "
             f"({_query(kind, 'has_step(cell, dir, p)')})\n"
         ),
+    )
+    if _refused_on_a_frameless_board(family, source):
+        return
+    entry = _entry(family)
+    cells = position_domains_of(check_dsl(board_game(board=clause), "lift.cardlang"))["cell"]
+    expected = sum(
+        1
+        for c in cells
+        if _fold(kind, [entry.has_step(c, d, seat) for d in entry.directions()])
     )
     assert _played_state(source, "probe") == {"probe": expected}
 
