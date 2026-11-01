@@ -24,7 +24,7 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **Move** | One played instance of a Move type, bound to its Parameters. A Move performs zero, one, or many **Transfers** — see "Moves and Transfers" below. |
 | **Transfer** | The zone-relocation statement. Its verbs (`deal`/`draw`/`move`) are sugar over one primitive. Independent of Move: setup is Transfers with no Move. |
 | **Phase** | A bounded interval of game time during which a specific set of rules is active. May be nested (sub-phases) and sequenced. Has entry condition, exit condition, active rule set, and legal move types. May resolve to a typed outcome (see [decisions.md](decisions.md) "Typed phase outcomes"). |
-| **Rule** | A named, parameterizable constraint on a move type. Attached to phases via the phase's active rule set. |
+| **Rule** | A named, parameterizable constraint on the trick round's card play, the one decision a rule binds at. Attached to phases via the phase's active rule set. |
 | **Constraint composition** | Rules combine by intersection (AND) over the set of legal candidate moves. |
 | **Observation event** | An event emitted automatically by a move or memory operation, projected per observer according to the visibility settings of the zones involved (see [decisions.md](decisions.md) "Knowledge, visibility, and the projection model"). Maintained as per-player histories; used to derive information sets. |
 | **Memory operation** | A native-named operation that affects player knowledge (`peek`, `reveal`, `hide`, `shuffle`, `announce`, `expose_top`, `deal`, `move`, `forget`). See [decisions.md](decisions.md). |
@@ -190,7 +190,10 @@ move_type play_card(c : Card) {
 }
 ```
 
-Rules attach to move types via their `constrains:` clause. A game
+Rules attach to move types via their `constrains:` clause, and bind at
+the trick round's card decision and nowhere else, so `constrains:` names
+`play_to_trick`; every other decision's legality is its move type's When
+Clause (decisions.md, "Rule demand forms"). A game
 references a move type by name in a phase's `legal_moves:` or an
 `offer`; the kernel move types are shared, so Hearts, Spades, and
 Pinochle all use `play_to_trick`.

@@ -21,9 +21,13 @@ domain:          the `constrains:` target crossed with the rule's origin. The
                  type of the game's own, crossed with its parameters (none,
                  one) and its stake (none and every member of `n.STAKES`) and
                  with where it is declared (the game, a family library the
-                 game uses); a spelling nothing declares. The origin axis:
+                 game uses); a move type the game declares because a family
+                 library contracts for it (`requires { ... : Move }`) and
+                 offers it; a spelling nothing declares. The origin axis:
                  a game's rule, a game's template instantiated, a family
                  library's rule, a family library's template instantiated.
+                 Every cell activates its rule; a game's own rule is checked
+                 whether or not a phase activates it.
                  A template parameter never reaches the target, which the
                  grammar holds as a bare name, not an expression. A game
                  move type spelled `play_to_trick` is issue #1010; a
@@ -103,10 +107,11 @@ class Target:
     spelling: str | None
     declaration: str | None = None
     in_library: bool = False
+    contracted: bool = False
 
     @property
     def id(self) -> str:
-        where = "lib" if self.in_library else "game"
+        where = "contract" if self.contracted else "lib" if self.in_library else "game"
         return f"{self.kind}-{self.spelling}-{where}" if self.declaration else f"{self.kind}-{self.spelling}"
 
 
@@ -127,6 +132,9 @@ def _targets() -> Iterator[Target]:
             for stake in (None, *n.STAKES):
                 name = f"step_{'p' if params else 'n'}_{stake or 'plain'}"
                 yield Target("declared", name, _move_type(name, params, stake), in_library)
+    yield Target(
+        "declared", "step_contracted", _move_type("step_contracted", False, None), contracted=True
+    )
     yield Target("unknown", "nonesuch_move")
 
 
@@ -151,7 +159,13 @@ def _source(origin: str, target: Target, monkeypatch: pytest.MonkeyPatch, tag: s
     offers = ""
     if target.declaration is not None:
         (library_body if target.in_library else game_defs).append(target.declaration)
-        if not target.in_library:
+        if target.contracted:
+            library_body.append(
+                f"requires {{ {target.spelling} : Move }} "
+                f"procedure offer_it() {{ offer to 0 one of [{target.spelling}] }}"
+            )
+            offers = "    run offer_it()"
+        elif not target.in_library:
             offers = f"    offer to 0 one of [{target.spelling}]"
     uses = ""
     if library_body:
