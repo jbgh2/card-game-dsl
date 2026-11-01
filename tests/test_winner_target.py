@@ -138,11 +138,6 @@ SLOT_LEADS: dict[str, str] = {
     "stop_ranking": "`at max_length:` ranks the stopped game on state variable",
 }
 
-_RED = pytest.mark.xfail(
-    strict=True, raises=(DiagnosticError, AssertionError), reason="the Stop Result (issue #967)"
-)
-
-
 def _ranking_productions() -> set[str]:
     from cardlang.parse import _parser
 
@@ -153,7 +148,6 @@ def _ranking_productions() -> set[str]:
     }
 
 
-@_RED
 def test_the_slots_are_the_ranking_productions() -> None:
     """Every production that ranks a state variable is a slot of the grid.
     red under: give a third production `rank_dir RESULT_VAR_NAME`."""
@@ -212,11 +206,7 @@ def expected_verdict(index: str | None, written: str) -> str:
 
 
 GRID = [
-    pytest.param(
-        index, written, default, slot,
-        id=f"{slot}|{cell_id}",
-        marks=_RED if slot != "winner" else (),
-    )
+    pytest.param(index, written, default, slot, id=f"{slot}|{cell_id}")
     for slot in SLOTS
     for cell_id, index, written, default, _optional in cells()
 ]
@@ -255,7 +245,7 @@ def test_winner_target_cell(index: str | None, written: str, default: str, slot:
         pytest.param("winner", "winner references unknown variable 'hand'", id="winner"),
         pytest.param(
             "stop_ranking", "`at max_length:` references unknown variable 'hand'",
-            id="stop_ranking", marks=_RED,
+            id="stop_ranking",
         ),
     ],
 )
@@ -332,7 +322,7 @@ def test_a_team_indexed_target_in_a_teamless_game_is_refused() -> None:
             "phase 'setup' and so exists only while that phase runs; the bound can "
             "stop the game in any phase, so the stop cannot be scored from it. "
             "Declare it at game level",
-            id="stop_ranking", marks=_RED,
+            id="stop_ranking",
         ),
     ],
 )

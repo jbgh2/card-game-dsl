@@ -19,12 +19,15 @@ expression and names no phase, because none is running. `play_game` returns a
 stopped run's world is the one standing at the stopped pick: no statement past
 it runs, no `after_each`, every phase frame stands, and the `game_end` trace
 fires. A finished game's `GameResult.winners` is the non-empty set of seats
-sharing the best seat score -- read through the `winner:` clause's stamped
-index role, so a team-keyed target names every member of the best team -- or,
-for a `loser:` game, every seat but the selected one, which is a seat of the
-table; or every seat, when the game ended by length, which is a tie by
-default: no loser, and neither the `winner:` target nor the `loser:` selection
-read. The phase-level `repeat until` guard refuses only a loop that, at a
+sharing the best seat score -- read through the ranking's stamped index role,
+so a team-keyed target names every member of the best team -- or, for a
+`loser:` game, every seat but the selected one, which is a seat of the table.
+A stopped game is scored by its [[stop-result]]: every seat a winner and
+nothing read for a tie, the default; the `winner:` clause for `as it stands`;
+the declared ranking for a ranking; never the `loser:` selection. Every
+ranking reads its target from the game-level frame (`_ranked`), so a phase
+frame standing at the stop and shadowing the target is never read, and
+`GameResult.scored_by` says which arm scored it. The phase-level `repeat until` guard refuses only a loop that, at a
 head whose condition does not hold, has completed more than `max_length`
 bodies with no pick in them (`state.DecisionlessSpin`). Illegal after this:
 handing game text to `evaluate` from this module without that helper —
@@ -122,33 +125,39 @@ class EndedBy(enum.Enum):
     LENGTH = "length"
 
 
+class ScoredBy(enum.Enum):
+    """What a finished game's result was read from: a ranking of a state
+    variable (`winner:`, or a Stop Result's ranking), the `loser:` selection,
+    or nothing at all, the tie a Length Stop is by default."""
+
+    RANKING = "ranking"
+    LOSER = "loser"
+    TIE = "tie"
+
+
 @dataclass(frozen=True, slots=True)
 class GameResult:
     """A finished game's result (decisions.md "Game result: `winner:` and
     `loser:`").
 
-    `scores` is the `winner:` target as the game holds it, keyed by the
+    `scores` is the ranked target as the game holds it, keyed by the
     target's own index domain -- a TEAM id for `score[team]` -- so a key is
     not always a seat. `seat_scores` is the same score read once per seat
-    (`seat_scores_of`), and `winners` is every seat sharing the best of them:
-    both members of a winning team, every tied seat. An elimination game has
-    no scores, and its winners are the seats it did not select as `loser`.
-    A game that ended by length is a tie: nothing scored, every seat a
-    winner, no loser.
+    (`seat_scores_of`), and `winners` is every seat sharing the best of them
+    under `rank_dir`: both members of a winning team, every tied seat. An
+    elimination game has no scores, and its winners are the seats it did not
+    select as `loser`. A tie has nothing scored, every seat a winner, and no
+    loser. `scored_by` names which of the three it is.
     """
 
-    scores: dict[int, int]  # empty for a `loser:` game and for a tie at the bound
-    seat_scores: tuple[int, ...]  # one per seat; empty for either of those
+    scores: dict[int, int]  # empty unless `scored_by` is RANKING
+    seat_scores: tuple[int, ...]  # one per seat when RANKING; empty otherwise
     winners: frozenset[Player]  # never empty
-    loser: Player | None
+    loser: Player | None  # a seat exactly when `scored_by` is LOSER
     hands_played: int
     ended_by: EndedBy
-
-    @property
-    def tied_at_the_bound(self) -> bool:
-        """Whether this is the tie a game that ended by length is by default:
-        every seat a winner and nothing scored."""
-        return self.ended_by is EndedBy.LENGTH and not self.seat_scores and self.loser is None
+    scored_by: ScoredBy
+    rank_dir: str | None  # the direction ranked by, exactly when RANKING
 
 
 # How a seat finds its own key in a `winner:` target, per index role: its own
@@ -164,14 +173,14 @@ SEAT_KEY_BY_ROLE: dict[Role, Callable[[Player, TeamOf], int]] = {
 
 
 def seat_scores_of(
-    winner: n.Winner, scores: Mapping[int, Any], team_of: TeamOf, n_players: int
+    winner: n.Winner | n.StopResult, scores: Mapping[int, Any], team_of: TeamOf, n_players: int
 ) -> tuple[Any, ...]:
-    """Each seat's score in the `winner:` target: its own for a player-keyed
+    """Each seat's score in a ranking's target: its own for a player-keyed
     target, its team's for a team-keyed one. The keying is the declaration's
-    index role, which resolve stamps on the clause (`Winner.keyed_by`) --
-    never the score dict's key set, which cannot tell team keys from seat keys
-    when a game has as many teams as seats."""
-    assert winner.keyed_by is not None, "resolve stamps `keyed_by` on every `winner:`"
+    index role, which resolve stamps on the ranking (`keyed_by`) -- never the
+    score dict's key set, which cannot tell team keys from seat keys when a
+    game has as many teams as seats."""
+    assert winner.keyed_by is not None, "resolve stamps `keyed_by` on every ranking"
     role = role_of(winner.keyed_by)
     if role not in SEAT_KEY_BY_ROLE:
         # Shadow guard behind the registry pin: `SEAT_KEY_BY_ROLE` is
@@ -464,45 +473,18 @@ def play_game(
         raise
     except LengthStop:
         # The game ends at its bound, every frame standing where the stopped
-        # pick left them. The default result is a tie, and neither result
-        # clause is read: a `loser:` selection asked at a position no rule
-        # ended would name a seat nobody's play made the loser.
+        # pick left them, and is scored by its Stop Result. The `loser:`
+        # selection is never read here: asked at a position no rule ended, it
+        # would name a seat nobody's play made the loser (resolve refuses
+        # `as it stands` on a game whose only result clause is `loser:`).
         ctx.trace("game_end", _final_card_census(rs, ctx))
-        return GameResult(
-            scores={},
-            seat_scores=(),
-            winners=frozenset(rs.seating.players),
-            loser=None,
-            hands_played=hands.value,
-            ended_by=EndedBy.LENGTH,
-        )
+        return _stopped_result(game, rs, hands.value)
 
     ctx.trace("game_end", _final_card_census(rs, ctx))
 
     # Compute the result against the final state, before unwinding the frame.
-    scores: dict[int, int] = {}
-    seat_scores: tuple[int, ...] = ()
-    loser: Player | None = None
     if game.winner is not None:
-        # Shadow Guard behind resolve's `_check_winner_target`: a target that
-        # is not a per-member score dies here on a raw `TypeError` rather than
-        # ranking something meaningless.
-        scores = dict(rs.get(game.winner.state_var))
-        if game.winner.rank_dir not in RANK_DIR_TO_PICK:
-            # Internal invariant, not a user diagnostic: the grammar's
-            # RANK_DIR terminal and this mapping are out of sync.
-            raise AssertionError(
-                f"winner: unhandled RANK_DIR value {game.winner.rank_dir!r} — add "
-                "it to RANK_DIR_TO_PICK"
-            )
-        pick = RANK_DIR_TO_PICK[game.winner.rank_dir]
-        seat_scores = seat_scores_of(
-            game.winner, scores, rs.team_of, rs.seating.count
-        )
-        best = pick(seat_scores)
-        winners = frozenset(
-            seat for seat, score in enumerate(seat_scores) if score == best
-        )
+        result = _ranked(game.winner, rs, hands.value, EndedBy.RULES)
     else:
         # winner is None here, so resolve's winner-or-loser Owner Guard leaves a loser
         assert game.loser is not None
@@ -521,17 +503,103 @@ def play_game(
                 f"`loser:` selected {selected!r} ({type(selected).__name__}), "
                 f"not a player of this {rs.seating.count}-player game"
             )
-        loser = selected
-        winners = frozenset(rs.seating.players) - {loser}
+        result = GameResult(
+            scores={},
+            seat_scores=(),
+            winners=frozenset(rs.seating.players) - {selected},
+            loser=selected,
+            hands_played=hands.value,
+            ended_by=EndedBy.RULES,
+            scored_by=ScoredBy.LOSER,
+            rank_dir=None,
+        )
     rs.pop_frame()
+    return result
+
+
+def _stopped_result(game: n.Game, rs: RuntimeState, hands_played: int) -> GameResult:
+    """A stopped game's result, by its Stop Result: a tie when it declares
+    none."""
+    stop = game.stop_result
+    kind = stop.kind if stop is not None else "tie"
+    match kind:
+        case "tie":
+            return GameResult(
+                scores={},
+                seat_scores=(),
+                winners=frozenset(rs.seating.players),
+                loser=None,
+                hands_played=hands_played,
+                ended_by=EndedBy.LENGTH,
+                scored_by=ScoredBy.TIE,
+                rank_dir=None,
+            )
+        case "as_it_stands":
+            # Shadow Guard behind resolve's refusal of `as it stands` on a
+            # game whose only result clause is `loser:`.
+            assert game.winner is not None, "resolve refuses `as it stands` without `winner:`"
+            return _ranked(game.winner, rs, hands_played, EndedBy.LENGTH)
+        case "ranking":
+            assert stop is not None
+            return _ranked(stop, rs, hands_played, EndedBy.LENGTH)
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _ranked(
+    ranking: n.Winner | n.StopResult, rs: RuntimeState, hands_played: int, ended_by: EndedBy
+) -> GameResult:
+    """A result ranked by `ranking`'s target, read from the game-level frame:
+    the one declaration a ranking may name (resolve's `_check_state_scope`),
+    which a phase frame standing at a Length Stop may shadow."""
+    rank_dir, state_var = ranking.rank_dir, ranking.state_var
+    assert rank_dir is not None and state_var is not None, "a ranking names its target"
+    if rank_dir not in RANK_DIR_TO_PICK:
+        # Internal invariant, not a user diagnostic: the grammar's RANK_DIR
+        # terminal and this mapping are out of sync.
+        raise AssertionError(
+            f"unhandled RANK_DIR value {rank_dir!r} — add it to RANK_DIR_TO_PICK"
+        )
+    # Shadow Guard behind resolve's `_check_winner_target`: a target that is
+    # not a per-member score dies here on a raw `TypeError` rather than
+    # ranking something meaningless.
+    scores = dict(rs.frames[0][state_var])
+    seat_scores = seat_scores_of(ranking, scores, rs.team_of, rs.seating.count)
+    best = RANK_DIR_TO_PICK[rank_dir](seat_scores)
     return GameResult(
         scores=scores,
         seat_scores=seat_scores,
-        winners=winners,
-        loser=loser,
-        hands_played=hands.value,
-        ended_by=EndedBy.RULES,
+        winners=frozenset(seat for seat, score in enumerate(seat_scores) if score == best),
+        loser=None,
+        hands_played=hands_played,
+        ended_by=ended_by,
+        scored_by=ScoredBy.RANKING,
+        rank_dir=rank_dir,
     )
+
+
+def stop_result_words(game: n.Game) -> str:
+    """What a stopped game is worth, in the designer's words: the sentence
+    every channel reporting a [[length-stop]] carries."""
+    stop = game.stop_result
+    kind = stop.kind if stop is not None else "tie"
+    match kind:
+        case "tie":
+            return "the game is a tie"
+        case "as_it_stands":
+            assert game.winner is not None, "resolve refuses `as it stands` without `winner:`"
+            return (
+                f"the game is scored as it stands, by its `winner: "
+                f"{game.winner.rank_dir} {game.winner.state_var}`"
+            )
+        case "ranking":
+            assert stop is not None
+            return (
+                f"the game is scored by its `at max_length: {stop.rank_dir} "
+                f"{stop.state_var}`"
+            )
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 def _final_card_census(rs: RuntimeState, ctx: Ctx) -> dict[str, int | None]:

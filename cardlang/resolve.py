@@ -43,10 +43,13 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               head from `declarable_type_names`, a collection's element from
               `COLLECTION_ELEMENT_NAMES` — and no name declared or minted at
               any of the sites in ``RESERVATION_SITES`` takes a spelling one of
-              ``POSITION_NAME_SOURCES`` already holds. And a ``winner:``
-              clause carries its target declaration's index role
-              (``Winner.keyed_by``), so no later pass walks state
-              declarations to learn how the result is keyed. Every piece of
+              ``POSITION_NAME_SOURCES`` already holds. And every result
+              ranking -- a ``winner:`` clause, a Stop Result's ranking --
+              carries its target declaration's index role
+              (``Winner.keyed_by``, ``StopResult.keyed_by``), so no later pass
+              walks state declarations to learn how the result is keyed, and
+              an ``as it stands`` Stop Result sits only on a game with a
+              ``winner:`` clause. Every piece of
               library text spliced into the game -- a family library's move
               types, functions, procedures and provided state declarations,
               and every library rule a game activates, the standard
@@ -157,9 +160,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               written text. The round clause's TYPE (``Suit?``)
               is typecheck's (``_check_round_trump``); its presence against
               its winner is settled here, with the winner namespace. And a
-              ``winner:`` target that is not a per-member score — unindexed,
-              optional, or declared outside ``Integer``/``Boolean``
-              (``_check_winner_target``, decisions.md "Game result:
+              result ranking's target (``RANKING_SLOTS``) that is not a
+              per-member score — unindexed, optional, or declared outside
+              ``Integer``/``Boolean`` (``_check_winner_target``, decisions.md "Game result:
               `winner:` and `loser:`"); ``runtime/driver`` may therefore
               assume the target reads as a map from member to score, and
               hard-fails on one this pass did not admit as its Shadow Guard.
@@ -782,6 +785,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # twin `resolve`'s own comment has documented since before this table.
     (n.Turns, "again"): "state",
     (n.Winner, "state_var"): "state",
+    (n.StopResult, "state_var"): "state",
     # Zones. Both round forms name their two zones as bare strings.
     (n.TrickRound, "source_zone"): "zone",
     (n.TrickRound, "play_zone"): "zone",
@@ -932,6 +936,10 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Transfer, "amount"),
         (n.Transfer, "distribution"),
         (n.Winner, "rank_dir"),
+        # The Stop Result's member and its ranking's direction: grammar
+        # words the builder put there, never names.
+        (n.StopResult, "kind"),
+        (n.StopResult, "rank_dir"),
         (n.Game, "ranking_convention"),
         # The lowering stamp's two words: `form` is a `Literal`, and `key`
         # names the contract the table answers, never a designer-authored
@@ -972,6 +980,7 @@ _METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
         (n.NameRef, "ref_kind"),
         (n.Winner, "keyed_by"),
+        (n.StopResult, "keyed_by"),
         # The Definition Contract a `uses` splice records: spellings copied off
         # a row as facts, never names a sweep resolves.
         (n.ContractStamp, "library"),
@@ -4770,7 +4779,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
         # Declarations and game/phase structure. (The parameter-bearing ones are
         # covered by `_rewrite` + `_check_reserved_params` — see the docstring.)
         case (
-            n.Game() | n.PlayersSpec() | n.Winner() | n.Loser()
+            n.Game() | n.PlayersSpec() | n.Winner() | n.Loser() | n.StopResult()
             # The import nodes bind nothing: `uses` and `requires` name state and
             # definitions that already live in flat, game-wide namespaces, and a
             # `Library` is gone by the end of `_apply_uses` — its definitions are
@@ -5445,8 +5454,9 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     legality is a reachability question, not a lexical one, and 112 callable
     bodies across the corpus legitimately read phase-scoped state (issue #242).
     `Turns.again` and `RequireDecl.name` are bare `str`s that never become a
-    `NameRef` (issue #243); `winner:` is the third of that shape and is checked
-    here directly, because its name is right there to read.
+    `NameRef` (issue #243); a result ranking's target (`winner:`, the Stop
+    Result's ranking) is the third of that shape and is checked here directly,
+    because its name is right there to read.
     """
     declared_at: dict[str, list[str]] = {}
 
@@ -5525,20 +5535,16 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
             if isinstance(node, n.NameRef):
                 report(node, top)
 
-    # `winner: <dir> NAME` needs naming separately: `Winner.target` is a bare
+    # A result ranking's target needs naming separately: `state_var` is a bare
     # `str` and never becomes a `NameRef` (issue #243), so the walk above cannot
-    # see it.
-    # A name declared in no phase at all is `_validate_refs`'s unknown
+    # see it. A name declared in no phase at all is `_validate_refs`'s unknown
     # variable; this refusal is for state that exists, in the wrong scope.
-    where = declared_at.get(game.winner.state_var, []) if game.winner is not None else []
-    if game.winner is not None and game.winner.state_var not in top and where:
-        home = " or ".join(f"phase '{w}'" for w in where)
-        bag.error(
-            f"`winner:` ranks on state variable '{game.winner.state_var}', which "
-            f"is declared in {home} and so does not exist when the winner is "
-            f"decided — the phase has exited by then. Declare it at game level",
-            game.winner.span,
-        )
+    for ranking in _result_rankings(game):
+        target = ranking.state_var
+        where = declared_at.get(target, []) if target is not None else []
+        if target is not None and target not in top and where:
+            home = " or ".join(f"phase '{w}'" for w in where)
+            bag.error(RANKING_SLOTS[type(ranking)].out_of_scope(target, home), ranking.span)
 
 
 # The board verbs that return a positional collection, each the `BoardEntry`
@@ -5991,6 +5997,24 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             "one; rank a score with `winner:` instead",
             game.loser.span,
         )
+    if (
+        game.stop_result is not None
+        and game.stop_result.kind == "as_it_stands"
+        and game.winner is None
+        and game.loser is not None
+    ):
+        # `as it stands` is the result clause read at the stopped position,
+        # and a game scored by `winner:` reads it at a stop as at a rules end
+        # (issue #247 is the game declaring both).
+        bag.error(
+            "`as it stands` reads the game's `winner:` clause at the stop, and "
+            "this game declares `loser:` — the last player holding cards — "
+            "which a stopped game has not decided: at a Length Stop it would "
+            "name nobody, several seats, or the wrong one. Declare `at "
+            "max_length: tie` — every seat a winner — or rank a state variable "
+            "the game keeps: `at max_length: lowest <variable>`.",
+            game.stop_result.span,
+        )
 
 
 # The declared types a game may be RANKED by: totally ordered, and their
@@ -6442,10 +6466,65 @@ _OWN_POOL_BLIND = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class RankingSlot:
+    """How the ranking guards address one slot a game ranks a state variable
+    in: `winner:`, and the Stop Result's ranking."""
+
+    clause: str     # the slot as the designer wrote it
+    ranks: str      # what the slot ranks: "<clause> ranks <ranks> on ..."
+    unknown: str    # the unknown-variable refusal's subject
+    # Why a phase's variable cannot be the target, true at the slot: a
+    # `winner:` is decided once every phase has exited, while a Length Stop
+    # can fall while the declaring phase still runs.
+    phase_reason: str
+
+    def out_of_scope(self, target: str, home: str) -> str:
+        return (
+            f"{self.clause} ranks on state variable '{target}', which is "
+            f"declared in {home} and so {self.phase_reason}. Declare it at "
+            f"game level"
+        )
+
+
+#: Every node that ranks a state variable, keyed by its node type. The grid
+#: crossing the target's declaration with the slot is
+#: tests/test_winner_target.py, its slot axis reconciled against the
+#: grammar's productions taking `RESULT_VAR_NAME`.
+RANKING_SLOTS: dict[type, RankingSlot] = {
+    n.Winner: RankingSlot(
+        "`winner:`",
+        "the game",
+        "winner",
+        "does not exist when the winner is decided — the phase has exited by then",
+    ),
+    n.StopResult: RankingSlot(
+        "`at max_length:`",
+        "the stopped game",
+        "`at max_length:`",
+        "exists only while that phase runs; the bound can stop the game in any "
+        "phase, so the stop cannot be scored from it",
+    ),
+}
+
+
+def _result_rankings(game: n.Game) -> tuple[n.Winner | n.StopResult, ...]:
+    """The game's result rankings: its `winner:` clause, and its Stop Result
+    when that is a ranking."""
+    out: list[n.Winner | n.StopResult] = []
+    if game.winner is not None:
+        out.append(game.winner)
+    if game.stop_result is not None and game.stop_result.kind == "ranking":
+        out.append(game.stop_result)
+    return tuple(out)
+
+
 def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
-    """A `winner:` target must be a state variable a game can be ranked by,
-    and the game it returns carries the target's index role on its `winner:`
-    clause (`Winner.keyed_by`) -- the one fact the result is keyed through.
+    """Each result ranking's target must be a state variable a game can be
+    ranked by, and the game it returns carries the target's index role on
+    the ranking (`Winner.keyed_by`, `StopResult.keyed_by`) -- the one fact
+    the result is keyed through. One Owner Guard for both slots
+    (`RANKING_SLOTS`), each refusal addressed to the slot it fires in.
 
     Resolve already walls the NAME -- undeclared, or declared inside a phase
     -- and says nothing about the DECLARATION it lands on. Two of that
@@ -6470,14 +6549,29 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     The grid is tests/test_winner_target.py.
     """
-    if game.winner is None or game.state is None:
-        return game
-    decl = next(
-        (d for d in game.state.decls if d.name == game.winner.state_var), None
-    )
+    for ranking in _result_rankings(game):
+        keyed_by = _ranking_target_role(game, ranking, bag)
+        if keyed_by is None:
+            continue
+        if isinstance(ranking, n.Winner):
+            game = replace(game, winner=replace(ranking, keyed_by=keyed_by))
+        else:
+            game = replace(game, stop_result=replace(ranking, keyed_by=keyed_by))
+    return game
+
+
+def _ranking_target_role(
+    game: n.Game, ranking: n.Winner | n.StopResult, bag: DiagnosticBag
+) -> str | None:
+    """The index role of a ranking's target declaration, or None where the
+    declaration is refused here or is another guard's to report."""
+    if game.state is None:
+        return None
+    decl = next((d for d in game.state.decls if d.name == ranking.state_var), None)
     if decl is None:
-        return game
-    what = "`winner:` ranks the game on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
+        return None
+    slot = RANKING_SLOTS[type(ranking)]
+    what = f"{slot.clause} ranks {slot.ranks} on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
     if decl.index is None:
         bag.error(
             f"" + what + f"which is not indexed — a game is ranked by a score each "
@@ -6485,26 +6579,26 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
             "`" + cite_named(decl, decl.name) + "[player]` or `"
             + cite_named(decl, decl.name) + "[team]`. A scalar has no "
             f"per-member value to rank",
-            game.winner.span,
+            ranking.span,
         )
-        return game
+        return None
     if decl.optional:
         bag.error(
             f"" + what + f"declared `{decl.type_name}?` — an optional score may be "
             f"`none`, which cannot be ranked against a number",
-            game.winner.span,
+            ranking.span,
         )
-        return game
+        return None
     if decl.type_name not in _RANKABLE_TYPES:
         rankable = ", ".join(sorted(_RANKABLE_TYPES))
         bag.error(
             f"" + what + f"declared `{decl.type_name}` — a game is ranked by a "
             f"score, so the target must be {rankable}. Its values become "
             f"the game's OpenSpiel returns",
-            game.winner.span,
+            ranking.span,
         )
-        return game
-    return replace(game, winner=replace(game.winner, keyed_by=decl.index))
+        return None
+    return decl.index
 
 
 def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
@@ -6582,8 +6676,9 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
     if game.max_length is None:
         bag.error(
             f"game '{game.name}' must declare `max_length: <n>` — the most "
-            "decisions a run makes: a game that reaches it ends there as a "
-            "tie, and the OpenSpiel adapter reports it as the game's length "
+            "decisions a run makes: a game that reaches it ends there, scored "
+            "by its Stop Result (`at max_length: …`) and a tie when it declares "
+            "none, and the OpenSpiel adapter reports it as the game's length "
             "(docs/decisions.md, \"Game length as a declared contract\")",
             game.span,
         )
@@ -8904,6 +8999,7 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     "state": "refused",
     "winner": "refused",
     "loser": "refused",
+    "stop_result": "refused",
     "rules": "refused",
     "functions": "refused",
     "primitives": "refused",
@@ -10405,8 +10501,9 @@ ALWAYS_HOLDERS: dict[str, str] = {site.clause: site.holder for site in _ALWAYS_S
 MAX_LENGTH_AS_VALUE = (
     "`max_length` is the bound the engine stops a game at, not a value a rule "
     "can read. To end the game after a number of turns by its rules, count the "
-    "turns in a state variable and write that number. To stop it at the bound, "
-    "write nothing: the engine stops it there, and the game is a tie"
+    "turns in a state variable and compare it to a number. To say what a game "
+    "is worth when the engine stops it, write `at max_length: tie`, `at "
+    "max_length: as it stands`, or `at max_length: highest <variable>`."
 )
 
 
@@ -12373,10 +12470,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bad = _bad_zone_endpoint(game, nd.zone, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
-            case n.Winner() if nd.state_var not in cats.state_vars:
+            case n.Winner() | n.StopResult() if (
+                nd.state_var is not None and nd.state_var not in cats.state_vars
+            ):
                 bag.error(
                     _slot_name_outside_slot(nd.state_var)
-                    or f"winner references unknown variable '{nd.state_var}'",
+                    or f"{RANKING_SLOTS[type(nd)].unknown} references unknown "
+                    f"variable '{nd.state_var}'",
                     nd.span,
                 )
             case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:

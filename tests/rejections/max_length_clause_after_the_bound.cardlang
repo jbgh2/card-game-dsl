@@ -1,0 +1,16 @@
+// Guard: parse.py's `max_length` hint (`_PARSE_HINTS`). The bound takes a
+// number and nothing more; what the stop is worth is a clause of its own.
+game MaxLengthClauseAfterTheBound {
+  players: 2
+  max_length: 30 then tie
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { coins[player] : Integer = 0  done : Boolean = false }
+  phase play {
+    turns t from 0 over all players until done {
+      as t { offer to t one of [stop] }
+    }
+  }
+  winner: highest coins
+}
+move_type stop { effect { done := true } }

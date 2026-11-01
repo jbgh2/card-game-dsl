@@ -40,8 +40,8 @@ registry:        opponents: `cardlang.openspiel.seat_policy.OPPONENTS`; games:
                  tests/test_live_line.py.
 does not prove:  That an opponent plays well. That a table ends by its rules:
                  when every seat keeps taking the first item, some games reach
-                 their `max_length` and end there as a tie (docs/decisions.md,
-                 "Game length as a declared contract"). That `first` and `random` are the opponents a designer
+                 their `max_length` and end there by their Stop Result
+                 (docs/decisions.md, "Game length as a declared contract"). That `first` and `random` are the opponents a designer
                  needs; only `seat_policy.OPPONENTS` says which exist. An
                  opponent that takes an argument. The table has no column for
                  one, by decision: no opponent takes an argument, and a column

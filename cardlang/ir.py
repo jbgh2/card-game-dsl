@@ -99,6 +99,13 @@ def emit(game: n.Game) -> IRDict:
         "phases": [_phase(p) for p in game.phases],
         "winner": _winner(game.winner) if game.winner else None,
         "loser": _loser(game.loser) if game.loser else None,
+        # Keyed ONLY when declared, the `suit_ranking` precedent: a game
+        # declaring none is a tie at its bound.
+        **(
+            {"stop_result": _stop_result(game.stop_result)}
+            if game.stop_result is not None
+            else {}
+        ),
         "rules": [_rule(r) for r in game.rules],
         "move_types": [_move_type(m) for m in game.move_types],
         "functions": [_function(f) for f in game.functions],
@@ -220,6 +227,14 @@ def _winner(w: n.Winner) -> IRDict:
 
 def _loser(lo: n.Loser) -> IRDict:
     return {"kind": "loser", "selection": _expr(lo.selection)}
+
+
+def _stop_result(stop: n.StopResult) -> IRDict:
+    out: IRDict = {"kind": stop.kind}
+    if stop.kind == "ranking":
+        out["rank_dir"] = stop.rank_dir
+        out["state_var"] = stop.state_var
+    return out
 
 
 def _move_type(m: n.MoveTypeDef) -> IRDict:

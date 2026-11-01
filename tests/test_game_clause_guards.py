@@ -37,7 +37,8 @@ domain:     the `?game_item` alternatives of the `game` production, times
             word is a name and whose rest is a whole `ranking:` clause), and
             an empty EXPRESSION slot. Within the
             `game` production `loser:` is the only clause whose last slot is
-            a bare `expr` (`winner:` takes `rank_dir NAME`), which is where
+            a bare `expr` (`winner:` and the Stop Result's ranking take
+            `rank_dir RESULT_VAR_NAME`), which is where
             the empty-EXPRESSION absorber is reachable at all.
             One thing sits outside, and it is not a gap: this module owns the
             clause STRUCTURE, so the content VOCABULARY a flavor admits —
@@ -186,7 +187,6 @@ def test_card_rank_excludes_every_clause_keyword(terminal: str) -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="the Stop Result (issue #967)")
 def test_a_result_ranking_target_excludes_every_clause_keyword() -> None:
     """`winner:` and the Stop Result's ranking each end with one state
     variable name, so a ranking whose name is left off reads the next
@@ -280,8 +280,10 @@ _CLAUSE_TEXT: dict[str, str] = {
     "state_block": "state { score[player] : Integer = 0 }",
     "phase": "phase p { }",
     "winner": "winner: highest score",
-    # `loser:` takes an expr, not `winner:`'s `rank_dir NAME`.
+    # `loser:` takes an expr, not `winner:`'s `rank_dir RESULT_VAR_NAME`.
     "loser": "loser: score",
+    # The ranking member, the one whose last slot is a name.
+    "stop_result": "at max_length: highest score",
 }
 
 
@@ -404,6 +406,7 @@ SINGLE_VALUED: dict[str, str] = {
     "state_block": "state { }",
     "winner": "winner:",
     "loser": "loser:",
+    "stop_result": "at max_length:",
 }
 
 # A minimal valid game (also the acceptance probe: it omits `direction:`,
@@ -446,6 +449,7 @@ _EXTRA_CLAUSE: dict[str, str] = {
     # reaches `once` without also having to name an implemented Primitive.
     "primitives_block": "  primitives { }",
     "loser": "  loser: active",
+    "stop_result": "  at max_length: tie",
 }
 
 

@@ -55,7 +55,7 @@ from cardlang.openspiel.seat_policy import OPPONENTS, SeatBinding, SeatPolicy
 from cardlang.pipeline import game_identity
 from cardlang.play.opponents import by_opponent
 from cardlang.play.view import render_view
-from cardlang.runtime.driver import EndedBy
+from cardlang.runtime.driver import EndedBy, stop_result_words
 
 # What a person may type at a prompt besides a number on the menu.
 CONTROLS: dict[str, str] = {
@@ -478,7 +478,7 @@ class Session:
         name = self.game.name
         return (
             f"{name} reached its max_length, {self.game.max_length} decisions, "
-            f"without its rules ending it, so the game is a tie. "
+            f"without its rules ending it, so {stop_result_words(self.game)}. "
             f"{self.who_played()}. A table that keeps repeating a pick can play "
             f"{name} without end; if this game should always end sooner, a loop "
             f"is not reaching its `until`."

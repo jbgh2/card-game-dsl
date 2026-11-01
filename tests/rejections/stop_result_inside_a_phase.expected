@@ -1,0 +1,1 @@
+stop_result_inside_a_phase.cardlang:11:8: error: syntax error: unexpected `max_length`; expected `produces`, `:=`, `+=` or `-=` or `[` — `max_length:` takes a whole number and nothing more; what a game is worth when the engine stops it at its bound is a game clause of its own: `at max_length: tie`, `at max_length: as it stands`, or `at max_length: highest <variable>`

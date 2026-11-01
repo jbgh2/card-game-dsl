@@ -80,6 +80,7 @@ from typing import Any
 import pytest
 
 from cardlang.cli import main
+from cardlang.ast.nodes import STOP_KINDS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.openspiel.replay import LiveLine, TerminalNode, returns_for, run
 from cardlang.openspiel.seat_policy import FirstSeatPolicy
@@ -91,13 +92,6 @@ from tests import test_length_stop as length_stop
 
 BOUND = length_stop.BOUND
 SEED = length_stop.SEED
-
-# The design is authored ahead of the clause; a cell that writes it is red
-# until the grammar, the driver and the adapter carry it.
-_RED = pytest.mark.xfail(
-    strict=True, raises=(DiagnosticError, AssertionError), reason="the Stop Result (issue #967)"
-)
-
 
 def _ended_by(thing: object) -> object:
     return getattr(getattr(thing, "ended_by", None), "value", None)
@@ -123,12 +117,12 @@ def _stop_value_aliases() -> set[str]:
     }
 
 
-@_RED
 def test_the_declarations_are_the_stop_values() -> None:
-    """Every alternative of `stop_value` is a column of the grid, and no
-    column names an alternative the grammar lacks. red under: add a fourth
-    alternative to `stop_value`."""
+    """Every alternative of `stop_value` is a column of the grid and a member
+    of the AST's `StopKind`, and no column names an alternative the grammar
+    lacks. red under: add a fourth alternative to `stop_value`."""
     assert _stop_value_aliases() == set(DECLARATIONS)
+    assert {alias.removeprefix("stop_") for alias in DECLARATIONS} == set(STOP_KINDS)
 
 
 # --- the position axis ----------------------------------------------------------
@@ -366,7 +360,7 @@ def _cells() -> list[Any]:
                     out.append(
                         pytest.param(
                             declaration, clause, position, "check",
-                            id=f"{declaration}|{clause}|{position}|check", marks=_RED,
+                            id=f"{declaration}|{clause}|{position}|check",
                         )
                     )
                     continue
@@ -374,7 +368,7 @@ def _cells() -> list[Any]:
                     out.append(
                         pytest.param(
                             declaration, clause, position, channel,
-                            id=f"{declaration}|{clause}|{position}|{channel}", marks=_RED,
+                            id=f"{declaration}|{clause}|{position}|{channel}",
                         )
                     )
     return out
@@ -433,7 +427,7 @@ def _direction_source(rank_dir: str, clause: str) -> str:
 @pytest.mark.parametrize(
     ("rank_dir", "clause"),
     [
-        pytest.param(rank_dir, clause, id=f"{rank_dir}|{clause}", marks=_RED)
+        pytest.param(rank_dir, clause, id=f"{rank_dir}|{clause}")
         for rank_dir in sorted(RANK_DIR_TO_PICK)
         for clause in _DIRECTION_CLAUSES
     ],
@@ -495,8 +489,8 @@ move_type tick {{ effect {{ ticks += 1 }} }}
 @pytest.mark.parametrize(
     ("stop", "winners"),
     [
-        pytest.param("at max_length: as it stands", frozenset({0}), id="as it stands", marks=_RED),
-        pytest.param("at max_length: highest other", frozenset({1}), id="ranking", marks=_RED),
+        pytest.param("at max_length: as it stands", frozenset({0}), id="as it stands"),
+        pytest.param("at max_length: highest other", frozenset({1}), id="ranking"),
     ],
 )
 def test_a_stop_is_scored_from_the_game_level_frame(stop: str, winners: frozenset[int]) -> None:
@@ -536,14 +530,6 @@ move_type stop {{ effect {{ done := true }} }}
 def _misuse(stop: str, result: str = "winner: highest alive") -> str:
     return _MISUSE.format(stop=stop, result=result)
 
-
-MAX_LENGTH_AS_VALUE = (
-    "`max_length` is the bound the engine stops a game at, not a value a rule "
-    "can read. To end the game after a number of turns by its rules, count the "
-    "turns in a state variable and compare it to a number. To say what a game "
-    "is worth when the engine stops it, write `at max_length: tie`, `at "
-    "max_length: as it stands`, or `at max_length: highest <variable>`."
-)
 
 BOUND_HINT = (
     "`max_length:` takes a whole number and nothing more; what a game is worth "
@@ -605,7 +591,7 @@ MISUSE_REFUSED: dict[str, tuple[str, str]] = {
     ),
     "13 max_length as a value": (
         _misuse("").replace("until done", "until done or coins[0] >= max_length"),
-        MAX_LENGTH_AS_VALUE,
+        length_stop.MAX_LENGTH_AS_VALUE,
     ),
     "15 a clause after the bound": (
         _misuse("").replace("max_length: 30", "max_length: 30 then tie"),
@@ -625,14 +611,10 @@ MISUSE_REFUSED: dict[str, tuple[str, str]] = {
     ),
 }
 
-# The rows whose refusal already reads as designed, ahead of the clause.
-_GREEN_ON_ARRIVAL = frozenset({"2 atmax_length fused", "15 a comma after winner"})
-
-
 @pytest.mark.parametrize(
     ("source", "phrase"),
     [
-        pytest.param(*MISUSE_REFUSED[name], id=name, marks=() if name in _GREEN_ON_ARRIVAL else _RED)
+        pytest.param(*MISUSE_REFUSED[name], id=name)
         for name in MISUSE_REFUSED
     ],
 )
@@ -655,7 +637,7 @@ MISUSE_ACCEPTED: dict[str, str] = {
 }
 
 
-@pytest.mark.parametrize("name", [pytest.param(n, marks=_RED) for n in MISUSE_ACCEPTED])
+@pytest.mark.parametrize("name", sorted(MISUSE_ACCEPTED))
 def test_a_stop_result_sentence_is_accepted(name: str) -> None:
     game = check_dsl(MISUSE_ACCEPTED[name], "accepted.cardlang")
     assert getattr(game, "stop_result", None) is not None

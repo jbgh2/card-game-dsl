@@ -1,0 +1,18 @@
+// Guard: resolve's `_resolve_winner_loser`. `as it stands` reads the
+// `winner:` clause at the stop, and a game whose result is `loser:` has
+// not decided its loser when the bound stops it.
+game StopResultAsItStandsOnLoser {
+  players: 2
+  max_length: 30
+  at max_length: as it stands
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { coins[player] : Integer = 0  done : Boolean = false }
+  phase play {
+    turns t from 0 over all players until done {
+      as t { offer to t one of [stop] }
+    }
+  }
+  loser: the player where coins[player] > 9
+}
+move_type stop { effect { done := true } }

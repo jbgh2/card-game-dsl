@@ -278,6 +278,22 @@ game Skeleton {{
 """
 
 
+def _wrap_stop_result(frag: str) -> str:
+    # `frag` is a bound and the Stop Result beside it, written in the game
+    # clause register, so it wraps a game whose `winner:` ranks a flag.
+    return f"""
+game Skeleton {{
+  players: 4
+{frag}
+  cards: standard52
+  zones {{ hand[player] : Hand<player> }}
+  state {{ alive[player] : Boolean = true }}
+  phase main {{ move all cards to hand[0] }}
+  winner: highest alive
+}}
+"""
+
+
 def _wrap_passing_phase(frag: str) -> str:
     # No rule shim: the passing phase's "exactly three" law is the movement's
     # `chosen 3`, not a rule. A rule constraining `transfer_between_hands`
@@ -500,6 +516,7 @@ WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
     "before_each": _wrap_before_each,
     "cards_line": _wrap_cards_line,
     "winner_loser": _wrap_winner_loser,
+    "stop_result": _wrap_stop_result,
     "passing_phase": _wrap_passing_phase,
     "library_zones": _wrap_library_zones_block,
     "betting_street": _wrap_betting_street,
@@ -544,8 +561,8 @@ def test_the_block_domain_is_the_size_the_recipes_define() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 56, "library.md": 14, "model.md": 5}
-    assert len(_BLOCKS) == 75
+    assert per_doc == {"decisions.md": 57, "library.md": 14, "model.md": 5}
+    assert len(_BLOCKS) == 76
 
 
 def _block_id(block: FencedBlock) -> str:

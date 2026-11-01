@@ -1,5 +1,6 @@
-"""The Length Stop: a game that reaches its declared `max_length` ends there
-as a tie, flagged in every channel, and a loop that makes no picks and never
+"""The Length Stop: a game that reaches its declared `max_length` ends there,
+flagged in every channel, as a tie when it declares no Stop Result (the
+declared members are tests/test_stop_result.py's grid), and a loop that makes no picks and never
 ends is still refused as its author's defect (docs/decisions.md, "Game
 length as a declared contract").
 
@@ -26,7 +27,8 @@ reads neither.
 
 Completeness ledger
 -------------------
-property:        a run that reaches `max_length` picks ends there, after
+property:        a run of a game declaring no Stop Result that reaches
+                 `max_length` picks ends there, after
                  exactly `max_length` picks on every route, as a tie (every
                  seat a winner, no loser, zero returns) flagged
                  `ended_by == length`, in every channel the pyspiel State
@@ -943,8 +945,9 @@ _MISUSE_BASE = (
 MAX_LENGTH_AS_VALUE = (
     "`max_length` is the bound the engine stops a game at, not a value a rule "
     "can read. To end the game after a number of turns by its rules, count the "
-    "turns in a state variable and write that number. To stop it at the bound, "
-    "write nothing: the engine stops it there, and the game is a tie"
+    "turns in a state variable and compare it to a number. To say what a game "
+    "is worth when the engine stops it, write `at max_length: tie`, `at "
+    "max_length: as it stands`, or `at max_length: highest <variable>`."
 )
 
 
@@ -992,4 +995,4 @@ def test_a_clause_on_max_length_is_a_parse_refusal_naming_the_rule(length: str) 
         check_dsl(_MISUSE_BASE.format(length=length, until="false"), "p5a.cardlang")
     message = str(refused.value.diagnostic.message)
     assert BOUND_NEEDS_NO_CLAUSE in message
-    assert "the engine stops a game there" in message
+    assert "is a game clause of its own: `at max_length: tie`" in message
