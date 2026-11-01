@@ -815,13 +815,14 @@ on a deck; a piece set carries none of them.
 
 The spatial boards a game can name in its `board:` line (see
 [decisions.md](decisions.md), "Boards and cells"). A game names a
-**family** with its integer arguments — `board: grid(3, 3)` — or a
-fixed family by its bare name — `board: morris9` — and the closed
+[Board Family](glossary/board-family.md) with its integer arguments —
+`board: grid(3, 3)` — or a fixed family by its bare name —
+`board: morris9` — and the closed
 `BOARDS` registry instantiates it into a fixed set of cells and the
 topology the family declares over them: its lines, its adjacency, its
-movement frame. Unknown family, wrong arity, or out-of-bounds arguments
-are rejected at resolve, and so is a board verb on a family that does
-not declare what the verb reads.
+movement frame, each seat's borders. Unknown family, wrong arity, or
+out-of-bounds arguments are rejected at resolve, and so is a board verb on
+a family that does not declare what the verb reads.
 
 - `grid(width, height)` = a rectangular board, `width` files (`a`, `b`,
   … from the left) by `height` ranks (`1`, `2`, … from the bottom),
@@ -866,6 +867,22 @@ not declare what the verb reads.
   `neighbor`, `has_step`, `is_diagonal`, `home` and `far_row`; a move on
   it names its destination (`to : cell`) and tests `to in
   neighbors(from)`.
+
+- `hex_rhombus(n)` = the Hex board: an n-by-n rhombus of hexagons, `n` in
+  `1..16`. Cells are named and ordered as the grid's (`a1 b1 … a2 …`,
+  file+rank, row-major from `a1`), the order OpenSpiel's `hex` numbers its
+  actions in. Its declared **adjacency** joins each hexagon to its six
+  neighbours: along its rank, up and down its file, and along the up-left /
+  down-right diagonal (`b1`-`a2`, never `a1`-`b2`), so a corner touches two
+  cells, an obtuse corner three, an edge cell four and an interior cell
+  six (`neighbors(c)` reads it). Its **borders** are each seat's two board
+  edges: `near_edge(0)` is rank `1` and `far_edge(0)` rank `n`, seat 0
+  joining bottom to top; `near_edge(1)` is file `a` and `far_edge(1)` the
+  last file, seat 1 joining left to right; each corner hexagon is on both
+  of its edges. It declares no lines and no movement frame, so it mints no
+  `dir` and answers none of `lines`, `neighbor`, `has_step`,
+  `is_diagonal`, `home` and `far_row`; `grid` and `morris9` declare no
+  borders and answer neither `near_edge` nor `far_edge`.
 
 A board mints the position domain `cell` (its cells, on the
 declared-position substrate) and, where its family has a movement

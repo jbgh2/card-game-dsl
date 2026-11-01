@@ -1,0 +1,1 @@
+near_edge_in_three_seat_game.cardlang:27:42: error: `near_edge` reads the board from one of its two seats (a grid's forward for one seat is backward for the other; a hex board's borders are each seat's own), but the game declares 3 players — a board's seat parts are defined for two seats (design-notes/board-topology.md), so it needs `players: 2`

@@ -416,7 +416,7 @@ def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
 # opposite), so the board-only verbs that read it -- the ones taking a player --
 # are rejected in a game that is not exactly two players. Without the guard a
 # 3-plus-player game resolves clean and then dies at play with the frame's
-# registry-bug ValueError for seat 2. `_FRAME_CALL_FUNCS` is DERIVED from the
+# registry-bug ValueError for seat 2. `_SEAT_CALL_FUNCS` is DERIVED from the
 # signatures (board-only + a player param), so the guard's domain cannot drift.
 # =============================================================================
 
@@ -424,16 +424,16 @@ def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
 def test_frame_call_funcs_is_the_player_taking_board_verbs() -> None:
     # The guard's domain, pinned to its derivation rather than hand-listed: the
     # board-only calls whose Sig takes a player. A new player-taking board verb
-    # joins _FRAME_CALL_FUNCS -- and the two-seat guard -- by construction; a new
+    # joins _SEAT_CALL_FUNCS -- and the two-seat guard -- by construction; a new
     # player-free one (a second `lines`/`is_diagonal`) does not.
     from cardlang.builtins.functions import BOARD_ONLY_CALL_FUNCS
     from cardlang.builtins.signatures import CALL_SIGS
-    from cardlang.resolve import _FRAME_CALL_FUNCS
+    from cardlang.resolve import _SEAT_CALL_FUNCS
     from cardlang.types import TPlayer
 
-    assert _FRAME_CALL_FUNCS == {"neighbor", "has_step", "home", "far_row"}
-    assert _FRAME_CALL_FUNCS <= BOARD_ONLY_CALL_FUNCS
-    assert _FRAME_CALL_FUNCS == {
+    assert _SEAT_CALL_FUNCS == {"neighbor", "has_step", "home", "far_row", "near_edge", "far_edge"}
+    assert _SEAT_CALL_FUNCS <= BOARD_ONLY_CALL_FUNCS
+    assert _SEAT_CALL_FUNCS == {
         fn
         for fn in BOARD_ONLY_CALL_FUNCS
         if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
@@ -481,7 +481,7 @@ _HOME_SETUP = (
 )
 def test_frame_verb_in_a_non_two_player_game_is_rejected(players_line: str, count: str) -> None:
     msg = _reject(_grid_game(players_line, _HOME_SETUP))
-    assert "`home` reads a grid's two-player movement frame" in msg
+    assert "`home` reads the board from one of its two seats" in msg
     assert f"declares {count} players" in msg
 
 

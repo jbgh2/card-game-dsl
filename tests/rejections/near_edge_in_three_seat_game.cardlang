@@ -1,0 +1,30 @@
+// Guard: resolve's two-seat row (cardlang/resolve.py, `_check_board_call`,
+// `_SEAT_CALL_FUNCS`). `near_edge` reads the board from one of its two
+// seats; a three-seat game has a seat the board defines no border for, so
+// the call is refused naming the player count.
+game NearEdgeThreeSeats {
+  players: 3
+  max_length: 30
+  board: hex_rhombus(11)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest score
+}
+move_type place(at : cell) {
+  when: (square[at] is empty) and (at in near_edge(actor))
+  effect { move one piece from reserve[actor] to square[at] }
+}
+move_type stop { effect { done := true } }

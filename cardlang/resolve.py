@@ -483,13 +483,14 @@ from cardlang.typecheck import (
 )
 from cardlang.types import Flavor, TCell, TCollection, TInteger, TPlayer, TTeam
 
-# The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
-# is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
-# Derived as exactly the board verbs taking a player argument, so a later
-# player-taking board verb joins this set (and its two-seat Owner Guard) by
-# construction rather than by a hand-list that would drift. The player-free
-# board calls (`lines`, `is_diagonal`) are not frame reads and stay unaffected.
-_FRAME_CALL_FUNCS = frozenset(
+# The board-only calls that read the board from one of its two seats -- a
+# grid's per-player frame, where one seat's forward is the other's backward,
+# or a seat's own borders (cardlang/stdlib/boards.py). Derived as exactly the
+# board verbs taking a player argument, so a later player-taking board verb
+# joins this set (and its two-seat Owner Guard) by construction rather than by
+# a hand-list that would drift. The player-free board calls (`lines`,
+# `is_diagonal`, `neighbors`) read no seat and stay unaffected.
+_SEAT_CALL_FUNCS = frozenset(
     fn
     for fn in BOARD_ONLY_CALL_FUNCS
     if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
@@ -2052,6 +2053,7 @@ _BOARD_NEED_PHRASES: dict[BoardNeed, str] = {
     "lines": "the board's lines",
     "edges": "the board's declared adjacency (which points it joins)",
     "frame": "the board's movement frame (each seat's forward directions)",
+    "borders": "each seat's two borders (the board edges it joins)",
 }
 
 
@@ -2181,11 +2183,11 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
     _BOARD_POSITION_GATE,
     *_BOARD_NEED_GATES,
     _builtin_gate(
-        _FRAME_CALL_FUNCS,
+        _SEAT_CALL_FUNCS,
         lambda g: g.board is not None and g.players.count != 2,
-        "read a grid's two-player movement frame",
+        "read the board from one of its two seats",
         lambda g: f"this game declares `players: {g.players.count}`",
-        lambda g: "the frame is defined for two seats, so it needs `players: 2`",
+        lambda g: "a board's seat parts are defined for two seats, so it needs `players: 2`",
         clause="players",
         role="beside",
     ),
@@ -12093,18 +12095,20 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
             verb, _, rest = gate.reads.partition(" ")
             bag.error(f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}", nd.span)
             return
-    # A frame verb reads the grid's two-seat per-player frame, defined only for
-    # players 0 and 1. Without this Owner Guard a game with three-plus (or one) seats
-    # resolves clean and then dies at setup/play with the frame's registry-bug
+    # A seat verb reads the board from one of its two seats -- a grid's
+    # per-player frame, or a seat's borders -- defined only for players 0 and
+    # 1. Without this Owner Guard a game with three-plus (or one) seats
+    # resolves clean and then dies at setup/play with the board's registry-bug
     # `ValueError` when a verb is called for seat 2 -- a typechecked game
     # failing at runtime, in the wrong channel. Require exactly two players.
     count = game.players.count
-    if nd.func in _FRAME_CALL_FUNCS and count != 2:
+    if nd.func in _SEAT_CALL_FUNCS and count != 2:
         bag.error(
-            f"`{nd.func}` reads a grid's two-player movement frame (one seat's "
-            f"forward is the other's, the 180-degree opposite), but the game "
-            f"declares {count} players — the frame is defined for two seats "
-            f"(design-notes/board-topology.md); name seats directly for more",
+            f"`{nd.func}` reads the board from one of its two seats (a grid's "
+            f"forward for one seat is backward for the other; a hex board's "
+            f"borders are each seat's own), but the game declares {count} "
+            f"players — a board's seat parts are defined for two seats "
+            f"(design-notes/board-topology.md), so it needs `players: 2`",
             nd.span,
         )
     args = nd.args
