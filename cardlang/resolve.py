@@ -441,6 +441,7 @@ from cardlang.stdlib.hosted_poll import (
 )
 from cardlang.stdlib.moves import (
     CLIMB_DECISION_MOVE_TYPE,
+    KERNEL_MOVE_FORMS,
     LIBRARY_MOVE_TYPES,
     RULE_ENFORCED_MOVE_TYPE,
 )
@@ -7378,17 +7379,12 @@ def _check_rule_reaches_a_reader(
     forms", "Surface totality"). A rule binds at the trick round's card
     decision and nowhere else, so its `constrains:` is accepted only when it
     names the move type that decision asks about, and every other target is
-    refused once, with a fix the game can take: a move type the game
-    declares takes the condition in its `when:`; a family library's move
-    type, whose `when:` the game cannot change, is replaced by a move type
-    of the game's own or offered behind an `if`; a kernel move type the game
-    does not declare is declared by it, the climbing form's points at its
-    `follows` function, and an absent clause names the trick move type; any
-    other spelling is unknown. Each fix is checked to pass by
-    tests/test_rule_constrains.py. The
-    accepted target is the complement of what `rules.legal_cards` is asked
-    about, never a list of the dead spellings, so a move type a game or
-    `LIBRARY_MOVE_TYPES` adds is refused by the arm its class names.
+    refused once, naming the construct that makes the move as the place its
+    condition goes: a move type the game declares, its `when:`; a family
+    library's move type, the library's `when:` or a move type and offer of
+    the game's own; a kernel move type, the form `KERNEL_MOVE_FORMS` records
+    for it; an absent clause, the trick move type. Any other spelling is
+    unknown. Each fix is applied and checked by tests/test_rule_constrains.py.
 
     Runs after `_instantiate_rules`, so spliced library rules and
     instantiated templates are checked on the same path as hand-written ones;
@@ -7400,19 +7396,15 @@ def _check_rule_reaches_a_reader(
         f"a rule binds only at the trick round's card decision, which asks "
         f"about `{RULE_ENFORCED_MOVE_TYPE}`, so this rule would never fire"
     )
-    if target == RULE_ENFORCED_MOVE_TYPE:
-        if rule.demands is None and rule.exempts is None:
-            bag.error(
-                "rule " + named + " enforces nothing: it declares neither a "
-                "`demands:` card set nor an `exempts:` set, so activating it "
-                "cannot change which cards are legal. Give it a `demands:` (with "
-                "its `if_impossible:` fallback) or an `exempts:`, or delete it — "
-                "`applies_when:` alone selects when a rule fires, not what it "
-                "does.",
-                rule.span,
-            )
+    if target is None:
+        bag.error(
+            "rule " + named + " constrains no move type (the `constrains:` clause is "
+            f"absent), which no decision site consults: {trick}. Name "
+            f"`{RULE_ENFORCED_MOVE_TYPE}` in its `constrains:`.",
+            rule.span,
+        )
         return
-    declared = move_types.get(target) if target is not None else None
+    declared = move_types.get(target) if target != RULE_ENFORCED_MOVE_TYPE else None
     if declared is not None and declared.origin is None:
         bag.error(
             "rule " + named + " constrains " + cite_named(declared, f"`{target}`")
@@ -7426,37 +7418,62 @@ def _check_rule_reaches_a_reader(
         bag.error(
             "rule " + named + " constrains " + cite_named(declared, f"`{target}`")
             + ", a move type of " + cite_library(declared.origin.library, declared.span)
-            + f" whose `when:` this game cannot change, but {trick}: offer a move "
-            f"type of the game's own with the condition in its `when:`, or put "
-            f"the offer behind an `if`",
+            + f", but {trick}. A condition every game using the library shares "
+            f"belongs in that move type's `when:` in the library; for this game "
+            f"alone, offer a move type of the game's own carrying the condition "
+            f"in its `when:`, in place of `{target}`, writing the offer in the game "
+            f"wherever the library's own procedure makes it",
             rule.span,
         )
         return
-    if target is not None and target not in LIBRARY_MOVE_TYPES:
+    form = KERNEL_MOVE_FORMS.get(target)
+    if form is None:
         bag.error("rule " + named + f" constrains unknown move type '{target}'", rule.span)
         return
-    if target is None:
-        bag.error(
-            "rule " + named + " constrains no move type (the `constrains:` clause is "
-            f"absent), which no decision site consults: {trick}. Name "
-            f"`{RULE_ENFORCED_MOVE_TYPE}` in its `constrains:`.",
-            rule.span,
-        )
-        return
-    if target == CLIMB_DECISION_MOVE_TYPE:
-        bag.error(
-            "rule " + named + f" constrains '{target}', which no decision site "
-            f"consults: {trick}. A climb round's play is legal by the round's "
-            f"`follows` function: state the condition there.",
-            rule.span,
-        )
-        return
-    bag.error(
-        "rule " + named + f" constrains '{target}', which no decision site consults: "
-        f"{trick}. Declare `{target}` as a move type of the game, with the condition "
-        f"in its `when:`, and offer it.",
-        rule.span,
-    )
+    head = "rule " + named + f" constrains '{target}', which no decision site consults: {trick}. "
+    match form:
+        case "trick_round":
+            if rule.demands is None and rule.exempts is None:
+                bag.error(
+                    "rule " + named + " enforces nothing: it declares neither a "
+                    "`demands:` card set nor an `exempts:` set, so activating it "
+                    "cannot change which cards are legal. Give it a `demands:` (with "
+                    "its `if_impossible:` fallback) or an `exempts:`, or delete it — "
+                    "`applies_when:` alone selects when a rule fires, not what it "
+                    "does.",
+                    rule.span,
+                )
+        case "offer":
+            bag.error(
+                head + f"Declare `{target}` as a move type of the game, with the "
+                f"condition in its `when:`, and offer it.",
+                rule.span,
+            )
+        case "chosen_movement":
+            bag.error(
+                head + "A card passed from hand to hand is a chosen movement "
+                "(`move chosen N cards from ... to ...`): state the condition on "
+                "the movement, its `chosen N` or a `where` filter.",
+                rule.span,
+            )
+        case "number_choice":
+            bag.error(
+                head + "A number a player names is a `choose integer in ...`: state "
+                f"the condition in its range or its `excluding`; or declare "
+                f"`{target}` as a move type of the game, with the condition in its "
+                f"`when:`, and offer it.",
+                rule.span,
+            )
+        case "climb_round":
+            bag.error(
+                head + "A climb round's play is legal by the round's `follows` "
+                "function: when the game declares that function, state the "
+                "condition there; a Registered Engine's `follows` fixes the "
+                "legality, and the game cannot add to it.",
+                rule.span,
+            )
+        case _:
+            assert_never(form)
 
 
 def _resolve_rule(

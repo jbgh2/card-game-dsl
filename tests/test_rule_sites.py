@@ -16,9 +16,11 @@ property:        the one module under `cardlang/` importing the rule
                  the call sites of `legal_cards` are exactly the trick
                  form's candidate hook; of every decision point, only the
                  trick form's code names the cascade; and every occurrence
-                 of `RULE_ENFORCED_MOVE_TYPE` outside its definition is in
-                 the trick form's candidate hook or the resolver's
-                 reachability Owner Guard.
+                 of `RULE_ENFORCED_MOVE_TYPE` outside its definition -- a
+                 name, an attribute, an import under any alias and that
+                 alias's reads -- is in the trick form's candidate hook, the
+                 resolver's reachability Owner Guard, or the import of it
+                 in those two modules.
 domain:          every Python module under `cardlang/`, keyed by its dotted
                  module path; every scope in it -- function, method, and the
                  module and class bodies as scopes of their own -- keyed by
@@ -375,15 +377,25 @@ def test_only_the_trick_forms_decision_names_the_rule_cascade() -> None:
 
 
 def _constant_occurrences() -> set[str]:
-    """Every scope under `cardlang/` where the identifier
-    `RULE_ENFORCED_MOVE_TYPE` occurs as a name or an attribute, its
-    definition in its home module aside."""
+    """Every scope under `cardlang/` where `RULE_ENFORCED_MOVE_TYPE` occurs:
+    as a name, an attribute, or an import of it -- under any alias, whose
+    names are then followed too -- its definition in its home module
+    aside."""
     found: set[str] = set()
     for module, (_path, tree) in _modules().items():
+        aliases = {CONSTANT} | {
+            a.asname
+            for nd in ast.walk(tree)
+            if isinstance(nd, ast.ImportFrom)
+            for a in nd.names
+            if a.name == CONSTANT and a.asname
+        }
         for qualname, scope in _scopes(tree):
             for nd in _own_nodes(scope):
-                hit = (isinstance(nd, ast.Name) and nd.id == CONSTANT) or (
-                    isinstance(nd, ast.Attribute) and nd.attr == CONSTANT
+                hit = (
+                    (isinstance(nd, ast.Name) and nd.id in aliases)
+                    or (isinstance(nd, ast.Attribute) and nd.attr == CONSTANT)
+                    or (isinstance(nd, ast.alias) and nd.name == CONSTANT)
                 )
                 if not hit:
                     continue
@@ -407,8 +419,14 @@ def test_the_enforced_move_type_has_two_readers() -> None:
     (compare a value with it) -- the reader set gains
     `cardlang.runtime.mechanics.ClimbForm.candidates`; or bind
     `_ENFORCED = moves.RULE_ENFORCED_MOVE_TYPE` at module level in
-    `cardlang/runtime/execute.py` -- the set gains `cardlang.runtime.execute.<module>`."""
+    `cardlang/runtime/execute.py` -- the set gains `cardlang.runtime.execute.<module>`;
+    or `from cardlang.stdlib.moves import RULE_ENFORCED_MOVE_TYPE as _K` inside
+    `execute._offer`, reading `_K` there -- the set gains
+    `cardlang.runtime.execute._offer`. The two modules' imports of it are
+    their `<module>` scopes."""
     assert _constant_occurrences() == {
+        f"cardlang.resolve.{MODULE_SCOPE}",
         "cardlang.resolve._check_rule_reaches_a_reader",
+        f"{MECHANICS}.{MODULE_SCOPE}",
         f"{MECHANICS}.TrickForm.candidates",
     }
