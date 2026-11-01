@@ -1,0 +1,157 @@
+// Nine men's morris — 2 players, the morris9 board, 9 men each. Variant
+// pinned: White (player 0) places first; the players alternate placing one man
+// on a vacant point until each has placed all nine, then alternate moving one
+// man along a line to an adjacent vacant point; a player down to three men
+// flies, moving a man to any vacant point. A man placed or moved to complete
+// three of its own side on one of the sixteen lines closes a mill, and the
+// player then removes one enemy man — one, even when the move closes two
+// mills — taken from outside a mill unless every enemy man on the board stands
+// in one. A player reduced to two men, or with no legal move on their turn,
+// loses. There is no move cap and no repetition rule: a line that repeats
+// without end is drawn when the engine stops it at its bound. The rules body
+// is the Welt-Muehlespiel-Dachverband's; the traditional in-mill restriction
+// pinned here is the one it has since relaxed (nine-mens-morris.md). The
+// differential oracle is OpenSpiel's native `nine_mens_morris`.
+//
+// Perfect information throughout — the board, the reserves and the captured
+// piles are public, and the one count-projected zone (box) empties at setup,
+// so no zone conceals a man: information sets are singletons and the
+// observation model does not move.
+//
+// result[player] in {+1, -1} (win/loss) so the OpenSpiel returns match the
+// native oracle's zero-sum structure; a game stopped at its bound is a tie,
+// every return 0.
+
+game NineMensMorris {
+
+  players: 2
+  direction: clockwise
+  max_length: 6000
+  at max_length: tie
+
+  board: morris9
+  pieces: morris_men
+
+  zones {
+    box              : Deck                // the unplaced set, emptied at setup
+    point[cell]      : Cell<cell>          // the twenty-four points of the board
+    reserve[player]  : PlayerPile<player>  // each side's men not yet placed
+    captured[player] : PlayerPile<player>  // men removed FROM this player
+  }
+
+  state {
+    result[player]   : Integer = 0     // +1 win, -1 loss, 0 running
+    men_left[player] : Integer = 9     // men in reserve or on the board
+    milled           : Boolean = false // the move just made closed a mill
+  }
+
+  phase setup {
+    move all pieces from box where piece.side is white to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+
+  phase play {
+    turns t from 0 over all players
+          until (any player where result[player] is 1) {
+      if can_move(t) {
+        if reserve[t] is not empty {
+          offer to t one of [place]
+        } else {
+          if men_left[t] > 3 {
+            offer to t one of [slide]
+          } else {
+            offer to t one of [fly]
+          }
+        }
+        if milled {
+          offer to t one of [remove]
+          milled := false
+        }
+      } else {
+        let foe = opponent_of(t)
+        result[t] := -1
+        result[foe] := 1
+      }
+    }
+  }
+
+  winner: highest result
+}
+
+// Which side each seat plays: White is player 0.
+function side_of(p : Player) = if p is 0 then white else black
+
+// The other seat. Morris is two-handed, so the map is the seat flip.
+function opponent_of(p : Player) = if p is 0 then 1 else 0
+
+// A man of `p`'s side stands on `c`.
+function mine(c : cell, p : Player) =
+  (point[c] is not empty) and (top_of(point[c]).side is side_of(p))
+
+// The man on `c` stands in a mill: some line through `c` holds three men of
+// its side.
+function in_mill(c : cell) =
+  (point[c] is not empty)
+  and (any line in lines(3)
+         where (any cell in line where cell is c)
+               and (all cells in line
+                      where (point[cell] is not empty)
+                            and (top_of(point[cell]).side is top_of(point[c]).side)))
+
+// Every man of `p`'s side on the board stands in a mill.
+function all_in_mill(p : Player) =
+  all cells where (not mine(cell, p)) or in_mill(cell)
+
+function has_empty_neighbor(c : cell) =
+  any cell where (cell in neighbors(c)) and (point[cell] is empty)
+
+// `p` has a legal move: a man to place, a vacant point to fly to, or a man
+// beside a vacant point.
+function can_move(p : Player) =
+  (reserve[p] is not empty)
+  or ((men_left[p] <= 3) and (any cell where point[cell] is empty))
+  or (any cell where mine(cell, p) and has_empty_neighbor(cell))
+
+// Place a man from your reserve on a vacant point.
+move_type place(at : cell) {
+  when: point[at] is empty
+  effect {
+    move one piece from reserve[actor] to point[at]
+    if in_mill(at) { milled := true }
+  }
+}
+
+// Move one of your men along a line to the adjacent vacant point.
+move_type slide(from : cell, to : cell) {
+  when: mine(from, actor) and (to in neighbors(from)) and (point[to] is empty)
+  effect {
+    move one piece from point[from] to point[to]
+    if in_mill(to) { milled := true }
+  }
+}
+
+// Down to three men: move one of your men to any vacant point.
+move_type fly(from : cell, to : cell) {
+  when: mine(from, actor) and (point[to] is empty)
+  effect {
+    move one piece from point[from] to point[to]
+    if in_mill(to) { milled := true }
+  }
+}
+
+// Remove an enemy man after closing a mill. A man in a mill may be taken only
+// when every enemy man on the board stands in one.
+move_type remove(at : cell) {
+  when: (point[at] is not empty)
+        and (top_of(point[at]).side is not side_of(actor))
+        and ((not in_mill(at)) or all_in_mill(opponent_of(actor)))
+  effect {
+    let foe = opponent_of(actor)
+    move one piece from point[at] to captured[foe]
+    men_left[foe] := men_left[foe] - 1
+    if men_left[foe] is 2 {
+      result[actor] := 1
+      result[foe] := -1
+    }
+  }
+}

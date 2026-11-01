@@ -507,6 +507,7 @@ NO_DECISION_OUTSIDE: frozenset[str] = frozenset(
         "klondike.cardlang",
         "kuhn-poker.cardlang",
         "leduc-poker.cardlang",
+        "nine-mens-morris.cardlang",
         "seven-card-stud.cardlang",
         "tic-tac-toe.cardlang",
     }

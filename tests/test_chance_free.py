@@ -348,7 +348,11 @@ def test_refusing_generator_refuses_every_draw() -> None:
 # says which games the corpus actually contains. A new board game reddens it,
 # and the author confirms rather than discovers.
 CHANCE_FREE_CORPUS: frozenset[str] = frozenset(
-    {"cardlang_breakthrough", "cardlang_tic_tac_toe"}
+    {
+        "cardlang_breakthrough",
+        "cardlang_nine_mens_morris",
+        "cardlang_tic_tac_toe",
+    }
 )
 
 
