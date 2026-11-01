@@ -107,6 +107,7 @@ from typing import Any
 import pytest
 
 import cardlang.resolve as resolve_module
+import cardlang.runtime.evaluate as evaluate_module
 from cardlang.ast import nodes as n
 from cardlang.board_domains import DIRECTION_DOMAIN, directions_of, position_domains_of
 from cardlang.builtins.signatures import CALL_SIGS
@@ -114,13 +115,14 @@ from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import ShadowGuardError
-from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import RuntimeState
-from cardlang.stdlib.boards import board_entry
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
+from cardlang.runtime.mechanics import param_domain
+from cardlang.runtime.evaluate import evaluate, native_call
+from cardlang.runtime.state import Ctx, RuntimeState
+from cardlang.stdlib.boards import BOARD_FAMILIES, board_entry
 from cardlang.typecheck import TypeEnv, _domain_query_binder_type, _type_name
-from cardlang.types import TBoolean, TCell, TDir, TPlayer, Type
-from tests.test_cell_queries import _board_ctx, _checked_board_expr
+from cardlang.types import TAny, TBoolean, TCell, TDir, TOptional, TPlayer, Type
+from tests.test_cell_queries import _board_ctx, _checked_board_expr, _unused_chooser
 
 KINDS = tuple(n.DOMAIN_QUERY_KIND_PHRASE)
 
@@ -289,7 +291,20 @@ def test_a_direction_quantifier_checks_in_every_host(kind: str, host: str) -> No
     assert list(_query_hosts(game)) == [field]
 
 
-# --- GRID R: the runtime value of each kind ------------------------------------
+# --- GRID R: the runtime value of each kind, on every board family ------------
+
+FAMILIES = tuple(sorted(BOARD_FAMILIES))
+
+
+def _board_args(family: str) -> tuple[int, ...]:
+    """Arguments the family's registry row accepts: each its lowest bound
+    raised to 3, so a frame has a middle rank to step from."""
+    row = BOARD_FAMILIES[family]
+    return tuple(min(max(row.lo, 3), row.hi) for _ in range(row.arity))
+
+
+def _board_clause(family: str) -> str:
+    return f"  board: {family}({', '.join(str(a) for a in _board_args(family))})\n"
 
 
 def _fold(kind: str, truths: list[bool]) -> bool | int:
@@ -303,8 +318,22 @@ def _fold(kind: str, truths: list[bool]) -> bool | int:
     raise AssertionError(f"kind {kind!r} has no fold here")
 
 
-def _entry() -> Any:
-    return board_entry("grid", (3, 3))
+def _entry(family: str = "grid") -> Any:
+    return board_entry(family, _board_args(family))
+
+
+def _first_decision(source: str) -> tuple[n.Game, RuntimeState]:
+    """Check `source` and play it until the first seat stops at once: the
+    game and its live world at that first decision, after setup has run."""
+    game = check_dsl(source, "lift.cardlang")
+    held: list[RuntimeState] = []
+
+    def stop(player: int, candidates: list[Any], k: int) -> list[Any]:
+        return [next(c for c in candidates if c == ("stop", None))]
+
+    play_game(game, random.Random(0), chooser=stop, on_first_decision=held.append)
+    assert held, "the game made no decision"
+    return game, held[0]
 
 
 def _played_state(source: str, *names: str) -> dict[str, Any]:
@@ -329,11 +358,48 @@ def _state_type(kind: str) -> str:
     return "Integer = 0" if kind == "count" else "Boolean = false"
 
 
+@pytest.mark.parametrize("family", FAMILIES)
+def test_the_quantifier_reads_the_move_parameter_order(
+    family: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bare quantifier visits the directions in the order the move
+    parameter enumerates them (decisions.md "Boards and cells"). A designer
+    sees the order through `any`'s short-circuit: a total verb read behind an
+    earlier member that already answered is never evaluated.
+
+    Red under: reversing the direction members `evaluate._domain_query`
+    reads."""
+    game, rs = _first_decision(
+        board_game(
+            board=_board_clause(family),
+            extra=f"function scan(p : Player) = number of {DIRECTION_DOMAIN}s where true\n",
+        )
+    )
+    query = next(f.body for f in game.functions if f.name == "scan")
+    assert isinstance(query, n.DomainQuery)
+    ctx = Ctx(rs=rs, chooser=_unused_chooser).acting_as(0)
+    offered = param_domain(n.Parameter(name="along", type_name=DIRECTION_DOMAIN), 0, ctx)
+
+    visited: list[Any] = []
+    real = evaluate_module.evaluate
+
+    def spy(expr: Any, inner: Ctx) -> Any:
+        if expr is query.where:
+            visited.append(inner.locals[query.binder])
+        return real(expr, inner)
+
+    monkeypatch.setattr(evaluate_module, "evaluate", spy)
+    assert real(query, ctx) == len(offered)
+    assert visited == list(offered)
+
+
+@pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_function_body_folds_the_board_directions(kind: str) -> None:
-    entry = _entry()
+def test_a_function_body_folds_the_board_directions(kind: str, family: str) -> None:
+    entry = _entry(family)
     expected = _fold(kind, [entry.is_diagonal(d) for d in entry.directions()])
     source = board_game(
+        board=_board_clause(family),
         state=f"    probe : {_state_type(kind)}\n",
         setup="    probe := scan(0)\n",
         extra=f"function scan(p : Player) = {_query(kind, 'is_diagonal(dir)')}\n",
@@ -341,31 +407,36 @@ def test_a_function_body_folds_the_board_directions(kind: str) -> None:
     assert _played_state(source, "probe") == {"probe": expected}
 
 
+@pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_state_default_folds_the_board_directions(kind: str) -> None:
+def test_a_state_default_folds_the_board_directions(kind: str, family: str) -> None:
     # The predicate holds of every member, so the fold reads the member count.
-    expected = _fold(kind, [True for _ in _entry().directions()])
+    expected = _fold(kind, [True for _ in _entry(family).directions()])
     source = board_game(
+        board=_board_clause(family),
         state=f"    probe : {'Integer' if kind == 'count' else 'Boolean'} = "
-        f"{_query(kind, CALL_FREE)}\n"
+        f"{_query(kind, CALL_FREE)}\n",
     )
     assert _played_state(source, "probe") == {"probe": expected}
 
 
+@pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("seat", [0, 1])
 @pytest.mark.parametrize("kind", ["any", "all"])
-def test_a_nested_scan_reads_each_seat_frame(kind: str, seat: int) -> None:
+def test_a_nested_scan_reads_each_seat_frame(kind: str, seat: int, family: str) -> None:
     """`number of cells where <kind> dir... where has_step(cell, dir, p)`: the
     direction binder is the Builtin's `TDir` argument, the cell binder its
     `TCell`, and the seat its frame -- each seat's count from the board entry."""
-    entry = _entry()
-    cells = position_domains_of(check_dsl(board_game(), "lift.cardlang"))["cell"]
+    entry = _entry(family)
+    clause = _board_clause(family)
+    cells = position_domains_of(check_dsl(board_game(board=clause), "lift.cardlang"))["cell"]
     expected = sum(
         1
         for c in cells
         if _fold(kind, [entry.has_step(c, d, seat) for d in entry.directions()])
     )
     source = board_game(
+        board=clause,
         state="    probe : Integer = 0\n",
         setup=f"    probe := scan({seat})\n",
         extra=(
@@ -617,6 +688,105 @@ def test_a_nested_direction_binder_shadows_the_outer() -> None:
     assert _played_state(source, "probe") == {"probe": expected}
 
 
+# --- a none at a Builtin slot: a typed refusal in designer words ----------------
+
+# Every Builtin slot whose type holds no `none`: an optional value (`d : dir?`,
+# `c : cell?`) is admitted where its base is wanted, since the language has no
+# flow narrowing, so a `none` reaches these slots at play.
+_NONE_SLOTS = [
+    (name, i)
+    for name, sig in sorted(CALL_SIGS.items())
+    for i, p in enumerate(sig.params)
+    if not isinstance(p, (TAny, TOptional))
+]
+
+NONE_REFUSAL = "was given none where it needs"
+
+
+def _none_outcome(call: Callable[[], Any]) -> BaseException | None:
+    try:
+        call()
+    except Exception as exc:  # noqa: BLE001 - the channel is the thing measured
+        return exc
+    return None
+
+
+def test_the_none_slot_axis_is_non_empty() -> None:
+    assert _NONE_SLOTS
+
+
+@pytest.mark.xfail(raises=AssertionError, strict=True, reason="the none refusal is not built yet")
+@pytest.mark.parametrize(("name", "slot"), _NONE_SLOTS, ids=[f"{n_}-{i}" for n_, i in _NONE_SLOTS])
+def test_a_none_at_a_builtin_slot_is_a_typed_refusal(name: str, slot: int) -> None:
+    """The one dispatch every Builtin call passes refuses a `none` at a slot
+    whose type holds none, in the runtime's typed channel, naming the Builtin
+    and the type it wanted -- never a raw Python error inside the verb."""
+    game, _ = _checked_board_expr("any cell where true")
+    ctx = _board_ctx(game, {})
+    ctx.rs.direction_domains = dict(directions_of(game))
+    ctx.rs.teams = (0, 1)
+    args: list[Any] = [object() for _ in CALL_SIGS[name].params]
+    args[slot] = None
+    outcome = _none_outcome(lambda: native_call(name, args, ctx))
+    assert isinstance(outcome, OwnerGuardError), repr(outcome)
+    want = CALL_SIGS[name].params[slot]
+    assert f"`{name}` {NONE_REFUSAL} a `{_declared_spelling(want)}`" in str(outcome), str(outcome)
+
+
+def _declared_spelling(t: Type) -> str:
+    # The spelling a designer declares the slot's type with.
+    return {TCell: "cell", TDir: DIRECTION_DOMAIN}.get(type(t), _type_name(t))
+
+
+# Every (Builtin, slot) whose type is a board domain, executed end to end: a
+# function declares that one parameter optional and is called with `none`.
+_BOARD_NONE_CELLS = [
+    (name, i)
+    for name, i in _NONE_SLOTS
+    if isinstance(CALL_SIGS[name].params[i], (TCell, TDir))
+]
+
+
+def _optional_call_game(name: str, slot: int, value: str) -> str:
+    """`pick`'s When Clause calls `probe(...)`, whose `slot` parameter is
+    optional and receives `value`; the other slots get `pick`'s own
+    parameters. A set value reaching a total verb is `has_step`-gated, as any
+    caller of one is; a `none` reaches the verb bare."""
+    sig = CALL_SIGS[name]
+    spellings = {TCell: "cell", TDir: DIRECTION_DOMAIN, TPlayer: "Player"}
+    params = [
+        f"a{i} : {spellings[type(p)]}{'?' if i == slot else ''}" for i, p in enumerate(sig.params)
+    ]
+    names = [f"a{i}" for i in range(len(sig.params))]
+    call = _call(name, names)
+    if value != "none" and isinstance(sig.ret, TCell):
+        call = f"has_step({', '.join(names)}) and {call}"
+    args = {TCell: "at", TDir: "along", TPlayer: "actor"}
+    actuals = [value if i == slot else args[type(p)] for i, p in enumerate(sig.params)]
+    return board_game(
+        when=f"(not done) and (probe({', '.join(actuals)}) or true)",
+        extra=f"function probe({', '.join(params)}) = {call}\n",
+    )
+
+
+@pytest.mark.parametrize(("name", "slot"), _BOARD_NONE_CELLS, ids=[f"{n_}-{i}" for n_, i in _BOARD_NONE_CELLS])
+def test_an_optional_board_value_executes_when_it_is_set(name: str, slot: int) -> None:
+    """A `cell?` / `dir?` parameter holding a member reaches the verb as one."""
+    game = check_dsl(_optional_call_game(name, slot, ["at", "along"][
+        isinstance(CALL_SIGS[name].params[slot], TDir)
+    ]), "lift.cardlang")
+    play_game(game, random.Random(0))
+
+
+@pytest.mark.xfail(raises=AssertionError, strict=True, reason="the none refusal is not built yet")
+@pytest.mark.parametrize(("name", "slot"), _BOARD_NONE_CELLS, ids=[f"{n_}-{i}" for n_, i in _BOARD_NONE_CELLS])
+def test_an_optional_board_value_that_is_none_is_refused_at_play(name: str, slot: int) -> None:
+    game = check_dsl(_optional_call_game(name, slot, "none"), "lift.cardlang")
+    outcome = _none_outcome(lambda: play_game(game, random.Random(0)))
+    assert isinstance(outcome, OwnerGuardError), repr(outcome)
+    assert f"`{name}` {NONE_REFUSAL}" in str(outcome), str(outcome)
+
+
 # --- the Shadow Guards behind resolve's noun check --------------------------------
 
 
@@ -758,32 +928,34 @@ def _candidate_kind(candidate: Any) -> str:
     return candidate[0]
 
 
-def test_the_capture_scan_agrees_with_the_jump_offer() -> None:
+def _seed_cells() -> list[Any]:
+    # The first seed runs in the development pass; the rest are the evidence.
+    return [
+        pytest.param(seed, marks=() if i == 0 else pytest.mark.slow, id=f"seed-{seed}")
+        for i, seed in enumerate(WITNESS_SEEDS)
+    ]
+
+
+@pytest.mark.parametrize("seed", _seed_cells())
+def test_the_capture_scan_agrees_with_the_jump_offer(seed: int) -> None:
     """At every decision of a uniform playout: when `can_jump` holds, the
     offer is jumps only and is not empty (an empty one ends in the
     no-implicit-actions refusal); when it fails, no jump is offered. Both
     branches are reached, so neither half of the agreement is vacuous."""
     game = check_dsl(WITNESS, "mandatory-capture.cardlang")
     branches = {True: 0, False: 0}
-    for seed in WITNESS_SEEDS:
-        rng = random.Random(seed)
-        held: list[RuntimeState] = []
+    rng = random.Random(seed)
+    held: list[RuntimeState] = []
 
-        def agree(player: int, candidates: list[Any], k: int) -> list[Any]:
-            capturing = held[0].get("capturing")
-            kinds = {_candidate_kind(c) for c in candidates}
-            if capturing:
-                assert candidates and kinds == {"jump"}, (player, sorted(kinds))
-            else:
-                assert "jump" not in kinds, (player, candidates)
-            branches[bool(capturing)] += 1
-            return [rng.choice(candidates)]
+    def agree(player: int, candidates: list[Any], k: int) -> list[Any]:
+        capturing = held[0].get("capturing")
+        kinds = {_candidate_kind(c) for c in candidates}
+        if capturing:
+            assert candidates and kinds == {"jump"}, (player, sorted(kinds))
+        else:
+            assert "jump" not in kinds, (player, candidates)
+        branches[bool(capturing)] += 1
+        return [rng.choice(candidates)]
 
-        play_game(game, random.Random(seed), chooser=agree, on_first_decision=held.append)
+    play_game(game, random.Random(seed), chooser=agree, on_first_decision=held.append)
     assert branches[True] > 0 and branches[False] > 0, branches
-
-
-def test_directions_of_the_witness_board_are_the_registry_members() -> None:
-    """The witness's direction source is the board entry the grid folds over."""
-    game = check_dsl(board_game(), "lift.cardlang")
-    assert directions_of(game)[DIRECTION_DOMAIN] == _entry().directions()
