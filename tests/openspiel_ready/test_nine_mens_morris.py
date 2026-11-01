@@ -120,9 +120,12 @@ class TestReadiness(ReadinessProofs):
         populated zone is rendered under its own label with a man in it. Both
         observers render the identical board.
 
-        red under: flipping ``Cell``'s projection to ``count_only`` in
-        ``ZONE_PROJECTIONS`` leaves the men on the points in non-identity
-        zones and the ``hidden == 0`` assertion fails."""
+        red under: make ``_zone_line`` (cardlang/openspiel/infostate.py)
+        render a ``point[...]`` zone's men as a count; the information state
+        stops showing the men on the points and the ``missing`` assertion
+        fails. (Flipping ``Cell``'s projection instead is refused at check
+        time: the When Clauses read the points, which the acting seat must
+        see.)"""
         _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, DecisionNode)
         captured = sum(
@@ -183,9 +186,10 @@ class TestReadiness(ReadinessProofs):
         removed into a captured pile — by swapping each against a man of the
         OTHER side. BOTH observers' information states must move under each.
 
-        red under: flipping ``Cell``'s projection to ``count_only`` makes a
-        white-for-black swap between points count-preserving, so the states
-        stop moving and the point swap fails."""
+        red under: the same plant (a ``point[...]`` zone rendered as a count
+        in ``_zone_line``) makes a white-for-black swap between points
+        count-preserving, so the states stop moving and the point swap
+        fails."""
         _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, DecisionNode)
         points = [z for name, _, z in zone_instances(pause.rs) if name == "point" and z.cards]
@@ -231,9 +235,10 @@ def test_moves_and_removals_are_public_identity_events() -> None:
     placements, slides and removals alike are common knowledge at the event
     level. Removals are asserted PRESENT.
 
-    red under: flipping ``Cell``'s projection to ``count_only`` renders the
-    point-destination view as a count instead of the identity tuple, so the
-    ``isinstance(dst_view, tuple)`` assertion fails."""
+    red under: make ``movement`` (cardlang/runtime/observe.py) emit a
+    ``captured``-directed destination as a count; the removal's destination
+    view is no longer an identity tuple, so the ``isinstance(dst_view,
+    tuple)`` assertion fails."""
     _, pause = _advance(PATH, ONE_SEED[0], DEPTH)
     assert isinstance(pause, DecisionNode)
     boards: dict[int, list[tuple[Any, ...]]] = {}

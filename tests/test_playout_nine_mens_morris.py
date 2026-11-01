@@ -498,7 +498,12 @@ def test_every_enemy_man_in_a_mill_may_be_taken() -> None:
 
 def test_a_man_in_a_mill_is_safe_while_a_free_man_stands() -> None:
     """The restriction's other arm: White closes a mill while Black has one
-    man outside Black's mill, and only that man is offered."""
+    man outside Black's mill, and only that man is offered.
+
+    red under: drop `remove`'s last conjunct (`(not in_mill(at)) or
+    all_in_mill(...)`) in nine-mens-morris.cardlang; this offers the three
+    men of Black's mill as well, and the uniform and smothering playouts
+    fail on their removal offers."""
     run = _scripted(
         [
             ("place", ("a1",)), ("place", ("a7",)),
