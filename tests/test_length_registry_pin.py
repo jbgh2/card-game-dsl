@@ -14,8 +14,10 @@ Completeness ledger
 property:        every registered game, on every seed of the manifest,
                  under its reference playout policy, ends by its rules
                  (`ended_by == rules`) after fewer than `max_length / dial`
-                 picks; its lowest-id line, walked natively, reaches a
-                 terminal at or before its bound, ended the way
+                 picks, or, for a game whose bound is its rules' own
+                 (`RULES_BOUND`), at or before it; its lowest-id line,
+                 walked natively, reaches a terminal at or before its
+                 bound, ended the way
                  `LOWEST_ID_ENDS` names; Coup under `first` and Tichu under
                  the uniform Chooser end by length, each scored as it stands
                  as its file declares.
@@ -28,8 +30,9 @@ registry:        games: `cardlang.openspiel.registry.GAMES` and
                  `cardlang.openspiel.game._entry_files`; policies:
                  `tests.playout_policy.REFERENCE_POLICIES`; seeds:
                  `tests.openspiel_ready.harness.SWAP_SEEDS`; dials: `HEADROOM`
-                 below and the lowest-id line's ends: `LOWEST_ID_ENDS`, both
-                 reconciled by `test_every_table_row_names_a_registered_game`.
+                 below, the rules-bound games: `RULES_BOUND`, and the
+                 lowest-id line's ends: `LOWEST_ID_ENDS`, all reconciled by
+                 `test_every_table_row_names_a_registered_game`.
 held by:         Born-Green Pin: whether a game's lines end by its rules is a
                  fact about its runs, which no type holds and the engine
                  cannot decide.
@@ -41,7 +44,10 @@ red under: register tests/test_length_stop.py's `bounded_tic_tac_toe()`
 (tic-tac-toe at `max_length: 5`) through `CARDLANG_GAMES`; a uniform line that
 places five marks without a win stops by length. And: make `chooser.decide`'s
 `admit` admit every pick; no line stops at its bound, and every game in
-`LOWEST_ID_ENDS` walks past it.
+`LOWEST_ID_ENDS` walks past it. And: delete `RULES_BOUND`'s `hex` row; every
+Hex manifest line falls within 4x of its 121. A dial-1 `HEADROOM` row in its
+place stays green on the manifest, whose Hex lines stop short of the board,
+and refuses seed 4's full-board line at 121 picks.
 """
 
 from __future__ import annotations
@@ -91,13 +97,6 @@ HEADROOM: dict[str, tuple[int, str]] = {
         "bounded by its rules at nine placements; the bound of 30 is 3.3x the "
         "most any line can make",
     ),
-    "hex": (
-        1,
-        "bounded by its rules at 121 placements, one per cell: the bound is the "
-        "board's own, and a line filling the board ends by its rules exactly at "
-        "it (tests/test_playout_hex.py); 1 holds the manifest's lines, 104 to "
-        "116 picks (measured 2026-11-01)",
-    ),
     "pinochle": (
         2,
         "measured 2026-09-21 under the reference policy over 250 seeds: 3517 "
@@ -108,6 +107,19 @@ HEADROOM: dict[str, tuple[int, str]] = {
         3,
         "measured 2026-10-31 under the reference policy over the manifest: "
         "11960 picks at most, 3.3x under 40000 (issue #1005)",
+    ),
+}
+
+
+# The games whose `max_length` is the bound their rules put on every line,
+# not an allowance over measured play: a line may end by its rules exactly at
+# it, so no dial applies, and `ended_by == rules` is the whole check. Each row
+# with the rule that bounds the line.
+RULES_BOUND: dict[str, str] = {
+    "hex": (
+        "one stone per pick on 121 cells, and on a full board exactly one side "
+        "has joined its edges, so the 121st placement decides "
+        "(tests/test_playout_hex.py witnesses lines that fill the board)"
     ),
 }
 
@@ -138,6 +150,8 @@ def test_every_table_row_names_a_registered_game() -> None:
     stems = {_stem(p) for p in REGISTERED.values()}
     assert set(REFERENCE_POLICIES) <= stems
     assert set(HEADROOM) <= stems
+    assert set(RULES_BOUND) <= stems
+    assert not set(HEADROOM) & set(RULES_BOUND)
     assert set(LOWEST_ID_ENDS) <= stems
 
 
@@ -156,6 +170,8 @@ def test_a_registered_game_ends_by_its_rules_with_headroom(short_name: str, seed
         f"{short_name} seed {seed}: the reference policy's line reached max_length "
         f"({game.max_length}) without the rules ending it"
     )
+    if _stem(path) in RULES_BOUND:
+        return
     dial, _why = HEADROOM.get(_stem(path), (DIAL, ""))
     assert picks * dial < game.max_length, (
         f"{short_name} seed {seed}: {picks} picks is within {dial}x of max_length "
