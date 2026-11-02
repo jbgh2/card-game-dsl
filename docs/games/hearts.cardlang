@@ -58,9 +58,9 @@ game Hearts {
       legal_moves:  [transfer_between_hands]
 
       // Exactly three cards, and the movement below is what binds that: the
-      // `chosen 3` count IS the law. A `rule` cannot state it — rules are
-      // consulted only at the trick round's card decision, never here
-      // (open-questions/rule-scope-beyond-trick-play.md).
+      // `chosen 3` count IS the law. A `rule` cannot state it: a rule
+      // binds only at the trick round's card decision, never here
+      // (decisions.md, "Rule demand forms").
       each player simultaneously:
         move chosen 3 cards
           from hand[player]

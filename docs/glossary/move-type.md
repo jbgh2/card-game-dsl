@@ -1,11 +1,11 @@
 ---
 term: Move Type
-definition: A named, parameterized player action with a `when:` guard, an effect, and optionally its [[stake]]. Keyword and term settled: with "move" owning the player-action family, `move_type` reads as compositional English; `action_type` would manufacture an Interop false friend.
+definition: A named, parameterized player action with a [[when-clause]], an effect, and optionally its [[stake]]. Keyword and term settled: with "move" owning the player-action family, `move_type` reads as compositional English; `action_type` would manufacture an Interop false friend.
 layer: kernel
 status: canonical
 reserved: false
 home: `n.MoveTypeDef`
-see: []
+see: [when-clause]
 retired_spellings: []
 findings: []
 ---
