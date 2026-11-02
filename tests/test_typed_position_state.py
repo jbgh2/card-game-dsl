@@ -66,7 +66,7 @@ does not prove:  that a caller hands `type_from_name` the game's OWN domains:
                  D's default cells) witness the threading.
 red under:       GRID D's admit cells, GRID R and GRID P are born red, and
                  reverting the admit-set reddens them; passing `{}` for the
-                 positions of `typecheck._check_state_default` reddens
+                 positions of `typecheck._check_state_default_type` reddens
                  `default-cell?-3`. The value-type controls are born green and
                  redden if the helper drops `KNOWN_TYPE_NAMES`; the
                  indexed-store refusal is born green and reddens if the index
@@ -207,10 +207,6 @@ def _expect(source: str, expected: str | tuple[str, ...] | None) -> None:
         raise CellMismatch(f"the refusal lacks {missing}: {got}")
 
 
-def _flip(cell_id: str, red: frozenset[str]) -> list[pytest.MarkDecorator]:
-    return [pytest.mark.xfail(strict=True, raises=CellMismatch)] if cell_id in red else []
-
-
 # The refusal each refused class owns, in the words its fix needs.
 INTEGER_DOMAIN = ("is typed `column`", "a position domain of numbers", "as an `Integer`")
 DIRECTION = ("is typed `dir`", "a move or function parameter takes", "a state variable cannot hold one")
@@ -283,19 +279,10 @@ DECL_CELLS += [
     ),
 ]
 
-# The cells this change designs to flip.
-DECL_RED = frozenset(
-    cid
-    for cid, _src, want in DECL_CELLS
-    if not cid.startswith("value-")
-    and not cid.endswith("-a1")
-    and cid not in ("board-unknown?", "board-Combination?", "board-indexed-by-cell")
-)
-
 
 @pytest.mark.parametrize(
     ("source", "expected"),
-    [pytest.param(src, want, id=cid, marks=_flip(cid, DECL_RED)) for cid, src, want in DECL_CELLS],
+    [pytest.param(src, want, id=cid) for cid, src, want in DECL_CELLS],
 )
 def test_the_declaration_grid(source: str, expected: str | tuple[str, ...] | None) -> None:
     _expect(source, expected)
@@ -305,6 +292,7 @@ def test_the_declaration_grid(source: str, expected: str | tuple[str, ...] | Non
 
 _ANCHOR = "    last_at : cell? = none"
 _MINE = "function mine(c : cell) = square[c] is empty\n"
+_BESIDE = "any dir where has_step(last_at, dir, actor) and (neighbor(last_at, dir, actor) is at)"
 
 USE_CELLS: list[tuple[str, dict[str, str], str | tuple[str, ...] | None]] = [
     ("assign-from-parameter", {"effect": "    last_at := at"}, ACCEPT),
@@ -315,16 +303,16 @@ USE_CELLS: list[tuple[str, dict[str, str], str | tuple[str, ...] | None]] = [
     ("is-parameter", {"when": "(square[at] is empty) and (at is not last_at)"}, ACCEPT),
     (
         "chain-guard",
-        {"when": "(square[at] is empty) and ((last_at is none) or (at in neighbors(last_at)))"},
+        {"when": f"(square[at] is empty) and ((last_at is none) or ({_BESIDE}))"},
         ACCEPT,
     ),
     ("function-argument", {"functions": _MINE, "stop_when": "mine(last_at)"}, ACCEPT),
     ("zone-subscript-key", {"stop_when": "square[last_at] is empty"}, ACCEPT),
-    ("builtin-argument", {"stop_when": "number of cells in neighbors(last_at) where true > 1"}, ACCEPT),
+    ("builtin-argument", {"stop_when": "any dir where has_step(last_at, dir, actor)"}, ACCEPT),
     ("membership", {"stop_when": "last_at in far_row(0)"}, ACCEPT),
-    ("is-integer", {"stop_when": "last_at is 3"}, "comparing Cell? with Integer can never be equal"),
-    ("ordering", {"when": "(square[at] is empty) and (last_at < at)"}, "'<' compares Integers, got Cell?"),
-    ("arithmetic", {"stop_effect": "    n := last_at + 1"}, "'+' expects Integer operands, got Cell?"),
+    ("is-integer", {"stop_when": "last_at is 3"}, "comparing Cell with Integer can never be equal"),
+    ("ordering", {"when": "(square[at] is empty) and (last_at < at)"}, "'<' compares Integers, got Cell"),
+    ("arithmetic", {"stop_effect": "    n := last_at + 1"}, "'+' expects Integer operands, got Cell"),
     ("assign-integer", {"effect": "    last_at := 3"}, "cannot assign Integer to 'last_at' (Cell?)"),
     ("assign-string", {"effect": '    last_at := "a1"'}, "cannot assign String to 'last_at' (Cell?)"),
     ("assign-to-integer", {"stop_effect": "    n := last_at"}, "cannot assign Cell? to 'n' (Integer)"),
@@ -334,10 +322,7 @@ USE_CELLS: list[tuple[str, dict[str, str], str | tuple[str, ...] | None]] = [
 
 @pytest.mark.parametrize(
     ("slots", "expected"),
-    [
-        pytest.param(slots, want, id=cid, marks=[pytest.mark.xfail(strict=True, raises=CellMismatch)])
-        for cid, slots, want in USE_CELLS
-    ],
+    [pytest.param(slots, want, id=cid) for cid, slots, want in USE_CELLS],
 )
 def test_the_read_and_write_grid(slots: dict[str, str], expected: str | tuple[str, ...] | None) -> None:
     _expect(board(state=_ANCHOR, **slots), expected)
@@ -350,7 +335,7 @@ def test_the_read_and_write_grid(slots: dict[str, str], expected: str | tuple[st
 # exactly when the remembered square holds a mark.
 WITNESS = board(
     state=_ANCHOR,
-    when="(square[at] is empty) and ((last_at is none) or (at in neighbors(last_at)))",
+    when=f"(square[at] is empty) and ((last_at is none) or ({_BESIDE}))",
     effect="    last_at := at",
     stop_when="last_at is not none",
     stop_effect="    if square[last_at] is not empty { result[actor] := 1 }",
@@ -363,7 +348,6 @@ def _play(source: str, seed: int) -> object:
     return play_game(check_dsl(source, "typed_position_state.cardlang"), random.Random(seed))
 
 
-@pytest.mark.xfail(strict=True, raises=CellMismatch)
 @pytest.mark.parametrize("seed", range(12))
 def test_the_witness_remembers_the_square_it_wrote(seed: int) -> None:
     result = _play(WITNESS, seed)
@@ -384,13 +368,12 @@ NONE_AT_PLAY: list[tuple[str, str, tuple[str, ...]]] = [
     ),
     (
         "builtin",
-        board(state=_ANCHOR, setup="    if number of cells in neighbors(last_at) where true > 1 { n := 1 }"),
-        ("`neighbors` was given none where it needs a `cell`",),
+        board(state=_ANCHOR, setup="    if any dir where has_step(last_at, dir, 0) { n := 1 }"),
+        ("`has_step` was given none where it needs a `cell`",),
     ),
 ]
 
 
-@pytest.mark.xfail(strict=True, raises=CellMismatch)
 @pytest.mark.parametrize(
     ("source", "needles"),
     [pytest.param(src, needles, id=cid) for cid, src, needles in NONE_AT_PLAY],

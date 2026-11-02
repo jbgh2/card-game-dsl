@@ -6,7 +6,7 @@ the default expression was never compared against it.
 The declare-time scope guard's grid (`test_state_default_scope.py`) admits
 `v : Integer = all players` by scope; the type mismatch is refused only here.
 The check mirrors `_check_assign`: `infer(default)` must be `assignable` to
-`type_from_name(decl.type_name, decl.optional)` — the value type, which is the
+`type_from_name` over the game's domains — the value type, which is the
 element type an indexed default broadcasts to every key.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
@@ -143,7 +143,7 @@ def test_breadth_sweep_matches_assignable(
     source = _game(f"{decl_prefix} = {default}")
     # Independently compute the expectation from the type machinery.
     probe_env = env_from_game(check_bare(source))
-    declared = type_from_name(type_name, optional)
+    declared = type_from_name(type_name, optional, probe_env.positions, probe_env.directions)
     got = infer(_default_expr(source), probe_env)
     expected_accept = coercible(got, declared)
 

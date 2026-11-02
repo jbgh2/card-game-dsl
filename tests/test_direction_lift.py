@@ -677,10 +677,10 @@ def test_a_direction_payload_types_dir(produce: str, arm: str, needle: str) -> N
             board_game().replace("along : dir)", "along : dir?)"),
             "unsupported parameter domain 'dir?'",
         ),
-        # A direction-typed state variable: still no declarable state type.
+        # A direction-typed state variable: no declarable state type.
         (
             board_game(state="    facing : dir = ahead\n"),
-            "unknown type 'dir'",
+            "a state variable cannot hold one",
         ),
     ],
     ids=["turn-order word", "procedure parameter", "optional move parameter", "state type"],

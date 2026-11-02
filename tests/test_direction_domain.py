@@ -596,7 +596,7 @@ def test_dir_member_name_is_an_unknown_name() -> None:
 
 def test_dir_typed_state_variable_is_rejected() -> None:
     # `foo : dir` -- a direction domain is not a declarable state TYPE.
-    assert "unknown type 'dir'" in _reject(
+    assert "a state variable cannot hold one" in _reject(
         direction_game(state="    result[player] : Integer = 0\n    foo : dir = ahead\n")
     )
 

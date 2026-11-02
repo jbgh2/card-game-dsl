@@ -89,10 +89,9 @@ Completeness ledger
 
     does not prove:  two things about a cell beyond its admit-vs-reject verdict.
                 WHICH MESSAGE a rejection gives. A loud refusal in the wrong
-                words passes every cell: a position domain written as a state
-                variable's type is refused as `unknown type
-                '<name>'` rather than as a domain that is not a declared type in
-                that slot. The one column that pins its own wording is the
+                words passes every cell; the state position's refusal of each
+                domain it does not take is pinned in its own words by
+                tests/test_typed_position_state.py. The one column that pins its own wording is the
                 collection column
                 (`test_the_collection_column_reaches_the_message_its_position_owns`),
                 which derives the refusal each position owns from the type
@@ -215,8 +214,8 @@ _PRIMITIVE_SPELLABLE = frozenset(
 # a hand-written row, so a registry change moves the expectation with it.
 EXPECTED_ADMITS: dict[str, frozenset[str]] = {
     # Plain declared-name positions; `?` is a separate AST flag, so both spellings pass.
-    # A position domain is not among them, and whether such a value (an Integer
-    # with a declared range) should be declarable here is issue #133.
+    # An integer position domain is not among them: a state variable remembers
+    # its member as an `Integer` (tests/test_typed_position_state.py).
     "P1 state_decl": frozenset(_BASE_STRIPPED),
     # Enumerable move-parameter domains, plus the inline `Card` literal, plus
     # the game's position domains (the action space enumerates them).
@@ -459,16 +458,16 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
     Every resolver that turns a declared name into a type is checked, so a new
     one arrives as a missing row rather than as a silent leak.
 
-    red under: drop the `positions` argument from any of the three calls below.
+    red under: pass `{}` for the `positions` of any of the three calls below.
     """
     positions = {POSITION_DOMAIN: TInteger()}
     env = TypeEnv(positions=positions)
     resolvers: dict[str, Callable[[], Type]] = {
         "type_from_name": lambda: typecheck.type_from_name(
-            POSITION_DOMAIN, False, positions
+            POSITION_DOMAIN, False, positions, {}
         ),
         "_payload_type": lambda: typecheck._payload_type(
-            POSITION_DOMAIN, positions
+            POSITION_DOMAIN, positions, {}
         ),
         "_param_type": lambda: typecheck._param_type(
             n.Parameter(name="x", type_name=POSITION_DOMAIN, span=None), env
@@ -826,11 +825,6 @@ BOARD_EXPECTED_ADMITS: dict[str, frozenset[str]] = {
 
 BOARD_CELLS = [(pos, name) for pos in BOARD_POSITIONS for name in BOARD_NAMES]
 
-# The board variant's red set, as `DESIGNED_TO_FLIP` is the card grid's.
-BOARD_DESIGNED_TO_FLIP: set[tuple[str, str]] = {
-    ("P1 state_decl", name) for name in _with_optional(_BOARD_NAMED_MEMBER)
-}
-
 
 def test_the_board_variant_crosses_every_position() -> None:
     """The board variant's rows are the grammar-derived position axis, so a
@@ -839,22 +833,7 @@ def test_the_board_variant_crosses_every_position() -> None:
     assert _BOARD_DIRECTIONS_MINTED, "the skeleton board minted no direction domain"
 
 
-@pytest.mark.parametrize(
-    "cell",
-    [
-        pytest.param(
-            c,
-            marks=pytest.mark.xfail(
-                strict=True, raises=CellMismatch,
-                reason="designed to flip: a named-member domain admitted as a state type",
-            ),
-        )
-        if c in BOARD_DESIGNED_TO_FLIP
-        else c
-        for c in BOARD_CELLS
-    ],
-    ids=[_cell_id(c) for c in BOARD_CELLS],
-)
+@pytest.mark.parametrize("cell", BOARD_CELLS, ids=[_cell_id(c) for c in BOARD_CELLS])
 def test_the_board_names_grid(cell: tuple[str, str]) -> None:
     """Every (position, board-minted name) cell matches what the board minted
     and the position's own registry say.
