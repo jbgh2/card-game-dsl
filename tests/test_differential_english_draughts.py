@@ -44,8 +44,9 @@ Coverage:
     jump open at a continuation, the chain offering the jumping piece alone;
     a man crowned by a jump with a further jump open to the new king, the
     move ending there on both sides; a king's backward step and backward
-    capture; and, walked to the rules end, a blockade for each seat, the
-    loser holding pieces with no legal move.
+    capture; a hop that leaves the opponent no legal move while the chain
+    goes on, the move carried through; and, walked to the rules end, a
+    blockade for each seat, the loser holding pieces with no legal move.
 (c) `test_random_trajectories_agree_with_native`: seeded uniform policies
     over `POLICY_SEEDS`, walked to a rules end or the truncation; the tally
     holds both winners and a truncation.
@@ -54,6 +55,9 @@ Coverage:
     eighty quiet plies to the tie, the count read at every ply.
 (e) The tripwires: the mapping with seat 1's frame read as seat 0's, and the
     mapping blind to the move type. Each must redden the comparison.
+(f) `test_a_line_past_a_thousand_picks_ends_by_its_rules`: a steered line on
+    the game alone, Mirror-agreed at every node, ends by its rules under the
+    game's `max_length`, the rules' own bound.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -84,8 +88,9 @@ held by:    the direction and square tables are a Born-Green Pin (the
 does not prove:  that the game and the oracle agree past the oracle's forty,
             where the oracle has no game to compare (the draw lines of (d)
             are the game's alone, against the Mirror); nor at a node no walk
-            reaches: the scripted lines show each rule's branch played, not
-            every position.
+            reaches: the scripted lines play the branches (b) names, not
+            every position, and a rule branch no line reaches has no
+            witness here.
 
 red under (directions): `oracle_dir` reading every seat's offset in seat 0's
 frame reddens the anchor test and every walk; the two tripwires, which
@@ -484,6 +489,29 @@ def shuffle_steer(seed: int, reset_at: int = QUIET_DRAW - 1) -> Steer:
     return steer
 
 
+def stretching_steer(seed: int) -> Steer:
+    """The line-stretching steer: `shuffle_steer`'s king shuffle, except that
+    every time the count reaches seventy-eight a man's step is played, a safe
+    one where there is one, so the count starts again for as long as a man
+    can move. Steering only."""
+    rng = random.Random(seed)
+
+    def steer(offer: list[Move], mirror: Mirror) -> Move:
+        kings = {owner for owner, king in mirror.board.values() if king}
+        if kings != {0, 1} or offer[0][0] == "jump":
+            return rng.choice(offer)
+        by_kind = {
+            king: [m for m in offer if mirror.board[m[1][0]][1] is king and _safe(mirror, m)]
+            for king in (False, True)
+        }
+        men = [m for m in offer if not mirror.board[m[1][0]][1]]
+        if mirror.quiet >= QUIET_DRAW - 2 and (by_kind[False] or men):
+            return rng.choice(by_kind[False] or men)
+        return rng.choice(by_kind[True] or by_kind[False] or offer)
+
+    return steer
+
+
 def _dfs(
     space: Any, native: Any, mirror: Mirror, history: list[int], depth: int, max_depth: int
 ) -> int:
@@ -513,6 +541,25 @@ PREFIX_DEPTH = 3
 POLICY_SEEDS: tuple[int, ...] = tuple(range(12))
 DRAW_SEED = 30  # `shuffle_steer`'s seed for the forty-move draw
 TRUNCATING_SEED = 2  # a policy seed the oracle's forty ends
+STRETCH_SEED = 41  # `stretching_steer`'s seed for a line past a thousand picks
+
+# White's king jumps b4 to d6 and on to f8, which leaves Red, still on the
+# board, with no legal move; the king jumps on, f8 to h6, and the move ends
+# with Red able to move again.
+MID_CHAIN_BLOCKADE: tuple[str, ...] = (
+    "e3-d4", "d6-c5", "d4-e5", "f6xd4", "c3xe5", "b6-a5", "g3-f4", "h6-g5",
+    "f4xh6", "c7-b6", "d2-c3", "a5-b4", "c3xa5", "a5xc7", "b8xd6", "d6xf4",
+    "a3-b4", "c5xa3", "f2-e3", "f4xd2", "c1xe3", "a3xc1", "e3-f4", "d8-c7",
+    "g1-f2", "g7-f6", "f4-e5", "f6xd4", "a1-b2", "c1xa3", "f2-g3", "a3-b4",
+    "g3-h4", "f8-g7", "h6xf8", "e7-f6", "f8-e7", "h8-g7", "e7xg5", "c7-d6",
+    "g5-f4", "d4-c3", "f4-g5", "b4-a5", "e1-f2", "a7-b6", "h2-g3", "g7-h6",
+    "g3-f4", "d6-c5", "g5-f6", "h6-g5", "f4xh6", "c3-d2", "h6-g7", "c5-d4",
+    "f2-g3", "d4-c3", "g3-f4", "d2-e1", "h4-g5", "e1-d2", "g7-h8", "b6-c5",
+    "f6-e7", "c3-b2", "e7-f8", "d2-c1", "f8-e7", "a5-b6", "e7-d6", "c5-b4",
+    "f4-e5", "b6-a7", "e5-f6", "a7-b8", "f6-e7", "b8-a7", "g5-h6", "c1-d2",
+    "h8-g7", "b2-c1", "d6-e5", "b4-a3", "g7-h8", "a7-b8", "e5-d6", "d2-c3",
+    "d6-c5", "c3-b4", "h6-g7", "b4xd6", "d6xf8", "f8xh6",
+)
 
 # White's b6 jumps c5 and then e3, Red's d4 open to another White jump.
 DOUBLE_JUMP: tuple[str, ...] = ("e3-d4", "h6-g5", "f2-e3", "g5-h4", "d4-c5", "b6xd4", "d4xf2")
@@ -721,6 +768,62 @@ def test_scripted_blockade(name: str) -> None:
     assert line.mirror.winner == winner
     assert line.mirror.plies[-1].name == "step"
     assert line.mirror.pieces(1 - winner) > 0
+
+
+def test_scripted_mid_chain_blockade_jumps_on() -> None:
+    """A hop leaves the opponent, still on the board, no legal move while the
+    jumping piece can jump again: the move goes on, on both sides, since a
+    multiple jump is carried through to completion, and once it ends the
+    opponent has a move again and the game plays on.
+
+    red under: drop `(chain_from is none) and` from `jump`'s loss check in
+    the game; the game ends after the blocking hop while the oracle's mover
+    jumps on, and the walk fails with our game terminal and native not."""
+    line = paired_line(scripted_then(MID_CHAIN_BLOCKADE, None), label="mid-chain blockade")
+    assert line.end is None, "the line ended inside its script"
+    blocking, last = line.mirror.plies[-2:]
+    assert blocking.name == "jump" and blocking.continues
+    assert last.player == blocking.player and not last.continues
+    after = line.nodes[-2].copy()  # the position the blocking hop left
+    after.player, after.chain = 1 - blocking.player, None
+    assert not after.legal(), "the blocking hop leaves the opponent a move"
+    assert after.pieces(1 - blocking.player) > 0
+    assert line.mirror.winner is None and line.mirror.player == 1 - blocking.player
+    assert line.mirror.legal(), "the opponent has no move once the chain ends"
+
+
+def test_a_line_past_a_thousand_picks_ends_by_its_rules() -> None:
+    """`max_length` is the rules' bound, not an allowance over measured play:
+    a line the stretching steer plays past a thousand picks ends by the
+    game's rules, on the outcome the Mirror reaches, the Mirror's legal set
+    the game's offer at every node.
+
+    red under: declare `max_length: 1000` in the game; the line ends by its
+    Length Stop at the thousandth pick."""
+    mirror = Mirror()
+    steer = stretching_steer(STRETCH_SEED)
+    _, space = load(PATH)
+    picks = [0]
+
+    def beyond_history(player: int, legal: list[int]) -> int:
+        offer = [space.decode(a) for a in legal]
+        assert player == mirror.player and sorted(offer) == sorted(mirror.legal()), (
+            f"pick {picks[0]}: the game offers {sorted(offer)} to P{player}, the "
+            f"Mirror {sorted(mirror.legal())} to P{mirror.player} ({mirror.fen()})"
+        )
+        move = steer(offer, mirror)
+        mirror.apply(player, move)
+        picks[0] += 1
+        return space.encode(move)
+
+    end = run(PATH, 0, (), beyond=beyond_history)
+    assert not isinstance(end, DecisionNode)
+    assert end.ended_by is EndedBy.RULES, f"pick {picks[0]}: the line ended by {end.ended_by}"
+    assert picks[0] > 1000, f"the line made {picks[0]} picks"
+    if mirror.winner is None:
+        assert mirror.quiet == QUIET_DRAW and end.returns == [0.0, 0.0], end
+    else:
+        assert end.returns == ([1.0, -1.0] if mirror.winner == 0 else [-1.0, 1.0]), end
 
 
 def test_random_trajectories_agree_with_native() -> None:

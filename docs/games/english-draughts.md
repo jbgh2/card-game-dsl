@@ -153,13 +153,25 @@ Everything is public -- the board, both reserves, both king supplies and both
 captured piles, `quiet` and `chain_from` -- so each information set is a
 singleton and no hidden-information machinery is engaged.
 
-`max_length` is the bound the engine stops a game at, not a rule of the game.
-Every line of this game ends by its rules: a man's moves are finite, every
-capture takes a piece, and between them the forty-move count ends the game,
-so the bound is set far above the longest line the playout tests measure and
-no line reaches it.
+`max_length: 13527` is the most picks the rules allow a line, so no game
+reaches the engine's stop before its rules end it. Every pick is a man's
+step, one hop of a capture, or a king's step:
 
-OpenSpiel's `checkers` also ends a game after forty plies with no capture,
-counting every ply, man's moves and the hops of a capture alike, as a draw.
+- a man only moves forward, so all the men's steps together are at most the
+  ranks between each man's starting square and its far rank: four men a
+  side at each of 7, 6 and 5 ranks out, 72 a side, 144 in all;
+- every hop takes a piece, and the side that hops keeps the hopping piece,
+  so the board is never emptied and at most 23 pieces are taken;
+- each of those 167 picks starts the forty-move count again, and after each
+  at most 80 king's steps follow before the count ends the game; none comes
+  before the first, since no side holds a king until a man is crowned.
+
+So a line makes at most 167 x (1 + 80) = 13527 picks. A line steered to
+hold each man's step back until the count nears eighty runs far past any
+line uniform play makes, and still ends by the rules
+(`tests/test_differential_english_draughts.py`).
+
+OpenSpiel's `checkers` also ends a game as a draw after forty plies in a row
+with no capture, a man's move counting toward the forty as a king's does.
 That is not a rule of this game, and the differential stops comparing at that
 point.

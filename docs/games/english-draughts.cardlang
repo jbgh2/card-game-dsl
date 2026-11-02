@@ -30,7 +30,7 @@ game EnglishDraughts {
 
   players: 2
   direction: clockwise
-  max_length: 1000
+  max_length: 13527
 
   board: draughts(8, 8)
   pieces: draughts_men

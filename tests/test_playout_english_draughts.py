@@ -32,12 +32,10 @@ with pieces still on the board under a policy that leaves the opponent the
 fewest replies; the draw under a policy that shuffles kings once both sides
 hold one, playing a king's step that leaves the opponent no capture.
 
-The length fact. `max_length` is the bound a game ends at, not a rule: every
-line of this game ends by its rules, since a man's moves are finite, every
-capture takes a piece, and between them the forty-move count ends the game.
-The bound keeps four times the longest line uniform play makes over this
-module's seeds, and stays above every policy line
-(`test_random_play_never_approaches_the_declared_max_length`).
+The length fact. `max_length` is the most picks the rules allow a line, so
+no line of this game reaches it before its rules end it
+(`test_max_length_is_the_rules_bound`, which derives the bound from this
+module's own geometry; the derivation is english-draughts.md's).
 
 And determinism: a shuffle-free game replays identically from a seed.
 """
@@ -447,25 +445,40 @@ def test_the_forty_move_draw_fires_under_king_shuffle() -> None:
     assert tally["forty moves"], f"no forty-move draw in {POLICY_SEEDS} seeds: {dict(tally)}"
 
 
-def test_random_play_never_approaches_the_declared_max_length() -> None:
-    """`max_length` is the bound a game ends at, not a rule; a line that
-    reached it would end there by its Length Stop, a line the differential
-    refuses. So the declared cap keeps four times the longest line uniform
-    play makes over this module's seeds, and stays above every policy line.
+def rules_bound() -> int:
+    """The most picks a line can make: every pick is a man's step, a hop of a
+    capture, or a king's step. A man only advances, so its steps are at most
+    the ranks between its starting square and its far rank; a hop takes a
+    piece, and the side that hops keeps the hopping piece, so at most 23 are
+    taken. Each of those resetting picks is followed by at most 80 king's
+    steps, the count ending the game at 80, and none precedes the first: at
+    the start no side holds a king."""
+    advances = sum(
+        abs(FAR_RANK[seat] - _coords(cell)[1])
+        for seat, ranks in ((0, (1, 2, 3)), (1, (SIZE - 2, SIZE - 1, SIZE)))
+        for cell in CELLS
+        if _coords(cell)[1] in ranks
+    )
+    captures = 2 * 12 - 1
+    return (advances + captures) * (QUIET_DRAW + 1)
 
-    red under: declare `max_length` at four times the longest uniform line
-    or less in english-draughts.cardlang."""
+
+def test_max_length_is_the_rules_bound() -> None:
+    """`max_length` is the rules' own bound on a line, so a line the rules
+    allow never meets the Length Stop, and every line this module plays stays
+    under it.
+
+    red under: declare any other `max_length` in english-draughts.cardlang."""
     game = _game()
-    assert game.max_length is not None
-    longest = max(_random_run(seed).plies for seed in range(RANDOM_SEEDS))
-    assert longest * 4 < game.max_length, (
-        f"the longest uniform game ({longest} plies) is within 4x of the declared "
-        f"max_length ({game.max_length}) -- raise the cap before a real line is cut"
+    assert game.max_length == rules_bound(), (
+        f"max_length {game.max_length} is not the rules' bound {rules_bound()}"
     )
-    policy = max(
-        max(_blockade_run(seed).plies, _shuffle_run(seed).plies) for seed in range(POLICY_SEEDS)
+    longest = max(
+        [_random_run(seed).plies for seed in range(RANDOM_SEEDS)]
+        + [_blockade_run(seed).plies for seed in range(POLICY_SEEDS)]
+        + [_shuffle_run(seed).plies for seed in range(POLICY_SEEDS)]
     )
-    assert policy < game.max_length, f"a policy line ({policy} plies) reached max_length"
+    assert longest < game.max_length, f"a line ({longest} plies) reached max_length"
 
 
 def test_a_fixed_seed_is_deterministic_across_runs() -> None:
