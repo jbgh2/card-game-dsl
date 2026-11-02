@@ -59,7 +59,10 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               operand alike (``_check_enum_literal``). A bare quantifier's
               binder, and a parameter or outcome payload declared over the
               board's direction domain, type ``TDir`` from
-              ``TypeEnv.directions``; a bare noun in neither the position nor
+              ``TypeEnv.directions``, and a state variable declared over a
+              named-member position domain types ``TCell`` from
+              ``TypeEnv.positions`` (``type_from_name`` takes both sources
+              as required parameters); a bare noun in neither the position nor
               the direction source raises ``ShadowGuardError`` naming
               ``resolve._check_domain_query``. Every position query's kind is
               typed by an exhaustive match over ``n.DomainQueryKind`` (held by
@@ -386,8 +389,8 @@ def _ranking_refusal(subject: str, name: str, instead: str) -> str:
 def type_from_name(
     name: str,
     optional: bool,
-    positions: Mapping[str, Type] | None = None,
-    directions: Mapping[str, Type] | None = None,
+    positions: Mapping[str, Type],
+    directions: Mapping[str, Type],
 ) -> Type:
     """Map a declared type name (a `StateDecl` `type_name`) to a `Type`.
 
@@ -398,19 +401,18 @@ def type_from_name(
     names unknown to scalars, enums, and every registry resolve to the
     permissive `TAny`. ``optional`` wraps the result in `TOptional`.
 
-    Every position that admits a position/direction domain passes ``positions``/
-    ``directions`` here rather than branching on it locally: the rule belongs to
-    name resolution, and a caller that resolved the name without it would admit
-    `slot`/`dir` at resolve and then map it to the top — the leak this module
-    closes.
+    Both domain sources are required, so every caller hands over the game's
+    domains rather than branching on them locally: a caller resolving the
+    name without them would admit `slot`/`dir`/`cell` at resolve and then map
+    it to the top, the leak this module closes.
     """
     base: Type
-    if positions is not None and name in positions:
+    if name in positions:
         # A declared integer domain's member is `TInteger`; the board-minted
         # `cell` domain's is `TCell`. `positions` carries the member type so
         # the two are distinct (`at is 3` on a cell param is a type error).
         base = positions[name]
-    elif directions is not None and name in directions:
+    elif name in directions:
         # The board-minted `dir` domain's member is `TDir` (the SEPARATE
         # source, so a direction parameter rejects a cell/integer/subscript
         # rather than reading as the permissive top).
@@ -462,8 +464,8 @@ def function_registry(game: Game, bag: DiagnosticBag) -> dict[str, Sig]:
 
 def _payload_type(
     name: str,
-    positions: Mapping[str, Type] | None = None,
-    directions: Mapping[str, Type] | None = None,
+    positions: Mapping[str, Type],
+    directions: Mapping[str, Type],
 ) -> Type:
     """Resolve a outcome payload type name; a trailing `?` marks it nullable.
 
@@ -479,8 +481,8 @@ def _payload_type(
 
 def _outcome_cases(
     cases: tuple[n.OutcomeCase, ...],
-    positions: Mapping[str, Type] | None = None,
-    directions: Mapping[str, Type] | None = None,
+    positions: Mapping[str, Type],
+    directions: Mapping[str, Type],
 ) -> dict[str, tuple[Type, ...]]:
     return {
         c.tag: tuple(_payload_type(t, positions, directions) for t in c.payload_types)
@@ -490,8 +492,8 @@ def _outcome_cases(
 
 def outcome_registry(
     game: Game,
-    positions: Mapping[str, Type] | None = None,
-    directions: Mapping[str, Type] | None = None,
+    positions: Mapping[str, Type],
+    directions: Mapping[str, Type],
 ) -> dict[str, TOutcome]:
     """Build the outcome type of each outcome-declaring `phase`: its case tags
     mapped to their declared payload types."""
@@ -715,6 +717,12 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
         "typing", reason="names a position domain in a message"
     ),
     ("_scoped_env", "positions"): ClauseRead("typing", reason="a `for each` binder's type"),
+    ("_check_state_default_type", "positions"): ClauseRead(
+        "typing", reason="a state variable's declared type"
+    ),
+    ("_check_state_default_type", "directions"): ClauseRead(
+        "typing", reason="a state variable's declared type"
+    ),
     ("typecheck", "positions"): ClauseRead(
         "typing", reason="a move parameter's binder and an outcome payload's type"
     ),
@@ -1237,10 +1245,12 @@ def env_from_game(game: Game) -> TypeEnv:
 def _ambient_env(game: Game) -> TypeEnv:
     """The environment a user function's body is typed in: everything
     `env_from_game` holds except the user function and procedure signatures."""
+    positions = _position_types(game)
+    directions = _direction_types(game)
     state_vars: dict[str, Type] = {}
     for block in _state_blocks(game):
         for decl in block.decls:
-            t = type_from_name(decl.type_name, decl.optional)
+            t = type_from_name(decl.type_name, decl.optional, positions, directions)
             # An indexed state var (`score[player]`) is a per-key map — a
             # collection whose subscript yields the declared value type, KEYED
             # by the index domain's binder type so a wrong-domain key
@@ -1278,7 +1288,6 @@ def _ambient_env(game: Game) -> TypeEnv:
     # RAISES on a role outside the registry rather than falling back to the
     # permissive top; resolve rejects an unknown index role before this pass,
     # so reaching that raise would mean the two registries had diverged.)
-    positions = _position_types(game)
     zone_families: dict[str, Type] = {
         z.name: (positions[z.index] if z.index in positions else _role_type(z.index))
         for z in game.zones
@@ -1294,7 +1303,7 @@ def _ambient_env(game: Game) -> TypeEnv:
         max_players=game.players.count,
         max_teams=len(game.teams),
         positions=positions,
-        directions=_direction_types(game),
+        directions=directions,
         family_ranges={
             z.name: (pos.name, pos.lo, pos.hi)
             for z in game.zones
@@ -3912,7 +3921,9 @@ def _check_state_default_type(
     (an unrefined `infer` arm) passes, which is the type system's permissive top
     at work, not a hole here (see the ledger in
     `tests/test_state_default_type.py`)."""
-    declared = type_from_name(decl.type_name, decl.optional)
+    declared = type_from_name(
+        decl.type_name, decl.optional, env.positions, env.directions
+    )
     got = infer(decl.default, env)
     _check_operand(
         decl.default, got, declared, env, bag,

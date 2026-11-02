@@ -1,7 +1,7 @@
-// Guard: resolve.py's `_validate_refs` StateDecl arm (KNOWN_TYPE_NAMES). A
-// board-minted position domain (`cell`) is an index/parameter domain, never a
-// declarable state TYPE -- position-typed state stays rejected. The board is
-// otherwise valid (it mints `cell`); only `foo : cell` is the defect.
+// Guard: typecheck.py's `_check_state_default_type`. A state variable may be
+// typed by the board's `cell` domain, and a cell is no number, so an Integer
+// default does not fit it. The board is otherwise valid (it mints `cell`);
+// only the default `0` is the defect.
 game BoardCellStateVar {
   players: 2
   max_length: 20

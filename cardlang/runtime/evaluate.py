@@ -400,7 +400,9 @@ def _subscript(e: n.Subscript, ctx: Ctx) -> Any:
             f"or key is a Boolean"
         )
     if isinstance(obj, n.NameRef) and obj.ref_kind == "zone":
-        return ctx.rs.zones.instance(obj.name, index)
+        key = e.index
+        named = key.name if isinstance(key, n.NameRef) and key.ref_kind == "state_var" else None
+        return ctx.rs.zones.instance(obj.name, index, optional_key=named)
     value = evaluate(obj, ctx)
     if isinstance(value, Zone):
         # Shadow Guard of typecheck's positional Subscript arm, which refuses

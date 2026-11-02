@@ -25,20 +25,20 @@ HEARTS = Path(__file__).parent.parent / "docs" / "games" / "hearts.cardlang"
 
 
 def test_type_from_name_scalars_and_enums() -> None:
-    assert type_from_name("Integer", optional=False) == TInteger()
-    assert type_from_name("Boolean", optional=False) == TBoolean()
-    assert type_from_name("Player", optional=False) == TPlayer()
-    assert type_from_name("Suit", optional=False) == TEnum("Suit")
-    assert type_from_name("SeatDirection", optional=False) == TEnum("SeatDirection")
+    assert type_from_name("Integer", optional=False, positions={}, directions={}) == TInteger()
+    assert type_from_name("Boolean", optional=False, positions={}, directions={}) == TBoolean()
+    assert type_from_name("Player", optional=False, positions={}, directions={}) == TPlayer()
+    assert type_from_name("Suit", optional=False, positions={}, directions={}) == TEnum("Suit")
+    assert type_from_name("SeatDirection", optional=False, positions={}, directions={}) == TEnum("SeatDirection")
 
 
 def test_type_from_name_optional_wraps() -> None:
-    assert type_from_name("Player", optional=True) == TOptional(TPlayer())
-    assert type_from_name("Suit", optional=True) == TOptional(TEnum("Suit"))
+    assert type_from_name("Player", optional=True, positions={}, directions={}) == TOptional(TPlayer())
+    assert type_from_name("Suit", optional=True, positions={}, directions={}) == TOptional(TEnum("Suit"))
 
 
 def test_type_from_name_unknown_is_any() -> None:
-    assert type_from_name("Contract", optional=False) == TAny()
+    assert type_from_name("Contract", optional=False, positions={}, directions={}) == TAny()
 
 
 def test_value_enum_map_classifies_suits_ranks_directions() -> None:

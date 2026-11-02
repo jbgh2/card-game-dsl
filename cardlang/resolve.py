@@ -60,7 +60,14 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               type name the direction domain only where the board minted it
               (``_minted_directions``, the one gate each of them reads), so a
               later pass may look any such name up in the position or the
-              direction source and find it. A board verb stands only on a
+              direction source and find it. A ``state`` variable's declared
+              type names a value type or one of the game's named-member
+              position domains (``_declared_type_universe``, the one set the
+              ``StateDecl`` arm reads and a function parameter's set
+              extends); an integer position domain, ``dir`` and ``cell`` in
+              a game with no ``board:`` are refused there
+              (``_state_type_refusal``), each naming a declaration that checks
+              in that game. A board verb stands only on a
               board whose family declares what the verb reads
               (``BOARD_VERB_NEEDS``; ``_check_board_call`` for the game's
               call, the ``_BOARD_NEED_GATES`` rows on the ``uses`` line for a
@@ -11168,6 +11175,53 @@ def _combination_outside_a_parameter(type_name: str, where: str) -> str | None:
     )
 
 
+def _declared_type_universe(game: n.Game) -> frozenset[str]:
+    """The type names a `state` variable may declare: the value types and the
+    game's named-member position domains (a board's `cell`). A function
+    parameter and an outcome payload admit these and the domains a parameter
+    alone takes (`_check_declared_type_names`), so the state set is the
+    narrower of the two by construction."""
+    return KNOWN_TYPE_NAMES | frozenset(
+        p.name for p in game.positions if p.members_named is not None
+    )
+
+
+def _state_type_refusal(game: n.Game, type_name: str) -> str | None:
+    """How a `state` variable's refusal of a type outside
+    `_declared_type_universe` ends, for the type names a parameter takes, the
+    direction domain wherever it is spelled, and the board's `cell` in a game
+    with no `board:`; None for every other name, which is unknown. Each ending
+    names a declaration that checks in the game it is told in: whether `dir`
+    is minted is `_minted_directions`' to say, and what a game without it
+    lacks `_direction_refusal`'s."""
+    if any(p.name == type_name and p.members_named is None for p in game.positions):
+        return (
+            "a position domain of numbers: a move or function parameter takes "
+            "one, and a state variable remembers it as an `Integer`"
+        )
+    if type_name in _minted_directions(game):
+        return (
+            "the board's direction domain: a move or function parameter takes "
+            "a direction (`along : dir`), and a state variable cannot hold one"
+        )
+    if (unminted := _direction_refusal(game, type_name)) is not None:
+        instead = (
+            "if it is the turn order's direction, a state variable holds it as "
+            "a `SeatDirection`"
+            if game.board is None
+            else "a state variable remembers a square as a `cell?`"
+        )
+        return f"{unminted} -- {instead}"
+    if type_name == BOARD_DOMAIN and game.board is None:
+        fix = (
+            "a board game declares `pieces:` in place of `cards:`, and a `board:`"
+            if game.content_flavor == "card"
+            else "declare the `board:` its pieces stand on"
+        )
+        return f"the squares a `board:` mints, but the game declares no `board:` -- {fix}"
+    return None
+
+
 def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     """A function parameter's and an outcome payload's declared type name names
     a real type: a value type, a declared position domain, or the direction
@@ -11198,7 +11252,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     # declared in the same file as "unknown" while the same name stayed legal
     # on a move parameter.
     position_names = {p.name for p in game.positions}
-    known = KNOWN_TYPE_NAMES | position_names | _minted_directions(game)
+    known = _declared_type_universe(game) | position_names | _minted_directions(game)
     # A function parameter is the one position a climbing play is named in.
     parameter_known = known | {COMBINATION_TYPE_NAME}
 
@@ -12632,6 +12686,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     iterable_positions = frozenset(
         p.name for p in game.positions if p.members_named is not None
     )
+    state_types = _declared_type_universe(game)
     move_directions = _minted_directions(game)
     for mt in game.move_types:
         if mt.params:
@@ -12749,7 +12804,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 refused = _combination_outside_a_parameter(nd.type_name, "a state variable")
                 if refused is not None:
                     bag.error(refused, nd.span)
-                elif nd.type_name not in KNOWN_TYPE_NAMES:
+                elif (typed := _state_type_refusal(game, nd.type_name)) is not None:
+                    bag.error(
+                        "state variable " + cite_named(nd, f"'{nd.name}'")
+                        + f" is typed `{nd.type_name}`, " + typed,
+                        nd.span,
+                    )
+                elif nd.type_name not in state_types:
                     bag.error(
                         f"unknown type '{nd.type_name}' in declaration of "
                         + cite_named(nd, f"'{nd.name}'"),
