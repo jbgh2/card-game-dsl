@@ -104,7 +104,7 @@ from typing import Literal, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game, library_origins
-from cardlang.board_domains import directions_of
+from cardlang.board_domains import LINE_NOUN, directions_of
 from cardlang import kernel_contracts as K
 from cardlang.builtins.functions import (
     PRIMITIVE_CALL_FUNCS,
@@ -708,6 +708,9 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_bare_domain_member_type", "directions"): ClauseRead(
         "typing", reason="a direction query's binder"
     ),
+    ("_collection_member_type", "positions"): ClauseRead(
+        "typing", reason="a collection form's binder and its source's members"
+    ),
     ("_index_domain_spelling", "positions"): ClauseRead(
         "typing", reason="names a position domain in a message"
     ),
@@ -861,8 +864,14 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 case "any" | "all":
                     return TBoolean()
                 case "set":
-                    # A Set Form has no source: its members are its Position Domain's.
-                    return TCollection(_bare_domain_member_type(e, env))
+                    # The bare Set Form gathers its Position Domain's members;
+                    # the collection set, its source's.
+                    member = (
+                        _bare_domain_member_type(e, env)
+                        if e.source is None
+                        else _collection_member_type(e, env)
+                    )
+                    return TCollection(member)
                 case unreachable_kind:
                     assert_never(unreachable_kind)
         case n.SubsetQuery():
@@ -2738,12 +2747,6 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
         )
 
 
-# The two collection quantifier nouns and the member type each binds
-# (decisions.md "Boards and cells"): `any line in <lines> …` walks a
-# collection of lines binding `line`:TLine; `all cells in <line> …` walks one
-# line binding `cell`:TCell. Fixed at rung 1; resolve rejects any other noun.
-_COLLECTION_BINDER_TYPES: Mapping[str, Type] = {"line": TLine(), "cell": TCell()}
-
 # The dot-form (`Member`) receiver classes, by the diagnostic each earns. They
 # are module constants, not inline `isinstance` tuples, because
 # tests/test_typecheck_errors.py cross-checks them against `get_args(Type)`:
@@ -2779,23 +2782,46 @@ def _domain_query_binder_type(
     """The type a DomainQuery binds its element to, plus (for collection forms)
     the source-shape Owner Guard. A BARE form binds its domain's member type
     (`_bare_domain_member_type`). A COLLECTION form's noun fixes BOTH the
-    binder type and the required source type: `line` iterates a collection of
-    lines, `cell` iterates one line."""
+    binder type and the required source: a collection of the noun's members
+    (`_collection_member_type`), and for a cell, a line as well."""
     if e.source is None:
         return _bare_domain_member_type(e, env)
-    want, desc = (
-        (TCollection(TLine()), "a collection of lines (e.g. `lines(3)`)")
-        if e.binder == "line"
-        else (TLine(), "a single line")  # e.binder == "cell" (resolve gates the rest)
-    )
+    member = _collection_member_type(e, env)
     src_t = infer(e.source, env)
-    _check_operand(
-        e.source, src_t, want, env, bag,
-        f"`{e.kind} {e.spelled} in …` iterates {desc}, but the source is "
-        f"{_type_name(src_t)}",
-        e.span,
+    if isinstance(member, TCell) and isinstance(src_t, TLine):
+        return member
+    head = n.collection_query_head(e.kind, e.spelled)
+    noun = f"`{e.binder}`'s members"
+    desc = (
+        "a line or a collection of cells (e.g. `home(p)`)"
+        if isinstance(member, TCell)
+        else f"a collection of {_type_name(member)} (e.g. `lines(3)`)"
+        if isinstance(member, TLine)
+        else f"a collection of {_type_name(member)} ({noun})"
     )
-    return _COLLECTION_BINDER_TYPES.get(e.binder, TAny())
+    msg = f"`{head} in …` iterates {desc}, but the source is {_type_name(src_t)}"
+    if isinstance(member, TCell) and src_t == TCollection(TLine()):
+        lines = n.collection_query_head(e.kind, "line" if e.kind == "any" else "lines")
+        source = n.short_spelling(e.source) or "<source>"
+        msg += f" -- to range over the lines, write `{lines} in {source} where <pred>`"
+    _check_operand(e.source, src_t, TCollection(member), env, bag, msg, e.span)
+    return member
+
+
+def _collection_member_type(e: n.DomainQuery, env: TypeEnv) -> Type:
+    """The member type a collection form's noun binds: a position domain's
+    (`TCell`, `TInteger`), or the board's lines (`TLine`). Resolve's
+    `_check_domain_query` admits no other noun, so another raises as its
+    Shadow Guard."""
+    if e.binder in env.positions:
+        return env.positions[e.binder]
+    if e.binder == LINE_NOUN:
+        return TLine()
+    raise ShadowGuardError(
+        "resolve._check_domain_query",
+        f"the collection noun '{e.binder}' names neither a position domain of "
+        f"this game nor the board's lines",
+    )
 
 
 def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: DiagnosticBag) -> None:

@@ -570,7 +570,7 @@ procedure bump(p : Player) { score[p] := 1 }
 #   the `Sig` model cannot express — `highest_by_trick_order`'s VALUE_SIGS row
 #   among them — and the `ChipStack` resource zone's element.
 AUDITED_TOP_SITES: dict[str, int] = {
-    "typecheck.py": 14,
+    "typecheck.py": 13,
     "types.py": 2,
     "builtins/signatures.py": 10,
 }

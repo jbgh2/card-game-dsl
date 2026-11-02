@@ -266,6 +266,17 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
             per_board={"grid": "home(actor)", "morris9": "neighbors(at)", "hex_rhombus": "near_edge(actor)"},
         ),
         Witness("Collection<Cell> from the Set Form", SET_FORM, _ON_BOARDS, None),
+        Witness(
+            "Collection<Cell> from the Set Form's collection twin",
+            "",
+            _ON_BOARDS,
+            None,
+            per_board={
+                "grid": "(cells in home(actor) where square[cell] is empty)",
+                "morris9": "(cells in neighbors(at) where square[cell] is empty)",
+                "hex_rhombus": "(cells in near_edge(actor) where square[cell] is empty)",
+            },
+        ),
         Witness("Collection<Cell> as a list", "[at]", _ON_BOARDS, None),
         Witness(
             "Collection<cell?> as a list",

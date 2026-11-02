@@ -58,7 +58,9 @@ dev = [
 # CI installs `.[dev,openspiel]` and fails if pyspiel doesn't import, so the
 # readiness proofs (tests/openspiel_ready/) run on every push — never skip.
 openspiel = [
-    "open_spiel>=1.6",
+    # 2.0 is the first release whose nine_mens_morris slides onto point 0;
+    # pinned by tests/test_oracle_point0.py.
+    "open_spiel>=2.0",
 ]
 
 [project.scripts]

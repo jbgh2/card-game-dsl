@@ -57,8 +57,10 @@ Held by:      a `connected` argument holding anything but the board's cells
               The morris edge data is a Born-Green Pin: authored here with no
               source above it in the tree, pinned by the hand tables of
               tests/test_board_verb_availability.py (GRID E), with the
-              native-oracle differential (issue #978) as its executed
-              witness. The hex rhombus's edges and borders are a Born-Green
+              native-oracle differential
+              (tests/test_differential_nine_mens_morris.py: every directed
+              edge played as a slide and every mill closed, at nodes the
+              oracle agrees on) as its executed witness. The hex rhombus's edges and borders are a Born-Green
               Pin against an independent re-derivation from coordinates
               (tests/test_boards_registry.py), anchored on OpenSpiel's `hex`
               for its cell order and each seat's borders.

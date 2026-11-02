@@ -128,7 +128,8 @@ comment built wrong is cheaper to refuse now than to audit later:
 3. **No journey.** Commentary, narrative, reasoning, evidence quotes,
    review dialogue — everything about how the code got here — lives in
    the dated artifacts built for it: the commit message, the PR body,
-   the issue, the report. None of it lives in the code. A comment
+   the issue, the report, and for an operator ruling the Architecture
+   Decision Record (`docs/adr/`). None of it lives in the code. A comment
    exists only to state a present-tense constraint the code cannot
    show.
 
@@ -188,6 +189,7 @@ docs/
   open-questions/        One file per open design question, with a tiered _index.md
   research/              Background surveys (verbatim, longer reads)
   design-notes/          Exploratory design analyses (proposals, not settled spec)
+  adr/                   One dated Architecture Decision Record per operator ruling: what was decided, what lost, and why
 ```
 
 ## Where to look for what
@@ -207,6 +209,7 @@ docs/
 - **"How do I start a new piece of work?"** → the `cardlang-planning` skill (`.claude/skills/`) — the ordered planning gates; run it before exploring or entering plan mode
 - **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it); the mechanized gate is the `surface-totality-audit` skill (`.claude/skills/`)
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
+- **"Why does the law read this way? What was ruled, and what lost?"** → `docs/adr/` — one dated Architecture Decision Record per operator ruling; the spec section it governs states the rule, the record holds the alternatives and the measurement that decided (maintaining.md, "A ruling's record is its ADR")
 - **"What should we build next?" / "In what order?"** → the GitHub tracker: the open milestones are the units being finished now, and [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143), the pinned queue, orders the units after them (`docs/harness.md`, "The Ready Front"); `docs/roadmap.md`, "Destinations", names what every unit builds toward. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
 - **"Who merges what?" / "What work may an agent take?"** → `docs/harness.md` — the Operating Harness: Merge Lanes, the work graph and Ready Front, Leases, Standing Roles
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`

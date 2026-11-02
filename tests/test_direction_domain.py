@@ -599,11 +599,9 @@ def test_bare_quantifier_over_dir_on_an_invalid_board_reports_the_board() -> Non
 
 
 def test_collection_quantifier_over_dir_is_rejected() -> None:
-    # `any dir in <expr> where ...` -- `dir` is not a rung-1 collection noun
-    # ({line, cell}), so the collection form rejects for free.
-    assert "unknown collection noun 'dir'" in _reject(
-        _pick_guard("any dir in reserve[actor] where not done")
-    )
+    # `any dir in <expr> where ...` -- a collection form ranges over a position
+    # domain's members or the board's lines, and `dir` is neither.
+    assert SET_REFUSAL in _reject(_pick_guard("any dir in reserve[actor] where not done"))
 
 
 def test_for_each_dir_is_rejected() -> None:

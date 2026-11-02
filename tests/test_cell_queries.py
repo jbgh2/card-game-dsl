@@ -18,41 +18,36 @@ evaluate.py` (`_domain_query`), and `cardlang/builtins/{functions,signatures}.py
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 -----------------------------------------------------------------
-property:   every quantifier noun is either a declared position domain (bare
-            forms) or one of the two admitted collection nouns {cell, line}
-            (collection forms), typed to the right member kind (TCell /
-            TInteger / TLine), and evaluates against live zone state with
-            the SAME member enumeration and short-circuit semantics as the
-            fixed player/team/suit/rank forms; every noun outside its
-            universe, every wrong-shaped collection source, and every
-            literal-`k` out-of-range `lines()` call is a diagnostic naming
-            the real universe, never a silent accept or a wrong-layer
-            failure.
-domain:     {bare, collection} x {kind: any, all, count (bare only), set
-            (bare only; its own grid is tests/test_cell_set_form.py)} x
-            {noun universe: declared game.positions names, {cell, line}} x
-            {member kind: TCell (board), TInteger (declared positions{})} x
-            {collection source shape: None, TLine, TCollection(TLine),
-            TCollection(TCard) (a zone)} x {board: present, absent} crossed
-            with `lines(k)`'s own axis {boardless, literal k in range,
-            literal k out of range}; plus the grammar-precedence axis (does
-            a QNOUN production capture a keyword-form noun).
-            The universe is closed where it says so, and that is a boundary
-            rather than a gap: {cell, line} is the whole collection-noun set,
-            and the `lines(k)` axis is LITERAL k only. A computed `k` is
-            outside the static domain by construction -- an out-of-range
-            value surfaces as a runtime refusal instead of a resolve
-            diagnostic -- and so are the collection forms the grammar does
-            not admit (`number of <noun> in <expr> where`, the
-            collection twin of the set form, `<noun>s in <expr> where`, and
-            numeric aggregation over a cell/line collection, `agg_query`
-            staying fixed to `"cards" "in" zone_expr`). Each is a syntax error
-            or a loud refusal where a designer meets it, and issue #111
-            carries them together.
-registry:   cardlang/resolve.py::_COLLECTION_NOUNS (the closed {cell, line}
-            set, the admitting gate) pinned equal to its typing consumer
-            cardlang/typecheck.py::_COLLECTION_BINDER_TYPES by
-            test_collection_noun_registries_agree (one domain, two sites);
+property:   every quantifier noun is a declared position domain (bare
+            forms), or a position domain or the board's `line` (collection
+            forms), typed to the right member kind (TCell / TInteger /
+            TLine), and evaluates against live zone state with the SAME
+            member enumeration and short-circuit semantics as the fixed
+            player/team/suit/rank forms; every noun outside its universe,
+            every wrong-shaped collection source, and every literal-`k`
+            out-of-range `lines()` call is a diagnostic naming the real
+            universe, never a silent accept or a wrong-layer failure.
+domain:     {bare, collection} x {kind: any, all, count, set (each query
+            kind in both forms; the Set Form's own grid, and every kind's
+            collection form, is tests/test_cell_set_form.py)} x {noun
+            universe: declared game.positions names, and `line` for a
+            collection} x {member kind: TCell (board), TInteger (declared
+            positions{})} x {collection source shape: None, TLine,
+            TCollection(TLine), TCollection(TCell), TCollection(TCard) (a
+            zone)} x {board: present, absent} crossed with `lines(k)`'s own
+            axis {boardless, literal k in range, literal k out of range};
+            plus the grammar-precedence axis (does a QNOUN production
+            capture a keyword-form noun). The `lines(k)` axis is LITERAL k
+            only. A computed `k` is outside the static domain by
+            construction -- an out-of-range value surfaces as a runtime
+            refusal instead of a resolve diagnostic -- and so is numeric
+            aggregation over a cell/line collection, `agg_query` staying
+            fixed to `"cards" "in" zone_expr`, a syntax error where a
+            designer meets it (issue #111).
+registry:   cardlang/resolve.py::collection_nouns (the collection forms'
+            nouns: the game's position domains and
+            cardlang/board_domains.py::LINE_NOUN), typed by
+            cardlang/typecheck.py::_collection_member_type;
             game.positions (the bare-form universe: declared
             `positions {}` unioned with the board-minted `cell`, Task 6);
             cardlang/builtins/functions.py::BOARD_ONLY_CALL_FUNCS (the `lines`
@@ -115,7 +110,6 @@ from cardlang.board_domains import position_domains_of
 from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
-from cardlang.resolve import _COLLECTION_NOUNS
 from cardlang.runtime.builtins import _lines
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
@@ -123,7 +117,6 @@ from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating, axis_attributes
 from cardlang.stdlib.boards import board_entry
-from cardlang.typecheck import _COLLECTION_BINDER_TYPES
 
 TreeNode = Tree[Token]
 
@@ -446,13 +439,15 @@ _PRECEDENCE_CASES: dict[str, str] = {
     "any_rank_where": "    if any rank where (n is 0) { n := 1 }\n",
     "any_team_where": "    if any team where (n is 0) { n := 1 }\n",
     "any_card_in_where": "    if any card in deck where (card.suit is hearts) { n := 1 }\n",
-    # the six positional productions -- must each resolve to exactly one
-    # derivation.
+    # the positional productions, every query kind in both forms -- must each
+    # resolve to exactly one derivation.
     "any_domain_where": "    if any n where (n is 0) { n := 1 }\n",
     "all_domain_where": "    if all ns where (n is 0) { n := 1 }\n",
     "number_of_domain_where": "    if (number of ns where n is 0) > 0 { n := 1 }\n",
     "set_domain_where": "    let s = ns where n is 0\n",
     "set_domain_argument": "    if 1 in (ns where n is 0) { n := 1 }\n",
+    "set_in": "    let s = xs in [1, 2] where (x is 1)\n",
+    "count_in": "    if (number of xs in [1, 2] where x is 1) > 0 { n := 1 }\n",
     "any_in": "    if any x in [1, 2] where (x is 1) { n := 1 }\n",
     "all_in": "    if all xs in [1, 2] where (x is 1) { n := 1 }\n",
 }
@@ -694,16 +689,18 @@ def test_missing_plural_is_guided_to_the_plural_spelling() -> None:
     assert "`all cell` needs the plural noun -- write `all cells`" in _reject(src)
 
 
-def test_bare_any_cell_in_a_boardless_positionless_game_names_the_collection_escape() -> None:
+def test_bare_any_cell_in_a_boardless_positionless_game_offers_no_collection_form() -> None:
+    # A collection form over `cell` ranges a position domain's members, and a
+    # boardless, positionless game has none, so no collection form is offered.
     msg = _reject(card_game(body="    if any cell where n is 0 { n := 1 }\n"))
     assert "unknown position domain 'cell'" in msg
     assert "this game declares no position domains" in msg
-    assert "any cell in <collection> where ..." in msg
+    assert "in <collection>" not in msg
 
 
 def test_bare_number_of_cells_in_a_boardless_positionless_game_offers_no_collection_form() -> None:
-    # The count has no collection form (the `cell_count_in_collection_not_
-    # admitted` fixture), so its refusal names the universe and offers none.
+    # A collection form over `cell` ranges a position domain's members, and a
+    # boardless, positionless game has none, so no collection form is offered.
     msg = _reject(
         card_game(body="    if (number of cells where n is 0) > 0 { n := 1 }\n")
     )
@@ -712,9 +709,10 @@ def test_bare_number_of_cells_in_a_boardless_positionless_game_offers_no_collect
 
 
 def test_noun_element_mismatch_any_cell_in_lines_where() -> None:
-    # lines(3)'s elements are LINES, not cells -- `cell` demands a single
-    # line as its source (the typecheck guard, not resolve: the noun `cell`
-    # is admitted, only its source's SHAPE is wrong).
+    # lines(3)'s elements are LINES, not cells -- `cell` demands a line or a
+    # collection of cells as its source (the typecheck guard, not resolve: the
+    # noun `cell` is admitted, only its source's SHAPE is wrong), and the
+    # refusal names the sentence that ranges over the lines.
     src = board_game(
         moves=(
             "move_type place(at : cell) {\n"
@@ -730,7 +728,10 @@ def test_noun_element_mismatch_any_cell_in_lines_where() -> None:
         )
     )
     msg = _reject(src)
-    assert "iterates a single line, but the source is Collection<Line>" in msg
+    assert (
+        "iterates a line or a collection of cells (e.g. `home(p)`), but the source is "
+        "Collection<Line> -- to range over the lines, write `any line in lines(3) where <pred>`"
+    ) in msg
 
 
 def test_wrong_type_collection_source_all_cells_in_a_zone() -> None:
@@ -752,7 +753,7 @@ def test_wrong_type_collection_source_all_cells_in_a_zone() -> None:
         )
     )
     msg = _reject(src)
-    assert "iterates a single line, but the source is Collection<Card>" in msg
+    assert "iterates a line or a collection of cells (e.g. `home(p)`), but the source is Collection<Card>" in msg
 
 
 def test_lines_in_a_boardless_game_is_rejected() -> None:
@@ -835,19 +836,6 @@ def test_suit_quantifier_in_a_piece_game_still_hits_the_task_3_flavor_guard() ->
     msg = _reject(src)
     assert "declares pieces ('xo_marks')" in msg
     assert "the `suit` role ranges over a deck's suits" in msg
-
-
-def test_collection_noun_registries_agree() -> None:
-    # The {cell, line} collection-noun universe is enumerated at two sites in
-    # two passes: resolve's `_COLLECTION_NOUNS` (admits a collection `in`-noun)
-    # and typecheck's `_COLLECTION_BINDER_TYPES` (types the admitted binder, via
-    # a `.get(noun, TAny())` recovery fallback). A noun added to the resolve
-    # gate alone would be admitted, then silently typed `TAny` — the permissive
-    # top quieting every downstream guard on it. This pins the two sites to one
-    # domain so the drift reddens here instead.
-    # red under: adding `"region"` to `_COLLECTION_NOUNS` without a matching
-    # `_COLLECTION_BINDER_TYPES` row reddens this assertion.
-    assert set(_COLLECTION_BINDER_TYPES) == set(_COLLECTION_NOUNS)
 
 
 def test_the_phrase_table_is_the_kind_literal() -> None:

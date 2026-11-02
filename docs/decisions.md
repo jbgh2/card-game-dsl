@@ -272,6 +272,9 @@ than accepting surface it would silently drop ("Surface totality"):
 - a rule with neither `demands:` nor `exempts:`, which cannot change what is
   legal however its `applies_when:` reads.
 
+The one site is permanent: ADR-0011 records the ruling and the wide form
+that lost.
+
 **Inside a rule, `hand` is the cards the player on turn plays from.** A
 rule is asked only at the trick round's card decision, so a bare `hand` in
 any of its clauses (`applies_when:`, `demands:`, `if_impossible:`,
@@ -304,17 +307,35 @@ projections, which a trick round already must show their owner — so a
 rule's reads derive the same information sets as the round's own offer.
 
 **State the constraint where the move is made instead.** A transfer's
-`chosen N` binds a count (Hearts' pass is `move chosen 3 cards` — the
-`3` *is* the "pass exactly three" law); a move type's `when:` guard binds
-its parameters (Stud's bring-in amount). These are the enforcing forms
-today, which is why no corpus game loses a constraint to the guards above.
+`chosen N` binds a count (Hearts' pass is `move chosen 3 cards` -- the
+`3` *is* the "pass exactly three" law); a move type's When Clause binds
+its parameters (Stud's bring-in amount), which is why no corpus game
+loses a constraint to the guards above.
 
-Where rules *should* eventually bind is open — english draughts' mandatory
-capture and nine men's morris's in-mill removal restriction are the
-witnesses that would force a wider answer
-([open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)).
-When enforcement widens, the refusals above retire and the forms that bind
-elsewhere arrive with an implementation behind them.
+**The one site is the design, not a deferral.** Every other decision is
+legal or not by the construct that makes it: a move type's When Clause
+(`when:`) admits or refuses each candidate, and a condition that reads the
+whole position -- "every enemy man stands in a mill", `in_mill(at)` -- is
+a named function the clause calls; a chosen transfer's `where` filter and
+`chosen N` bind a card choice; a number a player names is bound by its
+`choose integer in ...` range and `excluding`; a climb round's play is
+legal by the round's `follows` function, which a game declaring it states
+the condition in, while a Registered Engine's `follows` fixes the legality
+and takes no addition; a decision that exists only under a condition is an
+`offer` behind an `if`. These are the enforcing forms, and a constraint a
+family shares is a function a family library carries, never a rule. The
+refusals above are therefore permanent: a rule naming any move type but
+`play_to_trick`, or activated where no trick round runs, is refused naming
+the enforcing form its condition belongs in -- for a kernel move type, the
+form `KERNEL_MOVE_FORMS` (`cardlang/stdlib/moves.py`) records as making it;
+for a Registered Engine's play, that none admits it; for a rule naming no
+move type, `play_to_trick` itself. The in-mill removal restriction is
+`remove`'s When Clause over that function; mandatory capture is the
+rulebook's own branch, an `offer` behind an `if` over `can_jump(t)`. What
+would reopen this is a legality over the offered list as a whole -- a
+maximum over the offer -- which neither a When Clause nor a card-shaped
+rule states; it arrives as its own construct, and no corpus game or ladder
+candidate has one.
 
 **The move under inspection is bound as `action`.** A predicate over a
 player's move — the `when <move-type> where …` trigger of a sub-phase
@@ -462,7 +483,8 @@ The order has this one spelling. A block of rows over an implicit `card`
 would be a second spelling of the same three answers, one a designer learns
 twice and every refusal speaks in two voices, so a `trick_order { }` block is
 refused naming the three functions, and a game-level `trump:` is refused
-naming the round's `trump` clause and `is_trump`.
+naming the round's `trump` clause and `is_trump`. ADR-0007 records the
+ruling, the block that lost and the table that stays.
 
 **The contracts.** `is_trump(card : Card) : Boolean` has no default: a game
 with a Trick Order answers it, and one with no trumps writes
@@ -2100,7 +2122,8 @@ silently exempts everything below it from every guard, so a single
 missed lookup turns a whole subtree's type checking off and the checker
 still reports success. This is the "accepted-but-ignored" class
 (see "Surface totality") in its most damaging form, because it is
-invisible: nothing in the program looks wrong.
+invisible: nothing in the program looks wrong. ADR-0001 records the
+ruling and the sentinel type that lost.
 
 **The two roles are separated at the producers, not in the type.** There
 is one `Any`, and it means the top. A lookup whose domain is closed does not
@@ -3305,9 +3328,10 @@ diagnostics (deferred, recorded in issue #111). Quantifiers
 range over a position domain's members like any other quantifiable
 domain — `any column where …`, `all columns where …`, `number of columns
 where …`, and the set of the members satisfying a predicate, `columns
-where …`; for a board's `cell` domain the register adds two collection
-forms over lines and cells, detailed with `lines(k)` in "Boards and
-cells" below (tests/test_cell_queries.py, tests/test_cell_set_form.py). A position-indexed family
+where …`, each also over a collection of the domain's members (`columns
+in [1, 2] where …`); for a board the register adds the lines a collection
+form ranges over, detailed with `lines(k)` in "Boards and cells" below
+(tests/test_cell_queries.py, tests/test_cell_set_form.py). A position-indexed family
 is always subscripted: no seat owns one of its instances, so a bare name
 has nothing to mean ("Per-observer visibility on zones", "A family named
 bare is the acting player's own").
@@ -3510,30 +3534,54 @@ cells where <pred>
 ```
 
 The last is the register's Set Form, the twin of `players where
-<pred>` and `cards in <zone> where <pred>`: the members of the domain
-satisfying the predicate, in the Position Domain's member order, as a collection —
-`Collection<Cell>` over a board's `cell`, `Collection<Integer>` over an
-integer domain (`columns where <pred>`). It compares by value with a
-Region Verb's collection (`(cells where cell in home(0)) is home(0)`)
-and meets every other consumer as one does. Cells live on the board,
-not in a zone, so the Set Form takes no source: `cells in <expr> where
-<pred>` is refused naming the Set Form, with the membership in the
-predicate. A membership's right side sits below the query forms, so a
-set tested for membership is parenthesized, `at in (cells where
-<pred>)`, as `p in (players where <pred>)` is. The Set Form gathers
-positions, so `dirs where` is refused naming the direction domain.
+<pred>`: the members of the domain satisfying the predicate, in the
+Position Domain's member order, as a collection — `Collection<Cell>` over
+a board's `cell`, `Collection<Integer>` over an integer domain (`columns
+where <pred>`). It compares by value with a Region Verb's collection
+(`(cells where cell in home(0)) is home(0)`) and meets every other
+consumer as one does. The Set Form gathers positions, so `dirs where` is
+refused naming the direction domain.
 
 ```cardlang-fragment cell_set
 function stones_of(p : Player) = cells where holds(cell, p)
 ```
 
-An unknown noun is a diagnostic naming the declared domains; a
-boardless, positionless game naming `cell` under `any` or `all` is guided
-to the collection escape instead, the only quantifiers with a collection form.
-Where a collection value exists, two collection forms
-iterate it: `any line in <lines> where <pred>` walks a collection of
-lines (binder `line`, type `TLine`), and `all cells in <line> where
-<pred>` walks the cells of one line (binder `cell`, type `TCell`).
+An unknown noun is a diagnostic naming the declared domains, and a noun
+naming a name of another kind (a zone, a state variable, a definition, a
+reserved word) is refused saying what the name is, with the sentence that
+checks where the kind has one. A bare `line` on a board is guided to the
+collection form.
+
+Every query kind has a collection form too, as the card register has every
+one over `in <zone>`: `any`, `all`, `number of` and the set, each over `in
+<collection>`, the noun one of the game's position domains or the board's
+`line`. ADR-0017 records the ruling and the twin refusing the collection
+set that it replaced.
+
+```text
+any cell in home(p) where square[cell] is empty
+number of cells in line where square[cell] is empty
+cells in home(p) where holds(cell, p)
+number of lines in lines(3) where <pred>
+```
+
+The collection set is the members of its source satisfying the predicate,
+in the source's order; the collection count is how many of them do, and
+its `where` is mandatory (with it optional, `number of cells in cells
+where P` would read two ways). A collection form's source is a collection
+of its noun's members: a collection of cells or a line for `cell`, of
+lines for `line` (a collection noun only where the game has a board), of
+the domain's Integers for an integer domain, whose type every Integer
+shares, so a source holding a non-member is refused at play, at the
+query. A card zone is no such source, and a zone named under a noun that
+is no position domain is refused naming `cards in <zone> where <pred>`. A
+membership's right side sits below the query forms, so `at in cells where
+<pred>` reads as the collection set over `at`; where `at` names a value
+in scope, it is refused naming the sentence that checks: the
+parenthesized membership, `at in (cells where <pred>)`, where the source
+is a query's own noun, and the membership joined with `and`, `at in
+mine and <pred>`, elsewhere. A library's collection form names no
+position domain of the game it is used by, as its bare form names none.
 `lines(k)` is the native call the board's declared length-`k` lines are
 read through — on a grid every straight run of `k` cells along a row,
 column, or diagonal, on a family with declared adjacency every straight
@@ -4852,7 +4900,8 @@ tools.dead_surface`) is the instrument: it classes every row it lists as a
 sibling kept whole, a placeholder kept for the located message a rejection
 fixture pins, a reject arm, or dead — and the dead class is pinned empty
 (`tests/test_dead_surface_report.py`), so surface with no writer and no
-reason cannot land.
+reason cannot land. ADR-0004 records the ruling and the corpus-first cut
+that lost.
 
 ## Closed-domain completeness
 
@@ -5372,7 +5421,8 @@ The rung is stated wherever a guarantee is written down — a ledger's
 `held by:` row, a Contract Block's held-by line (write-time triage,
 above) — and the top rung is the default: a clause whose fact a union, an
 exhaustive match or a single constructor can hold is held there, and a
-lower rung is a recorded decision, never a default.
+lower rung is a recorded decision, never a default. ADR-0010 records the
+rung-first default and the two shapes that lost.
 
 The rung is a design decision and gets recorded like one: when rung 3 or 4
 is chosen over an available rung 1 or 2, the ledger says why (a subtype

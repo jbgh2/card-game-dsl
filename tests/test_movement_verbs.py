@@ -616,21 +616,20 @@ def test_the_five_verbs_are_board_only() -> None:
 # =============================================================================
 
 
-def test_any_cell_in_a_region_is_rejected_not_silently_iterated() -> None:
-    # `any cell in <expr>` demands a SINGLE line (typecheck.py's
-    # _domain_query_binder_type); a Collection<Cell> region is the wrong
-    # source shape, so it is rejected -- home/far_row's shape is NOT quietly
-    # accepted by the cell quantifier. (Region membership is `c in home(...)`,
-    # built in Task 4; this pins that the QUANTIFIER form stays loud.)
-    msg = _reject(
+def test_any_cell_in_a_region_is_a_collection_quantifier() -> None:
+    # `any cell in <expr>` ranges over a line or a collection of cells
+    # (typecheck.py's _domain_query_binder_type), so a region is a source:
+    # the collection form over `cell` reads the board's own cells, and a card
+    # zone stays refused (tests/test_cell_queries.py's zone-source cell).
+    check_dsl(
         _board_game(
             body=(
                 "    if any cell in home(actor) where square[cell] is empty "
                 "{ done := true }\n"
             )
-        )
+        ),
+        "t",
     )
-    assert "iterates a single line, but the source is Collection<Cell>" in msg
 
 
 def test_a_region_is_not_a_movement_source() -> None:
