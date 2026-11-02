@@ -3327,9 +3327,14 @@ Uniform-projection types (`Cascade`, `HiddenStack`, `Foundation`,
 
 **Iteration and state-indexing reject loudly; quantification is admitted.**
 A position domain is not a seat and not an iteration role: `for each
-column c`, `each column simultaneously`, a position-indexed `state`
-variable, and a position-typed `state` declaration are all rejected with
-diagnostics (deferred, recorded in issue #111). Quantifiers
+column c`, `each column simultaneously` and a position-indexed `state`
+variable are all rejected with diagnostics (deferred, recorded in issue
+#111). A `state` variable may be typed by a board's named-member domain
+(`last_at : cell? = none`), read and written as a `Player?` variable is,
+and a `none` it holds is refused at play wherever a square must be named;
+an integer position domain is no `state` type, the refusal naming
+`Integer` as the type that remembers its member
+(tests/test_typed_position_state.py). Quantifiers
 range over a position domain's members like any other quantifiable
 domain — `any column where …`, `all columns where …`, `number of columns
 where …`, and the set of the members satisfying a predicate, `columns
@@ -3712,8 +3717,9 @@ names.
 and now a direction name (`ahead`), is an unknown name, not a literal —
 named only through a parameter or a quantifier binder; naming a specific
 cell in a setup or rule waits on its witness (issue #111).
-A position domain is still not a declarable `state` type or a state
-index, and an integer position domain is still not a `for each` role.
+A position domain is not a state index, the direction domain `dir` is
+not a `state` type, and an integer position domain is not a `for each`
+role.
 The remaining board-topology surface — the `HiddenCell` and `Point`
 zone-type rows, double-indexed families, `roll` chance, probes,
 `reachable`, in-file boards — is guarded per rung of the board-topology

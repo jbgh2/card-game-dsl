@@ -340,15 +340,26 @@ class ZoneStore:
                 f"family the game never declared"
             )
         family = self.families[name]
-        if isinstance(key, bool) or key not in family:
-            role = self.zone_index.get(name)
-            indexed = f"indexed by '{role}'" if role else "indexed"
+        if key is None:
+            # `types.coercible` admits an optional key where its base is
+            # wanted (no flow narrowing), so a `cell?` or `Player?` that is
+            # none reaches here at play.
             raise OwnerGuardError(
-                f"zone family '{name}' is {indexed} and has no instance "
+                f"zone family '{name}' is {self._indexed(name)}, and its key is "
+                f"none here: an optional value is none -- test it with `is none` "
+                f"before naming `{name}[...]` with it"
+            )
+        if isinstance(key, bool) or key not in family:
+            raise OwnerGuardError(
+                f"zone family '{name}' is {self._indexed(name)} and has no instance "
                 f"keyed {key!r} — its instances are keyed "
                 f"{sorted(family)}"
             )
         return family[key]
+
+    def _indexed(self, name: str) -> str:
+        role = self.zone_index.get(name)
+        return f"indexed by '{role}'" if role else "indexed"
 
     def locate(self, zone: Zone) -> tuple[str, Player | str | None]:
         """The (name, instance-key) of a zone object — the reverse lookup the

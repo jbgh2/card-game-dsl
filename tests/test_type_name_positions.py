@@ -89,10 +89,9 @@ Completeness ledger
 
     does not prove:  two things about a cell beyond its admit-vs-reject verdict.
                 WHICH MESSAGE a rejection gives. A loud refusal in the wrong
-                words passes every cell: a position domain written as a state
-                variable's type is refused as `unknown type
-                '<name>'` rather than as a domain that is not a declared type in
-                that slot. The one column that pins its own wording is the
+                words passes every cell; the state position's refusal of each
+                domain it does not take is pinned in its own words by
+                tests/test_typed_position_state.py. The one column that pins its own wording is the
                 collection column
                 (`test_the_collection_column_reaches_the_message_its_position_owns`),
                 which derives the refusal each position owns from the type
@@ -215,8 +214,8 @@ _PRIMITIVE_SPELLABLE = frozenset(
 # a hand-written row, so a registry change moves the expectation with it.
 EXPECTED_ADMITS: dict[str, frozenset[str]] = {
     # Plain declared-name positions; `?` is a separate AST flag, so both spellings pass.
-    # A position domain is not among them, and whether such a value (an Integer
-    # with a declared range) should be declarable here is issue #133.
+    # An integer position domain is not among them: a state variable remembers
+    # its member as an `Integer` (tests/test_typed_position_state.py).
     "P1 state_decl": frozenset(_BASE_STRIPPED),
     # Enumerable move-parameter domains, plus the inline `Card` literal, plus
     # the game's position domains (the action space enumerates them).
@@ -459,16 +458,16 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
     Every resolver that turns a declared name into a type is checked, so a new
     one arrives as a missing row rather than as a silent leak.
 
-    red under: drop the `positions` argument from any of the three calls below.
+    red under: pass `{}` for the `positions` of any of the three calls below.
     """
     positions = {POSITION_DOMAIN: TInteger()}
     env = TypeEnv(positions=positions)
     resolvers: dict[str, Callable[[], Type]] = {
         "type_from_name": lambda: typecheck.type_from_name(
-            POSITION_DOMAIN, False, positions
+            POSITION_DOMAIN, False, positions, {}
         ),
         "_payload_type": lambda: typecheck._payload_type(
-            POSITION_DOMAIN, positions
+            POSITION_DOMAIN, positions, {}
         ),
         "_param_type": lambda: typecheck._param_type(
             n.Parameter(name="x", type_name=POSITION_DOMAIN, span=None), env
@@ -785,14 +784,19 @@ BOARD_POSITIONS: dict[str, Callable[[str], str]] = {
 }
 
 
-def _board_minted() -> tuple[frozenset[str], frozenset[str]]:
-    """The skeleton board game's minted names: its position domains and the
-    direction domains `resolve._minted_directions` admits."""
+def _board_minted() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+    """The skeleton board game's minted names: its position domains, the
+    named-member ones among them, and the direction domains
+    `resolve._minted_directions` admits."""
     game = check_dsl(_board_prog(), "board-grid")
-    return frozenset(p.name for p in game.positions), _minted_directions(game)
+    return (
+        frozenset(p.name for p in game.positions),
+        frozenset(p.name for p in game.positions if p.members_named is not None),
+        _minted_directions(game),
+    )
 
 
-_BOARD_POSITIONS_MINTED, _BOARD_DIRECTIONS_MINTED = _board_minted()
+_BOARD_POSITIONS_MINTED, _BOARD_NAMED_MEMBER, _BOARD_DIRECTIONS_MINTED = _board_minted()
 _BOARD_MINTED = _BOARD_POSITIONS_MINTED | _BOARD_DIRECTIONS_MINTED
 BOARD_NAMES = sorted(_BOARD_MINTED | {f"{m}?" for m in _BOARD_MINTED})
 
@@ -803,7 +807,9 @@ def _with_optional(names: frozenset[str]) -> frozenset[str]:
 
 # Each position's admitted board names, computed from what the board minted.
 BOARD_EXPECTED_ADMITS: dict[str, frozenset[str]] = {
-    "P1 state_decl": frozenset(),
+    # A state variable remembers a square: the board's named-member domain,
+    # never its directions (tests/test_typed_position_state.py).
+    "P1 state_decl": _with_optional(_BOARD_NAMED_MEMBER),
     # Exact spellings only: a move parameter's domain enumerates, and an
     # optional board name has no enumeration.
     "P3 move_param": _BOARD_MINTED,
