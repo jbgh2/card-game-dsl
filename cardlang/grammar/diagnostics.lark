@@ -129,7 +129,7 @@ STAKE_FLAG_COLON: /:/
 
 // --- the position set written over a collection ---------------------------
 // `cells in <expr> where <pred>` is the card register's `cards in <zone>
-// where` habit carried to the board; cells live on the board, so the set form
+// where` habit carried to the board; cells live on the board, so the Set Form
 // takes no source. The twin is led by the word its message names, the board's
 // own noun (held to `board_domains.BOARD_DOMAIN` by
 // tests/test_cell_set_form.py::test_the_twins_word_is_the_boards_noun): a

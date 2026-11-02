@@ -130,12 +130,16 @@ RETIRED_SENTENCES: dict[str, str] = {
 # its noun is any name at parse, so the retired `actions where` reads as a set
 # over an `action` domain, and resolve refuses it, located, before any pass
 # reads it as a query.
-RETIRED_SENTENCES_PARSED_AS_A_SET: dict[str, str] = {
-    "demands actions where": _game(
-        top=(
-            "rule R {\n  constrains: play_to_trick\n"
-            "  demands: actions where action.card_count > 0\n}"
-        )
+RETIRED_SENTENCES_PARSED_AS_A_SET: dict[str, tuple[str, str]] = {
+    "demands actions where": (
+        _game(
+            top=(
+                "rule R {\n  constrains: play_to_trick\n"
+                "  demands: actions where action.card_count > 0\n}"
+            )
+        ),
+        "`actions where` gathers the members of a position domain, and `action` is a "
+        "reserved word (it is the call-site action pronoun)",
     ),
 }
 
@@ -182,11 +186,16 @@ def test_retired_sentence_is_refused_at_parse(name: str) -> None:
 
 @pytest.mark.parametrize("name", sorted(RETIRED_SENTENCES_PARSED_AS_A_SET))
 def test_a_retired_sentence_the_set_form_parses_is_refused_by_the_checker(name: str) -> None:
-    source = RETIRED_SENTENCES_PARSED_AS_A_SET[name]
+    """Red under: `resolve._check_reserved_binders` reading a bare position
+    query's noun as a binder the designer chose (its message names a binder
+    nobody wrote, and asks for another name), or the rule clauses judged
+    before the position nouns (the clause's shape refusal speaks first)."""
+    source, said = RETIRED_SENTENCES_PARSED_AS_A_SET[name]
     parse_text(source, "retired.cardlang")
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(source, "retired.cardlang")
     assert exc.value.diagnostic.span is not None
+    assert said in exc.value.diagnostic.message, exc.value.diagnostic.message
 
 
 def test_optional_required_variable_is_refused_at_parse() -> None:

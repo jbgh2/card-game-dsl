@@ -512,7 +512,7 @@ def _quantified(kind: n.DomainQueryKind, spelled: str) -> str:
 @pytest.mark.parametrize("kind", QUANTIFIER_KINDS)
 def test_bare_quantifier_over_dir_is_admitted(kind: n.DomainQueryKind) -> None:
     source = _pick_guard(_quantified(kind, _plural_noun(kind)))
-    if kind in n.DIRECTION_FOLDS:
+    if kind in n.DIRECTION_QUERY_KINDS:
         check_dsl(source, "dir.cardlang")
     else:
         assert SET_REFUSAL in _reject(source)
@@ -522,7 +522,7 @@ def _plural_slip_cells() -> list[Any]:
     cells: list[Any] = []
     for kind in QUANTIFIER_KINDS:
         spelled = _slipped_noun(kind)
-        if kind not in n.DIRECTION_FOLDS:
+        if kind not in n.DIRECTION_QUERY_KINDS:
             # The set's noun names the direction domain, refused before the
             # plural is read.
             cells.append(pytest.param(kind, SET_REFUSAL, id=kind))
@@ -562,7 +562,7 @@ def _boardless_noun_cells() -> list[tuple[str, str]]:
 
 @pytest.mark.parametrize(("kind", "spelled"), _boardless_noun_cells())
 def test_bare_quantifier_over_dir_in_a_boardless_game_names_board(kind: n.DomainQueryKind, spelled: str) -> None:
-    needle = NO_BOARD if kind in n.DIRECTION_FOLDS else SET_REFUSAL
+    needle = NO_BOARD if kind in n.DIRECTION_QUERY_KINDS else SET_REFUSAL
     assert needle in _reject(boardless_game(when=_quantified(kind, spelled)))
 
 

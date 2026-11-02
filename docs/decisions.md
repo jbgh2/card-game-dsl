@@ -3509,18 +3509,18 @@ number of cells where <pred>
 cells where <pred>
 ```
 
-The last is the register's set form, the twin of `players where
+The last is the register's Set Form, the twin of `players where
 <pred>` and `cards in <zone> where <pred>`: the members of the domain
-satisfying the predicate, in the domain's order, as a value —
+satisfying the predicate, in the Position Domain's member order, as a collection —
 `Collection<Cell>` over a board's `cell`, `Collection<Integer>` over an
 integer domain (`columns where <pred>`). It compares by value with a
-region verb's collection (`(cells where cell in home(0)) is home(0)`)
+Region Verb's collection (`(cells where cell in home(0)) is home(0)`)
 and meets every other consumer as one does. Cells live on the board,
-not in a zone, so the set takes no source: `cells in <expr> where
-<pred>` is refused naming the set form, with the membership in the
+not in a zone, so the Set Form takes no source: `cells in <expr> where
+<pred>` is refused naming the Set Form, with the membership in the
 predicate. A membership's right side sits below the query forms, so a
 set tested for membership is parenthesized, `at in (cells where
-<pred>)`, as `p in (players where <pred>)` is. The set gathers
+<pred>)`, as `p in (players where <pred>)` is. The Set Form gathers
 positions, so `dirs where` is refused naming the direction domain.
 
 ```cardlang-fragment cell_set
@@ -3529,7 +3529,7 @@ function stones_of(p : Player) = cells where holds(cell, p)
 
 An unknown noun is a diagnostic naming the declared domains; a
 boardless, positionless game naming `cell` under `any` or `all` is guided
-to the collection escape instead, the only folds with a collection form.
+to the collection escape instead, the only quantifiers with a collection form.
 Where a collection value exists, two collection forms
 iterate it: `any line in <lines> where <pred>` walks a collection of
 lines (binder `line`, type `TLine`), and `all cells in <line> where
@@ -3571,7 +3571,7 @@ is not a position, so `dir` never reaches the zone index or `for each`;
 it is a closed domain, so the bare quantifier family and the declared-type
 positions admit it, typed `TDir`: a move parameter, `any dir where`,
 `all dirs where` and `number of dirs where`, and the type of a function
-parameter or an outcome payload. The set form gathers positions, so
+parameter or an outcome payload. The Set Form gathers positions, so
 `dirs where` is refused naming the direction domain. A game with no `board:` mints no `dir`,
 and neither does a board whose family has no movement frame (`morris9`,
 `hex_rhombus`); naming it at any of those positions is refused naming

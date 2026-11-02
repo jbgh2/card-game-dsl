@@ -43,7 +43,7 @@ witness:
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   in a game whose board mints `dir`, every bare quantifier fold in
-            `n.DIRECTION_FOLDS` over `dir` checks in every expression host
+            `n.DIRECTION_QUERY_KINDS` over `dir` checks in every expression host
             (the set, which gathers positions, is refused naming the
             direction domain in every cell), binds a `TDir` that every
             `TDir`-consuming Builtin slot admits and every other slot refuses,
@@ -190,8 +190,8 @@ def _boolean(kind: n.DomainQueryKind, pred: str = f"is_diagonal({DIRECTION_DOMAI
 
 def _refused_as_a_set(kind: n.DomainQueryKind, source: str) -> bool:
     """True, after proving the refusal, where `kind` is not a fold that
-    ranges over the direction domain (`n.DIRECTION_FOLDS`)."""
-    if kind in n.DIRECTION_FOLDS:
+    ranges over the direction domain (`n.DIRECTION_QUERY_KINDS`)."""
+    if kind in n.DIRECTION_QUERY_KINDS:
         return False
     msg = _reject(source)
     assert SET_REFUSAL in msg, msg

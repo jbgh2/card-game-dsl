@@ -282,7 +282,7 @@ class CardQuery:
     span: Span | None = None
 
 
-# The folds of the positional quantifier register, one per bare alternative
+# The query kinds of the positional quantifier register, one per bare alternative
 # of the grammar's `quantifier` rule that builds a `DomainQuery`.
 DomainQueryKind = Literal["any", "all", "count", "set"]
 DOMAIN_QUERY_KINDS: tuple[DomainQueryKind, ...] = get_args(DomainQueryKind)
@@ -334,21 +334,29 @@ DOMAIN_QUERY_KIND_PHRASE: dict[DomainQueryKind, str] = {
     "set": "",
 }
 
-# The folds whose bare form ranges over the board direction domain as well as
-# the position domains; the set gathers positions alone (decisions.md "Boards
-# and cells"). Resolve's `_check_domain_query` is the one reader that admits
-# a noun by it.
-DIRECTION_FOLDS: frozenset[DomainQueryKind] = frozenset({"any", "all", "count"})
+# The kinds whose bare form gathers Position Domain members alone, never the
+# board direction domain's (decisions.md "Boards and cells", the Set Form).
+POSITION_ONLY_QUERY_KINDS: frozenset[DomainQueryKind] = frozenset({"set"})
 
-# The folds with a collection form, `<fold> <noun> in <collection> where`
-# (the grammar's `q_any_in` / `q_all_in`).
-COLLECTION_FOLDS: frozenset[DomainQueryKind] = frozenset({"any", "all"})
+# The kinds whose bare form ranges over the board direction domain as well as
+# the Position Domains. Resolve's `_check_domain_query` is the one reader that
+# admits a noun by it.
+DIRECTION_QUERY_KINDS: frozenset[DomainQueryKind] = (
+    frozenset(DOMAIN_QUERY_KINDS) - POSITION_ONLY_QUERY_KINDS
+)
+
+# The kinds with a collection form, `<kind's phrase> <noun> in <collection>
+# where` (the grammar's `q_any_in` / `q_all_in`), pinned both ways against the
+# compiled grammar by
+# tests/test_cell_set_form.py::test_the_kind_tables_are_the_grammars.
+COLLECTION_QUERY_KINDS: frozenset[DomainQueryKind] = frozenset({"any", "all"})
 
 
 def domain_query_head(kind: DomainQueryKind, spelled: str) -> str:
-    """A position query's head as a diagnostic quotes it: the fold's phrase
-    and the noun as written (`any cell`, `number of cells`), or for the set,
-    which has no leading word, the noun and its `where` (`cells where`)."""
+    """A position query's head as a diagnostic quotes it: the kind's phrase
+    and the noun as written (`any cell`, `number of cells`), or for the Set
+    Form, which has no leading word, the noun and its `where` (`cells
+    where`)."""
     phrase = DOMAIN_QUERY_KIND_PHRASE[kind]
     return f"{phrase} {spelled}" if phrase else f"{spelled} where"
 
