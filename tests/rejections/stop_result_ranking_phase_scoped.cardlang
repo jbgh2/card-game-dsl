@@ -1,0 +1,19 @@
+// Guard: resolve's `_check_state_scope`, its ranking arm at the stop
+// slot. The bound can stop the game while the declaring phase runs, so
+// the reason is the stop's, not an exited phase's.
+game StopResultRankingPhaseScoped {
+  players: 2
+  max_length: 30
+  at max_length: highest tally
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { coins[player] : Integer = 0  done : Boolean = false }
+  phase play {
+    state { tally[player] : Integer = 0 }
+    turns t from 0 over all players until done {
+      as t { offer to t one of [stop] }
+    }
+  }
+  winner: highest coins
+}
+move_type stop { effect { done := true } }

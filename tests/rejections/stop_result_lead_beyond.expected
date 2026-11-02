@@ -1,0 +1,1 @@
+stop_result_lead_beyond.cardlang:7:3: error: the game ends AT its bound and nothing lies beyond it — write `at max_length: …`

@@ -74,7 +74,7 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:ranking', 'key:ranking_convention', 'key:ref', 'key:refs', 'key:right',
         'key:role', 'key:rules', 'key:selection', 'key:selection_mode',
         'key:size_mode',
-        'key:source', 'key:source_zone', 'key:stake', 'key:state', 'key:state_var', 'key:suit',
+        'key:source', 'key:source_zone', 'key:stake', 'key:state', 'key:state_var', 'key:stop_result', 'key:suit',
         'key:suit_ranking',
         'key:tag', 'key:target', 'key:teams', 'key:then', 'key:transitions',
         'key:primitives', 'key:reads', 'key:return_type',
@@ -112,6 +112,10 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:rank_sequence', 'key:rows', 'key:state_reads', 'key:zone_reads',
         'tag:combination_catalogue', 'tag:declared_engine',
         'tag:registered_engine', 'tag:shape_row',
+        'tag:shape_card', 'tag:shape_cards', 'tag:shape_in_sequence',
+        'tag:shape_of_a_kind',
+        # The Stop Result's three members.
+        'tag:stop_as_it_stands', 'tag:stop_ranking', 'tag:stop_tie',
     }
 )
 

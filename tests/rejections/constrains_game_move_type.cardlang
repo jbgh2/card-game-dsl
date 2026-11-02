@@ -1,0 +1,24 @@
+// Guard: resolve.py's `_check_rule_reaches_a_reader`, the arm for a move type
+// the game declares. A rule binds only at the trick round's card decision, so
+// a rule naming the game's own `step` is refused with the move type's `when:`
+// named as the place its condition goes.
+game ConstrainsGameMoveType {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    offer to 0 one of [step]
+  }
+  winner: highest score
+}
+move_type step { effect { score[actor] := 1 } }
+rule MandatoryCapture {
+  constrains: step
+}

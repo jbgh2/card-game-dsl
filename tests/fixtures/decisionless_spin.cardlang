@@ -1,0 +1,40 @@
+// A game that passes every compile stage and then fails at play time: after
+// one decision a seat, a loop whose `until` never holds runs on with no
+// decision in it, which the statement-level `repeat until` guard refuses as a
+// `GameDescriptionError` once it has run more boundaries than the game's
+// `max_length`.
+//
+// The witness for the runtime half of the command line's failure rendering
+// (tests/test_cli_surface.py) and for a refusal met at a table after a pick
+// (tests/test_play_session.py). A loop that makes picks is not this defect:
+// it ends by length (docs/decisions.md, "Game length as a declared
+// contract"). This one reaches the refusal on every seed.
+game DecisionlessSpin {
+  players: 2
+  direction: clockwise
+  max_length: 5
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+  }
+
+  state {
+    coins[player] : Integer = 0
+    rounds        : Integer = 0
+  }
+
+  phase play {
+    for each player p: offer to p one of [take_one, take_two]
+    repeat until rounds < 0 {
+      rounds += 1
+    }
+  }
+
+  winner: highest coins
+}
+
+move_type take_one { effect { coins[actor] += 1 } }
+move_type take_two { effect { coins[actor] += 2 } }

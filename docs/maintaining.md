@@ -54,7 +54,43 @@ applies:
   rationale is forward-facing spec, not journaling.
 
 The test: does the historical note prevent re-litigation, or
-does it just document the journey? If the latter, cut it.
+does it just document the journey? If the latter, cut it. Where the
+rejected alternative lost to an operator ruling, the note is one
+sentence naming the ruling's record, and the reasoning lives there
+(the next section).
+
+## A ruling's record is its ADR
+
+An operator ruling — a decision the operator made between stated
+options, on an issue's `## Ruling` section or on a doctrine change the
+operator ordered — has one record in the tree: an Architecture Decision
+Record under `docs/adr/`, in the shape its README states. The spec
+states the ruled rule in present tense, where the rule belongs, and
+cites the record in one sentence (`ADR-NNNN`) where omitting the losing
+alternative would invite re-litigation; the record holds the context,
+the alternatives, the measurement that decided, and the issue and PR that
+hold the act and the counsel. The two never duplicate: the spec never
+carries the chronology, and the record never carries the live rule.
+
+Three rules bind an edit that touches a ruled sentence:
+
+- **Cite or supersede.** A change inside what the ruling decided cites
+  the record that rules it; a change that reverses or narrows the ruling
+  lands a new record and sets the old one's Status line to
+  `Superseded by ADR-NNNN`. A ruled sentence edited with neither is the
+  drift this rule exists to catch.
+- **A record is never edited after it lands**, except its Status line.
+  A record found wrong is superseded, not corrected.
+- **Not a record:** a plan (it lives on its issue, issue #908); a
+  direction-review verdict (its own dated file under
+  `docs/superpowers/direction-reviews/`); a lesson (doctrine, or the
+  thread's memory); state (the tracker). Every Merge Lane A ruling has
+  one.
+
+`tests/test_adr_records.py` holds the shape and resolves every
+`ADR-NNNN` written anywhere to a record that exists; whether a record
+states its ruling truly is the operator's read at the merge
+(`docs/adr/**` is Merge Lane B).
 
 ## Names come from the glossary
 

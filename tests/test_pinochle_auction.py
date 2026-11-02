@@ -27,9 +27,7 @@ from typing import Any
 import pytest
 
 from cardlang.pipeline import check_dsl
-from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import OwnerGuardError
-from tests.playout_policy import is_length_guard
+from cardlang.runtime.driver import EndedBy, play_game
 
 PINOCHLE = (
     Path(__file__).parent.parent / "docs" / "games" / "pinochle.cardlang"
@@ -160,22 +158,16 @@ def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
     re-derived from the bids is held against what the game did with it.
 
     A chooser this degenerate is not a way anyone plays, and at the game's own
-    1500 target it runs past the declared length before a side gets there. That
-    refusal is tolerated — and ONLY that one, by the same predicate the playout
-    policy uses, so a planted fault in the auction cannot be filed as "this game
-    ran long" — because what these tests assert is the FIRST contract, which is
-    settled long before the bound is anywhere near.
+    1500 target it reaches the declared length before a side gets there, where
+    the game ends; what these tests assert is the FIRST contract, which is
+    settled long before the bound is anywhere near. Every refusal propagates.
     """
     seen: list[tuple[int, tuple[Any, ...]]] = []
 
     def observer(player: int, event: tuple[Any, ...]) -> None:
         seen.append((player, event))
 
-    try:
-        play_game(game, random.Random(0), chooser=chooser, observer=observer)
-    except OwnerGuardError as exc:
-        if not is_length_guard(exc):
-            raise
+    result = play_game(game, random.Random(0), chooser=chooser, observer=observer)
     contracts: list[dict[str, Any]] = []
     asked: set[int] = set()
     last_bid: tuple[int, int | None] | None = None
@@ -214,7 +206,9 @@ def _capture_contracts(game: Any, chooser: Any) -> list[dict[str, Any]]:
             if player == last_bid[0] and isinstance(event[1], int):
                 # The number is chosen in tens, the ladder's own unit.
                 last_bid = (last_bid[0], event[1] * 10)
-    if in_auction:
+    # An auction still open when the game reached its bound was cut short
+    # there, and settles no contract.
+    if in_auction and result.ended_by is EndedBy.RULES:
         close()
     return contracts
 

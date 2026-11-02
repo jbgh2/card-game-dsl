@@ -73,24 +73,11 @@ of the language.
   override-merge. No longer game-gated: Texas Hold'em is in the corpus carrying
   the "show one, show all" showdown rule (deliberately unmodelled), and the
   question file names the two corpus movements the chosen semantics would bind.
-- [rule-scope-beyond-trick-play](rule-scope-beyond-trick-play.md) — rules apply
-  only at the trick form's card-decision site; rules constraining non-trick
-  move types are refused. Where (if anywhere) should declarative rules bind outside a trick round? The
-  awaited data point now exists by name: draughts' mandatory capture and
-  morris's in-mill removal restriction (the board-topology ladder, which
-  proposes uniform binding at every decision site and stages the
-  resolution with those witnesses).
 - [round-config-factoring](round-config-factoring.md) — folding a repeated,
   parameterized `round` block (a list/`for each in [...]` loop over Stud's five
   betting streets) into one body; the within-round predicate duplication is
   already resolved with named functions, so this is the residual block-level
   repetition, and the second-instance data point is Hold'em.
-- [unbounded-lines-and-max-length](unbounded-lines-and-max-length.md) —
-  two games now have legally unbounded lines (Coup's exchange-forever
-  table; Tichu's always-calling table, which drifts away from 1000
-  forever), so the `max_length` backstop can fire on a legal line and
-  raise instead of ending the game; raise-as-bug vs graceful terminal vs
-  per-game opt-in is undecided.
 
 ## Tier 4 — Low impact, defer until forced
 

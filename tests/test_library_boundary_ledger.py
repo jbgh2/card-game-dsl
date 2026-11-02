@@ -406,6 +406,8 @@ _CALL_SPELLINGS: dict[str, tuple[str, str]] = {
     "home": ("home(who) is empty", ""),
     "far_row": ("far_row(who) is who", ""),
     "neighbors": ("neighbors(who) is empty", ""),
+    "near_edge": ("near_edge(who) is empty", ""),
+    "far_edge": ("far_edge(who) is empty", ""),
     "highest_trump_or_led_suit": ("highest_trump_or_led_suit(pile, c.suit) is who", ""),
     "highest_by_trick_order": ("highest_by_trick_order(pile) is who", ""),
     "follows_lead": ("follows_lead(c, pile)", ""),
@@ -2138,6 +2140,11 @@ WALKERS: dict[str, str] = {
     "resolve._check_functions": "test_a_library_reaching_the_games_text[call-cycle, call-site-pronoun-*]",
     "resolve._report_recursion": "test_a_library_reaching_the_games_text[call-cycle]",
     "resolve._check_unoffered_move_types": "reports the game's own move type, at its declaration",
+    "resolve._check_rule_reaches_a_reader": (
+        "looks up the move type a rule names to say who declares it, and reports "
+        "at the rule; a rule or move type in library text is told by the "
+        "library's certificate"
+    ),
     "resolve._reaches_a_trick_round": (
         "follows offers into move types' effects to find a trick round: refuses "
         "nothing itself"

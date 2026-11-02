@@ -9,6 +9,7 @@ from cardlang.openspiel.registry import GAMES, _GAMES_DIR
 from cardlang.openspiel.replay import load
 from cardlang.stdlib.zones import (
     LIBRARY_ZONE_TYPES,
+    PROJECTION_LEVELS,
     ZONE_PROJECTIONS,
     identity_to_all,
     zone_projection,
@@ -34,6 +35,26 @@ def test_hidden_and_dead_zones() -> None:
         assert zone_projection(t, is_owner=False) == "count_only"
     for t in ("Muck", "Burn"):
         assert zone_projection(t, is_owner=True) == "trivial"
+
+
+@pytest.mark.parametrize("zone_type", sorted(ZONE_PROJECTIONS))
+def test_a_zone_its_owner_sees_shows_every_other_seat_at_least_a_count(zone_type: str) -> None:
+    """A chosen movement draws from a zone its decider can see, so a type
+    whose owner sees identity is a source some seat picks from; every other
+    seat must then see at least a count of it, or a pick there would reach a
+    bystander as nothing at all. The Length Stop is a function of how many
+    picks a line has made, and that is what keeps the count every seat's:
+    the stop is common knowledge (docs/decisions.md, "Game length as a
+    declared contract").
+
+    red under: plant `"SecretHand": ZoneVisibility("identity", "trivial")`
+    in `ZONE_PROJECTIONS`."""
+    vis = ZONE_PROJECTIONS[zone_type]
+    if vis.owner != "identity":
+        return
+    assert PROJECTION_LEVELS.index(vis.others) >= PROJECTION_LEVELS.index("count_only"), (
+        f"{zone_type} shows its owner identity and every other seat {vis.others}"
+    )
 
 
 def test_unknown_type_fails_loudly() -> None:

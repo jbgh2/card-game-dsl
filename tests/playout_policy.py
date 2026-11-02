@@ -45,8 +45,11 @@ from cardlang.stdlib.zones import ZONE_PROJECTIONS
 # The games no uniform draw finishes, and the reference policy each one's
 # playouts and captures run under. ONE table, because a capture that reached for
 # a policy and a capture that forgot to would both run — the forgetful one
-# producing a refusal that reads as a long game, or a golden pinned over lines
-# nobody plays.
+# producing a game that ends at its bound, or a golden pinned over lines nobody
+# plays. Every row names a registered game
+# (tests/test_length_registry_pin.py), and that module holds every registered
+# game, under the policy this table names or a uniform draw, to ending by its
+# rules.
 #
 # A game earns a row here by MEASUREMENT, recorded in its own playout module:
 # Tichu because a uniform chooser calls tichu at ~50% of every offer and the
@@ -72,19 +75,6 @@ def reference_policy_for(name: str, rng: random.Random) -> Any | None:
         return None
     module, factory = row
     return getattr(__import__(module, fromlist=[factory]), factory)(rng)
-
-
-def is_length_guard(exc: OwnerGuardError) -> bool:
-    """Whether this refusal is the driver's declared-length bound, and not one
-    of the several other refusals a policy playout can reach.
-
-    `OwnerGuardError` is the currency of every authoring refusal in the
-    runtime — `_counted`'s `max_length`, this policy's un-attached and
-    unregistered-shape refusals, `random_chooser`'s `n > len(candidates)`. A
-    caller that catches the TYPE catches all of them, which is how a planted
-    policy fault gets quietly filed as "this game ran long".
-    """
-    return "max_length" in str(exc)
 
 
 def _own_private_cards(rs: RuntimeState, player: int) -> list[Card]:

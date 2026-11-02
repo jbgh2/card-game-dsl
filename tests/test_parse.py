@@ -258,13 +258,20 @@ def _parse_entry_points() -> tuple[str, ...]:
 _HINT_STARTS: tuple[str, ...] = _parse_entry_points()
 
 
+# The line a hint's probe writes, where the bare keyword alone fails on the
+# line after it: `max_length` is a clause a game may hold, so its probe is the
+# clause with a tail, the misuse its hint answers.
+_HINT_PROBE_LINES: dict[str, str] = {"max_length": "max_length: 30 ends the game"}
+
+
 def _hint_probe(keyword: str, start: str) -> str:
     """A source under `start` whose parse fails on a line beginning with
-    `keyword` — the shape `_parse_hint`'s fallback probe reads."""
+    `keyword` -- the shape `_parse_hint`'s fallback probe reads."""
+    line = _HINT_PROBE_LINES.get(keyword, keyword)
     if start == "library":
-        return f"library L {{\n  {keyword}\n}}\n"
+        return f"library L {{\n  {line}\n}}\n"
     if start == "start":
-        return f"game G {{\n  players: 2\n  {keyword}\n}}\n"
+        return f"game G {{\n  players: 2\n  {line}\n}}\n"
     raise AssertionError(f"no hint probe for start {start!r}")
 
 

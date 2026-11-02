@@ -151,8 +151,9 @@ SIMULTANEOUS = FIXTURES / "simultaneous_empty_zone_choice.cardlang"
 DEAL_DRAINED = FIXTURES / "deal_from_drained_source.cardlang"
 # A rule whose `if_impossible:` refuses every card the player holds.
 RULE_REFUSES = FIXTURES / "rule_refuses_every_card.cardlang"
-# Checks clean, then outruns its declared `max_length` on every seed.
-OVERRUNS = FIXTURES / "exceeds_max_length.cardlang"
+# Checks clean, then spins a loop with no decision in it past its declared
+# `max_length` on every seed.
+SPINS = FIXTURES / "decisionless_spin.cardlang"
 # The two arms of a phase qualifier, each reading an empty zone's suit.
 WHEN_GUARD = FIXTURES / "when_qualifier_empty_zone.cardlang"
 REPEAT_CONDITION = FIXTURES / "repeat_until_qualifier_empty_zone.cardlang"
@@ -394,6 +395,7 @@ _SIGNALS: frozenset[str] = frozenset(
         "_ContinueTo",
         "_SkipHand",
         "ChooserAbort",
+        "LengthStop",
         "TakeBack",
         "Leave",
         "_Rejected",
@@ -693,9 +695,9 @@ _CASES: tuple[_Refusal, ...] = (
         zone=None,
     ),
     _Refusal(
-        name="a game that outruns its declared max_length",
-        path=OVERRUNS,
-        sentence="for each player p: offer to p one of [take_one, take_two]",
+        name="a loop with no decision in it, past its declared max_length",
+        path=SPINS,
+        sentence="repeat until rounds < 0 {",
         occurrence=0,
         phase="play",
         zone=None,

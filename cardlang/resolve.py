@@ -43,10 +43,13 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               head from `declarable_type_names`, a collection's element from
               `COLLECTION_ELEMENT_NAMES` — and no name declared or minted at
               any of the sites in ``RESERVATION_SITES`` takes a spelling one of
-              ``POSITION_NAME_SOURCES`` already holds. And a ``winner:``
-              clause carries its target declaration's index role
-              (``Winner.keyed_by``), so no later pass walks state
-              declarations to learn how the result is keyed. A bare
+              ``POSITION_NAME_SOURCES`` already holds. And every result
+              ranking -- a ``winner:`` clause, a Stop Result's ranking --
+              carries its target declaration's index role
+              (``Winner.keyed_by``, ``StopResult.keyed_by``), so no later pass
+              walks state declarations to learn how the result is keyed, and
+              an ``as it stands`` Stop Result sits only on a game with a
+              ``winner:`` clause. A bare
               ``DomainQuery`` noun names a declared position domain or the
               direction domain the board minted, and a move parameter's
               domain, a function parameter's type and an outcome payload's
@@ -171,9 +174,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               written text. The round clause's TYPE (``Suit?``)
               is typecheck's (``_check_round_trump``); its presence against
               its winner is settled here, with the winner namespace. And a
-              ``winner:`` target that is not a per-member score — unindexed,
-              optional, or declared outside ``Integer``/``Boolean``
-              (``_check_winner_target``, decisions.md "Game result:
+              result ranking's target (``ranking_slot``) that is not a
+              per-member score — unindexed, optional, or declared outside
+              ``Integer``/``Boolean`` (``_check_winner_target``, decisions.md "Game result:
               `winner:` and `loser:`"); ``runtime/driver`` may therefore
               assume the target reads as a map from member to score, and
               hard-fails on one this pass did not admit as its Shadow Guard.
@@ -463,6 +466,7 @@ from cardlang.stdlib.hosted_poll import (
 )
 from cardlang.stdlib.moves import (
     CLIMB_DECISION_MOVE_TYPE,
+    KERNEL_MOVE_FORMS,
     LIBRARY_MOVE_TYPES,
     RULE_ENFORCED_MOVE_TYPE,
 )
@@ -483,13 +487,14 @@ from cardlang.typecheck import (
 )
 from cardlang.types import Flavor, TCell, TCollection, TInteger, TPlayer, TTeam
 
-# The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
-# is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
-# Derived as exactly the board verbs taking a player argument, so a later
-# player-taking board verb joins this set (and its two-seat Owner Guard) by
-# construction rather than by a hand-list that would drift. The player-free
-# board calls (`lines`, `is_diagonal`) are not frame reads and stay unaffected.
-_FRAME_CALL_FUNCS = frozenset(
+# The board-only calls that read the board from one of its two seats -- a
+# grid's per-player frame, where one seat's forward is the other's backward,
+# or a seat's own borders (cardlang/stdlib/boards.py). Derived as exactly the
+# board verbs taking a player argument, so a later player-taking board verb
+# joins this set (and its two-seat Owner Guard) by construction rather than by
+# a hand-list that would drift. The player-free board calls (`lines`,
+# `is_diagonal`, `neighbors`) read no seat and stay unaffected.
+_SEAT_CALL_FUNCS = frozenset(
     fn
     for fn in BOARD_ONLY_CALL_FUNCS
     if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
@@ -804,6 +809,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # twin `resolve`'s own comment has documented since before this table.
     (n.Turns, "again"): "state",
     (n.Winner, "state_var"): "state",
+    (n.StopResult, "state_var"): "state",
     # Zones. Both round forms name their two zones as bare strings.
     (n.TrickRound, "source_zone"): "zone",
     (n.TrickRound, "play_zone"): "zone",
@@ -954,6 +960,10 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Transfer, "amount"),
         (n.Transfer, "distribution"),
         (n.Winner, "rank_dir"),
+        # The Stop Result's member and its ranking's direction: grammar
+        # words the builder put there, never names.
+        (n.StopResult, "kind"),
+        (n.StopResult, "rank_dir"),
         (n.Game, "ranking_convention"),
         # The lowering stamp's two words: `form` is a `Literal`, and `key`
         # names the contract the table answers, never a designer-authored
@@ -994,6 +1004,7 @@ _METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
         (n.NameRef, "ref_kind"),
         (n.Winner, "keyed_by"),
+        (n.StopResult, "keyed_by"),
         # The Definition Contract a `uses` splice records: spellings copied off
         # a row as facts, never names a sweep resolves.
         (n.ContractStamp, "library"),
@@ -2052,6 +2063,7 @@ _BOARD_NEED_PHRASES: dict[BoardNeed, str] = {
     "lines": "the board's lines",
     "edges": "the board's declared adjacency (which points it joins)",
     "frame": "the board's movement frame (each seat's forward directions)",
+    "borders": "each seat's two borders (the board edges it joins)",
 }
 
 
@@ -2097,6 +2109,41 @@ def _board_need_gate(need: BoardNeed) -> _ClauseGate:
 # One row per need, in `BOARD_NEEDS` order: a verb's refusal on a board that
 # does not declare what it reads.
 _BOARD_NEED_GATES: tuple[_ClauseGate, ...] = tuple(_board_need_gate(need) for need in BOARD_NEEDS)
+
+
+# Why a seat verb needs exactly two seats, by the part it reads, in the
+# designer's words. Keyed by every need a seat verb reads: a seat verb reading
+# a need with no reason here fails at import, building `_SEAT_GATES`.
+_SEAT_NEED_REASONS: dict[BoardNeed, str] = {
+    "frame": (
+        "the board's movement frame, which faces two seats against each other "
+        "(one seat's forward is the other's backward)"
+    ),
+    "borders": "a seat's own two edges of the board, which the board gives to two seats",
+}
+
+
+def _seat_gate(need: BoardNeed) -> _ClauseGate:
+    """The row refusing every seat verb that reads `need` in a game without
+    exactly two seats -- asked of the game's own call by `_check_board_call`
+    and of a library's on its `uses` line."""
+    return _builtin_gate(
+        frozenset(v for v in _SEAT_CALL_FUNCS if BOARD_VERB_NEEDS[v] == need),
+        lambda g: g.board is not None and g.players.count != 2,
+        "read " + _SEAT_NEED_REASONS[need],
+        lambda g: f"this game declares `players: {g.players.count}`",
+        lambda g: "declare `players: 2`",
+        clause="players",
+        role="beside",
+    )
+
+
+# One row per need a seat verb reads, in `BOARD_NEEDS` order.
+_SEAT_GATES: tuple[_ClauseGate, ...] = tuple(
+    _seat_gate(need)
+    for need in BOARD_NEEDS
+    if any(BOARD_VERB_NEEDS[v] == need for v in _SEAT_CALL_FUNCS)
+)
 
 
 # Every gate on a construct's legality that a game clause decides, in the order
@@ -2180,15 +2227,7 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
     _CELL_RANGE_GATE,
     _BOARD_POSITION_GATE,
     *_BOARD_NEED_GATES,
-    _builtin_gate(
-        _FRAME_CALL_FUNCS,
-        lambda g: g.board is not None and g.players.count != 2,
-        "read a grid's two-player movement frame",
-        lambda g: f"this game declares `players: {g.players.count}`",
-        lambda g: "the frame is defined for two seats, so it needs `players: 2`",
-        clause="players",
-        role="beside",
-    ),
+    *_SEAT_GATES,
     _builtin_gate(
         RANKING_GATED_FUNCS,
         lambda g: not _declares_ranking(g),
@@ -4691,8 +4730,9 @@ def resolve(game: n.Game) -> n.Game:
     written = game
     game = _instantiate_rules(game, library_rules, bag)
 
+    rule_move_types = {m.name: m for m in game.move_types}
     for rule in game.rules:
-        _resolve_rule(rule, bag)
+        _resolve_rule(rule, rule_move_types, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
     _check_rule_removes(game.phases, known_rule_names, bag)
     _check_rules_reach_a_trick(game, bag)
@@ -4862,7 +4902,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
         # Declarations and game/phase structure. (The parameter-bearing ones are
         # covered by `_rewrite` + `_check_reserved_params` — see the docstring.)
         case (
-            n.Game() | n.PlayersSpec() | n.Winner() | n.Loser()
+            n.Game() | n.PlayersSpec() | n.Winner() | n.Loser() | n.StopResult()
             # The import nodes bind nothing: `uses` and `requires` name state and
             # definitions that already live in flat, game-wide namespaces, and a
             # `Library` is gone by the end of `_apply_uses` — its definitions are
@@ -5320,7 +5360,8 @@ def _check_rules_reach_a_trick(game: n.Game, bag: DiagnosticBag) -> None:
             f"<move> from ... source ... into ...`), so none of it would ever "
             f"apply — move it to the phase that runs the trick round, or, for a "
             f"trick played with chosen moves, filter the move instead (`where "
-            f"follows_lead(card, <pile>)`)",
+            f"follows_lead(card, <pile>)`), or, for a move made by an `offer`, "
+            f"state the condition in the move type's `when:`",
             (slots[0] if slots else modes[0]).span,
         )
 
@@ -5537,8 +5578,9 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     legality is a reachability question, not a lexical one, and 112 callable
     bodies across the corpus legitimately read phase-scoped state (issue #242).
     `Turns.again` and `RequireDecl.name` are bare `str`s that never become a
-    `NameRef` (issue #243); `winner:` is the third of that shape and is checked
-    here directly, because its name is right there to read.
+    `NameRef` (issue #243); a result ranking's target (`winner:`, the Stop
+    Result's ranking) is the third of that shape and is checked here directly,
+    because its name is right there to read.
     """
     declared_at: dict[str, list[str]] = {}
 
@@ -5617,20 +5659,16 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
             if isinstance(node, n.NameRef):
                 report(node, top)
 
-    # `winner: <dir> NAME` needs naming separately: `Winner.target` is a bare
+    # A result ranking's target needs naming separately: `state_var` is a bare
     # `str` and never becomes a `NameRef` (issue #243), so the walk above cannot
-    # see it.
-    # A name declared in no phase at all is `_validate_refs`'s unknown
+    # see it. A name declared in no phase at all is `_validate_refs`'s unknown
     # variable; this refusal is for state that exists, in the wrong scope.
-    where = declared_at.get(game.winner.state_var, []) if game.winner is not None else []
-    if game.winner is not None and game.winner.state_var not in top and where:
-        home = " or ".join(f"phase '{w}'" for w in where)
-        bag.error(
-            f"`winner:` ranks on state variable '{game.winner.state_var}', which "
-            f"is declared in {home} and so does not exist when the winner is "
-            f"decided — the phase has exited by then. Declare it at game level",
-            game.winner.span,
-        )
+    for ranking in _result_rankings(game):
+        target = ranking.state_var
+        where = declared_at.get(target, []) if target is not None else []
+        if target is not None and target not in top and where:
+            home = " or ".join(f"phase '{w}'" for w in where)
+            bag.error(ranking_slot(ranking).out_of_scope(target, home), ranking.span)
 
 
 # The board verbs that return a positional collection, each the `BoardEntry`
@@ -6096,6 +6134,24 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             "one; rank a score with `winner:` instead",
             game.loser.span,
         )
+    if (
+        game.stop_result is not None
+        and game.stop_result.kind == "as_it_stands"
+        and game.winner is None
+        and game.loser is not None
+    ):
+        # `as it stands` is the result clause read at the stopped position,
+        # and a game scored by `winner:` reads it at a stop as at a rules end
+        # (issue #247 is the game declaring both).
+        bag.error(
+            "`as it stands` reads the game's `winner:` clause at the stop, and "
+            "this game declares `loser:`, "
+            "which a stopped game has not decided: at a Length Stop it would "
+            "name nobody, several seats, or the wrong one. Declare `at "
+            "max_length: tie` — every seat a winner — or rank a state variable "
+            "the game keeps: `at max_length: lowest <variable>`.",
+            game.stop_result.span,
+        )
 
 
 # The declared types a game may be RANKED by: totally ordered, and their
@@ -6547,10 +6603,73 @@ _OWN_POOL_BLIND = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class RankingSlot:
+    """How the ranking guards address one slot a game ranks a state variable
+    in: `winner:`, and the Stop Result's ranking."""
+
+    clause: str     # the slot as the designer wrote it
+    ranks: str      # what the slot ranks: "<clause> ranks <ranks> on ..."
+    unknown: str    # the unknown-variable refusal's subject
+    # Why a phase's variable cannot be the target, true at the slot: a
+    # `winner:` is decided once every phase has exited, while a Length Stop
+    # can fall while the declaring phase still runs.
+    phase_reason: str
+
+    def out_of_scope(self, target: str, home: str) -> str:
+        return (
+            f"{self.clause} ranks on state variable '{target}', which is "
+            f"declared in {home} and so {self.phase_reason}. Declare it at "
+            f"game level"
+        )
+
+
+_WINNER_SLOT = RankingSlot(
+    "`winner:`",
+    "the game",
+    "winner",
+    "does not exist when the winner is decided — the phase has exited by then",
+)
+_STOP_SLOT = RankingSlot(
+    "`at max_length:`",
+    "the stopped game",
+    "`at max_length:`",
+    "exists only while that phase runs; the bound can stop the game in any "
+    "phase, so the stop cannot be scored from it",
+)
+
+
+def ranking_slot(ranking: n.Winner | n.StopResult) -> RankingSlot:
+    """How the ranking guards address the slot `ranking` is written in. The
+    grid crossing the target's declaration with the slot is
+    tests/test_winner_target.py, its slot axis reconciled against the
+    grammar's productions taking `RESULT_VAR_NAME`."""
+    match ranking:
+        case n.Winner():
+            return _WINNER_SLOT
+        case n.StopResult():
+            return _STOP_SLOT
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _result_rankings(game: n.Game) -> tuple[n.Winner | n.StopResult, ...]:
+    """The game's result rankings: its `winner:` clause, and its Stop Result
+    when that is a ranking."""
+    out: list[n.Winner | n.StopResult] = []
+    if game.winner is not None:
+        out.append(game.winner)
+    if game.stop_result is not None and game.stop_result.kind == "ranking":
+        out.append(game.stop_result)
+    return tuple(out)
+
+
 def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
-    """A `winner:` target must be a state variable a game can be ranked by,
-    and the game it returns carries the target's index role on its `winner:`
-    clause (`Winner.keyed_by`) -- the one fact the result is keyed through.
+    """Each result ranking's target must be a state variable a game can be
+    ranked by, and the game it returns carries the target's index role on
+    the ranking (`Winner.keyed_by`, `StopResult.keyed_by`) -- the one fact
+    the result is keyed through. One Owner Guard for both slots
+    (`ranking_slot`), each refusal addressed to the slot it fires in.
 
     Resolve already walls the NAME -- undeclared, or declared inside a phase
     -- and says nothing about the DECLARATION it lands on. Two of that
@@ -6575,14 +6694,29 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     The grid is tests/test_winner_target.py.
     """
-    if game.winner is None or game.state is None:
-        return game
-    decl = next(
-        (d for d in game.state.decls if d.name == game.winner.state_var), None
-    )
+    for ranking in _result_rankings(game):
+        keyed_by = _ranking_target_role(game, ranking, bag)
+        if keyed_by is None:
+            continue
+        if isinstance(ranking, n.Winner):
+            game = replace(game, winner=replace(ranking, keyed_by=keyed_by))
+        else:
+            game = replace(game, stop_result=replace(ranking, keyed_by=keyed_by))
+    return game
+
+
+def _ranking_target_role(
+    game: n.Game, ranking: n.Winner | n.StopResult, bag: DiagnosticBag
+) -> str | None:
+    """The index role of a ranking's target declaration, or None where the
+    declaration is refused here or is another guard's to report."""
+    if game.state is None:
+        return None
+    decl = next((d for d in game.state.decls if d.name == ranking.state_var), None)
     if decl is None:
-        return game
-    what = "`winner:` ranks the game on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
+        return None
+    slot = ranking_slot(ranking)
+    what = f"{slot.clause} ranks {slot.ranks} on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
     if decl.index is None:
         bag.error(
             f"" + what + f"which is not indexed — a game is ranked by a score each "
@@ -6590,26 +6724,26 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
             "`" + cite_named(decl, decl.name) + "[player]` or `"
             + cite_named(decl, decl.name) + "[team]`. A scalar has no "
             f"per-member value to rank",
-            game.winner.span,
+            ranking.span,
         )
-        return game
+        return None
     if decl.optional:
         bag.error(
             f"" + what + f"declared `{decl.type_name}?` — an optional score may be "
             f"`none`, which cannot be ranked against a number",
-            game.winner.span,
+            ranking.span,
         )
-        return game
+        return None
     if decl.type_name not in _RANKABLE_TYPES:
         rankable = ", ".join(sorted(_RANKABLE_TYPES))
         bag.error(
             f"" + what + f"declared `{decl.type_name}` — a game is ranked by a "
             f"score, so the target must be {rankable}. Its values become "
             f"the game's OpenSpiel returns",
-            game.winner.span,
+            ranking.span,
         )
-        return game
-    return replace(game, winner=replace(game.winner, keyed_by=decl.index))
+        return None
+    return decl.index
 
 
 def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
@@ -6686,10 +6820,11 @@ def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
 def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
     if game.max_length is None:
         bag.error(
-            f"game '{game.name}' must declare `max_length: <n>` — a bound on "
-            "decision/loop iterations the runtime enforces and the OpenSpiel "
-            "adapter reports (docs/decisions.md, \"Game length as a declared "
-            "contract\")",
+            f"game '{game.name}' must declare `max_length: <n>` — the most "
+            "decisions a run makes: a game that reaches it ends there, scored "
+            "by its Stop Result (`at max_length: …`) and a tie when it declares "
+            "none, and the OpenSpiel adapter reports it as the game's length "
+            "(docs/decisions.md, \"Game length as a declared contract\")",
             game.span,
         )
     elif game.max_length <= 0:
@@ -7484,61 +7619,114 @@ def _check_nested_ring_flags(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
-def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
-    """Reject rule surface no decision site can consult (decisions.md "Surface
-    totality"): accepted-but-ignored is the worst failure mode for a designer
-    tool, so a clause that enforces nothing is refused rather than parsed and
-    dropped. Every test is the COMPLEMENT of what `rules.legal_cards` actually
-    reads, never a list of the dead spellings — `LIBRARY_MOVE_TYPES` grows as
-    games land, and an enumeration of the dead would silently re-open this
-    hole for the new member.
+def _check_rule_reaches_a_reader(
+    rule: n.RuleDef, move_types: Mapping[str, n.MoveTypeDef], bag: DiagnosticBag
+) -> None:
+    """Refuse a rule no decision site consults (decisions.md "Rule demand
+    forms", "Surface totality"). A rule binds at the trick round's card
+    decision and nowhere else, so its `constrains:` is accepted only when it
+    names the move type that decision asks about, and every other target is
+    refused once, naming the construct that makes the move as the place its
+    condition goes: a move type the game declares, its `when:`; a family
+    library's move type, the library's `when:` or a move type and offer of
+    the game's own; a kernel move type, the form `KERNEL_MOVE_FORMS` records
+    for it; an absent clause, the trick move type. Any other spelling is
+    unknown. Each fix is applied and checked by tests/test_rule_constrains.py.
 
-    Runs after `_instantiate_rules`, so spliced library rules and instantiated
-    templates are checked on the same path as hand-written ones.
-
-    Where rules should bind beyond the trick round's card decision is
-    docs/open-questions/rule-scope-beyond-trick-play.md.
+    Runs after `_instantiate_rules`, so spliced library rules and
+    instantiated templates are checked on the same path as hand-written ones;
+    `move_types` is the game's after the splice, a family library's included.
     """
-    where = "docs/open-questions/rule-scope-beyond-trick-play.md"
-    if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
-        return  # already reported as an unknown move type; one error, not two
-    if rule.constrains != RULE_ENFORCED_MOVE_TYPE:
-        named = (
-            f"'{rule.constrains}'"
-            if rule.constrains is not None
-            else "no move type (the `constrains:` clause is absent)"
-        )
+    target = rule.constrains
+    named = cite_named(rule, f"'{rule.name}'")
+    trick = (
+        f"a rule binds only at the trick round's card decision, which asks "
+        f"about `{RULE_ENFORCED_MOVE_TYPE}`, so this rule would never fire"
+    )
+    if target is None:
         bag.error(
-            f"rule " + cite_named(rule, f"'{rule.name}'") + f" constrains {named}, which no decision site "
-            f"consults: rules are applied at exactly one place — the trick "
-            f"round's card decision, which asks about "
-            f"`{RULE_ENFORCED_MOVE_TYPE}` — so this rule would never fire. "
-            f"Constrain `{RULE_ENFORCED_MOVE_TYPE}`, or enforce the "
-            f"constraint where the move is made (a movement's `chosen N`, a "
-            f"move type's `when:` guard). Widening rule scope is an open "
-            f"question ({where}).",
+            "rule " + named + " constrains no move type (the `constrains:` clause is "
+            f"absent), which no decision site consults: {trick}. Name "
+            f"`{RULE_ENFORCED_MOVE_TYPE}` in its `constrains:`.",
             rule.span,
         )
-        return  # the clause Owner Guard below would pile onto the same broken rule
-    if rule.demands is None and rule.exempts is None:
+        return
+    declared = move_types.get(target) if target != RULE_ENFORCED_MOVE_TYPE else None
+    if declared is not None and declared.origin is None:
         bag.error(
-            f"rule " + cite_named(rule, f"'{rule.name}'") + f" enforces nothing: it declares neither a "
-            f"`demands:` card set nor an `exempts:` set, so activating it "
-            f"cannot change which cards are legal. Give it a `demands:` (with "
-            f"its `if_impossible:` fallback) or an `exempts:`, or delete it — "
-            f"`applies_when:` alone selects when a rule fires, not what it "
-            f"does.",
+            "rule " + named + " constrains " + cite_named(declared, f"`{target}`")
+            + f", a move type this game declares, but {trick}: write the condition "
+            f"in its `when:` instead; a condition that reads the whole position is "
+            f"a function the `when:` calls",
             rule.span,
         )
+        return
+    if declared is not None and declared.origin is not None:
+        bag.error(
+            "rule " + named + " constrains " + cite_named(declared, f"`{target}`")
+            + ", a move type of " + cite_library(declared.origin.library, declared.span)
+            + f", but {trick}. A condition every game using the library shares "
+            f"belongs in that move type's `when:` in the library; for this game "
+            f"alone, offer a move type of the game's own carrying the condition "
+            f"in its `when:`, in place of `{target}`, writing the offer in the game "
+            f"wherever the library's own procedure makes it",
+            rule.span,
+        )
+        return
+    form = KERNEL_MOVE_FORMS.get(target)
+    if form is None:
+        bag.error("rule " + named + f" constrains unknown move type '{target}'", rule.span)
+        return
+    head = "rule " + named + f" constrains '{target}', which no decision site consults: {trick}. "
+    match form:
+        case "trick_round":
+            if rule.demands is None and rule.exempts is None:
+                bag.error(
+                    "rule " + named + " enforces nothing: it declares neither a "
+                    "`demands:` card set nor an `exempts:` set, so activating it "
+                    "cannot change which cards are legal. Give it a `demands:` (with "
+                    "its `if_impossible:` fallback) or an `exempts:`, or delete it — "
+                    "`applies_when:` alone selects when a rule fires, not what it "
+                    "does.",
+                    rule.span,
+                )
+        case "offer":
+            bag.error(
+                head + f"Declare `{target}` as a move type of the game, with the "
+                f"condition in its `when:`, and offer it.",
+                rule.span,
+            )
+        case "chosen_movement":
+            bag.error(
+                head + "A card passed from hand to hand is a chosen movement "
+                "(`move chosen N cards from ... to ...`): state the condition on "
+                "the movement, its `chosen N` or a `where` filter.",
+                rule.span,
+            )
+        case "number_choice":
+            bag.error(
+                head + "A number a player names is a `choose integer in ...`: state "
+                f"the condition in its range or its `excluding`; or declare "
+                f"`{target}` as a move type of the game, with the condition in its "
+                f"`when:`, and offer it.",
+                rule.span,
+            )
+        case "climb_round":
+            bag.error(
+                head + "A climb round's play is legal by the round's `follows` "
+                "function: when the game declares that function, state the "
+                "condition there; a Registered Engine's `follows` fixes the "
+                "legality, and the game cannot add to it.",
+                rule.span,
+            )
+        case _:
+            assert_never(form)
 
 
-def _resolve_rule(rule: n.RuleDef, bag: DiagnosticBag) -> None:
-    if rule.constrains is not None and rule.constrains not in LIBRARY_MOVE_TYPES:
-        bag.error(
-            f"rule " + cite_named(rule, f"'{rule.name}'") + f" constrains unknown move type '{rule.constrains}'",
-            rule.span,
-        )
-    _check_rule_reaches_a_reader(rule, bag)
+def _resolve_rule(
+    rule: n.RuleDef, move_types: Mapping[str, n.MoveTypeDef], bag: DiagnosticBag
+) -> None:
+    _check_rule_reaches_a_reader(rule, move_types, bag)
     # A `demands` can filter the legal set to empty; the rule must say what
     # happens then (`if_impossible`) rather than relying on a silent default.
     if rule.demands is not None and rule.if_impossible is None:
@@ -9019,6 +9207,7 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     "state": "refused",
     "winner": "refused",
     "loser": "refused",
+    "stop_result": "refused",
     "rules": "refused",
     "functions": "refused",
     "primitives": "refused",
@@ -10513,6 +10702,19 @@ _ALWAYS_SITES: dict[type, _AlwaysSite] = {
 ALWAYS_HOLDERS: dict[str, str] = {site.clause: site.holder for site in _ALWAYS_SITES.values()}
 
 
+#: The refusal of `max_length` read as a value, undeclared. The bound is a game
+#: clause the engine stops at (decisions.md "Game length as a declared
+#: contract"), not state a rule can read, and the two things a designer
+#: writing it means each have a spelling.
+MAX_LENGTH_AS_VALUE = (
+    "`max_length` is the bound the engine stops a game at, not a value a rule "
+    "can read. To end the game after a number of turns by its rules, count the "
+    "turns in a state variable and compare it to a number. To say what a game "
+    "is worth when the engine stops it, write `at max_length: tie`, `at "
+    "max_length: as it stands`, or `at max_length: highest <variable>`."
+)
+
+
 def _always_message(clause: str) -> str:
     return f"`always` is not a condition — {ALWAYS_HOLDERS[clause]} has no `{clause}` line; leave it out"
 
@@ -10620,6 +10822,9 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                 hint = " (`player` is bound only inside a player query or quantifier)"
             elif (outside := _slot_name_outside_slot(node.name)) is not None:
                 bag.error(outside, node.span)
+                return replace(node, ref_kind=kind)
+            elif node.name == "max_length":
+                bag.error(MAX_LENGTH_AS_VALUE, node.span)
                 return replace(node, ref_kind=kind)
             bag.error(f"unresolved name '{node.name}'{hint}", node.span)
         return replace(node, ref_kind=kind)
@@ -11963,9 +12168,9 @@ def _unminted_direction(game: n.Game, name: str) -> str | None:
     entry = _declared_board(game)
     if entry is None or board_directions(entry):
         return None
-    destination = "a move on this board names its destination (`to : cell`)"
+    destination = "a move on this board names the cell it acts on (`at : cell`)"
     if entry.answers("edges"):
-        destination += " and the When Clause tests `to in neighbors(from)`"
+        destination += ", and `neighbors(c)` gives the cells the board joins to a cell"
     return f"board family '{entry.family}' mints no directions; {destination}"
 
 
@@ -12093,20 +12298,20 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
             verb, _, rest = gate.reads.partition(" ")
             bag.error(f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}", nd.span)
             return
-    # A frame verb reads the grid's two-seat per-player frame, defined only for
-    # players 0 and 1. Without this Owner Guard a game with three-plus (or one) seats
-    # resolves clean and then dies at setup/play with the frame's registry-bug
+    # A seat verb reads the board from one of its two seats -- a grid's
+    # per-player frame, or a seat's borders -- defined only for players 0 and
+    # 1. Without this Owner Guard a game with three-plus (or one) seats
+    # resolves clean and then dies at setup/play with the board's registry-bug
     # `ValueError` when a verb is called for seat 2 -- a typechecked game
-    # failing at runtime, in the wrong channel. Require exactly two players.
-    count = game.players.count
-    if nd.func in _FRAME_CALL_FUNCS and count != 2:
-        bag.error(
-            f"`{nd.func}` reads a grid's two-player movement frame (one seat's "
-            f"forward is the other's, the 180-degree opposite), but the game "
-            f"declares {count} players — the frame is defined for two seats "
-            f"(design-notes/board-topology.md); name seats directly for more",
-            nd.span,
-        )
+    # failing at runtime, in the wrong channel. The row for the part the verb
+    # reads (`_SEAT_GATES`) says why, as the `uses` line does.
+    for gate in _SEAT_GATES:
+        if _refuses(gate, nd, game):
+            verb, _, rest = gate.reads.partition(" ")
+            bag.error(
+                f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}; {gate.fix(game)}",
+                nd.span,
+            )
     args = nd.args
     if nd.func == "lines" and len(args) == 1 and isinstance(args[0], n.IntLit):
         try:
@@ -12563,10 +12768,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bad = _bad_zone_endpoint(game, nd.zone, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
-            case n.Winner() if nd.state_var not in cats.state_vars:
+            case n.Winner() | n.StopResult() if (
+                nd.state_var is not None and nd.state_var not in cats.state_vars
+            ):
                 bag.error(
                     _slot_name_outside_slot(nd.state_var)
-                    or f"winner references unknown variable '{nd.state_var}'",
+                    or f"{ranking_slot(nd).unknown} references unknown "
+                    f"variable '{nd.state_var}'",
                     nd.span,
                 )
             case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:

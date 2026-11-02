@@ -1,0 +1,18 @@
+// Guard: parse.py's `stop_result_lead_reject` (diagnostics.lark). The
+// game ends AT its bound, so the Stop Result is led by `at`; the twin
+// takes the clause with the preposition a designer reaches for first.
+game StopResultLeadBeyond {
+  players: 2
+  max_length: 30
+  beyond max_length: as it stands
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { coins[player] : Integer = 0  done : Boolean = false }
+  phase play {
+    turns t from 0 over all players until done {
+      as t { offer to t one of [stop] }
+    }
+  }
+  winner: highest coins
+}
+move_type stop { effect { done := true } }
