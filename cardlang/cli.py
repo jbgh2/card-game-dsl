@@ -39,8 +39,8 @@ Exit codes: 0 on success, a `play` session that reaches the bound included --
 the people at the table did it, and the game finished; 1 when the game file is
 where to look, whether a compile stage or the runtime says so -- which covers a
 file that is at fault, one whose own rule refused with nobody to tell, and a
-`demo` whose uniform-random play reached the bound, which the sizing rule says
-it never approaches; 2 when the
+`demo` whose uniform-random play reached the bound without its rules ending
+it, which the sizing rule says it does not; 2 when the
 invocation cannot be carried out — an unreadable path, a seat the game does
 not seat, opponents that do not seat every other seat once, a saved game that
 cannot be resumed or saved, a game whose decisions the action space cannot
@@ -86,7 +86,7 @@ from cardlang.play.session import (
 )
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
-from cardlang.runtime.driver import EndedBy, GameResult, play_game
+from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
 from cardlang.runtime.errors import GameDescriptionError, InstallationError, Located
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
@@ -749,8 +749,8 @@ def _listing(decisions: list[str | None]) -> str:
 def _demo_exit(result: GameResult) -> int:
     """`demo`'s exit code for a playout that ran: 0 when the game's rules
     ended it, 1 when it reached its `max_length` -- the sizing rule says
-    uniform-random play never approaches the bound, so the file is where to
-    look (docs/decisions.md, "Game length as a declared contract")."""
+    uniform-random play ends by the rules, so the file is where to look
+    (docs/decisions.md, "Game length as a declared contract")."""
     match result.ended_by:
         case EndedBy.RULES:
             return _EXIT_OK
@@ -765,8 +765,8 @@ def length_stop_line(game: n.Game, decisions: int) -> str:
     author whose bound it is."""
     return (
         f"uniform-random play reached {game.name}'s max_length ({decisions} "
-        f"decisions) without its rules ending it; the game is a tie. The bound "
-        f"is sized so the reference playout policy never approaches it: raise it "
+        f"decisions) without its rules ending it; {stop_result_words(game)}. The bound "
+        f"is sized so the reference playout policy's lines end by the rules: raise it "
         f"if this game genuinely runs this long, fix the loop if it should have "
         f"ended, or, if a table can lawfully play on without end, say so in the "
         f"game's twin and name the policy the harness plays it under."
@@ -777,7 +777,7 @@ def _summary(game: n.Game, result: GameResult, decisions: int, seed: int) -> str
     """The outcome in per-seat returns, led by the Length Stop's line when the
     game reached its bound.
 
-    `result.scores` is keyed by the `winner:` target's own index domain, so a
+    `result.scores` is keyed by the ranked target's own index domain, so a
     team-scored game's keys are teams and a `loser:` game has none at all
     (`driver.GameResult`); `returns_for` reads the per-seat scores instead, so
     the line pays the seats OpenSpiel pays.

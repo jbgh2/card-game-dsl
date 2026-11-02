@@ -509,6 +509,30 @@ move advances or removes a man — so no draw machinery. Invented by Dan
 Troyka, 2000; OpenSpiel's native `breakthrough` is the differential
 oracle.)
 
+(Hex, the ladder's sixth rung, is now in the corpus ([hex.md](hex.md)):
+the connection rung, 11x11 with no swap rule. It adds exactly one
+mechanism, reachability: the `connected` Builtin over the `hex_rhombus`
+family's declared six-neighbour adjacency and each seat's two borders,
+asked of the Set Form `cells where`. Monotone and drawless (a filled board
+always has exactly one winner), so its `max_length` is the board's 121
+cells; perfect information. Invented by Piet Hein, 1942. The native
+differential against OpenSpiel's `hex` (`board_size=11`, `swap=false`) is
+`tests/test_differential_hex.py`.)
+
+(Nine men's morris, the ladder's seventh rung, is now in the corpus
+([nine-mens-morris.md](nine-mens-morris.md)): the non-grid rung — an
+enumerated-graph board whose adjacency and sixteen mills are declared
+data, `neighbors` for the slide, the place, slide and fly phases as the
+offer's branch on one board, mill-triggered removal as a second decision
+inside the turn with the in-mill restriction as its When Clause, blockade
+loss detected in the turn body, and the ladder's first cyclic movement:
+no rules body states a move cap or a repetition draw, so a line that
+never ends stops at the game's `max_length`, a tie
+([decisions.md](../decisions.md), "Game length as a declared contract").
+The native differential against OpenSpiel's `nine_mens_morris` is
+`tests/test_differential_nine_mens_morris.py`, truncating at that
+implementation's turn cap (`kMaxNumTurns`, 200 completed turns).)
+
 ### backgammon
 
 2 players, the 24-point track + bar + bear-off, 15 checkers each, two
@@ -586,44 +610,6 @@ variant. **No OpenSpiel oracle** (verified absent) — acceptance is the
 proof battery plus playout characterization, flagged as the ladder's
 one non-differential rung.
 
-### hex
-
-2 players, 11×11 hex rhombus, no swap rule. Alternate placing stones;
-win by connecting your two opposite sides.
-
-**Why interesting.** Exactly one addition: the bounded `reachable`
-fixed point (class-5 connectivity) — the query generalization-path §1
-calls the real design object of the axis — on a hex tiling entry.
-Monotone, drawless (a filled hex board always has a winner), perfect
-information: everything else is wave-A machinery.
-
-**Notes.** Rules are two sentences; the pin excludes the swap/pie rule
-to match the oracle default. OpenSpiel `hex` (`board_size=11`,
-`swap=false`) is the oracle.
-
-### nine-mens-morris
-
-2 players, the 24-point mill board (an enumerated graph, not a grid),
-9 men each. Phase 1: alternate placing; phase 2: move to adjacent
-points; a player reduced to 3 men flies anywhere. Forming a mill
-(three declared collinear points) removes an opponent man — not from
-an opponent mill unless nothing else is available. Reduce the opponent
-to two men, or block them from moving, to win.
-
-**Why interesting.** The non-grid rung: an enumerated graph entry with
-declared mills, the place→move→fly phase shift on one board,
-mill-triggered removal (a second decision inside the turn, with the
-in-mill removal restriction as `remove`'s When Clause), blockade loss
-(no-legal-move as a termination predicate), and the ladder's first
-cyclic movement. No rules body states a move cap or a repetition draw
-for morris, so its cyclic lines end at its `max_length` as Length
-Stops ([decisions.md](../decisions.md), "Game length as a declared
-contract"), and the oracle's 200-turn cap is a harness bound, kept in
-the differential.
-
-**Notes.** Standard rules with the flying phase (flying is
-variant-divergent across sources — the pin names it explicitly).
-OpenSpiel `nine_mens_morris` is the oracle.
 
 ### english-draughts
 
@@ -639,7 +625,7 @@ uncrowned man moved.
 rulebook's own branch, an `offer` behind an `if` over a named function
 `can_jump(t)`, the first writer of the direction quantifier and of
 `dir`-typed function parameters; with
-[nine-mens-morris](#nine-mens-morris)'s in-mill removal restriction (a
+[nine-mens-morris](nine-mens-morris.md)'s in-mill removal restriction (a
 When Clause), the board witnesses of the one-site law
 ([decisions.md](../decisions.md), "Rule demand forms") -- jump
 `(from, over, to)` triples as declared relation data, multi-jump

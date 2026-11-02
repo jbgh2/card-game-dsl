@@ -43,12 +43,19 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               head from `declarable_type_names`, a collection's element from
               `COLLECTION_ELEMENT_NAMES` — and no name declared or minted at
               any of the sites in ``RESERVATION_SITES`` takes a spelling one of
-              ``POSITION_NAME_SOURCES`` already holds. And a ``winner:``
-              clause carries its target declaration's index role
-              (``Winner.keyed_by``), so no later pass walks state
-              declarations to learn how the result is keyed. A bare
-              ``DomainQuery`` noun names a declared position domain or the
-              direction domain the board minted, and a move parameter's
+              ``POSITION_NAME_SOURCES`` already holds. And every result
+              ranking -- a ``winner:`` clause, a Stop Result's ranking --
+              carries its target declaration's index role
+              (``Winner.keyed_by``, ``StopResult.keyed_by``), so no later pass
+              walks state declarations to learn how the result is keyed, and
+              an ``as it stands`` Stop Result sits only on a game with a
+              ``winner:`` clause. A bare
+              ``DomainQuery`` noun names a declared position domain or, for a
+              query kind in ``n.DIRECTION_QUERY_KINDS``, the direction domain the board
+              minted; a Set Form's noun names a Position Domain alone, held by
+              Derived and Pinned (the noun is a designer's string until this
+              pass classifies it against ``game.positions``;
+              tests/test_cell_set_form.py's noun grid). A move parameter's
               domain, a function parameter's type and an outcome payload's
               type name the direction domain only where the board minted it
               (``_minted_directions``, the one gate each of them reads), so a
@@ -171,9 +178,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               written text. The round clause's TYPE (``Suit?``)
               is typecheck's (``_check_round_trump``); its presence against
               its winner is settled here, with the winner namespace. And a
-              ``winner:`` target that is not a per-member score — unindexed,
-              optional, or declared outside ``Integer``/``Boolean``
-              (``_check_winner_target``, decisions.md "Game result:
+              result ranking's target (``ranking_slot``) that is not a
+              per-member score — unindexed, optional, or declared outside
+              ``Integer``/``Boolean`` (``_check_winner_target``, decisions.md "Game result:
               `winner:` and `loser:`"); ``runtime/driver`` may therefore
               assume the target reads as a map from member to score, and
               hard-fails on one this pass did not admit as its Shadow Guard.
@@ -350,6 +357,7 @@ from typing import (
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import (
+    LINE_NOUN,
     BOARD_DOMAIN,
     DIRECTION_DOMAIN,
     board_directions,
@@ -484,13 +492,14 @@ from cardlang.typecheck import (
 )
 from cardlang.types import Flavor, TCell, TCollection, TInteger, TPlayer, TTeam
 
-# The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
-# is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
-# Derived as exactly the board verbs taking a player argument, so a later
-# player-taking board verb joins this set (and its two-seat Owner Guard) by
-# construction rather than by a hand-list that would drift. The player-free
-# board calls (`lines`, `is_diagonal`) are not frame reads and stay unaffected.
-_FRAME_CALL_FUNCS = frozenset(
+# The board-only calls that read the board from one of its two seats -- a
+# movement frame's per-player view, where one seat's forward is the other's backward,
+# or a seat's own borders (cardlang/stdlib/boards.py). Derived as exactly the
+# board verbs taking a player argument, so a later player-taking board verb
+# joins this set (and its two-seat Owner Guard) by construction rather than by
+# a hand-list that would drift. The player-free board calls (`lines`,
+# `is_diagonal`, `neighbors`) read no seat and stay unaffected.
+_SEAT_CALL_FUNCS = frozenset(
     fn
     for fn in BOARD_ONLY_CALL_FUNCS
     if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
@@ -805,6 +814,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # twin `resolve`'s own comment has documented since before this table.
     (n.Turns, "again"): "state",
     (n.Winner, "state_var"): "state",
+    (n.StopResult, "state_var"): "state",
     # Zones. Both round forms name their two zones as bare strings.
     (n.TrickRound, "source_zone"): "zone",
     (n.TrickRound, "play_zone"): "zone",
@@ -955,6 +965,10 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Transfer, "amount"),
         (n.Transfer, "distribution"),
         (n.Winner, "rank_dir"),
+        # The Stop Result's member and its ranking's direction: grammar
+        # words the builder put there, never names.
+        (n.StopResult, "kind"),
+        (n.StopResult, "rank_dir"),
         (n.Game, "ranking_convention"),
         # The lowering stamp's two words: `form` is a `Literal`, and `key`
         # names the contract the table answers, never a designer-authored
@@ -995,6 +1009,7 @@ _METADATA_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
         (n.NameRef, "ref_kind"),
         (n.Winner, "keyed_by"),
+        (n.StopResult, "keyed_by"),
         # The Definition Contract a `uses` splice records: spellings copied off
         # a row as facts, never names a sweep resolves.
         (n.ContractStamp, "library"),
@@ -1065,10 +1080,12 @@ def _member_namespace(node: object) -> str | None:
 
 
 def _domain_query_namespace(node: object) -> str | None:
-    """A bare `any <domain> where …` names a declared position domain and binds
-    a member of it; the collection form (`all cells in <expr>`) binds a fixed
-    noun and names nothing. Only the bare form is a reference."""
-    return "position" if cast(n.DomainQuery, node).source is None else None
+    """A position query's noun names a declared position domain and binds a
+    member of it, in the bare form and the collection form alike (`any cell
+    where …`, `cells in home(p) where …`). The collection form's one fixed
+    noun, the board's `line`, names nothing."""
+    nd = cast(n.DomainQuery, node)
+    return None if nd.source is not None and nd.binder == LINE_NOUN else "position"
 
 
 @dataclass(frozen=True)
@@ -2052,7 +2069,8 @@ def _declared_board(game: n.Game) -> BoardEntry | None:
 _BOARD_NEED_PHRASES: dict[BoardNeed, str] = {
     "lines": "the board's lines",
     "edges": "the board's declared adjacency (which points it joins)",
-    "frame": "the board's movement frame (each seat's forward directions)",
+    "frame": "the board's movement frame (the directions each seat moves along)",
+    "borders": "each seat's two borders (the board edges it joins)",
 }
 
 
@@ -2098,6 +2116,41 @@ def _board_need_gate(need: BoardNeed) -> _ClauseGate:
 # One row per need, in `BOARD_NEEDS` order: a verb's refusal on a board that
 # does not declare what it reads.
 _BOARD_NEED_GATES: tuple[_ClauseGate, ...] = tuple(_board_need_gate(need) for need in BOARD_NEEDS)
+
+
+# Why a seat verb needs exactly two seats, by the part it reads, in the
+# designer's words. Keyed by every need a seat verb reads: a seat verb reading
+# a need with no reason here fails at import, building `_SEAT_GATES`.
+_SEAT_NEED_REASONS: dict[BoardNeed, str] = {
+    "frame": (
+        "the board's movement frame, which faces two seats against each other "
+        "(one seat's forward is the other's backward)"
+    ),
+    "borders": "a seat's own two edges of the board, which the board gives to two seats",
+}
+
+
+def _seat_gate(need: BoardNeed) -> _ClauseGate:
+    """The row refusing every seat verb that reads `need` in a game without
+    exactly two seats -- asked of the game's own call by `_check_board_call`
+    and of a library's on its `uses` line."""
+    return _builtin_gate(
+        frozenset(v for v in _SEAT_CALL_FUNCS if BOARD_VERB_NEEDS[v] == need),
+        lambda g: g.board is not None and g.players.count != 2,
+        "read " + _SEAT_NEED_REASONS[need],
+        lambda g: f"this game declares `players: {g.players.count}`",
+        lambda g: "declare `players: 2`",
+        clause="players",
+        role="beside",
+    )
+
+
+# One row per need a seat verb reads, in `BOARD_NEEDS` order.
+_SEAT_GATES: tuple[_ClauseGate, ...] = tuple(
+    _seat_gate(need)
+    for need in BOARD_NEEDS
+    if any(BOARD_VERB_NEEDS[v] == need for v in _SEAT_CALL_FUNCS)
+)
 
 
 # Every gate on a construct's legality that a game clause decides, in the order
@@ -2181,15 +2234,7 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
     _CELL_RANGE_GATE,
     _BOARD_POSITION_GATE,
     *_BOARD_NEED_GATES,
-    _builtin_gate(
-        _FRAME_CALL_FUNCS,
-        lambda g: g.board is not None and g.players.count != 2,
-        "read a grid's two-player movement frame",
-        lambda g: f"this game declares `players: {g.players.count}`",
-        lambda g: "the frame is defined for two seats, so it needs `players: 2`",
-        clause="players",
-        role="beside",
-    ),
+    *_SEAT_GATES,
     _builtin_gate(
         RANKING_GATED_FUNCS,
         lambda g: not _declares_ranking(g),
@@ -4692,23 +4737,26 @@ def resolve(game: n.Game) -> n.Game:
     written = game
     game = _instantiate_rules(game, library_rules, bag)
 
+    # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
+    # (`any cel where square[cell] …`) changes the binder name, so the body's
+    # `cell` reference would classify as unresolved first and mask the sharper
+    # unknown-noun diagnostic (bag order is report order). After
+    # `_instantiate_rules`, so instantiated rule bodies are covered too, and
+    # before a rule's clause shapes are read, so a noun naming something else
+    # is told what it names before its clause is judged by the query's shape.
+    noun_cats = _categories(game)
+    for dq in _walk(game):
+        if isinstance(dq, n.DomainQuery):
+            _check_domain_query(dq, game, noun_cats, bag)
+        elif isinstance(dq, n.SubsetQuery):
+            _check_subset_source(dq, bag)
+
     rule_move_types = {m.name: m for m in game.move_types}
     for rule in game.rules:
         _resolve_rule(rule, rule_move_types, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
     _check_rule_removes(game.phases, known_rule_names, bag)
     _check_rules_reach_a_trick(game, bag)
-
-    # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
-    # (`any cel where square[cell] …`) changes the binder name, so the body's
-    # `cell` reference would classify as unresolved first and mask the sharper
-    # unknown-noun diagnostic (bag order is report order). After
-    # `_instantiate_rules`, so instantiated rule bodies are covered too.
-    for dq in _walk(game):
-        if isinstance(dq, n.DomainQuery):
-            _check_domain_query(dq, game, bag)
-        elif isinstance(dq, n.SubsetQuery):
-            _check_subset_source(dq, bag)
 
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
@@ -4864,7 +4912,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
         # Declarations and game/phase structure. (The parameter-bearing ones are
         # covered by `_rewrite` + `_check_reserved_params` — see the docstring.)
         case (
-            n.Game() | n.PlayersSpec() | n.Winner() | n.Loser()
+            n.Game() | n.PlayersSpec() | n.Winner() | n.Loser() | n.StopResult()
             # The import nodes bind nothing: `uses` and `requires` name state and
             # definitions that already live in flat, game-wide namespaces, and a
             # `Library` is gone by the end of `_apply_uses` — its definitions are
@@ -5540,8 +5588,9 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     legality is a reachability question, not a lexical one, and 112 callable
     bodies across the corpus legitimately read phase-scoped state (issue #242).
     `Turns.again` and `RequireDecl.name` are bare `str`s that never become a
-    `NameRef` (issue #243); `winner:` is the third of that shape and is checked
-    here directly, because its name is right there to read.
+    `NameRef` (issue #243); a result ranking's target (`winner:`, the Stop
+    Result's ranking) is the third of that shape and is checked here directly,
+    because its name is right there to read.
     """
     declared_at: dict[str, list[str]] = {}
 
@@ -5620,20 +5669,16 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
             if isinstance(node, n.NameRef):
                 report(node, top)
 
-    # `winner: <dir> NAME` needs naming separately: `Winner.target` is a bare
+    # A result ranking's target needs naming separately: `state_var` is a bare
     # `str` and never becomes a `NameRef` (issue #243), so the walk above cannot
-    # see it.
-    # A name declared in no phase at all is `_validate_refs`'s unknown
+    # see it. A name declared in no phase at all is `_validate_refs`'s unknown
     # variable; this refusal is for state that exists, in the wrong scope.
-    where = declared_at.get(game.winner.state_var, []) if game.winner is not None else []
-    if game.winner is not None and game.winner.state_var not in top and where:
-        home = " or ".join(f"phase '{w}'" for w in where)
-        bag.error(
-            f"`winner:` ranks on state variable '{game.winner.state_var}', which "
-            f"is declared in {home} and so does not exist when the winner is "
-            f"decided — the phase has exited by then. Declare it at game level",
-            game.winner.span,
-        )
+    for ranking in _result_rankings(game):
+        target = ranking.state_var
+        where = declared_at.get(target, []) if target is not None else []
+        if target is not None and target not in top and where:
+            home = " or ".join(f"phase '{w}'" for w in where)
+            bag.error(ranking_slot(ranking).out_of_scope(target, home), ranking.span)
 
 
 # The board verbs that return a positional collection, each the `BoardEntry`
@@ -6099,6 +6144,24 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             "one; rank a score with `winner:` instead",
             game.loser.span,
         )
+    if (
+        game.stop_result is not None
+        and game.stop_result.kind == "as_it_stands"
+        and game.winner is None
+        and game.loser is not None
+    ):
+        # `as it stands` is the result clause read at the stopped position,
+        # and a game scored by `winner:` reads it at a stop as at a rules end
+        # (issue #247 is the game declaring both).
+        bag.error(
+            "`as it stands` reads the game's `winner:` clause at the stop, and "
+            "this game declares `loser:`, "
+            "which a stopped game has not decided: at a Length Stop it would "
+            "name nobody, several seats, or the wrong one. Declare `at "
+            "max_length: tie` — every seat a winner — or rank a state variable "
+            "the game keeps: `at max_length: lowest <variable>`.",
+            game.stop_result.span,
+        )
 
 
 # The declared types a game may be RANKED by: totally ordered, and their
@@ -6550,10 +6613,73 @@ _OWN_POOL_BLIND = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class RankingSlot:
+    """How the ranking guards address one slot a game ranks a state variable
+    in: `winner:`, and the Stop Result's ranking."""
+
+    clause: str     # the slot as the designer wrote it
+    ranks: str      # what the slot ranks: "<clause> ranks <ranks> on ..."
+    unknown: str    # the unknown-variable refusal's subject
+    # Why a phase's variable cannot be the target, true at the slot: a
+    # `winner:` is decided once every phase has exited, while a Length Stop
+    # can fall while the declaring phase still runs.
+    phase_reason: str
+
+    def out_of_scope(self, target: str, home: str) -> str:
+        return (
+            f"{self.clause} ranks on state variable '{target}', which is "
+            f"declared in {home} and so {self.phase_reason}. Declare it at "
+            f"game level"
+        )
+
+
+_WINNER_SLOT = RankingSlot(
+    "`winner:`",
+    "the game",
+    "winner",
+    "does not exist when the winner is decided — the phase has exited by then",
+)
+_STOP_SLOT = RankingSlot(
+    "`at max_length:`",
+    "the stopped game",
+    "`at max_length:`",
+    "exists only while that phase runs; the bound can stop the game in any "
+    "phase, so the stop cannot be scored from it",
+)
+
+
+def ranking_slot(ranking: n.Winner | n.StopResult) -> RankingSlot:
+    """How the ranking guards address the slot `ranking` is written in. The
+    grid crossing the target's declaration with the slot is
+    tests/test_winner_target.py, its slot axis reconciled against the
+    grammar's productions taking `RESULT_VAR_NAME`."""
+    match ranking:
+        case n.Winner():
+            return _WINNER_SLOT
+        case n.StopResult():
+            return _STOP_SLOT
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _result_rankings(game: n.Game) -> tuple[n.Winner | n.StopResult, ...]:
+    """The game's result rankings: its `winner:` clause, and its Stop Result
+    when that is a ranking."""
+    out: list[n.Winner | n.StopResult] = []
+    if game.winner is not None:
+        out.append(game.winner)
+    if game.stop_result is not None and game.stop_result.kind == "ranking":
+        out.append(game.stop_result)
+    return tuple(out)
+
+
 def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
-    """A `winner:` target must be a state variable a game can be ranked by,
-    and the game it returns carries the target's index role on its `winner:`
-    clause (`Winner.keyed_by`) -- the one fact the result is keyed through.
+    """Each result ranking's target must be a state variable a game can be
+    ranked by, and the game it returns carries the target's index role on
+    the ranking (`Winner.keyed_by`, `StopResult.keyed_by`) -- the one fact
+    the result is keyed through. One Owner Guard for both slots
+    (`ranking_slot`), each refusal addressed to the slot it fires in.
 
     Resolve already walls the NAME -- undeclared, or declared inside a phase
     -- and says nothing about the DECLARATION it lands on. Two of that
@@ -6578,14 +6704,29 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     The grid is tests/test_winner_target.py.
     """
-    if game.winner is None or game.state is None:
-        return game
-    decl = next(
-        (d for d in game.state.decls if d.name == game.winner.state_var), None
-    )
+    for ranking in _result_rankings(game):
+        keyed_by = _ranking_target_role(game, ranking, bag)
+        if keyed_by is None:
+            continue
+        if isinstance(ranking, n.Winner):
+            game = replace(game, winner=replace(ranking, keyed_by=keyed_by))
+        else:
+            game = replace(game, stop_result=replace(ranking, keyed_by=keyed_by))
+    return game
+
+
+def _ranking_target_role(
+    game: n.Game, ranking: n.Winner | n.StopResult, bag: DiagnosticBag
+) -> str | None:
+    """The index role of a ranking's target declaration, or None where the
+    declaration is refused here or is another guard's to report."""
+    if game.state is None:
+        return None
+    decl = next((d for d in game.state.decls if d.name == ranking.state_var), None)
     if decl is None:
-        return game
-    what = "`winner:` ranks the game on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
+        return None
+    slot = ranking_slot(ranking)
+    what = f"{slot.clause} ranks {slot.ranks} on state variable " + cite_named(decl, f"'{decl.name}'") + ", "
     if decl.index is None:
         bag.error(
             f"" + what + f"which is not indexed — a game is ranked by a score each "
@@ -6593,26 +6734,26 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> n.Game:
             "`" + cite_named(decl, decl.name) + "[player]` or `"
             + cite_named(decl, decl.name) + "[team]`. A scalar has no "
             f"per-member value to rank",
-            game.winner.span,
+            ranking.span,
         )
-        return game
+        return None
     if decl.optional:
         bag.error(
             f"" + what + f"declared `{decl.type_name}?` — an optional score may be "
             f"`none`, which cannot be ranked against a number",
-            game.winner.span,
+            ranking.span,
         )
-        return game
+        return None
     if decl.type_name not in _RANKABLE_TYPES:
         rankable = ", ".join(sorted(_RANKABLE_TYPES))
         bag.error(
             f"" + what + f"declared `{decl.type_name}` — a game is ranked by a "
             f"score, so the target must be {rankable}. Its values become "
             f"the game's OpenSpiel returns",
-            game.winner.span,
+            ranking.span,
         )
-        return game
-    return replace(game, winner=replace(game.winner, keyed_by=decl.index))
+        return None
+    return decl.index
 
 
 def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
@@ -6690,8 +6831,9 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
     if game.max_length is None:
         bag.error(
             f"game '{game.name}' must declare `max_length: <n>` — the most "
-            "decisions a run makes: a game that reaches it ends there as a "
-            "tie, and the OpenSpiel adapter reports it as the game's length "
+            "decisions a run makes: a game that reaches it ends there, scored "
+            "by its Stop Result (`at max_length: …`) and a tie when it declares "
+            "none, and the OpenSpiel adapter reports it as the game's length "
             "(docs/decisions.md, \"Game length as a declared contract\")",
             game.span,
         )
@@ -6791,7 +6933,7 @@ POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
     # The collection noun, found by crossing the sources against the slots that
     # read them. `DomainQuery.binder` carries ONE name resolved against two
     # namespaces, and the optional `in <collection>` clause is what picks: bare
-    # reads `game.positions`, the collection form reads `_COLLECTION_NOUNS`. So
+    # reads `game.positions`, the collection form also the board's `line`. So
     # in a board game `positions { line : 1..3 }` turns `any line where ...` —
     # rejected in every other board game, with a diagnostic pointing at the
     # collection form — into an accepted quantifier over the declared integer
@@ -6804,22 +6946,13 @@ POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
     #    `lines(k)` produces and which is board-only, so in a boardless game
     #    the noun has exactly one meaning and reserving it would take a name
     #    nothing else can claim.
-    #  * MINUS the board's minted domain. `cell` is a collection noun AND the
-    #    name the board mints, on purpose — `all cells in <line>` iterates
-    #    exactly those members. A declared `cell` beside a board is refused by
-    #    `_resolve_board`, whose message names both sites; reserving it here
-    #    too would answer the same mistake twice and less well. FreeCell's
-    #    `positions { cell : 1..4 }` — boardless — stays legal under both
-    #    narrowings.
-    # `_COLLECTION_NOUNS` is defined below, beside the guard that reads it; the
-    # lambda resolves it at call time.
+    #  * The line noun alone. A position domain is a collection noun by being
+    #    one (`all cells in <line>` iterates the minted `cell`'s members), so
+    #    only the board's `line`, no position domain, is reserved. FreeCell's
+    #    `positions { cell : 1..4 }` — boardless — stays legal.
     ReservedNameSource(
         "a collection noun",
-        lambda game: (
-            _COLLECTION_NOUNS - {BOARD_DOMAIN}
-            if game.board is not None
-            else frozenset()
-        ),
+        lambda game: frozenset({LINE_NOUN}) if game.board is not None else frozenset(),
     ),
 )
 
@@ -7808,6 +7941,11 @@ class _Categories:
     # The game's catalogue row labels, the values a play's `.shape` takes
     # (also in `enums`, where a bare label resolves).
     shapes: frozenset[str] = frozenset()
+    # The nouns a collection form ranges by (`collection_nouns`), and every
+    # name the game binds (`_names_bound_anywhere`): what the membership
+    # capture check reads at a collection set's node.
+    collection_nouns: frozenset[str] = frozenset()
+    bound_names: frozenset[str] = frozenset()
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -7858,6 +7996,8 @@ def _categories(game: n.Game) -> _Categories:
         suits=suit_names(game.deck) if _component_known(game.deck) else frozenset(),
         flavor=game.content_flavor,
         shapes=shape_labels(game),
+        collection_nouns=collection_nouns(game),
+        bound_names=_names_bound_anywhere(game),
     )
 
 
@@ -8109,6 +8249,12 @@ def _check_reserved_binders(game: n.Game, bag: DiagnosticBag) -> None:
     user-chosen binders: `for each <role> <binder>:`, `each <role>
     simultaneously:`, and `let <name>[<index>]`."""
     for nd in _walk(game):
+        if isinstance(nd, n.DomainQuery):
+            # A position query's binder is its noun, a domain name the designer
+            # did not choose as a binder; `_check_domain_query` and
+            # `_membership_capture` own it and name a reserved word as what it
+            # is.
+            continue
         for name in _introduced_binders(nd):
             _check_reserved(name, "binder", getattr(nd, "span", None), bag)
 
@@ -9075,6 +9221,7 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     "state": "refused",
     "winner": "refused",
     "loser": "refused",
+    "stop_result": "refused",
     "rules": "refused",
     "functions": "refused",
     "primitives": "refused",
@@ -10576,8 +10723,9 @@ ALWAYS_HOLDERS: dict[str, str] = {site.clause: site.holder for site in _ALWAYS_S
 MAX_LENGTH_AS_VALUE = (
     "`max_length` is the bound the engine stops a game at, not a value a rule "
     "can read. To end the game after a number of turns by its rules, count the "
-    "turns in a state variable and write that number. To stop it at the bound, "
-    "write nothing: the engine stops it there, and the game is a tie"
+    "turns in a state variable and compare it to a number. To say what a game "
+    "is worth when the engine stops it, write `at max_length: tie`, `at "
+    "max_length: as it stands`, or `at max_length: highest <variable>`."
 )
 
 
@@ -10622,6 +10770,12 @@ def _unknown_shape_label(node: n.BinOp, cats: _Categories) -> n.NameRef | None:
 
 
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
+    if isinstance(node, n.DomainQuery) and _may_be_a_membership(node, cats):
+        # The Owner Guard `_check_domain_query` leaves to the lexical scope. A
+        # refused capture's predicate is written over the outer binder, so it
+        # is not read under the captured noun.
+        if _membership_capture(node, cats, bag):
+            return node
     if isinstance(node, n.AppliesWhen) and _refuse_bare_always(
         node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
     ):
@@ -11956,11 +12110,6 @@ def _check_offering_moves(
             bag.error(f"offer names unknown move type '{name}'", span)
 
 
-# The collection quantifier nouns admitted at rung 1 (decisions.md "Boards and
-# cells"): `any line in …` / `all cells in …`. Any other `in` noun is rejected
-# naming these two; further nouns are a recorded residual (issue #111).
-_COLLECTION_NOUNS: frozenset[str] = frozenset({"line", "cell"})
-
 def _spelled_zone(member: n.Expr) -> str | None:
     """How a subset-source member is spelled, for the same-zone check: a bare
     name, a name with a literal index, or a name with a named index -- the
@@ -12034,9 +12183,9 @@ def _unminted_direction(game: n.Game, name: str) -> str | None:
     entry = _declared_board(game)
     if entry is None or board_directions(entry):
         return None
-    destination = "a move on this board names its destination (`to : cell`)"
+    destination = "a move on this board names the cell it acts on (`at : cell`)"
     if entry.answers("edges"):
-        destination += " and the When Clause tests `to in neighbors(from)`"
+        destination += ", and `neighbors(c)` gives the cells the board joins to a cell"
     return f"board family '{entry.family}' mints no directions; {destination}"
 
 
@@ -12058,83 +12207,344 @@ def _no_board_for_directions(game: n.Game, name: str) -> str:
     return f" -- `{DIRECTION_DOMAIN}` is " + refusal
 
 
-def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
+def _bare_noun_refusal(
+    nd: n.DomainQuery, head: str, game: n.Game, cats: _Categories, universe: str
+) -> str | None:
+    """The refusal of a bare position query whose noun is a name of another
+    kind, in words that say what the name is and a sentence for it that
+    checks; None for a name resolve does not know, which the caller refuses
+    as an unknown position domain. The kinds are resolve's own: the name
+    categories `_classify` reads, the definitions, the reserved words
+    (`_RESERVED_WHY`), and the binders the language fixes."""
+    reach = (
+        "gathers the members of a position domain"
+        if nd.kind not in n.DIRECTION_QUERY_KINDS
+        else "ranges over a position domain"
+    )
+    for name in dict.fromkeys((nd.binder, nd.spelled)):
+        said = _what_a_bare_noun_names(name, nd.kind, game, cats)
+        if said is not None:
+            what, fix = said
+            return f"`{head}` {reach}, and `{name}` is {what} -- {fix or universe}"
+    return None
+
+
+def _what_a_bare_noun_names(
+    name: str, kind: n.DomainQueryKind, game: n.Game, cats: _Categories
+) -> tuple[str, str | None] | None:
+    """What `name` is to resolve, and the sentence that says what a bare query
+    over it meant, when one exists (else None, and the caller names the
+    position domains)."""
+    zone = next((z for z in game.zones if z.name == name), None)
+    if zone is not None:
+        ref = name if zone.index is None else f"{name}[…]"
+        what = "a zone" if zone.index is None else "a zone family"
+        if cats.flavor == "piece":
+            return what, (
+                f"a piece game reads a zone's pieces in a movement's `where` "
+                f"filter (`move all pieces from {ref} where <pred> to <zone>`)"
+            )
+        return what, f"the cards in it satisfying a predicate are `cards in {ref} where <pred>`"
+    if name == n.SUBSET_BINDER and cats.flavor == "card":
+        return "the subset binder", (
+            "subsets are asked with `of`: "
+            "`number of subsets of <n> [or more] cards in <zone> where <pred>`"
+        )
+    if name == "piece" and cats.flavor == "piece":
+        return "the piece binder of a movement's `where` filter", (
+            "a movement filters pieces: `move all pieces from <zone> where <pred> to <zone>`"
+        )
+    if name == "seat":
+        return "a player's place in the turn ring", (
+            f"the seats are the players: write "
+            f"`{_player_register_spelling(kind)} where <pred>`"
+        )
+    if name in _RESERVED_WHY:
+        return f"a reserved word ({_RESERVED_WHY[name]})", None
+    if name in cats.state_vars:
+        return "a state variable", None
+    if name in cats.ranks and cats.flavor == "card":
+        return "a rank", None
+    if name in cats.suits and cats.flavor == "card":
+        return "a suit", None
+    if name in cats.enums | cats.ranks | cats.suits:
+        return "an enum value", None
+    for label, defs in (
+        ("a function", game.functions),
+        ("a procedure", game.procedures),
+        ("a move type", game.move_types),
+        ("a rule", game.rules),
+        ("a phase", game.phases),
+    ):
+        if any(d.name == name for d in defs):
+            return label, None
+    return None
+
+
+def _player_register_spelling(kind: n.DomainQueryKind) -> str:
+    """The player register's head for the same kind of query."""
+    match kind:
+        case "any":
+            return "any player"
+        case "all":
+            return "all players"
+        case "count":
+            return "number of players"
+        case "set":
+            return "players"
+        case unreachable:
+            assert_never(unreachable)
+
+
+def _check_domain_query(
+    nd: n.DomainQuery, game: n.Game, cats: _Categories, bag: DiagnosticBag
+) -> None:
     """Validate a positional-quantifier noun (decisions.md "Boards and cells").
 
-    A BARE form (`source is None`) ranges over a declared position domain or
-    the direction domain the board minted (`_minted_directions`); a game
-    naming a `dir` no board minted is refused naming what it lacks
-    (`_unminted_direction`). A COLLECTION form
-    (`in <expr>`) ranges over one of the rung-1 collection nouns {line, cell}.
-    The plural convention is a resolve Owner Guard, not a grammar one: `any`
-    takes the singular noun, `all`/`number of` the plural (singular +
-    "s"); a singular where the plural is required is guided to the plural
-    spelling, an unknown noun to the declared universe.
+    A BARE form (`source is None`) ranges over a declared position domain,
+    and a query kind in `n.DIRECTION_QUERY_KINDS` also over the direction
+    domain the board minted (`_minted_directions`); such a query naming a
+    `dir` no board minted is refused naming what it lacks
+    (`_unminted_direction`), and the Set Form, which gathers positions alone,
+    is refused naming the direction domain wherever `dir` is not a declared
+    position domain. A COLLECTION form (`in <expr>`) ranges over the members
+    of one of the game's position domains or over the board's lines
+    (`LINE_NOUN`); a bare `line` noun on a board is offered the collection
+    form. A noun naming a name of another kind is refused saying what it is
+    (`_bare_noun_refusal`). The collection set whose noun is a name the game
+    binds is left to `_rewrite`, which holds the lexical scope and refuses an
+    unparenthesized membership there. The plural convention is a resolve
+    Owner Guard, not a grammar one: `any` takes the singular noun,
+    `all`/`number of`/the Set Form the plural (singular + "s"); a singular
+    where the plural is required is guided to the plural spelling, an unknown
+    noun to the declared universe.
 
     suit/rank quantifiers never reach here: QNOUN excludes those spellings, so
     `any suit where …` is the fixed `Quantifier` form (guarded in a piece game
     by the CARD_AXIS_ROLES case below) -- the noun exclusion IS that guard."""
     phrase = n.DOMAIN_QUERY_KIND_PHRASE[nd.kind]
+    declared = {p.name for p in game.positions}
+    lack = _unminted_direction(game, nd.binder)
+    universe = (
+        f"declared position domains: {', '.join(sorted(declared))}"
+        if declared
+        else "this game declares no position domains"
+    )
     if nd.source is None:
-        declared = {p.name for p in game.positions}
-        directions = _minted_directions(game)
-        lack = _unminted_direction(game, nd.binder)
+        head = n.domain_query_head(nd.kind, nd.spelled)
+        if nd.kind in n.DIRECTION_QUERY_KINDS:
+            directions = _minted_directions(game)
+        else:
+            # The Set Form gathers positions; the direction domain is not one.
+            directions = frozenset()
+            if nd.binder not in declared and (
+                nd.binder in _minted_directions(game) or lack is not None
+            ):
+                bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
+                return
         if lack is not None:
-            bag.error(
-                f"`{phrase} {nd.spelled}` ranges over the board directions, but {lack}",
-                nd.span,
-            )
+            bag.error(f"`{head}` ranges over the board directions, but {lack}", nd.span)
             return
-        universe = (
-            f"declared position domains: {', '.join(sorted(declared))}"
-            if declared
-            else "this game declares no position domains"
-        )
         if directions:
             universe += (
                 "; the board direction domain: "
                 + ", ".join(sorted(directions))
             )
-        if nd.binder in _COLLECTION_NOUNS and nd.binder not in declared:
-            # A bare `any line where …`: the noun is a collection noun, so the
-            # designer almost certainly dropped the `in <collection>` clause.
+        if nd.binder == LINE_NOUN and nd.binder not in declared and game.board is not None:
+            # A bare `any line where …`: lines are quantified from a
+            # collection, so the designer dropped the `in <collection>`.
             universe += (
                 f" (a `{nd.binder}` is quantified from a collection: "
-                f"`{phrase} {nd.spelled} in <collection> where ...`)"
+                f"`{n.collection_query_head(nd.kind, nd.spelled)} in <collection> where ...`)"
             )
         target_ok = nd.binder in declared or nd.binder in directions
         noun_kind = "position domain"
     else:
-        if nd.binder == n.SUBSET_BINDER or nd.spelled == n.SUBSET_BINDER + "s":
+        head = f"{n.collection_query_head(nd.kind, nd.spelled)} in …"
+        if cats.flavor == "card" and (
+            nd.binder == n.SUBSET_BINDER or nd.spelled == n.SUBSET_BINDER + "s"
+        ):
             # `subset` names a real domain in the language, just not this
             # form's: `in` iterates a collection's MEMBERS, and subsets are
             # spelled with `of`. Calling the word unknown would be false, and
             # would send a designer looking for a declaration to add.
-            bag.error(
-                f"`{phrase} {nd.spelled} in ...` iterates a collection's "
-                f"members; subsets are spelled with `of` -- write "
-                f"`{phrase} {nd.spelled} of <n> [or more] cards in <zone> "
-                f"where ...`",
-                nd.span,
-            )
+            bag.error(_subset_refusal(nd.kind, head), nd.span)
             return
-        universe = "the `in` forms iterate a `line` or a `cell` collection"
-        target_ok = nd.binder in _COLLECTION_NOUNS
+        if nd.binder not in declared and (
+            nd.binder in _minted_directions(game) or lack is not None
+        ):
+            bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
+            return
+        if game.board is not None:
+            universe += f"; the board's lines: `{LINE_NOUN}`"
+        target_ok = nd.binder in collection_nouns(game)
         noun_kind = "collection noun"
+        if _may_be_a_membership(nd, cats):
+            # `x in <noun>s where …` with no parentheses: `_rewrite`, which
+            # holds the lexical scope, tells a membership from a noun.
+            return
+        if not target_ok:
+            zone = _zone_source(nd.source, game)
+            if zone is not None and cats.flavor == "card":
+                bag.error(
+                    f"`{head}` ranges over a position domain's members, and "
+                    f"`{nd.binder}` is no position domain of this game; `{zone}` is "
+                    f"a zone -- the cards in it satisfying a predicate are "
+                    f"`cards in {zone} where <pred>`",
+                    nd.span,
+                )
+                return
+    if not target_ok:
+        named = _bare_noun_refusal(nd, head, game, cats, universe)
+        if named is not None:
+            bag.error(named, nd.span)
+            return
     if nd.kind != "any" and not nd.spelled.endswith("s"):
-        # A singular noun under `all`/`number of`: guide to the plural if the
-        # singular names a real target, else fall through to unknown-noun.
+        # A singular noun under `all`/`number of`/the Set Form: guide to the
+        # plural if the singular names a real target, else fall through to
+        # unknown-noun.
         if target_ok:
-            bag.error(
-                f"`{phrase} {nd.spelled}` needs the plural noun -- write "
-                f"`{phrase} {nd.spelled}s`",
-                nd.span,
+            plural = nd.spelled + "s"
+            fixed = (
+                n.domain_query_head(nd.kind, plural)
+                if nd.source is None
+                else f"{n.collection_query_head(nd.kind, plural)} in …"
             )
+            bag.error(f"`{head}` needs the plural noun -- write `{fixed}`", nd.span)
             return
         bag.error(f"unknown {noun_kind} '{nd.spelled}' -- {universe}", nd.span)
         return
     if not target_ok:
         bag.error(f"unknown {noun_kind} '{nd.binder}' -- {universe}", nd.span)
+
+
+def _subset_refusal(kind: n.DomainQueryKind, head: str) -> str:
+    """A subset query written with `in`: subsets are spelled with `of`, and
+    the subset register has no set, so the set is told the forms it has."""
+    tail = "of <n> [or more] cards in <zone> where <pred>"
+    match kind:
+        case "any":
+            form = f"`any subset {tail}`"
+        case "all":
+            form = f"`all subsets {tail}`"
+        case "count":
+            form = f"`number of subsets {tail}`"
+        case "set":
+            return (
+                f"`{head}` iterates a collection's members; subsets are spelled "
+                f"with `of`, and are asked about or counted, never gathered -- "
+                f"write `any subset {tail}` or `number of subsets {tail}`"
+            )
+        case unreachable:
+            assert_never(unreachable)
+    return (
+        f"`{head}` iterates a collection's members; subsets are spelled with "
+        f"`of` -- write {form}"
+    )
+
+
+def collection_nouns(game: n.Game) -> frozenset[str]:
+    """The nouns a collection form ranges by: the game's position domains,
+    and, where the game has a board, its lines (decisions.md "Boards and
+    cells")."""
+    lines = {LINE_NOUN} if game.board is not None else set()
+    return frozenset({p.name for p in game.positions} | lines)
+
+
+def _direction_is_no_position(
+    kind: n.DomainQueryKind, head: str, binder: str, universe: str
+) -> str:
+    reach = (
+        "gathers the members of a position domain"
+        if kind not in n.DIRECTION_QUERY_KINDS
+        else "ranges over a position domain's members"
+    )
+    return (
+        f"`{head}` {reach}, and `{binder}` is the board direction domain, not a "
+        f"position domain -- {universe}"
+    )
+
+
+def _zone_source(source: n.Expr, game: n.Game) -> str | None:
+    """How a collection form's source is spelled when it names a zone."""
+    root = source.obj if isinstance(source, n.Subscript) else source
+    if isinstance(root, n.NameRef) and any(z.name == root.name for z in game.zones):
+        return n.short_spelling(source)
+    return None
+
+
+def _names_bound_anywhere(game: n.Game) -> frozenset[str]:
+    """Every name the game binds or declares as a value somewhere: its
+    binders (`_introduced_binders`), its definitions' parameters, its state
+    variables and the pronouns. A collection set whose noun is one of these
+    may be a membership written without its parentheses."""
+    names: set[str] = set(_PRONOUNS)
+    for nd in _walk(game):
+        names.update(_introduced_binders(nd))
+        if isinstance(nd, n.LetStmt):
+            names.add(nd.name)
+        if isinstance(nd, n.StateDecl):
+            names.add(nd.name)
+        params = getattr(nd, "params", None)
+        if isinstance(params, tuple):
+            names.update(p.name for p in params if isinstance(p, n.Parameter))
+    return frozenset(names)
+
+
+def _may_be_a_membership(nd: n.DomainQuery, cats: _Categories) -> bool:
+    """Whether a collection set may be `x in <query>` written without its
+    parentheses: its noun as written is a name the game binds, and is not the
+    plural of a noun a collection form ranges by."""
+    return (
+        nd.kind == "set"
+        and nd.source is not None
+        and nd.spelled in cats.bound_names
+        and (nd.binder not in cats.collection_nouns or not nd.spelled.endswith("s"))
+    )
+
+
+def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag) -> bool:
+    """A collection set over a noun nothing ranges by, read in the noun's
+    lexical scope: where the noun names a value there, it is `x in <query>`
+    written without its parentheses, and the refusal names the sentence that
+    checks; elsewhere the noun is unknown. True where the refusal is the
+    capture's."""
+    assert nd.source is not None
+    if _classify(nd.spelled, cats) is None and nd.binder in cats.collection_nouns:
+        plural = n.collection_query_head(nd.kind, nd.spelled + "s")
+        bag.error(f"`{nd.spelled} in …` needs the plural noun -- write `{plural} in …`", nd.span)
+        return False
+    if _classify(nd.spelled, cats) is None:
+        universe = (
+            f"declared position domains: {', '.join(sorted(cats.collection_nouns - {LINE_NOUN}))}"
+            if cats.collection_nouns - {LINE_NOUN}
+            else "this game declares no position domains"
+        )
+        bag.error(f"unknown collection noun '{nd.binder}' -- {universe}", nd.span)
+        return False
+    source = n.short_spelling(nd.source)
+    if isinstance(nd.source, n.NameRef) and nd.source.name in _query_nouns(cats):
+        # `cells`, `players`: the source is a query's own noun, so the query
+        # it began is parenthesized.
+        fixed = f"{nd.spelled} in ({source} where <pred>)"
+    else:
+        fixed = f"{nd.spelled} in {source or '<collection>'} and <pred>"
+    bag.error(
+        f"`{nd.spelled} in {source or '…'} where …` reads as a set gathered over "
+        f"`{nd.spelled}`, and `{nd.spelled}` is a value here -- a membership "
+        f"test against a query is parenthesized, and a membership beside a "
+        f"condition is joined with `and`: write `{fixed}`",
+        nd.span,
+    )
+    return True
+
+
+def _query_nouns(cats: _Categories) -> frozenset[str]:
+    """The plural nouns a query begins with where a membership's right side
+    would be one: the position domains' plurals and the player register's."""
+    positions = cats.collection_nouns - {LINE_NOUN}
+    players = {name + "s" for name in role_names(frozenset({Role.PLAYER}))}
+    return frozenset({noun + "s" for noun in positions} | players)
 
 
 def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
@@ -12164,20 +12574,20 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
             verb, _, rest = gate.reads.partition(" ")
             bag.error(f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}", nd.span)
             return
-    # A frame verb reads the grid's two-seat per-player frame, defined only for
-    # players 0 and 1. Without this Owner Guard a game with three-plus (or one) seats
-    # resolves clean and then dies at setup/play with the frame's registry-bug
+    # A seat verb reads the board from one of its two seats -- a grid's
+    # per-player frame, or a seat's borders -- defined only for players 0 and
+    # 1. Without this Owner Guard a game with three-plus (or one) seats
+    # resolves clean and then dies at setup/play with the board's registry-bug
     # `ValueError` when a verb is called for seat 2 -- a typechecked game
-    # failing at runtime, in the wrong channel. Require exactly two players.
-    count = game.players.count
-    if nd.func in _FRAME_CALL_FUNCS and count != 2:
-        bag.error(
-            f"`{nd.func}` reads a grid's two-player movement frame (one seat's "
-            f"forward is the other's, the 180-degree opposite), but the game "
-            f"declares {count} players — the frame is defined for two seats "
-            f"(design-notes/board-topology.md); name seats directly for more",
-            nd.span,
-        )
+    # failing at runtime, in the wrong channel. The row for the part the verb
+    # reads (`_SEAT_GATES`) says why, as the `uses` line does.
+    for gate in _SEAT_GATES:
+        if _refuses(gate, nd, game):
+            verb, _, rest = gate.reads.partition(" ")
+            bag.error(
+                f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}; {gate.fix(game)}",
+                nd.span,
+            )
     args = nd.args
     if nd.func == "lines" and len(args) == 1 and isinstance(args[0], n.IntLit):
         try:
@@ -12634,10 +13044,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bad = _bad_zone_endpoint(game, nd.zone, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
-            case n.Winner() if nd.state_var not in cats.state_vars:
+            case n.Winner() | n.StopResult() if (
+                nd.state_var is not None and nd.state_var not in cats.state_vars
+            ):
                 bag.error(
                     _slot_name_outside_slot(nd.state_var)
-                    or f"winner references unknown variable '{nd.state_var}'",
+                    or f"{ranking_slot(nd).unknown} references unknown "
+                    f"variable '{nd.state_var}'",
                     nd.span,
                 )
             case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:

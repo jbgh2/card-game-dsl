@@ -1,0 +1,1 @@
+connected_on_grid.cardlang:27:35: error: `connected` reads the board's declared adjacency (which points it joins), but `board: grid(3, 3)` has none — on this board a game may call `far_row`, `has_step`, `home`, `is_diagonal`, `is_forward`, `lines` or `neighbor`

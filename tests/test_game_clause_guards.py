@@ -37,7 +37,8 @@ domain:     the `?game_item` alternatives of the `game` production, times
             word is a name and whose rest is a whole `ranking:` clause), and
             an empty EXPRESSION slot. Within the
             `game` production `loser:` is the only clause whose last slot is
-            a bare `expr` (`winner:` takes `rank_dir NAME`), which is where
+            a bare `expr` (`winner:` and the Stop Result's ranking take
+            `rank_dir RESULT_VAR_NAME`), which is where
             the empty-EXPRESSION absorber is reachable at all.
             One thing sits outside, and it is not a gap: this module owns the
             clause STRUCTURE, so the content VOCABULARY a flavor admits —
@@ -186,6 +187,50 @@ def test_card_rank_excludes_every_clause_keyword(terminal: str) -> None:
     )
 
 
+def test_a_result_ranking_target_excludes_every_clause_keyword() -> None:
+    """`winner:` and the Stop Result's ranking each end with one state
+    variable name, so a ranking whose name is left off reads the next
+    clause's keyword as its name. The name terminal refuses every clause
+    keyword, derived as for the name runs above, so the slip is refused AT
+    the next clause, "expected a state variable name".
+
+    red under: delete `phase` from RESULT_VAR_NAME's exclusion list."""
+    keywords = {_clause_keyword(rule) for rule in _game_item_alternatives()}
+    missing = keywords - _terminal_excluded("RESULT_VAR_NAME")
+    assert not missing, (
+        f"game clause keyword(s) {sorted(missing)} are still legal names in "
+        f"RESULT_VAR_NAME, so a ranking with its name left off reads the next "
+        f"clause as its target — add them to RESULT_VAR_NAME's exclusion list "
+        f"in cardlang.lark"
+    )
+
+
+_BASE_RESERVED = {"all", "one", "some", "jointly", "not", "is", "number"}
+
+
+@pytest.mark.parametrize("slot", ["winner: highest {}", "at max_length: highest {}"])
+@pytest.mark.parametrize("word", sorted(_terminal_excluded("RESULT_VAR_NAME") - _BASE_RESERVED))
+def test_a_state_variable_named_for_a_clause_is_told_to_rename(word: str, slot: str) -> None:
+    """A state variable may be named for a clause keyword (`state { pieces[player]
+    : Integer = 0 }`), but a result ranking may not rank it: the refusal says
+    which word is reserved and how to rename the variable, in words true also
+    of a ranking whose name is left off above the next clause.
+
+    red under: return "" first in parse.py's `_reserved_result_name_hint`."""
+    winner = "" if slot.startswith("winner") else "  winner: highest score\n"
+    src = (
+        "game G {\n  players: 2\n  max_length: 10\n  cards: standard52\n"
+        "  zones { deck : Deck }\n"
+        f"  state {{ {word}[player] : Integer = 0  score[player] : Integer = 0 }}\n"
+        f"{winner}  {slot.format(word)}\n}}\n"
+    )
+    with pytest.raises(DiagnosticError) as refused:
+        parse_text(src, "reserved.cardlang")
+    message = refused.value.diagnostic.message
+    assert f"unexpected `{word}`; expected a state variable name" in message, message
+    assert f"if the variable is named `{word}`, rename it (for example `{word}_left`)" in message, message
+
+
 @pytest.mark.parametrize("rule_name", sorted(_game_item_alternatives()))
 def test_no_clause_is_absorbed_when_it_follows_suit_ranking(rule_name: str) -> None:
     """Every clause still parses as ITSELF when written after a `suit ranking:`
@@ -261,8 +306,10 @@ _CLAUSE_TEXT: dict[str, str] = {
     "state_block": "state { score[player] : Integer = 0 }",
     "phase": "phase p { }",
     "winner": "winner: highest score",
-    # `loser:` takes an expr, not `winner:`'s `rank_dir NAME`.
+    # `loser:` takes an expr, not `winner:`'s `rank_dir RESULT_VAR_NAME`.
     "loser": "loser: score",
+    # The ranking member, the one whose last slot is a name.
+    "stop_result": "at max_length: highest score",
 }
 
 
@@ -385,6 +432,7 @@ SINGLE_VALUED: dict[str, str] = {
     "state_block": "state { }",
     "winner": "winner:",
     "loser": "loser:",
+    "stop_result": "at max_length:",
 }
 
 # A minimal valid game (also the acceptance probe: it omits `direction:`,
@@ -427,6 +475,7 @@ _EXTRA_CLAUSE: dict[str, str] = {
     # reaches `once` without also having to name an implemented Primitive.
     "primitives_block": "  primitives { }",
     "loser": "  loser: active",
+    "stop_result": "  at max_length: tie",
 }
 
 

@@ -15,6 +15,17 @@ registry:   cardlang.runtime.values.COMPONENT_SETS,
             cardlang.runtime.values.ComponentSet.__post_init__,
             cardlang.runtime.values.build_deck,
             cardlang.runtime.values.component_set
+held by:    the size table is Derived and Pinned: `build_deck` is the one
+            source and `_DECK_SIZE` the consumer that re-spells it, held
+            equal by `test_every_set_declares_two_axes_and_a_size`. Each
+            piece set's composition is a Born-Green Pin, its own
+            `*_composition` test; not higher, because a composition is
+            registry data stating a domain fact (a board's capacity split by
+            turn order, a side's starting force), and a set is independent
+            of any board by design, so no type or derivation holds it. The
+            flavor and axis well-formedness are Unrepresentable at
+            construction: `ComponentSet.__post_init__` refuses a malformed
+            row, probed below.
 does not prove:  that every component set builds in the right ORDER. The
             order pins are frozen expected values on two sets — standard52
             (the suits x ranks cross-product path, first suit) and xo_marks
@@ -46,6 +57,7 @@ def test_decks_is_the_card_flavored_projection() -> None:
 
 @pytest.mark.parametrize("name", sorted(COMPONENT_SETS))
 def test_every_set_declares_two_axes_and_a_size(name: str) -> None:
+    """red under: changing `_DECK_SIZE["hex_stones"]` to 120."""
     cs = COMPONENT_SETS[name]
     assert len(cs.axes) == 2 and all(a.isidentifier() for a in cs.axes)
     assert cs.flavor in ("card", "piece")
@@ -61,6 +73,8 @@ def test_card_sets_spell_the_deck_axes() -> None:
 
 
 def test_xo_marks_composition() -> None:
+    """red under: swapping the x and o copy counts in
+    `COMPONENT_SETS["xo_marks"]` to 4 and 5."""
     marks = build_deck("xo_marks")
     assert len(marks) == 9
     assert sum(1 for m in marks if m.suit == "x") == 5
@@ -69,6 +83,8 @@ def test_xo_marks_composition() -> None:
 
 
 def test_breakthrough_men_composition() -> None:
+    """red under: changing the light and dark copy counts in
+    `COMPONENT_SETS["breakthrough_men"]` to 17 and 15."""
     men = build_deck("breakthrough_men")
     assert len(men) == 32
     assert sum(1 for m in men if m.suit == "light") == 16
@@ -88,6 +104,44 @@ def test_morris_men_composition() -> None:
     assert sum(1 for m in men if m.suit == "black") == 9
     assert all(m.rank == "man" for m in men)
     assert men[0].suit == "white"
+
+
+def test_hex_stones_composition() -> None:
+    """Hex: one stone per cell of the 11x11 board, split by turn order --
+    sixty-one black, sixty white, one kind. Black is the first side, seat
+    0's, as the OpenSpiel oracle's is.
+
+    red under: changing the black and white copy counts in
+    `COMPONENT_SETS["hex_stones"]` to 62 and 59 (the size still matches
+    `_DECK_SIZE`, so only this pin can see it)."""
+    cs = COMPONENT_SETS["hex_stones"]
+    assert cs.flavor == "piece"
+    assert "hex_stones" not in DECKS
+    stones = build_deck("hex_stones")
+    assert len(stones) == 121
+    assert sum(1 for s in stones if s.suit == "black") == 61
+    assert sum(1 for s in stones if s.suit == "white") == 60
+    assert all(s.rank == "stone" for s in stones)
+    assert stones[0].suit == "black"
+
+
+def test_draughts_men_composition() -> None:
+    """English draughts: twelve men a side and a king for every man, since
+    each may be crowned once. Red is the first side, seat 0's, as the WCDF's
+    rules have Red move first; `side` is the suit slot, `kind` the rank slot.
+
+    red under: changing the red and white king copy counts in
+    `COMPONENT_SETS["draughts_men"]` to 11 and 13 (the size still matches
+    `_DECK_SIZE`, so only this pin can see it)."""
+    cs = COMPONENT_SETS["draughts_men"]
+    assert cs.flavor == "piece" and cs.axes == ("side", "kind")
+    assert "draughts_men" not in DECKS
+    men = build_deck("draughts_men")
+    assert len(men) == 48
+    for side in ("red", "white"):
+        for kind in ("man", "king"):
+            assert sum(1 for m in men if m.suit == side and m.rank == kind) == 12, (side, kind)
+    assert men[0].suit == "red" and men[0].rank == "man"
 
 
 def test_build_deck_preserves_registry_literal_order() -> None:

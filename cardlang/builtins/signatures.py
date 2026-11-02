@@ -55,19 +55,29 @@ CALL_SIGS: dict[str, Sig] = {
     # The class-1 movement/region verbs (decisions.md "Boards and cells", rung-2
     # movement): `neighbor` the destination cell one step along a direction in a
     # player's frame, `has_step` the guard that gates it, `is_diagonal` whether
-    # the step captures, `home`/`far_row` the setup and reach-goal cell regions.
+    # the step changes file, `is_forward` whether it advances toward the far
+    # rank, `home`/`far_row` the setup and far-rank cell regions.
     # Each reads the `board:` entry (the `lines` twin, BOARD_ONLY). `home`/
     # `far_row` return `Collection<Cell>` -- the shape the `cell in <cellset>`
     # membership consumes.
     "neighbor": Sig((TCell(), TDir(), TPlayer()), TCell()),
     "has_step": Sig((TCell(), TDir(), TPlayer()), TBoolean()),
     "is_diagonal": Sig((TDir(),), TBoolean()),
+    "is_forward": Sig((TDir(),), TBoolean()),
     "home": Sig((TPlayer(),), TCollection(TCell())),
     "far_row": Sig((TPlayer(),), TCollection(TCell())),
+    # A seat's two borders on a board that declares them (the hex rhombus):
+    # the edge it starts from and the edge it joins it to, the `home` shape.
+    "near_edge": Sig((TPlayer(),), TCollection(TCell())),
+    "far_edge": Sig((TPlayer(),), TCollection(TCell())),
     # The cells a board's declared adjacency joins to a cell, in board order
     # (decisions.md "Boards and cells") -- the `home` shape, so `to in
     # neighbors(from)` and a quantifier narrowed by membership consume it.
     "neighbors": Sig((TCell(),), TCollection(TCell())),
+    # Whether some cell of `from` reaches some cell of `to` along the declared
+    # adjacency through cells of `via` (decisions.md "Boards and cells"):
+    # each argument a Region Verb's shape.
+    "connected": Sig((TCollection(TCell()),) * 3, TBoolean()),
     "player_holding": Sig((TCard(),), TPlayer()),
     "team_of": Sig((TPlayer(),), TTeam()),
     # `suit_of` accepts a card or a single-card zone (polymorphic arg -> TAny)

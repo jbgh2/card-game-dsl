@@ -16,11 +16,17 @@ Assumes: `name` reached resolve's call registry (`CALL_FUNCS`) and its
 arguments were coerced by the caller (`reads.coerce_args`) — this module never
 freezes an argument itself.
 Establishes: a value for every generic call, or `NOT_A_BUILTIN` when the name
-belongs to the Primitives half of the registry.
+belongs to the Primitives half of the registry. `connected` answers after at
+most one expansion per board cell, and refuses an argument that is not a
+collection of the board's cells (a value typed as the Permissive Top) as an
+`OwnerGuardError`.
 Illegal after: nothing — this module holds no state.
 Held by: a board verb on a board whose family does not declare what the verb
 reads is resolve's refusal; `_board_of` is its Shadow Guard here, reading the
-one table both read (`BOARD_VERB_NEEDS`, Derived and Pinned).
+one table both read (`BOARD_VERB_NEEDS`, Derived and Pinned). `connected`'s
+bound is a Born-Green Pin (tests/test_connected_builtin.py): the visited set
+is the shape that makes re-expansion unwritable, and no type states
+termination.
 
 This module must not import `runtime/primitives.py`. Which half of the registry
 a name belongs to is the caller's question (`runtime/evaluate.py`), and keeping
@@ -67,12 +73,20 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _has_step(ctx, args[0], args[1], args[2])
         case "is_diagonal":
             return _is_diagonal(ctx, args[0])
+        case "is_forward":
+            return _is_forward(ctx, args[0])
         case "home":
             return _home(ctx, args[0])
         case "far_row":
             return _far_row(ctx, args[0])
         case "neighbors":
             return _neighbors(ctx, args[0])
+        case "near_edge":
+            return _near_edge(ctx, args[0])
+        case "far_edge":
+            return _far_edge(ctx, args[0])
+        case "connected":
+            return _connected(ctx, args[0], args[1], args[2])
         case "player_holding":
             return _player_holding(args[0], ctx)
         case "team_of":
@@ -170,7 +184,8 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
 
 
 def _seat(ctx: Ctx, fn: str, player: int) -> int:
-    """A frame verb's player argument must be a seat of this game. A LITERAL
+    """A seat verb's player argument (the frame verbs, a seat's
+    borders) must be a seat of this game. A LITERAL
     out-of-range seat is refused statically (typecheck `_check_role_literal`),
     but that check returns early on anything that is not an integer literal, so
     a COMPUTED seat -- `home(1 + 1)` -- reaches here unchallenged. Nothing
@@ -212,12 +227,17 @@ def _has_step(ctx: Ctx, cell: str, direction: str, player: int) -> bool:
 
 
 def _is_diagonal(ctx: Ctx, direction: str) -> bool:
-    """Whether a step along `direction` captures (changes file)."""
+    """Whether a step along `direction` changes file."""
     return _board_of(ctx, "is_diagonal").is_diagonal(direction)
 
 
+def _is_forward(ctx: Ctx, direction: str) -> bool:
+    """Whether a step along `direction` advances toward the far rank."""
+    return _board_of(ctx, "is_forward").is_forward(direction)
+
+
 def _home(ctx: Ctx, player: int) -> tuple[str, ...]:
-    """A player's home region (back two ranks) -- a Collection<Cell>."""
+    """A player's home region (its back ranks) -- a Collection<Cell>."""
     return _board_of(ctx, "home").home(_seat(ctx, "home", player))
 
 
@@ -227,10 +247,28 @@ def _far_row(ctx: Ctx, player: int) -> tuple[str, ...]:
     return _board_of(ctx, "far_row").far_row(_seat(ctx, "far_row", player))
 
 
+def _near_edge(ctx: Ctx, player: int) -> tuple[str, ...]:
+    """The board edge `player` starts from -- a Collection<Cell>."""
+    return _board_of(ctx, "near_edge").near_edge(_seat(ctx, "near_edge", player))
+
+
+def _far_edge(ctx: Ctx, player: int) -> tuple[str, ...]:
+    """The board edge `player` joins its near edge to -- a Collection<Cell>."""
+    return _board_of(ctx, "far_edge").far_edge(_seat(ctx, "far_edge", player))
+
+
 def _neighbors(ctx: Ctx, cell: str) -> tuple[str, ...]:
     """The cells the board's declared adjacency joins to `cell`, in board
     order -- a Collection<Cell>."""
     return _board_of(ctx, "neighbors").neighbors(cell)
+
+
+def _connected(
+    ctx: Ctx, frm: tuple[str, ...], to: tuple[str, ...], via: tuple[str, ...]
+) -> bool:
+    """Whether some cell of `frm` reaches some cell of `to` along the board's
+    declared adjacency through cells of `via`."""
+    return _board_of(ctx, "connected").connected(frm, to, via)
 
 
 def _suit_of(value: Any) -> str:

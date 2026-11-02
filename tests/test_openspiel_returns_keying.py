@@ -55,7 +55,7 @@ import pytest
 from cardlang.domains import ZONE_INDEX_ROLES
 from cardlang.openspiel.replay import RANK_DIR_TO_SIGN, returns_for
 from cardlang.pipeline import check_dsl
-from cardlang.runtime.driver import SEAT_KEY_BY_ROLE, EndedBy, GameResult, seat_scores_of
+from cardlang.runtime.driver import SEAT_KEY_BY_ROLE, EndedBy, GameResult, ScoredBy, seat_scores_of
 from cardlang.runtime.values import TeamOf
 
 
@@ -186,6 +186,8 @@ def test_returns_follow_the_score_variables_key_domain(
             loser=None,
             hands_played=1,
             ended_by=EndedBy.RULES,
+            scored_by=ScoredBy.RANKING,
+            rank_dir=game.winner.rank_dir,
         ),
     )
     assert got == expected
@@ -247,7 +249,7 @@ def test_loser_game_returns_are_unaffected() -> None:
         game,
         GameResult(
             scores={}, seat_scores=(), winners=frozenset({0, 1}), loser=2, hands_played=1,
-            ended_by=EndedBy.RULES,
+            ended_by=EndedBy.RULES, scored_by=ScoredBy.LOSER, rank_dir=None,
         ),
     )
     assert got == [1.0, 1.0, -2.0]

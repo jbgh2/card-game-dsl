@@ -1,0 +1,1 @@
+lines3_on_hex_rhombus.cardlang:30:20: error: `lines` reads the board's lines, but `board: hex_rhombus(11)` has none — on this board a game may call `connected`, `far_edge`, `near_edge` or `neighbors`

@@ -345,11 +345,11 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
         new = name_map.get(node.name)
         if new is not None:
             node = replace(node, name=new)
-    elif isinstance(node, n.Winner):
-        # `winner: lowest/highest <target>` names its score state variable as
-        # a bare string too (the grammar production has no room for a general
-        # expression here), not a `NameRef`.
-        new = name_map.get(node.state_var)
+    elif isinstance(node, (n.Winner, n.StopResult)):
+        # `winner: lowest/highest <target>`, and a Stop Result's ranking, name
+        # their state variable as a bare string too (the grammar production
+        # has no room for a general expression here), not a `NameRef`.
+        new = name_map.get(node.state_var) if node.state_var is not None else None
         if new is not None:
             node = replace(node, state_var=new)
     elif isinstance(node, n.Turns):

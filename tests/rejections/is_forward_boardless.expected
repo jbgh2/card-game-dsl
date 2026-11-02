@@ -1,0 +1,1 @@
+is_forward_boardless.cardlang:23:13: error: `is_forward` reads the board, but the game declares no `board:`

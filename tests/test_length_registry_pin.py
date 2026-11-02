@@ -3,8 +3,8 @@ with headroom under its `max_length`; the corpus's legal Length Stops are
 asserted as stops; and `max_game_length` is a promise every registered game
 keeps (docs/decisions.md, "Game length as a declared contract").
 
-A game that reaches its bound ends there as a tie, flagged, and nothing
-refuses it. So what a looping `until` in a corpus game would have been
+A game that reaches its bound ends there, flagged, scored by its Stop
+Result, and nothing refuses it. So what a looping `until` in a corpus game would have been
 refused for, this module measures instead: a registered game whose
 reference-policy line stops by length, or runs within its dial of the bound,
 is red here.
@@ -14,10 +14,14 @@ Completeness ledger
 property:        every registered game, on every seed of the manifest,
                  under its reference playout policy, ends by its rules
                  (`ended_by == rules`) after fewer than `max_length / dial`
-                 picks; its lowest-id line, walked natively, reaches a
-                 terminal at or before its bound, ended the way
+                 picks, or, for a game whose bound is its rules' own
+                 (`RULES_BOUND`), at or before it, its row's seed
+                 reaching it by its rules; its lowest-id line,
+                 walked natively, reaches a terminal at or before its
+                 bound, ended the way
                  `LOWEST_ID_ENDS` names; Coup under `first` and Tichu under
-                 the uniform Chooser end by length, as ties.
+                 the uniform Chooser end by length, each scored as it stands
+                 as its file declares.
 domain:          the games this process registers at import, the corpus
                  (`registry.GAMES`) and every file `CARDLANG_GAMES` names,
                  crossed with the coverage manifest. A game registered later
@@ -27,20 +31,24 @@ registry:        games: `cardlang.openspiel.registry.GAMES` and
                  `cardlang.openspiel.game._entry_files`; policies:
                  `tests.playout_policy.REFERENCE_POLICIES`; seeds:
                  `tests.openspiel_ready.harness.SWAP_SEEDS`; dials: `HEADROOM`
-                 below and the lowest-id line's ends: `LOWEST_ID_ENDS`, both
-                 reconciled by `test_every_table_row_names_a_registered_game`.
+                 below, the rules-bound games: `RULES_BOUND`, and the
+                 lowest-id line's ends: `LOWEST_ID_ENDS`, all reconciled by
+                 `test_every_table_row_names_a_registered_game`.
 held by:         Born-Green Pin: whether a game's lines end by its rules is a
                  fact about its runs, which no type holds and the engine
                  cannot decide.
 does not prove:  that a line no policy in the table walks ends by its rules:
                  a designer's game under play the policy never makes may
-                 still meet its bound, and ends there as a tie.
+                 still meet its bound, and ends there by its Stop Result.
 
 red under: register tests/test_length_stop.py's `bounded_tic_tac_toe()`
 (tic-tac-toe at `max_length: 5`) through `CARDLANG_GAMES`; a uniform line that
 places five marks without a win stops by length. And: make `chooser.decide`'s
 `admit` admit every pick; no line stops at its bound, and every game in
-`LOWEST_ID_ENDS` walks past it.
+`LOWEST_ID_ENDS` walks past it. And: delete `RULES_BOUND`'s `hex` row; every
+Hex manifest cell falls within 4x of its 121. Name a seed whose line stops
+short of the board (`3`) in the row; its bound cell fails, the row's
+witness gone.
 """
 
 from __future__ import annotations
@@ -104,15 +112,31 @@ HEADROOM: dict[str, tuple[int, str]] = {
 }
 
 
+# The games whose `max_length` is the bound their rules put on every line,
+# not an allowance over measured play: a line may end by its rules exactly at
+# it, so no dial applies, and `ended_by == rules` is the whole manifest check.
+# Each row names a seed outside the manifest whose reference-policy line makes
+# exactly `max_length` picks and ends by its rules there, the row's executed
+# witness, and the rule that bounds the line.
+RULES_BOUND: dict[str, tuple[int, str]] = {
+    "hex": (
+        4,
+        "one stone per pick on 121 cells, and on a full board exactly one side "
+        "has joined its edges, so the 121st placement decides",
+    ),
+}
+
+
 # How the lowest-id line of seed `SWAP_SEEDS[0]` ends, for the games whose
-# line their rules never end (measured 2026-10-31): a table taking the first
-# pick at every decision loops, and the line ends at the bound. Every other
-# registered game's ends by its rules.
+# line their rules never end (measured 2026-10-31; nine-mens-morris
+# 2026-11-01): a table taking the first pick at every decision loops, and the
+# line ends at the bound. Every other registered game's ends by its rules.
 LOWEST_ID_ENDS: dict[str, str] = {
     "belote": "length",
     "coup": "length",
     "gin-rummy": "length",
     "klondike": "length",
+    "nine-mens-morris": "length",
     "tichu": "length",
 }
 
@@ -130,6 +154,8 @@ def test_every_table_row_names_a_registered_game() -> None:
     stems = {_stem(p) for p in REGISTERED.values()}
     assert set(REFERENCE_POLICIES) <= stems
     assert set(HEADROOM) <= stems
+    assert set(RULES_BOUND) <= stems
+    assert not set(HEADROOM) & set(RULES_BOUND)
     assert set(LOWEST_ID_ENDS) <= stems
 
 
@@ -148,12 +174,34 @@ def test_a_registered_game_ends_by_its_rules_with_headroom(short_name: str, seed
         f"{short_name} seed {seed}: the reference policy's line reached max_length "
         f"({game.max_length}) without the rules ending it"
     )
+    if _stem(path) in RULES_BOUND:
+        return
     dial, _why = HEADROOM.get(_stem(path), (DIAL, ""))
     assert picks * dial < game.max_length, (
         f"{short_name} seed {seed}: {picks} picks is within {dial}x of max_length "
         f"({game.max_length}); a finding about the game's length, never a reason "
         f"to raise the bound unmeasured"
     )
+
+
+@pytest.mark.parametrize("stem", sorted(RULES_BOUND))
+def test_a_rules_bounded_game_ends_by_its_rules_at_its_bound(stem: str) -> None:
+    """A row's claim that its bound is its rules' own, run: the row's seed
+    plays a reference-policy line that makes exactly `max_length` picks, and
+    the rules end it there, where a dial would refuse it."""
+    seed, _why = RULES_BOUND[stem]
+    path = next(p for p in REGISTERED.values() if _stem(p) == stem)
+    game = check_source(path)
+    assert game.max_length is not None
+    rng = random.Random(seed)
+    chooser = reference_policy_for(stem, rng) or random_chooser(rng)
+    world: list[RuntimeState] = []
+    result = play_game(game, rng, chooser=chooser, on_first_decision=world.append)
+    assert world[0].decisions_made == game.max_length, (
+        f"{stem} seed {seed}: the line made {world[0].decisions_made} picks, not "
+        f"its bound's {game.max_length}; name a seed whose line meets the bound"
+    )
+    assert _ended_by(result) == "rules"
 
 
 @pytest.mark.parametrize("short_name", sorted(REGISTERED))
@@ -180,21 +228,24 @@ def test_the_lowest_id_line_reaches_a_terminal_within_the_advertised_length(shor
 
 def test_coup_under_first_is_a_length_stop() -> None:
     """A table whose every seat takes the first pick repeats one exchange:
-    Coup's lines are legally unbounded, and this one ends by length, a tie."""
+    Coup's lines are legally unbounded, and this one ends by length, scored
+    as it stands: no seat has been exiled, so every seat's `alive` pays 1."""
     path = str(_GAMES_DIR / "coup.cardlang")
     line = LiveLine(path, 1)
     end = line.play({seat: FirstSeatPolicy() for seat in range(4)})
     assert _ended_by(end) == "length"
     assert len(line.history) == 500
-    assert end.returns == [0.0, 0.0, 0.0, 0.0]
+    assert end.returns == [1.0, 1.0, 1.0, 1.0]
 
 
 def test_tichu_under_the_uniform_chooser_is_a_length_stop() -> None:
     """A uniform Chooser calls tichu at about half of every offer and the race
-    to 1000 diverges: seed 0 reaches the bound."""
+    to 1000 diverges: seed 0 reaches the bound, scored as it stands, and the
+    team standing higher on `score` wins."""
     game = check_source(_GAMES_DIR / "tichu.cardlang")
     world: list[RuntimeState] = []
     result = play_game(game, random.Random(0), on_first_decision=world.append)
     assert _ended_by(result) == "length"
     assert world[0].decisions_made == game.max_length
-    assert result.winners == frozenset(range(4))
+    assert result.scores == {0: -12505, 1: -9095}
+    assert result.winners == frozenset({1, 3})

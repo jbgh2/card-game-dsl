@@ -94,6 +94,7 @@ game: _GAME_KW NAME "{" game_item* "}"
           | phase
           | winner
           | loser
+          | stop_result
 
 // `uses <library>` — a family-[[library]] import, the tier between game-local
 // and [[stdlib]] (decisions.md "Family libraries"). Unlike every other game clause this
@@ -224,7 +225,7 @@ shape_part: INT _CARD_KW              -> shape_card
 shape_qualifier: _ALL_KW _ONE_KW _SUIT_KW          -> q_all_one_suit
                | _NOT_KW _ALL_KW _ONE_KW _SUIT_KW  -> q_not_all_one_suit
                | _NOT_KW _IN_KW _SEQUENCE_KW       -> q_not_in_sequence
-SUIT_RANKING_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+SUIT_RANKING_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at|beyond|after)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The game's card-point table (decisions.md "Scoring has no constructs of its own"): a block
 // clause beside `cards:`, rank-keyed rows in `ranking:`'s key position, values
@@ -286,7 +287,7 @@ state_decl: NAME [index] ":" type_name "=" expr
 type_name: NAME "?"              -> optional_type
          | NAME                  -> plain_type
 
-winner: _WINNER_KW ":" rank_dir NAME
+winner: _WINNER_KW ":" rank_dir RESULT_VAR_NAME
 rank_dir: RANK_DIR
 RANK_DIR: /(?:lowest|highest)(?![A-Za-z0-9_])/
 
@@ -294,6 +295,16 @@ RANK_DIR: /(?:lowest|highest)(?![A-Za-z0-9_])/
 // still holding cards), not by ranking a score — so `loser:` takes a
 // player-valued expression rather than `winner:`'s `rank_dir <var>`.
 loser: _LOSER_KW ":" expr
+
+// The [[stop-result]] (decisions.md "Game result: `winner:` and `loser:`"):
+// what a game is worth when it ends by a Length Stop, written beside the
+// bound it qualifies. A tie when absent. `as it stands` reads the game's
+// `winner:` clause at the stopped position; the ranking takes `winner:`'s
+// own shape.
+stop_result: _AT_KW _MAX_LENGTH_KW ":" stop_value
+?stop_value: _TIE_KW                        -> stop_tie
+           | _AS_KW _IT_KW _STANDS_KW       -> stop_as_it_stands
+           | rank_dir RESULT_VAR_NAME       -> stop_ranking
 
 // ----------------------------------------------------------------------------
 // Phases
@@ -665,23 +676,36 @@ subset_size: sum _OR_KW _MORE_KW -> subset_floor
            | sum                 -> subset_exact
 
 
-// Boolean quantifiers, binder implicit (`player`/`team`/`suit`/`rank` is
-// bound per candidate, like `player` in the player queries). Card
-// quantification is the card_query `any card in … where` form above.
+// Quantifiers, binder implicit (`player`/`team`/`suit`/`rank` is bound per
+// candidate, like `player` in the player queries). Card quantification is the
+// card_query `any card in … where` form above.
 //
 // The `q_*_domain`/`q_*_in` forms are the positional twin (decisions.md
 // "Boards and cells"): the BARE forms range a binder over a declared
-// position domain (a board's `cell`, an integer `positions {}` name), the
-// COLLECTION forms iterate an evaluated `line`/`cell` collection. Their noun
-// is the QNOUN terminal, which EXCLUDES the keyword-form nouns
+// position domain (a board's `cell`, an integer `positions {}` name), and
+// the Boolean and counting quantifiers also over the board direction domain (a
+// board's `dir`); the COLLECTION forms iterate an evaluated collection of a
+// Position Domain's members or of a board's lines. Every query kind has
+// both forms, as the card register has every one over `in <zone>`: the
+// bare Set Form, `<noun>s where <pred>`, is the members of a Position
+// Domain satisfying the predicate, the twin of `players where`, and the
+// collection set, `<noun>s in <expr> where <pred>`, the twin of `cards in
+// <zone> where`. A collection count takes its `where`: with it optional,
+// `number of cells in cells where P` would read two ways. Every noun is the
+// QNOUN terminal, which EXCLUDES the keyword-form nouns
 // (player/team/suit/rank) and the card-query nouns (card) with their plurals
-// — so `any player where` can only be `q_any_player` and `any card in … where`
-// only `cq_any`, never a generic capture (proven at zero ambiguity over the
-// corpus in tests/test_grammar_ambiguity.py; the precedence is pinned in
-// tests/test_cell_queries.py). Resolve validates the noun against the game's
-// declared domains (bare) or the admitted `{line, cell}` set (collection);
-// the plural convention (`any` singular, `all`/`number of` plural) is a
-// resolve Owner Guard, not a grammar one.
+// — so `any player where` can only be `q_any_player`, `players where` only
+// `players_where` and `any card in … where` only `cq_any`, never a generic
+// capture (proven at zero ambiguity over the corpus in
+// tests/test_grammar_ambiguity.py; the precedence is pinned in
+// tests/test_cell_queries.py). Resolve validates a bare noun against the
+// game's position domains, and for the Boolean and counting quantifiers its
+// direction domain, and a collection noun against the game's position
+// domains and the board's `line`; the plural convention (`any` singular,
+// `all`/`number of`/the set plural) is a resolve Owner Guard, not a grammar
+// one. A membership's right side sits below these forms, so `x in cells
+// where …` derives the collection set over the noun `x`; resolve refuses it
+// where `x` names a value in scope, naming the parenthesized membership.
 quantifier: _ANY_KW _PLAYER_KW _WHERE_KW expr        -> q_any_player
           | _ALL_KW _PLAYERS_KW _WHERE_KW expr       -> q_all_player
           | _ANY_KW _TEAM_KW _WHERE_KW expr          -> q_any_team
@@ -693,8 +717,11 @@ quantifier: _ANY_KW _PLAYER_KW _WHERE_KW expr        -> q_any_player
           | _ANY_KW QNOUN _WHERE_KW expr             -> q_any_domain
           | _ALL_KW QNOUN _WHERE_KW expr             -> q_all_domain
           | _NUMBER_KW _OF_KW QNOUN _WHERE_KW expr   -> q_count_domain
+          | QNOUN _WHERE_KW expr                     -> q_set_domain
           | _ANY_KW QNOUN _IN_KW expr _WHERE_KW expr -> q_any_in
           | _ALL_KW QNOUN _IN_KW expr _WHERE_KW expr -> q_all_in
+          | QNOUN _IN_KW expr _WHERE_KW expr         -> q_set_in
+          | _NUMBER_KW _OF_KW QNOUN _IN_KW expr _WHERE_KW expr -> q_count_in
 
 
 // Aggregations in the English register, binder implicitly `card`. The order
@@ -785,7 +812,16 @@ card_literal: card_rank _OF_KW NAME
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
-CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_RANK_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at|beyond|after)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+
+// A result ranking's state variable name (`winner:` and the Stop Result's
+// ranking): a NAME refusing every game-clause keyword, as CARD_RANK_NAME
+// does, because each ranking ENDS with this one name: a ranking whose name is
+// left off would otherwise read the next clause's keyword as its target.
+// Refused there instead, "expected a state variable name". Pinned against
+// `?game_item` by
+// tests/test_game_clause_guards.py::test_a_result_ranking_target_excludes_every_clause_keyword.
+RESULT_VAR_NAME: /(?!(?:all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|suit|sequence|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives|at|beyond|after)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The card-point table's rank-key terminal: `ranking:`'s key position (a NAME
 // or a bare INT — the INT arm is on `card_points_key`), carrying NAME's base
@@ -846,8 +882,8 @@ zone_expr: NAME [index_expr]
 // underscore keeps Lark's auto-filtering of inline literals from the tree, so
 // naming a literal changes nothing else.
 //
-// The dynamic lexer is not the removable half of that: NAME, QNOUN and
-// CARD_RANK_NAME all match the same strings and are
+// The dynamic lexer is not the removable half of that: NAME, QNOUN,
+// CARD_RANK_NAME and RESULT_VAR_NAME all match the same strings and are
 // disambiguated by POSITION, so a context-free lexer — which would take the
 // longest match and end the class outright — cannot tokenize this grammar at
 // all. Anchoring is the fix that remains.
@@ -875,6 +911,7 @@ _APPLIES_WHEN_KW: "applies_when" /(?![A-Za-z0-9_])/
 // asserts `as` is the only one.
 _AS_KW: "as" /(?![A-Za-z0-9_-])/
 _AS_EQUALLY_AS_POSSIBLE_KW: "as-equally-as-possible" /(?![A-Za-z0-9_])/
+_AT_KW: "at" /(?![A-Za-z0-9_])/
 _BEFORE_KW: "before" /(?![A-Za-z0-9_])/
 _BEFORE_EACH_KW: "before_each" /(?![A-Za-z0-9_])/
 _BOARD_KW: "board" /(?![A-Za-z0-9_])/
@@ -922,6 +959,7 @@ _INTO_KW: "into" /(?![A-Za-z0-9_])/
 // `_re` and `sum is not_ready` as `is not` + `_ready` — the same trap, once as
 // a standalone keyword and once as the second word of a keyword pair.
 _IS_KW: "is" /(?![A-Za-z0-9_])/
+_IT_KW: "it" /(?![A-Za-z0-9_])/
 _JOINTLY_KW: "jointly" /(?![A-Za-z0-9_])/
 _LEGAL_MOVES_KW: "legal_moves" /(?![A-Za-z0-9_])/
 _LET_KW: "let" /(?![A-Za-z0-9_])/
@@ -974,6 +1012,7 @@ _SUBSET_KW: "subset" /(?![A-Za-z0-9_])/
 _SUBSETS_KW: "subsets" /(?![A-Za-z0-9_])/
 _MORE_KW: "more" /(?![A-Za-z0-9_])/
 _SOURCE_KW: "source" /(?![A-Za-z0-9_])/
+_STANDS_KW: "stands" /(?![A-Za-z0-9_])/
 _STATE_KW: "state" /(?![A-Za-z0-9_])/
 _SUIT_KW: "suit" /(?![A-Za-z0-9_])/
 _SUITS_KW: "suits" /(?![A-Za-z0-9_])/
@@ -983,6 +1022,7 @@ _TEAMS_KW: "teams" /(?![A-Za-z0-9_])/
 _THE_KW: "the" /(?![A-Za-z0-9_])/
 _THEN_KW: "then" /(?![A-Za-z0-9_])/
 _THROUGH_KW: "through" /(?![A-Za-z0-9_])/
+_TIE_KW: "tie" /(?![A-Za-z0-9_])/
 _TO_KW: "to" /(?![A-Za-z0-9_])/
 _TRANSITION_TO_KW: "transition_to" /(?![A-Za-z0-9_])/
 _TRUMP_KW: "trump" /(?![A-Za-z0-9_])/

@@ -1,0 +1,1 @@
+libraries/library_stop_result.cardlang:4:3: error: syntax error: unexpected `at`; expected `state`, `function` or `move_type`, among others

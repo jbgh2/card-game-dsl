@@ -11,9 +11,10 @@ What is proven here
 - Two-observer degeneracy (``test_indistinguishability_under_hidden_swap``):
   at a replayed mid-game pause, for EACH player no populated zone projects
   below identity (``hidden_cards == 0``) and all nine marks sit in
-  identity-projected zones (``visible == 9``); every mark identity appears in
-  the rendered information state; and both observers render the identical
-  board (the common-knowledge hallmark of perfect information). The base
+  identity-projected zones (``visible == 9``); every populated zone renders
+  under its own label with its occupant, so the observer sees WHERE each mark
+  is; and both observers render the identical board (the common-knowledge
+  hallmark of perfect information). The base
   proof's premise — a pair of worlds differing only in hidden content — is
   therefore unsatisfiable, so it is proven degenerate rather than skipped.
 - Soundness on own view (``test_soundness_own_view_changes_the_state``):
@@ -31,7 +32,7 @@ What is proven here
   with no root chance node and its generator refuses every draw
   (``cardlang.runtime.chance``). The property is proven over the corpus
   registry in ``tests/test_chance_free.py`` — classifier against an
-  independent draw counter, and a greedy line to a terminal node under
+  independent draw counter, and a uniform line ended by the rules under
   refusal — rather than restated per game here.
 
 The singleton-partition argument (the "bulletproof" claim)
@@ -85,7 +86,13 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
-from .partition import first_divergence, projection_for, record, zone_instances
+from .partition import (
+    first_divergence,
+    projection_for,
+    record,
+    unshown_occupants,
+    zone_instances,
+)
 
 PATH = str(GAMES_DIR / "tic-tac-toe.cardlang")
 
@@ -115,9 +122,11 @@ class TestReadiness(ReadinessProofs):
         rather than vacuously skip. At a replayed pause, for EACH player: no
         populated zone projects below identity (so no hidden pair exists for the
         base proof to swap), all nine marks sit in identity-projected zones, and
-        every mark identity appears in the rendered information state. Both
-        observers render the identical board — common knowledge — the hallmark
-        of a singleton partition under perfect information."""
+        every populated zone renders under its own label with its occupant
+        (red under: `_zone_line` rendering an identity zone as
+        `f"{label}=#{len(view)}"`). Both observers render the identical board
+        — common knowledge — the hallmark of a singleton partition under
+        perfect information."""
         _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, DecisionNode)
         renders: list[str] = []
@@ -140,14 +149,10 @@ class TestReadiness(ReadinessProofs):
                 f"in identity zones — a mark is over-hidden"
             )
             info = information_state(p, pause.rs, pause.obs_logs[p])
-            missing = [
-                str(c)
-                for _, _, zone in zone_instances(pause.rs)
-                for c in zone.cards
-                if str(c) not in info
-            ]
+            missing = unshown_occupants(pause.rs, info)
             assert not missing, (
-                f"cardlang_tic_tac_toe: marks absent from P{p}'s info state: {missing}"
+                f"cardlang_tic_tac_toe: P{p}'s info state does not show the "
+                f"marks on {missing}"
             )
             renders.append(_zone_render(info))
         assert renders[0] == renders[1], (

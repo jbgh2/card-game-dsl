@@ -805,6 +805,25 @@ conventions:
   ```text
   { side: [white, black], kind: [man], copies: { white: 9, black: 9 } }
   ```
+  Used by nine-mens-morris.
+
+- `hex_stones` = hex's stones, one per cell of the 11x11 board split by
+  turn order: sixty-one black, sixty white, all one kind. Black is the
+  first side, seat 0's. Same two-axis shape as `xo_marks`.
+  ```text
+  { side: [black, white], kind: [stone], copies: { black: 61, white: 60 } }
+  ```
+  Used by hex.
+
+- `draughts_men` = English draughts' pieces: twelve men a side and a king
+  for each, since every man may be crowned once. Red is the first side,
+  seat 0's, as the WCDF's rules have Red move first. A game holds the
+  kings in a pile of its own and crowns a man by two moves: the man off
+  its square, a king from the pile onto it.
+  ```text
+  { side: [red, white], kind: [man, king],
+    copies: { (red, man): 12, (red, king): 12, (white, man): 12, (white, king): 12 } }
+  ```
 
 Each entry captures a set's *composition* only. Card points
 (`card_points { }`), ranking for play (`ranking:`), follow-suit
@@ -815,13 +834,14 @@ on a deck; a piece set carries none of them.
 
 The spatial boards a game can name in its `board:` line (see
 [decisions.md](decisions.md), "Boards and cells"). A game names a
-**family** with its integer arguments — `board: grid(3, 3)` — or a
-fixed family by its bare name — `board: morris9` — and the closed
+[Board Family](glossary/board-family.md) with its integer arguments —
+`board: grid(3, 3)` — or a fixed family by its bare name —
+`board: morris9` — and the closed
 `BOARDS` registry instantiates it into a fixed set of cells and the
 topology the family declares over them: its lines, its adjacency, its
-movement frame. Unknown family, wrong arity, or out-of-bounds arguments
-are rejected at resolve, and so is a board verb on a family that does
-not declare what the verb reads.
+movement frame, each seat's borders. Unknown family, wrong arity, or
+out-of-bounds arguments are rejected at resolve, and so is a board verb on
+a family that does not declare what the verb reads.
 
 - `grid(width, height)` = a rectangular board, `width` files (`a`, `b`,
   … from the left) by `height` ranks (`1`, `2`, … from the bottom),
@@ -863,9 +883,46 @@ not declare what the verb reads.
   d5 d6 d7   e3 e4 e5   f2 f4 f6   g1 g4 g7
   ```
   It has no movement frame, so it mints no `dir` and answers none of
-  `neighbor`, `has_step`, `is_diagonal`, `home` and `far_row`; a move on
+  `neighbor`, `has_step`, `is_diagonal`, `is_forward`, `home` and
+  `far_row`; a move on
   it names its destination (`to : cell`) and tests `to in
-  neighbors(from)`.
+  neighbors(from)`. Used by nine-mens-morris.
+
+- `hex_rhombus(n)` = the Hex board: an n-by-n rhombus of hexagons, `n` in
+  `1..16`. Cells are named and ordered as the grid's (`a1 b1 … a2 …`,
+  file+rank, row-major from `a1`), the order OpenSpiel's `hex` numbers its
+  actions in. Its declared **adjacency** joins each hexagon to the cells
+  beside it along its rank, up and down its file, and along the up-left /
+  down-right diagonal (`b1`-`a2`, never `a1`-`b2`), so an acute corner
+  touches two cells, an obtuse corner three, an edge cell four and an
+  interior cell six (`neighbors(c)` reads it). Its **borders** are each seat's two board
+  edges: `near_edge(0)` is rank `1` and `far_edge(0)` rank `n`, seat 0
+  joining bottom to top; `near_edge(1)` is file `a` and `far_edge(1)` the
+  last file, seat 1 joining left to right; each corner hexagon is on both
+  of its edges. It declares no lines and no movement frame, so it mints no
+  `dir` and answers none of `lines`, `neighbor`, `has_step`,
+  `is_diagonal`, `is_forward`, `home` and `far_row`; `grid`, `morris9` and
+  `draughts` declare no borders and answer neither `near_edge` nor
+  `far_edge`. Used by hex.
+
+- `draughts(width, height)` = the board of the draughts family: the
+  playable squares of a `width` by `height` board, `width` in `3..16` (a
+  jump spans three files) and `height` in `7..16` (two three-rank homes
+  with a rank between them). A square is playable when `height - rank +
+  file` is odd, counting files from `0`, so the top-left corner never is:
+  at 8x8 that is the thirty-two dark squares with `a1` a playing square at
+  the first player's near left, as the WCDF's board has it, and on every
+  size the squares OpenSpiel's `checkers` plays on. Cells are named as the
+  grid's and ordered row-major from rank `1` (`a1 c1 e1 g1 b2 ...` at
+  8x8). Its movement **frame** has four diagonal directions, `ahead_left`,
+  `ahead_right`, `back_left` and `back_right` (its `dir` domain), the
+  second seat's the first's 180-degree rotation, so a step from a cell
+  lands on a cell or off the board; `is_forward` is true of the two
+  `ahead_*` members and `is_diagonal` of all four. Its **regions** are
+  `home(player)`, the playable squares of the back three ranks (twelve a
+  side at 8x8), and `far_row(player)`, the playable squares of the far
+  rank (the king-row). It declares no lines and no adjacency, so it
+  answers none of `lines`, `neighbors` and `connected`.
 
 A board mints the position domain `cell` (its cells, on the
 declared-position substrate) and, where its family has a movement
@@ -1008,11 +1065,21 @@ and which one is the game's own choice:
   or either diagonal, on `morris9` the sixteen mills (decisions.md "Boards
   and cells"), for the `any line in lines(k) where …` register. A resolve
   error in a game with no `board:`, and for a literal `k` the board does not
-  declare. Used by tic-tac-toe (`lines(3)`, the eight winning lines).
+  declare. Used by tic-tac-toe (`lines(3)`, the eight winning lines) and
+  nine-mens-morris (`lines(3)`, the sixteen mills).
 - `neighbors(c) → Collection<Cell>` — the cells the board's declared
   adjacency joins to `c`, in board order, for the membership form `to in
-  neighbors(from)`. Answered by `morris9`; refused on a grid, which declares
-  no adjacency.
+  neighbors(from)`. Answered by `morris9` and `hex_rhombus`; refused on a
+  grid, which declares no adjacency. Used by nine-mens-morris.
+- `connected(from, to, via) → Boolean` — whether some cell of `from`
+  reaches some cell of `to` along the board's declared adjacency with every
+  cell of the path, both ends included, in `via`; each argument a
+  `Collection<Cell>` (a Region Verb, a `[...]` list of cells, the Set Form
+  `cells where …`, or its collection twin `cells in <collection> where …`).
+  It expands each cell at most once and reads nothing but
+  the adjacency and its arguments (decisions.md "Boards and cells").
+  Answered by `morris9` and `hex_rhombus`; refused on a grid or a draughts
+  board, which declare no adjacency. Used by hex.
 - `neighbor(from, along, player) → Cell` — the cell one step along direction
   `along` in `player`'s frame. Total by contract: an off-board step is guarded
   by `has_step`, not returned (decisions.md "Boards and cells", transfer).
@@ -1020,8 +1087,11 @@ and which one is the game's own choice:
   board (the guard that gates `neighbor`).
 - `is_diagonal(along) → Boolean` — whether a step along `along` changes file
   (a grid's capturing directions).
-- `home(player) → Collection<Cell>` — a player's back two ranks (its setup
-  region).
+- `is_forward(along) -> Boolean` - whether a step along `along` advances
+  toward the far rank: a draughts man's two directions, and every grid
+  direction.
+- `home(player) -> Collection<Cell>` - a player's back ranks, two on a grid
+  and three on a draughts board (its setup region).
 - `far_row(player) → Collection<Cell>` — the far edge of `player`'s frame (its
   reach-to-win goal).
   These board helpers read the board's movement frame (a resolve error

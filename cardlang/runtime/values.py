@@ -251,6 +251,33 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
             cards=(("man", "white"),) * 9 + (("man", "black"),) * 9,
         ),
     ),
+    # Hex: one stone per cell of the 11x11 board, split by turn order. Black
+    # is the first side, seat 0's, as the OpenSpiel oracle's is, so black
+    # holds the odd stone and neither reserve empties before the board fills.
+    "hex_stones": ComponentSet(
+        "piece",
+        ("side", "kind"),
+        Deck(
+            suits=(),
+            ranks=(),
+            cards=(("stone", "black"),) * 61 + (("stone", "white"),) * 60,
+        ),
+    ),
+    # English draughts: twelve men a side and a king for each, since every man
+    # may be crowned once; a crowned man is swapped for a king from a supply.
+    # Red is the first side, seat 0's, as the WCDF's rules have Red move first.
+    "draughts_men": ComponentSet(
+        "piece",
+        ("side", "kind"),
+        Deck(
+            suits=(),
+            ranks=(),
+            cards=(("man", "red"),) * 12
+            + (("king", "red"),) * 12
+            + (("man", "white"),) * 12
+            + (("king", "white"),) * 12,
+        ),
+    ),
 }
 
 # The card-flavored projection every pre-existing deck consumer reads;

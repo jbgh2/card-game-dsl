@@ -1,0 +1,1 @@
+result_ranking_reserved_name.cardlang:16:19: error: syntax error: unexpected `pieces`; expected a state variable name — `pieces` is reserved by the game's clauses, so it cannot be the state variable a result ranks: if the variable is named `pieces`, rename it (for example `pieces_left`); otherwise write the variable's name before the next clause
