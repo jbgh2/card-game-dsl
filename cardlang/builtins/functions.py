@@ -144,6 +144,7 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "neighbors",  # the cells a board's declared adjacency joins to a cell
         "near_edge",  # the board edge a seat starts from (Collection<Cell>)
         "far_edge",  # the board edge a seat joins its near edge to (Collection<Cell>)
+        "connected",  # whether two cell sets join through a third along the declared adjacency
         "player_holding",
         "team_of",  # the team a player belongs to
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
@@ -300,6 +301,7 @@ TRICK_ORDER_ROW_UNCALLABLE: frozenset[str] = frozenset(
         "neighbors",
         "near_edge",
         "far_edge",
+        "connected",
         "highest_trump_or_led_suit",  # the standard winner, excluded beside a block anyway
         "highest_by_trick_order",  # a consumer: reads every row of the order it would define
         "follows_lead",  # a consumer, likewise
@@ -356,6 +358,7 @@ BUILTIN_READS_NOTHING: frozenset[str] = frozenset(
         "neighbors",
         "near_edge",
         "far_edge",
+        "connected",
         "team_of",
         "suit_value",
         "error",
@@ -489,6 +492,7 @@ BOARD_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "neighbors",  # the cells joined to a cell -- reads ctx.rs.board
         "near_edge",  # a seat's starting border -- reads ctx.rs.board
         "far_edge",  # a seat's goal border -- reads ctx.rs.board
+        "connected",  # reachability along the declared adjacency -- reads ctx.rs.board
     }
 )
 
@@ -507,6 +511,7 @@ BOARD_NEEDS: tuple[BoardNeed, ...] = typing.get_args(BoardNeed)
 BOARD_VERB_NEEDS: dict[str, BoardNeed] = {
     "lines": "lines",
     "neighbors": "edges",
+    "connected": "edges",
     "neighbor": "frame",
     "has_step": "frame",
     "is_diagonal": "frame",

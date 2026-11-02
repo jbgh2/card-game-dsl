@@ -282,32 +282,41 @@ class CardQuery:
     span: Span | None = None
 
 
+# The query kinds of the positional quantifier register, one per bare alternative
+# of the grammar's `quantifier` rule that builds a `DomainQuery`.
+DomainQueryKind = Literal["any", "all", "count", "set"]
+DOMAIN_QUERY_KINDS: tuple[DomainQueryKind, ...] = get_args(DomainQueryKind)
+
+
 @dataclass(frozen=True, slots=True)
 class DomainQuery:
     """The generic position-domain / collection quantifier register
     (decisions.md "Boards and cells"), the positional twin of the fixed
-    `Quantifier` forms. Five surface spellings, one node:
+    `Quantifier` forms. Six surface spellings, one node:
 
     - BARE, over a declared position domain or the board's direction domain
       (`source is None`):
       `any <domain> where <pred>`      (kind "any")
       `all <domain>s where <pred>`     (kind "all")
       `number of <domain>s where <pred>` (kind "count")
+      `<domain>s where <pred>`         (kind "set", position domains only)
       -- `binder` is the singular domain noun, bound per member of the
       domain's ordered members (`cell` or `dir` for a board, an integer
-      `positions {}` name like `column`).
+      `positions {}` name like `column`); the set is the members satisfying
+      the predicate, in that order.
 
-    - COLLECTION, over an evaluated collection (`source` present):
-      `any line in <source> where <pred>`  (noun `line`, binds each line)
-      `all cells in <source> where <pred>` (noun `cell`, binds each cell)
-      -- `binder` is the singular noun (`line` / `cell`), fixed at rung 1.
+    - COLLECTION, over an evaluated collection (`source` present), every
+      kind again: `any cell in <source> where <pred>`, `all cells in …`,
+      `number of cells in …`, `cells in <source> where <pred>` -- `binder`
+      is the singular noun, a position domain or the board's `line`, bound
+      per member of the source in its order.
 
     `spelled` is the noun exactly as written (plural for `all`/`count`),
     kept only so resolve's plural-mismatch diagnostic can quote it; `binder`
     is the derived singular (the scoped name and, for bare forms, the domain
     to enumerate)."""
 
-    kind: str  # "any" | "all" | "count"
+    kind: DomainQueryKind
     binder: str  # the singular noun: binder name + (bare) domain to enumerate
     spelled: str  # the noun as written (for the plural diagnostic)
     source: Expr | None  # None for bare forms; the iterated collection for `in`
@@ -316,8 +325,62 @@ class DomainQuery:
 
 
 # The keyword phrase each DomainQuery kind spells in a diagnostic. Owned here
-# beside the node so resolve and typecheck read one table, not two.
-DOMAIN_QUERY_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count": "number of"}
+# beside the node so resolve and typecheck read one table, not two; its keys
+# are `DOMAIN_QUERY_KINDS`, pinned by
+# tests/test_cell_queries.py::test_the_phrase_table_is_the_kind_literal.
+DOMAIN_QUERY_KIND_PHRASE: dict[DomainQueryKind, str] = {
+    "any": "any",
+    "all": "all",
+    "count": "number of",
+    "set": "",
+}
+
+# The kinds whose bare form gathers Position Domain members alone, never the
+# board direction domain's (decisions.md "Boards and cells", the Set Form).
+POSITION_ONLY_QUERY_KINDS: frozenset[DomainQueryKind] = frozenset({"set"})
+
+# The kinds whose bare form ranges over the board direction domain as well as
+# the Position Domains. Resolve's `_check_domain_query` is the one reader that
+# admits a noun by it.
+DIRECTION_QUERY_KINDS: frozenset[DomainQueryKind] = (
+    frozenset(DOMAIN_QUERY_KINDS) - POSITION_ONLY_QUERY_KINDS
+)
+
+def collection_query_head(kind: DomainQueryKind, spelled: str) -> str:
+    """A collection form's head as a diagnostic quotes it, before its `in`:
+    the kind's phrase and the noun as written (`any cell`, `cells`)."""
+    phrase = DOMAIN_QUERY_KIND_PHRASE[kind]
+    return f"{phrase} {spelled}" if phrase else spelled
+
+
+def short_spelling(e: Expr) -> str | None:
+    """A source expression as a designer wrote it, for a refusal's suggested
+    sentence: a name, a literal, a call or a subscript of them; None for any
+    other shape, which the refusal then names by its place."""
+    match e:
+        case NameRef():
+            return e.name
+        case IntLit():
+            return str(e.value)
+        case Call():
+            args = [short_spelling(a) for a in e.args]
+            if any(a is None for a in args):
+                return None
+            return f"{e.func}({', '.join(a for a in args if a is not None)})"
+        case Subscript():
+            obj, index = short_spelling(e.obj), short_spelling(e.index)
+            return None if obj is None or index is None else f"{obj}[{index}]"
+        case _:
+            return None
+
+
+def domain_query_head(kind: DomainQueryKind, spelled: str) -> str:
+    """A position query's head as a diagnostic quotes it: the kind's phrase
+    and the noun as written (`any cell`, `number of cells`), or for the Set
+    Form, which has no leading word, the noun and its `where` (`cells
+    where`)."""
+    phrase = DOMAIN_QUERY_KIND_PHRASE[kind]
+    return f"{phrase} {spelled}" if phrase else f"{spelled} where"
 
 
 @dataclass(frozen=True, slots=True)

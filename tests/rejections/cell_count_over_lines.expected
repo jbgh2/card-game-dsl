@@ -1,0 +1,1 @@
+cell_count_over_lines.cardlang:32:10: error: `number of cells in …` iterates a line or a collection of cells (e.g. `home(p)`), but the source is Collection<Line> -- to range over the lines, write `number of lines in lines(3) where <pred>`

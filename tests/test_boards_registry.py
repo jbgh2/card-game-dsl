@@ -147,7 +147,7 @@ from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.stdlib import boards
 from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
-from cardlang.types import TCell, TDir, TInteger, TPlayer
+from cardlang.types import TCell, TCollection, TDir, TInteger, TPlayer
 
 GRIDS: list[tuple[int, int]] = [(1, 1), (2, 5), (5, 2), (16, 16), (3, 3)]
 SMALL_GRIDS: list[tuple[int, int]] = [(1, 1), (2, 5), (5, 2), (3, 3)]
@@ -357,6 +357,7 @@ def _verb_args(
         TDir: dirs,
         TPlayer: (0, 1),
         TInteger: entry.line_lengths,
+        TCollection: (entry.cells, ()),
     }
     return list(itertools.product(*(pools[type(p)] for p in CALL_SIGS[verb].params)))
 

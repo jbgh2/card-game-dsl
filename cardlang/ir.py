@@ -606,6 +606,15 @@ def _rule(r: n.RuleDef) -> IRDict:
 # --- expressions ---
 
 
+def _domain_query_spelling(kind: n.DomainQueryKind) -> str:
+    """The `query` key a position query emits: its query kind's own name."""
+    match kind:
+        case "any" | "all" | "count" | "set":
+            return kind
+        case unreachable:
+            assert_never(unreachable)
+
+
 def _expr(e: n.Expr) -> IRDict:
     match e:
         case n.NameRef():
@@ -671,7 +680,7 @@ def _expr(e: n.Expr) -> IRDict:
         case n.DomainQuery():
             dq: IRDict = {
                 "kind": "domain_query",
-                "query": e.kind,
+                "query": _domain_query_spelling(e.kind),
                 "binder": e.binder,
                 "where": _expr(e.where),
             }

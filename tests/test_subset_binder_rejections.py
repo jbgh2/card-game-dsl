@@ -99,7 +99,7 @@ _PROBES: list[tuple[str, str, str]] = [
     ("fused count", "    score[0] := number of subsets of 2ormore cards in table "
      "where 1 is 1", "syntax error"),
     ("no size clause", "    score[0] := number of subsets in table where 1 is 1",
-     "syntax error"),
+     "subsets are spelled with `of`"),
 ]
 
 
@@ -119,16 +119,17 @@ def test_a_plausible_wrong_sentence_is_refused_loudly(
 def test_the_size_clause_cannot_be_dropped_silently() -> None:
     """The size clause is mandatory, and the sentence that omits it must not
     reach a DIFFERENT working form. `number of subsets in table where ...`
-    could plausibly have been absorbed by the collection quantifier's
-    `number of <noun> where ...`, which would have counted something real and
-    said nothing.
+    reads as the collection count over the noun `subsets`, and resolve's noun
+    guard refuses it naming the subset form, spelled with `of`; it never
+    counts something real and says nothing.
 
     red under: add `| _NUMBER_KW _OF_KW _SUBSETS_KW _IN_KW zone_expr
-    _WHERE_KW expr` to `subset_query`."""
+    _WHERE_KW expr` to `subset_query`, or drop the subset arm from
+    `resolve._check_domain_query`."""
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_game("    score[0] := number of subsets in table where 1 is 1"),
                   "misuse.cardlang")
-    assert "expected `of`" in str(exc.value), str(exc.value)
+    assert "subsets are spelled with `of` -- write `number of subsets of" in str(exc.value), str(exc.value)
 
 
 # --- the listed source: the wrong spellings and the wrong members ------------

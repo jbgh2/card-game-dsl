@@ -921,7 +921,7 @@ a family that does not declare what the verb reads.
   `home(player)`, the playable squares of the back three ranks (twelve a
   side at 8x8), and `far_row(player)`, the playable squares of the far
   rank (the king-row). It declares no lines and no adjacency, so it
-  answers neither `lines` nor `neighbors`.
+  answers none of `lines`, `neighbors` and `connected`.
 
 A board mints the position domain `cell` (its cells, on the
 declared-position substrate) and, where its family has a movement
@@ -1068,8 +1068,17 @@ and which one is the game's own choice:
   nine-mens-morris (`lines(3)`, the sixteen mills).
 - `neighbors(c) → Collection<Cell>` — the cells the board's declared
   adjacency joins to `c`, in board order, for the membership form `to in
-  neighbors(from)`. Answered by `morris9`; refused on a grid, which declares
-  no adjacency. Used by nine-mens-morris.
+  neighbors(from)`. Answered by `morris9` and `hex_rhombus`; refused on a
+  grid, which declares no adjacency. Used by nine-mens-morris.
+- `connected(from, to, via) → Boolean` — whether some cell of `from`
+  reaches some cell of `to` along the board's declared adjacency with every
+  cell of the path, both ends included, in `via`; each argument a
+  `Collection<Cell>` (a Region Verb, a `[...]` list of cells, the Set Form
+  `cells where …`, or its collection twin `cells in <collection> where …`).
+  It expands each cell at most once and reads nothing but
+  the adjacency and its arguments (decisions.md "Boards and cells").
+  Answered by `morris9` and `hex_rhombus`; refused on a grid or a draughts
+  board, which declare no adjacency.
 - `neighbor(from, along, player) → Cell` — the cell one step along direction
   `along` in `player`'s frame. Total by contract: an off-board step is guarded
   by `has_step`, not returned (decisions.md "Boards and cells", transfer).

@@ -16,11 +16,17 @@ Assumes: `name` reached resolve's call registry (`CALL_FUNCS`) and its
 arguments were coerced by the caller (`reads.coerce_args`) — this module never
 freezes an argument itself.
 Establishes: a value for every generic call, or `NOT_A_BUILTIN` when the name
-belongs to the Primitives half of the registry.
+belongs to the Primitives half of the registry. `connected` answers after at
+most one expansion per board cell, and refuses an argument that is not a
+collection of the board's cells (a value typed as the Permissive Top) as an
+`OwnerGuardError`.
 Illegal after: nothing — this module holds no state.
 Held by: a board verb on a board whose family does not declare what the verb
 reads is resolve's refusal; `_board_of` is its Shadow Guard here, reading the
-one table both read (`BOARD_VERB_NEEDS`, Derived and Pinned).
+one table both read (`BOARD_VERB_NEEDS`, Derived and Pinned). `connected`'s
+bound is a Born-Green Pin (tests/test_connected_builtin.py): the visited set
+is the shape that makes re-expansion unwritable, and no type states
+termination.
 
 This module must not import `runtime/primitives.py`. Which half of the registry
 a name belongs to is the caller's question (`runtime/evaluate.py`), and keeping
@@ -79,6 +85,8 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _near_edge(ctx, args[0])
         case "far_edge":
             return _far_edge(ctx, args[0])
+        case "connected":
+            return _connected(ctx, args[0], args[1], args[2])
         case "player_holding":
             return _player_holding(args[0], ctx)
         case "team_of":
@@ -253,6 +261,14 @@ def _neighbors(ctx: Ctx, cell: str) -> tuple[str, ...]:
     """The cells the board's declared adjacency joins to `cell`, in board
     order -- a Collection<Cell>."""
     return _board_of(ctx, "neighbors").neighbors(cell)
+
+
+def _connected(
+    ctx: Ctx, frm: tuple[str, ...], to: tuple[str, ...], via: tuple[str, ...]
+) -> bool:
+    """Whether some cell of `frm` reaches some cell of `to` along the board's
+    declared adjacency through cells of `via`."""
+    return _board_of(ctx, "connected").connected(frm, to, via)
 
 
 def _suit_of(value: Any) -> str:

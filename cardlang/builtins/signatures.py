@@ -74,6 +74,10 @@ CALL_SIGS: dict[str, Sig] = {
     # (decisions.md "Boards and cells") -- the `home` shape, so `to in
     # neighbors(from)` and a quantifier narrowed by membership consume it.
     "neighbors": Sig((TCell(),), TCollection(TCell())),
+    # Whether some cell of `from` reaches some cell of `to` along the declared
+    # adjacency through cells of `via` (decisions.md "Boards and cells"):
+    # each argument a Region Verb's shape.
+    "connected": Sig((TCollection(TCell()),) * 3, TBoolean()),
     "player_holding": Sig((TCard(),), TPlayer()),
     "team_of": Sig((TPlayer(),), TTeam()),
     # `suit_of` accepts a card or a single-card zone (polymorphic arg -> TAny)

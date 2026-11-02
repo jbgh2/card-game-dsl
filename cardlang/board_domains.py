@@ -52,6 +52,11 @@ BOARD_DOMAIN = "cell"
 # turn-order enum's tag, hence `dir`.
 DIRECTION_DOMAIN = "dir"
 
+# The noun the board's lines are quantified by in the collection forms
+# (`any line in lines(3) where …`): no Position Domain, a collection noun
+# alone (decisions.md "Boards and cells").
+LINE_NOUN = "line"
+
 
 def position_domains_of(game: n.Game) -> Mapping[str, tuple[int, ...] | tuple[str, ...]]:
     """A resolved game's position domains: name -> ordered members. Integer

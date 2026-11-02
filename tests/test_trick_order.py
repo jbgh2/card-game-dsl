@@ -236,6 +236,7 @@ _ROW_UNCALLABLE = frozenset(
         "lines", "neighbor", "has_step", "is_diagonal", "is_forward", "home", "far_row",  # the board
         "neighbors",
         "near_edge", "far_edge",  # the board's seat borders
+        "connected",  # the board's adjacency
         "highest_trump_or_led_suit",  # the standard winner, excluded beside a block anyway
         "highest_by_trick_order",  # a consumer of every row
         "follows_lead",  # a consumer of every row
@@ -594,6 +595,7 @@ def _row_hermeticity_cells() -> list[Cell]:
         "neighbors": "neighbors(0) is empty",
         "near_edge": "near_edge(0) is empty",
         "far_edge": "far_edge(0) is empty",
+        "connected": "connected(0, 0, 0)",
         "highest_trump_or_led_suit": "highest_trump_or_led_suit(pile, hearts) is 0",
         "highest_by_trick_order": "highest_by_trick_order(pile) is 0",
         "follows_lead": "follows_lead(card, pile)",
