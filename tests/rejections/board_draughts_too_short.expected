@@ -1,0 +1,1 @@
+board_draughts_too_short.cardlang:7:3: error: board family 'draughts' takes a height in 7..16, got 6

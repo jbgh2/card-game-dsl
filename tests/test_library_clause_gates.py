@@ -228,7 +228,7 @@ def _probe_path(args: tuple[int, ...]) -> BoardEntry:
 
 def _install_probe_board(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        BOARD_FAMILIES, _PROBE_BOARD, BoardFamily(arity=0, lo=0, hi=0, build=_probe_path)
+        BOARD_FAMILIES, _PROBE_BOARD, BoardFamily(params=(), build=_probe_path)
     )
 
 
@@ -395,7 +395,7 @@ GATES: tuple[Gate, ...] = (
     # each seat's borders.
     Gate(
         "board_frame",
-        frozenset({"far_row", "has_step", "home", "is_diagonal", "neighbor"}),
+        frozenset({"far_row", "has_step", "home", "is_diagonal", "is_forward", "neighbor"}),
         "board: morris9",
     ),
     Gate("board_edges", frozenset({"connected", "neighbors"}), "board: grid"),

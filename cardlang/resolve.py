@@ -493,7 +493,7 @@ from cardlang.typecheck import (
 from cardlang.types import Flavor, TCell, TCollection, TInteger, TPlayer, TTeam
 
 # The board-only calls that read the board from one of its two seats -- a
-# grid's per-player frame, where one seat's forward is the other's backward,
+# movement frame's per-player view, where one seat's forward is the other's backward,
 # or a seat's own borders (cardlang/stdlib/boards.py). Derived as exactly the
 # board verbs taking a player argument, so a later player-taking board verb
 # joins this set (and its two-seat Owner Guard) by construction rather than by
@@ -2069,7 +2069,7 @@ def _declared_board(game: n.Game) -> BoardEntry | None:
 _BOARD_NEED_PHRASES: dict[BoardNeed, str] = {
     "lines": "the board's lines",
     "edges": "the board's declared adjacency (which points it joins)",
-    "frame": "the board's movement frame (each seat's forward directions)",
+    "frame": "the board's movement frame (the directions each seat moves along)",
     "borders": "each seat's two borders (the board edges it joins)",
 }
 

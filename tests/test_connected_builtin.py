@@ -142,12 +142,14 @@ BOARD_CLAUSES: dict[str, str] = {
     "grid": "  board: grid(3, 3)\n",
     "morris9": "  board: morris9\n",
     "hex_rhombus": "  board: hex_rhombus(3)\n",
+    "draughts": "  board: draughts(3, 7)\n",
     BOARDLESS: "  positions { cell : 1..9 }\n",
 }
 BOARD_SPELLINGS: dict[str, str] = {
     "grid": "grid(3, 3)",
     "morris9": "morris9",
     "hex_rhombus": "hex_rhombus(3)",
+    "draughts": "draughts(3, 7)",
 }
 BOARDS = (*sorted(BOARD_FAMILIES), BOARDLESS)
 

@@ -73,6 +73,8 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _has_step(ctx, args[0], args[1], args[2])
         case "is_diagonal":
             return _is_diagonal(ctx, args[0])
+        case "is_forward":
+            return _is_forward(ctx, args[0])
         case "home":
             return _home(ctx, args[0])
         case "far_row":
@@ -182,7 +184,7 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
 
 
 def _seat(ctx: Ctx, fn: str, player: int) -> int:
-    """A seat verb's player argument (a grid's frame verbs, a seat's
+    """A seat verb's player argument (the frame verbs, a seat's
     borders) must be a seat of this game. A LITERAL
     out-of-range seat is refused statically (typecheck `_check_role_literal`),
     but that check returns early on anything that is not an integer literal, so
@@ -225,12 +227,17 @@ def _has_step(ctx: Ctx, cell: str, direction: str, player: int) -> bool:
 
 
 def _is_diagonal(ctx: Ctx, direction: str) -> bool:
-    """Whether a step along `direction` captures (changes file)."""
+    """Whether a step along `direction` changes file."""
     return _board_of(ctx, "is_diagonal").is_diagonal(direction)
 
 
+def _is_forward(ctx: Ctx, direction: str) -> bool:
+    """Whether a step along `direction` advances toward the far rank."""
+    return _board_of(ctx, "is_forward").is_forward(direction)
+
+
 def _home(ctx: Ctx, player: int) -> tuple[str, ...]:
-    """A player's home region (back two ranks) -- a Collection<Cell>."""
+    """A player's home region (its back ranks) -- a Collection<Cell>."""
     return _board_of(ctx, "home").home(_seat(ctx, "home", player))
 
 

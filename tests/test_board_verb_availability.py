@@ -15,7 +15,7 @@ entry, and the misuse probes:
     parameter, the bare quantifier, a function parameter and an outcome
     payload}, crossed with {answered, refused naming the family}. The
     expected column is the hand table `ANSWERS`, authored from the
-    family-by-verb matrices of issues #976 and #969, never read off
+    family-by-verb matrices of issues #976, #969 and #981, never read off
     `BOARD_VERB_NEEDS`. An answered cell checks and plays its probe; a
     refused cell is refused at resolve on a line naming the position and the
     family, and a call's refusal, or a `lines(k)` refused on a family with no
@@ -139,6 +139,7 @@ BOARD_CLAUSES: dict[str, str] = {
     "grid": "grid(8, 8)",
     "morris9": "morris9",
     "hex_rhombus": "hex_rhombus(3)",
+    "draughts": "draughts(8, 8)",
 }
 
 LINE_LENGTHS: tuple[int, ...] = (1, 2, 3, 4)
@@ -152,15 +153,23 @@ DIR_POSITIONS: tuple[str, ...] = (
 
 
 def _positions() -> list[str]:
-    calls = [f"call {v}" for v in sorted(BOARD_ONLY_CALL_FUNCS - {"lines"})]
+    """The derived positions, and every call position the expected column
+    names, so the column cannot name a verb without a cell running it."""
+    verbs = (BOARD_ONLY_CALL_FUNCS - {"lines"}) | {
+        p.removeprefix("call ")
+        for answered in ANSWERS.values()
+        for p in answered
+        if p.startswith("call ")
+    }
+    calls = [f"call {v}" for v in sorted(verbs)]
     return calls + [f"lines({k})" for k in LINE_LENGTHS] + list(DIR_POSITIONS)
 
 
 # The expected column, authored from the family-by-verb matrices of issues
-# #976, #969 and #971: the positions each family answers; every other position
-# is refused. `hex_rhombus` answering `neighbors` and `morris9` answering
-# `connected` are the cells those matrices do not list: each family declares
-# its adjacency as edges, which both verbs read.
+# #976, #969, #971 and #981: the positions each family answers; every other
+# position is refused. `hex_rhombus` answering `neighbors` and `morris9`
+# answering `connected` are the cells those matrices do not list: each family
+# declares its adjacency as edges, which both verbs read.
 ANSWERS: dict[str, frozenset[str]] = {
     "grid": frozenset(
         {
@@ -168,6 +177,7 @@ ANSWERS: dict[str, frozenset[str]] = {
             "call has_step",
             "call home",
             "call is_diagonal",
+            "call is_forward",
             "call neighbor",
             "lines(1)",
             "lines(2)",
@@ -180,13 +190,25 @@ ANSWERS: dict[str, frozenset[str]] = {
     "hex_rhombus": frozenset(
         {"call connected", "call far_edge", "call near_edge", "call neighbors"}
     ),
+    "draughts": frozenset(
+        {
+            "call far_row",
+            "call has_step",
+            "call home",
+            "call is_diagonal",
+            "call is_forward",
+            "call neighbor",
+            *DIR_POSITIONS,
+        }
+    ),
 }
 
 # The board verbs each family answers, as its refusals list them.
 ANSWERED_VERBS: dict[str, tuple[str, ...]] = {
-    "grid": ("far_row", "has_step", "home", "is_diagonal", "lines", "neighbor"),
+    "grid": ("far_row", "has_step", "home", "is_diagonal", "is_forward", "lines", "neighbor"),
     "morris9": ("connected", "lines", "neighbors"),
     "hex_rhombus": ("connected", "far_edge", "near_edge", "neighbors"),
+    "draughts": ("far_row", "has_step", "home", "is_diagonal", "is_forward", "neighbor"),
 }
 
 FAMILIES = sorted(set(BOARD_FAMILIES) | set(ANSWERS))
@@ -450,7 +472,7 @@ def test_a_verb_on_a_board_lacking_its_part_meets_the_runtime_shadow_guard(
 
 def _args(family: str) -> tuple[int, ...]:
     row = BOARD_FAMILIES[family]
-    return tuple(min(max(row.lo, 3), row.hi) for _ in range(row.arity))
+    return tuple(min(max(b.lo, 3), b.hi) for b in row.params)
 
 
 @pytest.mark.parametrize("family", sorted(BOARD_FAMILIES))
@@ -557,12 +579,12 @@ def test_morris9_mills_are_the_sixteen_lines_and_each_point_is_in_two() -> None:
         ),
         pytest.param(
             _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(0)"),
-            "board family 'hex_rhombus' arguments must be in 1..16, got 0",
+            "board family 'hex_rhombus' takes a side in 1..16, got 0",
             id="hex_rhombus of side zero",
         ),
         pytest.param(
             _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(17)"),
-            "board family 'hex_rhombus' arguments must be in 1..16, got 17",
+            "board family 'hex_rhombus' takes a side in 1..16, got 17",
             id="hex_rhombus past the position-domain cap",
         ),
         pytest.param(

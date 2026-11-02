@@ -1,0 +1,36 @@
+// Guard: resolve's board availability row (cardlang/resolve.py,
+// `_check_board_call`, `BOARD_VERB_NEEDS`). `lines` reads a board's lines;
+// `draughts` declares none (a draughts game is won by leaving the other
+// side no move), so the call is refused naming the family and the verbs it
+// answers.
+game LinesOnDraughts {
+  players: 2
+  max_length: 30
+  board: draughts(8, 8)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest score
+}
+move_type place(at : cell) {
+  when: square[at] is empty
+  effect {
+    move one piece from reserve[actor] to square[at]
+    if any line in lines(3) where all cells in line where square[cell] is not empty {
+      done := true
+    }
+  }
+}
+move_type stop { effect { done := true } }
