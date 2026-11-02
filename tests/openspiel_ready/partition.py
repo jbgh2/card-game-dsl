@@ -119,6 +119,22 @@ def _default_info(player: int, rs: RuntimeState, log: list[tuple[Any, ...]]) -> 
     return information_state(player, rs, log)
 
 
+def unshown_occupants(rs: RuntimeState, info: str) -> list[str]:
+    """The populated zone instances an information state does not render under
+    their own label with their first occupant. A perfect-information board is
+    fungible pieces, so a piece's string appearing somewhere proves nothing:
+    what an identity zone shows is WHICH zone holds it, and an empty answer
+    says every occupied zone renders as `label=[occupant...`."""
+    unshown: list[str] = []
+    for name, key, zone in zone_instances(rs):
+        if not zone.cards:
+            continue
+        label = name if key is None else f"{name}[{key}]"
+        if f"{label}=[{zone.cards[0]}" not in info:
+            unshown.append(label)
+    return unshown
+
+
 def first_divergence(a: str, b: str, context: int = 40) -> str:
     """The witness fragment: where two information states first differ."""
     if a == b:

@@ -42,6 +42,11 @@ ONE_SEED_SWAP_PROOFS: dict[str, str] = {
         "perfect information: same degeneracy argument, and FreeCell's whole "
         "layout is dealt face up, so a second deal probes nothing new"
     ),
+    "cardlang_hex": (
+        "perfect information and no deck: the proof asserts both observers "
+        "render the identical board, which no seed can vary, and the game draws "
+        "nothing, so every seed plays the same line"
+    ),
     "cardlang_nine_mens_morris": (
         "perfect information: the same degeneracy argument over the board, the "
         "reserves and the captured piles, and the game draws nothing, so no seed "

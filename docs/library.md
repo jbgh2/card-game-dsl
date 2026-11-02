@@ -813,6 +813,7 @@ conventions:
   ```text
   { side: [black, white], kind: [stone], copies: { black: 61, white: 60 } }
   ```
+  Used by hex.
 
 Each entry captures a set's *composition* only. Card points
 (`card_points { }`), ranking for play (`ranking:`), follow-suit
@@ -890,7 +891,7 @@ a family that does not declare what the verb reads.
   of its edges. It declares no lines and no movement frame, so it mints no
   `dir` and answers none of `lines`, `neighbor`, `has_step`,
   `is_diagonal`, `home` and `far_row`; `grid` and `morris9` declare no
-  borders and answer neither `near_edge` nor `far_edge`.
+  borders and answer neither `near_edge` nor `far_edge`. Used by hex.
 
 A board mints the position domain `cell` (its cells, on the
 declared-position substrate) and, where its family has a movement
@@ -1047,7 +1048,7 @@ and which one is the game's own choice:
   It expands each cell at most once and reads nothing but
   the adjacency and its arguments (decisions.md "Boards and cells").
   Answered by `morris9` and `hex_rhombus`; refused on a grid, which declares
-  no adjacency.
+  no adjacency. Used by hex.
 - `neighbor(from, along, player) → Cell` — the cell one step along direction
   `along` in `player`'s frame. Total by contract: an off-board step is guarded
   by `has_step`, not returned (decisions.md "Boards and cells", transfer).
