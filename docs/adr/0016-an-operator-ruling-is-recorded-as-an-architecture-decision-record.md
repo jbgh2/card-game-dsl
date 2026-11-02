@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-01
 - **Ruled by:** the operator, on the harness desk's proposal
-- **Record:** the PR that lands `docs/adr/` (its number is in the merge commit)
+- **Record:** PR #1028 (the PR that lands `docs/adr/`); the harness desk's thread, where the operator ruled on the proposal
 - **Governs:** maintaining.md, "A ruling's record is its ADR"; CLAUDE.md, "Prose states what is; the journey lives in dated artifacts"
 
 ## Context
