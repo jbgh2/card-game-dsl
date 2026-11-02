@@ -510,6 +510,15 @@ move advances or removes a man — so no draw machinery. Invented by Dan
 Troyka, 2000; OpenSpiel's native `breakthrough` is the differential
 oracle.)
 
+(Hex, the connection rung, is now in the corpus ([hex.md](hex.md)):
+11x11, no swap rule. It adds exactly one mechanism, reachability: the
+`connected` Builtin over the `hex_rhombus` family's declared six-neighbour
+adjacency and each seat's two borders, asked of the Set Form `cells where`.
+Monotone and drawless (a filled board always has exactly one winner), so
+its `max_length` is the board's 121 cells; perfect information. Invented
+by Piet Hein, 1942; OpenSpiel's native `hex` (`board_size=11`,
+`swap=false`) is the differential oracle.)
+
 ### backgammon
 
 2 players, the 24-point track + bar + bear-off, 15 checkers each, two
@@ -586,21 +595,6 @@ the named second witnesses if C3/C6 generality needs one.
 variant. **No OpenSpiel oracle** (verified absent) — acceptance is the
 proof battery plus playout characterization, flagged as the ladder's
 one non-differential rung.
-
-### hex
-
-2 players, 11×11 hex rhombus, no swap rule. Alternate placing stones;
-win by connecting your two opposite sides.
-
-**Why interesting.** Exactly one addition: the bounded `reachable`
-fixed point (class-5 connectivity) — the query generalization-path §1
-calls the real design object of the axis — on a hex tiling entry.
-Monotone, drawless (a filled hex board always has a winner), perfect
-information: everything else is wave-A machinery.
-
-**Notes.** Rules are two sentences; the pin excludes the swap/pie rule
-to match the oracle default. OpenSpiel `hex` (`board_size=11`,
-`swap=false`) is the oracle.
 
 ### nine-mens-morris
 

@@ -3740,6 +3740,13 @@ inside one, is refused at play; so is a value reaching the verb through the
 Permissive Top that is not a collection of the board's cells. A set-valued sibling (`region`) is not the
 language: it waits for the game that needs a region as a value.
 
+Hex is the corpus witness ([games/hex.md](games/hex.md)) for the hex
+family, its borders, the Set Form and the fixed point together:
+`board: hex_rhombus(11)`, `pieces: hex_stones`, the 121 `tile[cell]`
+cells, `place(at : cell)`, and the win test `connected(near_edge(actor),
+far_edge(actor), cells where holds(cell, actor))`, asked once per
+placement.
+
 ## Game result: `winner:` and `loser:`
 
 A game declares its terminal result with exactly one top-level clause,

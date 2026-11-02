@@ -595,11 +595,14 @@ does not move.
 **Wave C — the query frontier, then open-ended play.**
 
 6. **Hex** (11×11, no swap rule, matching the oracle default; oracle
-   `hex`). One addition: the class-5 `connected` fixed point (win =
-   your stones connect your two sides), on a hex tiling entry.
-   Monotone and drawless (placement only), so it needs neither the
-   chance nor the unbounded-lines machinery — its position this late
-   is purely that `connected` deserves an isolated rung.
+   `hex`; [games/hex.md](../games/hex.md)). One addition: the class-5
+   `connected` fixed point (win = your stones join your two borders),
+   over the `hex_rhombus` family's declared six-neighbour adjacency and
+   asked of the Set Form `cells where`. Monotone and drawless
+   (placement only), so it needs neither the chance nor the
+   unbounded-lines machinery, and its `max_length` is the board's 121
+   cells — its position this late is purely that `connected` deserves
+   an isolated rung.
 7. **Nine Men's Morris** (with the flying phase; oracle
    `nine_mens_morris`). Adds the enumerated non-grid graph, the
    place→move→fly phase shift, mills as declared lines with a removal
@@ -635,7 +638,7 @@ that forces it; every rung earns at least one):
 | Track entry, stacks/capacity, `roll` chance, race win | | | ● | | | | | |
 | Hidden per-player boards (C1-hidden), probe actions (C2), footprint placement | | | | ● | | | | |
 | Attribute projections (C3), anonymous identity (C6), combat probe | | | | | ● | | | |
-| Hex tiling, `connected` fixed point (class 5) | | | | | | ● | | |
+| Hex rhombus (declared adjacency, seat borders), `connected` fixed point (class 5), the Set Form | | | | | | ● | | |
 | Enumerated graph, phase-shift, declared mills + removal decision, blockade loss | | | | | | | ● | |
 | Mandatory-capture rules, jump triples, `again` chains, promotion, draw counters | | | | | | | | ● |
 | Differential oracle | ● | ● | ● | ● | — | ● | ● | ● |
@@ -734,7 +737,7 @@ parse them.
   with its own sign-off.
 - **Stage 6 — fixed points.** `connected` as a bounded Builtin with
   deterministic frontier order; `region` when a game needs one.
-  Witness: hex.
+  Witness: hex ([games/hex.md](../games/hex.md)).
 - **Stage 7 -- open-ended play.** Cyclic lines end at a game's bound as
   Length Stops and a published draw rule is a counter in `state` read by
   the ring's `until` (decisions.md, "Game length as a declared

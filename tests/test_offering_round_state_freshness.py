@@ -502,6 +502,7 @@ NO_DECISION_OUTSIDE: frozenset[str] = frozenset(
         "five-card-stud.cardlang",
         "freecell.cardlang",
         "go-fish.cardlang",
+        "hex.cardlang",
         "holdem-heads-up.cardlang",
         "holdem.cardlang",
         "klondike.cardlang",

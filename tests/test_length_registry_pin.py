@@ -91,6 +91,13 @@ HEADROOM: dict[str, tuple[int, str]] = {
         "bounded by its rules at nine placements; the bound of 30 is 3.3x the "
         "most any line can make",
     ),
+    "hex": (
+        1,
+        "bounded by its rules at 121 placements, one per cell: the bound is the "
+        "board's own, and a line filling the board ends by its rules exactly at "
+        "it (tests/test_playout_hex.py); 1 holds the manifest's lines, 104 to "
+        "116 picks (measured 2026-11-01)",
+    ),
     "pinochle": (
         2,
         "measured 2026-09-21 under the reference policy over 250 seeds: 3517 "
