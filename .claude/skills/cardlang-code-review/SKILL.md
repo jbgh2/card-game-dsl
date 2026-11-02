@@ -268,6 +268,34 @@ present / absent; grid run against the merge base or not; witnesses
 replayed or not) even when it produced no finding. List cut findings one line each — a silent cap reads as "covered
 everything".
 
+**The Review Record.** Every review of a pull request, at every tier,
+ends by posting one PR comment (`gh pr comment <N> --body-file <file>`)
+whose first line is the record's marker, followed by the findings list
+above in human-readable form:
+
+```
+<!-- cardlang-review-record:v1 {"head_sha": "<the full sha reviewed>", "tier": "Standard", "confirmed": 0, "filed": [], "artifact_gate": "not-triggered"} -->
+```
+
+- `head_sha` — the full 40-character head commit the review read
+  (`gh pr view <N> --json headRefOid`), never a branch name.
+- `tier` — the tier run: `Quick`, `Standard` or `Thorough`.
+- `confirmed` — the count of CONFIRMED findings at that head.
+- `filed` — the issue numbers filed for CONFIRMED findings; a CONFIRMED
+  finding is fixed by a new head, which takes its own review and its own
+  record, or filed here.
+- `artifact_gate` — the Phase-0 verdict: `present`, `absent`, or
+  `not-triggered` when the diff does not trip the audit.
+
+`tools/merge-gate.sh` reads the newest record at the head that would
+merge (`tools/review_record.py` owns the reading and its closed
+vocabulary): Lane D passes with zero CONFIRMED; Lane C passes on
+Standard or Thorough with every CONFIRMED finding filed; an `absent`
+artifact gate, a record at an older head, or a word outside these fails
+the gate. A pre-PR review — the Dispatcher's, before `gh pr create` —
+posts its record once the PR exists, and only if the head is still the
+one it read; a push after the record means the review runs again.
+
 ## Effort scaling
 
 - **Quick check**: no subagent fan-out; angles A + B inline over changed

@@ -4,9 +4,12 @@
 #
 # docs/harness.md owns every clause's semantics: the merge gate (CI green,
 # "Verifying changes" in CLAUDE.md), the Review threads rule (zero
-# unresolved), and the Merge Lanes (mechanical lane C or D, computed by
+# unresolved), the Merge Lanes (mechanical lane C or D, computed by
 # tools/lane-of.sh over the PR's files — hand-classifying around the tool
-# is not a lane verdict). Prints its evidence; fails loudly on anything
+# is not a lane verdict), and "Arming is merging" (the lane's review on
+# record at the head that would merge, read by tools/review_record.py).
+# Every clause binds to the head read first; a head that moves before the
+# last read fails the gate. Prints its evidence; fails loudly on anything
 # it cannot verify — a gate that cannot fail is not a gate.
 #
 # Usage: merge-gate.sh <pr-number>
@@ -16,7 +19,9 @@ REPO=jbgh2/card-game-dsl
 N=${1:?usage: merge-gate.sh <pr-number>}
 fail=0
 
-base=$(gh pr view "$N" --repo "$REPO" --json baseRefName --jq .baseRefName)
+read -r base head < <(gh pr view "$N" --repo "$REPO" --json baseRefName,headRefOid --jq '"\(.baseRefName) \(.headRefOid)"')
+[ -n "${head:-}" ] || { echo "head: unreadable -- FAIL"; exit 1; }
+echo "head: $head"
 if [ "$base" = "main" ]; then echo "base: main -- ok"; else echo "base: $base -- FAIL (agent merges target main only)"; fail=1; fi
 
 # Required checks come from branch protection — the platform's own
@@ -65,6 +70,26 @@ lane_out=$("$(dirname "$0")/lane-of.sh" "${files[@]}")
 echo "$lane_out" | sed 's/^/lane-of: /'
 mergeable=$(echo "$lane_out" | awk -F': ' '/^agent-mergeable:/ { print $2 }')
 [ "$mergeable" = "yes" ] || fail=1
+
+# The review on record (docs/harness.md, "Arming is merging"): held by
+# Derived and Pinned, the predicate read from the PR's own comments at
+# this head (tests/test_review_record.py). Lanes A and B are the
+# operator's button whatever the record says, so only C and D are judged.
+lane=$(echo "$lane_out" | awk -F': ' '/^lane:/ { print $2 }')
+case "$lane" in
+  C|D)
+    comments=$(gh api --paginate --slurp "repos/$REPO/issues/$N/comments")
+    echo "$comments" | python3 "$(dirname "$0")/review_record.py" --head "$head" --lane "$lane" || fail=1
+    ;;
+  *) echo "review: Merge Lane $lane is the operator's button -- the record is not judged" ;;
+esac
+
+head_now=$(gh pr view "$N" --repo "$REPO" --json headRefOid --jq .headRefOid)
+if [ "$head_now" = "$head" ]; then
+  echo "head: unchanged across the gate -- ok"
+else
+  echo "head: moved $head -> $head_now during the gate -- FAIL (rerun the gate)"; fail=1
+fi
 
 if [ "$fail" -eq 0 ]; then
   echo "merge-gate: PASS — an agent may merge PR #$N"

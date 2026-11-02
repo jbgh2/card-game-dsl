@@ -91,8 +91,9 @@ Merge Lane B (the missing-class rule above); rows whose class is
 semantic, not path-shaped, carry `—` and bind through judgment alone. An
 **agent merge** additionally passes `tools/merge-gate.sh` — base is
 main, every check green, zero unresolved threads, mechanical lane C or
-D, evidence printed — and hand-classifying around the tools is not a
-lane verdict.
+D, the lane's review on record at the merging head ("Arming is
+merging", below), evidence printed — and hand-classifying around the
+tools is not a lane verdict.
 
 The rows through "Tests / goldens" derive from the `cardlang-code-review`
 skill's Phase 0 classification, with its "docs prose" and "tests/goldens"
@@ -131,20 +132,28 @@ mechanical gate at the server: the `check` run green and every review
 thread resolved. The Merge Lane binds the hand that arms: arming a PR
 IS performing its merge, so an agent arms Merge Lane C or D only, with
 the lane's requirements already satisfied at arming time —
-`tools/merge-gate.sh`'s lane call printed, the review landed, its
-threads answered. Armed-then-reviewed would collapse Merge Lane C into
-D. The one predicate the server cannot enforce is that a review has
+`tools/merge-gate.sh` passing against the current head: the lane call,
+the review on record, its threads answered. Armed-then-reviewed would
+collapse Merge Lane C into D. The server cannot see whether a review
 happened at all — a green PR with no threads merges when armed,
-reviewed or not — so that predicate belongs to the arming hand, never
-assumed from the platform. The arm binds to a head, not to the PR: the
-lane's requirements must hold for the head that merges, and a push to
-an armed PR creates a head the review never saw while the platform
-keeps the arm riding (any write-permission push leaves auto-merge
-enabled). So a head change disarms in doctrine even though it does not
-on the server: disarm before pushing (`gh pr merge <N>
---disable-auto`), and re-arm only once the gate's evidence — lane
-call, review, threads — stands against the new head. The operator arms
-any lane at will.
+reviewed or not — so the gate reads the review's record at the head
+that would merge: the Review Record the `cardlang-code-review` skill
+posts at every tier (its "Output" section), satisfying the lane — Lane
+D any tier with no CONFIRMED finding, Lane C Standard or Thorough with
+every CONFIRMED finding filed. No record at the head fails the gate,
+and so does a record only at an older head (`reviewed head X, merging
+head Y`); a Codex review at the head refuses on unresolved findings and
+never stands in for the Review Record. `tools/review_record.py` owns
+the reading and its closed vocabulary. The arm binds to a head, not to
+the PR: the lane's requirements must hold for the head that merges, and
+a push to an armed PR creates a head the review never saw while the
+platform keeps the arm riding (any write-permission push leaves
+auto-merge enabled). The gate runs when the hand arms, never when the
+server merges, so a head change disarms in doctrine even though it does
+not on the server: disarm before pushing (`gh pr merge <N>
+--disable-auto`), and re-arm only once the gate passes against the new
+head, which takes a new review and its record. The operator arms any
+lane at will.
 
 ## Review threads
 
@@ -463,7 +472,8 @@ set, updated by the thread at the moment it enters each phase:
   review, thread answers) is the thread's own work and needs no
   operator.
 - `ready` — the gate is satisfied for the current head: CI green, zero
-  unresolved threads, the lane call printed. On Merge Lane C/D the
+  unresolved threads, the lane call printed, and on Merge Lane C/D the
+  review on record at that head. On Merge Lane C/D the
   thread arms auto-merge as it sets this ("Arming is merging", above);
   on Lane A/B `ready` IS the request for the operator's button.
 - `blocked: <word>` — waiting on something only the operator can give
