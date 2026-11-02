@@ -1,0 +1,168 @@
+// English draughts (checkers), as the World Checkers/Draughts Federation's
+// Rules of Draughts state it -- 2 players, draughts(8, 8), 12 men a side and a
+// king for each. Variant pinned: Red (player 0) moves first, its men on
+// squares 1 to 12 and White's on 21 to 32, the dark squares of each side's
+// back three ranks; a man steps diagonally forward to an empty square, a king
+// diagonally forward or backward; a piece captures by jumping a diagonally
+// adjacent enemy piece onto the empty square beyond, a man forward only; every
+// capture is compulsory, any capture may be chosen, and a piece that can jump
+// again from where it lands goes on jumping, no other piece moving, until it
+// cannot; a man reaching the far rank is crowned and its move ends there, even
+// mid-capture. The player left with no legal move on their turn, every piece
+// taken or every piece blocked, loses. Two departures from the federation's
+// text: its forty-move rule is a referee's ruling on a claim, and here it is
+// automatic, drawing the game after eighty plies in a row with no capture and
+// no uncrowned man moved; the claim of a threefold repetition is not played.
+// The rules are english-draughts.md's. The native differential against
+// OpenSpiel's `checkers` is tests/test_differential_english_draughts.py; that
+// implementation's draw after forty plies without a capture is not a rule of
+// the game, and the differential stops comparing there.
+//
+// Perfect information throughout -- the board, the reserves, the king supplies
+// and the captured piles are public, and the one count-projected zone (box)
+// empties at setup, so no zone conceals a piece: information sets are
+// singletons and the observation model does not move.
+//
+// result[player] in {+1, -1} (win/loss), so the OpenSpiel returns are
+// zero-sum; a game drawn by the forty-move rule is a tie, every return 0.
+
+game EnglishDraughts {
+
+  players: 2
+  direction: clockwise
+  max_length: 1200
+
+  board: draughts(8, 8)
+  pieces: draughts_men
+
+  zones {
+    box              : Deck                // the unplaced set, emptied at setup
+    square[cell]     : Cell<cell>          // the thirty-two dark squares
+    reserve[player]  : PlayerPile<player>  // a side's men off the board: before setup, and once crowned
+    kings[player]    : PlayerPile<player>  // a side's kings not yet on the board
+    captured[player] : PlayerPile<player>  // pieces captured FROM this player
+  }
+
+  state {
+    result[player] : Integer = 0       // +1 win, -1 loss, 0 running
+    quiet          : Integer = 0       // plies in a row with no capture and no man moved
+    chain_from     : cell? = none      // the square of the piece that must jump again
+    jumping        : Boolean = false   // the move just made goes on with another jump
+  }
+
+  phase setup {
+    move all pieces from box where (piece.side is red) and (piece.kind is king) to kings[0]
+    move all pieces from box where piece.side is red to reserve[0]
+    move all pieces from box where piece.kind is king to kings[1]
+    move all pieces from box to reserve[1]
+    for each cell c: if c in home(0) { move one piece from reserve[0] to square[c] }
+    for each cell c: if c in home(1) { move one piece from reserve[1] to square[c] }
+  }
+
+  phase play {
+    turns t from 0 over all players
+          until (any player where result[player] is 1) or (quiet >= 80)
+          again jumping {
+      if can_jump(t) {
+        offer to t one of [jump]
+      } else {
+        offer to t one of [step]
+      }
+    }
+  }
+
+  winner: highest result
+}
+
+// Which side each seat plays: Red is player 0.
+function side_of(p : Player) = if p is 0 then red else white
+
+// The other seat. Draughts is two-handed, so the map is the seat flip.
+function opponent_of(p : Player) = if p is 0 then 1 else 0
+
+// A piece of `p`'s side stands on `c`.
+function mine(c : cell, p : Player) =
+  (square[c] is not empty) and (top_of(square[c]).side is side_of(p))
+
+// A piece of `p`'s opponent stands on `c`.
+function theirs(c : cell, p : Player) =
+  (square[c] is not empty) and (top_of(square[c]).side is not side_of(p))
+
+// The piece on `c` may move along `along`: a king either way, a man forward.
+function may_go(c : cell, along : dir) =
+  is_forward(along) or (top_of(square[c]).kind is king)
+
+// `p`'s piece on `c` may step along `along` onto the empty square beside it.
+function step_ok(c : cell, along : dir, p : Player) =
+  mine(c, p) and may_go(c, along) and has_step(c, along, p)
+  and (square[neighbor(c, along, p)] is empty)
+
+// `p`'s piece on `c` may jump along `along`: an enemy piece beside it, and the
+// square beyond that one on the board and empty.
+function jump_ok(c : cell, along : dir, p : Player) =
+  mine(c, p) and may_go(c, along) and has_step(c, along, p)
+  and theirs(neighbor(c, along, p), p)
+  and has_step(neighbor(c, along, p), along, p)
+  and (square[neighbor(neighbor(c, along, p), along, p)] is empty)
+
+// `p` has a capture somewhere on the board, and so must take one.
+function can_jump(p : Player) =
+  any cell where any dir where jump_ok(cell, dir, p)
+
+// `p` has a legal move: a capture or a step.
+function can_move(p : Player) =
+  can_jump(p) or (any cell where any dir where step_ok(cell, dir, p))
+
+// Step one of your pieces to the empty square diagonally beside it. A man's
+// step is an advance and starts the forty-move count again; a king's adds to
+// it. A man stepping onto the far rank is crowned, and the move ends there.
+move_type step(from : cell, along : dir) {
+  when: step_ok(from, along, actor)
+  effect {
+    let foe = opponent_of(actor)
+    let dest = neighbor(from, along, actor)
+    if top_of(square[from]).kind is man {
+      quiet := 0
+    } else {
+      quiet += 1
+    }
+    move one piece from square[from] to square[dest]
+    if (dest in far_row(actor)) and (top_of(square[dest]).kind is man) {
+      move one piece from square[dest] to reserve[actor]
+      move one piece from kings[actor] to square[dest]
+    }
+    if not can_move(foe) {
+      result[actor] := 1
+      result[foe] := -1
+    }
+  }
+}
+
+// Jump an enemy piece, taking it from the board. While a jump is in progress
+// only the jumping piece may move, and it goes on jumping as long as it can,
+// unless it has just been crowned, which ends the move.
+move_type jump(from : cell, along : dir) {
+  when: ((chain_from is none) or (from is chain_from)) and jump_ok(from, along, actor)
+  effect {
+    let foe = opponent_of(actor)
+    let over = neighbor(from, along, actor)
+    let dest = neighbor(over, along, actor)
+    quiet := 0
+    move one piece from square[over] to captured[foe]
+    move one piece from square[from] to square[dest]
+    chain_from := none
+    if (dest in far_row(actor)) and (top_of(square[dest]).kind is man) {
+      move one piece from square[dest] to reserve[actor]
+      move one piece from kings[actor] to square[dest]
+    } else {
+      if any dir where jump_ok(dest, dir, actor) {
+        chain_from := dest
+        jumping := true
+      }
+    }
+    if (chain_from is none) and (not can_move(foe)) {
+      result[actor] := 1
+      result[foe] := -1
+    }
+  }
+}
