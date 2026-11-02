@@ -74,7 +74,7 @@ CALL_SIGS: dict[str, Sig] = {
     "neighbors": Sig((TCell(),), TCollection(TCell())),
     # Whether some cell of `from` reaches some cell of `to` along the declared
     # adjacency through cells of `via` (decisions.md "Boards and cells"):
-    # each argument the region verbs' shape.
+    # each argument a Region Verb's shape.
     "connected": Sig((TCollection(TCell()),) * 3, TBoolean()),
     "player_holding": Sig((TCard(),), TPlayer()),
     "team_of": Sig((TPlayer(),), TTeam()),

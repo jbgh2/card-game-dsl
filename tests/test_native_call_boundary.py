@@ -193,7 +193,7 @@ _ZONE_PROBES: dict[str, str] = {
     ),
     # `connected` takes cell collections, and no zone holds cells: the one
     # zone the type layer admits there is a chip stack, a collection of the
-    # permissive top (issue #655). An empty one reaches the verb as no
+    # Permissive Top (issue #655). An empty one reaches the verb as no
     # elements, so `via` holds no cell and nothing is joined.
     "connected": (
         "game G {\n"

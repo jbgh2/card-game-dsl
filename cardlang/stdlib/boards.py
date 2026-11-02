@@ -359,7 +359,7 @@ class BoardEntry:
 
     def _require_cell_collection(self, reader: str, name: str, cells: object) -> None:
         # The type layer admits only cell collections, but a value typed as the
-        # permissive top reaches the verb unchecked; it is the game author's.
+        # Permissive Top reaches the verb unchecked; it is the game author's.
         if not isinstance(cells, tuple) or not all(
             isinstance(c, str) and c in self._cell_set for c in cells
         ):

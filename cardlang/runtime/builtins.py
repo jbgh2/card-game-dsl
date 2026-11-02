@@ -18,7 +18,7 @@ freezes an argument itself.
 Establishes: a value for every generic call, or `NOT_A_BUILTIN` when the name
 belongs to the Primitives half of the registry. `connected` answers after at
 most one expansion per board cell, and refuses an argument that is not a
-collection of the board's cells (a value typed as the permissive top) as an
+collection of the board's cells (a value typed as the Permissive Top) as an
 `OwnerGuardError`.
 Illegal after: nothing — this module holds no state.
 Held by: a board verb on a board whose family does not declare what the verb

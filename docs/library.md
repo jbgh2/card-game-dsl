@@ -1033,7 +1033,7 @@ and which one is the game's own choice:
 - `connected(from, to, via) → Boolean` — whether some cell of `from`
   reaches some cell of `to` along the board's declared adjacency with every
   cell of the path, both ends included, in `via`; each argument a
-  `Collection<Cell>` (a region verb, a `[...]` list of cells, or the set form
+  `Collection<Cell>` (a Region Verb, a `[...]` list of cells, or the Set Form
   `cells where …`). It expands each cell at most once and reads nothing but
   the adjacency and its arguments (decisions.md "Boards and cells").
   Answered by `morris9` and `hex_rhombus`; refused on a grid, which declares

@@ -15,7 +15,7 @@ The grid, axis by axis, each read from where the language defines it:
     witnesses a board game writes for it (`WITNESSES`), or the reason no
     expression yields it (`UNWRITABLE`); `Collection` is split by element and
     facet. The board axis is `BOARD_FAMILIES` plus a boardless game with an
-    integer domain named `cell`. A witness is crossed with every board it is
+    integer Position Domain named `cell`. A witness is crossed with every board it is
     written on. The expected column: a boardless game is refused naming
     `board:`; a family in `ANSWERS` (authored by hand: the families
     declaring an adjacency) admits the cell collections and refuses every
@@ -36,12 +36,12 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   `connected` checks in every expression host with three cell
             collections on a family declaring an adjacency and answers
-            exactly the union-find's reachability there; every other
-            argument type is refused by the type layer, a family declaring
-            no adjacency is refused at resolve naming it, and a boardless
-            game is refused naming `board:`; a value reaching the verb
-            through the permissive top that is not a collection of board
-            cells is refused at play.
+            exactly the union-find's reachability there; an argument typed
+            as anything but a cell collection or the Permissive Top is
+            refused at check, a family declaring no adjacency is refused at
+            resolve naming it, and a boardless game is refused naming
+            `board:`; a value typed as the Permissive Top that is not a
+            collection of the board's cells is refused at play.
 domain:     {from, to, via} x {each witness of `WITNESSES`} x {each board it
             is written on: `BOARD_FAMILIES`, boardless} (GRID T); {host:
             tests/test_direction_lift.py::HOSTS} on `hex_rhombus(3)` (GRID
@@ -58,15 +58,19 @@ registry:   types: cardlang/types.py::Type; boards:
             tests/test_native_dispatch_split.py,
             tests/test_trick_order.py::test_row_callable_partition_is_total,
             tests/test_board_verb_availability.py.
-held by:    a wrong-typed argument is Unrepresentable past the type layer:
-            `CALL_SIGS` types each slot `Collection<Cell>` and the signature
-            checker refuses any other before a run. The family refusal is
+held by:    an argument typed as neither a cell collection nor the
+            Permissive Top is Unrepresentable past the type layer: `CALL_SIGS`
+            types each slot `Collection<Cell>` and the signature checker
+            refuses any other before a run. The Permissive Top passes it by
+            design: an `if` with no join (issue #116) and a chip stack
+            (issue #655) reach the verb, and a chip stack in an effect checks
+            clean. The family refusal is
             Derived and Pinned: `BOARD_VERB_NEEDS` maps `connected` to
             `edges`, read by resolve's need row and the runtime `_board_of`
             (tests/test_board_verb_availability.py); not higher, because the
             family is the designer's string until resolve. The refusal at play
             of a value that is not the board's cells is the Owner Guard
-            `BoardEntry.connected` holds for what the permissive top lets
+            `BoardEntry.connected` holds for what the Permissive Top lets
             through, GRID T's `Any` and `cell?` rows its witnesses. Agreement
             with the union-find, the hex theorem, the expansion bound and the
             expansion order are Born-Green Pins, each red under the mutation
@@ -86,10 +90,14 @@ reddens the hex theorem on n = 2 and n = 3 (neither seat connected), and
 adding `(1, 1)` beside it reddens them too (both seats connected); the n = 2
 witness is {a1, b2 black; b1, a2 white}.
 red under (bound): dropping the visited test from `BoardEntry.connected`
-reddens the bound pin (122 expansions on 121 cells).
+reddens the bound pin (the expansions pass the board's cell count).
 red under (order): taking a cell's neighbours from a set in
-`BoardEntry.connected` reddens the full-size order pin under each
-`PYTHONHASHSEED` in 0..4.
+`BoardEntry.connected` reddens the full-size order pin.
+red under (axes): a member added to `Type`, or a family to `BOARD_FAMILIES`,
+reddens the axis pin naming it.
+red under (probes): skipping resolve's unresolved-name or unknown-function
+refusal reddens the bare cell name probe or the design note's spelling probe, and
+skipping its native-shadow refusal reddens the game-function probe.
 red under (element guard): deleting `BoardEntry.connected`'s
 `_require_cell_collection` calls reddens GRID T's `Any` and `cell?` rows.
 """
@@ -122,7 +130,7 @@ _FILE = "connected.cardlang"
 BOARDLESS = "boardless"
 
 # The `board:` clause each family is checked under; the boardless game
-# declares an integer domain named `cell` in its place.
+# declares an integer Position Domain named `cell` in its place.
 BOARD_CLAUSES: dict[str, str] = {
     "grid": "  board: grid(3, 3)\n",
     "morris9": "  board: morris9\n",
@@ -222,13 +230,13 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
     ),
     "TCollection": (
         Witness(
-            "Collection<Cell> from a region verb",
+            "Collection<Cell> from a Region Verb",
             "",
             _ON_BOARDS,
             None,
             per_board={"grid": "home(actor)", "morris9": "neighbors(at)", "hex_rhombus": "near_edge(actor)"},
         ),
-        Witness("Collection<Cell> from the set form", SET_FORM, _ON_BOARDS, None),
+        Witness("Collection<Cell> from the Set Form", SET_FORM, _ON_BOARDS, None),
         Witness("Collection<Cell> as a list", "[at]", _ON_BOARDS, None),
         Witness(
             "Collection<cell?> as a list",
@@ -239,7 +247,7 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
             call_with="none",
             refused_at_play=True,
         ),
-        # A chip stack types as a collection of the permissive top, and a
+        # A chip stack types as a collection of the Permissive Top, and a
         # When Clause's Hidden Read Owner Guard refuses it first.
         Witness(
             "a chip stack",
@@ -268,12 +276,12 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
         Witness("Collection<Collection<Cell>>", "[[at]]", _ON_BOARDS, "Collection<Collection<Cell>>"),
     ),
     "TNull": (Witness("none", "none", _EVERYWHERE, "none"),),
-    # The permissive top: an `if` whose branches have no join. The type layer
+    # The Permissive Top: an `if` whose branches have no join. The type layer
     # admits it by design; the verb refuses at play a value that is not a
     # collection of the board's cells.
     "TAny": (
         Witness(
-            "the permissive top",
+            "the Permissive Top",
             "(if true then at else 1)",
             _ON_BOARDS,
             None,
@@ -471,7 +479,7 @@ def test_the_call_checks_and_plays_in_every_host(host: str) -> None:
 def test_a_chip_stack_is_refused_in_an_effect() -> None:
     """An effect decides no seat's choice, so the Hidden Read Owner Guard
     leaves a chip stack to the type layer, which admits it as a collection of
-    the permissive top."""
+    the Permissive Top."""
     source = _game(
         "hex_rhombus",
         "true",
@@ -532,6 +540,18 @@ def test_a_misuse_is_refused(board: str, when: str, needle: str) -> None:
     first, rendered = _rendered(_game(board, when))
     assert first is not None, when
     assert needle in rendered, rendered
+
+
+def test_a_game_function_named_connected_is_refused() -> None:
+    source = _game(
+        "hex_rhombus",
+        "connected(actor)",
+        extra="function connected(p : Player) = true\n",
+    )
+    first, _ = _rendered(source)
+    assert first is not None and first.startswith(
+        "function 'connected' shadows the native function of the same name"
+    ), first
 
 
 # --- The oracles ----------------------------------------------------------------
