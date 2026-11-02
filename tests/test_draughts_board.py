@@ -29,7 +29,8 @@ men and the kings they are crowned into. This module is their grid:
   * The witnesses: a stepping-and-crowning skeleton over `draughts_men`
     whose offered steps equal OpenSpiel's legal moves at every node before
     the first capture, and, with one side alone on the board, equal a
-    hand-computed set through crowning and a king's backward steps.
+    hand-computed set through crowning and a king's backward steps; and the
+    crowning's movements as both seats observe them, the king named a king.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -45,8 +46,8 @@ property:   `draughts(w, h)` builds, for every admitted size, a board whose
             twelve men and twelve kings a side, `side` and `kind` its axes.
 domain:     GRID G's axes above; every `(width, height)` the family's bounds
             admit for the integrity sweep; OpenSpiel's `checkers` at the
-            sizes `_ORACLE_SIZES` names, each parity of width and height
-            among them; `board_entry`'s refusal shapes {unknown family,
+            sizes `_ORACLE_SIZES` names, each no wider than it is tall, each
+            parity of width and height among them; `board_entry`'s refusal shapes {unknown family,
             arity, each bound's low and high side}; `draughts_men` x
             {`piece.kind is king`, `piece.side is red`, `piece.kind is red`}.
             The family by every board verb and the `dir` positions is
@@ -75,6 +76,9 @@ does not prove:  that a game of draughts plays the WCDF rules: the jump,
             are a game's sentences over these verbs, and the differential
             of that game against `checkers` carries them. The witnesses
             here walk steps alone, so a line stops at its first capture.
+            Nor that the family agrees with the oracle on a board wider than
+            it is tall: the oracle loses a continuing jump's piece there, so
+            those sizes are held by `_Spec` and the sweep alone.
 
 red under (cells): `% 2 == 0` in place of `% 2 == 1` in the draughts
 builder's playable test reddens the hand tables, GRID G's `draughts` rows,
@@ -884,3 +888,43 @@ def test_one_side_alone_steps_crowns_and_steps_back(seed: int) -> None:
 
     play_game(check_dsl(source, _FILE), random.Random(seed), chooser=chooser)
     assert seen["crowned"] and seen["back"], seen
+
+
+def test_both_seats_see_the_king_a_crowning_places(tmp_path: Any) -> None:
+    """A man stepping onto the king-row, taken off and replaced by a king
+    from the supply, is three public movements every seat observes, and the
+    piece each names says man or king: a king is told from a man in what a
+    seat knows.
+
+    red under: `Card.__str__` (cardlang/runtime/values.py) rendering a
+    `king` as a `man` -- the supply's piece then reads as a man to both
+    seats."""
+    from cardlang.openspiel.replay import DecisionNode, load, run
+
+    path = tmp_path / "solo.cardlang"
+    path.write_text(
+        SKELETON.replace(
+            "    for each cell c: if c in home(1) { move one piece from reserve[1] to square[c] }\n",
+            "",
+        )
+    )
+    _, space = load(str(path))
+    history: list[int] = []
+    for frm in ("a3", "b4", "c5", "d6", "e7"):
+        for wanted in (("step", (frm, "ahead_right")), "pass"):
+            node = run(str(path), 0, tuple(history))
+            assert isinstance(node, DecisionNode)
+            history.append(next(a for a in node.legal if space.decode(a) == wanted))
+    node = run(str(path), 0, tuple(history))
+    assert isinstance(node, DecisionNode)
+    crowning = [
+        ("move", "square[e7]", ("man:red",), "square[f8]", ("man:red",)),
+        ("move", "square[f8]", ("man:red",), "reserve[0]", ("man:red",)),
+        ("move", "kings[0]", ("king:red",), "square[f8]", ("king:red",)),
+    ]
+    for seat in (0, 1):
+        log = node.obs_logs[seat]
+        at = log.index(crowning[0])
+        assert log[at : at + 3] == crowning, log[at : at + 3]
+        steps = [e for e in log[:at] if e[0] == "move" and e[1].startswith("square[")]
+        assert steps and all(e[2] == ("man:red",) for e in steps), steps
