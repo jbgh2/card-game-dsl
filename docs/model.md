@@ -24,7 +24,7 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **Move** | One played instance of a Move type, bound to its Parameters. A Move performs zero, one, or many **Transfers** — see "Moves and Transfers" below. |
 | **Transfer** | The zone-relocation statement. Its verbs (`deal`/`draw`/`move`) are sugar over one primitive. Independent of Move: setup is Transfers with no Move. |
 | **Phase** | A bounded interval of game time during which a specific set of rules is active. May be nested (sub-phases) and sequenced. Has entry condition, exit condition, active rule set, and legal move types. May resolve to a typed outcome (see [decisions.md](decisions.md) "Typed phase outcomes"). |
-| **Rule** | A named, parameterizable constraint on a move type. Attached to phases via the phase's active rule set. |
+| **Rule** | A named, parameterizable constraint on the trick round's card play, the one decision a rule binds at. Attached to phases via the phase's active rule set. |
 | **Constraint composition** | Rules combine by intersection (AND) over the set of legal candidate moves. |
 | **Observation event** | An event emitted automatically by a move or memory operation, projected per observer according to the visibility settings of the zones involved (see [decisions.md](decisions.md) "Knowledge, visibility, and the projection model"). Maintained as per-player histories; used to derive information sets. |
 | **Memory operation** | A native-named operation that affects player knowledge (`peek`, `reveal`, `hide`, `shuffle`, `announce`, `expose_top`, `deal`, `move`, `forget`). See [decisions.md](decisions.md). |
@@ -92,7 +92,8 @@ changes zones.
        Phases organize game time and scope active rules
                      |
                      v
-         Rules constrain Move types
+   Rules constrain the trick round's card play;
+   every other move type's When Clause states its legality
                      |
                      v
             Moves transfer Cards
@@ -106,9 +107,12 @@ changes zones.
 
 - **Phases** are primary structural units. A game is a sequence/tree of phases.
 - **Rules** are reusable named constraints attached to phases.
-- **Move types** are named card-transfer patterns. Rules constrain move types.
-- **Move types are scoped to phases via the phase's active rules** (a move type
-  is legal in a phase if rules constraining it are active there).
+- **Move types** are named card-transfer patterns. A rule binds at the trick
+  round's card decision and nowhere else; every other move type is legal or
+  not by its When Clause (decisions.md, "Rule demand forms").
+- **Move types are offered by the construct that makes the move** -- the trick
+  round for `play_to_trick`, a climb round for `play_combination`, an `offer`
+  for a game's own move types.
 - **Events emit automatically from moves**, with visibility derived from zones.
 
 ### Sub-phases and modes
@@ -143,8 +147,9 @@ being in a mode *is* its behavior; the grammar admits nothing else there.
 
 ### What rules really are
 
-A rule is **a named, reusable constraint on a move type, optionally with an
-applicability condition**. Four clauses:
+A rule is **a named, reusable constraint on the trick round's card play,
+optionally with an applicability condition**: it binds at that one decision
+and nowhere else (decisions.md, "Rule demand forms"). Four clauses:
 
 ```text
 rule <Name> {
@@ -181,8 +186,8 @@ phase play {
 
 A move type names a kind of move a player can make. Some are kernel move types
 names shared across games (`play_to_trick`, `submit_bid`); a game also
-defines its own with a `move_type` block — an optional `when:` guard
-and an `effect` that carries out the move:
+defines its own with a `move_type` block -- an optional When Clause
+(`when:`) and an `effect` that carries out the move:
 
 ```text
 move_type play_card(c : Card) {
@@ -190,13 +195,15 @@ move_type play_card(c : Card) {
 }
 ```
 
-Rules attach to move types via their `constrains:` clause. A game
+Rules attach to move types via their `constrains:` clause, and bind at
+the trick round's card decision and nowhere else, so `constrains:` names
+`play_to_trick`; every other decision's legality is its move type's When
+Clause (decisions.md, "Rule demand forms"). A game
 references a move type by name in a phase's `legal_moves:` or an
 `offer`; the kernel move types are shared, so Hearts, Spades, and
 Pinochle all use `play_to_trick`.
 
-The set of legal move types in a phase is derivable from the phase's active
-rules: each rule constrains a move type, so the legal move types are the union
-across the rules. (Whether this should be implicit or explicitly listed in the
-phase declaration is an open question — see
+The legal move types in a phase are the ones its constructs offer: a rule
+narrows the trick round's card play and adds no move type. (Whether the phase
+lists them explicitly is an open question -- see
 [open-questions/phase-legal-moves.md](open-questions/phase-legal-moves.md).)
