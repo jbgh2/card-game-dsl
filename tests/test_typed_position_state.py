@@ -64,15 +64,20 @@ does not prove:  that a caller hands `type_from_name` the game's OWN domains:
                  an empty mapping type-checks as well as the right one, and
                  only the cells typing a `cell` read (GRID R's refusals, GRID
                  D's default cells) witness the threading.
-red under:       GRID D's admit cells, GRID R and GRID P are born red, and
-                 reverting the admit-set reddens them; passing `{}` for the
-                 positions of `typecheck._check_state_default_type` reddens
-                 `default-cell?-3`. The value-type controls are born green and
-                 redden if the helper drops `KNOWN_TYPE_NAMES`; the
-                 indexed-store refusal is born green and reddens if the index
-                 arm admits the named-member domains; the unresolved-cell
-                 rows are born green and redden if resolve reads a board
-                 member's name as a value.
+red under:       GRID D's admit and default cells, GRID R and GRID P are born
+                 red, and the `StateDecl` arm reading `KNOWN_TYPE_NAMES` in
+                 place of the helper reddens all of them. Passing `{}` for the positions of
+                 `typecheck._check_state_default_type` reddens the `none`,
+                 Integer and String default cells; passing `{}` for the
+                 positions of `typecheck._ambient_env`'s state typing
+                 reddens GRID R's type refusals and its `membership` row;
+                 dropping the `None` branch of `state.ZoneStore.instance`
+                 reddens GRID P's two zone rows. The value-type controls are
+                 born green and redden if the helper drops
+                 `KNOWN_TYPE_NAMES`; the indexed-store refusal is born green
+                 and reddens if the index arm admits the named-member
+                 domains; the `a1` rows are born green and redden if resolve
+                 reads a board member's name as a value.
 """
 
 from __future__ import annotations
