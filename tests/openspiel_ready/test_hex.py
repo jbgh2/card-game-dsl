@@ -11,9 +11,11 @@ What is proven here
 - Two-observer degeneracy (``test_indistinguishability_under_hidden_swap``):
   at a replayed mid-game pause, for EACH player no populated zone projects
   below identity (``hidden_cards == 0``) and all 121 stones sit in
-  identity-projected zones (``visible == 121``); every stone identity appears in
-  the rendered information state; and both observers render the identical
-  board (the common-knowledge hallmark of perfect information). The base
+  identity-projected zones (``visible == 121``); every populated zone renders
+  under its own label with its occupant, so the observer sees WHERE each stone
+  is, not merely that stones exist; and both observers render the identical
+  board. That last equality holds by construction once every zone is at
+  identity, so it guards the premise rather than adding to it. The base
   proof's premise — a pair of worlds differing only in hidden content — is
   therefore unsatisfiable, so it is proven degenerate rather than skipped.
 - Soundness on own view (``test_soundness_own_view_changes_the_state``):
@@ -82,7 +84,13 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
-from .partition import first_divergence, projection_for, record, zone_instances
+from .partition import (
+    first_divergence,
+    projection_for,
+    record,
+    unshown_occupants,
+    zone_instances,
+)
 
 PATH = str(GAMES_DIR / "hex.cardlang")
 
@@ -114,9 +122,14 @@ class TestReadiness(ReadinessProofs):
         rather than vacuously skip. At a replayed pause, for EACH player: no
         populated zone projects below identity (so no hidden pair exists for the
         base proof to swap), all 121 stones sit in identity-projected zones, and
-        every stone identity appears in the rendered information state. Both
-        observers render the identical board — common knowledge — the hallmark
-        of a singleton partition under perfect information."""
+        every populated zone renders under its own label with its occupant.
+        Both observers render the identical board, which holds by construction
+        once every zone projects identity to both.
+
+        red under: `reserve[player] : Hand<player>` in hex.cardlang ("P0 has 54
+        cards in non-identity zones"); `_zone_line` rendering an identity zone
+        as `f"{label}=#{len(view)}"` (the occupant check names every populated
+        zone)."""
         _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, DecisionNode)
         renders: list[str] = []
@@ -139,14 +152,10 @@ class TestReadiness(ReadinessProofs):
                 f"in identity zones — a stone is over-hidden"
             )
             info = information_state(p, pause.rs, pause.obs_logs[p])
-            missing = [
-                str(c)
-                for _, _, zone in zone_instances(pause.rs)
-                for c in zone.cards
-                if str(c) not in info
-            ]
+            missing = unshown_occupants(pause.rs, info)
             assert not missing, (
-                f"cardlang_hex: stones absent from P{p}'s info state: {missing}"
+                f"cardlang_hex: P{p}'s info state does not show the stones "
+                f"on {missing}"
             )
             renders.append(_zone_render(info))
         assert renders[0] == renders[1], (
@@ -168,7 +177,11 @@ class TestReadiness(ReadinessProofs):
         """Everything is own view under perfect information. Swap a placed stone
         against a reserve stone of the OTHER side (guaranteed distinct
         renderings, black vs white) at a mid-game pause; BOTH observers' information
-        states must move, since every zone is identity-projected to both."""
+        states must move, since every zone is identity-projected to both.
+
+        red under: `_zone_line` rendering an identity zone as
+        `f"{label}=#{len(view)}"` ("P0's info state is insensitive to a visible
+        stone:black<->stone:white swap")."""
         _, pause = _advance(PATH, seed, self.spec.depth)
         assert isinstance(pause, DecisionNode)
         tile = next(

@@ -26,8 +26,8 @@ registry: the in-test oracle for the `connected` Builtin at game level.
 Plus the length facts. `max_length: 121` is the board's bound, so the
 declaration is asserted EQUAL to the cell count `hex_rhombus(11)` declares;
 and a line that fills the board ends by its rules at the 121st placement,
-witnessed by the manifest's full-board seeds. Measured 2026-11-01 under the
-uniform policy over seeds 0-299: lines of 70 to 121 plies (median 108), 14 of
+witnessed by the full-board seeds of `range(SEEDS)`. Measured 2026-11-01
+under the uniform policy over seeds 0-299: lines of 70 to 121 plies (median 108), 14 of
 them filling the board, 160 black wins to 140 white.
 
 And determinism: a shuffle-free game replays byte-identically from a seed, so
@@ -36,9 +36,9 @@ seed's board is pinned.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
-property:   every decision of every manifest line offers exactly the empty
-            cells to the seat whose turn it is, conserves the 121 stones,
-            and comes before either side has joined its edges; every line
+property:   every decision of every line of `range(SEEDS)` offers exactly
+            the empty cells to the seat whose turn it is, conserves the 121
+            stones, and comes before either side has joined its edges; every line
             ends by its rules within 121 decisions with a winner whose
             stones join its edges and a loser whose stones do not.
 domain:     the uniform-random lines of seeds `range(SEEDS)`, which hold the
@@ -101,7 +101,7 @@ NEIGHBOUR_OFFSETS = ((1, 0), (-1, 0), (0, 1), (0, -1), (-1, 1), (1, -1))
 LEGAL_OUTCOMES = {(1, -1), (-1, 1)}  # never (0, 0): Hex has no draw
 
 SEEDS = 40
-# The manifest's lines that fill the board (measured 2026-11-01).
+# The lines of `range(SEEDS)` that fill the board (measured 2026-11-01).
 FULL_BOARD = (4, 34)
 
 Board = dict[str, "str | None"]

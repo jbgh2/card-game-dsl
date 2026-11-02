@@ -24,11 +24,13 @@ Coverage — three layers, plus a trip-wire:
     60 s budget. Within any short prefix both trees are pre-terminal and any
     bijection keeps them isomorphic, so this layer catches only STRUCTURAL
     mapping errors; the layers below carry the adjacency.
-(b) `test_scripted_lines_agree_with_native`: four lines driven through
+(b) `test_scripted_lines_agree_with_native`: six lines driven through
     `to_native`, native agreeing on the terminal and the exact returns at the
-    same ply — black's straight chain up file `a` (21 plies, [1, -1]), white's
-    along rank 1 (22 plies, [-1, 1]), and a staircase for each side along the
-    diagonal (`k1 j2 ... a11`), the one adjacency a grid does not have.
+    same ply — black's straight chains up file `a` and up file `k` (21 plies,
+    [1, -1]), white's along rank 1 and along rank 11 (22 plies, [-1, 1]), so
+    each seat's border is met at all four corners, and a staircase for each
+    side along the diagonal (`k1 j2 ... a11`), the one adjacency a grid does
+    not have.
 (c) `test_random_trajectories_agree_with_native`: seeded uniform policies
     walked to terminal, mapped legal-set equality at every decision and exact
     returns equality, and the sample holds a black win and a white win.
@@ -53,6 +55,9 @@ red under (adjacency): `(1, 1)` in place of `(1, -1)` in
 terminal at the last stair) and the random trajectories (our game is
 terminal where native is not); depth 1 and the two straight lines stay
 green, as they must.
+red under (corner): dropping `k11` from black's far border in
+`boards._hex_rhombus` reddens `black-file-k`, and from white's,
+`white-rank-11`.
 red under (orientation): `to_native` composed with the half-turn reddens
 `test_mapping_names_every_cell_as_native_does` alone, the residual above.
 """
@@ -68,8 +73,8 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run  # noqa: E402
-from tests.native_oracle import (  # noqa: E402
+from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
+from tests.native_oracle import (
     assert_node_agrees,
     assert_outcomes_agree,
     classify,
@@ -148,6 +153,10 @@ def _interleave(first: list[str], second: list[str]) -> list[str]:
 BLACK_FILE_A = _interleave([f"a{r}" for r in range(1, 12)], [f"k{r}" for r in range(1, 11)])
 # White along rank 1, black idling on rank 11.
 WHITE_RANK_1 = _interleave([f"{f}11" for f in FILES], [f"{f}1" for f in FILES])
+# Black up file `k`, white idling on file `a` below rank 11.
+BLACK_FILE_K = _interleave([f"k{r}" for r in range(1, 12)], [f"a{r}" for r in range(1, 11)])
+# White along rank 11, black idling on rank 1.
+WHITE_RANK_11 = _interleave([f"{f}1" for f in FILES], [f"{f}11" for f in FILES])
 # The diagonal from `k1` up to `a11`: each step is file - 1, rank + 1.
 STAIR = [f"{FILES[SIZE - 1 - i]}{i + 1}" for i in range(SIZE)]
 # Black climbs the stair from rank 1, white idling on file `a` below the stair.
@@ -200,10 +209,15 @@ def test_exhaustive_prefix_walk_to_depth_1() -> None:
     [
         (BLACK_FILE_A, 21, [1.0, -1.0]),
         (WHITE_RANK_1, 22, [-1.0, 1.0]),
+        (BLACK_FILE_K, 21, [1.0, -1.0]),
+        (WHITE_RANK_11, 22, [-1.0, 1.0]),
         (BLACK_STAIR, 21, [1.0, -1.0]),
         (WHITE_STAIR, 22, [-1.0, 1.0]),
     ],
-    ids=["black-file-a", "white-rank-1", "black-stair", "white-stair"],
+    ids=[
+        "black-file-a", "white-rank-1", "black-file-k", "white-rank-11",
+        "black-stair", "white-stair",
+    ],
 )
 def test_scripted_lines_agree_with_native(line: list[str], plies: int, returns: list[float]) -> None:
     """Layer (b): each scripted line ends at its last stone on both sides, with
