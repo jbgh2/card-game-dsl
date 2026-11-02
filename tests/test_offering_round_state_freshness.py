@@ -499,6 +499,7 @@ ROUNDS: dict[str, Rounds] = {
 NO_DECISION_OUTSIDE: frozenset[str] = frozenset(
     {
         "breakthrough.cardlang",
+        "english-draughts.cardlang",
         "five-card-stud.cardlang",
         "freecell.cardlang",
         "go-fish.cardlang",
