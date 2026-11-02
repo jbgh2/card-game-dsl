@@ -112,8 +112,9 @@ same piece can jump again records that square in `chain_from` and sets
 `jumping`, the turn's `again` flag, so the same player takes the next turn;
 `jump`'s When Clause admits only the piece on `chain_from` while it is set.
 `chain_from : cell? = none` is a state variable holding a square
-([decisions.md](../decisions.md), "Boards and cells"), and it goes back to
-`none` with every jump, so a jump that ends the move leaves it clear.
+([decisions.md](../decisions.md), "Position domains and positional zones"),
+and it goes back to `none` with every jump, so a jump that ends the move
+leaves it clear.
 
 **Crowning is a swap from the supply.** A man arriving on `far_row(actor)`
 goes back to its side's `reserve` and a king from `kings[actor]` takes its

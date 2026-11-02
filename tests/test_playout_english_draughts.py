@@ -408,7 +408,10 @@ def test_english_draughts_playout_invariants(seed: int) -> None:
     """Every decision of a uniform line holds the module's invariants.
 
     red under: drop `quiet := 0` from `step`'s man arm in the game, and the
-    count check fails at the first man's step after a king's."""
+    count check fails at the first man's step after a king's. And: drop the
+    `can_move(foe)` check from `jump`'s effect; a capture that ends the
+    opponent's moves offers the loser steps with none legal, the
+    no-implicit-actions refusal."""
     _random_run(seed)
 
 
