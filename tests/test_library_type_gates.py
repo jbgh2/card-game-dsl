@@ -597,7 +597,7 @@ _HAND_PILE = f"{_HAND}  {_PILE}"
 _SITES: dict[tuple[str, str, int], tuple[Placement, ...] | str] = {
     ("_check_card_source", "_UNKEYED_COLLECTION", 0): "expects a card collection",
     ("_check_subset_query", "TInteger()", 0): "expects an Integer",
-    ("_domain_query_binder_type", "want", 0): "expects a line or a collection of lines",
+    ("_domain_query_binder_type", "TCollection(member)", 0): "expects a collection of a position domain's members or of lines",
     ("_check_round_actors", "TPlayer()", 0): (
         Placement(
             "Player",

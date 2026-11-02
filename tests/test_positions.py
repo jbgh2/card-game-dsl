@@ -481,7 +481,7 @@ def test_excluding_the_minted_domain_leaves_its_own_guard_standing() -> None:
 
 @pytest.mark.parametrize(
     "source,message",
-    [("lines(3)", "reads the board"), ("box", "iterates a collection of lines")],
+    [("lines(3)", "reads the board"), ("box", "but the source is Collection<Card>")],
 )
 def test_the_collection_quantifier_form_is_unwritable_without_a_board(
     source: str, message: str
@@ -497,7 +497,7 @@ def test_the_collection_quantifier_form_is_unwritable_without_a_board(
     of lines the form demands.
 
     red under: drop `lines` from `builtins.functions.BOARD_ONLY_CALL_FUNCS`, or
-    give `typecheck._COLLECTION_BINDER_TYPES` an arm accepting a card
+    give `typecheck._collection_member_type` an arm accepting a card
     collection.
     """
     with pytest.raises(DiagnosticError, match=message):

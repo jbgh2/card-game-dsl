@@ -1,6 +1,6 @@
 # ADR-0015: `cells where <pred>` is the position register's set form, with no new keyword
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0017
 - **Date:** 2026-10-25
 - **Ruled by:** the operator, decision by decision against Hoyle's single-seat counsel
 - **Record:** issue #953 (the #972 section of the Ruling; Hoyle's counsel, comment 6); its unit, issue #972, a ruled Merge Lane A part of the hex milestone; the class issue #984

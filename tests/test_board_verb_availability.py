@@ -572,14 +572,6 @@ def test_morris9_mills_are_the_sixteen_lines_and_each_point_is_in_two() -> None:
             id="dir move parameter on hex_rhombus",
         ),
         pytest.param(
-            _game(
-                "morris9",
-                setup="    probe := number of cells where (any cell in neighbors(cell) where true)\n",
-            ),
-            "iterates a single line",
-            id="collection quantifier over neighbors",
-        ),
-        pytest.param(
             _game("morris9").replace("pieces: xo_marks", "pieces: morris_men\n  cards: standard52"),
             "cards:",
             id="morris_men beside cards",

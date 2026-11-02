@@ -1589,10 +1589,10 @@ class _Builder(Transformer[Token, n.Game]):
         return self._implicit_quantifier("all", "rank", meta, c)
 
     def _domain_query(
-        self, kind: str, meta: Meta, noun: object, source: object, pred: object
+        self, kind: n.DomainQueryKind, meta: Meta, noun: object, source: object, pred: object
     ) -> n.DomainQuery:
         # The plural convention is fixed by kind: `any` takes the singular
-        # noun, `all`/`number of` the plural. The binder (the scoped name, and
+        # noun, `all`/`number of`/the set the plural. The binder (the scoped name, and
         # for a bare form the domain to enumerate) is the singular, derived by
         # stripping a trailing `s` from a plural spelling; `spelled` keeps the
         # raw noun so resolve can quote it in the plural-mismatch diagnostic.
@@ -1617,6 +1617,15 @@ class _Builder(Transformer[Token, n.Game]):
 
     def q_count_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
         return self._domain_query("count", meta, c[0], None, c[1])
+
+    def q_set_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("set", meta, c[0], None, c[1])
+
+    def q_set_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("set", meta, c[0], c[1], c[2])
+
+    def q_count_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("count", meta, c[0], c[1], c[2])
 
     def q_any_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
         return self._domain_query("any", meta, c[0], c[1], c[2])

@@ -210,6 +210,7 @@ def test_the_string_valued_class_is_swept_not_patched() -> None:
     wrong."""
     members = _string_valued_but_not_str_annotated()
     assert members == [
+        "DomainQuery.kind",
         "Game.content_flavor",
         "LoweredSpelling.form",
         "MoveTypeDef.stake",
