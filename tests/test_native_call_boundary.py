@@ -191,6 +191,26 @@ _ZONE_PROBES: dict[str, str] = {
         "    if bottom_of(hand[1]).rank is K { score[1] += 1 }\n"
         "  }"
     ),
+    # `connected` takes cell collections, and no zone holds cells: the one
+    # zone the type layer admits there is a chip stack, a collection of the
+    # permissive top (issue #655). An empty one reaches the verb as no
+    # elements, so `via` holds no cell and nothing is joined.
+    "connected": (
+        "game G {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  board: hex_rhombus(2)\n"
+        "  pieces: xo_marks\n"
+        "  zones { box : Deck  square[cell] : Cell<cell>\n"
+        "          bank[player] : ChipStack<player> }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  winner: highest score\n"
+        "  phase p {\n"
+        "    if not connected(cells where true, cells where true, bank[0]) { score[0] += 1 }\n"
+        "    if connected(cells where true, cells where true, bank[1]) { score[1] += 1 }\n"
+        "  }\n"
+        "}\n"
+    ),
 }
 
 

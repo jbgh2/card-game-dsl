@@ -298,6 +298,8 @@ def _arg(param: Type) -> tuple[str, str, bool]:
     if param == TEnum("Suit"):
         # A library names no suit, so it reaches a suit through a card.
         return "c : Card", "c.suit", True
+    if param == TCollection(TCell()):
+        return _CELL_DECL, "[x]", True
     if isinstance(param, (TAny, TCollection)):
         return "", "pile", True
     if isinstance(param, TCell):
@@ -396,7 +398,7 @@ GATES: tuple[Gate, ...] = (
         frozenset({"far_row", "has_step", "home", "is_diagonal", "neighbor"}),
         "board: morris9",
     ),
-    Gate("board_edges", frozenset({"neighbors"}), "board: grid"),
+    Gate("board_edges", frozenset({"connected", "neighbors"}), "board: grid"),
     Gate("board_lines", frozenset({"lines"}), "board:"),
     Gate("board_borders", frozenset({"far_edge", "near_edge"}), "board: grid"),
     Gate("cards", DECK_ONLY_CALL_FUNCS, "piece"),

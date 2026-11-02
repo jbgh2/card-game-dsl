@@ -64,24 +64,34 @@ held by:    a wrong-typed argument is Unrepresentable past the type layer:
             Derived and Pinned: `BOARD_VERB_NEEDS` maps `connected` to
             `edges`, read by resolve's need row and the runtime `_board_of`
             (tests/test_board_verb_availability.py); not higher, because the
-            family is the designer's string until resolve. The permissive-top
-            refusal is the runtime arm's Owner Guard, GRID T's `Any` row its
-            witness. Agreement with the union-find and the hex theorem are
-            Born-Green Pins, red under the planted (+1, +1) diagonal; the
-            expansion bound is a Born-Green Pin, red under dropping the
-            visited test; the expansion order is a Born-Green Pin, red under
-            taking a cell's neighbours from a set.
+            family is the designer's string until resolve. The refusal at play
+            of a value that is not the board's cells is the Owner Guard
+            `BoardEntry.connected` holds for what the permissive top lets
+            through, GRID T's `Any` and `cell?` rows its witnesses. Agreement
+            with the union-find, the hex theorem, the expansion bound and the
+            expansion order are Born-Green Pins, each red under the mutation
+            named below; not higher, because a differential against a second
+            implementation is evidence by execution, and no type states
+            termination or an order.
 does not prove:  that the adjacency is the real game's: the union-find reads
             this module's six offsets, and the Hex differential against
             OpenSpiel's own flood fill (issue #973) carries that.
 
 red under (adjacency): `(1, 1)` in place of `(1, -1)` in
 `boards._HEX_FORWARD_OFFSETS` reddens the union-find differential on n = 2
-and n = 3 and the hex theorem on n = 2 (both seats or neither connected).
+and n = 3. It leaves the hex theorem green, because the mirrored rhombus is a
+hex board too.
+red under (theorem): dropping `(1, -1)` from `boards._HEX_FORWARD_OFFSETS`
+reddens the hex theorem on n = 2 and n = 3 (neither seat connected), and
+adding `(1, 1)` beside it reddens them too (both seats connected); the n = 2
+witness is {a1, b2 black; b1, a2 white}.
 red under (bound): dropping the visited test from `BoardEntry.connected`
-reddens the bound pin (the count passes the board's cells).
+reddens the bound pin (122 expansions on 121 cells).
 red under (order): taking a cell's neighbours from a set in
-`BoardEntry.connected` reddens the order pin.
+`BoardEntry.connected` reddens the full-size order pin under each
+`PYTHONHASHSEED` in 0..4.
+red under (element guard): deleting `BoardEntry.connected`'s
+`_require_cell_collection` calls reddens GRID T's `Any` and `cell?` rows.
 """
 
 from __future__ import annotations
@@ -96,7 +106,6 @@ from typing import Any
 import pytest
 
 from cardlang.ast import nodes as n
-from cardlang.builtins.functions import BUILTIN_CALL_FUNCS
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
@@ -155,8 +164,9 @@ class Witness:
     on, the type the signature checker names refusing it (None where the slot
     admits it), and what the call needs around it: a binder (`wrap`), a state
     variable, a zone, `teams:`, or a function parameter (`param`, the call
-    then a function body); and whether an admitted witness is refused at
-    play."""
+    then a function body the When Clause calls with `call_with`); whether an
+    admitted witness is refused at play; and the refusal, where an earlier
+    guard than the signature checker gives it (`message`)."""
 
     label: str
     text: str
@@ -166,9 +176,11 @@ class Witness:
     state: str = ""
     teams: bool = False
     param: str = ""
+    call_with: str = ""
     zone: str = ""
     per_board: Mapping[str, str] | None = None
     refused_at_play: bool = False
+    message: str | None = None
 
     def on(self, board: str) -> str:
         if self.per_board is not None:
@@ -192,7 +204,17 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
         Witness("Line", "line", ("grid", "morris9"), "Line", wrap="(any line in lines(3) where {call})"),
     ),
     "TCombination": (
-        Witness("Combination", "c", _EVERYWHERE, "Combination", param="c : Combination"),
+        Witness(
+            "Combination",
+            "c",
+            _EVERYWHERE,
+            "Combination",
+            param="c : Combination",
+            message=(
+                "`connected` takes a zone or collection, and a play is neither: it has no "
+                "top card and no order of its own \u2014 read its cards as `cards in play`"
+            ),
+        ),
     ),
     "TEnum": (Witness("an enum", "x", _EVERYWHERE, "side"),),
     "TOptional": (
@@ -208,13 +230,29 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
         ),
         Witness("Collection<Cell> from the set form", SET_FORM, _ON_BOARDS, None),
         Witness("Collection<Cell> as a list", "[at]", _ON_BOARDS, None),
-        Witness("Collection<cell?> as a list", "[d]", _ON_BOARDS, None, param="d : cell?"),
         Witness(
-            "a chip stack",
-            "bank",
+            "Collection<cell?> as a list",
+            "[d]",
             _ON_BOARDS,
             None,
-            zone="    bank            : ChipStack\n",
+            param="d : cell?",
+            call_with="none",
+            refused_at_play=True,
+        ),
+        # A chip stack types as a collection of the permissive top, and a
+        # When Clause's Hidden Read Owner Guard refuses it first.
+        Witness(
+            "a chip stack",
+            "bank[actor]",
+            _ON_BOARDS,
+            "",
+            zone="    bank[player]    : ChipStack<player>\n",
+            message=(
+                "move type `place`'s `when:` is decided by the acting seat, so the acting "
+                "seat must be able to check it, but it reads the cards in `bank[actor]`, "
+                "which the acting seat cannot see. Read the deciding seat's own cards, or "
+                "have the holder announce or reveal the fact first"
+            ),
         ),
         Witness("Collection<Card> as a zone", "reserve[actor]", _EVERYWHERE, "Collection<Card>"),
         Witness("Collection<Card> as a list", "[top_of(reserve[actor])]", _EVERYWHERE, "Collection<Card>"),
@@ -251,9 +289,6 @@ UNWRITABLE: dict[str, str] = {
 
 POSITIONS = ("from", "to", "via")
 
-_RED = "issue #971: `connected` is not a Builtin yet"
-_RED_CHECK = pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RED)
-_RED_ENTRY = pytest.mark.xfail(strict=True, raises=AttributeError, reason=_RED)
 
 
 def test_the_type_axis_is_the_type_union() -> None:
@@ -310,7 +345,7 @@ def _source(witness: Witness, board: str, position: str) -> str:
     if witness.param:
         return _game(
             board,
-            "true",
+            f"probe_fn({witness.call_with})" if witness.call_with else "true",
             state=witness.state,
             zone=witness.zone,
             teams=witness.teams,
@@ -346,7 +381,6 @@ def _type_cells() -> list[Any]:
     return cells
 
 
-@_RED_CHECK
 @pytest.mark.parametrize(("witness", "board", "position"), _type_cells())
 def test_an_argument_is_admitted_or_refused_in_the_right_layer(
     witness: Witness, board: str, position: str
@@ -358,6 +392,9 @@ def test_an_argument_is_admitted_or_refused_in_the_right_layer(
         return
     if board not in ANSWERS:
         assert _adjacency_refusal(board) in rendered, rendered
+        return
+    if witness.message is not None:
+        assert first == witness.message, rendered
         return
     if witness.got is not None:
         assert first == _type_refusal(witness.got), rendered
@@ -406,19 +443,45 @@ def _call_hosts(node: object, host: tuple[str, str] | None = None) -> Iterator[t
         yield from _call_hosts(getattr(node, f.name), child_host)
 
 
-@_RED_CHECK
 @pytest.mark.parametrize("host", sorted(lift.HOSTS))
 def test_the_call_checks_and_plays_in_every_host(host: str) -> None:
     build, field = lift.HOSTS[host]
     source = _on_hex(build(HEX_CALL))
     first, rendered = _rendered(source)
     if host == "state default":
-        assert first is not None and "`connected`" in rendered, rendered
+        assert first is not None and "cannot call 'connected'" in first, rendered
         return
     assert first is None, rendered
     game = check_dsl(source, _FILE)
     assert list(_call_hosts(game)) == [field]
+    if host == "result clause":
+        # The host's `loser:` names a seat whose result is negative, which no
+        # seat's is: the selection runs the call for each seat and names none.
+        with pytest.raises(OwnerGuardError, match="matched 0 players"):
+            play_game(game, random.Random(0))
+        return
     play_game(game, random.Random(0))
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="issue #655: a chip stack is accepted wherever a collection is wanted",
+)
+def test_a_chip_stack_is_refused_in_an_effect() -> None:
+    """An effect decides no seat's choice, so the Hidden Read Owner Guard
+    leaves a chip stack to the type layer, which admits it as a collection of
+    the permissive top."""
+    source = _game(
+        "hex_rhombus",
+        "true",
+        zone="    bank[player]    : ChipStack<player>\n",
+    ).replace(
+        "effect { move one piece",
+        f"effect {{ if connected({SET_FORM}, {SET_FORM}, bank[actor]) {{ done := true }}\n    move one piece",
+    )
+    first, rendered = _rendered(source)
+    assert first is not None, "a chip stack checked as a `connected` argument"
 
 
 # --- The misuse probes ----------------------------------------------------------
@@ -432,7 +495,6 @@ def test_the_call_checks_and_plays_in_every_host(host: str) -> None:
             "connected(near_edge(actor), far_edge(actor))",
             "connected() expects 3 argument(s), got 2",
             id="arity",
-            marks=_RED_CHECK,
         ),
         pytest.param(
             "hex_rhombus",
@@ -445,21 +507,18 @@ def test_the_call_checks_and_plays_in_every_host(host: str) -> None:
             "connected(near_edge(actor), far_edge(actor), square[at])",
             _type_refusal("Collection<Card>"),
             id="a-zone-for-via",
-            marks=_RED_CHECK,
         ),
         pytest.param(
             "grid",
             f"connected(lines(3), far_row(actor), {SET_FORM})",
             _adjacency_refusal("grid"),
             id="lines-on-a-grid",
-            marks=_RED_CHECK,
         ),
         pytest.param(
             "hex_rhombus",
             f"connected(near_edge(actor), far_edge(actor), {SET_FORM}, 6)",
             "connected() expects 3 argument(s), got 4",
             id="a-connectivity-argument",
-            marks=_RED_CHECK,
         ),
         pytest.param(
             "hex_rhombus",
@@ -515,7 +574,6 @@ def _uf_connected(side: int, colour: Mapping[tuple[int, int], str], seat: int) -
 def _verb(entry: BoardEntry) -> Callable[[int, tuple[str, ...]], bool]:
     """The verb as the runtime calls it, through the native-call boundary,
     for `seat`'s borders and a `via`."""
-    assert "connected" in BUILTIN_CALL_FUNCS
     game = check_dsl(_game("hex_rhombus", "true").replace("hex_rhombus(3)", entry.spelling), _FILE)
     ctx = _board_ctx(game, {})
     borders = {p: (entry.near_edge(p), entry.far_edge(p)) for p in (0, 1)}
@@ -527,7 +585,6 @@ def _verb(entry: BoardEntry) -> Callable[[int, tuple[str, ...]], bool]:
     return answer
 
 
-@_RED_CHECK
 @pytest.mark.parametrize("side", [1, 2, 3])
 def test_the_verb_agrees_with_a_union_find_on_every_position(side: int) -> None:
     entry = board_entry("hex_rhombus", (side,))
@@ -540,7 +597,6 @@ def test_the_verb_agrees_with_a_union_find_on_every_position(side: int) -> None:
             assert verb(seat, via) == _uf_connected(side, colour, seat), (colour, seat)
 
 
-@_RED_CHECK
 @pytest.mark.parametrize("side", [1, 2, 3])
 def test_exactly_one_seat_joins_its_borders_on_a_full_board(side: int) -> None:
     """The hex theorem: on a full board exactly one seat is connected."""
@@ -552,7 +608,6 @@ def test_exactly_one_seat_joins_its_borders_on_a_full_board(side: int) -> None:
         assert verb(0, black) != verb(1, white), (black, white)
 
 
-@_RED_ENTRY
 def test_each_cell_is_expanded_at_most_once() -> None:
     entry = board_entry("hex_rhombus", (11,))
     expanded: list[str] = []
@@ -566,7 +621,6 @@ def test_each_cell_is_expanded_at_most_once() -> None:
     assert sorted(expanded) == sorted(entry.cells)
 
 
-@_RED_ENTRY
 def test_the_expansion_order_is_the_seeds_then_board_order() -> None:
     """From `c3` across a full `hex_rhombus(3)`: breadth first, each cell's
     neighbours taken in the board's cell order."""
@@ -579,7 +633,36 @@ def test_the_expansion_order_is_the_seeds_then_board_order() -> None:
     assert traces[0] == traces[1] == ["c3", "c2", "b3", "c1", "b2", "a3", "b1", "a2", "a1"]
 
 
-@_RED_ENTRY
+def _reference_order(side: int, seeds: tuple[str, ...]) -> list[str]:
+    """Breadth first over the whole rhombus from `seeds`, by this module's six
+    offsets, each cell's neighbours in board order (rank, then file)."""
+    coords = {_uf_name(c, r): (r, c) for r in range(side) for c in range(side)}
+    names = {rc: name for name, rc in coords.items()}
+    seen = set(seeds)
+    order: list[str] = []
+    queue = list(seeds)
+    while queue:
+        cell = queue.pop(0)
+        order.append(cell)
+        r, c = coords[cell]
+        joined = sorted(
+            (r + dr, c + dc) for dr, dc in _UF_OFFSETS if (r + dr, c + dc) in names
+        )
+        for rc in joined:
+            if names[rc] not in seen:
+                seen.add(names[rc])
+                queue.append(names[rc])
+    return order
+
+
+def test_the_expansion_order_on_the_full_size_board_is_the_reference_order() -> None:
+    entry = board_entry("hex_rhombus", (11,))
+    for seeds in (("k11",), ("f6",), entry.near_edge(1)):
+        trace: list[str] = []
+        entry.connected(seeds, (), entry.cells, visit=trace.append)
+        assert trace == _reference_order(11, seeds), seeds
+
+
 @pytest.mark.parametrize(
     ("frm", "to", "via", "expected"),
     [
@@ -597,7 +680,6 @@ def test_the_edge_cases(frm: tuple[str, ...], to: tuple[str, ...], via: tuple[st
     assert entry.connected(frm, to, via) is expected
 
 
-@pytest.mark.xfail(strict=True, raises=KeyError, reason=_RED)
 def test_the_signature_is_three_cell_collections_to_a_boolean() -> None:
     sig = CALL_SIGS["connected"]
     assert sig.params == (TCollection(TCell()),) * 3

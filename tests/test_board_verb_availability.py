@@ -53,7 +53,8 @@ domain:     `BOARD_FAMILIES` x the positions above x {answered, refused}
             jump triples, track frames, double-indexed families, in-file
             boards. A family library spells no `cell` type and no `dir`, so
             of the board verbs it reaches the seat verbs `home`, `far_row`,
-            `near_edge` and `far_edge`, and `lines`, and `neighbors` through a
+            `near_edge` and `far_edge`, and `lines`, and `neighbors` and
+            `connected` through a
             `for each cell` binder; its
             reach is the `uses`-line row of `resolve._CLAUSE_GATES` that the
             game's own call reads (tests/test_library_clause_gates.py).
@@ -153,9 +154,10 @@ def _positions() -> list[str]:
 
 
 # The expected column, authored from the family-by-verb matrices of issues
-# #976 and #969: the positions each family answers; every other position is
-# refused. `hex_rhombus` answering `neighbors` is the one cell #969's matrix
-# does not list: its adjacency is declared as edges, which that verb reads.
+# #976, #969 and #971: the positions each family answers; every other position
+# is refused. `hex_rhombus` answering `neighbors` and `morris9` answering
+# `connected` are the cells those matrices do not list: each family declares
+# its adjacency as edges, which both verbs read.
 ANSWERS: dict[str, frozenset[str]] = {
     "grid": frozenset(
         {
@@ -171,15 +173,17 @@ ANSWERS: dict[str, frozenset[str]] = {
             *DIR_POSITIONS,
         }
     ),
-    "morris9": frozenset({"call neighbors", "lines(3)"}),
-    "hex_rhombus": frozenset({"call far_edge", "call near_edge", "call neighbors"}),
+    "morris9": frozenset({"call connected", "call neighbors", "lines(3)"}),
+    "hex_rhombus": frozenset(
+        {"call connected", "call far_edge", "call near_edge", "call neighbors"}
+    ),
 }
 
 # The board verbs each family answers, as its refusals list them.
 ANSWERED_VERBS: dict[str, tuple[str, ...]] = {
     "grid": ("far_row", "has_step", "home", "is_diagonal", "lines", "neighbor"),
-    "morris9": ("lines", "neighbors"),
-    "hex_rhombus": ("far_edge", "near_edge", "neighbors"),
+    "morris9": ("connected", "lines", "neighbors"),
+    "hex_rhombus": ("connected", "far_edge", "near_edge", "neighbors"),
 }
 
 FAMILIES = sorted(set(BOARD_FAMILIES) | set(ANSWERS))
@@ -280,16 +284,23 @@ def _game(
 
 _DECLS = {TCell: "c : cell", TDir: "d : dir", TPlayer: "p : Player"}
 _ARGS = {TCell: "cell", TDir: "dir", TPlayer: "0"}
+# A collection a function parameter cannot be typed as, written in the body.
+_INLINE: dict[type, str] = {TCollection: "(cells where true)"}
 
 
 def _call_probe(family: str, verb: str) -> str:
-    """`verb` in a function whose parameters its signature types, and a setup
-    statement that calls the function over the board's cells (and directions,
-    where the verb takes one), so an answered verb runs at play."""
+    """`verb` in a function whose parameters its signature types (a cell
+    collection written in its body), and a setup statement that calls the
+    function over the board's cells (and directions, where the verb takes
+    one), so an answered verb runs at play."""
     sig = CALL_SIGS[verb]
-    decls = ", ".join(_DECLS[type(p)] for p in sig.params)
-    names = ", ".join(_DECLS[type(p)].split(" : ")[0] for p in sig.params)
-    call = f"probe_fn({', '.join(_ARGS[type(p)] for p in sig.params)})"
+    typed = [p for p in sig.params if type(p) not in _INLINE]
+    decls = ", ".join(_DECLS[type(p)] for p in typed)
+    names = ", ".join(
+        _INLINE[type(p)] if type(p) in _INLINE else _DECLS[type(p)].split(" : ")[0]
+        for p in sig.params
+    )
+    call = f"probe_fn({', '.join(_ARGS[type(p)] for p in typed)})"
     ret = sig.ret
     if isinstance(ret, TBoolean):
         use = call
@@ -301,7 +312,7 @@ def _call_probe(family: str, verb: str) -> str:
         raise AssertionError(f"{verb} returns {ret}; give it a reading here")
     if any(isinstance(p, TDir) for p in sig.params) or "dir" in use:
         use = f"(any dir where {use})"
-    if "cell" in use:
+    if "cell" in use or "dir" not in use:
         count = f"number of cells where {use}"
     else:
         count = f"number of dirs where {use}"
@@ -409,7 +420,7 @@ def _shadow_cells() -> list[tuple[str, str]]:
     return cells + [("bare", "lines")]
 
 
-_SHADOW_ARGS = {TCell: "a1", TDir: "ahead", TPlayer: 0, TInteger: 3}
+_SHADOW_ARGS = {TCell: "a1", TDir: "ahead", TPlayer: 0, TInteger: 3, TCollection: ("a1",)}
 
 
 @pytest.mark.expects_shadow_guard

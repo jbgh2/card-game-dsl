@@ -395,12 +395,14 @@ def test_an_integer_set_naming_no_seat_is_refused_as_participants() -> None:
     raise AssertionError("the members naming no seat were dropped from the ring")
 
 
-@pytest.mark.xfail(strict=True, raises=DiagnosticError, reason="issue #971: `connected` is not a Builtin yet")
 def test_the_set_is_a_connected_argument() -> None:
-    check_dsl(
-        _in_when("connected(home(0), far_row(0), cells where square[cell] is empty)"),
-        "set.cardlang",
-    )
+    """A board declaring an adjacency joins two regions through the set; the
+    argument grid is tests/test_connected_builtin.py's."""
+    source = _in_when(
+        "(square[at] is empty) and "
+        "connected(near_edge(actor), far_edge(actor), cells where square[cell] is empty)"
+    ).replace("  board: grid(3, 3)\n", "  board: hex_rhombus(3)\n")
+    play_game(check_dsl(source, "set.cardlang"), random.Random(0))
 
 
 # --- GRID R: the runtime value ------------------------------------------------
