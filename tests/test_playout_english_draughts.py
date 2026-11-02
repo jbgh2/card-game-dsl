@@ -314,6 +314,7 @@ def _playout(seed: int, policy: Policy = uniform) -> Playout:
     invariants as it goes."""
     game = _game()
     assert game.max_length is not None
+    cap = game.max_length
     rng = random.Random(seed)
     rs_ref: dict[str, RuntimeState] = {}
     prev: list[Any] = [None]
@@ -336,7 +337,7 @@ def _playout(seed: int, policy: Policy = uniform) -> Playout:
     def chooser(player: int, candidates: list[Candidate], k: int) -> list[Candidate]:
         snap = _snapshot(rs_ref["rs"])
         plies[0] += 1
-        assert plies[0] <= game.max_length, "the playout ran past the declared max_length"
+        assert plies[0] <= cap, "the playout ran past the declared max_length"
         assert k == 1, f"draughts offers one move; got k={k}"
         assert snap.pieces() == TOTAL_PIECES, "the forty-eight pieces were not conserved"
         checked = check_previous(snap)

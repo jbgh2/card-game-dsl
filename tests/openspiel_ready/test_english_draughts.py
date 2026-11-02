@@ -50,7 +50,7 @@ pyspiel conformance (the full ``random_sim_test``, a uniform game the rules
 end); the per-visible-fact matrix; seed/rng non-observability
 (``vacuous_stock``); perfect recall; adapter agreement walked to TerminalNode
 with the ``[+1, -1]`` returns compared (the greedy ``legal[0]`` line wins in
-a deterministic forty-nine steps).
+a deterministic forty-nine steps, measured 2026-11-02).
 
 Honest caveats
 --------------
@@ -142,7 +142,7 @@ class TestReadiness(ReadinessProofs):
         hidden_zone="captured",  # unused: no zone hides content, both hand-assuming proofs overridden
         depth=DEPTH,
         swap_axis="any",  # no public card/rank observation to preserve
-        adapter_terminal_steps=53,  # greedy legal[0] line wins in 49 (deterministic); +4 slack
+        adapter_terminal_steps=53,  # greedy line wins in 49 (2026-11-02, every seed); +4 slack
     )
 
     @pytest.mark.parametrize("seed", ONE_SEED)

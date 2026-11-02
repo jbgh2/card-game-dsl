@@ -39,13 +39,13 @@ Coverage:
 
 (a) `test_exhaustive_prefix_walk`: every prefix of the opening array to
     `PREFIX_DEPTH`, through the paused adapter.
-(b) Scripted lines, each a prefix walked move by move and then continued by
-    a seeded uniform policy to the line's end: a multiple jump of two and of
-    three hops with another piece's jump open beside it, the chain offering
-    the jumping piece alone; a man crowned by a jump with a further jump open
-    to the new king, the move ending there on both sides; a king's backward
-    step and backward capture; and a blockade, the loser holding pieces with
-    no legal move.
+(b) Scripted lines, each walked move by move to the node after its rule's
+    branch: a multiple jump of two and of three hops with another piece's
+    jump open at a continuation, the chain offering the jumping piece alone;
+    a man crowned by a jump with a further jump open to the new king, the
+    move ending there on both sides; a king's backward step and backward
+    capture; and, walked to the rules end, a blockade for each seat, the
+    loser holding pieces with no legal move.
 (c) `test_random_trajectories_agree_with_native`: seeded uniform policies
     over `POLICY_SEEDS`, walked to a rules end or the truncation; the tally
     holds both winners and a truncation.
@@ -77,10 +77,10 @@ held by:    the direction and square tables are a Born-Green Pin (the
             tables are external data with no source in the tree. The
             truncation is a Born-Green Pin: `oracle_forty` counts the
             capture-free tail of the oracle's own history against
-            `ORACLE_FORTY`, and the walker asks it only of a terminal oracle;
-            why not higher: the count's value is external data, and the
-            policy lines that truncate are its witnesses, the walk failing
-            under any other value.
+            `ORACLE_FORTY` exactly, and the walker asks it only of a terminal
+            oracle; why not higher: the count's value is external data, and
+            the policy lines that truncate are its witnesses, the walk
+            failing under any other value.
 does not prove:  that the game and the oracle agree past the oracle's forty,
             where the oracle has no game to compare (the draw lines of (d)
             are the game's alone, against the Mirror); nor at a node no walk
@@ -88,11 +88,13 @@ does not prove:  that the game and the oracle agree past the oracle's forty,
             every position.
 
 red under (directions): `oracle_dir` reading every seat's offset in seat 0's
-frame reddens the first tripwire's walk at White's first move, and every
-walk; `MOVE_TYPES` with its two entries exchanged reddens every walk at the
-root.
-red under (truncation): `ORACLE_FORTY = 39` reddens the policy walk at the
-first truncating seed, the oracle's end no longer named.
+frame reddens the anchor test and every walk; the two tripwires, which
+expect a divergence, stay green. `MOVE_TYPES` with its two entries exchanged
+reddens the anchor test and every walk at the root, the seat-0 tripwire
+among them; the move-type tripwire stays green.
+red under (truncation): `ORACLE_FORTY = 41`, and `ORACLE_FORTY = 39`, each
+redden the policy walk at the first truncating seed's fortieth quiet ply,
+the oracle's end no longer named.
 """
 
 from __future__ import annotations
@@ -341,14 +343,14 @@ class Mirror:
 
 
 def oracle_forty(native: Any) -> bool:
-    """The oracle's draw: forty plies in a row in its own history with no
+    """The oracle's draw: its history ends in exactly forty plies with no
     capture, a capture being the move type bit of an action id."""
     quiet = 0
     for action in reversed(native.history()):
         if action % 2 == MOVE_TYPES["jump"]:
             break
         quiet += 1
-    return quiet >= ORACLE_FORTY
+    return quiet == ORACLE_FORTY
 
 
 class _Stopped(Exception):
@@ -708,7 +710,11 @@ def test_scripted_king_moves_backward(script: tuple[str, ...], kind: str) -> Non
 @pytest.mark.parametrize("name", sorted(BLOCKADES))
 def test_scripted_blockade(name: str) -> None:
     """A step leaves the other side with pieces on the board and no legal
-    move, and the stepping side wins on both sides."""
+    move, and the stepping side wins on both sides.
+
+    red under: drop the `can_move(foe)` check from `step`'s effect in the
+    game; the loser is offered steps with none legal, and the line ends in
+    the no-implicit-actions refusal instead of a result."""
     script, winner = BLOCKADES[name]
     line = paired_line(scripted_then(script, 0), label=f"blockade, {name}")
     assert isinstance(line.end, Rules) and line.end.ply == len(script)
@@ -736,7 +742,10 @@ def test_forty_move_draw_on_the_game_alone() -> None:
     it, and then plays on in the game alone, the count read off the live game
     at every ply and held equal to the Mirror's: it reaches seventy-nine, a
     man's step starts it again, and eighty quiet plies later the game is a
-    tie by its rules."""
+    tie by its rules.
+
+    red under: drop `quiet := 0` from `step`'s man arm in the game; the
+    game's count parts from the Mirror's on the ply after the reset."""
     paired = paired_line(shuffle_steer(DRAW_SEED), label="draw")
     assert isinstance(paired.end, Truncated)
 

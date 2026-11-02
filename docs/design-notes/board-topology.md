@@ -613,7 +613,7 @@ does not move.
    truncation point
    (`tests/test_differential_nine_mens_morris.py`), not a rule of the
    game.
-8. **English draughts** (8×8, 12 men; oracle `checkers`; in the corpus,
+8. **English draughts** (8x8, 12 men; oracle `checkers`; in the corpus,
    [games/english-draughts.md](../games/english-draughts.md)). Adds
    mandatory capture as the rulebook's own branch, an `offer` of jumps
    behind an `if` over the move-existence function `can_jump`
