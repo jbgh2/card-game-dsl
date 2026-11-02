@@ -3718,9 +3718,13 @@ expression register has no loop and no recursion, so reachability is the
 verb `connected(from, to, via) : Boolean`, each argument a
 `Collection<Cell>`: true exactly when some cell of `from` reaches some cell
 of `to` along the board's declared adjacency with every cell of the path,
-both ends included, in `via`. A game writes no fixed point of its own: Hex's
-win for seat 0 is the one sentence `connected(near_edge(0), far_edge(0),
-cells where (square[cell] is not empty) and (top_of(square[cell]).side is x))`.
+both ends included, in `via`. A game writes no fixed point of its own;
+Hex's win is one sentence over a predicate naming a seat's stones:
+
+```cardlang-fragment connected
+function joined(p : Player) = connected(near_edge(p), far_edge(p), cells where holds(cell, p))
+```
+
 The search is breadth first, seeded with `from`'s cells in `via` in
 `from`'s order and taking each cell's neighbours in board order, and it
 expands each cell at most once, so it ends within the board's cell count by
@@ -3730,9 +3734,10 @@ the argument expressions, which the Hidden Read Owner Guard judges where
 they are written. An empty `via`, or a `from` with no cell in `via`, is
 false; a cell in all three is true. The connectivity is the family's
 declaration, never a call-site argument, so a family that declares no
-adjacency refuses the verb as it refuses `neighbors`. A value reaching the
-verb through the Permissive Top that is not a collection of the board's
-cells is refused at play. A set-valued sibling (`region`) is not the
+adjacency refuses the verb as it refuses `neighbors`. An optional set of
+cells checks where a set of cells does, and a none argument, or a none
+inside one, is refused at play; so is a value reaching the verb through the
+Permissive Top that is not a collection of the board's cells. A set-valued sibling (`region`) is not the
 language: it waits for the game that needs a region as a value.
 
 ## Game result: `winner:` and `loser:`

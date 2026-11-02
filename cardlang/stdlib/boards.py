@@ -39,7 +39,12 @@ Now illegal:  a frameless entry answering a frame verb or minting a
               edges; a `connected` argument holding anything but the board's
               cells; a line that is not a
               straight run of its family's topology; an asymmetric adjacency.
-Held by:      the frame, the edges and the borders are Unrepresentable as
+Held by:      a `connected` argument holding anything but the board's cells
+              is a Born-Green Pin (the Permissive Top rows of
+              tests/test_connected_builtin.py), standing in for the type
+              layer's missing Owner Guard (issue #116); not higher, because the
+              Permissive Top admits the value by design until that lands.
+              The frame, the edges and the borders are Unrepresentable as
               absent-but-read: each is optional on `BoardEntry` and each verb
               reads its field through `_frame` / `_edges` / `_borders`, which
               refuse a missing one, and `answers` matches every `BoardNeed`
@@ -124,6 +129,20 @@ _MORRIS9_EDGES: tuple[tuple[str, str], ...] = (
 # of OpenSpiel's `hex` (hex.cc, `AdjacentCells`); each edge is generated once,
 # from its earlier cell.
 _HEX_FORWARD_OFFSETS: tuple[tuple[int, int], ...] = ((0, 1), (1, 0), (1, -1))
+
+
+def _designer_spelling(value: object) -> str:
+    """A value as a game writes it: a cell or a direction by its name, a
+    number as written, `true`/`false`, `none`, a collection in brackets."""
+    if value is None:
+        return "none"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (str, int)):
+        return str(value)
+    if isinstance(value, (tuple, list)):
+        return "[" + ", ".join(_designer_spelling(v) for v in value) + "]"
+    return f"a {type(value).__name__.lower()}"
 
 
 def board_spelling(family: str, args: tuple[int, ...]) -> str:
@@ -358,15 +377,20 @@ class BoardEntry:
         return {c: tuple(sorted(nbs, key=order.__getitem__)) for c, nbs in joined.items()}
 
     def _require_cell_collection(self, reader: str, name: str, cells: object) -> None:
-        # The type layer admits only cell collections, but a value typed as the
-        # Permissive Top reaches the verb unchecked; it is the game author's.
+        # Stands in for the type layer's missing Owner Guard: the type layer
+        # owns which values fill a cell slot, and the Permissive Top lets a
+        # value with no join through it (issue #116; a chip stack, issue #655).
+        # A none member is `reads.coerce_args`'s, refused before this runs.
         if not isinstance(cells, tuple) or not all(
             isinstance(c, str) and c in self._cell_set for c in cells
         ):
             raise OwnerGuardError(
-                f"`{reader}` reads cells of `board: {self.spelling}`, but its "
-                f"`{name}` argument is {cells!r}: pass a set of the board's cells, "
-                "such as `cells where <predicate>`"
+                f"`{reader}` reads a set of cells of `board: {self.spelling}`, but its "
+                f"`{name}` argument is {_designer_spelling(cells)}, which is not one: "
+                "a value reaches it unchecked from an `if` whose branches are "
+                "different kinds of value, or from a chip stack. Write a set of "
+                "cells there, in every branch: a Region Verb such as `near_edge(p)`, "
+                "or `cells where <predicate>`"
             )
 
     @cached_property

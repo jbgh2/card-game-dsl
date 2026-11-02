@@ -37,11 +37,12 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 property:   `connected` checks in every expression host with three cell
             collections on a family declaring an adjacency and answers
             exactly the union-find's reachability there; an argument typed
-            as anything but a cell collection or the Permissive Top is
-            refused at check, a family declaring no adjacency is refused at
-            resolve naming it, and a boardless game is refused naming
-            `board:`; a value typed as the Permissive Top that is not a
-            collection of the board's cells is refused at play.
+            as anything but a cell collection, an optional one or the
+            Permissive Top is refused at check, a family declaring no
+            adjacency is refused at resolve naming it, and a boardless game
+            is refused naming `board:`; at play, a none argument or a none
+            member is refused, and so is a value typed as the Permissive
+            Top that is not a collection of the board's cells.
 domain:     {from, to, via} x {each witness of `WITNESSES`} x {each board it
             is written on: `BOARD_FAMILIES`, boardless} (GRID T); {host:
             tests/test_direction_lift.py::HOSTS} on `hex_rhombus(3)` (GRID
@@ -68,10 +69,13 @@ held by:    an argument typed as neither a cell collection nor the
             Derived and Pinned: `BOARD_VERB_NEEDS` maps `connected` to
             `edges`, read by resolve's need row and the runtime `_board_of`
             (tests/test_board_verb_availability.py); not higher, because the
-            family is the designer's string until resolve. The refusal at play
-            of a value that is not the board's cells is the Owner Guard
-            `BoardEntry.connected` holds for what the Permissive Top lets
-            through, GRID T's `Any` and `cell?` rows its witnesses. Agreement
+            family is the designer's string until resolve. A none argument or
+            member is refused at play by `reads.coerce_args`, the none class's
+            Owner Guard (tests/test_native_call_boundary.py), GRID T's
+            optional rows its witnesses here. The refusal at play of a value
+            that is not the board's cells stands in, in `BoardEntry.connected`,
+            for the type layer's missing Owner Guard (issue #116), GRID T's
+            Permissive Top rows its witnesses. Agreement
             with the union-find, the hex theorem, the expansion bound and the
             expansion order are Born-Green Pins, each red under the mutation
             named below; not higher, because a differential against a second
@@ -89,7 +93,8 @@ red under (theorem): dropping `(1, -1)` from `boards._HEX_FORWARD_OFFSETS`
 reddens the hex theorem on n = 2 and n = 3 (neither seat connected), and
 adding `(1, 1)` beside it reddens them too (both seats connected); the n = 2
 witness is {a1, b2 black; b1, a2 white}.
-red under (bound): dropping the visited test from `BoardEntry.connected`
+red under (bound): dropping the visited test from `BoardEntry.connected`, or
+seeding the frontier with `from` as written rather than once per cell,
 reddens the bound pin (the expansions pass the board's cell count).
 red under (order): taking a cell's neighbours from a set in
 `BoardEntry.connected` reddens the full-size order pin.
@@ -99,7 +104,9 @@ red under (probes): skipping resolve's unresolved-name or unknown-function
 refusal reddens the bare cell name probe or the design note's spelling probe, and
 skipping its native-shadow refusal reddens the game-function probe.
 red under (element guard): deleting `BoardEntry.connected`'s
-`_require_cell_collection` calls reddens GRID T's `Any` and `cell?` rows.
+`_require_cell_collection` calls reddens GRID T's Permissive Top rows.
+red under (none member): deleting the none-member test from
+`reads.coerce_args` reddens GRID T's `Collection<cell?>` rows.
 """
 
 from __future__ import annotations
@@ -173,7 +180,8 @@ class Witness:
     admits it), and what the call needs around it: a binder (`wrap`), a state
     variable, a zone, `teams:`, or a function parameter (`param`, the call
     then a function body the When Clause calls with `call_with`); whether an
-    admitted witness is refused at play; and the refusal, where an earlier
+    admitted witness is refused at play (a pattern of the refusal); and the
+    refusal at check, where an earlier
     guard than the signature checker gives it (`message`)."""
 
     label: str
@@ -187,7 +195,7 @@ class Witness:
     call_with: str = ""
     zone: str = ""
     per_board: Mapping[str, str] | None = None
-    refused_at_play: bool = False
+    refused_at_play: str = ""
     message: str | None = None
 
     def on(self, board: str) -> str:
@@ -225,8 +233,29 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
         ),
     ),
     "TEnum": (Witness("an enum", "x", _EVERYWHERE, "side"),),
+    # An optional is admitted where its base is: a set of cells that may be
+    # none checks, and a none reaching the verb is refused at play.
     "TOptional": (
         Witness("Player?", "lead", _EVERYWHERE, "Player?", state="    lead : Player? = none\n"),
+        Witness("Cell?", "(if done then at else none)", _ON_BOARDS, "Cell?"),
+        Witness(
+            "Collection<Card>?",
+            "(if done then reserve[actor] else none)",
+            _EVERYWHERE,
+            "Collection<Card>?",
+        ),
+        Witness(
+            "Collection<Cell>?",
+            "",
+            _ON_BOARDS,
+            None,
+            per_board={
+                "grid": "(if done then home(actor) else none)",
+                "morris9": "(if done then neighbors(at) else none)",
+                "hex_rhombus": "(if done then near_edge(actor) else none)",
+            },
+            refused_at_play="`connected` was given none where it needs",
+        ),
     ),
     "TCollection": (
         Witness(
@@ -245,7 +274,7 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
             None,
             param="d : cell?",
             call_with="none",
-            refused_at_play=True,
+            refused_at_play="`connected` was given a collection holding none",
         ),
         # A chip stack types as a collection of the Permissive Top, and a
         # When Clause's Hidden Read Owner Guard refuses it first.
@@ -285,7 +314,7 @@ WITNESSES: dict[str, tuple[Witness, ...]] = {
             "(if true then at else 1)",
             _ON_BOARDS,
             None,
-            refused_at_play=True,
+            refused_at_play="argument is a1, which is not one",
         ),
     ),
 }
@@ -410,7 +439,7 @@ def test_an_argument_is_admitted_or_refused_in_the_right_layer(
     assert first is None, rendered
     game = check_dsl(source, _FILE)
     if witness.refused_at_play:
-        with pytest.raises(OwnerGuardError, match="`connected`"):
+        with pytest.raises(OwnerGuardError, match=witness.refused_at_play):
             play_game(game, random.Random(0), chooser=_stop)
         return
     play_game(game, random.Random(0), chooser=_stop)
@@ -418,7 +447,10 @@ def test_an_argument_is_admitted_or_refused_in_the_right_layer(
 
 def test_the_type_axis_commands_both_outcomes() -> None:
     """GRID T holds admitted and refused witnesses on an answering family, so
-    its equality cannot hold vacuously."""
+    its equality cannot hold vacuously.
+
+    red under: dropping the three admitted `Collection<Cell>` witnesses and
+    the Permissive Top's from `WITNESSES`."""
     gots = [w.got for ws in WITNESSES.values() for w in ws if "hex_rhombus" in w.boards]
     assert any(g is None for g in gots) and any(g is not None for g in gots)
 
@@ -638,6 +670,9 @@ def test_each_cell_is_expanded_at_most_once() -> None:
             raise AssertionError(f"expanded {len(expanded)} cells on a board of {len(entry.cells)}")
 
     assert not entry.connected(entry.near_edge(0), (), entry.cells, visit=visit)
+    assert sorted(expanded) == sorted(entry.cells)
+    expanded.clear()
+    assert not entry.connected(entry.near_edge(0) * 2, (), entry.cells, visit=visit)
     assert sorted(expanded) == sorted(entry.cells)
 
 

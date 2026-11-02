@@ -22,10 +22,12 @@ Completeness ledger
                adapter's declared param type promises — TCollection params
                as elements (never a raw TypeError on a Zone), TAny params
                untouched (the adapter's own shape dispatch still sees the
-               Zone).
+               Zone) — and a none member at a TCollection param whose element
+               type holds none nowhere is refused before the adapter runs.
     domain:    {every function the boundary can be handed arguments against}
                x declared param type {TCollection, TAny, scalar} x
-               {Zone, list} argument shapes.  Two things sit inside that
+               {Zone, list} argument shapes; and every TCollection slot whose
+               element is neither optional nor the top, given a none member.  Two things sit inside that
                statement rather than short of it.  A scalar param is
                single-shape by construction, so the shape axis collapses for
                it and no coercion applies.  And a TCollection param wanting
@@ -64,7 +66,9 @@ from cardlang.builtins.signatures import CALL_SIGS, Sig
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS, implementation_sig
 from cardlang.runtime.driver import play_game
-from cardlang.types import TAny, TCollection
+from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.reads import coerce_args
+from cardlang.types import TAny, TCollection, TOptional
 
 
 def _signatures() -> dict[str, Sig]:
@@ -222,6 +226,34 @@ def test_every_collection_param_function_has_a_zone_probe() -> None:
         "probe in _ZONE_PROBES — its adapter would be one Zone subscript "
         "away from a raw TypeError; add the probe"
     )
+
+
+def _none_free_collection_slots() -> list[tuple[str, int]]:
+    return [
+        (name, slot)
+        for name, sig in sorted(_signatures().items())
+        for slot, p in enumerate(sig.params)
+        if isinstance(p, TCollection) and not isinstance(p.element, (TAny, TOptional))
+    ]
+
+
+@pytest.mark.parametrize(("name", "slot"), _none_free_collection_slots())
+def test_a_none_member_is_refused_at_a_collection_slot_that_holds_none_nowhere(
+    name: str, slot: int
+) -> None:
+    """A `[d]` list over an optional `d` types as a collection the slot
+    admits, so a none member reaches the boundary, which refuses it in the
+    runtime's typed channel before the adapter sees it.
+
+    red under: deleting the none-member test from `reads.coerce_args`."""
+    sig = _signatures()[name]
+    args: list[object] = [(None,) if i == slot else _filler(p) for i, p in enumerate(sig.params)]
+    with pytest.raises(OwnerGuardError, match=f"`{name}` was given a collection holding none"):
+        coerce_args(sig, args, name)
+
+
+def _filler(p: object) -> object:
+    return () if isinstance(p, TCollection) else 0
 
 
 def test_no_native_param_demands_a_zone() -> None:
