@@ -305,10 +305,11 @@ class DomainQuery:
       `positions {}` name like `column`); the set is the members satisfying
       the predicate, in that order.
 
-    - COLLECTION, over an evaluated collection (`source` present):
-      `any line in <source> where <pred>`  (noun `line`, binds each line)
-      `all cells in <source> where <pred>` (noun `cell`, binds each cell)
-      -- `binder` is the singular noun (`line` / `cell`), fixed at rung 1.
+    - COLLECTION, over an evaluated collection (`source` present), every
+      kind again: `any cell in <source> where <pred>`, `all cells in …`,
+      `number of cells in …`, `cells in <source> where <pred>` -- `binder`
+      is the singular noun, a position domain or the board's `line`, bound
+      per member of the source in its order.
 
     `spelled` is the noun exactly as written (plural for `all`/`count`),
     kept only so resolve's plural-mismatch diagnostic can quote it; `binder`
@@ -345,11 +346,32 @@ DIRECTION_QUERY_KINDS: frozenset[DomainQueryKind] = (
     frozenset(DOMAIN_QUERY_KINDS) - POSITION_ONLY_QUERY_KINDS
 )
 
-# The kinds with a collection form, `<kind's phrase> <noun> in <collection>
-# where` (the grammar's `q_any_in` / `q_all_in`), pinned both ways against the
-# compiled grammar by
-# tests/test_cell_set_form.py::test_the_kind_tables_are_the_grammars.
-COLLECTION_QUERY_KINDS: frozenset[DomainQueryKind] = frozenset({"any", "all"})
+def collection_query_head(kind: DomainQueryKind, spelled: str) -> str:
+    """A collection form's head as a diagnostic quotes it, before its `in`:
+    the kind's phrase and the noun as written (`any cell`, `cells`)."""
+    phrase = DOMAIN_QUERY_KIND_PHRASE[kind]
+    return f"{phrase} {spelled}" if phrase else spelled
+
+
+def short_spelling(e: Expr) -> str | None:
+    """A source expression as a designer wrote it, for a refusal's suggested
+    sentence: a name, a literal, a call or a subscript of them; None for any
+    other shape, which the refusal then names by its place."""
+    match e:
+        case NameRef():
+            return e.name
+        case IntLit():
+            return str(e.value)
+        case Call():
+            args = [short_spelling(a) for a in e.args]
+            if any(a is None for a in args):
+                return None
+            return f"{e.func}({', '.join(a for a in args if a is not None)})"
+        case Subscript():
+            obj, index = short_spelling(e.obj), short_spelling(e.index)
+            return None if obj is None or index is None else f"{obj}[{index}]"
+        case _:
+            return None
 
 
 def domain_query_head(kind: DomainQueryKind, spelled: str) -> str:

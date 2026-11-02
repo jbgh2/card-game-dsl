@@ -1621,15 +1621,11 @@ class _Builder(Transformer[Token, n.Game]):
     def q_set_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
         return self._domain_query("set", meta, c[0], None, c[1])
 
-    def cell_set_in_collection_reject(self, meta: Meta, c: list[object]) -> None:
-        raise DiagnosticError(
-            Diagnostic(
-                Severity.ERROR,
-                "cells live on the board, not in a zone: the set form is "
-                "`cells where <pred>`, with the membership in the predicate",
-                self._span(meta),
-            )
-        )
+    def q_set_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("set", meta, c[0], c[1], c[2])
+
+    def q_count_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("count", meta, c[0], c[1], c[2])
 
     def q_any_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
         return self._domain_query("any", meta, c[0], c[1], c[2])

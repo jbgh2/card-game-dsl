@@ -778,7 +778,7 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
     `DIRECTION_QUERY_KINDS`, the board's direction domain's
     (`rs.direction_domains[binder]`, the board entry's fixed order); a noun in
     neither raises as the Shadow Guard behind resolve's `_check_domain_query`.
-    A COLLECTION form iterates the evaluated `line`/`cell` collection.
+    A COLLECTION form iterates its evaluated source, in the source's order.
     `any`/`all` fold Boolean, short-circuiting like the card queries; `count`
     returns how many members satisfy the predicate; `set` returns them, in
     the Position Domain's order. Resolve/typecheck have already validated the noun and

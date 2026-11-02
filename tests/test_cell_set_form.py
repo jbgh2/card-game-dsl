@@ -1,26 +1,35 @@
-"""The position register's Set Form: `cells where <pred>`.
+"""The position register's Set Form, `cells where <pred>`, and every query
+kind in its collection form.
 
 `<noun>s where <pred>` names the members of a declared Position Domain that
 satisfy a predicate, in the Position Domain's member order, as a collection:
 `Collection<Cell>` for a board's `cell`, `Collection<Integer>` for an
 integer `positions { }` name (decisions.md "Boards and cells"). It is the
 fourth query kind of the bare positional quantifier register (`any`, `all`,
-`number of`), the twin of `players where <pred>` and `cards in <zone> where
-<pred>`. Its noun is a Position Domain alone: the board direction domain the
-other three query kinds admit is refused by name. The collection twin
-`cells in <expr> where <pred>` is not the language; the Diagnostic Grammar
-refuses it naming the Set Form.
+`number of`), the twin of `players where <pred>`. Every query kind also has
+its collection form, as the card register has every one over `in <zone>`:
+`<kind's phrase> <noun> in <collection> where <pred>`, the noun one of the
+game's Position Domains or the board's `line`. The board direction domain
+is no Position Domain, and is refused by name wherever the Set Form or a
+collection form names it.
 
 The grid, axis by axis, each read from where the language defines it:
 
-  * GRID U -- the noun. For every game shape, the nouns are that game's
+  * GRID U -- the bare noun. For every game shape, the nouns are that game's
     Position Domains (`board_domains.position_domains_of`), the direction
-    domain's name, the collection nouns, one unknown spelling, and one name
-    of every kind resolve knows: its name categories (`resolve._categories`),
-    its definitions as written, its reserved words (`resolve._RESERVED_WHY`)
-    and the binders the language fixes. A Position Domain is admitted;
-    every other noun is refused saying what it is, with the sentence that
-    checks where the kind has one.
+    domain's name, the board's `line` and `cell`, one unknown spelling, and
+    one name of every kind resolve knows: its name categories
+    (`resolve._categories`), its definitions as written, its reserved words
+    (`resolve._RESERVED_WHY`) and the binders the language fixes. A Position
+    Domain is admitted; every other noun is refused saying what it is, with
+    the sentence that checks where the kind has one.
+  * GRID K -- the collection form: every query kind (`DOMAIN_QUERY_KINDS`)
+    over every collection noun each game shape holds, its value in its
+    source's order, and the refusals of a wrong noun or source, each naming
+    a fix that checks.
+  * The membership capture -- `x in <noun>s where …` with no parentheses
+    reads as the collection set over `x`; where `x` names a value in scope
+    it is refused naming the parenthesized membership, which checks.
   * GRID H -- the host: the Set Form at every expression host of the
     direction lift's grid (`tests/test_direction_lift.py::HOSTS`), each
     pinned to the AST field the query lands in.
@@ -34,38 +43,33 @@ The grid, axis by axis, each read from where the language defines it:
     equal by member to a Region Verb holding the same members and unequal
     to one that does not, empty when nothing matches, ascending over an
     integer domain, and its binder shadowing an outer one.
-  * The grammar rows -- the Set Form parses once; the unparenthesized
-    membership `x in cells where ...`, the `the`-led spelling and the fused
-    spellings stay refused; the double-`where` sentence is an ambiguity the
-    player register has too; the query-kind tables are the compiled
-    grammar's.
-  * The twin rows -- on a board game the twin's words hold; the sentences
-    it must not capture keep the main parser's error; and the three games
-    where its words are false are strict xfails citing the operator's
-    question on #972.
+  * The grammar rows -- the `the`-led spellings, the fused spellings and a
+    collection count with no `where` stay refused; the double-`where`
+    sentence is an ambiguity the player register has too; every query kind
+    has both forms in the compiled grammar.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
-property:   `<noun>s where <pred>` over a declared Position Domain checks
-            wherever an expression is a collection's place, evaluates to the
-            tuple of members satisfying the predicate in the Position
-            Domain's order, and meets every other position and operator in
-            its typed channel, as a Region Verb's collection does; over any
-            other noun it is refused saying what the name is; the collection
-            twin led by `cells` is refused naming the Set Form, and no other
-            sentence reaches that refusal.
-domain:     {game shape} x {noun: GRID U's derived axis} (GRID U); {host:
+property:   every query kind, bare and over `in <collection>`, over a noun
+            its form ranges by checks wherever its value is a value's place,
+            evaluates to its query kind's answer over the Position Domain's
+            members or the source's in their order, and meets every other
+            position and operator in its typed channel, as a Region Verb's
+            collection does; over any other noun or source it is refused
+            saying what is wrong, with a sentence that checks; an
+            unparenthesized membership read as a collection set is refused
+            naming the parenthesized one.
+domain:     {game shape} x {noun: GRID U's derived axis} (GRID U); {query
+            kind} x {game shape} x {collection noun, with a source of its
+            members} and the refusal rows (GRID K); the capture rows; {host:
             tests/test_direction_lift.py::HOSTS} (GRID H); {position:
             `HIDDEN_READ_POSITIONS`} (GRID P); {operator and source slot} x
             {the Set Form, the Region Verb} (GRID C); the runtime cells
-            (GRID R); the grammar and twin rows. The Set Form takes the bare
-            noun only: `cells in <expr> where` is not the language, and the
-            twin is its one refusal, cut as the word its message names, so a
-            collection twin over another noun keeps the main parser's syntax
-            error.
+            (GRID R); the grammar rows.
 registry:   nouns: cardlang/board_domains.py::position_domains_of,
-            DIRECTION_DOMAIN, BOARD_DOMAIN; cardlang/resolve.py::_categories,
-            _RESERVED_WHY, _COLLECTION_NOUNS; positions:
+            DIRECTION_DOMAIN, BOARD_DOMAIN, LINE_NOUN;
+            cardlang/resolve.py::_categories, _RESERVED_WHY,
+            collection_nouns; positions:
             cardlang/resolve.py::HIDDEN_READ_POSITIONS, pinned total by
             tests/test_hidden_reads.py::test_every_expression_position_is_bucketed;
             hosts: tests/test_direction_lift.py::HOSTS; query kinds:
@@ -76,18 +80,25 @@ registry:   nouns: cardlang/board_domains.py::position_domains_of,
             fused spellings: tests/keyword_fusion_sweep.py.
 held by:    the query-kind axis is Unrepresentable: `DomainQueryKind`, matched
             with `assert_never` in the evaluator, the type checker and the
-            IR; `COLLECTION_QUERY_KINDS` is Derived and Pinned against the
-            compiled grammar both ways. The noun universe is Derived and
-            Pinned: a noun is a designer's string until resolve classifies
-            it, which no union the type checker sees can hold. The positions
-            are Unrepresentable in the type layer: the value is a
-            `TCollection` like a Region Verb's, so each position answers it
-            by its existing rule. The tuple shape and the member order are
-            Born-Green Pins (GRID R), each naming its mutation.
+            IR; that every query kind has both forms is Derived and Pinned
+            against the compiled grammar both ways. The noun universe is
+            Derived and Pinned: a noun is a designer's string until resolve
+            classifies it, which no union the type checker sees can hold, and
+            `collection_nouns` is its one source. The membership capture is
+            Derived and Pinned: it is read in resolve's lexical scope
+            (`_rewrite`, `_Categories.locals`), gated by the names the game
+            binds (`_names_bound_anywhere`). The positions are
+            Unrepresentable in the type layer: the value is a `TCollection`
+            like a Region Verb's, so each position answers it by its existing
+            rule. The tuple shape and the member order are Born-Green Pins
+            (GRID R, GRID K), each naming its mutation.
 does not prove:  that GRID C's operator slots are every operator a
             collection can meet: no registry lists the expression operators,
             so the slots are authored; what carries the rest is that the
-            value's type is the Region Verbs' own.
+            value's type is the Region Verbs' own. Nor that GRID P's
+            positions meet the collection forms as they meet the Set Form:
+            the positions are run with the bare Set Form, whose value type a
+            collection set shares.
 """
 
 from __future__ import annotations
@@ -105,12 +116,11 @@ from lark import Lark, Tree
 
 import cardlang.resolve as resolve_module
 from cardlang.ast import nodes as n
-from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, position_domains_of
+from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, LINE_NOUN, position_domains_of
 from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import IRDict, emit
 from cardlang.parse import _parser as _main_parser, parse_library, parse_text
 from cardlang.pipeline import check_dsl
-from cardlang.resolve import _COLLECTION_NOUNS
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import GameDescriptionError
 from cardlang.runtime.evaluate import evaluate
@@ -131,13 +141,6 @@ from tests.test_cell_queries import (
 
 DIRECTION_REFUSAL = f"`{DIRECTION_DOMAIN}` is the board direction domain, not a position domain"
 SYNTAX_ERROR = "syntax error: unexpected `where`"
-# The cells the symmetric ruling flips: the collection set and count, and
-# the membership capture's refusal, are red until they land.
-RED = pytest.mark.xfail(
-    strict=True,
-    raises=(DiagnosticError, AssertionError),
-    reason="issue #972: the collection set and count land with the symmetric ruling",
-)
 
 
 def _reject(source: str) -> str:
@@ -246,7 +249,7 @@ def _noun_axis(shape: str) -> dict[str, str]:
             axis.setdefault(spellable[0], kind)
 
     axis.setdefault(DIRECTION_DOMAIN, "direction domain")
-    for noun in sorted(_COLLECTION_NOUNS):
+    for noun in sorted({LINE_NOUN, BOARD_DOMAIN}):
         axis.setdefault(noun, "collection noun")
     axis.setdefault(UNKNOWN_NOUN, "unknown")
     first([z.name for z in game.zones if z.index is None], "zone")
@@ -320,7 +323,9 @@ def test_a_bare_nouns_refusal_says_what_the_name_is(shape: str, noun: str, kind:
     message = _reject(source)
     universe = _universe_phrase(_declared(shape))
     assert "pick another name" not in message, message
-    assert "in <collection>" not in message, message
+    # Only the board's `line` has a collection meaning a bare noun dropped.
+    hinted = noun == LINE_NOUN and "board:" in SHAPES[shape]
+    assert ("in <collection>" in message) is hinted, message
     assert "direction domain:" not in message, message
     if kind == "direction domain":
         assert DIRECTION_REFUSAL in message, message
@@ -781,7 +786,6 @@ def _bare_query_kinds() -> tuple[set[str], set[str]]:
     return bare, collection
 
 
-@RED
 def test_every_query_kind_has_both_forms_in_the_grammar() -> None:
     """Both ways, from the compiled grammar: the bare `QNOUN` alternatives
     and the collection ones are each exactly the Literal's query kinds.
@@ -1026,11 +1030,7 @@ def _collection_cells() -> list[object]:
     for shape, sources in sorted(COLLECTION_SOURCES.items()):
         for noun, source in sorted(sources.items()):
             for kind in n.DOMAIN_QUERY_KINDS:
-                # `any`/`all` over the board's lines are the forms that already stood.
-                stood = noun == "line" and kind in ("any", "all")
-                cells.append(
-                    pytest.param(kind, shape, noun, source, id=f"{shape}-{noun}-{kind}", marks=[] if stood else [RED])
-                )
+                cells.append(pytest.param(kind, shape, noun, source, id=f"{shape}-{noun}-{kind}"))
     return cells
 
 
@@ -1047,17 +1047,16 @@ def test_every_query_kind_has_its_collection_form(
 @pytest.mark.parametrize(
     ("label", "source", "expected"),
     [
-        pytest.param("set over a region", "cells in home(0) where true", "home0", id="set-region", marks=RED),
+        pytest.param("set over a region", "cells in home(0) where true", "home0", id="set-region"),
         pytest.param(
             "set over a region, filtered",
             "cells in home(0) where cell in home(1)",
             "overlap",
             id="set-filtered",
-            marks=RED,
         ),
-        pytest.param("count over a region", "number of cells in home(0) where cell in home(1)", "overlap-count", id="count", marks=RED),
-        pytest.param("set over a line", "cells in lines(3)[0] where true", "line0", id="set-line", marks=RED),
-        pytest.param("count of lines", "number of lines in lines(3) where true", 8, id="count-lines", marks=RED),
+        pytest.param("count over a region", "number of cells in home(0) where cell in home(1)", "overlap-count", id="count"),
+        pytest.param("set over a line", "cells in lines(3)[0] where true", "line0", id="set-line"),
+        pytest.param("count of lines", "number of lines in lines(3) where true", 8, id="count-lines"),
     ],
 )
 def test_the_collection_forms_value(label: str, source: str, expected: object) -> None:
@@ -1079,7 +1078,29 @@ def test_the_collection_forms_value(label: str, source: str, expected: object) -
         assert isinstance(value, tuple)
 
 
-@RED
+_MILL_GAME = (
+    "game NeighboursOnAMillBoard {\n"
+    "  players: 2\n  max_length: 30\n  board: morris9\n  pieces: xo_marks\n"
+    "  zones {\n    box : Deck\n    point[cell] : Cell<cell>\n    reserve[player] : PlayerPile<player>\n  }\n"
+    "  state { score[player] : Integer = 0  done : Boolean = false }\n"
+    "  phase setup { move all pieces from box to reserve[0] }\n"
+    "  phase play {\n    turns t from 0 over all players until done {\n"
+    "      offer to t one of [place, stop]\n    }\n  }\n"
+    "  winner: highest score\n}\n"
+    "move_type place(at : cell) {\n  when: point[at] is empty and crowded(at)\n"
+    "  effect { move one piece from reserve[actor] to point[at] }\n}\n"
+    "move_type stop { effect { done := true } }\n"
+    "function crowded(c : cell) = (number of cells in neighbors(c) where point[cell] is empty) > 0\n"
+)
+
+
+def test_a_region_verbs_cells_are_a_collection_source() -> None:
+    """A Region Verb's cells are a cell collection's source on every board
+    family that answers it: `neighbors(c)` on the mill board, which a cell
+    collection refused while it took a line alone."""
+    check_dsl(_MILL_GAME, "set.cardlang")
+
+
 def test_an_integer_collection_set_keeps_its_sources_order() -> None:
     game, expr = _checked_fc_expr("columns in [3, 1, 2] where column > 1")
     assert evaluate(expr, _fc_ctx(game, {})) == (3, 2)
@@ -1093,42 +1114,36 @@ def test_an_integer_collection_set_keeps_its_sources_order() -> None:
             ["`cell`", "`cards in hand[0] where <pred>`"],
             card_game(body="    let s = cards in hand[0] where true\n"),
             id="boardless cells over a zone",
-            marks=RED,
         ),
         pytest.param(
             board_game() + "function f(p : Player) = number of cells in lines(3) where true\n",
             ["Collection<Line>", "`number of lines in lines(3) where <pred>`"],
             board_game() + "function f(p : Player) = number of lines in lines(3) where true\n",
             id="cells over the lines",
-            marks=RED,
         ),
         pytest.param(
             board_game() + "function f(p : Player) = dirs in home(p) where true\n",
             [DIRECTION_REFUSAL],
             board_game() + "function f(p : Player) = cells in home(p) where true\n",
             id="the direction domain",
-            marks=RED,
         ),
         pytest.param(
             board_game() + "function f(p : Player) = cellzs in home(p) where true\n",
             ["unknown collection noun 'cellz'", "declared position domains: cell"],
             board_game() + "function f(p : Player) = cells in home(p) where true\n",
             id="an unknown noun",
-            marks=RED,
         ),
         pytest.param(
             board_game() + "function f(p : Player) = cells in 1 where true\n",
             ["but the source is Integer"],
             board_game() + "function f(p : Player) = cells in home(p) where true\n",
             id="a scalar source",
-            marks=RED,
         ),
         pytest.param(
             _integer_game("column") + "function f(p : Player) = columns in home(p) where true\n",
             ["`home` reads the board"],
             _integer_game("column") + "function f(p : Player) = columns in [1, 2] where true\n",
             id="a board verb in a boardless game",
-            marks=RED,
         ),
     ],
 )
@@ -1169,28 +1184,27 @@ CAPTURES: dict[str, tuple[str, str, str]] = {
     ),
     "an outer binder inside a count": (
         board_game() + "function f(p : Player) = number of cells where cell in home(p) where square[cell] is empty\n",
-        "cell in (home(p) where <pred>)",
+        "cell in home(p) and <pred>",
         board_game() + "function f(p : Player) = number of cells where cell in home(p) and square[cell] is empty\n",
     ),
 }
 
 
 @pytest.mark.parametrize("label", sorted(CAPTURES))
-@RED
 def test_an_unparenthesized_membership_is_told_to_parenthesize(label: str) -> None:
     """Refused at resolve, naming the parenthesized spelling; the sentence
     with the parentheses (or the membership moved into the predicate)
     checks. Red under: `resolve` reading a captured noun as an unknown
     collection noun."""
-    source, spelled, fix = CAPTURES[label]
+    source, sentence, fix = CAPTURES[label]
     message = _reject(source)
-    assert "parenthes" in message and f"`{spelled.split(' in ')[0]} in (" in message, message
+    assert f"write `{sentence}`" in message, message
     check_dsl(fix, "set.cardlang")
 
 
 @pytest.mark.parametrize(
     "kind",
-    [pytest.param(k, marks=[] if k in ("any", "all") else [RED], id=k) for k in n.DOMAIN_QUERY_KINDS],
+    n.DOMAIN_QUERY_KINDS,
 )
 def test_a_bare_line_nouns_hint_offers_its_collection_form(kind: n.DomainQueryKind) -> None:
     """A bare `line` noun on a board is refused; every query kind has the

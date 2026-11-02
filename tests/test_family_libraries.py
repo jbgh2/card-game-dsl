@@ -117,7 +117,7 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           `domains.DOMAINS` for the quantifier nouns, `SIMULTANEOUS_ROLES` for
           `each … simultaneously`, `runtime.values.content_noun` crossed with
           `types.Flavor` and singular/plural for the transfer and reveal filters,
-          `resolve._COLLECTION_NOUNS` with `board_domains.BOARD_DOMAIN` for the
+          `board_domains.LINE_NOUN` with `board_domains.BOARD_DOMAIN` for the
           position queries — its pin: `test_the_fixed_binder_spellings_come_
           from_their_registries`, with `_UNREACHABLE_SPELLINGS` carrying the one
           a registry admits and no game text reaches. The author-chosen /
@@ -213,7 +213,7 @@ from lark.exceptions import VisitError
 
 from cardlang.ast import nodes as n
 from cardlang.attribution import is_library_warning
-from cardlang.board_domains import BOARD_DOMAIN
+from cardlang.board_domains import BOARD_DOMAIN, LINE_NOUN
 from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, line_kind
 from cardlang.domains import DOMAINS, SIMULTANEOUS_ROLES, Role, role_names
@@ -229,7 +229,6 @@ import cardlang.parse
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import (
     _AUTHOR_CHOSEN_BINDERS,
-    _COLLECTION_NOUNS,
     _CONTEXTUAL_SLOTS,
     _LIBRARY_DEF_KINDS,
     _LIBRARY_UNSWEPT,
@@ -1385,9 +1384,13 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # (`_refuse_bare_always`), and a game's definition reached by name is
     # the `call` column's leak. `shapes` is the catalogue's row labels, a
     # subset of `enums` (where a bare label resolves), read for one
-    # refusal's wording.
+    # refusal's wording. `collection_nouns` and `bound_names` are what the
+    # membership-capture check reads at a collection set: the game's position
+    # domains with the board's lines, and every name the game binds; no bare
+    # reference resolves against either.
     game_fed = {f.name for f in fields(_Categories)} - {
-        "locals", "functions", "flavor", "definitions", "rule_clause", "shapes"
+        "locals", "functions", "flavor", "definitions", "rule_clause", "shapes",
+        "collection_nouns", "bound_names",
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():
@@ -2503,7 +2506,7 @@ def _fixed_spellings() -> dict[str, frozenset[str]]:
         "Comprehension": frozenset({card}),
         "Transfer": frozenset(content),
         "EpistemicOp": frozenset(content_noun(f, plural=False) for f in flavors),
-        "DomainQuery": _COLLECTION_NOUNS | {BOARD_DOMAIN},
+        "DomainQuery": frozenset({LINE_NOUN, BOARD_DOMAIN}),
     }
 
 
