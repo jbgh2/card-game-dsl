@@ -3,13 +3,21 @@
 For the [[move-type]] in play, the legal set is the intersection of every active
 [[rule]]'s card-set `demands` whose `applies_when` holds (decisions.md "Rule
 demand forms"). An empty intersection falls back via `if_impossible` (default:
-the whole hand). A constraint on a move's shape is enforced by the construct
-that makes the move (a [[transfer]]'s `chosen N`, a move's `when:` guard); where
-rules should bind beyond this decision is
-open-questions/rule-scope-beyond-trick-play.md. A rule's `exempts`
-(when its `applies_when` holds) removes cards from the cascade entirely and
-appends them after every other candidate, in hand order (Tarot's Excuse:
-always playable, never bound by an obligation, offered last).
+the whole hand). A rule binds here and nowhere else: every other decision is
+legal or not by the construct that makes it (a [[transfer]]'s `chosen N`, a
+move type's When Clause). A rule's `exempts` (when its `applies_when` holds)
+removes cards from the cascade entirely and appends them after every other
+candidate, in hand order (Tarot's Excuse: always playable, never bound by an
+obligation, offered last).
+
+Contract
+--------
+Assumes: `ctx.round_source` bound by the trick form to the acting seat's Play
+Source, and every active rule checked by resolve (its `constrains:` names the
+move type asked about, a `demands` carries its `if_impossible`).
+Establishes: the legal card list for that one decision, the trick round's
+card decision. Illegal after this: a second caller -- the one-site law is
+pinned by tests/test_rule_sites.py.
 """
 
 from __future__ import annotations

@@ -376,20 +376,16 @@ the `turns` form's `again` axis ([decisions.md](../decisions.md) "The
 position-typed `state` is currently **rejected surface** (a recorded
 guarded residual, issue #111); the Owner Guard lifts at stage 5, whose Barrage shuttle
 rule is its first forcing witness, and the chain anchor reuses the
-lift. Mandatory capture is a reusable declarative rule — and that is
-a commitment about where rules are *going*, not a description of
-today: rules currently bind only at the trick form's card-decision
-site, and a rule constraining any other move type is validated but
-unenforced
-([open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)).
-A board corpus cannot leave that standing — unenforced constraints
-are the accepted-but-ignored defect class — and the future-facing
-resolution is uniform: **rules bind at every kernel decision site**,
-attached at the decision interpreter's candidate hook, so one
-enforcement path serves the trick form, `turns`-body offers, and
-every later form. Draughts' forced capture and morris's in-mill
-removal restriction are the two forcing witnesses that question has
-been waiting for; §4 stages it.
+lift. Mandatory capture is the rulebook's own branch: `if can_jump(t)
+{ offer to t one of [jump] } else { offer to t one of [step] }`, with
+`can_jump` a named function over the board -- one scan per turn, the
+branch the oracle's `LegalActions()` takes. A rule binds at the trick
+round's card decision and nowhere else ([decisions.md](../decisions.md)
+"Rule demand forms"); a board decision's legality is its move type's
+When Clause or an `offer` behind an `if`, and a condition a family
+shares is a function a family library carries. An unenforced
+constraint cannot survive here because the checker refuses a rule no
+site consults, and an emptied offer is loud.
 
 Compound placements (a battleship spanning four cells) are one
 decision whose **effect** runs a bounded sequence of kernel movements
@@ -604,22 +600,28 @@ does not move.
    cells — its position this late is purely that `connected` deserves
    an isolated rung.
 7. **Nine Men's Morris** (with the flying phase; oracle
-   `nine_mens_morris`). Adds the enumerated non-grid graph, the
-   place→move→fly phase shift, mills as declared lines with a removal
-   decision (and the may-not-remove-from-a-mill-unless-forced
-   restriction), blockade loss, and the first cyclic movement. Faithful:
-   the two rule termini only, its cyclic lines ending at its
-   `max_length` as Length Stops, and the oracle's 200-turn cap kept in
-   the harness as the differential's truncation point.
+   `nine_mens_morris`; in the corpus,
+   [games/nine-mens-morris.md](../games/nine-mens-morris.md)). Adds the
+   enumerated non-grid graph (`board: morris9`, its adjacency read by
+   `neighbors`, its mills by `lines(3)`), the place→move→fly phase shift
+   as the offer's branch, mills with a removal decision — a second
+   `offer` inside the turn, with the
+   may-not-remove-from-a-mill-unless-forced restriction as the removal
+   move's When Clause — blockade loss detected in the turn body before
+   any offer, and the first cyclic movement. Faithful: the two rule
+   termini only, its cyclic lines ending at its `max_length` as Length
+   Stops scored a tie (`at max_length: tie`); the oracle's turn cap
+   (`kMaxNumTurns`, 200 completed turns) is the native differential's
+   truncation point
+   (`tests/test_differential_nine_mens_morris.py`), not a rule of the
+   game.
 8. **English draughts** (8×8, 12 men; captures mandatory, chosen jump
    sequences completed, crowning ends the move; the federation's draw
    in its automatic form, a counter reset by any capture and by any
    uncrowned man's move and drawn at eighty plies, while the oracle
    `checkers` implements forced captures and a forty-ply capture-only
-   draw kept in the harness). Adds rule-driven demand
-   narrowing (mandatory capture as rule composition — with morris,
-   the forcing pair for binding rules at every decision site,
-   [open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)),
+   draw kept in the harness). Adds mandatory capture as an `offer`
+   behind an `if` over a move-existence function (`any dir where`),
    jump triples,
    multi-jump chains on the `again` axis, promotion, counter-based
    draw state. English over International deliberately: no
@@ -640,7 +642,7 @@ that forces it; every rung earns at least one):
 | Attribute projections (C3), anonymous identity (C6), combat probe | | | | | ● | | | |
 | Hex rhombus (declared adjacency, seat borders), `connected` fixed point (class 5), the Set Form | | | | | | ● | | |
 | Enumerated graph, phase-shift, declared mills + removal decision, blockade loss | | | | | | | ● | |
-| Mandatory-capture rules, jump triples, `again` chains, promotion, draw counters | | | | | | | | ● |
+| Mandatory capture as an `offer` behind an `if` over a move-existence function (`any dir where`), jump triples, `again` chains, promotion, draw counters | | | | | | | | ● |
 | Differential oracle | ● | ● | ● | ● | — | ● | ● | ● |
 
 Deliberately **not** on the ladder, with reasons recorded so they are
@@ -742,17 +744,11 @@ parse them.
   Length Stops and a published draw rule is a counter in `state` read by
   the ring's `until` (decisions.md, "Game length as a declared
   contract"); repetition history stays out, and is admitted for
-  perfect-information games only when a witness forces it; and **generalize declarative-rule binding to every kernel
-  decision site** via the decision interpreter's candidate hook.
-  This is the stage where
-  [open-questions/rule-scope-beyond-trick-play.md](../open-questions/rule-scope-beyond-trick-play.md)
-  resolves — against its two board witnesses (draughts' forced
-  capture, morris's in-mill removal restriction) — and is promoted
-  into decisions.md per maintaining.md's promotion rule; until then
-  the question stays open and its file carries the tradeoffs,
-  including the guards-may-suffice counter-evidence this note argues
-  against. Validated-but-unenforced rules do not survive this stage.
-  Witnesses: nine men's morris, then english draughts.
+  perfect-information games only when a witness forces it.
+  Witnesses: nine men's morris, then english draughts; their legality
+  is `remove`'s When Clause over `in_mill` and an `offer` behind an
+  `if` over `can_jump`, the draughts rung's prerequisite being the
+  `dir` quantifier and declared-type lift.
 
 Cross-cutting honesty: the adapter still provides no tensors
 (information-state strings carry CFR; the Representation domain is

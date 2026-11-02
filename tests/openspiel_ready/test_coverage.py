@@ -47,6 +47,11 @@ ONE_SEED_SWAP_PROOFS: dict[str, str] = {
         "render the identical board, which no seed can vary, and the game draws "
         "nothing, so every seed plays the same line"
     ),
+    "cardlang_nine_mens_morris": (
+        "perfect information: the same degeneracy argument over the board, the "
+        "reserves and the captured piles, and the game draws nothing, so no seed "
+        "varies a position"
+    ),
     "cardlang_tic_tac_toe": (
         "perfect information and no deck at all: the proof asserts both "
         "observers render the identical board, which no seed can vary"

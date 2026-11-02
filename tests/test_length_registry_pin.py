@@ -125,14 +125,15 @@ RULES_BOUND: dict[str, str] = {
 
 
 # How the lowest-id line of seed `SWAP_SEEDS[0]` ends, for the games whose
-# line their rules never end (measured 2026-10-31): a table taking the first
-# pick at every decision loops, and the line ends at the bound. Every other
-# registered game's ends by its rules.
+# line their rules never end (measured 2026-10-31; nine-mens-morris
+# 2026-11-01): a table taking the first pick at every decision loops, and the
+# line ends at the bound. Every other registered game's ends by its rules.
 LOWEST_ID_ENDS: dict[str, str] = {
     "belote": "length",
     "coup": "length",
     "gin-rummy": "length",
     "klondike": "length",
+    "nine-mens-morris": "length",
     "tichu": "length",
 }
 
