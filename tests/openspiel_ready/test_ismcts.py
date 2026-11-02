@@ -170,6 +170,7 @@ REFUSALS: dict[str, str] = {
     "cardlang_canasta": "repeated cards",
     "cardlang_coup": "repeated cards",
     "cardlang_doppelkopf": "repeated cards",
+    "cardlang_english_draughts": "repeated cards",
     "cardlang_hex": "repeated cards",
     "cardlang_nine_mens_morris": "repeated cards",
     "cardlang_pinochle": "repeated cards",

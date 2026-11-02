@@ -613,17 +613,24 @@ does not move.
    truncation point
    (`tests/test_differential_nine_mens_morris.py`), not a rule of the
    game.
-8. **English draughts** (8×8, 12 men; captures mandatory, chosen jump
-   sequences completed, crowning ends the move; the federation's draw
-   in its automatic form, a counter reset by any capture and by any
-   uncrowned man's move and drawn at eighty plies, while the oracle
-   `checkers` implements forced captures and a forty-ply capture-only
-   draw kept in the harness). Adds mandatory capture as an `offer`
-   behind an `if` over a move-existence function (`any dir where`),
-   jump triples,
-   multi-jump chains on the `again` axis, promotion, counter-based
-   draw state. English over International deliberately: no
-   maximum-capture optimization, so class 7 stays unwitnessed.
+8. **English draughts** (8x8, 12 men; oracle `checkers`; in the corpus,
+   [games/english-draughts.md](../games/english-draughts.md)). Adds
+   mandatory capture as the rulebook's own branch, an `offer` of jumps
+   behind an `if` over the move-existence function `can_jump`
+   (`any cell where any dir where jump_ok(...)`), the other branch
+   offering steps; the continuing capture on the `turns` form's `again`
+   axis, its piece remembered in the square-typed state variable
+   `chain_from : cell? = none` that the jump's When Clause reads;
+   promotion as a supply swap, the crowned man to its reserve and a king
+   from `kings[actor]` onto its square, which ends the move; the loss
+   written by the move that leaves the opponent no legal move
+   (`can_move`); and the federation's draw in its automatic form, a
+   counter reset by any capture and by any uncrowned man's move and read
+   at eighty plies in the ring's `until`. The oracle's forty-ply
+   capture-free draw is the native differential's truncation point
+   (`tests/test_differential_english_draughts.py`), not a rule of the
+   game. English over International deliberately: no maximum-capture
+   optimization, so class 7 stays unwitnessed.
 
 ### 3.3 Coverage
 
@@ -640,7 +647,7 @@ that forces it; every rung earns at least one):
 | Attribute projections (C3), anonymous identity (C6), combat probe | | | | | ● | | | |
 | Hex rhombus (declared adjacency, seat borders), `connected` fixed point (class 5), the Set Form | | | | | | ● | | |
 | Enumerated graph, phase-shift, declared mills + removal decision, blockade loss | | | | | | | ● | |
-| Mandatory capture as an `offer` behind an `if` over a move-existence function (`any dir where`), jump triples, `again` chains, promotion, draw counters | | | | | | | | ● |
+| Mandatory capture as an `offer` behind an `if` over a move-existence function (`any dir where`), `again` chains anchored on a square-typed state variable, promotion as a supply swap, draw counters | | | | | | | | ● |
 | Differential oracle | ● | ● | ● | ● | — | ● | ● | ● |
 
 Deliberately **not** on the ladder, with reasons recorded so they are

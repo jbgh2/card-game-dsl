@@ -38,6 +38,11 @@ ONE_SEED_SWAP_PROOFS: dict[str, str] = {
         "zone projects below identity, so no hidden pair exists to swap), which "
         "is a property of the game's zone declarations, not of a deal"
     ),
+    "cardlang_english_draughts": (
+        "perfect information: the same degeneracy argument over the board, the "
+        "reserves, the king supplies and the captured piles, and the game draws "
+        "nothing, so every seed plays the same line"
+    ),
     "cardlang_freecell": (
         "perfect information: same degeneracy argument, and FreeCell's whole "
         "layout is dealt face up, so a second deal probes nothing new"
