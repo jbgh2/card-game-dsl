@@ -138,6 +138,7 @@ BOARD_CLAUSES: dict[str, str] = {
     "grid": "grid(8, 8)",
     "morris9": "morris9",
     "hex_rhombus": "hex_rhombus(3)",
+    "draughts": "draughts(8, 8)",
 }
 
 LINE_LENGTHS: tuple[int, ...] = (1, 2, 3, 4)
@@ -151,7 +152,16 @@ DIR_POSITIONS: tuple[str, ...] = (
 
 
 def _positions() -> list[str]:
-    calls = [f"call {v}" for v in sorted(BOARD_ONLY_CALL_FUNCS - {"lines"})]
+    """The derived positions, with any call position the expected column
+    names that the registry does not yet hold, so a verb's cells stand red
+    before the verb exists."""
+    verbs = (BOARD_ONLY_CALL_FUNCS - {"lines"}) | {
+        p.removeprefix("call ")
+        for answered in ANSWERS.values()
+        for p in answered
+        if p.startswith("call ")
+    }
+    calls = [f"call {v}" for v in sorted(verbs)]
     return calls + [f"lines({k})" for k in LINE_LENGTHS] + list(DIR_POSITIONS)
 
 
@@ -166,6 +176,7 @@ ANSWERS: dict[str, frozenset[str]] = {
             "call has_step",
             "call home",
             "call is_diagonal",
+            "call is_forward",
             "call neighbor",
             "lines(1)",
             "lines(2)",
@@ -176,18 +187,31 @@ ANSWERS: dict[str, frozenset[str]] = {
     ),
     "morris9": frozenset({"call neighbors", "lines(3)"}),
     "hex_rhombus": frozenset({"call far_edge", "call near_edge", "call neighbors"}),
+    "draughts": frozenset(
+        {
+            "call far_row",
+            "call has_step",
+            "call home",
+            "call is_diagonal",
+            "call is_forward",
+            "call neighbor",
+            *DIR_POSITIONS,
+        }
+    ),
 }
 
 # The board verbs each family answers, as its refusals list them.
 ANSWERED_VERBS: dict[str, tuple[str, ...]] = {
-    "grid": ("far_row", "has_step", "home", "is_diagonal", "lines", "neighbor"),
+    "grid": ("far_row", "has_step", "home", "is_diagonal", "is_forward", "lines", "neighbor"),
     "morris9": ("lines", "neighbors"),
     "hex_rhombus": ("far_edge", "near_edge", "neighbors"),
+    "draughts": ("far_row", "has_step", "home", "is_diagonal", "is_forward", "neighbor"),
 }
 
 FAMILIES = sorted(set(BOARD_FAMILIES) | set(ANSWERS))
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="no draughts family")
 def test_the_expected_column_covers_every_family() -> None:
     """The hand table names every registered family and no other, so a family
     added to the registry is a red here until its row is authored."""
@@ -369,8 +393,24 @@ def _word(family: str, position: str) -> str:
     return "dir"
 
 
-@pytest.mark.parametrize("position", _positions())
-@pytest.mark.parametrize("family", FAMILIES)
+def _pending(family: str, position: str) -> list[pytest.MarkDecorator]:
+    if family == "draughts":
+        return [pytest.mark.xfail(strict=True, raises=(AssertionError, KeyError), reason="no draughts family")]
+    if position == "call is_forward":
+        return [pytest.mark.xfail(strict=True, raises=KeyError, reason="no is_forward")]
+    if family == "grid" and position.startswith("call ") and position not in ANSWERS[family]:
+        return [pytest.mark.xfail(strict=True, raises=AssertionError, reason="grid lists is_forward")]
+    return []
+
+
+@pytest.mark.parametrize(
+    ("family", "position"),
+    [
+        pytest.param(f, p, marks=_pending(f, p), id=f"{f}-{p}")
+        for f in FAMILIES
+        for p in _positions()
+    ],
+)
 def test_a_board_position_is_answered_or_refused_naming_the_family(
     family: str, position: str
 ) -> None:
@@ -412,11 +452,23 @@ def _shadow_cells() -> list[tuple[str, str]]:
     return cells + [("bare", "lines")]
 
 
+def _shadow_params() -> list[Any]:
+    return [
+        pytest.param(
+            f, v,
+            marks=[pytest.mark.xfail(strict=True, raises=KeyError, reason="no draughts family")]
+            if f == "draughts" else [],
+            id=f"{f}-{v}",
+        )
+        for f, v in _shadow_cells()
+    ]
+
+
 _SHADOW_ARGS = {TCell: "a1", TDir: "ahead", TPlayer: 0, TInteger: 3}
 
 
 @pytest.mark.expects_shadow_guard
-@pytest.mark.parametrize(("family", "verb"), _shadow_cells())
+@pytest.mark.parametrize(("family", "verb"), _shadow_params())
 def test_a_verb_on_a_board_lacking_its_part_meets_the_runtime_shadow_guard(
     family: str, verb: str
 ) -> None:

@@ -125,6 +125,25 @@ def test_hex_stones_composition() -> None:
     assert stones[0].suit == "black"
 
 
+@pytest.mark.xfail(strict=True, raises=KeyError, reason="no draughts_men")
+def test_draughts_men_composition() -> None:
+    """English draughts: twelve men a side and a king for every man, since
+    each may be crowned once. Red is the first side, seat 0's, as the WCDF's
+    rules have Red move first; `side` is the suit slot, `kind` the rank slot.
+
+    red under: changing the red king copy count in
+    `COMPONENT_SETS["draughts_men"]` to 11 (with `_DECK_SIZE` matching it)."""
+    cs = COMPONENT_SETS["draughts_men"]
+    assert cs.flavor == "piece" and cs.axes == ("side", "kind")
+    assert "draughts_men" not in DECKS
+    men = build_deck("draughts_men")
+    assert len(men) == 48
+    for side in ("red", "white"):
+        for kind in ("man", "king"):
+            assert sum(1 for m in men if m.suit == side and m.rank == kind) == 12, (side, kind)
+    assert men[0].suit == "red" and men[0].rank == "man"
+
+
 def test_build_deck_preserves_registry_literal_order() -> None:
     """Order is the registry-literal order by construction: the suits x
     ranks cross product for a uniform deck (sampled on standard52's first
