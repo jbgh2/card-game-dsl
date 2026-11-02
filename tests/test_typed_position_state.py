@@ -88,7 +88,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
-from cardlang.runtime.driver import EndedBy, play_game
+from cardlang.runtime.driver import EndedBy, GameResult, play_game
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 
@@ -103,7 +103,7 @@ BOARD_GAME = """game G {
   players: 2
   direction: clockwise
   max_length: 40
-  board: grid(3, 3)
+%(teams)s  board: %(family)s
   pieces: xo_marks
 %(positions)s
   zones {
@@ -128,7 +128,7 @@ BOARD_GAME = """game G {
       offer to t one of [place, stop]
     }
   }
-  winner: highest result
+  winner: %(winner)s
 }
 %(functions)s
 move_type place(at : cell) {
@@ -168,12 +168,15 @@ BOARDLESS_GAME = """game G {
 move_type stop { effect { done := true } }
 """
 
+TEAMS = "  teams: [[0], [1]]\n"
+
 
 def board(**slots: str) -> str:
     filled = {
-        "positions": "", "state": "", "setup": "", "phase_state": "",
-        "functions": "", "when": "square[at] is empty", "effect": "",
-        "stop_when": "true", "stop_effect": "",
+        "teams": "", "family": "grid(3, 3)", "positions": "", "state": "",
+        "setup": "", "phase_state": "", "functions": "",
+        "when": "square[at] is empty", "effect": "", "stop_when": "true",
+        "stop_effect": "", "winner": "highest result",
     }
     filled.update(slots)
     return BOARD_GAME % filled
@@ -183,6 +186,15 @@ def boardless(**slots: str) -> str:
     filled = {"positions": "", "state": ""}
     filled.update(slots)
     return BOARDLESS_GAME % filled
+
+
+def boardless_pieces(state: str) -> str:
+    """A boardless game whose content is pieces rather than cards."""
+    return (
+        boardless(state=state)
+        .replace("  cards: standard52\n", "  pieces: xo_marks\n")
+        .replace("deck : Deck  hand[player] : Hand<player>", "box : Deck")
+    )
 
 
 def _verdict(source: str) -> str | None:
@@ -196,9 +208,22 @@ def _verdict(source: str) -> str | None:
 
 
 ACCEPT = None
+Expected = str | tuple[str, ...] | None
+
+# The cells a change designs to flip, carried as strict xfails so the grid can
+# be pushed red; empty between changes.
+RED: frozenset[str] = frozenset({
+    "boardless-cell?", "boardless-cell", "boardless-pieces-cell?", "board-dir?", "morris9-dir?",
+    "boardless-dir?", "zone-subscript", "move-destination", "function-parameter", "per-seat-key",
+})
 
 
-def _expect(source: str, expected: str | tuple[str, ...] | None) -> None:
+def _param(cid: str, *values: object) -> object:
+    marks = [pytest.mark.xfail(strict=True, raises=CellMismatch)] if cid in RED else []
+    return pytest.param(*values, id=cid, marks=marks)
+
+
+def _expect(source: str, expected: Expected) -> None:
     got = _verdict(source)
     if expected is None:
         if got is not None:
@@ -214,64 +239,68 @@ def _expect(source: str, expected: str | tuple[str, ...] | None) -> None:
 
 # The refusal each refused class owns, in the words its fix needs.
 INTEGER_DOMAIN = ("is typed `column`", "a position domain of numbers", "as an `Integer`")
-DIRECTION = ("is typed `dir`", "a move or function parameter takes", "a state variable cannot hold one")
-NO_BOARD = ("is typed `cell`", "declares no `board:`", "with the `pieces:` that stand on it")
+DIRECTION = (
+    "is typed `dir`",
+    "a move or function parameter takes a direction (`along : dir`)",
+    "a state variable cannot hold one",
+)
+UNMINTED_DIRECTION = ("is typed `dir`", "board family 'morris9' mints no directions", "as a `cell?`")
+NO_BOARD_DIRECTION = ("is typed `dir`", "declares no `board:`", "as a `SeatDirection`")
+NO_BOARD_CARDS = ("is typed `cell`", "declares no `board:`", "`pieces:` in place of `cards:`, and a `board:`")
+NO_BOARD_PIECES = ("is typed `cell`", "declares no `board:`", "declare the `board:` its pieces stand on")
+OWNED_REFUSALS = (
+    INTEGER_DOMAIN, DIRECTION, UNMINTED_DIRECTION, NO_BOARD_DIRECTION, NO_BOARD_CARDS, NO_BOARD_PIECES,
+)
 
 
 # --- GRID D: the declaration ---------------------------------------------------
 
-DECL_CELLS: list[tuple[str, str, str | tuple[str, ...] | None]] = []
+DECL_CELLS: list[tuple[str, str, Expected]] = []
 
 # The value types: the control, admitted before and after.
 for _t in sorted(KNOWN_TYPE_NAMES):
     DECL_CELLS.append((f"value-{_t}?", board(state=f"    v : {_t}? = none"), ACCEPT))
 
-# The named-member domain, crossed with optional, default and site.
+# The named-member domain, crossed with index, optional, default and site. A
+# `[team]` store is declared in a game with teams.
 _PRIOR = "    prior : cell? = none\n"
-for _site in ("game", "phase"):
-    def _at(decl: str, site: str = _site) -> str:
-        if site == "game":
-            return board(state=_PRIOR + f"    {decl}")
-        return board(state=_PRIOR, phase_state=f"    state {{ {decl} }}")
+for _index in ("", "[player]", "[team]"):
+    for _site in ("game", "phase"):
+        def _at(decl: str, site: str = _site, index: str = _index) -> str:
+            decl = decl.replace("v :", f"v{index} :", 1)
+            teams = TEAMS if index == "[team]" else ""
+            if site == "game":
+                return board(teams=teams, state=_PRIOR + f"    {decl}")
+            return board(teams=teams, state=_PRIOR, phase_state=f"    state {{ {decl} }}")
 
-    DECL_CELLS += [
-        (f"{_site}-cell?-none", _at("v : cell? = none"), ACCEPT),
-        (f"{_site}-cell-none", _at("v : cell = none"), "declared Cell, but its default has type none"),
-        (f"{_site}-cell?-3", _at("v : cell? = 3"), "declared Cell?, but its default has type Integer"),
-        (f"{_site}-cell-3", _at("v : cell = 3"), "declared Cell, but its default has type Integer"),
-        (f"{_site}-cell?-string", _at('v : cell? = "a1"'), "declared Cell?, but its default has type String"),
-        (f"{_site}-cell?-a1", _at("v : cell? = a1"), "unresolved name 'a1'"),
-        (f"{_site}-cell-a1", _at("v : cell = a1"), "unresolved name 'a1'"),
-        (f"{_site}-cell?-prior", _at("v : cell? = prior"), ACCEPT),
-        # A `Player?` reads as a `Player` (types.coercible: no flow narrowing),
-        # and a `cell?` as a `cell` alike.
-        (f"{_site}-cell-prior", _at("v : cell = prior"), ACCEPT),
-    ]
+        _row = f"{_site}{_index}"
+        DECL_CELLS += [
+            (f"{_row}-cell?-none", _at("v : cell? = none"), ACCEPT),
+            (f"{_row}-cell-none", _at("v : cell = none"), "declared Cell, but its default has type none"),
+            (f"{_row}-cell?-3", _at("v : cell? = 3"), "declared Cell?, but its default has type Integer"),
+            (f"{_row}-cell-3", _at("v : cell = 3"), "declared Cell, but its default has type Integer"),
+            (f"{_row}-cell?-string", _at('v : cell? = "a1"'), "declared Cell?, but its default has type String"),
+            (f"{_row}-cell?-a1", _at("v : cell? = a1"), "unresolved name 'a1'"),
+            (f"{_row}-cell-a1", _at("v : cell = a1"), "unresolved name 'a1'"),
+            (f"{_row}-cell?-prior", _at("v : cell? = prior"), ACCEPT),
+            # A `Player?` reads as a `Player` (types.coercible; flow narrowing
+            # is issue #990), and a `cell?` as a `cell` alike.
+            (f"{_row}-cell-prior", _at("v : cell = prior"), ACCEPT),
+        ]
 
 DECL_CELLS += [
-    # A boardless game mints no `cell`; one that declares an integer domain
-    # spelled `cell` holds numbers, the integer class.
-    ("boardless-cell?", boardless(state="    v : cell? = none"), NO_BOARD),
-    ("boardless-cell", boardless(state="    v : cell = none"), NO_BOARD),
-    # Each refusal's named fix, taken, checks.
-    (
-        "boardless-cell?-fix-taken",
-        boardless(state="    v : cell? = none")
-        .replace("  cards: standard52\n", "  board: grid(3, 3)\n  pieces: xo_marks\n")
-        .replace("deck : Deck  hand[player] : Hand<player>", "box : Deck"),
-        ACCEPT,
-    ),
-    (
-        "boardless-column-fix-taken",
-        boardless(positions="  positions { column : 1..3 }", state="    v : Integer = 1"),
-        ACCEPT,
-    ),
+    # A boardless game mints no `cell`, and the refusal's fix follows its
+    # content; one that declares an integer domain spelled `cell` holds
+    # numbers, the integer class.
+    ("boardless-cell?", boardless(state="    v : cell? = none"), NO_BOARD_CARDS),
+    ("boardless-cell", boardless(state="    v : cell = none"), NO_BOARD_CARDS),
+    ("boardless-pieces-cell?", boardless_pieces("    v : cell? = none"), NO_BOARD_PIECES),
     (
         "boardless-integer-cell?",
         boardless(positions="  positions { cell : 1..3 }", state="    v : cell? = none"),
         ("is typed `cell`", "a position domain of numbers", "as an `Integer`"),
     ),
-    # The refused classes, one row each, in both games where the class exists.
+    # The refused classes, one row each, in every game where the class exists.
     (
         "board-column?",
         board(positions="  positions { column : 1..3 }", state="    v : column? = none"),
@@ -283,12 +312,13 @@ DECL_CELLS += [
         INTEGER_DOMAIN,
     ),
     ("board-dir?", board(state="    v : dir? = none"), DIRECTION),
-    ("boardless-dir?", boardless(state="    v : dir? = none"), DIRECTION),
+    ("morris9-dir?", board(family="morris9", state="    v : dir? = none"), UNMINTED_DIRECTION),
+    ("boardless-dir?", boardless(state="    v : dir? = none"), NO_BOARD_DIRECTION),
     ("board-unknown?", board(state="    v : Square? = none"), "unknown type 'Square' in declaration of 'v'"),
     (
         "board-Combination?",
         board(state="    v : Combination? = none"),
-        "a state variable cannot hold one",
+        "`Combination` is a function parameter's type only",
     ),
     (
         "board-indexed-by-cell",
@@ -297,53 +327,128 @@ DECL_CELLS += [
     ),
 ]
 
+# Each refusal's named fix, taken exactly as the refusal names it, checks. A
+# row's id is the refusal row it answers.
+FIX_TAKEN: list[tuple[str, str]] = [
+    (
+        "boardless-cell?",
+        boardless(state="    v : cell? = none").replace(
+            "  cards: standard52\n", "  pieces: xo_marks\n  board: grid(3, 3)\n"
+        ),
+    ),
+    (
+        "boardless-cell",
+        boardless(state="    prior : cell? = none\n    v : cell = prior").replace(
+            "  cards: standard52\n", "  pieces: xo_marks\n  board: grid(3, 3)\n"
+        ),
+    ),
+    (
+        "boardless-pieces-cell?",
+        boardless_pieces("    v : cell? = none").replace(
+            "  pieces: xo_marks\n", "  board: grid(3, 3)\n  pieces: xo_marks\n"
+        ),
+    ),
+    (
+        "boardless-integer-cell?",
+        boardless(positions="  positions { cell : 1..3 }", state="    v : Integer? = none"),
+    ),
+    ("board-column?", board(positions="  positions { column : 1..3 }", state="    v : Integer? = none")),
+    ("boardless-column", boardless(positions="  positions { column : 1..3 }", state="    v : Integer = 1")),
+    ("board-dir?", board(functions="function f(along : dir) = is_diagonal(along)\n")),
+    ("morris9-dir?", board(family="morris9", state="    v : cell? = none")),
+    ("boardless-dir?", boardless(state="    v : SeatDirection? = none")),
+]
+
 
 @pytest.mark.parametrize(
     ("source", "expected"),
-    [pytest.param(src, want, id=cid) for cid, src, want in DECL_CELLS],
+    [_param(cid, src, want) for cid, src, want in DECL_CELLS],
 )
-def test_the_declaration_grid(source: str, expected: str | tuple[str, ...] | None) -> None:
+def test_the_declaration_grid(source: str, expected: Expected) -> None:
     _expect(source, expected)
+
+
+@pytest.mark.parametrize("source", [_param(f"{cid}-fix-taken", src) for cid, src in FIX_TAKEN])
+def test_a_refusal_s_named_fix_checks(source: str) -> None:
+    _expect(source, ACCEPT)
+
+
+def test_every_owned_refusal_has_its_fix_taken() -> None:
+    """The refusal rows carrying one of this module's own refusal sentences
+    are exactly the rows a FIX_TAKEN row answers.
+
+    red under: delete any FIX_TAKEN row."""
+    refused = {cid for cid, _src, want in DECL_CELLS if want in OWNED_REFUSALS}
+    refused |= {"boardless-integer-cell?"}
+    assert refused == {cid for cid, _src in FIX_TAKEN}
 
 
 # --- GRID R: reads and writes of a `cell?` variable ------------------------------
 
 _ANCHOR = "    last_at : cell? = none"
+_PER_SEAT = "    lastp[player] : cell? = none"
 _MINE = "function mine(c : cell) = square[c] is empty\n"
 _BESIDE = "any dir where has_step(last_at, dir, actor) and (neighbor(last_at, dir, actor) is at)"
 
-USE_CELLS: list[tuple[str, dict[str, str], str | tuple[str, ...] | None]] = [
-    ("assign-from-parameter", {"effect": "    last_at := at"}, ACCEPT),
-    ("assign-from-let", {"effect": "    let c = at\n    last_at := c"}, ACCEPT),
-    ("assign-none", {"effect": "    last_at := none"}, ACCEPT),
-    ("is-none", {"stop_when": "last_at is none"}, ACCEPT),
-    ("is-not-none", {"stop_when": "last_at is not none"}, ACCEPT),
-    ("is-parameter", {"when": "(square[at] is empty) and (at is not last_at)"}, ACCEPT),
+USE_CELLS: list[tuple[str, str, dict[str, str], Expected]] = [
+    ("assign-from-parameter", _ANCHOR, {"effect": "    last_at := at"}, ACCEPT),
+    ("assign-from-let", _ANCHOR, {"effect": "    let c = at\n    last_at := c"}, ACCEPT),
+    ("assign-none", _ANCHOR, {"effect": "    last_at := none"}, ACCEPT),
+    ("is-none", _ANCHOR, {"stop_when": "last_at is none"}, ACCEPT),
+    ("is-not-none", _ANCHOR, {"stop_when": "last_at is not none"}, ACCEPT),
+    ("is-parameter", _ANCHOR, {"when": "(square[at] is empty) and (at is not last_at)"}, ACCEPT),
     (
         "chain-guard",
+        _ANCHOR,
         {"when": f"(square[at] is empty) and ((last_at is none) or ({_BESIDE}))"},
         ACCEPT,
     ),
-    ("function-argument", {"functions": _MINE, "stop_when": "mine(last_at)"}, ACCEPT),
-    ("zone-subscript-key", {"stop_when": "square[last_at] is empty"}, ACCEPT),
-    ("builtin-argument", {"stop_when": "any dir where has_step(last_at, dir, actor)"}, ACCEPT),
-    ("membership", {"stop_when": "last_at in far_row(0)"}, ACCEPT),
-    ("is-integer", {"stop_when": "last_at is 3"}, "comparing Cell with Integer can never be equal"),
-    ("ordering", {"when": "(square[at] is empty) and (last_at < at)"}, "'<' compares Integers, got Cell"),
-    ("arithmetic", {"stop_effect": "    n := last_at + 1"}, "'+' expects Integer operands, got Cell"),
-    ("assign-integer", {"effect": "    last_at := 3"}, "cannot assign Integer to 'last_at' (Cell?)"),
-    ("assign-string", {"effect": '    last_at := "a1"'}, "cannot assign String to 'last_at' (Cell?)"),
-    ("assign-to-integer", {"stop_effect": "    n := last_at"}, "cannot assign Cell? to 'n' (Integer)"),
-    ("field", {"stop_when": "last_at.side is x"}, "cannot read field 'side' of Cell?"),
+    ("function-argument", _ANCHOR, {"functions": _MINE, "stop_when": "mine(last_at)"}, ACCEPT),
+    ("zone-subscript-key", _ANCHOR, {"stop_when": "square[last_at] is empty"}, ACCEPT),
+    ("builtin-argument", _ANCHOR, {"stop_when": "any dir where has_step(last_at, dir, actor)"}, ACCEPT),
+    ("membership", _ANCHOR, {"stop_when": "last_at in far_row(0)"}, ACCEPT),
+    # Each refusal's only `cell` operand is the variable, so the refusal reads
+    # the variable's type.
+    ("is-integer", _ANCHOR, {"stop_when": "last_at is 3"}, "comparing Cell with Integer can never be equal"),
+    ("ordering", _ANCHOR, {"stop_when": "last_at < 3"}, "'<' compares Integers, got Cell"),
+    ("arithmetic", _ANCHOR, {"stop_effect": "    n := last_at + 1"}, "'+' expects Integer operands, got Cell"),
+    ("assign-integer", _ANCHOR, {"effect": "    last_at := 3"}, "cannot assign Integer to 'last_at' (Cell?)"),
+    ("assign-string", _ANCHOR, {"effect": '    last_at := "a1"'}, "cannot assign String to 'last_at' (Cell?)"),
+    ("assign-to-integer", _ANCHOR, {"stop_effect": "    n := last_at"}, "cannot assign Cell? to 'n' (Integer)"),
+    ("field", _ANCHOR, {"stop_when": "last_at.side is x"}, "cannot read field 'side' of Cell?"),
+    # A per-seat store, read and written through its seat.
+    ("per-seat-assign", _PER_SEAT, {"effect": "    lastp[actor] := at"}, ACCEPT),
+    ("per-seat-is-not-none", _PER_SEAT, {"stop_when": "lastp[actor] is not none"}, ACCEPT),
+    ("per-seat-zone-key", _PER_SEAT, {"stop_when": "square[lastp[actor]] is empty"}, ACCEPT),
+    ("per-seat-ordering", _PER_SEAT, {"stop_when": "lastp[actor] < 3"}, "'<' compares Integers, got Cell"),
+    (
+        "per-seat-arithmetic",
+        _PER_SEAT,
+        {"stop_effect": "    n := lastp[actor] + 1"},
+        "'+' expects Integer operands, got Cell",
+    ),
+    (
+        "per-seat-assign-integer",
+        _PER_SEAT,
+        {"effect": "    lastp[actor] := 3"},
+        "cannot assign Integer to 'lastp' (Cell?)",
+    ),
+    ("per-seat-winner", _PER_SEAT, {"winner": "highest lastp"}, "an optional score may be `none`"),
+    (
+        "per-seat-winner-plain",
+        "    prior : cell? = none\n    lastp[player] : cell = prior",
+        {"winner": "highest lastp"},
+        "a game is ranked by a score, so the target must be Boolean, Integer",
+    ),
 ]
 
 
 @pytest.mark.parametrize(
-    ("slots", "expected"),
-    [pytest.param(slots, want, id=cid) for cid, slots, want in USE_CELLS],
+    ("state", "slots", "expected"),
+    [_param(cid, state, slots, want) for cid, state, slots, want in USE_CELLS],
 )
-def test_the_read_and_write_grid(slots: dict[str, str], expected: str | tuple[str, ...] | None) -> None:
-    _expect(board(state=_ANCHOR, **slots), expected)
+def test_the_read_and_write_grid(state: str, slots: dict[str, str], expected: Expected) -> None:
+    _expect(board(state=state, **slots), expected)
 
 
 # --- GRID P: play ------------------------------------------------------------------
@@ -359,46 +464,101 @@ WITNESS = board(
     stop_effect="    if square[last_at] is not empty { result[actor] := 1 }",
 )
 
+# Each seat remembers the square it last marked, the shuttle's per-seat store.
+PER_SEAT_WITNESS = board(
+    state=_PER_SEAT,
+    effect="    lastp[actor] := at",
+    stop_when="lastp[actor] is not none",
+    stop_effect="    if square[lastp[actor]] is not empty { result[actor] := 1 }",
+)
 
-def _play(source: str, seed: int) -> object:
+
+def _play(source: str, seed: int) -> GameResult:
     if (refused := _verdict(source)) is not None:
         raise CellMismatch(f"the program does not check: {refused}")
     return play_game(check_dsl(source, "typed_position_state.cardlang"), random.Random(seed))
 
 
+@pytest.mark.parametrize("source", [_param("anchor", WITNESS), _param("per-seat", PER_SEAT_WITNESS)])
 @pytest.mark.parametrize("seed", range(12))
-def test_the_witness_remembers_the_square_it_wrote(seed: int) -> None:
-    result = _play(WITNESS, seed)
-    assert result.ended_by is EndedBy.RULES  # type: ignore[attr-defined]
-    assert sorted(result.seat_scores) == [0, 1]  # type: ignore[attr-defined]
+def test_the_witness_remembers_the_square_it_wrote(source: str, seed: int) -> None:
+    result = _play(source, seed)
+    assert result.ended_by is EndedBy.RULES
+    assert sorted(result.seat_scores) == [0, 1]
 
 
-NONE_AT_PLAY: list[tuple[str, str, tuple[str, ...]]] = [
+_NAMED_KEY = (
+    "zone family 'square'",
+    "its key `last_at` is none here",
+    "test `last_at is not none` before naming `square[last_at]`",
+)
+_UNNAMED_KEY = (
+    "zone family 'square'",
+    "its key is none here",
+    "test it with `is not none` where it is read, before it names `square[...]` "
+    "or is passed to a function that does",
+)
+
+# A `none` square reaching each route that needs a square, and the same route
+# with the refusal's named fix taken.
+NONE_AT_PLAY: list[tuple[str, str, str, tuple[str, ...], str]] = [
     (
         "zone-subscript",
-        board(state=_ANCHOR, setup="    if square[last_at] is empty { n := 1 }"),
-        ("zone family 'square'", "its key is none here", "test it with `is none`"),
+        _ANCHOR,
+        "    if square[last_at] is empty { n := 1 }",
+        _NAMED_KEY,
+        "    if last_at is not none { if square[last_at] is empty { n := 1 } }",
+    ),
+    (
+        "move-destination",
+        _ANCHOR,
+        "    move one piece from reserve[0] to square[last_at]",
+        _NAMED_KEY,
+        "    if last_at is not none { move one piece from reserve[0] to square[last_at] }",
     ),
     (
         "function-parameter",
-        board(state=_ANCHOR, functions=_MINE, setup="    if mine(last_at) { n := 1 }"),
-        ("zone family 'square'", "its key is none here", "test it with `is none`"),
+        _ANCHOR,
+        "    if mine(last_at) { n := 1 }",
+        _UNNAMED_KEY,
+        "    if (last_at is not none) and mine(last_at) { n := 1 }",
+    ),
+    (
+        "per-seat-key",
+        _PER_SEAT,
+        "    if square[lastp[0]] is empty { n := 1 }",
+        _UNNAMED_KEY,
+        "    if (lastp[0] is not none) and (square[lastp[0]] is empty) { n := 1 }",
     ),
     (
         "builtin",
-        board(state=_ANCHOR, setup="    if any dir where has_step(last_at, dir, 0) { n := 1 }"),
-        ("`has_step` was given none where it needs a `cell`",),
+        _ANCHOR,
+        "    if any dir where has_step(last_at, dir, 0) { n := 1 }",
+        ("`has_step` was given none where it needs a `cell`", "test it with `is none` before passing it"),
+        "    if last_at is not none { if any dir where has_step(last_at, dir, 0) { n := 1 } }",
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    ("source", "needles"),
-    [pytest.param(src, needles, id=cid) for cid, src, needles in NONE_AT_PLAY],
+    ("state", "setup", "needles"),
+    [_param(cid, state, setup, needles) for cid, state, setup, needles, _fix in NONE_AT_PLAY],
 )
-def test_a_none_square_is_refused_where_a_square_is_needed(source: str, needles: tuple[str, ...]) -> None:
+def test_a_none_square_is_refused_where_a_square_is_needed(
+    state: str, setup: str, needles: tuple[str, ...]
+) -> None:
+    source = board(state=state, functions=_MINE, setup=setup)
     with pytest.raises(OwnerGuardError) as exc:
         _play(source, 0)
     missing = [s for s in needles if s not in str(exc.value)]
     if missing:
         raise CellMismatch(f"the refusal lacks {missing}: {exc.value}")
+
+
+@pytest.mark.parametrize(
+    ("state", "setup"),
+    [_param(f"{cid}-fix-taken", state, fix) for cid, state, _setup, _needles, fix in NONE_AT_PLAY],
+)
+def test_a_none_square_s_named_fix_plays(state: str, setup: str) -> None:
+    result = _play(board(state=state, functions=_MINE, setup=setup), 0)
+    assert result.ended_by is EndedBy.RULES
