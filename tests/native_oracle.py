@@ -39,8 +39,10 @@ Contract:
 from __future__ import annotations
 
 import random
-from collections.abc import Callable
-from typing import Any
+from collections import Counter
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from typing import Any, assert_never
 
 import pytest
 
@@ -48,6 +50,7 @@ pyspiel = pytest.importorskip("pyspiel")
 
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
+from cardlang.runtime.state import RuntimeState
 
 
 def assert_node_agrees(
@@ -175,3 +178,91 @@ def assert_outcomes_agree(ours: list[float], native: list[float]) -> None:
         f"outcome classification diverges — ours {ours} -> {classify(ours)}, "
         f"native {native} -> {classify(native)}"
     )
+
+
+@dataclass(frozen=True, slots=True)
+class Rules:
+    """A line both implementations ended by their rules, on agreeing outcomes."""
+
+    ply: int
+    ours: tuple[float, ...]
+    native: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Truncated:
+    """A line the oracle ended by its own draw rule while the game asks on."""
+
+    ply: int
+
+
+LineEnd = Rules | Truncated
+ToNative = Callable[[Any], int]
+Advance = Callable[[int, Any], None]
+TruncateWhen = Callable[[Any], bool]
+Choose = Callable[[list[int], ActionSpace], int]
+
+
+def uniform(policy_seed: int) -> Choose:
+    """The seeded uniform policy over the offered action ids."""
+    policy = random.Random(policy_seed)
+
+    def choose(legal: list[int], space: ActionSpace) -> int:
+        return policy.choice(legal)
+
+    return choose
+
+
+def walk_paired_prefix(
+    dsl_path: str,
+    native_game: str,
+    to_native: ToNative,
+    truncate_when: TruncateWhen,
+    seed: int,
+    choose: Choose,
+    *,
+    label: str,
+    advance: Advance | None = None,
+    expected_first_player: int = 0,
+) -> LineEnd:
+    """STUB: the alternating walk's semantics, typed to return a LineEnd."""
+    _, space = load(dsl_path)
+    native = pyspiel.load_game(native_game).new_initial_state()
+    world: list[RuntimeState] = []
+    history: list[int] = []
+    decoded: list[Any] = []
+
+    def beyond(player: int, legal: list[int]) -> int:
+        assert_node_agrees(
+            native, DecisionNode(player, legal, world[0], {}), to_native, space,
+            label=label, step=len(history), history=decoded,
+        )
+        action = choose(legal, space)
+        chosen = space.decode(action)
+        native.apply_action(to_native(chosen))
+        if advance is not None:
+            advance(player, chosen)
+        history.append(action)
+        decoded.append(chosen)
+        return action
+
+    ours = run(dsl_path, seed, (), on_first_decision=world.append, beyond=beyond)
+    assert isinstance(ours, TerminalNode)
+    assert native.is_terminal(), (
+        f"{label} step {len(history)}: our game is terminal but native is not "
+        f"— board={decoded}"
+    )
+    return Rules(len(history), tuple(ours.returns), tuple(native.returns()))
+
+
+def tally_line_ends(ends: Iterable[LineEnd]) -> Counter[str]:
+    """STUB: counts each end by its kind."""
+    tally: Counter[str] = Counter()
+    for end in ends:
+        if isinstance(end, Rules):
+            tally[classify(list(end.ours))] += 1
+        elif isinstance(end, Truncated):
+            tally["truncated"] += 1
+        else:
+            assert_never(end)
+    return tally
