@@ -1,0 +1,30 @@
+// Guard: resolve's board availability row (cardlang/resolve.py,
+// `_check_board_call`, `BOARD_VERB_NEEDS`). `connected` reads a board's
+// declared adjacency; a grid declares none, so the call is refused naming the
+// family and the verbs it answers.
+game ConnectedOnGrid {
+  players: 2
+  max_length: 30
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest score
+}
+move_type place(at : cell) {
+  when: (square[at] is empty) and connected(home(actor), far_row(actor), cells where square[cell] is empty)
+  effect { move one piece from reserve[actor] to square[at] }
+}
+move_type stop { effect { done := true } }

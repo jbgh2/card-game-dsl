@@ -1,1 +1,1 @@
-has_step_on_morris9.cardlang:27:34: error: `has_step` reads the board's movement frame (each seat's forward directions), but `board: morris9` has none — on this board a game may call `lines` or `neighbors`
+has_step_on_morris9.cardlang:27:34: error: `has_step` reads the board's movement frame (each seat's forward directions), but `board: morris9` has none — on this board a game may call `connected`, `lines` or `neighbors`

@@ -27,15 +27,24 @@ Establishes:  every built entry's cells are nonempty, unique and within the
               declared lengths, each line a straight run along its frame's
               geometry or its edges; a frame's directions, offsets and
               regions are self-consistent; its borders name, for each of the
-              two seats, a nonempty near and far run of its cells. A
+              two seats, a nonempty near and far run of its cells;
+              `connected` expands each cell at most once and reads only the
+              declared adjacency and its three arguments. A
               registry-bug refusal is a `ValueError`; a game author's misuse
               of a board (`board_entry`'s arguments, an undeclared `k`) is an
               `OwnerGuardError`.
 Now illegal:  a frameless entry answering a frame verb or minting a
               direction; an entry answering `neighbors` without edges, or
-              `near_edge` / `far_edge` without borders; a line that is not a
+              `near_edge` / `far_edge` without borders, or `connected` without
+              edges; a `connected` argument holding anything but the board's
+              cells; a line that is not a
               straight run of its family's topology; an asymmetric adjacency.
-Held by:      the frame, the edges and the borders are Unrepresentable as
+Held by:      a `connected` argument holding anything but the board's cells
+              is a Born-Green Pin (the Permissive Top rows of
+              tests/test_connected_builtin.py), standing in for the type
+              layer's missing Owner Guard (issue #116); not higher, because the
+              Permissive Top admits the value by design until that lands.
+              The frame, the edges and the borders are Unrepresentable as
               absent-but-read: each is optional on `BoardEntry` and each verb
               reads its field through `_frame` / `_edges` / `_borders`, which
               refuse a missing one, and `answers` matches every `BoardNeed`
@@ -59,8 +68,10 @@ Held by:      the frame, the edges and the borders are Unrepresentable as
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from functools import cached_property
 
 from cardlang.builtins.functions import BoardNeed
 from cardlang.runtime.errors import OwnerGuardError
@@ -120,6 +131,20 @@ _MORRIS9_EDGES: tuple[tuple[str, str], ...] = (
 # of OpenSpiel's `hex` (hex.cc, `AdjacentCells`); each edge is generated once,
 # from its earlier cell.
 _HEX_FORWARD_OFFSETS: tuple[tuple[int, int], ...] = ((0, 1), (1, 0), (1, -1))
+
+
+def _designer_spelling(value: object) -> str:
+    """A value as a game writes it: a cell or a direction by its name, a
+    number as written, `true`/`false`, `none`, a collection in brackets."""
+    if value is None:
+        return "none"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (str, int)):
+        return str(value)
+    if isinstance(value, (tuple, list)):
+        return "[" + ", ".join(_designer_spelling(v) for v in value) + "]"
+    return f"a {type(value).__name__.lower()}"
 
 
 def board_spelling(family: str, args: tuple[int, ...]) -> str:
@@ -310,6 +335,69 @@ class BoardEntry:
                 "(registry bug: cell not on this board)"
             )
         return tuple(c for c in self.cells if frozenset((cell, c)) in edges)
+
+    def connected(
+        self,
+        frm: tuple[str, ...],
+        to: tuple[str, ...],
+        via: tuple[str, ...],
+        visit: Callable[[str], None] | None = None,
+    ) -> bool:
+        """Whether some cell of `frm` reaches some cell of `to` along the
+        declared adjacency, every cell of the path, both ends included, in
+        `via`. Breadth first, seeded with `frm`'s cells in `via` in `frm`'s
+        order, each cell's neighbours taken in board order; a cell joins the
+        frontier once, so the search expands at most one cell per board cell.
+        `visit` is told each cell as it is expanded."""
+        adjacency = self._adjacency
+        for name, cells in (("from", frm), ("to", to), ("via", via)):
+            self._require_cell_collection("connected", name, cells)
+        allowed = frozenset(via)
+        goal = frozenset(to)
+        seen = {c for c in frm if c in allowed}
+        frontier = deque(dict.fromkeys(c for c in frm if c in allowed))
+        while frontier:
+            cell = frontier.popleft()
+            if visit is not None:
+                visit(cell)
+            if cell in goal:
+                return True
+            for nxt in adjacency[cell]:
+                if nxt in allowed and nxt not in seen:
+                    seen.add(nxt)
+                    frontier.append(nxt)
+        return False
+
+    @cached_property
+    def _adjacency(self) -> Mapping[str, tuple[str, ...]]:
+        # Each cell's neighbours in board order, built once per entry.
+        order = {c: i for i, c in enumerate(self.cells)}
+        joined: dict[str, list[str]] = {c: [] for c in self.cells}
+        for a, b in (tuple(edge) for edge in self._edges("connected")):
+            joined[a].append(b)
+            joined[b].append(a)
+        return {c: tuple(sorted(nbs, key=order.__getitem__)) for c, nbs in joined.items()}
+
+    def _require_cell_collection(self, reader: str, name: str, cells: object) -> None:
+        # Stands in for the type layer's missing Owner Guard: the type layer
+        # owns which values fill a cell slot, and the Permissive Top lets a
+        # value with no join through it (issue #116; a chip stack, issue #655).
+        # A none member is `reads.coerce_args`'s, refused before this runs.
+        if not isinstance(cells, tuple) or not all(
+            isinstance(c, str) and c in self._cell_set for c in cells
+        ):
+            raise OwnerGuardError(
+                f"`{reader}` reads a set of cells of `board: {self.spelling}`, but its "
+                f"`{name}` argument is {_designer_spelling(cells)}, which is not one: "
+                "a value reaches it unchecked from an `if` whose branches are "
+                "different kinds of value, or from a chip stack. Write a set of "
+                "cells there, in every branch: a Region Verb such as `near_edge(p)`, "
+                "or `cells where <predicate>`"
+            )
+
+    @cached_property
+    def _cell_set(self) -> frozenset[str]:
+        return frozenset(self.cells)
 
     def directions(self) -> tuple[str, ...]:
         """The seat-relative forward directions this board's frame mints, in

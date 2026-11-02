@@ -3740,16 +3740,16 @@ opposite corner. It declares no lines and no movement frame.
 
 **A board verb is answered by the families that declare what it reads.**
 Each verb reads one part of its board's entry: `lines` the line lengths
-the family declares, `neighbors` its declared adjacency, `neighbor`,
+the family declares, `neighbors` and `connected` its declared adjacency, `neighbor`,
 `has_step`, `is_diagonal`, `home` and `far_row` its movement frame — as
 does the direction domain `dir` — and `near_edge` and `far_edge` each
 seat's borders. A family declares only the parts it has:
 
-| family        | `lines(k)`                | `neighbors` | the frame verbs and `dir` | `near_edge`, `far_edge` |
-|---------------|---------------------------|-------------|---------------------------|-------------------------|
-| `grid`        | `k` up to its longer side | refused     | answered                  | refused                 |
-| `morris9`     | `k = 3`, the mills        | answered    | refused                   | refused                 |
-| `hex_rhombus` | refused                   | answered    | refused                   | answered                |
+| family        | `lines(k)`                | `neighbors`, `connected` | the frame verbs and `dir` | `near_edge`, `far_edge` |
+|---------------|---------------------------|--------------------------|---------------------------|-------------------------|
+| `grid`        | `k` up to its longer side | refused                  | answered                  | refused                 |
+| `morris9`     | `k = 3`, the mills        | answered                 | refused                   | refused                 |
+| `hex_rhombus` | refused                   | answered                 | refused                   | answered                |
 
 A call on a family that does not declare its verb's part is refused at
 the call, naming the board and the verbs it answers; reached through a
@@ -3760,6 +3760,33 @@ reads the board from one of its two seats, so a game calling one declares
 never a second list beside the adjacency: an adjacency family's lines are
 the straight runs along its edges, so a line off the edges cannot be
 written.
+
+**Whether two cell sets join is a Builtin that owns its loop.** The
+expression register has no loop and no recursion, so reachability is the
+verb `connected(from, to, via) : Boolean`, each argument a
+`Collection<Cell>`: true exactly when some cell of `from` reaches some cell
+of `to` along the board's declared adjacency with every cell of the path,
+both ends included, in `via`. A game writes no fixed point of its own;
+Hex's win is one sentence over a predicate naming a seat's stones:
+
+```cardlang-fragment connected
+function joined(p : Player) = connected(near_edge(p), far_edge(p), cells where holds(cell, p))
+```
+
+The search is breadth first, seeded with `from`'s cells in `via` in
+`from`'s order and taking each cell's neighbours in board order, and it
+expands each cell at most once, so it ends within the board's cell count by
+construction. It reads only the declared adjacency and its three
+arguments, never a zone or a draw: the zones a game asks about are read by
+the argument expressions, which the Hidden Read Owner Guard judges where
+they are written. An empty `via`, or a `from` with no cell in `via`, is
+false; a cell in all three is true. The connectivity is the family's
+declaration, never a call-site argument, so a family that declares no
+adjacency refuses the verb as it refuses `neighbors`. An optional set of
+cells checks where a set of cells does, and a none argument, or a none
+inside one, is refused at play; so is a value reaching the verb through the
+Permissive Top that is not a collection of the board's cells. A set-valued sibling (`region`) is not the
+language: it waits for the game that needs a region as a value.
 
 ## Game result: `winner:` and `loser:`
 
