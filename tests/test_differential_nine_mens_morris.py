@@ -20,17 +20,13 @@ own rendering of the board, so the table is checked against the oracle rather
 than restated.
 
 The walker. Layer (a) walks the replay adapter's paused nodes, `run` with a
-history, as the OpenSpiel adapter does. Pausing at every ply of a long line
-costs one replay per ply, each as long as the line so far, so the lines of
-layers (b) and (c) are each one LIVE run instead: `run`'s `beyond`
-continuation is asked at every decision past the history, with the legal set
-the paused node carries (`replay.ReplayChooser`, one `_legal` for both), and
-the walk compares there. Each scripted line the rules or the truncation end
-closes with one paused replay of its whole history, which must end where the
-live run ended. The per-node comparison is
-`tests/native_oracle.py::assert_node_agrees`, unchanged; the trajectory walk is
-this module's own because the oracle's turn cap needs a terminal rule
-`walk_paired_alternating` does not carry.
+history, as the OpenSpiel adapter does, through
+`tests/native_oracle.py::assert_node_agrees`. The lines of layers (b) and (c)
+are `tests/native_oracle.py::walk_paired_prefix`, one live run each, with the
+oracle's turn cap as its `truncate_when` (`turn_cap`): it compares at every
+decision, ends each line `Rules` or `Truncated`, and closes each with one
+paused replay of its whole history. A script that runs out stops its line at a
+live node, where the test reads the offer.
 
 The oracle. This module walks open_spiel 2.0 or later, whose
 `nine_mens_morris` offers slides onto point 0 (`a7`); open_spiel 1.6 never
@@ -52,8 +48,9 @@ Coverage:
     over `POLICY_SEEDS`, walked to a rules end or the truncation. The tally
     asserts both winners and a truncation; the census asserts every directed
     edge of the board played as a slide and every mill closed.
-(d) Two tripwires: the mapping with `a7` and `d7` exchanged, and a scratch copy
-    of the game whose removal drops its in-mill conjunct. Each must redden the
+(d) Three tripwires: the mapping with `a7` and `d7` exchanged, a scratch copy
+    of the game whose removal drops its in-mill conjunct, and the shuffle
+    walked with a `truncate_when` that names nothing. Each must redden the
     comparison.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
@@ -67,15 +64,16 @@ domain:     the nodes of the prefix tree to `PREFIX_DEPTH`; the nodes of the
             scripted lines; the nodes of every line over `POLICY_SEEDS`.
             Outside it, by the ruling on issue #953, the tail of a line past
             the oracle's turn cap.
-registry:   `tests/native_oracle.py::assert_node_agrees`; `ORACLE_POINTS`;
+registry:   `tests/native_oracle.py::assert_node_agrees`;
+            `tests/native_oracle.py::walk_paired_prefix`; `ORACLE_POINTS`;
             `cardlang.stdlib.boards.board_entry("morris9")`'s cells, edges and
             `lines(3)`, which the census reads.
 held by:    the point table is a Born-Green Pin (the bijection, and every
             point's place in pyspiel's rendering); why not higher: the oracle's
             point order is external data with no source in the tree. The
-            truncation is Derived: it is read off the oracle's own terminal
-            and returns, and no code here counts turns or holds the cap's
-            value. The oracle's version
+            truncation is Derived: `turn_cap` reads the oracle's own terminal
+            returns, the walker asks it only of a terminal oracle, and no code
+            here counts turns or holds the cap's value. The oracle's version
             is held by the census, which plays slides onto `a7`.
 does not prove:  that the game and the oracle agree past the oracle's turn
             cap, where the oracle has no game to compare; nor at a node no
@@ -98,7 +96,6 @@ naming the conjunct it plants out as already gone.
 
 from __future__ import annotations
 
-import random
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sequence
@@ -112,10 +109,19 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
-from cardlang.runtime.state import RuntimeState
+from cardlang.openspiel.encoding import ActionSpace
+from cardlang.openspiel.replay import DecisionNode, load, run
 from cardlang.stdlib.boards import board_entry
-from tests.native_oracle import assert_node_agrees, classify
+from tests.native_oracle import (
+    Choose,
+    LineEnd,
+    Rules,
+    Truncated,
+    assert_node_agrees,
+    tally_line_ends,
+    uniform,
+    walk_paired_prefix,
+)
 
 PATH = str(Path(__file__).parent.parent / "docs" / "games" / "nine-mens-morris.cardlang")
 NATIVE = "nine_mens_morris"
@@ -164,12 +170,13 @@ def mapping(points: Sequence[str]) -> ToNative:
 TO_NATIVE = mapping(ORACLE_POINTS)
 
 
-class _Truncated(Exception):
-    """The oracle ended the line at its turn cap while the game asks on."""
+def turn_cap(native: Any) -> bool:
+    """The oracle's turn cap, read off its own terminal: its one drawn end."""
+    return list(native.returns()) == [0.0, 0.0]
 
 
 class _Stopped(Exception):
-    """The chooser has no further step; the walk ends at a live node."""
+    """The script has no further step; the walk ends at a live node."""
 
 
 @dataclass
@@ -177,15 +184,12 @@ class Line:
     """How one paired line ended, and what it passed through."""
 
     label: str
-    end: str = ""  # "rules", "truncated" or "stopped"
+    end: LineEnd | None = None  # None: the script stopped the line at a live node
     returns: list[float] = field(default_factory=list)
     history: list[int] = field(default_factory=list)
     decoded: list[Any] = field(default_factory=list)
-    offer: list[Any] = field(default_factory=list)  # the decoded offer at the last node
+    offer: list[Any] = field(default_factory=list)  # the decoded offer where the script stopped
     players: list[int] = field(default_factory=list)
-
-
-Choose = Callable[[Any, list[int], Any], int | None]
 
 
 def paired_line(
@@ -194,61 +198,35 @@ def paired_line(
     label: str,
     path: str = PATH,
     to_native: ToNative = TO_NATIVE,
+    truncate_when: Callable[[Any], bool] = turn_cap,
 ) -> Line:
-    """One live run of the game, the oracle following every pick.
-
-    At each decision: if the oracle has ended the line with returns [0, 0], the
-    walk stops there with the game live (`_Truncated`); otherwise
-    `assert_node_agrees`, then `choose(native, legal, space)` names the pick,
-    or None to stop. A line the game ends must be terminal natively with the
-    same returns, and not at the oracle's cap."""
+    """One line of `walk_paired_prefix`, the oracle's turn cap its truncation.
+    A line the rules end ends on both sides with equal returns."""
     _, space = load(path)
-    native = pyspiel.load_game(NATIVE).new_initial_state()
     line = Line(label)
-    world: list[RuntimeState] = []
 
-    def beyond(player: int, legal: list[int]) -> int:
-        line.offer = [space.decode(a) for a in legal]
-        if native.is_terminal() and list(native.returns()) == [0.0, 0.0]:
-            raise _Truncated
-        assert_node_agrees(
-            native, DecisionNode(player, legal, world[0], {}), to_native, space,
-            label=label, step=len(line.history), history=line.decoded,
-        )
-        action = choose(native, legal, space)
-        if action is None:
-            raise _Stopped
-        decoded = space.decode(action)
-        native.apply_action(to_native(decoded))
-        line.history.append(action)
+    def advance(player: int, decoded: Any) -> None:
+        line.history.append(space.encode(decoded))
         line.decoded.append(decoded)
         line.players.append(player)
-        return action
+
+    def recording(legal: list[int], space: ActionSpace) -> int:
+        line.offer = [space.decode(a) for a in legal]
+        return choose(legal, space)
 
     try:
-        ours = run(path, 0, (), on_first_decision=world.append, beyond=beyond)
-    except _Truncated:
-        line.end = "truncated"
-        return line
+        line.end = walk_paired_prefix(
+            path, NATIVE, to_native, truncate_when, 0, recording,
+            label=label, advance=advance,
+        )
     except _Stopped:
-        line.end = "stopped"
         return line
-    assert isinstance(ours, TerminalNode)
-    where = f"{label} step {len(line.history)}"
-    assert native.is_terminal(), (
-        f"{where}: our game is terminal ({ours.returns}) but native is not — "
-        f"board={line.decoded}"
-    )
-    native_returns = list(native.returns())
-    assert native_returns != [0.0, 0.0], (
-        f"{where}: our game ended by its rules where native truncated — "
-        f"board={line.decoded}"
-    )
-    assert ours.returns == native_returns, (
-        f"{where}: returns diverge — ours {ours.returns} native {native_returns}"
-    )
-    line.end = "rules"
-    line.returns = ours.returns
+    if isinstance(line.end, Rules):
+        assert line.end.ours == line.end.native, (
+            f"{label} step {line.end.ply}: returns diverge — ours "
+            f"{list(line.end.ours)} native {list(line.end.native)}"
+        )
+        line.returns = list(line.end.ours)
     return line
 
 
@@ -258,10 +236,10 @@ def scripted(steps: Iterable[Step]) -> Choose:
     one legal action on those points."""
     it: Iterator[Step] = iter(steps)
 
-    def choose(native: Any, legal: list[int], space: Any) -> int | None:
+    def choose(legal: list[int], space: ActionSpace) -> int:
         step = next(it, None)
         if step is None:
-            return None
+            raise _Stopped
         hits = [a for a in legal if space.decode(a)[1] == step]
         assert len(hits) == 1, f"scripted step {step!r} matches {hits} in our game"
         return hits[0]
@@ -269,28 +247,12 @@ def scripted(steps: Iterable[Step]) -> Choose:
     return choose
 
 
-def uniform(seed: int) -> Choose:
-    policy = random.Random(seed)
-
-    def choose(native: Any, legal: list[int], space: Any) -> int | None:
-        return policy.choice(legal)
-
-    return choose
-
-
-def assert_paused_agrees(line: Line) -> None:
-    """The paused adapter, replaying the line's whole history, ends where the
-    live run ended."""
+def paused_offer(line: Line) -> list[Any]:
+    """The decoded offer of the paused adapter at the end of the line."""
     node = run(PATH, 0, tuple(line.history))
-    if line.end == "rules":
-        assert isinstance(node, TerminalNode), f"{line.label}: paused replay is live"
-        assert node.returns == line.returns, f"{line.label}: paused returns {node.returns}"
-    else:
-        assert isinstance(node, DecisionNode), f"{line.label}: paused replay is terminal"
-        _, space = load(PATH)
-        assert [space.decode(a) for a in node.legal] == line.offer, (
-            f"{line.label}: paused offer differs from the live one"
-        )
+    assert isinstance(node, DecisionNode), f"{line.label}: the line ends at a terminal"
+    _, space = load(PATH)
+    return [space.decode(a) for a in node.legal]
 
 
 def kinds(line: Line) -> Counter[str]:
@@ -442,14 +404,14 @@ def test_scripted_mill_excludes_enemy_mill_men() -> None:
     """A placing-phase mill: the removal offers the one black man outside
     Black's mill, on both sides."""
     line = paired_line(scripted(MILL_EXCLUDES), label="mill excludes")
-    assert line.end == "stopped"
+    assert line.end is None
     assert line.offer == [("remove", "f2")], line.offer
 
 
 def test_scripted_every_man_in_a_mill_offers_the_mill() -> None:
     """Every black man stands in Black's mill, so the removal offers all of it."""
     line = paired_line(scripted(ALL_IN_MILL), label="all in mill")
-    assert line.end == "stopped"
+    assert line.end is None
     assert line.offer == [("remove", c) for c in ("a1", "d1", "g1")], line.offer
 
 
@@ -457,7 +419,7 @@ def test_scripted_double_mill_earns_one_removal() -> None:
     """A placement closing two mills earns one removal: the next decision is
     Black's placement on both sides."""
     line = paired_line(scripted(DOUBLE_MILL), label="double mill")
-    assert line.end == "stopped"
+    assert line.end is None
     assert _closed_mills(line, board_entry("morris9", ())) == {
         frozenset(("a7", "d7", "g7")), frozenset(("a7", "a4", "a1")),
     }
@@ -477,22 +439,20 @@ def test_scripted_reduction_win(
     """Each seat wins by reducing the other to two men, the loser having flown
     onto a point its man was not adjacent to."""
     line = paired_line(scripted(script), label=f"reduction {returns}")
-    assert line.end == "rules" and line.returns == returns
+    assert isinstance(line.end, Rules) and line.returns == returns
     assert [frm for frm, _ in far_flies(line)] == [flier]
-    assert_paused_agrees(line)
 
 
 def test_scripted_blockade() -> None:
     """White, still holding more than two men, has no legal move and loses."""
     line = paired_line(scripted(BLOCKADE), label="blockade")
-    assert line.end == "rules" and line.returns == [-1.0, 1.0]
+    assert isinstance(line.end, Rules) and line.returns == [-1.0, 1.0]
     taken_from_white = sum(
         1 for player, (name, _) in zip(line.players, line.decoded)
         if name == "remove" and player == 1
     )
     assert 9 - taken_from_white > 2, "White still holds more than two men"
     assert line.players[-1] == 1, "Black's move leaves White without one"
-    assert_paused_agrees(line)
 
 
 def test_scripted_line_truncates_at_the_turn_cap() -> None:
@@ -500,10 +460,22 @@ def test_scripted_line_truncates_at_the_turn_cap() -> None:
     man was ever removed, so no rules end is what fired."""
     steps = chain(SHUFFLE_PLACEMENTS, cycle(SHUFFLE_CYCLE))
     line = paired_line(scripted(steps), label="shuffle")
-    assert line.end == "truncated"
+    assert isinstance(line.end, Truncated)
     assert kinds(line)["remove"] == 0
-    assert {name for name, _ in line.offer} == {"slide"}
-    assert_paused_agrees(line)
+    assert {name for name, _ in paused_offer(line)} == {"slide"}
+
+
+def test_truncation_predicate_is_load_bearing() -> None:
+    """The prefix walk FAILS when nothing names the oracle's turn cap: the cap
+    ends the shuffle natively while the game still offers a decision.
+
+    red under: the walker treating every terminal oracle at one of our
+    decisions as a truncation, without asking `truncate_when`."""
+    steps = chain(SHUFFLE_PLACEMENTS, cycle(SHUFFLE_CYCLE))
+    with pytest.raises(
+        AssertionError, match="native is already terminal while our game still offers a decision"
+    ):
+        paired_line(scripted(steps), label="shuffle", truncate_when=lambda native: False)
 
 
 def test_random_trajectories_agree_with_native() -> None:
@@ -511,18 +483,16 @@ def test_random_trajectories_agree_with_native() -> None:
     winners and a truncation, and the census holds every directed edge played
     as a slide and every mill closed."""
     entry = board_entry("morris9", ())
-    tally: Counter[str] = Counter()
     slides: set[tuple[str, str]] = set()
     mills: set[frozenset[str]] = set()
+    ends: list[LineEnd] = []
     for seed in POLICY_SEEDS:
         line = paired_line(uniform(seed), label=f"policy {seed}")
-        if line.end == "truncated":
-            tally["truncated"] += 1
-        else:
-            assert line.end == "rules"
-            tally[classify(line.returns)] += 1
+        assert line.end is not None
+        ends.append(line.end)
         slides |= {args for name, args in line.decoded if name == "slide"}
         mills |= _closed_mills(line, entry)
+    tally = tally_line_ends(ends)
     assert tally["p0"] and tally["p1"] and tally["truncated"], dict(tally)
     assert "draw" not in tally
     edges = {(a, b) for edge in entry.edges or () for a, b in (tuple(edge), tuple(edge)[::-1])}

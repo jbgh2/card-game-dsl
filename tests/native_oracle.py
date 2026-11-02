@@ -20,6 +20,17 @@ a game that violates either cannot be walked here:
   one addition its rung of the board-topology ladder will require; until a game
   forces it, a chance node is a loud guard, not a silent skip.
 
+The prefix walk. `walk_paired_prefix` walks one line against an oracle that
+may end it earlier than the game does, by a draw rule the game does not play
+(a turn cap, a no-capture counter), and returns how the line ended as a
+`LineEnd`: `Rules` or `Truncated`. It drives one live run of the game through
+`replay.run`'s `beyond` continuation, so a line costs one run rather than one
+replay per ply, and closes every line with one paused replay of its whole
+history, which must end where the live run ended. `choose` picks each action
+(`uniform` is the seeded policy; a caller's script is another), and `advance`
+lets the caller's independent model follow the line when an action id needs
+facts the decoded action does not carry.
+
 Contract:
 - Assumes: the native game named by `native_game` starts at
   `expected_first_player` with no chance node, and our adapter's DecisionNode player
@@ -34,6 +45,24 @@ Contract:
   label, the ply index, and the decoded-action history (a complete board
   reconstruction for a placement game), never a silent skip or a papered-over
   disagreement.
+- Assumes (prefix walk): `truncate_when` names the oracle's own draw rule,
+  never one of the game's, as a predicate on a terminal native state; the
+  game's root is a decision.
+- Establishes (prefix walk): every returned `LineEnd` is `Rules` (both sides
+  terminal, ours by its rules, the outcomes agreeing) or `Truncated` (the
+  oracle terminal at one of our decisions, its end named by `truncate_when`
+  and a draw). Every other meeting fails naming the ply: an unnamed oracle
+  end, a decisive truncation, our terminal against a live oracle (a tie by the
+  game's own rule said so), a Length Stop, a wrong first mover, a paused replay
+  ending elsewhere. `tally_line_ends` refuses a manifest with no `Rules` end.
+- Illegal after: comparing returns on a truncated line, and truncating a line
+  the oracle still plays.
+- Held by: both illegal states are Unrepresentable. `Truncated` carries no
+  returns and `tally_line_ends` dispatches over the union with `assert_never`;
+  the predicate is asked only of a terminal oracle, which cannot become live
+  again, so it is monotone along a line by construction. The all-truncated
+  refusal is Derived and Pinned: "some line reached a rules end" is a fact
+  about a run, not a type.
 """
 
 from __future__ import annotations
@@ -50,6 +79,7 @@ pyspiel = pytest.importorskip("pyspiel")
 
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
+from cardlang.runtime.driver import EndedBy
 from cardlang.runtime.state import RuntimeState
 
 
@@ -225,14 +255,40 @@ def walk_paired_prefix(
     advance: Advance | None = None,
     expected_first_player: int = 0,
 ) -> LineEnd:
-    """STUB: the alternating walk's semantics, typed to return a LineEnd."""
+    """Walk one line of our game and a fresh native game in lockstep, `choose`
+    picking among our offered ids, and return how the line ended.
+
+    At each of our decisions: a terminal oracle is a truncation when
+    `truncate_when` names its end, and that end must be a draw; any other
+    terminal oracle is a divergence. Otherwise `assert_node_agrees` compares
+    the node, `choose` picks, the oracle applies the mapped id and `advance`
+    follows. At our terminal the oracle must be terminal and the outcomes must
+    agree; `truncate_when` is not asked there. An exception `choose` or
+    `advance` raises ends the walk as that exception."""
     _, space = load(dsl_path)
     native = pyspiel.load_game(native_game).new_initial_state()
     world: list[RuntimeState] = []
     history: list[int] = []
     decoded: list[Any] = []
+    offer: list[int] = []
+
+    def where() -> str:
+        return f"{label} step {len(history)}"
 
     def beyond(player: int, legal: list[int]) -> int:
+        offer[:] = legal
+        if not history:
+            assert player == expected_first_player, (
+                f"{label}: first mover is P{player}, expected "
+                f"P{expected_first_player}"
+            )
+        if native.is_terminal() and truncate_when(native):
+            drawn = list(native.returns())
+            assert classify(drawn) == "draw", (
+                f"{where()}: truncate_when names a decisive oracle end {drawn}; "
+                f"a truncation is the oracle's own draw — board={decoded}"
+            )
+            raise _OracleDrew
         assert_node_agrees(
             native, DecisionNode(player, legal, world[0], {}), to_native, space,
             label=label, step=len(history), history=decoded,
@@ -246,17 +302,65 @@ def walk_paired_prefix(
         decoded.append(chosen)
         return action
 
-    ours = run(dsl_path, seed, (), on_first_decision=world.append, beyond=beyond)
+    try:
+        ours = run(dsl_path, seed, (), on_first_decision=world.append, beyond=beyond)
+    except _OracleDrew:
+        paused = run(dsl_path, seed, tuple(history))
+        assert isinstance(paused, DecisionNode) and paused.legal == offer, (
+            f"{where()}: the paused replay of the line ends at {_describe(paused)}, "
+            f"not at the live run's decision offering {offer}"
+        )
+        return Truncated(len(history))
+
     assert isinstance(ours, TerminalNode)
-    assert native.is_terminal(), (
-        f"{label} step {len(history)}: our game is terminal but native is not "
-        f"— board={decoded}"
+    assert history, (
+        f"{label}: our game ended before its first decision, so the line "
+        f"compares nothing"
     )
-    return Rules(len(history), tuple(ours.returns), tuple(native.returns()))
+    assert ours.ended_by is EndedBy.RULES, (
+        f"{where()}: our game's Length Stop ended the line ({ours.returns}); a "
+        f"compared line ends by the game's rules — board={decoded}"
+    )
+    if not native.is_terminal():
+        assert classify(ours.returns) != "draw", (
+            f"{where()}: our game ended in a tie by its own rule while the "
+            f"oracle plays on — board={decoded}"
+        )
+        raise AssertionError(
+            f"{where()}: our game is terminal ({ours.returns}) but native is "
+            f"not — board={decoded}"
+        )
+    native_returns = list(native.returns())
+    try:
+        assert_outcomes_agree(ours.returns, native_returns)
+    except AssertionError as diverged:
+        raise AssertionError(f"{where()}: {diverged} — board={decoded}") from None
+    paused = run(dsl_path, seed, tuple(history))
+    assert (
+        isinstance(paused, TerminalNode)
+        and paused.returns == ours.returns
+        and paused.ended_by is ours.ended_by
+    ), (
+        f"{where()}: the paused replay of the line ends at {_describe(paused)}, "
+        f"not at the live run's {_describe(ours)}"
+    )
+    return Rules(len(history), tuple(ours.returns), tuple(native_returns))
+
+
+class _OracleDrew(Exception):
+    """The oracle ended the line by the rule `truncate_when` names."""
+
+
+def _describe(node: DecisionNode | TerminalNode) -> str:
+    if isinstance(node, DecisionNode):
+        return f"a decision of P{node.player} offering {node.legal}"
+    return f"a terminal ({node.ended_by.value}) with returns {node.returns}"
 
 
 def tally_line_ends(ends: Iterable[LineEnd]) -> Counter[str]:
-    """STUB: counts each end by its kind."""
+    """Count a manifest's line ends: each `Rules` end under the outcome class
+    its returns induce, each `Truncated` end under `truncated`. A manifest
+    with no `Rules` end compared no returns at all, and is refused."""
     tally: Counter[str] = Counter()
     for end in ends:
         if isinstance(end, Rules):
@@ -265,4 +369,8 @@ def tally_line_ends(ends: Iterable[LineEnd]) -> Counter[str]:
             tally["truncated"] += 1
         else:
             assert_never(end)
+    assert sum(n for kind, n in tally.items() if kind != "truncated"), (
+        f"no line of the manifest reached a rules end ({dict(tally)}), so no "
+        f"returns were compared"
+    )
     return tally

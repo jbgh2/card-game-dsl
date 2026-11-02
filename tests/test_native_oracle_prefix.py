@@ -69,8 +69,12 @@ from tests.native_oracle import (
     Truncated,
     classify,
     tally_line_ends,
+    uniform,
     walk_paired_prefix,
 )
+from tests.test_differential_breakthrough import CONTACT_OPENING, Mirror
+from tests.test_differential_breakthrough import NATIVE as BT_NATIVE
+from tests.test_differential_breakthrough import PATH as BT
 from tests.test_differential_tic_tac_toe import NATIVE as TTT_NATIVE
 from tests.test_differential_tic_tac_toe import PATH as TTT
 from tests.test_differential_tic_tac_toe import to_native as ttt_to_native
@@ -275,17 +279,6 @@ EXPECTED: dict[str, str] = {
 
 CELLS = derive_cells()
 
-# The cells the pre-change walker answers wrongly: the work list.
-RED: frozenset[str] = frozenset({
-    "DecisionNode/p0/oracle-ended-draw/named",
-    "DecisionNode/p0/oracle-ended-decisive/named",
-    *(f"Terminal-RULES/{o}/oracle-{s}/{n}" for o in ("p0", "p1", "draw")
-      for s in ("live", "disagrees") for n in ("named", "unnamed")),
-    *(f"Terminal-LENGTH/draw/oracle-{s}/{n}" for s in ("live", "agrees", "disagrees")
-      for n in ("named", "unnamed")),
-})
-PRE_CHANGE = "the pre-change walker"
-
 
 def test_expected_column_covers_the_derived_cells() -> None:
     assert sorted(EXPECTED) == sorted(c.id for c in CELLS)
@@ -300,17 +293,7 @@ def length_copy(tmp_path: Path) -> str:
     return str(copy)
 
 
-@pytest.mark.parametrize(
-    "cell",
-    [
-        pytest.param(
-            c, id=c.id,
-            marks=[pytest.mark.xfail(strict=True, raises=AssertionError, reason=PRE_CHANGE)]
-            if c.id in RED else [],
-        )
-        for c in CELLS
-    ],
-)
+@pytest.mark.parametrize("cell", [pytest.param(c, id=c.id) for c in CELLS])
 def test_line_end_grid(cell: Cell, monkeypatch: pytest.MonkeyPatch, length_copy: str) -> None:
     install(monkeypatch, cell.shape())
     path = length_copy if cell.ended_by is EndedBy.LENGTH else TTT
@@ -350,7 +333,6 @@ def _patched_run(
     monkeypatch.setattr(native_oracle, "run", run)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=PRE_CHANGE)
 def test_terminal_at_the_root_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     _patched_run(monkeypatch, live=lambda *a, **k: TerminalNode([0.0, 0.0], EndedBy.RULES))
     with pytest.raises(AssertionError, match="ended before its first decision"):
@@ -360,7 +342,6 @@ def test_terminal_at_the_root_is_refused(monkeypatch: pytest.MonkeyPatch) -> Non
         )
 
 
-@pytest.mark.xfail(strict=True, raises=pytest.fail.Exception, reason=PRE_CHANGE)
 def test_wrong_first_mover_is_refused() -> None:
     with pytest.raises(AssertionError, match="first mover is P0, expected P1"):
         walk_paired_prefix(
@@ -369,7 +350,6 @@ def test_wrong_first_mover_is_refused() -> None:
         )
 
 
-@pytest.mark.xfail(strict=True, raises=pytest.fail.Exception, reason=PRE_CHANGE)
 def test_paused_replay_disagreeing_at_a_rules_end_is_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -381,7 +361,6 @@ def test_paused_replay_disagreeing_at_a_rules_end_is_refused(
         )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=PRE_CHANGE)
 def test_paused_replay_disagreeing_at_a_truncation_is_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -413,7 +392,6 @@ def test_samples_cover_every_line_end() -> None:
     assert set(SAMPLES) == set(LINE_ENDS)
 
 
-@pytest.mark.xfail(strict=True, raises=pytest.fail.Exception, reason=PRE_CHANGE)
 @pytest.mark.parametrize(
     "ends",
     [pytest.param([], id="empty"), pytest.param([Truncated(3), Truncated(7)], id="all-truncated")],
@@ -421,3 +399,105 @@ def test_samples_cover_every_line_end() -> None:
 def test_tally_refuses_a_manifest_with_no_rules_end(ends: list[LineEnd]) -> None:
     with pytest.raises(AssertionError, match="no line of the manifest reached a rules end"):
         tally_line_ends(ends)
+
+
+def never(native: Any) -> bool:
+    return False
+
+
+def every_end(native: Any) -> bool:
+    """A predicate that names every oracle end, a stand-in no real oracle has."""
+    return True
+
+
+def exact(end: LineEnd) -> LineEnd:
+    if isinstance(end, Rules):
+        assert end.ours == end.native, f"returns diverge: ours {end.ours} native {end.native}"
+    return end
+
+
+def test_tic_tac_toe_manifest_reaches_every_outcome() -> None:
+    """Tic-tac-toe's oracle has no draw rule the game lacks: every policy line
+    is a `Rules` end, with exact returns, and the manifest holds each outcome.
+
+    red under: the walker's terminal branch returning `Truncated(len(history))`
+    in place of `Rules(...)`, which makes the tally refuse the manifest."""
+    tally = tally_line_ends(
+        exact(walk_paired_prefix(
+            TTT, TTT_NATIVE, ttt_to_native, never, 0, uniform(seed),
+            label=f"tic-tac-toe policy {seed}",
+        ))
+        for seed in range(TTT_SEEDS)
+    )
+    assert tally["p0"] and tally["p1"] and tally["draw"], dict(tally)
+    assert not tally["truncated"]
+
+
+TTT_SEEDS = 40
+BT_SEEDS = 8
+
+
+def breakthrough_line(choose: Choose, mirror: Mirror, *, label: str) -> LineEnd:
+    def advance(player: int, decoded: Any) -> None:
+        assert player == mirror.player, f"{label}: P{player} moved, mirror expects P{mirror.player}"
+        mirror.apply(decoded)
+
+    return walk_paired_prefix(
+        BT, BT_NATIVE, mirror.to_native, every_end, 0, choose,
+        label=label, advance=advance,
+    )
+
+
+def test_breakthrough_manifest_never_asks_the_predicate_at_a_shared_end() -> None:
+    """Breakthrough's oracle ends only where the game does, so a predicate
+    naming every oracle end is never asked: each policy line is a `Rules` end
+    with exact returns, the mirror following it through `advance`, and both
+    seats win somewhere in the manifest.
+
+    red under: the walker asking `truncate_when` at its own terminal node and
+    returning `Truncated` when it holds, which makes the tally refuse the
+    manifest."""
+    tally = tally_line_ends(
+        exact(breakthrough_line(uniform(seed), Mirror(), label=f"breakthrough policy {seed}"))
+        for seed in range(BT_SEEDS)
+    )
+    assert tally["p0"] and tally["p1"] and not tally["truncated"], dict(tally)
+
+
+def breakthrough_script(moves: Sequence[tuple[str, str]]) -> Choose:
+    steps = iter(moves)
+
+    def choose(legal: list[int], space: ActionSpace) -> int:
+        move = next(steps, None)
+        if move is None:
+            raise _Stop
+        return space.encode(("step", move))
+
+    return choose
+
+
+def test_blind_capture_bit_is_a_tripwire() -> None:
+    """The prefix walk FAILS when `to_native` never sets the capture bit: the
+    contact opening agrees until a diagonal step has an enemy under it."""
+    with pytest.raises(AssertionError, match="legal actions diverge"):
+        breakthrough_line(
+            breakthrough_script(CONTACT_OPENING), Mirror(capture_bit=False),
+            label="blind capture bit",
+        )
+
+
+def test_advance_out_of_step_is_a_tripwire() -> None:
+    """The prefix walk FAILS at the next node when `advance` misses a ply: the
+    mirror still holds P1 to move, so P0's steps map onto P1's directions."""
+    mirror = Mirror()
+    plies = iter(range(1 << 30))
+
+    def advance(player: int, decoded: Any) -> None:
+        if next(plies) != 1:
+            mirror.apply(decoded)
+
+    with pytest.raises(AssertionError, match="out of step step 2: legal actions diverge"):
+        walk_paired_prefix(
+            BT, BT_NATIVE, mirror.to_native, every_end, 0,
+            breakthrough_script(CONTACT_OPENING), label="out of step", advance=advance,
+        )
