@@ -272,6 +272,9 @@ than accepting surface it would silently drop ("Surface totality"):
 - a rule with neither `demands:` nor `exempts:`, which cannot change what is
   legal however its `applies_when:` reads.
 
+The one site is permanent: ADR-0011 records the ruling and the wide form
+that lost.
+
 **Inside a rule, `hand` is the cards the player on turn plays from.** A
 rule is asked only at the trick round's card decision, so a bare `hand` in
 any of its clauses (`applies_when:`, `demands:`, `if_impossible:`,
@@ -480,7 +483,8 @@ The order has this one spelling. A block of rows over an implicit `card`
 would be a second spelling of the same three answers, one a designer learns
 twice and every refusal speaks in two voices, so a `trick_order { }` block is
 refused naming the three functions, and a game-level `trump:` is refused
-naming the round's `trump` clause and `is_trump`.
+naming the round's `trump` clause and `is_trump`. ADR-0007 records the
+ruling, the block that lost and the table that stays.
 
 **The contracts.** `is_trump(card : Card) : Boolean` has no default: a game
 with a Trick Order answers it, and one with no trumps writes
@@ -2115,7 +2119,8 @@ silently exempts everything below it from every guard, so a single
 missed lookup turns a whole subtree's type checking off and the checker
 still reports success. This is the "accepted-but-ignored" class
 (see "Surface totality") in its most damaging form, because it is
-invisible: nothing in the program looks wrong.
+invisible: nothing in the program looks wrong. ADR-0001 records the
+ruling and the sentinel type that lost.
 
 **The two roles are separated at the producers, not in the type.** There
 is one `Any`, and it means the top. A lookup whose domain is closed does not
@@ -4765,7 +4770,8 @@ tools.dead_surface`) is the instrument: it classes every row it lists as a
 sibling kept whole, a placeholder kept for the located message a rejection
 fixture pins, a reject arm, or dead — and the dead class is pinned empty
 (`tests/test_dead_surface_report.py`), so surface with no writer and no
-reason cannot land.
+reason cannot land. ADR-0004 records the ruling and the corpus-first cut
+that lost.
 
 ## Closed-domain completeness
 
@@ -5285,7 +5291,8 @@ The rung is stated wherever a guarantee is written down — a ledger's
 `held by:` row, a Contract Block's held-by line (write-time triage,
 above) — and the top rung is the default: a clause whose fact a union, an
 exhaustive match or a single constructor can hold is held there, and a
-lower rung is a recorded decision, never a default.
+lower rung is a recorded decision, never a default. ADR-0010 records the
+rung-first default and the two shapes that lost.
 
 The rung is a design decision and gets recorded like one: when rung 3 or 4
 is chosen over an available rung 1 or 2, the ledger says why (a subtype
