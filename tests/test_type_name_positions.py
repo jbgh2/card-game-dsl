@@ -785,14 +785,19 @@ BOARD_POSITIONS: dict[str, Callable[[str], str]] = {
 }
 
 
-def _board_minted() -> tuple[frozenset[str], frozenset[str]]:
-    """The skeleton board game's minted names: its position domains and the
-    direction domains `resolve._minted_directions` admits."""
+def _board_minted() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+    """The skeleton board game's minted names: its position domains, the
+    named-member ones among them, and the direction domains
+    `resolve._minted_directions` admits."""
     game = check_dsl(_board_prog(), "board-grid")
-    return frozenset(p.name for p in game.positions), _minted_directions(game)
+    return (
+        frozenset(p.name for p in game.positions),
+        frozenset(p.name for p in game.positions if p.members_named is not None),
+        _minted_directions(game),
+    )
 
 
-_BOARD_POSITIONS_MINTED, _BOARD_DIRECTIONS_MINTED = _board_minted()
+_BOARD_POSITIONS_MINTED, _BOARD_NAMED_MEMBER, _BOARD_DIRECTIONS_MINTED = _board_minted()
 _BOARD_MINTED = _BOARD_POSITIONS_MINTED | _BOARD_DIRECTIONS_MINTED
 BOARD_NAMES = sorted(_BOARD_MINTED | {f"{m}?" for m in _BOARD_MINTED})
 
@@ -803,7 +808,9 @@ def _with_optional(names: frozenset[str]) -> frozenset[str]:
 
 # Each position's admitted board names, computed from what the board minted.
 BOARD_EXPECTED_ADMITS: dict[str, frozenset[str]] = {
-    "P1 state_decl": frozenset(),
+    # A state variable remembers a square: the board's named-member domain,
+    # never its directions (tests/test_typed_position_state.py).
+    "P1 state_decl": _with_optional(_BOARD_NAMED_MEMBER),
     # Exact spellings only: a move parameter's domain enumerates, and an
     # optional board name has no enumeration.
     "P3 move_param": _BOARD_MINTED,
@@ -819,6 +826,11 @@ BOARD_EXPECTED_ADMITS: dict[str, frozenset[str]] = {
 
 BOARD_CELLS = [(pos, name) for pos in BOARD_POSITIONS for name in BOARD_NAMES]
 
+# The board variant's red set, as `DESIGNED_TO_FLIP` is the card grid's.
+BOARD_DESIGNED_TO_FLIP: set[tuple[str, str]] = {
+    ("P1 state_decl", name) for name in _with_optional(_BOARD_NAMED_MEMBER)
+}
+
 
 def test_the_board_variant_crosses_every_position() -> None:
     """The board variant's rows are the grammar-derived position axis, so a
@@ -827,7 +839,22 @@ def test_the_board_variant_crosses_every_position() -> None:
     assert _BOARD_DIRECTIONS_MINTED, "the skeleton board minted no direction domain"
 
 
-@pytest.mark.parametrize("cell", BOARD_CELLS, ids=[_cell_id(c) for c in BOARD_CELLS])
+@pytest.mark.parametrize(
+    "cell",
+    [
+        pytest.param(
+            c,
+            marks=pytest.mark.xfail(
+                strict=True, raises=CellMismatch,
+                reason="designed to flip: a named-member domain admitted as a state type",
+            ),
+        )
+        if c in BOARD_DESIGNED_TO_FLIP
+        else c
+        for c in BOARD_CELLS
+    ],
+    ids=[_cell_id(c) for c in BOARD_CELLS],
+)
 def test_the_board_names_grid(cell: tuple[str, str]) -> None:
     """Every (position, board-minted name) cell matches what the board minted
     and the position's own registry say.
