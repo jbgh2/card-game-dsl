@@ -1,0 +1,1 @@
+stop_result_value_misspelled.cardlang:6:18: error: syntax error: unexpected `draw`; expected `as`, `lowest` or `highest` or `tie`

@@ -1,13 +1,11 @@
 """`max_length:` — the per-game declared bound (docs/decisions.md, "Game
 length as a declared contract"). Missing/non-positive declarations are
 covered in test_resolve.py alongside the resolver's other structural
-checks; this file covers the grammar round-trip, all three runtime
-enforcement mechanisms (statement-level `repeat until`, phase-level
-`repeat until`, and the decision counter that bounds actual chooser
-picks — the unit corpus values are sized against, and the only one of
-the three a structurally-terminating loop with many decisions per
-iteration can't evade), and the OpenSpiel adapter's `max_game_length`
-wiring.
+checks; this file covers the grammar round-trip, the two `repeat until`
+guards that refuse a loop making no decisions, the pick count that ends a
+game at its bound (the unit corpus values are sized against), and the
+OpenSpiel adapter's `max_game_length` wiring. The Length Stop's whole domain
+is tests/test_length_stop.py.
 """
 
 from __future__ import annotations
@@ -20,7 +18,8 @@ import pytest
 
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl, check_source
-from cardlang.runtime.driver import play_game
+from cardlang.runtime.driver import EndedBy, play_game
+from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.errors import OwnerGuardError
 
 HEARTS = Path(__file__).parent.parent / "docs" / "games" / "hearts.cardlang"
@@ -74,19 +73,17 @@ def test_phase_level_repeat_until_respects_declared_max_length() -> None:
     assert "max_length (5)" in str(e.value)
 
 
-def test_decision_counter_fires_with_zero_loop_iterations() -> None:
-    """A structurally-terminating game (no non-terminating loop at all) can
-    still make more decisions than its declared max_length — the case the
-    two loop guards above cannot see, since neither loop ever completes even
-    one iteration. Real Hearts, with its max_length overridden down to a
-    number its own deal blows past in a handful of picks, proves the
-    decision counter (not either loop guard) is what catches this."""
+def test_the_pick_count_ends_a_game_inside_its_first_loop_iteration() -> None:
+    """A game can reach its bound before any loop completes an iteration:
+    real Hearts, its max_length overridden down to a number its own deal
+    passes in a handful of picks, ends at exactly that many picks, by length,
+    with neither loop guard counting a boundary."""
     game = check_source(HEARTS)
     tiny = dataclasses.replace(game, max_length=5)
-    with pytest.raises(OwnerGuardError) as e:
-        play_game(tiny, random.Random(0))
-    assert "made" in str(e.value) and "decisions" in str(e.value)
-    assert "max_length (5)" in str(e.value)
+    world: list[RuntimeState] = []
+    result = play_game(tiny, random.Random(0), on_first_decision=world.append)
+    assert result.ended_by is EndedBy.LENGTH
+    assert world[0].decisions_made == 5
 
 
 def test_openspiel_adapter_reports_the_declared_max_length() -> None:

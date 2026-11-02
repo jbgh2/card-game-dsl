@@ -1,0 +1,1 @@
+stop_result_ranking_unindexed.cardlang:6:3: error: `at max_length:` ranks the stopped game on state variable 'done', which is not indexed — a game is ranked by a score each player or team holds, so the target is declared `done[player]` or `done[team]`. A scalar has no per-member value to rank

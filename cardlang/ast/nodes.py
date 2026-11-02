@@ -282,20 +282,28 @@ class CardQuery:
     span: Span | None = None
 
 
+# The folds of the positional quantifier register, one per bare alternative
+# of the grammar's `quantifier` rule that builds a `DomainQuery`.
+DomainQueryKind = Literal["any", "all", "count", "set"]
+DOMAIN_QUERY_KINDS: tuple[DomainQueryKind, ...] = get_args(DomainQueryKind)
+
+
 @dataclass(frozen=True, slots=True)
 class DomainQuery:
     """The generic position-domain / collection quantifier register
     (decisions.md "Boards and cells"), the positional twin of the fixed
-    `Quantifier` forms. Five surface spellings, one node:
+    `Quantifier` forms. Six surface spellings, one node:
 
     - BARE, over a declared position domain or the board's direction domain
       (`source is None`):
       `any <domain> where <pred>`      (kind "any")
       `all <domain>s where <pred>`     (kind "all")
       `number of <domain>s where <pred>` (kind "count")
+      `<domain>s where <pred>`         (kind "set", position domains only)
       -- `binder` is the singular domain noun, bound per member of the
       domain's ordered members (`cell` or `dir` for a board, an integer
-      `positions {}` name like `column`).
+      `positions {}` name like `column`); the set is the members satisfying
+      the predicate, in that order.
 
     - COLLECTION, over an evaluated collection (`source` present):
       `any line in <source> where <pred>`  (noun `line`, binds each line)
@@ -307,7 +315,7 @@ class DomainQuery:
     is the derived singular (the scoped name and, for bare forms, the domain
     to enumerate)."""
 
-    kind: str  # "any" | "all" | "count"
+    kind: DomainQueryKind
     binder: str  # the singular noun: binder name + (bare) domain to enumerate
     spelled: str  # the noun as written (for the plural diagnostic)
     source: Expr | None  # None for bare forms; the iterated collection for `in`
@@ -316,8 +324,33 @@ class DomainQuery:
 
 
 # The keyword phrase each DomainQuery kind spells in a diagnostic. Owned here
-# beside the node so resolve and typecheck read one table, not two.
-DOMAIN_QUERY_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count": "number of"}
+# beside the node so resolve and typecheck read one table, not two; its keys
+# are `DOMAIN_QUERY_KINDS`, pinned by
+# tests/test_cell_queries.py::test_the_phrase_table_is_the_kind_literal.
+DOMAIN_QUERY_KIND_PHRASE: dict[DomainQueryKind, str] = {
+    "any": "any",
+    "all": "all",
+    "count": "number of",
+    "set": "",
+}
+
+# The folds whose bare form ranges over the board direction domain as well as
+# the position domains; the set gathers positions alone (decisions.md "Boards
+# and cells"). Resolve's `_check_domain_query` is the one reader that admits
+# a noun by it.
+DIRECTION_FOLDS: frozenset[DomainQueryKind] = frozenset({"any", "all", "count"})
+
+# The folds with a collection form, `<fold> <noun> in <collection> where`
+# (the grammar's `q_any_in` / `q_all_in`).
+COLLECTION_FOLDS: frozenset[DomainQueryKind] = frozenset({"any", "all"})
+
+
+def domain_query_head(kind: DomainQueryKind, spelled: str) -> str:
+    """A position query's head as a diagnostic quotes it: the fold's phrase
+    and the noun as written (`any cell`, `number of cells`), or for the set,
+    which has no leading word, the noun and its `where` (`cells where`)."""
+    phrase = DOMAIN_QUERY_KIND_PHRASE[kind]
+    return f"{phrase} {spelled}" if phrase else f"{spelled} where"
 
 
 @dataclass(frozen=True, slots=True)
@@ -1374,6 +1407,30 @@ class Loser:
     span: Span | None = None
 
 
+# The Stop Result's three members (decisions.md "Game result: `winner:` and
+# `loser:`"), one per `stop_value` alternative of the grammar, pinned equal by
+# tests/test_stop_result.py::test_the_declarations_are_the_stop_values.
+StopKind = Literal["tie", "as_it_stands", "ranking"]
+STOP_KINDS: tuple[StopKind, ...] = get_args(StopKind)
+
+
+@dataclass(frozen=True, slots=True)
+class StopResult:
+    """`at max_length: tie | as it stands | <rank-dir> <target>` -- what a game
+    is worth when it ends by a [[length-stop]].
+
+    `rank_dir` and `state_var` are the ranking's, set exactly when `kind` is
+    `"ranking"` (the builder constructs no other shape). `keyed_by` is the
+    target declaration's index role, stamped by resolve as on `Winner`;
+    `None` before resolve and for the other two members."""
+
+    kind: StopKind
+    rank_dir: str | None = None
+    state_var: str | None = None
+    span: Span | None = None
+    keyed_by: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class UsesDecl:
     """`uses <library>` — one family-library import. Carries its own span so the
@@ -1555,6 +1612,8 @@ class Game:
     phases: tuple[Phase, ...] = ()
     winner: Winner | None = None
     loser: Loser | None = None
+    # The `at max_length:` clause, or None for a game declaring none: a tie.
+    stop_result: StopResult | None = None
     rules: tuple[RuleDef, ...] = ()
     move_types: tuple[MoveTypeDef, ...] = ()
     functions: tuple[FunctionDef, ...] = ()
@@ -1603,6 +1662,7 @@ Node = (
     | PlayersSpec
     | Winner
     | Loser
+    | StopResult
     | MoveTypeDef
     | Parameter
     | PrimitiveRead

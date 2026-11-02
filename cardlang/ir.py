@@ -99,6 +99,13 @@ def emit(game: n.Game) -> IRDict:
         "phases": [_phase(p) for p in game.phases],
         "winner": _winner(game.winner) if game.winner else None,
         "loser": _loser(game.loser) if game.loser else None,
+        # Keyed ONLY when declared, the `suit_ranking` precedent: a game
+        # declaring none is a tie at its bound.
+        **(
+            {"stop_result": _stop_result(game.stop_result)}
+            if game.stop_result is not None
+            else {}
+        ),
         "rules": [_rule(r) for r in game.rules],
         "move_types": [_move_type(m) for m in game.move_types],
         "functions": [_function(f) for f in game.functions],
@@ -138,7 +145,7 @@ def _catalogue(c: n.CombinationCatalogue) -> IRDict:
             {
                 "kind": "shape_row",
                 "label": r.label,
-                "parts": [{"kind": p.kind, "count": p.count} for p in r.parts],
+                "parts": [_shape_part(p) for p in r.parts],
                 "qualifiers": list(r.qualifiers),
             }
             for r in c.rows
@@ -220,6 +227,36 @@ def _winner(w: n.Winner) -> IRDict:
 
 def _loser(lo: n.Loser) -> IRDict:
     return {"kind": "loser", "selection": _expr(lo.selection)}
+
+
+def _stop_result(stop: n.StopResult) -> IRDict:
+    # One literal dict per member, so the schema pin's scrape of this module
+    # sees every tag and key the Stop Result emits.
+    match stop.kind:
+        case "tie":
+            return {"kind": "stop_tie"}
+        case "as_it_stands":
+            return {"kind": "stop_as_it_stands"}
+        case "ranking":
+            return {"kind": "stop_ranking", "rank_dir": stop.rank_dir, "state_var": stop.state_var}
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _shape_part(p: n.ShapePart) -> IRDict:
+    # One literal dict per part kind (`catalogue.SHAPE_PARTS`), for the same
+    # reason as `_stop_result`.
+    match p.kind:
+        case "shape_card":
+            return {"kind": "shape_card", "count": p.count}
+        case "shape_cards":
+            return {"kind": "shape_cards", "count": p.count}
+        case "shape_of_a_kind":
+            return {"kind": "shape_of_a_kind", "count": p.count}
+        case "shape_in_sequence":
+            return {"kind": "shape_in_sequence", "count": p.count}
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 def _move_type(m: n.MoveTypeDef) -> IRDict:
@@ -569,6 +606,15 @@ def _rule(r: n.RuleDef) -> IRDict:
 # --- expressions ---
 
 
+def _domain_query_fold(kind: n.DomainQueryKind) -> str:
+    """The `query` value a position query's fold emits: its kind's own name."""
+    match kind:
+        case "any" | "all" | "count" | "set":
+            return kind
+        case unreachable:
+            assert_never(unreachable)
+
+
 def _expr(e: n.Expr) -> IRDict:
     match e:
         case n.NameRef():
@@ -634,7 +680,7 @@ def _expr(e: n.Expr) -> IRDict:
         case n.DomainQuery():
             dq: IRDict = {
                 "kind": "domain_query",
-                "query": e.kind,
+                "query": _domain_query_fold(e.kind),
                 "binder": e.binder,
                 "where": _expr(e.where),
             }

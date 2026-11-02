@@ -158,10 +158,10 @@ CHEAT = REPO / "docs" / "games" / "cheat.cardlang"
 # seat's own by identity while the hand is live and are mucked at the finish,
 # so it is where a mid-hand view differs from the terminal one.
 HOLDEM = REPO / "docs" / "games" / "holdem-heads-up.cardlang"
-# Checks clean, then exceeds its declared `max_length` on every seed — the
-# runtime half of the failure rendering, reached without tying the test to one
-# corpus game's random line.
-OVERRUNS = REPO / "tests" / "fixtures" / "exceeds_max_length.cardlang"
+# Checks clean, then spins a loop with no decision in it past its declared
+# `max_length` on every seed -- the runtime half of the failure rendering,
+# reached without tying the test to one corpus game's random line.
+SPINS = REPO / "tests" / "fixtures" / "decisionless_spin.cardlang"
 # Checks clean, then refuses at a `move chosen` against a hand an earlier phase
 # emptied — on every seed, and only after each seat has already made a
 # decision, so an option that reports decisions has something it could report.
@@ -1362,11 +1362,52 @@ def test_a_runtime_failure_renders_without_a_traceback(
     """A game that is legal to the checker and illegal at play time is the
     game author's to fix, so it arrives as a message naming the layer and what
     they can do — never as a traceback, which addresses nobody who can act."""
-    assert main(["demo", str(OVERRUNS)]) == 1
+    assert main(["demo", str(SPINS)]) == 1
     err = capsys.readouterr().err
     assert "Traceback" not in err
     assert "max_length" in err
+    assert "no decision made" in err
     assert "playing" in err, "the message must say which layer refused"
+
+
+@pytest.mark.parametrize(("seed", "stops"), [(1, True), (4, False)])
+def test_a_bounded_game_given_a_short_bound_exits_1_under_demo_when_it_stops(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], seed: int, stops: bool
+) -> None:
+    """Tic-tac-toe at `max_length: 5`: a uniform line that places five marks
+    without a win ends by length, and `demo` leads with the stop and exits 1,
+    the bound being the author's to size; a line its rules end exits 0."""
+    from tests.test_length_stop import bounded_tic_tac_toe
+
+    path = tmp_path / "p6_bounded_game_short_bound.cardlang"
+    path.write_text(bounded_tic_tac_toe())
+    code = main(["demo", str(path), "--seed", str(seed)])
+    out, err = capsys.readouterr()
+    first = out.splitlines()[0]
+    assert ("reached TicTacToe's max_length (5 decisions)" in first) is stops, first
+    assert code == (1 if stops else 0), err
+    assert "non-termination" not in out + err
+
+
+def test_coup_played_to_its_bound_at_a_table_exits_0(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A person answering the first pick at every prompt, every other seat
+    `first`: the table repeats one exchange until Coup reaches its bound, and
+    the session says the game is over, names the stop and the result Coup
+    declares for it, and pays every surviving seat, exit 0."""
+    monkeypatch.setattr(sys, "stdin", io.StringIO("1\n" * 500 + "q\n"))
+    code = main(["play", str(REPO / "docs" / "games" / "coup.cardlang"),
+                 "--seed", "1", "--vs", "all=first"])
+    out, err = capsys.readouterr()
+    over = out[out.index("the game is over"):]
+    assert "Coup reached its max_length, 500 decisions" in over
+    assert "the game is scored as it stands, by its `winner: highest alive`" in over
+    assert "P0 was you" in over
+    assert "returns      P0 1, P1 1, P2 1, P3 1" in over
+    assert "non-termination" not in out + err
+    assert "static checks passed" not in out + err
+    assert code == 0, err
 
 
 # ---------------------------------------------------------------------------

@@ -508,8 +508,10 @@ movement* stays count-projected, so a formal observer cannot exclude the
 kept-the-copy world (the runtime's filter guarantees the proven card
 returns; tabletop common knowledge is epsilon finer — the public-transit
 encoding closes it if a consumer ever needs that bit). Interactive Coup
-also surfaced the corpus's first legally unbounded lines
-([open-questions/unbounded-lines-and-max-length.md](open-questions/unbounded-lines-and-max-length.md)).
+has legally unbounded lines: a table that only ever exchanges never reaches
+the forced coup, and such a line ends at the game's `max_length`, a Length
+Stop scored as it stands
+([decisions.md](decisions.md), "Game length as a declared contract").
 
 The anticipated new-axis risk (action → response → counter-response
 nesting, response windows) dissolved on inspection at migration time and
@@ -535,9 +537,9 @@ derivable eligibility (pre-push: nobody has played; post-push: a 14-card
 hand is exactly "unplayed"); the Dragon's trick is given by a real announced
 choice into the named opponent's own pile. No rng gate remains in the
 registries. The goldens are captured under a reference call policy — the
-uniform chooser diverges, which is the second legally-unbounded-lines
-witness
-([open-questions/unbounded-lines-and-max-length.md](open-questions/unbounded-lines-and-max-length.md)).
+uniform chooser diverges, and its lines end at the game's `max_length` as
+Length Stops
+([decisions.md](decisions.md), "Game length as a declared contract").
 
 ## Cross-cutting build-out
 

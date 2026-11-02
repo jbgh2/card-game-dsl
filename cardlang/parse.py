@@ -950,6 +950,28 @@ class _Builder(Transformer[Token, n.Game]):
     def loser(self, meta: Meta, c: list[object]) -> n.Loser:
         return n.Loser(selection=_as_expr(c[0]), span=self._span(meta))
 
+    def stop_tie(self, meta: Meta, c: list[object]) -> n.StopResult:
+        return n.StopResult(kind="tie")
+
+    def stop_as_it_stands(self, meta: Meta, c: list[object]) -> n.StopResult:
+        return n.StopResult(kind="as_it_stands")
+
+    def stop_ranking(self, meta: Meta, c: list[Token]) -> n.StopResult:
+        return n.StopResult(kind="ranking", rank_dir=str(c[0]), state_var=str(c[1]))
+
+    def stop_result(self, meta: Meta, c: list[n.StopResult]) -> n.StopResult:
+        return replace(c[0], span=self._span(meta))
+
+    def stop_result_lead_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "the game ends AT its bound and nothing lies beyond it — write "
+                "`at max_length: …`",
+                self._span(meta),
+            )
+        )
+
     def rank_dir(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
 
@@ -1567,10 +1589,10 @@ class _Builder(Transformer[Token, n.Game]):
         return self._implicit_quantifier("all", "rank", meta, c)
 
     def _domain_query(
-        self, kind: str, meta: Meta, noun: object, source: object, pred: object
+        self, kind: n.DomainQueryKind, meta: Meta, noun: object, source: object, pred: object
     ) -> n.DomainQuery:
         # The plural convention is fixed by kind: `any` takes the singular
-        # noun, `all`/`number of` the plural. The binder (the scoped name, and
+        # noun, `all`/`number of`/the set the plural. The binder (the scoped name, and
         # for a bare form the domain to enumerate) is the singular, derived by
         # stripping a trailing `s` from a plural spelling; `spelled` keeps the
         # raw noun so resolve can quote it in the plural-mismatch diagnostic.
@@ -1595,6 +1617,19 @@ class _Builder(Transformer[Token, n.Game]):
 
     def q_count_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
         return self._domain_query("count", meta, c[0], None, c[1])
+
+    def q_set_domain(self, meta: Meta, c: list[object]) -> n.DomainQuery:
+        return self._domain_query("set", meta, c[0], None, c[1])
+
+    def cell_set_in_collection_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "cells live on the board, not in a zone: the set form is "
+                "`cells where <pred>`, with the membership in the predicate",
+                self._span(meta),
+            )
+        )
 
     def q_any_in(self, meta: Meta, c: list[object]) -> n.DomainQuery:
         return self._domain_query("any", meta, c[0], c[1], c[2])
@@ -2012,6 +2047,7 @@ class _Builder(Transformer[Token, n.Game]):
         uses: list[n.UsesDecl] = []
         winner: n.Winner | None = None
         loser: n.Loser | None = None
+        stop_result: n.StopResult | None = None
 
         # Every game clause except `phase` is single-valued; the grammar
         # (`game_item*`) accepts repeats, so keeping the last one would
@@ -2101,6 +2137,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, n.Loser):
                 once("loser:", item.span)
                 loser = item
+            elif isinstance(item, n.StopResult):
+                once("at max_length:", item.span)
+                stop_result = item
             else:
                 raise AssertionError(f"unexpected game item: {item!r}")
 
@@ -2166,6 +2205,7 @@ class _Builder(Transformer[Token, n.Game]):
             phases=tuple(phases),
             winner=winner,
             loser=loser,
+            stop_result=stop_result,
             rules=(),
             uses=tuple(uses),
             span=self._span(meta),
@@ -2465,6 +2505,7 @@ _WORD_OVERRIDES: dict[str, str] = {
     "CARD_POINTS_KEY": "a name",
     "CARD_RANK_NAME": "a rank name",
     "SUIT_RANKING_NAME": "a suit name",
+    "RESULT_VAR_NAME": "a state variable name",
     "OF_A_KIND": "`of a kind`",
     "INT": "a whole number",
     "STRING": "a quoted string",
@@ -2944,6 +2985,13 @@ _PARSE_HINTS: dict[str, tuple[str | None, str]] = {
         " — `legal_moves:` is a phase clause: a mode toggles rules, never the "
         "move menu, so a mode body takes `active_rules:`/`transition_to:` only",
     ),
+    "max_length": (
+        None,
+        " — `max_length:` takes a whole number and nothing more; what a game "
+        "is worth when the engine stops it at its bound is a game clause of "
+        "its own: `at max_length: tie`, `at max_length: as it stands`, or `at "
+        "max_length: highest <variable>`",
+    ),
     "primitives": (
         "library",
         " — `primitives { }` is a game clause: a Primitive's meaning belongs "
@@ -2951,6 +2999,37 @@ _PARSE_HINTS: dict[str, tuple[str | None, str]] = {
         "declare one; write the block in the game",
     ),
 }
+
+
+@lru_cache(maxsize=1)
+def _result_name_patterns() -> tuple[re.Pattern[str], re.Pattern[str]]:
+    """The NAME terminal's pattern and RESULT_VAR_NAME's, read off the
+    grammar: a word the first matches and the second refuses is one the
+    game's clauses reserve."""
+    terminals = {t.name: t for t in _parser().terminals}
+    return (
+        re.compile(terminals["NAME"].pattern.to_regexp()),
+        re.compile(terminals["RESULT_VAR_NAME"].pattern.to_regexp()),
+    )
+
+
+def _reserved_result_name_hint(exc: UnexpectedInput, lexeme: str) -> str:
+    """What to do when a result ranking's name is a word the game's clauses
+    reserve. True at both of its sites: a state variable so named, and a
+    ranking whose name is left off above the next clause."""
+    names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
+    if "RESULT_VAR_NAME" not in {str(getattr(t, "name", t)) for t in names}:
+        return ""
+    word = lexeme.strip("`")
+    name, result_name = _result_name_patterns()
+    if not name.fullmatch(word) or result_name.fullmatch(word):
+        return ""
+    return (
+        f" — `{word}` is reserved by the game's clauses, so it cannot be the "
+        f"state variable a result ranks: if the variable is named `{word}`, "
+        f"rename it (for example `{word}_left`); otherwise write the "
+        f"variable's name before the next clause"
+    )
 
 
 def _parse_hint(text: str, pos: int, line: int, start: str) -> str:
@@ -3055,7 +3134,9 @@ def _syntax_error(
     # own expectation, computed under a bracket context the missing `}`
     # already broke, would invite exactly the wrong edit beside it.
     expected = "" if names_a_site else _expected_clause(exc, lexeme.strip("`"))
-    hint = _parse_hint(text, pos, raw_line, start)
+    # The reserved-name hint answers the failure position itself, so it
+    # outranks a clause keyword's reminder of where its clause belongs.
+    hint = _reserved_result_name_hint(exc, lexeme) or _parse_hint(text, pos, raw_line, start)
     message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
     return Diagnostic(Severity.ERROR, message, span), pos
 

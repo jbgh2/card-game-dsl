@@ -14,14 +14,15 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   no retired row is a rule or alias of the compiled grammar, no
             retired keyword is a keyword terminal, every retired sentence is
-            refused at parse with a located diagnostic, and an undeclared
+            refused with a located diagnostic -- at parse, or by the checker
+            where the position set form parses it -- and an undeclared
             `always` standing as the whole predicate of every clause
             resolve's table names is refused with a message naming the
             clause to leave out.
 domain:     the retired set is the operator's rulings on issues #693, #819
             and #835, listed
-            once below as `RETIRED_ROWS`, `RETIRED_KEYWORDS` and
-            `RETIRED_SENTENCES`; the `always` positions are the compiled
+            once below as `RETIRED_ROWS`, `RETIRED_KEYWORDS`,
+            `RETIRED_SENTENCES` and `RETIRED_SENTENCES_PARSED_AS_A_SET`; the `always` positions are the compiled
             rules spelling a clause `cardlang.resolve.ALWAYS_HOLDERS` names
             (a keyword, a colon, one `expr`), read from the parser -- an
             existence check on the table's clauses, never a search for
@@ -103,12 +104,6 @@ RETIRED_SENTENCES: dict[str, str] = {
     ),
     "struct literal": _game(statement="score[0] := Bid { level: 1 }"),
     "define": _game(top="define settle -> { made | set } { produce made }"),
-    "demands actions where": _game(
-        top=(
-            "rule R {\n  constrains: play_to_trick\n"
-            "  demands: actions where action.card_count > 0\n}"
-        )
-    ),
     "transfer in, no source": _game(statement="move 1 card in deck"),
     # The verb synonyms (issue #835): one terminal carried all three, so one
     # refusal covers them; a sentence per word is the record of each.
@@ -128,6 +123,19 @@ RETIRED_SENTENCES: dict[str, str] = {
             "round offering [pass] from 0 over all players order ring until true"
         ),
         top="move_type pass { effect { } }",
+    ),
+}
+
+# A retired sentence the position set form (`<noun>s where <pred>`) parses:
+# its noun is any name at parse, so the retired `actions where` reads as a set
+# over an `action` domain, and resolve refuses it, located, before any pass
+# reads it as a query.
+RETIRED_SENTENCES_PARSED_AS_A_SET: dict[str, str] = {
+    "demands actions where": _game(
+        top=(
+            "rule R {\n  constrains: play_to_trick\n"
+            "  demands: actions where action.card_count > 0\n}"
+        )
     ),
 }
 
@@ -169,6 +177,15 @@ def test_retired_keyword_is_not_a_keyword_terminal(word: str) -> None:
 def test_retired_sentence_is_refused_at_parse(name: str) -> None:
     with pytest.raises(DiagnosticError) as exc:
         parse_text(RETIRED_SENTENCES[name], "retired.cardlang")
+    assert exc.value.diagnostic.span is not None
+
+
+@pytest.mark.parametrize("name", sorted(RETIRED_SENTENCES_PARSED_AS_A_SET))
+def test_a_retired_sentence_the_set_form_parses_is_refused_by_the_checker(name: str) -> None:
+    source = RETIRED_SENTENCES_PARSED_AS_A_SET[name]
+    parse_text(source, "retired.cardlang")
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(source, "retired.cardlang")
     assert exc.value.diagnostic.span is not None
 
 

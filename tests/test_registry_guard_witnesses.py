@@ -622,7 +622,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # ask (is the implementation reached by any game) is the reconciliation
     # pin's, whose own plants are demonstrated there.
     "primitives_block.py": ["frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS"],
-    "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
+    "openspiel/replay.py": ["result.rank_dir not in RANK_DIR_TO_SIGN"],
     # Both validate a value against the registry that owns its row set, so
     # widening the registry widens the guard and there is no literal to go
     # stale. `REFUSAL_KINDS` is checked where a refusal is built; its reddening
@@ -706,7 +706,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # (tests/test_openspiel_returns_keying.py), which re-stamps a clause's
     # index role to one the table lacks.
     "runtime/driver.py": [
-        "game.winner.rank_dir not in RANK_DIR_TO_PICK",
+        "rank_dir not in RANK_DIR_TO_PICK",
         "role not in SEAT_KEY_BY_ROLE",
     ],
     # The Hosted Poll's statement Shadow Guard: a statement a body executes,

@@ -84,7 +84,6 @@ from tests.playout_policy import (
     RANKED_KINDS,
     PlayoutPolicy,
     candidate_kind,
-    is_length_guard,
 )
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
@@ -282,12 +281,6 @@ def test_the_corpus_reaches_every_registered_kind() -> None:
             play_game(check_source(path), rng, chooser=watch)
         except _Paused:
             pass
-        except OwnerGuardError as exc:
-            # Only the game's own declared-length bound is an acceptable end to
-            # a capped probe playout. Anything else — a classification refusal
-            # above all — is the finding, so it propagates.
-            if not is_length_guard(exc):
-                raise
     assert seen == set(CANDIDATE_KINDS), (
         f"corpus reached {sorted(seen)}; registry declares {sorted(CANDIDATE_KINDS)}"
     )
@@ -492,14 +485,11 @@ def test_the_same_seed_replays_identically() -> None:
     def outcome(seed: int) -> Any:
         rng = random.Random(seed)
         policy = PlayoutPolicy(rng, game)
-        try:
-            r = play_game(game, rng, chooser=policy, on_first_decision=policy.attach)
-        except OwnerGuardError as exc:
-            # The declared-length arm is an outcome like any other, and pinning
-            # it too keeps this from depending on a hand-picked seed that
-            # happens to terminate.
-            return ("guard", str(exc))
-        return ("result", r.scores, r.winners, r.hands_played)
+        # A game that reaches its bound is an outcome like any other, and
+        # pinning `ended_by` too keeps this from depending on a hand-picked
+        # seed whose rules end it.
+        r = play_game(game, rng, chooser=policy, on_first_decision=policy.attach)
+        return ("result", r.scores, r.winners, r.hands_played, r.ended_by)
 
     for seed in (0, 7, 11):
         assert outcome(seed) == outcome(seed), f"seed {seed} did not replay"

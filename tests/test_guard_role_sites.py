@@ -104,6 +104,7 @@ _ACCOUNTED = frozenset(
         "_ContinueTo",
         "_SkipHand",
         "ChooserAbort",
+        "LengthStop",
         "_Rejected",
         "TakeBack",
         "Leave",

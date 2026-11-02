@@ -24,7 +24,7 @@ from cardlang.runtime.declared import DeclaredClimbEngine
 from cardlang.runtime.delegation import FORM_CONSTRUCTS
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate
-from cardlang.runtime.state import Ctx, Move
+from cardlang.runtime.state import SPIN_START, Ctx, DecisionlessSpin, Move
 from cardlang.runtime.values import Player
 from cardlang.stdlib.moves import RULE_ENFORCED_MOVE_TYPE
 
@@ -617,7 +617,7 @@ class ClimbForm:
         state["current"] = None  # the standing play; None until the leader leads
         state["last"] = self.leader  # the last player to play
         state["idx"] = 0  # the ring cursor
-        state["guard"] = 0
+        state["guard"] = SPIN_START  # the ring's DecisionlessSpin, between heads
         state["lead_ended_trick"] = False  # a Dog-style lead closed the trick
         state["shed_first"] = None  # first two sheds this trick, in play order
         state["shed_second"] = None
@@ -659,15 +659,16 @@ class ClimbForm:
             state["window"] = None
         ring = self.ring
         while True:
-            state["guard"] += 1
-            if state["guard"] > 5000:
-                raise OwnerGuardError(
-                    "climb trick exceeded 5000 plays without resolving — a "
-                    "fixed engine limit, not the game's `max_length`, so "
-                    "raising that declaration will not help: make the `until` "
-                    "predicate reachable, or drop players who can never play "
-                    "from the `over` clause"
-                )
+            # A ring step is the round's loop head: its `until` was read
+            # false before this call (`terminated`), and a seat skipped since
+            # changes nothing it reads. A step that asks a seat makes a pick,
+            # and only a run of steps that ask nobody is refused
+            # (`DecisionlessSpin`).
+            spin = DecisionlessSpin(ctx.rs, "climbing ring", state["guard"])
+            spinning = spin.boundary()
+            state["guard"] = spin.mark
+            if spinning:
+                raise OwnerGuardError(spin.refusal())
             pointer: int = state["idx"]
             turn = ring[pointer % len(ring)]
             if state["current"] is not None and turn == state["last"]:

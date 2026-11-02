@@ -85,12 +85,6 @@ of the language.
   betting streets) into one body; the within-round predicate duplication is
   already resolved with named functions, so this is the residual block-level
   repetition, and the second-instance data point is Hold'em.
-- [unbounded-lines-and-max-length](unbounded-lines-and-max-length.md) —
-  two games now have legally unbounded lines (Coup's exchange-forever
-  table; Tichu's always-calling table, which drifts away from 1000
-  forever), so the `max_length` backstop can fire on a legal line and
-  raise instead of ending the game; raise-as-bug vs graceful terminal vs
-  per-game opt-in is undecided.
 
 ## Tier 4 — Low impact, defer until forced
 

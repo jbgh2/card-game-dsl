@@ -592,10 +592,10 @@ def test_every_hash_seed_axis_entry_names_a_corpus_game() -> None:
 # reason that is not hash order; `_HASHSEEDS` compares two subprocesses, so an
 # address-derived repr shows up as a diff rather than hiding.
 #
-# Tichu takes its reference policy, as its own captures do: the uniform chooser
-# does not finish a Tichu match (the unbounded-lines witness — it exceeds the
-# declared `max_length`), so playing it uniformly here would capture a refusal
-# instead of a playout.
+# Tichu takes its reference policy, as its own captures do: under the uniform
+# chooser a Tichu match's race diverges and the line ends at the declared
+# `max_length`, so playing it uniformly here would capture a game its
+# bound ended instead of one its rules did.
 _HASHSEED_CAPTURE = """
 import dataclasses, json, random, sys
 from pathlib import Path

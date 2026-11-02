@@ -13,7 +13,7 @@ import random
 from collections.abc import Callable, Iterable, Mapping
 import dataclasses
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.domains import (
@@ -80,6 +80,28 @@ class ChooserAbort(Exception):
         self.player = player
         self.legal = legal
         self.rs: RuntimeState | None = None
+
+
+class LengthStop(Exception):
+    """Raised by `chooser.decide` when a pick would carry the run past the
+    game's `max_length`: the game ends there, a [[length-stop]].
+
+    A signal, not a refusal: reaching the bound is an end the game meets, so
+    the class sits outside `runtime/errors.py`'s defect tree, and only
+    `driver.play_game` catches it, to read the result at the stopped pick.
+    """
+
+    def __init__(self, made: int) -> None:
+        super().__init__(f"the game reached its max_length at {made} decisions")
+        self.made = made
+
+
+# The signals that halt a run at a decision with every phase frame standing:
+# a Chooser suspending the run, and the run reaching its bound. Every site
+# that would otherwise run code on the way out of a frame (an `after_each`, a
+# frame pop, a `turns` flag reset) holds it back for both, so the world the
+# caller is handed is the one standing at the decision.
+HALTS: tuple[type[Exception], ...] = (ChooserAbort, LengthStop)
 
 
 @dataclass(frozen=True, slots=True)
@@ -433,8 +455,8 @@ class RuntimeState:
         # boardless game; the driver builds it from `game.board`. The cell/line
         # query verbs read it (decisions.md "Boards and cells").
         self.board: BoardEntry | None = None
-        self.max_length: int = 0  # the game's declared non-termination bound
-        self.decisions_made: int = 0  # every chooser pick, checked against max_length
+        self.max_length: int = 0  # the game's declared bound: a game ends at it
+        self.decisions_made: int = 0  # every pick made, counted by `chooser.decide`
         # Content flavor ("card"/"piece") and the axis->Card-attribute map for a
         # piece set (identity for a card deck): the driver sets both from the
         # game's component set; `_card_pred`/`_select_joint` bind the flavor noun,
@@ -477,6 +499,84 @@ class RuntimeState:
 
     def set(self, name: str, value: Any) -> None:
         self._frame_of(name)[name] = value
+
+
+# Where a `DecisionlessSpin` stands between two of its loop's heads: the pick
+# count at the last head, and how many bodies have completed since a pick was
+# last made. The first head has no completed body behind it.
+SpinMark = tuple[int, int]
+SPIN_START: SpinMark = (-1, 0)
+_SPIN_REMEDY = "non-termination, or raise max_length if this game genuinely runs this long"
+
+# The loops whose `until` can fail to hold, each keeping a `DecisionlessSpin`:
+# a closed set, so a loop that keeps one names its member here, and
+# `tests/test_length_stop.py` holds every member to a row of its grid.
+SpinSite = Literal["phase repeat until", "statement repeat until", "turns", "climbing ring"]
+
+
+def _spin_words(site: SpinSite) -> tuple[str, str]:
+    """The loop a site's refusal names, and the remedy it offers."""
+    match site:
+        case "phase repeat until":
+            return "a phase's `repeat until` loop", _SPIN_REMEDY
+        case "statement repeat until":
+            return "a `repeat until` loop", _SPIN_REMEDY
+        case "turns":
+            return "a `turns` ring", _SPIN_REMEDY
+        case "climbing ring":
+            return (
+                "a climbing round's ring",
+                "make the `until` predicate reachable, or drop players who can "
+                "never play from the `over` clause",
+            )
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+class DecisionlessSpin:
+    """The iteration guards' count: how many bodies a loop has completed with
+    no pick made in them, taken at the loop's head once its `until` has been
+    read false, and started again whenever a body makes a pick.
+
+    A loop that makes picks cannot be refused for running long -- its picks
+    reach `max_length`, and the game ends there (`chooser.decide`, a
+    [[length-stop]]). What only a guard on the loop sees is a loop that makes
+    none: at a head whose `until` does not hold, more than `max_length`
+    completed bodies with no pick in them is its author's defect. Every loop
+    whose `until` can fail to hold keeps one and names itself by its member
+    of `SpinSite`. `mark` is the count as two integers, for a loop whose
+    working memory is a round-state frame, which holds no live object."""
+
+    def __init__(self, rs: RuntimeState, site: SpinSite, mark: SpinMark = SPIN_START) -> None:
+        self.rs = rs
+        self.site: SpinSite = site
+        self.made, self.count = mark
+
+    @property
+    def mark(self) -> SpinMark:
+        return (self.made, self.count)
+
+    def boundary(self) -> bool:
+        """One head of the loop, its `until` read false; True once more than
+        `max_length` bodies have completed since a pick was made."""
+        if self.rs.decisions_made != self.made:
+            self.made = self.rs.decisions_made
+            self.count = 0
+        else:
+            self.count += 1
+        return bool(self.count > self.rs.max_length)
+
+    def refusal(self, loop: str | None = None) -> str:
+        """The refusal's sentence, which the guard raises as an
+        `OwnerGuardError`: the loop is its author's to fix. `loop` names the
+        loop more closely than its site's word does, where a site can."""
+        words, remedy = _spin_words(self.site)
+        loop = words if loop is None else loop
+        return (
+            f"{loop} completed {self.count} times with no decision made and its "
+            f"`until` still does not hold, more than the game's declared "
+            f"max_length ({self.rs.max_length}) — {remedy}"
+        )
 
 
 @dataclass(frozen=True, slots=True)

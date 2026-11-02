@@ -125,6 +125,10 @@ class GameRecord:
     # only per run). Summed from the attempts actually made, so a retry counts
     # twice — which is the honest figure, since both calls were billed.
     usage: dict[str, dict[str, int]] = field(default_factory=dict)
+    # How a terminal game ended: "rules", or "length" when it reached the
+    # game's `max_length` and its returns are the bound's tie rather than the
+    # rules' (`CardlangState.ended_by`); None for a truncated game.
+    ended_by: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         out = asdict(self)
@@ -238,6 +242,7 @@ def play_game(
         num_decisions=len(decisions),
         wall_seconds=round(time.monotonic() - started, 3),
         usage=usage,
+        ended_by=state.ended_by() if state.is_terminal() else None,
     )
 
 

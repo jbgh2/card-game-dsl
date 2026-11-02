@@ -97,7 +97,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable
-from typing import Any
+from typing import Any, assert_never
 
 import pytest
 
@@ -480,33 +480,53 @@ def test_dir_as_a_zone_index_role_is_rejected() -> None:
 
 # --- GRID 2: the bare quantifier noun: kind x spelling x board ---------------
 
-QUANTIFIER_KINDS = tuple(n.DOMAIN_QUERY_KIND_PHRASE)
+QUANTIFIER_KINDS = n.DOMAIN_QUERY_KINDS
+
+# The set gathers positions, so over `dir` it is refused in every cell,
+# board or none, naming the direction domain (`resolve._check_domain_query`).
+SET_REFUSAL = f"`{DIRECTION_DOMAIN}` is the board direction domain, not a position domain"
 
 
-def _plural_noun(kind: str) -> str:
-    # `any` takes the singular noun; `all` and `number of` the plural.
+def _plural_noun(kind: n.DomainQueryKind) -> str:
+    # `any` takes the singular noun; `all`, `number of` and the set the plural.
     return DIRECTION_DOMAIN if kind == "any" else DIRECTION_DOMAIN + "s"
 
 
-def _slipped_noun(kind: str) -> str:
+def _slipped_noun(kind: n.DomainQueryKind) -> str:
     return DIRECTION_DOMAIN + "s" if kind == "any" else DIRECTION_DOMAIN
 
 
-def _quantified(kind: str, spelled: str) -> str:
-    q = f"{n.DOMAIN_QUERY_KIND_PHRASE[kind]} {spelled} where not done"
-    return f"(({q}) > 0)" if kind == "count" else q
+def _quantified(kind: n.DomainQueryKind, spelled: str) -> str:
+    q = f"{n.DOMAIN_QUERY_KIND_PHRASE[kind]} {spelled} where not done".strip()
+    match kind:
+        case "any" | "all":
+            return q
+        case "count":
+            return f"(({q}) > 0)"
+        case "set":
+            return f"(({q}) is ({q}))"
+        case unreachable:
+            assert_never(unreachable)
 
 
 @pytest.mark.parametrize("kind", QUANTIFIER_KINDS)
-def test_bare_quantifier_over_dir_is_admitted(kind: str) -> None:
-    check_dsl(_pick_guard(_quantified(kind, _plural_noun(kind))), "dir.cardlang")
+def test_bare_quantifier_over_dir_is_admitted(kind: n.DomainQueryKind) -> None:
+    source = _pick_guard(_quantified(kind, _plural_noun(kind)))
+    if kind in n.DIRECTION_FOLDS:
+        check_dsl(source, "dir.cardlang")
+    else:
+        assert SET_REFUSAL in _reject(source)
 
 
 def _plural_slip_cells() -> list[Any]:
     cells: list[Any] = []
     for kind in QUANTIFIER_KINDS:
         spelled = _slipped_noun(kind)
-        if kind == "any":
+        if kind not in n.DIRECTION_FOLDS:
+            # The set's noun names the direction domain, refused before the
+            # plural is read.
+            cells.append(pytest.param(kind, SET_REFUSAL, id=kind))
+        elif kind == "any":
             # `any dirs` names the domain `dirs`, which nothing declares.
             cells.append(pytest.param(kind, f"unknown position domain '{spelled}'", id=kind))
         else:
@@ -522,7 +542,7 @@ def _plural_slip_cells() -> list[Any]:
 
 
 @pytest.mark.parametrize(("kind", "needle"), _plural_slip_cells())
-def test_bare_quantifier_over_dir_plural_slip(kind: str, needle: str) -> None:
+def test_bare_quantifier_over_dir_plural_slip(kind: n.DomainQueryKind, needle: str) -> None:
     # Red under (the `any` cell): `_check_domain_query` admitting an `any`
     # noun whose singular is `dir` (`nd.binder.removesuffix("s")`).
     assert needle in _reject(_pick_guard(_quantified(kind, _slipped_noun(kind))))
@@ -541,8 +561,9 @@ def _boardless_noun_cells() -> list[tuple[str, str]]:
 
 
 @pytest.mark.parametrize(("kind", "spelled"), _boardless_noun_cells())
-def test_bare_quantifier_over_dir_in_a_boardless_game_names_board(kind: str, spelled: str) -> None:
-    assert NO_BOARD in _reject(boardless_game(when=_quantified(kind, spelled)))
+def test_bare_quantifier_over_dir_in_a_boardless_game_names_board(kind: n.DomainQueryKind, spelled: str) -> None:
+    needle = NO_BOARD if kind in n.DIRECTION_FOLDS else SET_REFUSAL
+    assert needle in _reject(boardless_game(when=_quantified(kind, spelled)))
 
 
 def test_a_declared_dir_domain_in_a_boardless_game_is_an_integer_quantifier() -> None:
@@ -555,6 +576,14 @@ def test_a_declared_dir_domain_in_a_boardless_game_is_an_integer_quantifier() ->
         boardless_game(
             positions="  positions { dir : 1..3 }\n",
             when="(not done) and (any dir where dir > 1)",
+        ),
+        "dir.cardlang",
+    )
+    # A declared `dir` is a position domain, so its set is admitted too.
+    check_dsl(
+        boardless_game(
+            positions="  positions { dir : 1..3 }\n",
+            when="(not done) and (2 in (dirs where dir > 1))",
         ),
         "dir.cardlang",
     )

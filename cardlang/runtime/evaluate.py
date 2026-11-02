@@ -774,18 +774,19 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
     """The positional quantifier register (decisions.md "Boards and cells").
     A BARE form (`source is None`) enumerates the domain its noun names in its
     ordered members: a position domain's (`rs.position_domains[binder]` --
-    the board's cells, an integer domain's range), else the board's direction
-    domain's (`rs.direction_domains[binder]`, the board entry's fixed order);
-    a noun in neither raises as the Shadow Guard behind resolve's
-    `_check_domain_query`. A COLLECTION form iterates the evaluated
-    `line`/`cell` collection. `any`/`all` fold Boolean, short-circuiting like
-    the card queries; `count` returns how many members satisfy the predicate.
-    Resolve/typecheck have already validated the noun and the source kind, so
-    this arm reads uniformly over every member kind."""
+    the board's cells, an integer domain's range), else, for a fold in
+    `DIRECTION_FOLDS`, the board's direction domain's
+    (`rs.direction_domains[binder]`, the board entry's fixed order); a noun in
+    neither raises as the Shadow Guard behind resolve's `_check_domain_query`.
+    A COLLECTION form iterates the evaluated `line`/`cell` collection.
+    `any`/`all` fold Boolean, short-circuiting like the card queries; `count`
+    returns how many members satisfy the predicate; `set` returns them, in
+    the domain's order. Resolve/typecheck have already validated the noun and
+    the source kind, so this arm reads uniformly over every member kind."""
     if e.source is None:
         if e.binder in ctx.rs.position_domains:
             members: Any = ctx.rs.position_domains[e.binder]
-        elif e.binder in ctx.rs.direction_domains:
+        elif e.binder in ctx.rs.direction_domains and e.kind in n.DIRECTION_FOLDS:
             members = ctx.rs.direction_domains[e.binder]
         else:
             raise ShadowGuardError(
@@ -803,8 +804,11 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
             return all(results)
         case "count":
             return sum(1 for ok in results if ok)
-        case _:
-            raise AssertionError(f"unknown domain-query kind '{e.kind}'")
+        case "set":
+            # A tuple, as a region verb's cells are, so `is` compares by value.
+            return tuple(m for m in members if evaluate(e.where, ctx.with_local(e.binder, m)))
+        case unreachable:
+            assert_never(unreachable)
 
 
 def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:

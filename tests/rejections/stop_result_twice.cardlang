@@ -1,0 +1,18 @@
+// Guard: parse.py `game()`'s `once("at max_length:")`. A game has one
+// Stop Result; a second would silently replace the first.
+game StopResultTwice {
+  players: 2
+  max_length: 30
+  at max_length: tie
+  at max_length: as it stands
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { coins[player] : Integer = 0  done : Boolean = false }
+  phase play {
+    turns t from 0 over all players until done {
+      as t { offer to t one of [stop] }
+    }
+  }
+  winner: highest coins
+}
+move_type stop { effect { done := true } }

@@ -112,6 +112,9 @@ _PARSE_LEVEL_CASES = frozenset(
         # <expr> where ...` production -- a raw grammar dead end, not a
         # resolve guard (issue #111).
         "cell_count_in_collection_not_admitted",
+        # The position set takes no source: `cells in <expr> where ...` is the
+        # Diagnostic Grammar twin's refusal, raised by the parser.
+        "cell_set_in_collection_not_admitted",
         # `?mode_item` admits `active_rules` and `transition_to` only, so a
         # `legal_moves:` in a mode body never reaches a tree. This case moved
         # here from the resolve level when #208 gave the config-only class to
@@ -140,6 +143,18 @@ _PARSE_LEVEL_CASES = frozenset(
         "suit_ranking_in_ranking",
         "trick_order_retired",
         "trump_clause_retired",
+        "stop_result_lead_after",
+        "stop_result_lead_beyond",
+        # The Stop Result's parse-layer refusals: a value slip and a ranking's
+        # name left off are the grammar refusing the text, the `max_length`
+        # hint's two sites likewise, and a second clause is the builder's
+        # `once`, so none leaves a tree.
+        "max_length_clause_after_the_bound",
+        "result_ranking_reserved_name",
+        "stop_result_inside_a_phase",
+        "stop_result_ranking_name_left_off",
+        "stop_result_twice",
+        "stop_result_value_misspelled",
         # The Combination Shape twins: each raises in the builder, so none
         # leaves a tree.
         "shape_behaviour",
