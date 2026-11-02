@@ -307,7 +307,9 @@ def test_a_bare_nouns_refusal_says_what_the_name_is(shape: str, noun: str, kind:
     of any other kind as that kind, with the sentence that checks where one
     exists. No refusal speaks of a binder the designer did not write, offers
     `in <collection>` (the Set Form has no collection twin) or offers the
-    direction domain as a universe member."""
+    direction domain as a universe member. Red under: `_bare_noun_refusal`
+    not consulted (every kind cell), or `_check_reserved_binders` reading a
+    bare query's noun as a binder (the reserved-word cells)."""
     source = SHAPES[shape] + f"function probe_set(p : Player) = {noun}s where true\n"
     if kind == "position domain":
         check_dsl(source, "set.cardlang")
@@ -701,7 +703,8 @@ def test_the_set_form_at_every_expression_position(key: tuple[str, str]) -> None
     """The Set Form at each position: admitted where a collection is a
     value (a `let`, a function body), refused in the typed channel naming
     `Collection<…>` where the position wants a Boolean, a seat, a number or
-    a card set, and a syntax error where the position takes a name."""
+    a card set, and a syntax error where the position takes a name. Red
+    under: the type checker typing the Set Form as the permissive top."""
     template, expected = POSITION_SLOTS[key]
     set_form = COLUMN_SET if "positions { column" in template else BOARD_SET
     source = template.replace("@SET@", set_form)

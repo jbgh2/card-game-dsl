@@ -188,7 +188,8 @@ def test_retired_sentence_is_refused_at_parse(name: str) -> None:
 def test_a_retired_sentence_the_set_form_parses_is_refused_by_the_checker(name: str) -> None:
     """Red under: `resolve._check_reserved_binders` reading a bare position
     query's noun as a binder the designer chose (its message names a binder
-    nobody wrote, and asks for another name)."""
+    nobody wrote, and asks for another name), or the rule clauses judged
+    before the position nouns (the clause's shape refusal speaks first)."""
     source, said = RETIRED_SENTENCES_PARSED_AS_A_SET[name]
     parse_text(source, "retired.cardlang")
     with pytest.raises(DiagnosticError) as exc:
