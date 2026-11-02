@@ -3331,7 +3331,9 @@ column c`, `each column simultaneously` and a position-indexed `state`
 variable are all rejected with diagnostics (deferred, recorded in issue
 #111). A `state` variable may be typed by a board's named-member domain
 (`last_at : cell? = none`), read and written as a `Player?` variable is,
-and a `none` it holds is refused at play wherever a square must be named;
+and a per-seat or per-team store of one (`lastp[player] : cell? = none`)
+is declared and read the same way; a `none` it holds is refused at play
+wherever a square must be named;
 an integer position domain is no `state` type, the refusal naming
 `Integer` as the type that remembers its member
 (tests/test_typed_position_state.py). Quantifiers

@@ -313,7 +313,9 @@ class ZoneStore:
             )
         return self.singles[name]
 
-    def instance(self, name: str, key: int | str) -> Zone:
+    def instance(
+        self, name: str, key: int | str | None, *, optional_key: str | None = None
+    ) -> Zone:
         # Both lookups fail in the runtime's typed channel, never as a bare
         # KeyError — the name and the key are equally capable of missing, so
         # neither is left to the raw dict.
@@ -332,8 +334,11 @@ class ZoneStore:
         # arrives here (a boundary tests/test_zone_family_typing.py's ledger
         # states in its `domain:`). That boundary is what makes this an
         # Owner Guard rather than a Shadow Guard, and why the key branch owes
-        # a typed error. A board-minted family keys by a cell name (str), so
-        # the key is `int | str`.
+        # a typed error. A board-minted family keys by a cell name (str), and
+        # an optional key (a `cell?` or `Player?`) may be none, since
+        # `types.coercible` admits an optional where its base is wanted and
+        # flow narrowing is issue #990. `optional_key` is the key's spelling
+        # when the key is that optional itself, so the refusal can name it.
         if name not in self.families:
             raise OwnerGuardError(
                 f"no zone family '{name}' in this game — this asks for a "
@@ -341,13 +346,17 @@ class ZoneStore:
             )
         family = self.families[name]
         if key is None:
-            # `types.coercible` admits an optional key where its base is
-            # wanted (no flow narrowing), so a `cell?` or `Player?` that is
-            # none reaches here at play.
+            if optional_key is not None:
+                raise OwnerGuardError(
+                    f"zone family '{name}' is {self._indexed(name)}, and its key "
+                    f"`{optional_key}` is none here -- test `{optional_key} is not "
+                    f"none` before naming `{name}[{optional_key}]`"
+                )
             raise OwnerGuardError(
                 f"zone family '{name}' is {self._indexed(name)}, and its key is "
-                f"none here: an optional value is none -- test it with `is none` "
-                f"before naming `{name}[...]` with it"
+                f"none here: an optional value is none -- test it with `is not "
+                f"none` where it is read, before it names `{name}[...]` or is "
+                f"passed to a function that does"
             )
         if isinstance(key, bool) or key not in family:
             raise OwnerGuardError(

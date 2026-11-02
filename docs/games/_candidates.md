@@ -590,9 +590,10 @@ Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb, placed secretly in
 the back rows. Pieces move one square orthogonally (Scouts any clear
 distance); attacking reveals both ranks and removes the loser (Spy
 kills Marshal when attacking; Miner defuses Bomb; Flag capture wins);
-two-square shuttle rule in scope (its tracking state is
-position-typed — the recorded position-typed-state Owner Guard lifts here,
-first witness), the chase rule scoped out and named.
+two-square shuttle rule in scope (its tracking state is a per-seat
+`cell?` store, the cell-typed state the
+[english-draughts](#english-draughts) chain anchor lifts), the chase rule
+scoped out and named.
 
 **Why interesting.** The one moat-level rung: position-public,
 rank-private pieces force **attribute-level projections** (C3) and
@@ -629,9 +630,10 @@ rulebook's own branch, an `offer` behind an `if` over a named function
 When Clause), the board witnesses of the one-site law
 ([decisions.md](../decisions.md), "Rule demand forms") -- jump
 `(from, over, to)` triples as declared relation data, multi-jump
-chains on the `turns` form's `again` axis with a position-typed chain
-anchor (reusing the guard-lift the [stratego-barrage](#stratego-barrage)
-rung lands),
+chains on the `turns` form's `again` axis with a chain anchor typed by
+the board's `cell` domain (`chain_from : cell? = none`, the cell-typed
+state's first witness; [stratego-barrage](#stratego-barrage)'s shuttle
+reuses it),
 promotion as a supply swap, and counter-based draw state. English over
 International deliberately: no capture maximization, so the gated
 optimization query class stays unwitnessed.

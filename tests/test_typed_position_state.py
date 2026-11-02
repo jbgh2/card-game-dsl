@@ -13,71 +13,100 @@ caller passes); and the runtime stores whatever the variable is assigned.
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:        a `state` variable's declared type names a value type or one
-                 of the game's named-member position domains, and nothing
-                 else; a named-member one types `cell` (`cell?` with `?`),
-                 never the permissive top, so every type Owner Guard reads it;
-                 a `none` it holds is refused, in designer words, where a
-                 square must be named at play.
+                 of the game's named-member position domains, scalar or
+                 indexed by seat or team, and nothing else; a named-member
+                 one types `cell` (`cell?` with `?`), never the permissive
+                 top, so every type Owner Guard reads it; every refusal this
+                 module pins names a declaration or a test that, taken as
+                 written, checks or plays in the game it is told in; and a
+                 `none` square is refused in designer words where a square
+                 must be named at play.
 domain:          GRID D, the declaration: the state type -- every value type
                  in `KNOWN_TYPE_NAMES` as the control, the board's
                  named-member domain, an integer position domain, the
-                 direction domain, `Combination`, an unknown name -- crossed
-                 with optional, default, declaring site (game-level and
-                 phase-local `state { }`) and game (a board; no board; no
-                 board with an integer domain spelled `cell`), the type-side
-                 product taken on the named-member domain and the refusal
-                 rows one per refused class. GRID R, the reads and writes:
+                 direction domain, `Combination`, an unknown name. The
+                 named-member domain is crossed with index (scalar,
+                 `[player]`, `[team]`), optional, default and declaring site
+                 (game-level and phase-local `state { }`); each refused class
+                 has one row per kind of game that tells it differently (a
+                 board minting directions, `morris9` minting none, a
+                 boardless card game, a boardless piece game, a boardless
+                 game declaring an integer domain spelled `cell`), and each
+                 such row has a FIX_TAKEN row. GRID R, the reads and writes:
                  every statement and expression position a `Player?`
-                 variable is consumed at, on a `cell?` variable in a board
-                 game. GRID P, play: the witness fixture end to end, and a
-                 `none` reaching each site that needs a square -- a zone
-                 subscript, a user function's `cell` parameter, a Builtin.
-                 A library's `state { }` and `requires` rows are a different
-                 domain: a library declares no board, its type slot admits
-                 the value types (`resolve._library_slot_names`), and a
-                 `requires` row cannot spell `?`. What the variable's value
-                 shows each seat is the proof module's of the first game that
-                 writes it (issue #983).
+                 variable is consumed at, on a scalar `cell?` and on a
+                 per-seat store, the `winner:` target among them. GRID P,
+                 play: the scalar anchor and the per-seat store end to end,
+                 and a `none` square reaching each route that needs a
+                 square -- a zone subscript, a move's destination, a user
+                 function's `cell` parameter, a per-seat key, a Builtin --
+                 each with its named fix played. A library's `state { }`
+                 and `requires` rows are a different domain: a library
+                 declares no board, its type slot admits the value types
+                 (`resolve._library_slot_names`), and a `requires` row
+                 cannot spell `?`. What the variable's value shows each seat
+                 is the proof module's of the first game that writes it
+                 (issue #983).
 registry:        value types: typecheck.KNOWN_TYPE_NAMES; position domains:
                  `game.positions` partitioned by `PositionDecl.members_named`;
-                 direction domain: board_domains.DIRECTION_DOMAIN; the
+                 index roles: domains.ZONE_INDEX_ROLES; direction domain:
+                 board_domains.DIRECTION_DOMAIN, minted per game by
+                 `resolve._minted_directions`; content: types.Flavor; the
                  sibling grid over every declaring position:
                  tests/test_type_name_positions.py::test_the_board_names_grid;
-                 a `none` at a Builtin slot:
-                 tests/test_direction_lift.py.
-held by:         the state admit-set is Unrepresentable as a second spelling:
-                 one helper, `resolve._declared_type_universe`, is the state
-                 set, and the function-parameter set is that helper plus the
-                 domains a parameter alone takes. The typing is
-                 Unrepresentable as an omission: `type_from_name` takes the
-                 game's domains as required parameters, so a caller that
-                 omits them does not type-check. The refusal classes are
-                 Derived and Pinned: a declared type name reaches resolve as
-                 source text, so no union classifies it before resolve does,
-                 and GRID D pins each class's message. The `none` key at a
-                 zone subscript is Derived and Pinned at the key's Owner
-                 Guard, `state.ZoneStore.instance`: `types.coercible` admits
-                 an optional where its base is wanted, a designed constraint
-                 (the language has no flow narrowing), so the case is
-                 reachable at play.
-does not prove:  that a caller hands `type_from_name` the game's OWN domains:
-                 an empty mapping type-checks as well as the right one, and
-                 only the cells typing a `cell` read (GRID R's refusals, GRID
-                 D's default cells) witness the threading.
+                 a `none` at a Builtin slot: tests/test_direction_lift.py.
+held by:         the state admit-set is Derived and Pinned. It has one
+                 defining site, `resolve._declared_type_universe`, which the
+                 `StateDecl` arm of `resolve._validate_refs` reads as it is
+                 and `resolve._check_declared_type_names` extends, so the two
+                 checks cannot spell the state set twice. The named-member
+                 partition it is built from is spelled again wherever
+                 `git grep -n "members_named is" -- cardlang` finds it:
+                 resolve's `_declared_type_universe`, `_state_type_refusal`,
+                 `_resolve_positions`, `_resolve_board`, `_minted_directions`
+                 and `_validate_refs`, typecheck's `_position_types` and
+                 `_ambient_env`, and ir's `_position`;
+                 GRID D's admit rows and the sibling grid pin what those
+                 sites say together. The typing is Derived and Pinned:
+                 `type_from_name` takes the game's domains as required
+                 parameters, so a caller that omits them does not
+                 type-check, but an empty mapping does, and the plants below
+                 pin that each state-typing site passes the game's own. The
+                 refusal classes are Derived and Pinned: a declared type name
+                 reaches resolve as source text, so no union classifies it
+                 before resolve does; GRID D pins each class's message and
+                 FIX_TAKEN its fix. The `none` key is Derived and Pinned at
+                 the key's Owner Guard, `state.ZoneStore.instance`:
+                 `types.coercible` admits an optional where its base is
+                 wanted, and the flow narrowing that would make the case
+                 unwritable is issue #990.
+does not prove:  that a caller hands `type_from_name` the game's OWN domains
+                 beyond the two state-typing sites the plants exercise: an
+                 empty mapping type-checks as well as the right one.
 red under:       GRID D's admit and default cells, GRID R and GRID P are born
                  red, and the `StateDecl` arm reading `KNOWN_TYPE_NAMES` in
-                 place of the helper reddens all of them. Passing `{}` for the positions of
+                 place of the helper reddens all of them, the indexed rows
+                 included. Passing `{}` for the positions of
                  `typecheck._check_state_default_type` reddens the `none`,
-                 Integer and String default cells; passing `{}` for the
-                 positions of `typecheck._ambient_env`'s state typing
-                 reddens GRID R's type refusals and its `membership` row;
-                 dropping the `None` branch of `state.ZoneStore.instance`
-                 reddens GRID P's two zone rows. The value-type controls are
-                 born green and redden if the helper drops
-                 `KNOWN_TYPE_NAMES`; the indexed-store refusal is born green
-                 and reddens if the index arm admits the named-member
+                 Integer and String default cells at every index and site;
+                 passing `{}` for the positions of `typecheck._ambient_env`'s
+                 state typing reddens GRID R's type refusals, scalar and
+                 per-seat, and its `membership` row. In
+                 `resolve._state_type_refusal`, dropping the minted-`dir`
+                 branch reddens `board-dir?`, dropping the unminted one
+                 reddens `morris9-dir?` and `boardless-dir?`, and telling
+                 every boardless game the card game's fix reddens
+                 `boardless-pieces-cell?`. Dropping the `None` branch of
+                 `state.ZoneStore.instance` reddens GRID P's four zone rows,
+                 and `evaluate._subscript` passing no `optional_key` reddens
+                 the `zone-subscript` and `move-destination` rows. The
+                 value-type controls are born green and redden if the helper
+                 drops `KNOWN_TYPE_NAMES`; the indexed-store refusal is born
+                 green and reddens if the index arm admits the named-member
                  domains; the `a1` rows are born green and redden if resolve
-                 reads a board member's name as a value.
+                 reads a board member's name as a value;
+                 `test_every_owned_refusal_has_its_fix_taken` reddens if a
+                 FIX_TAKEN row is dropped.
 """
 
 from __future__ import annotations
@@ -212,10 +241,7 @@ Expected = str | tuple[str, ...] | None
 
 # The cells a change designs to flip, carried as strict xfails so the grid can
 # be pushed red; empty between changes.
-RED: frozenset[str] = frozenset({
-    "boardless-cell?", "boardless-cell", "boardless-pieces-cell?", "board-dir?", "morris9-dir?",
-    "boardless-dir?", "zone-subscript", "move-destination", "function-parameter", "per-seat-key",
-})
+RED: frozenset[str] = frozenset()
 
 
 def _param(cid: str, *values: object) -> object:
@@ -248,8 +274,10 @@ UNMINTED_DIRECTION = ("is typed `dir`", "board family 'morris9' mints no directi
 NO_BOARD_DIRECTION = ("is typed `dir`", "declares no `board:`", "as a `SeatDirection`")
 NO_BOARD_CARDS = ("is typed `cell`", "declares no `board:`", "`pieces:` in place of `cards:`, and a `board:`")
 NO_BOARD_PIECES = ("is typed `cell`", "declares no `board:`", "declare the `board:` its pieces stand on")
+INTEGER_CELL = ("is typed `cell`", "a position domain of numbers", "as an `Integer`")
 OWNED_REFUSALS = (
-    INTEGER_DOMAIN, DIRECTION, UNMINTED_DIRECTION, NO_BOARD_DIRECTION, NO_BOARD_CARDS, NO_BOARD_PIECES,
+    INTEGER_DOMAIN, INTEGER_CELL, DIRECTION, UNMINTED_DIRECTION, NO_BOARD_DIRECTION, NO_BOARD_CARDS,
+    NO_BOARD_PIECES,
 )
 
 
@@ -298,7 +326,7 @@ DECL_CELLS += [
     (
         "boardless-integer-cell?",
         boardless(positions="  positions { cell : 1..3 }", state="    v : cell? = none"),
-        ("is typed `cell`", "a position domain of numbers", "as an `Integer`"),
+        INTEGER_CELL,
     ),
     # The refused classes, one row each, in every game where the class exists.
     (
@@ -379,7 +407,6 @@ def test_every_owned_refusal_has_its_fix_taken() -> None:
 
     red under: delete any FIX_TAKEN row."""
     refused = {cid for cid, _src, want in DECL_CELLS if want in OWNED_REFUSALS}
-    refused |= {"boardless-integer-cell?"}
     assert refused == {cid for cid, _src in FIX_TAKEN}
 
 

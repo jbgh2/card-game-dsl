@@ -6,7 +6,7 @@ the default expression was never compared against it.
 The declare-time scope guard's grid (`test_state_default_scope.py`) admits
 `v : Integer = all players` by scope; the type mismatch is refused only here.
 The check mirrors `_check_assign`: `infer(default)` must be `assignable` to
-`type_from_name` over the game's domains — the value type, which is the
+`type_from_name` over the game's domains, the value type, which is the
 element type an indexed default broadcasts to every key.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
