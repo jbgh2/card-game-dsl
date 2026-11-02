@@ -6,14 +6,16 @@ members are the three seat-relative forward directions (`ahead`, `ahead_left`,
 a SEPARATE per-game source (`cardlang/board_domains.py::directions_of`), NOT a
 `PositionDecl` in `game.positions` (decisions.md "Boards and cells", rung-2
 movement). Keeping it out of `game.positions` is load-bearing: the zone-index
-guard (`_resolve_zone`), the quantifier guard (`_check_domain_query`) and the
-for-each guard (`_ITERATION_ROLES`) all admit only `game.positions`/known roles,
-so `zone[dir]`, `any dir where`, `for each dir` are rejected FOR FREE by the
-existing guards -- no new exclusion guard. `dir` rides ONLY the move-parameter
-enumeration (a new `DomainSources.directions` sibling of `positions`) plus IR
-and the OpenSpiel encoding. Direction values type as the new `TDir`; a member
-name is NOT expression-nameable (no direction literals -- `ahead` stays an
-unknown name, the cell-literal twin).
+guard (`_resolve_zone`) and the for-each guard (`_ITERATION_ROLES`) admit only
+`game.positions`/known roles, so `zone[dir]` and `for each dir` are rejected
+FOR FREE by the existing guards -- a direction is not a position. It is a
+closed domain, so the name is admitted where a closed domain is: the
+move-parameter enumeration (`DomainSources.directions`, the sibling of
+`positions`), the bare quantifier family, and the declared types of function
+parameters and outcome payloads, each through resolve's one
+`_minted_directions` gate. Direction values type as `TDir`; a member name is
+NOT expression-nameable (no direction literals -- `ahead` stays an unknown
+name, the cell-literal twin).
 
 This module is the grid for Task 1. Its axes derive from registries and the
 language's value-position surface, never from a guard's own coverage:
@@ -31,8 +33,10 @@ language's value-position surface, never from a guard's own coverage:
     (`unify -> None`, `assignable -> False`, `subscriptable -> False`, the
     operand guards' `else`) fires for `dir` by construction; each cell below
     PROVES it, so no permissive accept survives.
-  * GRID 2 -- the use-position of the NAME `dir`: the one accepting slot (move
-    parameter) against every rejecting slot (zone index, bare/collection
+  * GRID 2 -- the use-position of the NAME `dir`: the accepting slots (move
+    parameter, bare quantifier noun, function parameter, outcome payload),
+    each crossed with a boardless game and the bare noun with its plural
+    spelling, against every rejecting slot (zone index, collection
     quantifier, `for each`, member literal, state type, state index).
   * GRID 3 -- minting and collision: the `dir` source is minted with `cell` by
     the board; a declared `positions { dir : ... }` collides; a boardless `dir`
@@ -46,9 +50,12 @@ property:   a `board:` game mints the `dir` domain (the three seat-relative
             `dir` flows through the move-parameter enumeration (vocab ids that
             round-trip) typed as `TDir`; every `TDir`-consuming operation is
             either accepted or rejected with a diagnostic, never silently
-            ignored; the name `dir` is admitted ONLY at a move parameter and
-            rejected at every other use-position by the existing
-            positions/roles guards; a member name is not expression-nameable.
+            ignored; the name `dir` is admitted at a move parameter, as a bare
+            quantifier noun, and as a function parameter's or outcome
+            payload's type, in a game whose board minted it, and refused
+            naming `board:` in a game with none; it is rejected at every other
+            use-position by the existing positions/roles guards; a member name
+            is not expression-nameable.
 domain:     {TDir value positions} x {accept | reject}   (GRID 1)
             UNION {use-positions of the name `dir`} x {accept | reject}  (GRID 2)
             UNION {minting / collision cases} x {accept | reject}        (GRID 3)
@@ -89,10 +96,12 @@ does not prove:  that a `Type` consumer this module does not name behaves
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from typing import Any
 
 import pytest
 
+from cardlang.ast import nodes as n
 from cardlang.board_domains import DIRECTION_DOMAIN, directions_of
 from cardlang.diagnostics import DiagnosticError
 from cardlang.domains import DomainSources, enumerate_domain
@@ -213,8 +222,8 @@ def test_directions_of_returns_the_three_seat_relative_members() -> None:
 
 def test_direction_domain_is_not_in_game_positions() -> None:
     # The load-bearing separation: `dir` is a SEPARATE source, so the board's
-    # only `game.positions` entry is `cell` -- which is what gives `zone[dir]`,
-    # `any dir where`, `for each dir` their free rejection below.
+    # only `game.positions` entry is `cell` -- which is what gives `zone[dir]`
+    # and `for each dir` their free rejection below.
     game = check_dsl(direction_game(), "dir.cardlang")
     assert DIRECTION_DOMAIN not in {p.name for p in game.positions}
     assert "cell" in {p.name for p in game.positions}
@@ -375,33 +384,87 @@ def test_dir_as_an_offset_by_operand_is_rejected() -> None:
     assert "expects a SeatDirection" in _reject(_pick_guard("(actor offset_by along) is actor"))
 
 
-# --- GRID 2: dir is move-parameter-only (non-move-param declared slots reject) -
+# --- GRID 2: the declared types (function parameter, outcome payload) --------
 
 
-def test_dir_function_parameter_is_rejected() -> None:
-    # `dir` is usable ONLY as a MOVE parameter -- NOT a function parameter. It
-    # is a separate source, absent from `game.positions`, so resolve's declared-
-    # type-name admit-set (positions + known types + declared types) excludes it
-    # and rejects LOUDLY here (unlike the position `cell`, which that set
-    # admits). This is the move-parameter-only restriction, not a silent TAny.
-    assert "unknown type 'dir'" in _reject(
-        direction_game(extra="function f(x : dir) = 1\n")
+def boardless_game(
+    *, positions: str = "", when: str = "not done", extra: str = "", setup: str = ""
+) -> str:
+    """The skeleton's pieces and reserves with no `board:`, so nothing mints
+    `dir`; `positions` lets a cell declare an integer domain of that name."""
+    return (
+        "game Boardless {\n"
+        "  players: 2\n"
+        "  max_length: 20\n"
+        "  pieces: xo_marks\n"
+        f"{positions}"
+        "  zones {\n"
+        "    box             : Deck\n"
+        "    reserve[player] : PlayerPile<player>\n"
+        "  }\n"
+        "  state {\n"
+        "    result[player] : Integer = 0\n"
+        "    done : Boolean = false\n"
+        "  }\n"
+        "  phase setup {\n"
+        "    move all pieces from box where piece.side is x to reserve[0]\n"
+        "    move all pieces from box to reserve[1]\n"
+        f"{setup}"
+        "  }\n"
+        "  phase play {\n"
+        "    turns t from 0 over all players until done {\n"
+        "      offer to t one of [pick]\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest result\n"
+        "}\n"
+        "move_type pick {\n"
+        f"  when: {when}\n"
+        "  effect { done := true }\n"
+        "}\n"
+        f"{extra}"
     )
 
 
-def test_dir_outcome_payload_is_rejected() -> None:
-    # Same restriction at an outcome payload slot: `dir` is rejected at resolve
-    # ("unknown type 'dir'"), the loud twin of the function-parameter reject.
-    assert "unknown type 'dir'" in _reject(
-        direction_game(
-            setup=(
-                "    phase d -> outcome { Won(dir) | Lost } { produce Lost }\n"
-                "    d produces:\n"
-                "      Won(x) { }\n"
-                "      Lost   { }\n"
-            )
+# The refusal a boardless game's `dir` earns at every admitting position.
+NO_BOARD = "declares no `board:`"
+
+def _function_parameter(spelled: str, build: Callable[..., str]) -> str:
+    return build(extra=f"function f(x : {spelled}) = 1\n")
+
+
+def _outcome_payload(spelled: str, build: Callable[..., str]) -> str:
+    return build(
+        setup=(
+            "    phase d -> outcome { Won(" + spelled + ") | Lost } { produce Lost }\n"
+            "    d produces:\n"
+            "      Won(x) { }\n"
+            "      Lost   { }\n"
         )
     )
+
+
+_DECLARED_TYPE_HOSTS: dict[str, Callable[[str, Callable[..., str]], str]] = {
+    "function parameter": _function_parameter,
+    "outcome payload": _outcome_payload,
+}
+
+
+@pytest.mark.parametrize("spelled", ["dir", "dir?"])
+@pytest.mark.parametrize("host", sorted(_DECLARED_TYPE_HOSTS))
+def test_dir_declared_type_is_admitted_in_a_board_game(host: str, spelled: str) -> None:
+    check_dsl(_DECLARED_TYPE_HOSTS[host](spelled, direction_game), "dir.cardlang")
+
+
+@pytest.mark.parametrize("spelled", ["dir", "dir?"])
+@pytest.mark.parametrize("host", sorted(_DECLARED_TYPE_HOSTS))
+def test_dir_declared_type_in_a_boardless_game_names_board(host: str, spelled: str) -> None:
+    # The name is not unknown -- it is the board's -- so the refusal names the
+    # missing clause rather than calling the type unknown.
+    msg = _reject(_DECLARED_TYPE_HOSTS[host](spelled, boardless_game))
+    assert f"is typed `{spelled}`" in msg
+    assert NO_BOARD in msg
+    assert "unknown type" not in msg
 
 
 # --- GRID 2: use-position of the name `dir` (rejected slots, free guards) -------
@@ -415,12 +478,95 @@ def test_dir_as_a_zone_index_role_is_rejected() -> None:
     )
 
 
-def test_bare_quantifier_over_dir_is_rejected() -> None:
-    # `any dir where ...` -- the quantifier guard validates against
-    # `game.positions`, which excludes `dir`, so it rejects for free.
-    assert "unknown position domain 'dir'" in _reject(
-        _pick_guard("any dir where not done")
+# --- GRID 2: the bare quantifier noun: kind x spelling x board ---------------
+
+QUANTIFIER_KINDS = tuple(n.DOMAIN_QUERY_KIND_PHRASE)
+
+
+def _plural_noun(kind: str) -> str:
+    # `any` takes the singular noun; `all` and `number of` the plural.
+    return DIRECTION_DOMAIN if kind == "any" else DIRECTION_DOMAIN + "s"
+
+
+def _slipped_noun(kind: str) -> str:
+    return DIRECTION_DOMAIN + "s" if kind == "any" else DIRECTION_DOMAIN
+
+
+def _quantified(kind: str, spelled: str) -> str:
+    q = f"{n.DOMAIN_QUERY_KIND_PHRASE[kind]} {spelled} where not done"
+    return f"(({q}) > 0)" if kind == "count" else q
+
+
+@pytest.mark.parametrize("kind", QUANTIFIER_KINDS)
+def test_bare_quantifier_over_dir_is_admitted(kind: str) -> None:
+    check_dsl(_pick_guard(_quantified(kind, _plural_noun(kind))), "dir.cardlang")
+
+
+def _plural_slip_cells() -> list[Any]:
+    cells: list[Any] = []
+    for kind in QUANTIFIER_KINDS:
+        spelled = _slipped_noun(kind)
+        if kind == "any":
+            # `any dirs` names the domain `dirs`, which nothing declares.
+            cells.append(pytest.param(kind, f"unknown position domain '{spelled}'", id=kind))
+        else:
+            phrase = n.DOMAIN_QUERY_KIND_PHRASE[kind]
+            cells.append(
+                pytest.param(
+                    kind,
+                    f"needs the plural noun -- write `{phrase} {spelled}s`",
+                    id=kind,
+                )
+            )
+    return cells
+
+
+@pytest.mark.parametrize(("kind", "needle"), _plural_slip_cells())
+def test_bare_quantifier_over_dir_plural_slip(kind: str, needle: str) -> None:
+    # Red under (the `any` cell): `_check_domain_query` admitting an `any`
+    # noun whose singular is `dir` (`nd.binder.removesuffix("s")`).
+    assert needle in _reject(_pick_guard(_quantified(kind, _slipped_noun(kind))))
+
+
+def _boardless_noun_cells() -> list[tuple[str, str]]:
+    # Every spelling whose singular is `dir`: the right one under each kind,
+    # and the plural slip under `all` / `number of` (`any dirs` names `dirs`,
+    # the plural-slip cell above).
+    return [
+        (kind, spelled)
+        for kind in QUANTIFIER_KINDS
+        for spelled in (_plural_noun(kind), _slipped_noun(kind))
+        if kind != "any" or spelled == DIRECTION_DOMAIN
+    ]
+
+
+@pytest.mark.parametrize(("kind", "spelled"), _boardless_noun_cells())
+def test_bare_quantifier_over_dir_in_a_boardless_game_names_board(kind: str, spelled: str) -> None:
+    assert NO_BOARD in _reject(boardless_game(when=_quantified(kind, spelled)))
+
+
+def test_a_declared_dir_domain_in_a_boardless_game_is_an_integer_quantifier() -> None:
+    # With no board, nothing mints `dir`, so a declared `positions { dir : ... }`
+    # is an integer position domain like any other, and its quantifier binds
+    # an Integer (the ordering is legal, which no direction admits).
+    # Red under: `resolve._directions_need_a_board` ignoring the declared
+    # position domains.
+    check_dsl(
+        boardless_game(
+            positions="  positions { dir : 1..3 }\n",
+            when="(not done) and (any dir where dir > 1)",
+        ),
+        "dir.cardlang",
     )
+
+
+def test_bare_quantifier_over_dir_on_an_invalid_board_reports_the_board() -> None:
+    # A board that fails validation mints neither `cell` nor `dir`; the board's
+    # own refusal is reported, and resolve never asks the failed board for its
+    # directions (a lookup there raises outside the diagnostic channel).
+    # Red under: reading `directions_of(game)` ungated in `_check_domain_query`.
+    msg = _reject(_pick_guard("any dir where not done").replace("grid(3, 3)", "grid(99, 99)"))
+    assert "grid" in msg
 
 
 def test_collection_quantifier_over_dir_is_rejected() -> None:
@@ -473,9 +619,15 @@ def test_dir_collides_with_a_declared_position_name() -> None:
     assert "dir" in msg
 
 
-def test_boardless_dir_parameter_is_unsupported() -> None:
-    # A boardless game has no `dir` source, so a `dir` move parameter is an
-    # unsupported parameter domain (the standing `_check_move_params` guard).
+@pytest.mark.parametrize("spelled", ["dir", "dir?"])
+def test_boardless_dir_parameter_is_unsupported(spelled: str) -> None:
+    # A boardless game has no `dir` source, so a `dir` (or `dir?`) move
+    # parameter is an unsupported parameter domain (the standing
+    # `_check_move_params` guard), refused naming the missing `board:` as at
+    # every position admitting `dir`.
+    # Red under: `_check_move_params` dropping `_no_board_for_directions`
+    # (both cells); `_no_board_for_directions` matching `dir` exactly (the
+    # `dir?` cell).
     src = (
         "game Boardless {\n"
         "  players: 2\n"
@@ -490,9 +642,11 @@ def test_boardless_dir_parameter_is_unsupported() -> None:
         "  }\n"
         "  winner: highest score\n"
         "}\n"
-        "move_type pick(along : dir) { effect { done := true } }\n"
+        f"move_type pick(along : {spelled}) {{ effect {{ done := true }} }}\n"
     )
-    assert "unsupported parameter domain 'dir'" in _reject(src)
+    msg = _reject(src)
+    assert f"unsupported parameter domain '{spelled}'" in msg
+    assert NO_BOARD in msg
 
 
 def test_direction_domain_name_is_dir_not_direction() -> None:

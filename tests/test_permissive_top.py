@@ -526,7 +526,7 @@ procedure bump(p : Player) { score[p] := 1 }
 # surviving site, so a count change can be checked against an argument rather
 # than just re-blessed:
 #
-# typecheck.py (15)
+# typecheck.py (14)
 #   legitimate top (no better type exists) — 4:
 #     pronoun member access (deferred shape); a non-`actor` pronoun; a
 #     procedure `Sig.ret` (a procedure is a statement — the field is never
@@ -535,16 +535,17 @@ procedure bump(p : Player) { score[p] := 1 }
 #     element and no key, the element being judged by the position's own
 #     check. A bare trick-winner name never reaches the
 #     type layer: resolve refuses it outside the round slot that reads it.
-#   gradual propagation, downstream of a guard that already fired — 6:
+#   gradual propagation, downstream of a guard that already fired — 5:
 #     `type_from_name`'s unknown name (every declared-type-name position is
 #     refused at resolve for a name no registry holds, so a resolved game
 #     reaches this branch with none); a subscript of a non-collection
 #     (`subscriptable`), a comprehension element off a bad source
 #     (`_check_card_source`), an unknown item/Card field (rejected in
-#     `_check_expr`), and the two `DomainQuery` binder-type lookups (a bare
-#     position-domain binder, a `line`/`cell` collection binder), each reached
-#     only after resolve's `_check_domain_query` validated the noun. Each is
-#     reached only with an error already in the bag, or with a top receiver.
+#     `_check_expr`), and the `DomainQuery` collection binder's lookup (a
+#     `line`/`cell` noun), reached only after resolve's `_check_domain_query`
+#     validated the noun. Each is reached only with an error already in the
+#     bag, or with a top receiver. A bare binder's lookup raises instead: its
+#     noun names a position or direction domain, a lookup that cannot miss.
 #   recorded residual, merge failure — 3: `ListLit` and the two `IfExpr` arms,
 #     where `join` returns None (issue #116).
 #   recorded residual, precision — 2: the order aggregators of BOTH
@@ -569,7 +570,7 @@ procedure bump(p : Player) { score[p] := 1 }
 #   the `Sig` model cannot express — `highest_by_trick_order`'s VALUE_SIGS row
 #   among them — and the `ChipStack` resource zone's element.
 AUDITED_TOP_SITES: dict[str, int] = {
-    "typecheck.py": 15,
+    "typecheck.py": 14,
     "types.py": 2,
     "builtins/signatures.py": 10,
 }

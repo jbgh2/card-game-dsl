@@ -288,13 +288,14 @@ class DomainQuery:
     (decisions.md "Boards and cells"), the positional twin of the fixed
     `Quantifier` forms. Five surface spellings, one node:
 
-    - BARE, over a declared position domain (`source is None`):
+    - BARE, over a declared position domain or the board's direction domain
+      (`source is None`):
       `any <domain> where <pred>`      (kind "any")
       `all <domain>s where <pred>`     (kind "all")
       `number of <domain>s where <pred>` (kind "count")
       -- `binder` is the singular domain noun, bound per member of the
-      domain's ordered members (`cell` for a board, an integer `positions {}`
-      name like `column`).
+      domain's ordered members (`cell` or `dir` for a board, an integer
+      `positions {}` name like `column`).
 
     - COLLECTION, over an evaluated collection (`source` present):
       `any line in <source> where <pred>`  (noun `line`, binds each line)

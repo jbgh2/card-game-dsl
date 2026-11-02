@@ -60,7 +60,12 @@ Completeness ledger
                      `positions {}` declarations,
                      the block's one parameterized value spelling
                      (`COLLECTION_NAME`), and an unknown name as the negative
-                     control.
+                     control. A board variant crosses the same positions
+                     with the names a `board:` mints, plain and optional --
+                     its position domains and the direction domains
+                     `resolve._minted_directions` admits -- read off the
+                     skeleton board game, so its expected column moves with
+                     what the board mints.
                 Two things sit outside these axes, and neither is a gap. The
                 bare constructor word `Collection` is not a column: it is
                 refused at every position, and the split it exposes — a
@@ -78,6 +83,7 @@ Completeness ledger
 
     registry:   A. cardlang/grammar/cardlang.lark (scraped by the pin below)
                 B. typecheck.KNOWN_TYPE_NAMES; domains.PARAM_DOMAINS;
+                   resolve._minted_directions (the board variant);
                    resolve._PROCEDURE_PARAM_DOMAINS; resolve's inline `Card`
                    and `Suit` literals; the game's own PositionDecl
 
@@ -113,7 +119,7 @@ from cardlang.ast import nodes as n
 from cardlang.domains import PARAM_DOMAINS
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import DECLARABLE_BUILTIN_TYPE_NAMES
-from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
+from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS, _minted_directions
 from cardlang.typecheck import KNOWN_TYPE_NAMES, TypeEnv
 from cardlang.types import TInteger, TOptional, Type
 
@@ -732,3 +738,112 @@ def test_a_plain_assertion_does_not_satisfy_a_designed_to_flip_cell() -> None:
     # ...while a real cell mismatch still satisfies the AssertionError contract
     # pytest expects of a failing test.
     assert isinstance(CellMismatch("cell"), AssertionError)
+
+
+# --- The board variant: the names a `board:` mints ---------------------------
+
+# The same positions over a two-seat board game, crossed with the names its
+# board mints. Card-only probes keep their own shape; what varies is the game
+# that hosts them, so the board's names reach every position.
+BOARD_GAME = """game B {
+  players: 2
+  max_length: 1000
+  board: grid(3, 3)
+  pieces: xo_marks%(extra_clause)s
+  zones { box : Deck  square[cell] : Cell<cell>  reserve[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0  tick : Integer = 0%(extra_state)s }
+  phase play%(outcome)s {%(rules)s for each player p: score[p] := 1 }
+  winner: highest score
+}
+%(extra)s"""
+
+
+def _board_prog(*, extra: str = "", extra_state: str = "", outcome: str = "",
+                rules: str = "", extra_clause: str = "") -> str:
+    return BOARD_GAME % {"extra": extra, "extra_state": extra_state,
+                         "outcome": outcome, "rules": rules,
+                         "extra_clause": extra_clause}
+
+
+BOARD_POSITIONS: dict[str, Callable[[str], str]] = {
+    "P1 state_decl": lambda d: _board_prog(extra_state=f"  s : {d} = 1"),
+    "P3 move_param": lambda d: _board_prog(
+        rules=" offer to 0 one of [mv]",
+        extra=f"move_type mv(x : {d}) {{ effect {{ score[actor] := 1 }} }}"),
+    "P4 proc_param": lambda d: _board_prog(
+        extra=f"procedure pr(x : {d}) {{ tick := 1 }}"),
+    "P5 rule_param": lambda d: _board_prog(
+        rules=" active_rules: [Rl(hearts)]",
+        extra=f"rule Rl(x : {d}) {{ demands: true }}"),
+    "P6 func_param": lambda d: _board_prog(extra=f"function f(x : {d}) = 1"),
+    "P8 outcome_payload": lambda d: _board_prog(
+        outcome=f" -> outcome {{ won({d}) | lost }}"),
+    "P10 primitive_param": lambda d: _board_prog(
+        extra_clause=f"\n  primitives {{ pinochle_meld_value(x : {d}) : Integer }}"),
+    "P11 primitive_return": lambda d: _board_prog(
+        extra_clause=f"\n  primitives {{ pinochle_meld_value(p : Player) : {d} }}"),
+}
+
+
+def _board_minted() -> tuple[frozenset[str], frozenset[str]]:
+    """The skeleton board game's minted names: its position domains and the
+    direction domains `resolve._minted_directions` admits."""
+    game = check_dsl(_board_prog(), "board-grid")
+    return frozenset(p.name for p in game.positions), _minted_directions(game)
+
+
+_BOARD_POSITIONS_MINTED, _BOARD_DIRECTIONS_MINTED = _board_minted()
+_BOARD_MINTED = _BOARD_POSITIONS_MINTED | _BOARD_DIRECTIONS_MINTED
+BOARD_NAMES = sorted(_BOARD_MINTED | {f"{m}?" for m in _BOARD_MINTED})
+
+
+def _with_optional(names: frozenset[str]) -> frozenset[str]:
+    return names | {f"{m}?" for m in names}
+
+
+# Each position's admitted board names, computed from what the board minted.
+BOARD_EXPECTED_ADMITS: dict[str, frozenset[str]] = {
+    "P1 state_decl": frozenset(),
+    # Exact spellings only: a move parameter's domain enumerates, and an
+    # optional board name has no enumeration.
+    "P3 move_param": _BOARD_MINTED,
+    "P4 proc_param": frozenset(),
+    "P5 rule_param": frozenset(),
+    "P6 func_param": _with_optional(_BOARD_MINTED),
+    "P8 outcome_payload": _with_optional(_BOARD_MINTED),
+    # A `primitives { }` entry spells the game's position domains, never a
+    # direction (`primitives_block.UNDECLARABLE_TYPE_CONSTRUCTORS`).
+    "P10 primitive_param": _with_optional(_BOARD_POSITIONS_MINTED),
+    "P11 primitive_return": _with_optional(_BOARD_POSITIONS_MINTED),
+}
+
+BOARD_CELLS = [(pos, name) for pos in BOARD_POSITIONS for name in BOARD_NAMES]
+
+
+def test_the_board_variant_crosses_every_position() -> None:
+    """The board variant's rows are the grammar-derived position axis, so a
+    position added there arrives here as a missing row."""
+    assert set(BOARD_POSITIONS) == set(POSITIONS) == set(BOARD_EXPECTED_ADMITS)
+    assert _BOARD_DIRECTIONS_MINTED, "the skeleton board minted no direction domain"
+
+
+@pytest.mark.parametrize("cell", BOARD_CELLS, ids=[_cell_id(c) for c in BOARD_CELLS])
+def test_the_board_names_grid(cell: tuple[str, str]) -> None:
+    """Every (position, board-minted name) cell matches what the board minted
+    and the position's own registry say.
+
+    red under: drop `_minted_directions(game)` from the admit set of
+    `resolve._check_declared_type_names` -- the P6 and P8 `dir` cells then
+    answer a refusal against an admit."""
+    position, name = cell
+    actual = _outcome(BOARD_POSITIONS[position](name))
+    admitted = name in BOARD_EXPECTED_ADMITS[position]
+    if admitted and actual != "admit":
+        raise CellMismatch(
+            f"{position} should admit the board's {name!r} but the gate "
+            f"answered {actual!r}"
+        )
+    if not admitted and actual == "admit":
+        raise CellMismatch(
+            f"{position} must not admit the board's {name!r}"
+        )

@@ -448,7 +448,8 @@ class RuntimeState:
         # members (decisions.md "Boards and cells", rung-2 movement); set by the
         # driver from `board_domains.directions_of`. A SEPARATE map from
         # `position_domains` (the `dir` domain is not a position), read by
-        # `mechanics.param_domain` for a `dir` move parameter.
+        # `mechanics.param_domain` for a `dir` move parameter and by
+        # `evaluate._domain_query` for a bare `dir` quantifier.
         self.direction_domains: dict[str, tuple[str, ...]] = {}
         # The instantiated `board:` entry (cells + lines), or None for a
         # boardless game; the driver builds it from `game.board`. The cell/line

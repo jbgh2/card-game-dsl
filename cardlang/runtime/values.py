@@ -482,14 +482,15 @@ def suit_strength(suit_values: Mapping[str, int], suit: str, reader: str) -> int
     The list may leave out a deck's special suits, and which cards reach a read
     is a fact of zone contents, so a suit the list leaves out is refused here,
     in the runtime's channel, naming the reader, the suit and the declared
-    list. The type layer lets a `Suit?` stand where a `Suit` is wanted, so a
-    `Suit?` argument holding none reaches here, and is refused the same way. An EMPTY
-    table is the Shadow Guard behind resolve's clause gate, which refuses the
-    reader in a game declaring no `suit ranking:`."""
+    list. A `Suit?` argument holding none never reaches here: the native-call
+    boundary (`reads.coerce_args`) refuses a none at a `Suit` slot first, and a
+    none here is its Shadow Guard. An EMPTY table is the Shadow Guard behind
+    resolve's clause gate, which refuses the reader in a game declaring no
+    `suit ranking:`."""
     if suit is None:
-        raise OwnerGuardError(
-            f"{reader}: no suit to rank (the value is none) — test `is none` "
-            f"before asking for a suit's strength"
+        raise ShadowGuardError(
+            "reads.coerce_args (a none at a native call's `Suit` slot)",
+            f"{reader} was asked the strength of no suit",
         )
     strength = suit_values.get(suit)
     if strength is not None:

@@ -46,7 +46,14 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               ``POSITION_NAME_SOURCES`` already holds. And a ``winner:``
               clause carries its target declaration's index role
               (``Winner.keyed_by``), so no later pass walks state
-              declarations to learn how the result is keyed. Every piece of
+              declarations to learn how the result is keyed. A bare
+              ``DomainQuery`` noun names a declared position domain or the
+              direction domain the board minted, and a move parameter's
+              domain, a function parameter's type and an outcome payload's
+              type name the direction domain only where the board minted it
+              (``_minted_directions``, the one gate each of them reads), so a
+              later pass may look any such name up in the position or the
+              direction source and find it. Every piece of
               library text spliced into the game -- a family library's move
               types, functions, procedures and provided state declarations,
               and every library rule a game activates, the standard
@@ -10844,8 +10851,10 @@ def _combination_outside_a_parameter(type_name: str, where: str) -> str | None:
 
 
 def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
-    """A function parameter's and a outcome payload's declared type name names
-    a real type.
+    """A function parameter's and an outcome payload's declared type name names
+    a real type: a value type, a declared position domain, or the direction
+    domain the board minted (`_minted_directions`); a boardless game's `dir`
+    is refused naming `board:`.
 
     Validating a declared type name is resolve's job: `StateDecl` is guarded
     in `_validate_refs` and move parameters have their own domain gate, and
@@ -10871,7 +10880,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     # declared in the same file as "unknown" while the same name stayed legal
     # on a move parameter.
     position_names = {p.name for p in game.positions}
-    known = KNOWN_TYPE_NAMES | position_names
+    known = KNOWN_TYPE_NAMES | position_names | _minted_directions(game)
     # A function parameter is the one position a climbing play is named in.
     parameter_known = known | {COMBINATION_TYPE_NAME}
 
@@ -10882,7 +10891,13 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
 
     for fn in game.functions:
         for p in fn.params:
-            if base_of(p.type_name) not in parameter_known:
+            if _directions_need_a_board(game, base_of(p.type_name)):
+                bag.error(
+                    f"parameter '{p.name}' of function " + cite_named(fn, f"'{fn.name}'")
+                    + f" is typed `{p.type_name}`, " + _BOARD_DIRECTION_NEEDS_A_BOARD,
+                    fn.span,
+                )
+            elif base_of(p.type_name) not in parameter_known:
                 bag.error(
                     f"unknown type '{p.type_name}' in parameter '{p.name}' of "
                     f"function " + cite_named(fn, f"'{fn.name}'"),
@@ -10896,6 +10911,12 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                 refused = _combination_outside_a_parameter(payload, "an outcome's payload")
                 if refused is not None:
                     bag.error(refused, case.span or phase.span)
+                elif _directions_need_a_board(game, base_of(payload)):
+                    bag.error(
+                        f"the payload of case '{case.tag}' is typed `{payload}`, "
+                        + _BOARD_DIRECTION_NEEDS_A_BOARD,
+                        case.span or phase.span,
+                    )
                 elif base_of(payload) not in known:
                     bag.error(
                         f"unknown type '{payload}' in payload of case "
@@ -11614,7 +11635,7 @@ def _check_move_params(
                 )
             bag.error(
                 f"move " + cite_named(mt, f"'{mt.name}'") + f" has unsupported parameter domain '{t}' "
-                f"(expected {expected})",
+                f"(expected {expected})" + _no_board_for_directions(game, t),
                 span,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
@@ -11815,13 +11836,60 @@ def _check_subset_source(sq: n.SubsetQuery, bag: DiagnosticBag) -> None:
         seen.add(spelled)
 
 
+def _minted_directions(game: n.Game) -> frozenset[str]:
+    """The board direction domains the game's board minted: `{dir}` once the
+    board validated, `{}` for a boardless game or a board that failed
+    (decisions.md "Boards and cells").
+
+    The one gate every position admitting `dir` reads -- a move parameter, a
+    bare quantifier noun, a function parameter's and an outcome payload's
+    type -- so no two of them can disagree on whether a board minted it. It
+    asks whether the board minted `cell` (a named-member position domain):
+    `_resolve_board` mints nothing for a board that failed validation, and
+    `directions_of` re-derives from the board entry, which raises on such a
+    board, so `cell` and `dir` stand or fall together."""
+    board_minted = any(
+        p.name == BOARD_DOMAIN and p.members_named is not None for p in game.positions
+    )
+    return frozenset(directions_of(game)) if board_minted else frozenset()
+
+
+def _directions_need_a_board(game: n.Game, name: str) -> bool:
+    """Whether `name` is the direction domain spelled in a game with no
+    `board:` to mint it and no declared domain of that name -- the refusal a
+    boardless game's `dir` earns at every position that admits one."""
+    return (
+        name == DIRECTION_DOMAIN
+        and game.board is None
+        and all(p.name != name for p in game.positions)
+    )
+
+
+# How every refusal of a boardless game's `dir` ends: what `dir` is, and the
+# clause the game lacks.
+_BOARD_DIRECTION_NEEDS_A_BOARD = (
+    "the board direction domain a `board:` mints, but the game declares no `board:`"
+)
+
+
+def _no_board_for_directions(game: n.Game, name: str) -> str:
+    """The clause a move parameter's refusal of a boardless game's `dir` (or
+    `dir?`) ends with, naming the missing `board:`; empty for every other
+    name."""
+    if not _directions_need_a_board(game, name.removesuffix("?")):
+        return ""
+    return f" -- `{DIRECTION_DOMAIN}` is " + _BOARD_DIRECTION_NEEDS_A_BOARD
+
+
 def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
     """Validate a positional-quantifier noun (decisions.md "Boards and cells").
 
-    A BARE form (`source is None`) ranges over a declared position domain; a
-    COLLECTION form (`in <expr>`) over one of the rung-1 collection nouns
-    {line, cell}. The plural convention is a resolve Owner Guard, not a grammar one:
-    `any` takes the singular noun, `all`/`number of` the plural (singular +
+    A BARE form (`source is None`) ranges over a declared position domain or
+    the direction domain the board minted (`_minted_directions`); a boardless
+    game naming `dir` is refused naming `board:`. A COLLECTION form
+    (`in <expr>`) ranges over one of the rung-1 collection nouns {line, cell}.
+    The plural convention is a resolve Owner Guard, not a grammar one: `any`
+    takes the singular noun, `all`/`number of` the plural (singular +
     "s"); a singular where the plural is required is guided to the plural
     spelling, an unknown noun to the declared universe.
 
@@ -11831,11 +11899,24 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
     phrase = n.DOMAIN_QUERY_KIND_PHRASE[nd.kind]
     if nd.source is None:
         declared = {p.name for p in game.positions}
+        directions = _minted_directions(game)
+        if _directions_need_a_board(game, nd.binder):
+            bag.error(
+                f"`{phrase} {nd.spelled}` ranges over the board directions, "
+                f"but the game declares no `board:`",
+                nd.span,
+            )
+            return
         universe = (
             f"declared position domains: {', '.join(sorted(declared))}"
             if declared
             else "this game declares no position domains"
         )
+        if directions:
+            universe += (
+                "; the board direction domain: "
+                + ", ".join(sorted(directions))
+            )
         if nd.binder in _COLLECTION_NOUNS and nd.binder not in declared:
             # A bare `any line where …`: the noun is a collection noun, so the
             # designer almost certainly dropped the `in <collection>` clause.
@@ -11843,7 +11924,7 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
                 f" (a `{nd.binder}` is quantified from a collection: "
                 f"`{phrase} {nd.spelled} in <collection> where ...`)"
             )
-        target_ok = nd.binder in declared
+        target_ok = nd.binder in declared or nd.binder in directions
         noun_kind = "position domain"
     else:
         if nd.binder == n.SUBSET_BINDER or nd.spelled == n.SUBSET_BINDER + "s":
@@ -11949,19 +12030,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     iterable_positions = frozenset(
         p.name for p in game.positions if p.members_named is not None
     )
-    # The board-minted `dir` domain, a SEPARATE source from `game.positions`
-    # (decisions.md "Boards and cells"): `{dir}` for a board game, `{}` for a
-    # boardless one, so a `dir` move parameter is admitted only where a board
-    # mints it. Gated on the board having MINTED (`cell` present as a
-    # named-member domain): an INVALID board (`_resolve_board` already emitted
-    # its diagnostic and minted nothing) leaves `directions_of` -- which
-    # re-derives from `board_entry` -- unsafe to call, and admitting `dir` off
-    # a board that failed validation would be wrong anyway. So `cell` and `dir`
-    # stand or fall together.
-    board_minted = any(
-        p.name == BOARD_DOMAIN and p.members_named is not None for p in game.positions
-    )
-    move_directions = frozenset(directions_of(game)) if board_minted else frozenset()
+    move_directions = _minted_directions(game)
     for mt in game.move_types:
         if mt.params:
             _check_move_params(mt, bag, mt.span, game, declared_positions, move_directions)
