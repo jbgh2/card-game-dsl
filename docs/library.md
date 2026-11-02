@@ -806,6 +806,13 @@ conventions:
   { side: [white, black], kind: [man], copies: { white: 9, black: 9 } }
   ```
 
+- `hex_stones` = hex's stones, one per cell of the 11x11 board split by
+  turn order: sixty-one black, sixty white, all one kind. Black is the
+  first side, seat 0's. Same two-axis shape as `xo_marks`.
+  ```text
+  { side: [black, white], kind: [stone], copies: { black: 61, white: 60 } }
+  ```
+
 Each entry captures a set's *composition* only. Card points
 (`card_points { }`), ranking for play (`ranking:`), follow-suit
 semantics, and trump status (`trump:`) are all per-game declarations
