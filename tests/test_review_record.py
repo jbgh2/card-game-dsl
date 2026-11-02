@@ -23,8 +23,9 @@ domain:     every tier crossed with every artifact-gate verdict, every lane
 registry:   tiers: `tools.review_record.TIERS`; artifact-gate verdicts:
             `tools.review_record.ARTIFACT_GATES`; lanes:
             `tools.review_record.LANES`; outcomes:
-            `tools.review_record.OUTCOMES`; the skill's written vocabulary:
-            `.claude/skills/cardlang-code-review/SKILL.md`, "Output".
+            `tools.review_record.OUTCOMES`; the review skill's written
+            vocabulary:
+            tests/test_review_record.py::test_the_skill_writes_the_vocabulary_the_gate_reads
 held by:    Derived and Pinned -- the gate derives the predicate from the
             pull request's own comments, bound to the head it reads, and
             this grid pins the derivation; the vocabulary is a `Literal`
