@@ -519,8 +519,9 @@ loss detected in the turn body, and the ladder's first cyclic movement:
 no rules body states a move cap or a repetition draw, so a line that
 never ends stops at the game's `max_length`, a tie
 ([decisions.md](../decisions.md), "Game length as a declared contract").
-The native differential against OpenSpiel's `nine_mens_morris` is issue
-#978.)
+The native differential against OpenSpiel's `nine_mens_morris` is
+`tests/test_differential_nine_mens_morris.py`, truncating at that
+implementation's turn cap (`kMaxNumTurns`, 200 completed turns).)
 
 ### backgammon
 

@@ -1,11 +1,13 @@
 """BOARDS registry: the grid family's cells, lines, directions, frames, and
-regions, the mill board's points, adjacency and lines, integrity-pinned.
+regions, the mill board's points, adjacency and lines, and the hex rhombus's
+cells, adjacency and seat borders, integrity-pinned.
 
 The family-by-verb grid and the entry-integrity grid over every family are
 tests/test_board_verb_availability.py; this module holds the grid family's
 geometry sweeps, each family's argument refusals, the mill board's
-`neighbors` and `lines(k)` tables, and the `__post_init__` pins' reddening
-witnesses.
+`neighbors` and `lines(k)` tables, the hex rhombus sweep, the walk of every
+family's minimal entry over the verbs it declares, and the `__post_init__`
+pins' reddening witnesses.
 
 property:   every BOARD_FAMILIES row builds a BoardEntry whose cells are
             unique, nonempty, and within the 256-member position-domain cap;
@@ -22,7 +24,11 @@ property:   every BOARD_FAMILIES row builds a BoardEntry whose cells are
             directions, and home()/far_row() are the back-two-ranks / far-rank
             regions -- refused as a ValueError naming "registry bug" in
             __post_init__, with the adequacy pins (no dead direction, disjoint
-            2*width homes) enforced only where width >= 2 and height >= 4.
+            2*width homes) enforced only where width >= 2 and height >= 4;
+            and `hex_rhombus(n)`'s cells are the grid's names row-major, its
+            edges exactly the pairs at cube distance one, its degrees the
+            closed form's, and each seat's borders the two sides it joins,
+            sharing exactly the corner hexagons.
 domain:     BOARD_FAMILIES rows x argument space (arity,
             per-argument bounds, and the misuse shapes: unknown family,
             wrong arity, out-of-bounds argument) x entry-integrity
@@ -35,11 +41,15 @@ domain:     BOARD_FAMILIES rows x argument space (arity,
             pins (offsets-cover-directions, frames-are-180-rotations,
             neighbor-in-cells-or-None, regions subset/sized/edged, and the
             adequacy pins) over a grid sweep spanning degenerate,
-            breakthrough-shaped, and non-square boards.
+            breakthrough-shaped, and non-square boards; the hex rhombus at
+            n in {1, 2, 3, 11, 16} -- the one-cell board, the smallest with
+            corners of both kinds, the first with an interior, the Hex board,
+            and the largest side the position-domain cap admits.
             The topology pins (edges joining two distinct board cells and
             reaching every cell, line lengths increasing and derived from
-            exactly one topology, a frame covering exactly the cells) are
-            each fed the one bad builder output they name.
+            exactly one topology, a frame covering exactly the cells, each
+            seat's borders distinct board cells in board order) are each fed
+            the one bad builder output they name.
             A group of board features sits outside BoardEntry, and none is a
             gap in this registry's own domain: relations beyond one adjacency
             set, jump triples (draughts), track frames (backgammon),
@@ -51,8 +61,19 @@ domain:     BOARD_FAMILIES rows x argument space (arity,
             nine men's morris witnesses.
 registry:   cardlang.stdlib.boards.BOARD_FAMILIES, .board_entry, .BoardEntry
             (.lines, .neighbors, .directions, .is_diagonal, .neighbor,
-            .has_step, .home, .far_row), .GridFrame, and the grid builder's
-            _GRID_DIRECTION_OFFSETS table.
+            .has_step, .home, .far_row, .near_edge, .far_edge), .GridFrame,
+            .SeatBorders, the grid builder's _GRID_DIRECTION_OFFSETS table and
+            the hex builder's _HEX_FORWARD_OFFSETS;
+            cardlang.builtins.functions.BOARD_VERB_NEEDS (the matrix walk);
+            the native oracle: OpenSpiel's `hex` (pyspiel, skipped without
+            it).
+held by:    the hex rhombus's edges and borders are a Born-Green Pin: the
+            cube-distance re-derivation reads no offset list, so a wrong
+            offset in the builder diverges from it, and its red-under
+            mutations below are run; not higher, because the geometry is
+            generated data no type states. The adjacency's symmetry is
+            Unrepresentable (an edge is an unordered pair), so no pin holds
+            it.
 does not prove:  that `lines(k)` is right at 16x16 by independent
             reconstruction. Brute force over every k-combination of 256 cells
             is infeasible, so at that size the sweep holds the generator
@@ -63,7 +84,10 @@ does not prove:  that `lines(k)` is right at 16x16 by independent
             Nor that the movement pins hold on every board the runtime can
             instantiate. They are refused at construction, so the static
             sweep samples grid shapes rather than re-proving each pin on
-            every reachable board.
+            every reachable board. Nor that the hex adjacency is the one a
+            Hex player plays on beyond the oracle's two-board facts: the
+            sweep holds the builder against geometry, and the differential
+            against OpenSpiel's `hex` (issue #973) carries the rest.
 
 red under (naming): transposing the file/rank order in _cell_name --
 swapping `f"{_FILES[column]}{row + 1}"` for `f"{row + 1}{_FILES[column]}"`
@@ -112,12 +136,17 @@ to fail its named assertion before landing.
 from __future__ import annotations
 
 import itertools
+from typing import Any
 
 import pytest
 
+from cardlang.board_domains import board_directions
+from cardlang.builtins.functions import BOARD_ONLY_CALL_FUNCS, BOARD_VERB_NEEDS
+from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.stdlib import boards
 from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
+from cardlang.types import TCell, TDir, TInteger, TPlayer
 
 GRIDS: list[tuple[int, int]] = [(1, 1), (2, 5), (5, 2), (16, 16), (3, 3)]
 SMALL_GRIDS: list[tuple[int, int]] = [(1, 1), (2, 5), (5, 2), (3, 3)]
@@ -235,6 +264,10 @@ BAD_ARGS_CASES: list[tuple[str, tuple[int, ...], str]] = [
     ("grid", (3, 17), "1..16"),
     ("grid", (-1, 3), "1..16"),
     ("morris9", (3,), "takes 0 argument"),
+    ("hex_rhombus", (3, 3), "takes 1 argument"),
+    ("hex_rhombus", (), "takes 1 argument"),
+    ("hex_rhombus", (0,), "1..16"),
+    ("hex_rhombus", (17,), "1..16"),
 ]
 
 
@@ -243,7 +276,7 @@ BAD_ARGS_CASES: list[tuple[str, tuple[int, ...], str]] = [
     BAD_ARGS_CASES,
     ids=[
         "unknown_family", "arity_1", "arity_3", "arg_zero", "arg_17", "arg_negative",
-        "morris9_arity_1",
+        "morris9_arity_1", "hex_arity_2", "hex_arity_0", "hex_arg_zero", "hex_arg_17",
     ],
 )
 def test_board_entry_rejects_bad_args(
@@ -257,12 +290,9 @@ def test_board_entry_rejects_bad_args(
         board_entry(family, args)
 
 
-def test_board_families_are_grid_and_morris9() -> None:
-    assert set(BOARD_FAMILIES) == {"grid", "morris9"}
-    assert BOARD_FAMILIES["grid"].arity == 2
-    assert BOARD_FAMILIES["grid"].lo == 1
-    assert BOARD_FAMILIES["grid"].hi == 16
-    assert BOARD_FAMILIES["morris9"].arity == 0
+def test_board_families_are_the_three_rows() -> None:
+    rows = {name: (f.arity, f.lo, f.hi) for name, f in BOARD_FAMILIES.items()}
+    assert rows == {"grid": (2, 1, 16), "morris9": (0, 0, 0), "hex_rhombus": (1, 1, 16)}
 
 
 def test_morris9_answers_lines_of_three_only() -> None:
@@ -283,22 +313,43 @@ def test_morris9_neighbors_hand_table() -> None:
     assert entry.neighbors("c3") == ("d3", "c4")
 
 
-def test_lines_is_total_over_the_family_registry() -> None:
-    # Every family answers `lines(k)` for each length it declares, from the
-    # topology it declares (a frame's geometry or its edges), never from a
-    # second enumeration of the family names. The args are the minimal valid
-    # ones, derived per row (`lo` repeated `arity` times), so a new family is
-    # covered without hand-listing.
-    # red under: replacing the `_straight_runs` branch of `BoardEntry.lines`
-    # with the grid geometry (an edge family then reads the absent frame).
+def test_every_family_answers_each_verb_its_entry_declares() -> None:
+    """The family-by-verb matrix walk: on each family's minimal entry (`lo`
+    repeated `arity` times, derived per row, so a new family is covered
+    without hand-listing), every board verb whose part the entry declares
+    answers without raising, and every board verb is answered by some
+    family. A verb reads its part of the entry, never a second enumeration
+    of the family names.
+
+    red under: replacing the `_straight_runs` branch of `BoardEntry.lines`
+    with the grid geometry (an edge family then reads the absent frame);
+    building `boards._hex_rhombus` with `borders=None` (no family then
+    answers `near_edge` or `far_edge`)."""
+    answered: set[str] = set()
     for family, spec in BOARD_FAMILIES.items():
         entry = board_entry(family, (spec.lo,) * spec.arity)
-        assert entry.line_lengths, (
-            f"{family} declares no line length: unskip the `board_lines` cells "
-            "of tests/test_library_clause_gates.py rather than give it lines"
-        )
-        for k in entry.line_lengths:
-            assert entry.lines(k), (family, k)
+        for verb, need in BOARD_VERB_NEEDS.items():
+            if not entry.answers(need):
+                continue
+            answered.add(verb)
+            read = getattr(entry, verb)
+            dirs = entry.directions() if entry.frame is not None else ()
+            for args in _verb_args(verb, entry, dirs):
+                read(*args)
+    assert answered == BOARD_ONLY_CALL_FUNCS
+
+
+def _verb_args(
+    verb: str, entry: BoardEntry, dirs: tuple[str, ...]
+) -> list[tuple[object, ...]]:
+    """Every argument tuple a board verb admits on `entry`, by its signature."""
+    pools: dict[type, tuple[object, ...]] = {
+        TCell: entry.cells,
+        TDir: dirs,
+        TPlayer: (0, 1),
+        TInteger: entry.line_lengths,
+    }
+    return list(itertools.product(*(pools[type(p)] for p in CALL_SIGS[verb].params)))
 
 
 # ---------------------------------------------------------------------------
@@ -712,12 +763,21 @@ def _edges(*pairs: tuple[str, str]) -> frozenset[frozenset[str]]:
     return frozenset(frozenset(p) for p in pairs)
 
 
+def _borders(
+    near: tuple[str, ...] = ("a1",), far: tuple[str, ...] = ("c1",)
+) -> tuple[boards.SeatBorders, boards.SeatBorders]:
+    """Two seats' borders over the probe's three cells, seat 0's sides
+    replaced as given."""
+    return (boards.SeatBorders(near, far), boards.SeatBorders(("a1",), ("c1",)))
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
         (dict(edges=_edges(("a1", "z9"))), "join two distinct cells"),
         (dict(edges=frozenset({frozenset({"a1"})})), "join two distinct cells"),
         (dict(edges=_edges(("a1", "b1"))), "reach every cell"),
+        (dict(edges=frozenset(), cells=("a1", "b1")), "reach every cell"),
         (dict(line_lengths=(3,)), "exactly one topology"),
         (dict(edges=_edges(("a1", "b1"), ("b1", "c1")), line_lengths=(3, 2)), "increasing order"),
         (
@@ -727,15 +787,26 @@ def _edges(*pairs: tuple[str, str]) -> frozenset[frozenset[str]]:
             ),
             "frame must cover exactly",
         ),
+        (dict(borders=_borders(near=("a1", "z9"))), "near border must be distinct cells"),
+        (dict(borders=_borders(near=())), "near border must be distinct cells"),
+        (dict(borders=_borders(near=("a1", "a1"))), "near border must be distinct cells"),
+        (dict(borders=_borders(far=("c1", "a1"))), "far border must be in board order"),
     ],
-    ids=["edge-off-board", "self-loop", "unjoined-cell", "lines-without-topology",
-         "lengths-out-of-order", "frame-off-cells"],
+    ids=["edge-off-board", "self-loop", "unjoined-cell", "two-cells-no-edge",
+         "lines-without-topology",
+         "lengths-out-of-order", "frame-off-cells",
+         "border-off-board", "border-empty", "border-duplicate", "border-out-of-order"],
 )
 def test_entry_topology_pins_refuse_a_registry_bug(kwargs: dict[str, object], message: str) -> None:
     """Each __post_init__ topology pin, fed the one bad builder output it
-    names, refuses in the registry-bug channel."""
+    names, refuses in the registry-bug channel; the probe board is three
+    cells unless the row names its own.
+
+    red under: `len(cellset) > 2` in place of `> 1` in
+    `BoardEntry._check_edge_integrity` (the two-cell row)."""
+    fields: dict[str, object] = {"family": "probe", "args": (), "cells": ("a1", "b1", "c1")}
     with pytest.raises(ValueError, match=message) as caught:
-        BoardEntry(family="probe", args=(), cells=("a1", "b1", "c1"), **kwargs)  # type: ignore[arg-type]
+        BoardEntry(**{**fields, **kwargs})  # type: ignore[arg-type]
     assert not isinstance(caught.value, OwnerGuardError)
 
 
@@ -776,3 +847,176 @@ def test_the_boards_author_split_is_carried_by_the_type() -> None:
             "the designer's `board:` line, which is the defect this split "
             "exists to prevent"
         )
+
+
+# ---------------------------------------------------------------------------
+# hex_rhombus(n): cells, the six-neighbour adjacency, each seat's borders
+# ---------------------------------------------------------------------------
+
+HEX_SIDES: list[int] = [1, 2, 3, 11, 16]
+
+
+def _hex_coords(cell: str) -> tuple[int, int]:
+    """(column, row), 0-based, read off the name -- independent of boards.py."""
+    return ord(cell[0]) - ord("a"), int(cell[1:]) - 1
+
+
+def _hex_adjacent(u: str, v: str) -> bool:
+    """Independent re-derivation of the rhombus's adjacency in cube
+    coordinates: column x, row z, y = -x - z; two hexagons touch exactly
+    when their cube distance is one. No offset list is read or retyped."""
+    (x1, z1), (x2, z2) = _hex_coords(u), _hex_coords(v)
+    dx, dz = x2 - x1, z2 - z1
+    return max(abs(dx), abs(dz), abs(dx + dz)) == 1
+
+
+def _hex_degree_histogram(n: int) -> dict[int, int]:
+    """The closed-form degree count: the two acute corners touch two cells,
+    the two obtuse corners three, the other border cells four, the interior
+    six; the one cell of a 1-board touches none."""
+    if n == 1:
+        return {0: 1}
+    if n == 2:
+        return {2: 2, 3: 2}
+    return {2: 2, 3: 2, 4: 4 * (n - 2), 6: (n - 2) ** 2}
+
+
+@pytest.mark.parametrize("side", HEX_SIDES, ids=[f"n{n}" for n in HEX_SIDES])
+def test_hex_rhombus_cells_are_the_grid_names_row_major(side: int) -> None:
+    entry = board_entry("hex_rhombus", (side,))
+    assert entry.cells == tuple(_name(c, r) for r in range(side) for c in range(side))
+
+
+@pytest.mark.parametrize("side", HEX_SIDES, ids=[f"n{n}" for n in HEX_SIDES])
+def test_hex_rhombus_adjacency_is_the_cube_distance_one_relation(side: int) -> None:
+    """The declared edges are exactly the pairs at cube distance one.
+
+    red under: (+1, +1) in place of (+1, -1) in `boards._HEX_FORWARD_OFFSETS`
+    (the extra edge `a1`-`b2`); dropping its (0, +1)."""
+    entry = board_entry("hex_rhombus", (side,))
+    assert entry.edges is not None
+    expected = {
+        frozenset((u, v))
+        for u, v in itertools.combinations(entry.cells, 2)
+        if _hex_adjacent(u, v)
+    }
+    assert set(entry.edges) == expected
+
+
+@pytest.mark.parametrize("side", HEX_SIDES, ids=[f"n{n}" for n in HEX_SIDES])
+def test_hex_rhombus_degrees_are_the_closed_form(side: int) -> None:
+    """Every neighbour is a cell of the board, no cell its own neighbour, at
+    most six neighbours, and the degree histogram the closed form's. The
+    mirrored rhombus has the same degrees, so the orientation of the
+    adjacency is the cube-distance relation's to hold, not this pin's.
+
+    red under: dropping (0, +1) from `boards._HEX_FORWARD_OFFSETS`."""
+    entry = board_entry("hex_rhombus", (side,))
+    cellset = set(entry.cells)
+    degrees: dict[int, int] = {}
+    for cell in entry.cells:
+        nbrs = entry.neighbors(cell)
+        assert cell not in nbrs and set(nbrs) <= cellset and len(nbrs) <= 6
+        degrees[len(nbrs)] = degrees.get(len(nbrs), 0) + 1
+    assert degrees == _hex_degree_histogram(side)
+
+
+def test_hex_rhombus_adjacency_facts_on_the_two_board() -> None:
+    """The two facts the native oracle's `hex(board_size=2)` shows (black on
+    `b1` and `a2` is a win; black on `a1` and `b2` with white on `b1` is
+    not): `b1` touches `a2`, and `a1` does not touch `b2`.
+
+    red under: (+1, +1) in place of (+1, -1) in `boards._HEX_FORWARD_OFFSETS`."""
+    entry = board_entry("hex_rhombus", (2,))
+    assert "a2" in entry.neighbors("b1")
+    assert "b2" not in entry.neighbors("a1")
+    assert entry.neighbors("a1") == ("b1", "a2")
+
+
+@pytest.mark.parametrize("side", HEX_SIDES, ids=[f"n{n}" for n in HEX_SIDES])
+def test_hex_rhombus_borders(side: int) -> None:
+    """Seat 0 joins rank 1 to the last rank; seat 1 joins file `a` to the
+    last file. Each border holds one side's cells in board order; the two
+    near borders share exactly `a1` and the two far borders exactly the
+    opposite acute corner -- each corner hexagon belongs to both of its
+    board edges.
+
+    red under: swapping the two seats' borders in `boards._hex_rhombus`."""
+    entry = board_entry("hex_rhombus", (side,))
+    last_file = chr(ord("a") + side - 1)
+    assert entry.near_edge(0) == _rank(1, side)
+    assert entry.far_edge(0) == _rank(side, side)
+    assert entry.near_edge(1) == tuple(f"a{r}" for r in range(1, side + 1))
+    assert entry.far_edge(1) == tuple(f"{last_file}{r}" for r in range(1, side + 1))
+    for p in (0, 1):
+        assert len(entry.near_edge(p)) == len(entry.far_edge(p)) == side
+        if side >= 2:
+            assert not set(entry.near_edge(p)) & set(entry.far_edge(p))
+    assert set(entry.near_edge(0)) & set(entry.near_edge(1)) == {"a1"}
+    assert set(entry.far_edge(0)) & set(entry.far_edge(1)) == {f"{last_file}{side}"}
+
+
+def test_hex_rhombus_mints_no_lines_no_frame_and_no_directions() -> None:
+    entry = board_entry("hex_rhombus", (11,))
+    assert entry.line_lengths == () and entry.frame is None
+    assert board_directions(entry) == {}
+
+
+def test_hex_rhombus_border_reads_refuse_a_seat_off_the_two() -> None:
+    entry = board_entry("hex_rhombus", (3,))
+    for read in (entry.near_edge, entry.far_edge):
+        with pytest.raises(ValueError, match="players 0 and 1"):
+            read(2)
+
+
+def test_border_reads_refuse_a_borderless_entry() -> None:
+    # The border verbs read `BoardEntry.borders`; on a grid, which declares
+    # none, each is the registry-bug refusal behind resolve's availability
+    # row, never a grid answer.
+    grid = board_entry("grid", (3, 3))
+    for read in (grid.near_edge, grid.far_edge):
+        with pytest.raises(ValueError, match="reads seat borders, but board family 'grid'"):
+            read(0)
+
+
+def test_hex_rhombus_cell_ids_and_borders_agree_with_the_native_oracle() -> None:
+    """OpenSpiel's `hex` prints action id i as the name of cell i, for every
+    cell of `board_size=11`; and on `board_size=2` black (seat 0) on `a1`
+    and `a2`, rank 1 to rank 2, wins, as white on `a1` and `b1`, file `a`
+    to file `b`, wins for white -- the borders each seat joins; and black on
+    `b1` and `a2` wins while black on `a1` and `b2` beside white's `b1` does
+    not -- the diagonal the adjacency runs along.
+
+    red under: transposing file and rank in `boards._cell_name` (the cell
+    order); swapping the two seats' borders in `boards._hex_rhombus`; (+1, +1)
+    in place of (+1, -1) in `boards._HEX_FORWARD_OFFSETS` (the orientation)."""
+    pyspiel = pytest.importorskip("pyspiel")
+    entry = board_entry("hex_rhombus", (11,))
+    state = pyspiel.load_game("hex", {"board_size": 11}).new_initial_state()
+    assert [state.action_to_string(0, i) for i in range(len(entry.cells))] == list(entry.cells)
+
+    two = board_entry("hex_rhombus", (2,))
+    game = pyspiel.load_game("hex", {"board_size": 2})
+
+    def play(*cells: str) -> Any:
+        st = game.new_initial_state()
+        for cell in cells:
+            st.apply_action(two.cells.index(cell))
+        return st
+
+    black = play("a1", "b1", "a2")
+    assert black.is_terminal() and black.returns()[0] > 0
+    assert "a1" in two.near_edge(0) and "a2" in two.far_edge(0)
+    white = play("b2", "a1", "a2", "b1")
+    assert white.is_terminal() and white.returns()[1] > 0
+    assert "a1" in two.near_edge(1) and "b1" in two.far_edge(1)
+
+    # The diagonal's orientation, which tells the two shears apart: black on
+    # `b1` and `a2` joins rank 1 to rank 2, so they touch; black on `a1` and
+    # `b2` beside white's `b1` joins nothing, so they do not.
+    joined = play("b1", "a1", "a2")
+    assert joined.is_terminal() and joined.returns()[0] > 0
+    assert "a2" in two.neighbors("b1")
+    apart = play("a1", "b1", "b2")
+    assert not apart.is_terminal()
+    assert "b2" not in two.neighbors("a1")

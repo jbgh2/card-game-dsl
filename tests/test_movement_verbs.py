@@ -333,6 +333,23 @@ def test_verb_evaluates_to_expected_value(
     assert call(verb, list(args), ctx) == expected
 
 
+# (verb, seat, expected) on a hex_rhombus(3), hand-written from the Hex rule:
+# seat 0 joins rank 1 to rank 3, seat 1 file `a` to file `c`.
+@pytest.mark.parametrize(
+    "verb,seat,expected",
+    [
+        pytest.param("near_edge", 0, ("a1", "b1", "c1"), id="near_edge-p0"),
+        pytest.param("near_edge", 1, ("a1", "a2", "a3"), id="near_edge-p1"),
+        pytest.param("far_edge", 0, ("a3", "b3", "c3"), id="far_edge-p0"),
+        pytest.param("far_edge", 1, ("c1", "c2", "c3"), id="far_edge-p1"),
+    ],
+)
+def test_border_verb_evaluates_to_expected_value(verb: str, seat: int, expected: object) -> None:
+    """red under: `runtime/builtins._near_edge` reading `.far_edge`."""
+    ctx = _board_ctx("hex_rhombus", (3,))
+    assert call(verb, [seat], ctx) == expected
+
+
 def test_neighbor_offboard_shadow_guard_raises() -> None:
     """`neighbor` is total-with-Shadow-Guard: an off-board step (unreachable in a
     game because every call site is `has_step`-gated) is refused here in the
@@ -413,27 +430,28 @@ def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
 # =============================================================================
 # FRAME VERBS x PLAYER COUNT (Codex P2, PR #92): a grid's per-player frame is
 # defined for two opposed seats (one's forward is the other's, the 180-degree
-# opposite), so the board-only verbs that read it -- the ones taking a player --
-# are rejected in a game that is not exactly two players. Without the guard a
+# opposite), so the board-only verbs that read the board from a seat -- the
+# ones taking a player, the frame's and a seat's borders alike -- are rejected
+# in a game that is not exactly two players. Without the guard a
 # 3-plus-player game resolves clean and then dies at play with the frame's
-# registry-bug ValueError for seat 2. `_FRAME_CALL_FUNCS` is DERIVED from the
+# registry-bug ValueError for seat 2. `_SEAT_CALL_FUNCS` is DERIVED from the
 # signatures (board-only + a player param), so the guard's domain cannot drift.
 # =============================================================================
 
 
-def test_frame_call_funcs_is_the_player_taking_board_verbs() -> None:
+def test_seat_call_funcs_is_the_player_taking_board_verbs() -> None:
     # The guard's domain, pinned to its derivation rather than hand-listed: the
     # board-only calls whose Sig takes a player. A new player-taking board verb
-    # joins _FRAME_CALL_FUNCS -- and the two-seat guard -- by construction; a new
+    # joins _SEAT_CALL_FUNCS -- and the two-seat guard -- by construction; a new
     # player-free one (a second `lines`/`is_diagonal`) does not.
     from cardlang.builtins.functions import BOARD_ONLY_CALL_FUNCS
     from cardlang.builtins.signatures import CALL_SIGS
-    from cardlang.resolve import _FRAME_CALL_FUNCS
+    from cardlang.resolve import _SEAT_CALL_FUNCS
     from cardlang.types import TPlayer
 
-    assert _FRAME_CALL_FUNCS == {"neighbor", "has_step", "home", "far_row"}
-    assert _FRAME_CALL_FUNCS <= BOARD_ONLY_CALL_FUNCS
-    assert _FRAME_CALL_FUNCS == {
+    assert _SEAT_CALL_FUNCS == {"neighbor", "has_step", "home", "far_row", "near_edge", "far_edge"}
+    assert _SEAT_CALL_FUNCS <= BOARD_ONLY_CALL_FUNCS
+    assert _SEAT_CALL_FUNCS == {
         fn
         for fn in BOARD_ONLY_CALL_FUNCS
         if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
@@ -480,9 +498,15 @@ _HOME_SETUP = (
     [("  players: 3\n", "3"), ("  players: 4\n", "4")],
 )
 def test_frame_verb_in_a_non_two_player_game_is_rejected(players_line: str, count: str) -> None:
+    """The refusal says why from the part the verb reads, the frame, and
+    nothing of a seat's borders.
+
+    red under: building every `resolve._SEAT_GATES` row's reason from
+    `_SEAT_NEED_REASONS["borders"]`."""
     msg = _reject(_grid_game(players_line, _HOME_SETUP))
-    assert "`home` reads a grid's two-player movement frame" in msg
-    assert f"declares {count} players" in msg
+    assert "`home` reads the board's movement frame, which faces two seats" in msg
+    assert f"declares `players: {count}`" in msg
+    assert "hex" not in msg and "border" not in msg
 
 
 def test_frame_verb_in_a_two_player_game_is_accepted() -> None:

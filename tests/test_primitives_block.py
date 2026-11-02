@@ -1975,15 +1975,15 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
         TRICK_ORDER_EXCLUDED_FUNCS,
         TRICK_ORDER_GATED_FUNCS,
     )
-    from cardlang.resolve import _FRAME_CALL_FUNCS, _TRICK_ORDER_READERS
+    from cardlang.resolve import _SEAT_CALL_FUNCS, _TRICK_ORDER_READERS
     from cardlang.typecheck import RANKING_GATED_FUNCS
 
     candidates = {
         # resolve's content-flavor guard, and its boardless sibling.
         "DECK_ONLY_CALL_FUNCS": DECK_ONLY_CALL_FUNCS,
         "BOARD_ONLY_CALL_FUNCS": BOARD_ONLY_CALL_FUNCS,
-        # resolve's two-seat frame guard, inside the board-call check.
-        "_FRAME_CALL_FUNCS": frozenset(_FRAME_CALL_FUNCS),
+        # resolve's two-seat guard, inside the board-call check.
+        "_SEAT_CALL_FUNCS": frozenset(_SEAT_CALL_FUNCS),
         # typecheck's `ranking:`-required call gate.
         "RANKING_GATED_FUNCS": RANKING_GATED_FUNCS,
         # resolve's arrival-record gate, over the winners that read one.
