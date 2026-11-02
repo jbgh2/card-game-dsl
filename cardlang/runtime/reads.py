@@ -109,7 +109,7 @@ def _declared_spelling(t: Type) -> str:
 def coerce_args(sig: Any, args: list[Any], name: str) -> list[Any]:
     """Freeze the argument list of one native call, before it crosses into
     Builtin or Primitive code, refusing a `none` at a slot whose type holds
-    none.
+    none, and a `none` member of a collection whose element type holds none.
 
     The refusal is this site's because every native call crosses it, and
     `types.coercible` admits an optional where its base is wanted by design
@@ -154,7 +154,19 @@ def coerce_args(sig: Any, args: list[Any], name: str) -> list[Any]:
                 f"with `is none` before passing it"
             )
         if isinstance(p, TCollection):
-            coerced.append(deep_freeze(elements(a)))
+            members = deep_freeze(elements(a))
+            if (
+                not isinstance(p.element, (TAny, TOptional))
+                and isinstance(members, tuple)
+                and any(m is None for m in members)
+            ):
+                raise OwnerGuardError(
+                    f"`{name}` was given a collection holding none where it needs a "
+                    f"`{_declared_spelling(p)}` (argument {slot}): an optional value "
+                    f"put in it is none here -- test it with `is none` before putting "
+                    f"it in the collection"
+                )
+            coerced.append(members)
         elif isinstance(p, TAny):
             coerced.append(a)  # raw: the adapter dispatches on the shape
         else:

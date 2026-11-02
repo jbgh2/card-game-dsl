@@ -1,0 +1,1 @@
+lines3_on_draughts.cardlang:31:20: error: `lines` reads the board's lines, but `board: draughts(8, 8)` has none — on this board a game may call `far_row`, `has_step`, `home`, `is_diagonal`, `is_forward` or `neighbor`

@@ -1,0 +1,30 @@
+// Guard: resolve's board-only guard (cardlang/resolve.py::_check_board_call,
+// BOARD_ONLY_CALL_FUNCS). `connected` reads the `board:` entry's adjacency; a
+// game with an integer Position Domain named `cell` declares no board, so the
+// call is rejected at resolve naming `board:`.
+game ConnectedBoardless {
+  players: 2
+  max_length: 30
+  positions { cell : 1..9 }
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest score
+}
+move_type place(at : cell) {
+  when: (square[at] is empty) and connected([1], [9], cells where square[cell] is empty)
+  effect { move one piece from reserve[actor] to square[at] }
+}
+move_type stop { effect { done := true } }

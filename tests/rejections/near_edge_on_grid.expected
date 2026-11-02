@@ -1,1 +1,1 @@
-near_edge_on_grid.cardlang:27:42: error: `near_edge` reads each seat's two borders (the board edges it joins), but `board: grid(8, 8)` has none — on this board a game may call `far_row`, `has_step`, `home`, `is_diagonal`, `lines` or `neighbor`
+near_edge_on_grid.cardlang:27:42: error: `near_edge` reads each seat's two borders (the board edges it joins), but `board: grid(8, 8)` has none — on this board a game may call `far_row`, `has_step`, `home`, `is_diagonal`, `is_forward`, `lines` or `neighbor`

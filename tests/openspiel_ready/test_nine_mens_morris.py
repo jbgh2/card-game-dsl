@@ -78,7 +78,13 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, TerminalNode, run
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
-from .partition import first_divergence, projection_for, record, zone_instances
+from .partition import (
+    first_divergence,
+    projection_for,
+    record,
+    unshown_occupants,
+    zone_instances,
+)
 
 PATH = str(GAMES_DIR / "nine-mens-morris.cardlang")
 
@@ -93,15 +99,6 @@ def _zone_render(info: str) -> str:
     """The zone-projection portion of an information state (between the
     ``P<n>|`` prefix and ``|state:``)."""
     return info.split("|", 1)[1].split("|state:", 1)[0]
-
-
-def _occupied(rs: Any) -> list[tuple[str, Any]]:
-    """(label, first occupant) for every populated zone instance."""
-    return [
-        (name if key is None else f"{name}[{key}]", zone.cards[0])
-        for name, key, zone in zone_instances(rs)
-        if zone.cards
-    ]
 
 
 class TestReadiness(ReadinessProofs):
@@ -157,11 +154,7 @@ class TestReadiness(ReadinessProofs):
                 f"in identity zones — a man is over-hidden"
             )
             info = information_state(p, pause.rs, pause.obs_logs[p])
-            missing = [
-                label
-                for label, occupant in _occupied(pause.rs)
-                if f"{label}=[{occupant}" not in info
-            ]
+            missing = unshown_occupants(pause.rs, info)
             assert not missing, (
                 f"cardlang_nine_mens_morris: P{p}'s info state does not show the "
                 f"men on {missing}"

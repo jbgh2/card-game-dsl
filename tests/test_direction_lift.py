@@ -42,8 +42,10 @@ witness:
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
-property:   in a game whose board mints `dir`, every bare quantifier kind over
-            `dir` checks in every expression host, binds a `TDir` that every
+property:   in a game whose board mints `dir`, every bare quantifier fold in
+            `n.DIRECTION_QUERY_KINDS` over `dir` checks in every expression host
+            (the set, which gathers positions, is refused naming the
+            direction domain in every cell), binds a `TDir` that every
             `TDir`-consuming Builtin slot admits and every other slot refuses,
             and evaluates over the board entry's direction members in the
             move parameter's order; `dir` at a function parameter or outcome
@@ -131,7 +133,7 @@ import random
 import typing
 from collections.abc import Callable, Iterator
 from dataclasses import fields, is_dataclass, replace
-from typing import Any
+from typing import Any, assert_never
 
 import pytest
 
@@ -154,23 +156,46 @@ from cardlang.typecheck import TypeEnv, _domain_query_binder_type, _type_name
 from cardlang.types import TAny, TBoolean, TCell, TCollection, TDir, TOptional, TPlayer, Type
 from tests.test_cell_queries import _board_ctx, _checked_board_expr, _unused_chooser
 
-KINDS = tuple(n.DOMAIN_QUERY_KIND_PHRASE)
+KINDS = n.DOMAIN_QUERY_KINDS
+
+# The set gathers positions, so over the direction domain it is refused in
+# every cell, naming the domain (`resolve._check_domain_query`).
+SET_REFUSAL = f"`{DIRECTION_DOMAIN}` is the board direction domain, not a position domain"
 
 
-def _noun(kind: str) -> str:
-    # `any` takes the singular noun, `all` and `number of` the plural (the
-    # plural convention resolve's `_check_domain_query` holds).
+def _noun(kind: n.DomainQueryKind) -> str:
+    # `any` takes the singular noun, `all`, `number of` and the set the
+    # plural (the plural convention resolve's `_check_domain_query` holds).
     return DIRECTION_DOMAIN if kind == "any" else DIRECTION_DOMAIN + "s"
 
 
-def _query(kind: str, pred: str) -> str:
-    return f"{n.DOMAIN_QUERY_KIND_PHRASE[kind]} {_noun(kind)} where {pred}"
+def _query(kind: n.DomainQueryKind, pred: str) -> str:
+    return f"{n.DOMAIN_QUERY_KIND_PHRASE[kind]} {_noun(kind)} where {pred}".strip()
 
 
-def _boolean(kind: str, pred: str = f"is_diagonal({DIRECTION_DOMAIN})") -> str:
-    """The kind's query as a Boolean: a count is compared, the folds stand."""
+def _boolean(kind: n.DomainQueryKind, pred: str = f"is_diagonal({DIRECTION_DOMAIN})") -> str:
+    """The kind's query as a Boolean: a count is compared, a set compared
+    with itself, the folds stand."""
     q = _query(kind, pred)
-    return f"(({q}) > 0)" if kind == "count" else f"({q})"
+    match kind:
+        case "any" | "all":
+            return f"({q})"
+        case "count":
+            return f"(({q}) > 0)"
+        case "set":
+            return f"(({q}) is ({q}))"
+        case unreachable:
+            assert_never(unreachable)
+
+
+def _refused_as_a_set(kind: n.DomainQueryKind, source: str) -> bool:
+    """True, after proving the refusal, where `kind` is not a fold that
+    ranges over the direction domain (`n.DIRECTION_QUERY_KINDS`)."""
+    if kind in n.DIRECTION_QUERY_KINDS:
+        return False
+    msg = _reject(source)
+    assert SET_REFUSAL in msg, msg
+    return True
 
 
 def board_game(
@@ -314,9 +339,11 @@ def test_the_skeleton_checks_and_plays() -> None:
 
 @pytest.mark.parametrize("host", sorted(HOSTS))
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_direction_quantifier_checks_in_every_host(kind: str, host: str) -> None:
+def test_a_direction_quantifier_checks_in_every_host(kind: n.DomainQueryKind, host: str) -> None:
     build, field = HOSTS[host]
     pred = CALL_FREE if host == "state default" else f"is_diagonal({DIRECTION_DOMAIN})"
+    if _refused_as_a_set(kind, build(_boolean(kind, pred))):
+        return
     game = check_dsl(build(_boolean(kind, pred)), "lift.cardlang")
     assert list(_query_hosts(game)) == [field]
 
@@ -330,7 +357,7 @@ def _board_args(family: str) -> tuple[int, ...]:
     """Arguments the family's registry row accepts: each its lowest bound
     raised to 3, so a frame has a middle rank to step from."""
     row = BOARD_FAMILIES[family]
-    return tuple(min(max(row.lo, 3), row.hi) for _ in range(row.arity))
+    return tuple(min(max(b.lo, 3), b.hi) for b in row.params)
 
 
 def _board_clause(family: str) -> str:
@@ -342,7 +369,12 @@ def _board_clause(family: str) -> str:
 # Whether each family's board carries a movement frame, and so mints `dir`:
 # authored from the registry rows' design (decisions.md "Boards and cells"),
 # never read off the entry the cells test.
-MINTS_DIRECTIONS: dict[str, bool] = {"grid": True, "morris9": False, "hex_rhombus": False}
+MINTS_DIRECTIONS: dict[str, bool] = {
+    "grid": True,
+    "morris9": False,
+    "hex_rhombus": False,
+    "draughts": True,
+}
 
 
 def test_the_frame_column_covers_every_family() -> None:
@@ -360,7 +392,7 @@ def _refused_on_a_frameless_board(family: str, source: str) -> bool:
     return True
 
 
-def _fold(kind: str, truths: list[bool]) -> bool | int:
+def _fold(kind: n.DomainQueryKind, truths: list[bool]) -> bool | int:
     match kind:
         case "any":
             return any(truths)
@@ -368,7 +400,10 @@ def _fold(kind: str, truths: list[bool]) -> bool | int:
             return all(truths)
         case "count":
             return sum(truths)
-    raise AssertionError(f"kind {kind!r} has no fold here")
+        case "set":
+            raise AssertionError("the set over the direction domain is refused, never folded")
+        case unreachable:
+            assert_never(unreachable)
 
 
 def _entry(family: str = "grid") -> Any:
@@ -407,8 +442,16 @@ def _played_state(source: str, *names: str) -> dict[str, Any]:
     return seen
 
 
-def _state_type(kind: str) -> str:
-    return "Integer = 0" if kind == "count" else "Boolean = false"
+def _state_type(kind: n.DomainQueryKind) -> str:
+    match kind:
+        case "count":
+            return "Integer = 0"
+        case "any" | "all" | "set":
+            # The set over the direction domain is refused before the
+            # variable's type is read.
+            return "Boolean = false"
+        case unreachable:
+            assert_never(unreachable)
 
 
 @pytest.mark.parametrize("family", FAMILIES)
@@ -449,14 +492,14 @@ def test_the_quantifier_reads_the_move_parameter_order(
 
 @pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_function_body_folds_the_board_directions(kind: str, family: str) -> None:
+def test_a_function_body_folds_the_board_directions(kind: n.DomainQueryKind, family: str) -> None:
     source = board_game(
         board=_board_clause(family),
         state=f"    probe : {_state_type(kind)}\n",
         setup="    probe := scan(0)\n",
         extra=f"function scan(p : Player) = {_query(kind, 'is_diagonal(dir)')}\n",
     )
-    if _refused_on_a_frameless_board(family, source):
+    if _refused_on_a_frameless_board(family, source) or _refused_as_a_set(kind, source):
         return
     entry = _entry(family)
     expected = _fold(kind, [entry.is_diagonal(d) for d in entry.directions()])
@@ -465,13 +508,13 @@ def test_a_function_body_folds_the_board_directions(kind: str, family: str) -> N
 
 @pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_state_default_folds_the_board_directions(kind: str, family: str) -> None:
+def test_a_state_default_folds_the_board_directions(kind: n.DomainQueryKind, family: str) -> None:
     source = board_game(
         board=_board_clause(family),
         state=f"    probe : {'Integer' if kind == 'count' else 'Boolean'} = "
         f"{_query(kind, CALL_FREE)}\n",
     )
-    if _refused_on_a_frameless_board(family, source):
+    if _refused_on_a_frameless_board(family, source) or _refused_as_a_set(kind, source):
         return
     # The predicate holds of every member, so the fold reads the member count.
     expected = _fold(kind, [True for _ in _entry(family).directions()])
@@ -481,7 +524,7 @@ def test_a_state_default_folds_the_board_directions(kind: str, family: str) -> N
 @pytest.mark.parametrize("family", FAMILIES)
 @pytest.mark.parametrize("seat", [0, 1])
 @pytest.mark.parametrize("kind", ["any", "all"])
-def test_a_nested_scan_reads_each_seat_frame(kind: str, seat: int, family: str) -> None:
+def test_a_nested_scan_reads_each_seat_frame(kind: n.DomainQueryKind, seat: int, family: str) -> None:
     """`number of cells where <kind> dir... where has_step(cell, dir, p)`: the
     direction binder is the Builtin's `TDir` argument, the cell binder its
     `TCell`, and the seat its frame -- each seat's count from the board entry."""
@@ -870,8 +913,8 @@ def _unknown_noun_query() -> tuple[n.Game, n.DomainQuery]:
 
 @pytest.mark.expects_shadow_guard
 def test_the_binder_type_refuses_a_noun_in_neither_source() -> None:
-    """Red under: the bare arm of `typecheck._domain_query_binder_type` falling
-    back to the permissive top for a noun it does not find."""
+    """Red under: `typecheck._bare_domain_member_type` falling back to the
+    permissive top for a noun it does not find."""
     game, query = _unknown_noun_query()
     env = TypeEnv(positions={"cell": TCell()}, directions={DIRECTION_DOMAIN: TDir()})
     with pytest.raises(ShadowGuardError, match="_check_domain_query"):

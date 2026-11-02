@@ -1,0 +1,34 @@
+// Guard: typecheck's collection-source check (`_domain_query_binder_type`).
+// A collection count over cells reads a line or a collection of cells;
+// `lines(3)` holds lines, so the count is refused naming the sentence that
+// ranges over them, `number of lines in lines(3) where <pred>`.
+game CellCountOverLines {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase setup {
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+  phase play {
+    turns t from 0 over all players until (all cells where square[cell] is not empty) {
+      offer to t one of [place]
+    }
+  }
+  winner: highest score
+}
+
+move_type place(at : cell) {
+  when: (number of cells in lines(3) where (square[at] is empty)) > 0
+  effect { move one piece from reserve[actor] to square[at] }
+}

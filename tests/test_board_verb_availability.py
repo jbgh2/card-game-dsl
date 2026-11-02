@@ -15,7 +15,7 @@ entry, and the misuse probes:
     parameter, the bare quantifier, a function parameter and an outcome
     payload}, crossed with {answered, refused naming the family}. The
     expected column is the hand table `ANSWERS`, authored from the
-    family-by-verb matrices of issues #976 and #969, never read off
+    family-by-verb matrices of issues #976, #969 and #981, never read off
     `BOARD_VERB_NEEDS`. An answered cell checks and plays its probe; a
     refused cell is refused at resolve on a line naming the position and the
     family, and a call's refusal, or a `lines(k)` refused on a family with no
@@ -53,7 +53,8 @@ domain:     `BOARD_FAMILIES` x the positions above x {answered, refused}
             jump triples, track frames, double-indexed families, in-file
             boards. A family library spells no `cell` type and no `dir`, so
             of the board verbs it reaches the seat verbs `home`, `far_row`,
-            `near_edge` and `far_edge`, and `lines`, and `neighbors` through a
+            `near_edge` and `far_edge`, and `lines`, and `neighbors` and
+            `connected` through a
             `for each cell` binder; its
             reach is the `uses`-line row of `resolve._CLAUSE_GATES` that the
             game's own call reads (tests/test_library_clause_gates.py).
@@ -138,6 +139,7 @@ BOARD_CLAUSES: dict[str, str] = {
     "grid": "grid(8, 8)",
     "morris9": "morris9",
     "hex_rhombus": "hex_rhombus(3)",
+    "draughts": "draughts(8, 8)",
 }
 
 LINE_LENGTHS: tuple[int, ...] = (1, 2, 3, 4)
@@ -151,14 +153,23 @@ DIR_POSITIONS: tuple[str, ...] = (
 
 
 def _positions() -> list[str]:
-    calls = [f"call {v}" for v in sorted(BOARD_ONLY_CALL_FUNCS - {"lines"})]
+    """The derived positions, and every call position the expected column
+    names, so the column cannot name a verb without a cell running it."""
+    verbs = (BOARD_ONLY_CALL_FUNCS - {"lines"}) | {
+        p.removeprefix("call ")
+        for answered in ANSWERS.values()
+        for p in answered
+        if p.startswith("call ")
+    }
+    calls = [f"call {v}" for v in sorted(verbs)]
     return calls + [f"lines({k})" for k in LINE_LENGTHS] + list(DIR_POSITIONS)
 
 
 # The expected column, authored from the family-by-verb matrices of issues
-# #976 and #969: the positions each family answers; every other position is
-# refused. `hex_rhombus` answering `neighbors` is the one cell #969's matrix
-# does not list: its adjacency is declared as edges, which that verb reads.
+# #976, #969, #971 and #981: the positions each family answers; every other
+# position is refused. `hex_rhombus` answering `neighbors` and `morris9`
+# answering `connected` are the cells those matrices do not list: each family
+# declares its adjacency as edges, which both verbs read.
 ANSWERS: dict[str, frozenset[str]] = {
     "grid": frozenset(
         {
@@ -166,6 +177,7 @@ ANSWERS: dict[str, frozenset[str]] = {
             "call has_step",
             "call home",
             "call is_diagonal",
+            "call is_forward",
             "call neighbor",
             "lines(1)",
             "lines(2)",
@@ -174,15 +186,29 @@ ANSWERS: dict[str, frozenset[str]] = {
             *DIR_POSITIONS,
         }
     ),
-    "morris9": frozenset({"call neighbors", "lines(3)"}),
-    "hex_rhombus": frozenset({"call far_edge", "call near_edge", "call neighbors"}),
+    "morris9": frozenset({"call connected", "call neighbors", "lines(3)"}),
+    "hex_rhombus": frozenset(
+        {"call connected", "call far_edge", "call near_edge", "call neighbors"}
+    ),
+    "draughts": frozenset(
+        {
+            "call far_row",
+            "call has_step",
+            "call home",
+            "call is_diagonal",
+            "call is_forward",
+            "call neighbor",
+            *DIR_POSITIONS,
+        }
+    ),
 }
 
 # The board verbs each family answers, as its refusals list them.
 ANSWERED_VERBS: dict[str, tuple[str, ...]] = {
-    "grid": ("far_row", "has_step", "home", "is_diagonal", "lines", "neighbor"),
-    "morris9": ("lines", "neighbors"),
-    "hex_rhombus": ("far_edge", "near_edge", "neighbors"),
+    "grid": ("far_row", "has_step", "home", "is_diagonal", "is_forward", "lines", "neighbor"),
+    "morris9": ("connected", "lines", "neighbors"),
+    "hex_rhombus": ("connected", "far_edge", "near_edge", "neighbors"),
+    "draughts": ("far_row", "has_step", "home", "is_diagonal", "is_forward", "neighbor"),
 }
 
 FAMILIES = sorted(set(BOARD_FAMILIES) | set(ANSWERS))
@@ -283,16 +309,23 @@ def _game(
 
 _DECLS = {TCell: "c : cell", TDir: "d : dir", TPlayer: "p : Player"}
 _ARGS = {TCell: "cell", TDir: "dir", TPlayer: "0"}
+# A collection a function parameter cannot be typed as, written in the body.
+_INLINE: dict[type, str] = {TCollection: "(cells where true)"}
 
 
 def _call_probe(family: str, verb: str) -> str:
-    """`verb` in a function whose parameters its signature types, and a setup
-    statement that calls the function over the board's cells (and directions,
-    where the verb takes one), so an answered verb runs at play."""
+    """`verb` in a function whose parameters its signature types (a cell
+    collection written in its body), and a setup statement that calls the
+    function over the board's cells (and directions, where the verb takes
+    one), so an answered verb runs at play."""
     sig = CALL_SIGS[verb]
-    decls = ", ".join(_DECLS[type(p)] for p in sig.params)
-    names = ", ".join(_DECLS[type(p)].split(" : ")[0] for p in sig.params)
-    call = f"probe_fn({', '.join(_ARGS[type(p)] for p in sig.params)})"
+    typed = [p for p in sig.params if type(p) not in _INLINE]
+    decls = ", ".join(_DECLS[type(p)] for p in typed)
+    names = ", ".join(
+        _INLINE[type(p)] if type(p) in _INLINE else _DECLS[type(p)].split(" : ")[0]
+        for p in sig.params
+    )
+    call = f"probe_fn({', '.join(_ARGS[type(p)] for p in typed)})"
     ret = sig.ret
     if isinstance(ret, TBoolean):
         use = call
@@ -304,7 +337,7 @@ def _call_probe(family: str, verb: str) -> str:
         raise AssertionError(f"{verb} returns {ret}; give it a reading here")
     if any(isinstance(p, TDir) for p in sig.params) or "dir" in use:
         use = f"(any dir where {use})"
-    if "cell" in use:
+    if "cell" in use or "dir" not in use:
         count = f"number of cells where {use}"
     else:
         count = f"number of dirs where {use}"
@@ -412,7 +445,7 @@ def _shadow_cells() -> list[tuple[str, str]]:
     return cells + [("bare", "lines")]
 
 
-_SHADOW_ARGS = {TCell: "a1", TDir: "ahead", TPlayer: 0, TInteger: 3}
+_SHADOW_ARGS = {TCell: "a1", TDir: "ahead", TPlayer: 0, TInteger: 3, TCollection: ("a1",)}
 
 
 @pytest.mark.expects_shadow_guard
@@ -439,7 +472,7 @@ def test_a_verb_on_a_board_lacking_its_part_meets_the_runtime_shadow_guard(
 
 def _args(family: str) -> tuple[int, ...]:
     row = BOARD_FAMILIES[family]
-    return tuple(min(max(row.lo, 3), row.hi) for _ in range(row.arity))
+    return tuple(min(max(b.lo, 3), b.hi) for b in row.params)
 
 
 @pytest.mark.parametrize("family", sorted(BOARD_FAMILIES))
@@ -546,12 +579,12 @@ def test_morris9_mills_are_the_sixteen_lines_and_each_point_is_in_two() -> None:
         ),
         pytest.param(
             _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(0)"),
-            "board family 'hex_rhombus' arguments must be in 1..16, got 0",
+            "board family 'hex_rhombus' takes a side in 1..16, got 0",
             id="hex_rhombus of side zero",
         ),
         pytest.param(
             _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(17)"),
-            "board family 'hex_rhombus' arguments must be in 1..16, got 17",
+            "board family 'hex_rhombus' takes a side in 1..16, got 17",
             id="hex_rhombus past the position-domain cap",
         ),
         pytest.param(
@@ -570,14 +603,6 @@ def test_morris9_mills_are_the_sixteen_lines_and_each_point_is_in_two() -> None:
             _game("hex_rhombus", params="at : cell, along : dir"),
             "board family 'hex_rhombus' mints no directions",
             id="dir move parameter on hex_rhombus",
-        ),
-        pytest.param(
-            _game(
-                "morris9",
-                setup="    probe := number of cells where (any cell in neighbors(cell) where true)\n",
-            ),
-            "iterates a single line",
-            id="collection quantifier over neighbors",
         ),
         pytest.param(
             _game("morris9").replace("pieces: xo_marks", "pieces: morris_men\n  cards: standard52"),

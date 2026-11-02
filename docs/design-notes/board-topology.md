@@ -416,13 +416,17 @@ only declared topology data and zone contents:
   arrays (breakthrough's 16 pieces on two rows) are the witnesses
   those records were waiting for, so the lifts land here with the
   register, not as silent accepts.
-- **Wave C's gate** is the class-5/6 fixed point: `reachable(from,
-  to, via, connectivity)` and `region(seed, same_by, connectivity)` as
-  **built-in primitives that own their loops**, terminating in at most
-  |cells| expansions by construction, with deterministic frontier
-  order so replay stays pure. This is the "bounded reachability
-  primitive" generalization-path §1 calls the real design object; Hex
-  is its isolated witness.
+- **Wave C's gate** is the class-5/6 fixed point:
+  `connected(from, to, via)` over the family's declared adjacency, a
+  **Builtin that owns its loop**, terminating in at most |cells|
+  expansions by construction, with deterministic frontier order so
+  replay stays pure. The connectivity is the family's declaration, not
+  a call-site argument. This is the "bounded reachability primitive"
+  generalization-path §1 calls the real design object; Hex is its
+  isolated witness. `region(seed, same_by, connectivity)`, the
+  set-valued fixed point, stays unbuilt and unregistered until a game
+  needs a region as a value; its name is an unknown function until
+  then.
 - **Class 7** (longest-path optimization) and **class 10**
   (`holds_after` hypotheticals) are named now and rejected loudly
   until their witnesses arrive (surface totality: a named-but-
@@ -585,11 +589,14 @@ does not move.
 **Wave C — the query frontier, then open-ended play.**
 
 6. **Hex** (11×11, no swap rule, matching the oracle default; oracle
-   `hex`). One addition: the class-5 `reachable` fixed point (win =
-   your stones connect your two sides), on a hex tiling entry.
-   Monotone and drawless (placement only), so it needs neither the
-   chance nor the unbounded-lines machinery — its position this late
-   is purely that `reachable` deserves an isolated rung.
+   `hex`; [games/hex.md](../games/hex.md)). One addition: the class-5
+   `connected` fixed point (win = your stones join your two borders),
+   over the `hex_rhombus` family's declared six-neighbour adjacency and
+   asked of the Set Form `cells where`. Monotone and drawless
+   (placement only), so it needs neither the chance nor the
+   unbounded-lines machinery, and its `max_length` is the board's 121
+   cells — its position this late is purely that `connected` deserves
+   an isolated rung.
 7. **Nine Men's Morris** (with the flying phase; oracle
    `nine_mens_morris`; in the corpus,
    [games/nine-mens-morris.md](../games/nine-mens-morris.md)). Adds the
@@ -631,7 +638,7 @@ that forces it; every rung earns at least one):
 | Track entry, stacks/capacity, `roll` chance, race win | | | ● | | | | | |
 | Hidden per-player boards (C1-hidden), probe actions (C2), footprint placement | | | | ● | | | | |
 | Attribute projections (C3), anonymous identity (C6), combat probe | | | | | ● | | | |
-| Hex tiling, `reachable` fixed point (class 5) | | | | | | ● | | |
+| Hex rhombus (declared adjacency, seat borders), `connected` fixed point (class 5), the Set Form | | | | | | ● | | |
 | Enumerated graph, phase-shift, declared mills + removal decision, blockade loss | | | | | | | ● | |
 | Mandatory capture as an `offer` behind an `if` over a move-existence function (`any dir where`), jump triples, `again` chains, promotion, draw counters | | | | | | | | ● |
 | Differential oracle | ● | ● | ● | ● | — | ● | ● | ● |
@@ -727,8 +734,9 @@ parse them.
   cell-typed state variables, the lift draughts' chain anchor makes.
   Witness: Barrage. Explicitly a moat-level event
   with its own sign-off.
-- **Stage 6 — fixed points.** `reachable`/`region` as bounded
-  built-ins with deterministic frontier order. Witness: hex.
+- **Stage 6 — fixed points.** `connected` as a bounded Builtin with
+  deterministic frontier order; `region` when a game needs one.
+  Witness: hex ([games/hex.md](../games/hex.md)).
 - **Stage 7 -- open-ended play.** Cyclic lines end at a game's bound as
   Length Stops and a published draw rule is a counter in `state` read by
   the ring's `until` (decisions.md, "Game length as a declared

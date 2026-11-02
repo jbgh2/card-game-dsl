@@ -1,11 +1,13 @@
 """Class-1 movement/region Builtin verbs: neighbor / has_step / is_diagonal /
-home / far_row -- the `lines` twin (a BOARD_ONLY call reading the `board:`).
+is_forward / home / far_row -- the `lines` twin (a BOARD_ONLY call reading
+the `board:`).
 
-The five verbs are the geometry the rung-2 `step(from : cell, along : dir)`
+The frame verbs are the geometry the rung-2 `step(from : cell, along : dir)`
 move reads (decisions.md "Boards and cells", rung-2 movement): `neighbor` is
 the destination cell one step along a direction in a player's frame,
-`has_step` the guard that gates it, `is_diagonal` whether the step captures,
-and `home`/`far_row` the setup and reach-goal cell regions. Each wraps a
+`has_step` the guard that gates it, `is_diagonal` whether the step changes
+file, `is_forward` whether it advances, and `home`/`far_row` the setup and
+reach-goal cell regions. Each wraps a
 `BoardEntry` method (cardlang/stdlib/boards.py); each is classified BOARD_ONLY
 (cardlang/builtins/functions.py::BOARD_ONLY_CALL_FUNCS) so a boardless game
 rejects the call at resolve, exactly as `lines` does. The surfaces are
@@ -15,7 +17,7 @@ rejects the call at resolve, exactly as `lines` does. The surfaces are
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 -----------------------------------------------------------------
-property:   each of the five verbs is (a) legal and correctly evaluated in a
+property:   each frame verb is (a) legal and correctly evaluated in a
             board game at its declared `Sig` arg/return types, (b) rejected at
             resolve in a boardless game naming the missing `board:` (the
             `lines` twin, BOARD_ONLY), and (c) enforced for arity and argument
@@ -25,7 +27,7 @@ property:   each of the five verbs is (a) legal and correctly evaluated in a
             `far_row`'s `Collection<Cell>` and `neighbor`'s `TCell` return --
             are either given correct meaning or loudly guarded at every existing
             operation that consumes them, never silently accepted-and-ignored.
-domain:     {the five verbs} x {board game: typecheck + evaluate; boardless:
+domain:     {the frame verbs: every `frame`-need verb of BOARD_VERB_NEEDS} x {board game: typecheck + evaluate; boardless:
             resolve reject + runtime Shadow Guard; wrong arity; wrong arg type},
             crossed with the classification partition {generic, deck-only,
             board-only}; PLUS the pairwise interactions of the two new value
@@ -34,7 +36,7 @@ domain:     {the five verbs} x {board game: typecheck + evaluate; boardless:
 registry:   the verb set -- cardlang.builtins.functions.CALL_FUNCS +
             BOARD_ONLY_CALL_FUNCS; the signatures -- cardlang.stdlib.
             signatures.CALL_SIGS; the runtime -- cardlang.runtime.evaluate.native_call
-            (the five arms + _board_of/_neighbor/... helpers) over cardlang.
+            (the frame verbs' arms + _board_of/_neighbor/... helpers) over cardlang.
             stdlib.boards.BoardEntry (geometry: tests/test_boards_registry.py); the resolve guard -- cardlang.
             resolve._check_board_call; the typecheck call guards -- cardlang.
             typecheck (infer's Call arm -> sig.ret; _check_expr's Call arm ->
@@ -53,7 +55,7 @@ registry:   the verb set -- cardlang.builtins.functions.CALL_FUNCS +
             `for each cell` iteration over a region, and the integer-position
             domain that did not lift with it:
             tests/test_cell_iteration.py::test_for_each_over_an_integer_position_domain_is_rejected.
-does not prove:  two things, each about what a green over the five verbs
+does not prove:  two things, each about what a green over the frame verbs
             leaves untouched.
             (1) That the geometry is right at every cell. The value cells are
             representative cells per verb (a1/d4/h8 plus edges), not all 64
@@ -73,9 +75,10 @@ does not prove:  two things, each about what a green over the five verbs
             existing total guard, and what is pinned here is the two likeliest
             author mistakes.
 
-red under (the born-green classification pin): test_the_five_verbs_are_board_
-only is a membership assertion over two frozensets, born green once the verbs
-register. Its reddening witness: dropping any of the five from
+red under (the born-green classification pin): test_the_frame_verbs_are_board_
+only holds the hand tuple equal to the registry's frame verbs and inside two
+frozensets. Its reddening witnesses: a frame verb in BOARD_VERB_NEEDS missing
+from MOVEMENT_VERBS reddens the equality; dropping any of them from
 BOARD_ONLY_CALL_FUNCS while leaving it in CALL_FUNCS reddens the TOTAL
 partition pin at tests/test_signatures.py::test_deck_only_classification_
 partitions_call_funcs (union != CALL_FUNCS); dropping it here reddens
@@ -94,6 +97,7 @@ import pytest
 from cardlang.board_domains import position_domains_of
 from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
+    BOARD_VERB_NEEDS,
     CALL_FUNCS,
 )
 from cardlang.diagnostics import DiagnosticError
@@ -104,14 +108,15 @@ from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating, axis_attributes
 from cardlang.stdlib.boards import board_entry
 
-# The five verbs this ledger adds, in the fixed order the grid parametrizes.
-MOVEMENT_VERBS = ("neighbor", "has_step", "is_diagonal", "home", "far_row")
+# The frame verbs, in the fixed order the grid parametrizes; held equal to the
+# registry's `frame`-need verbs below.
+MOVEMENT_VERBS = ("neighbor", "has_step", "is_diagonal", "is_forward", "home", "far_row")
 
 
 # --- the inline board witness game -------------------------------------------
 #
 # A minimal `board: grid(8, 8)` + `pieces:` game whose `step(from : cell,
-# along : dir)` move calls all five verbs in a real guard/effect, so a single
+# along : dir)` move calls every frame verb in a real guard/effect, so a single
 # `check_dsl` proves they typecheck with the right argument types in situ.
 # Mirrors tests/test_cell_queries.py's board_game builder (kept local, the
 # per-module convention).
@@ -141,7 +146,7 @@ game MoveVerbs {
   winner: highest score
 }
 move_type step(from : cell, along : dir) {
-  when: has_step(from, along, actor) and is_diagonal(along)
+  when: has_step(from, along, actor) and is_diagonal(along) and is_forward(along)
   effect {
     let h = home(actor)
     let f = far_row(actor)
@@ -281,14 +286,14 @@ def _board_game(*, guard: str = "square[from] is empty", body: str = "") -> str:
 
 
 # =============================================================================
-# POSITIVE: the witness game typechecks (all five verbs, right arg types in a
+# POSITIVE: the witness game typechecks (every frame verb, right arg types in a
 # real guard/effect), and each verb evaluates to the hand-computed value.
 # =============================================================================
 
 
 def test_witness_game_typechecks() -> None:
-    """One `check_dsl` proves all five verbs typecheck in situ: `has_step`/
-    `is_diagonal` in the guard (Boolean), `neighbor` -> a `let` of a Cell,
+    """One `check_dsl` proves every frame verb typechecks in situ: `has_step`/
+    `is_diagonal`/`is_forward` in the guard (Boolean), `neighbor` -> a `let` of a Cell,
     `home`/`far_row` -> `let`s of a Collection<Cell> (bare lets, nothing
     consumes them until Task 4 -- accepted, not a totality defect)."""
     check_dsl(WITNESS_SRC, "witness.cardlang")
@@ -320,6 +325,8 @@ _FAR1 = tuple(f"{f}1" for f in _EIGHT)  # bottom rank
         pytest.param("is_diagonal", ["ahead"], False, id="is_diagonal-straight"),
         pytest.param("is_diagonal", ["ahead_left"], True, id="is_diagonal-left"),
         pytest.param("is_diagonal", ["ahead_right"], True, id="is_diagonal-right"),
+        pytest.param("is_forward", ["ahead"], True, id="is_forward-straight"),
+        pytest.param("is_forward", ["ahead_left"], True, id="is_forward-left"),
         pytest.param("home", [0], _HOME0, id="home-p0"),
         pytest.param("home", [1], _HOME1, id="home-p1"),
         pytest.param("far_row", [0], _FAR0, id="far_row-p0"),
@@ -372,6 +379,7 @@ def test_verb_in_boardless_game_is_rejected(verb: str) -> None:
         "neighbor": "neighbor(n, n, n)",
         "has_step": "has_step(n, n, n)",
         "is_diagonal": "is_diagonal(n)",
+        "is_forward": "is_forward(n)",
         "home": "home(n)",
         "far_row": "far_row(n)",
     }[verb]
@@ -398,6 +406,7 @@ def test_verb_runtime_boardless_backstop_raises(verb: str) -> None:
         "neighbor": ["a1", "ahead", 0],
         "has_step": ["a1", "ahead", 0],
         "is_diagonal": ["ahead"],
+        "is_forward": ["ahead"],
         "home": [0],
         "far_row": [0],
     }
@@ -588,22 +597,25 @@ def test_along_dir_for_player_is_rejected() -> None:
 
 
 # =============================================================================
-# CLASSIFICATION: the five verbs are BOARD_ONLY. The TOTAL partition (every
+# CLASSIFICATION: the frame verbs are BOARD_ONLY. The TOTAL partition (every
 # CALL_FUNCS member classified generic/deck-only/board-only, none
 # unclassified) is pinned once at tests/test_signatures.py::
 # test_deck_only_classification_partitions_call_funcs and
 # tests/test_piece_content_guards.py -- NOT re-copied here (CLAUDE.md rule 4).
-# This focused pin names the five new members so their omission from
-# BOARD_ONLY reddens with a message about THESE verbs.
+# This focused pin names the frame verbs so their omission from BOARD_ONLY,
+# or a frame verb missing from MOVEMENT_VERBS, reddens with a message about
+# THESE verbs.
 #
-# red under (the born-green partition pin, cited): dropping any of these five
+# red under (the born-green partition pin, cited): dropping any of them
 # from BOARD_ONLY_CALL_FUNCS while leaving it in CALL_FUNCS reddens the
 # partition assertion in test_signatures.py (union != CALL_FUNCS);
 # dropping it here reddens this focused assertion directly.
 # =============================================================================
 
 
-def test_the_five_verbs_are_board_only() -> None:
+def test_the_frame_verbs_are_board_only() -> None:
+    frame_verbs = {v for v, need in BOARD_VERB_NEEDS.items() if need == "frame"}
+    assert set(MOVEMENT_VERBS) == frame_verbs
     assert set(MOVEMENT_VERBS) <= BOARD_ONLY_CALL_FUNCS
     assert set(MOVEMENT_VERBS) <= CALL_FUNCS
 
@@ -616,21 +628,20 @@ def test_the_five_verbs_are_board_only() -> None:
 # =============================================================================
 
 
-def test_any_cell_in_a_region_is_rejected_not_silently_iterated() -> None:
-    # `any cell in <expr>` demands a SINGLE line (typecheck.py's
-    # _domain_query_binder_type); a Collection<Cell> region is the wrong
-    # source shape, so it is rejected -- home/far_row's shape is NOT quietly
-    # accepted by the cell quantifier. (Region membership is `c in home(...)`,
-    # built in Task 4; this pins that the QUANTIFIER form stays loud.)
-    msg = _reject(
+def test_any_cell_in_a_region_is_a_collection_quantifier() -> None:
+    # `any cell in <expr>` ranges over a line or a collection of cells
+    # (typecheck.py's _domain_query_binder_type), so a region is a source:
+    # the collection form over `cell` reads the board's own cells, and a card
+    # zone stays refused (tests/test_cell_queries.py's zone-source cell).
+    check_dsl(
         _board_game(
             body=(
                 "    if any cell in home(actor) where square[cell] is empty "
                 "{ done := true }\n"
             )
-        )
+        ),
+        "t",
     )
-    assert "iterates a single line, but the source is Collection<Cell>" in msg
 
 
 def test_a_region_is_not_a_movement_source() -> None:

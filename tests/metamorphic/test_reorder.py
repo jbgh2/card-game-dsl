@@ -108,10 +108,6 @@ _PARSE_LEVEL_CASES = frozenset(
         # productions.
         "collection_optional_at_a_state_row",
         "collection_optional_at_a_function_parameter",
-        # The collection-quantifier register has no `number of <noun> in
-        # <expr> where ...` production -- a raw grammar dead end, not a
-        # resolve guard (issue #111).
-        "cell_count_in_collection_not_admitted",
         # `?mode_item` admits `active_rules` and `transition_to` only, so a
         # `legal_moves:` in a mode body never reaches a tree. This case moved
         # here from the resolve level when #208 gave the config-only class to

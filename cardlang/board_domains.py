@@ -52,6 +52,11 @@ BOARD_DOMAIN = "cell"
 # turn-order enum's tag, hence `dir`.
 DIRECTION_DOMAIN = "dir"
 
+# The noun the board's lines are quantified by in the collection forms
+# (`any line in lines(3) where …`): no Position Domain, a collection noun
+# alone (decisions.md "Boards and cells").
+LINE_NOUN = "line"
+
 
 def position_domains_of(game: n.Game) -> Mapping[str, tuple[int, ...] | tuple[str, ...]]:
     """A resolved game's position domains: name -> ordered members. Integer
@@ -65,7 +70,7 @@ def position_domains_of(game: n.Game) -> Mapping[str, tuple[int, ...] | tuple[st
 def directions_of(game: n.Game) -> Mapping[str, tuple[str, ...]]:
     """A resolved game's movement-direction domains: name -> ordered members.
     A `board:` clause whose family has a movement frame mints the single `dir`
-    domain (its seat-relative forward directions); a boardless game, and a
+    domain (its frame's seat-relative directions); a boardless game, and a
     board with no frame (`morris9`), have none. The SIBLING of
     `position_domains_of` for the SEPARATE `dir` source (decisions.md "Boards
     and cells", rung-2 movement).

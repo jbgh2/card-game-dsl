@@ -294,6 +294,82 @@ game Skeleton {{
 """
 
 
+def _wrap_cell_set(frag: str) -> str:
+    # `frag` is a function whose body is the position set, over the predicate
+    # it names; the skeleton is a board game defining that predicate and
+    # offering a move only on a cell of the set.
+    return f"""
+game Skeleton {{
+  players: 2
+  max_length: 30
+  board: grid(3, 3)
+  pieces: xo_marks
+  zones {{
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }}
+  state {{ done : Boolean = false  score[player] : Integer = 0 }}
+  phase setup {{
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }}
+  phase play {{
+    turns t from 0 over all players until done {{
+      offer to t one of [place, stop]
+    }}
+  }}
+  winner: highest score
+}}
+function holds(c : cell, p : Player) =
+  (square[c] is not empty) and (top_of(square[c]).side is (if p is 0 then x else o))
+{frag}
+move_type place(at : cell) {{
+  when: (square[at] is empty) and not (at in stones_of(actor))
+  effect {{ move one piece from reserve[actor] to square[at] }}
+}}
+move_type stop {{ effect {{ done := true }} }}
+"""
+
+
+def _wrap_connected(frag: str) -> str:
+    # `frag` is a function asking whether a seat's stones join its borders,
+    # over the predicate it names; the skeleton is a hex board game defining
+    # that predicate and offering a placement until the placer is joined.
+    return f"""
+game Skeleton {{
+  players: 2
+  max_length: 30
+  board: hex_rhombus(3)
+  pieces: xo_marks
+  zones {{
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }}
+  state {{ done : Boolean = false  score[player] : Integer = 0 }}
+  phase setup {{
+    move all pieces from box where piece.side is x to reserve[0]
+    move all pieces from box to reserve[1]
+  }}
+  phase play {{
+    turns t from 0 over all players until done {{
+      offer to t one of [place, stop]
+    }}
+  }}
+  winner: highest score
+}}
+function holds(c : cell, p : Player) =
+  (square[c] is not empty) and (top_of(square[c]).side is (if p is 0 then x else o))
+{frag}
+move_type place(at : cell) {{
+  when: (square[at] is empty) and not joined(actor)
+  effect {{ move one piece from reserve[actor] to square[at] }}
+}}
+move_type stop {{ effect {{ done := true }} }}
+"""
+
+
 def _wrap_passing_phase(frag: str) -> str:
     # No rule shim: the passing phase's "exactly three" law is the movement's
     # `chosen 3`, not a rule. A rule constraining `transfer_between_hands`
@@ -517,6 +593,8 @@ WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
     "cards_line": _wrap_cards_line,
     "winner_loser": _wrap_winner_loser,
     "stop_result": _wrap_stop_result,
+    "cell_set": _wrap_cell_set,
+    "connected": _wrap_connected,
     "passing_phase": _wrap_passing_phase,
     "library_zones": _wrap_library_zones_block,
     "betting_street": _wrap_betting_street,
@@ -561,8 +639,8 @@ def test_the_block_domain_is_the_size_the_recipes_define() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 59, "library.md": 19, "model.md": 5}
-    assert len(_BLOCKS) == 83
+    assert per_doc == {"decisions.md": 62, "library.md": 20, "model.md": 5}
+    assert len(_BLOCKS) == 87
 
 
 def _block_id(block: FencedBlock) -> str:
