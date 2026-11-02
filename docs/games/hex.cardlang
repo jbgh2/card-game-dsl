@@ -1,0 +1,73 @@
+// Hex (Piet Hein, 1942; rediscovered by John Nash) — 2 players,
+// hex_rhombus(11), 61 black stones + 60 white. Variant pinned: no swap rule;
+// black (player 0) moves first; players alternate placing one stone on an
+// empty cell; stones never move; black wins by joining rank 1 to rank 11 with
+// an unbroken chain of black stones, white by joining file a to file k; each
+// corner cell lies on both of its edges. The differential oracle is
+// OpenSpiel's native `hex(board_size=11,swap=false)`.
+//
+// Perfect information throughout — the board and reserves are public, and the
+// one count-projected zone (box) empties at setup, so no zone conceals a
+// stone: information sets are singletons and the observation model does not
+// move.
+//
+// result[player] in {+1, -1} (win/loss) so the OpenSpiel returns match the
+// native oracle's zero-sum structure. Hex is never a draw: on a full board
+// exactly one side has joined its two edges, so the 121st placement at the
+// latest decides, and `max_length: 121` is the board's own bound, one stone
+// per cell.
+
+game Hex {
+
+  players: 2
+  direction: clockwise
+  max_length: 121
+
+  board: hex_rhombus(11)
+  pieces: hex_stones
+
+  zones {
+    box             : Deck                // the unplaced set, emptied at setup
+    tile[cell]      : Cell<cell>          // the 121 hexagons of the board
+    reserve[player] : PlayerPile<player>  // each side's unplaced stones, public
+  }
+
+  state {
+    result[player] : Integer = 0    // +1 win, -1 loss, 0 running
+  }
+
+  phase setup {
+    move all pieces from box where piece.side is black to reserve[0]
+    move all pieces from box to reserve[1]
+  }
+
+  phase play {
+    turns t from 0 over all players until (any player where result[player] is 1) {
+      offer to t one of [place]
+    }
+  }
+
+  winner: highest result
+}
+
+// Which side each seat plays: black is seat 0, white seat 1.
+function side_of(p : Player) = if p is 0 then black else white
+
+// Whether cell `c` holds one of seat `p`'s stones.
+function holds(c : cell, p : Player) =
+  (tile[c] is not empty) and (top_of(tile[c]).side is side_of(p))
+
+// Place one of your stones on an empty cell. Joining your two edges decides
+// at once: only the stone just placed can complete a chain, so the test runs
+// once per placement, for the actor.
+move_type place(at : cell) {
+  when: tile[at] is empty
+  effect {
+    move one piece from reserve[actor] to tile[at]
+    if connected(near_edge(actor), far_edge(actor), cells where holds(cell, actor)) {
+      let w = actor
+      for each player p:
+        if p is w { result[p] := 1 } else { result[p] := -1 }
+    }
+  }
+}

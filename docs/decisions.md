@@ -1739,8 +1739,7 @@ tie from one the rules declared), the playtest report counts length stops
 apart and credits no seat a finish for one, and the readiness battery's
 coverage record carries it beside `terminal`. `cardlang demo` leads its summary with the stop,
 in the uniform-random voice, and exits 1: the sizing rule below says
-uniform-random play never approaches the bound, so the game file is where to
-look. `cardlang play` says the game is over, names the stop in the table's
+uniform-random play ends by the rules, so the game file is where to look. `cardlang play` says the game is over, names the stop in the table's
 voice with who chose for each seat, and exits 0: the people at the table
 played it there, and the game finished.
 
@@ -1786,11 +1785,17 @@ random unless the game's twin names another, from measured playouts: a
 per-game number generous enough that the policy's lines, the long tail of
 multi-hand, score-race and elimination games included, never approach it,
 while far tighter than one constant sized for the corpus's longest game.
-Because reaching the bound is an end rather than a refusal, what tells a
-looping `until` in a corpus game from a long one is that measurement, made a
-pin: every registered game, on every seed of the coverage manifest, ends by
-its rules under its reference policy with headroom under its bound
-(`tests/test_length_registry_pin.py`). A game whose rules let a table play on
+A **rules-bounded game** is the exception: its `max_length` is a fact of its
+rules rather than a measured allowance. Hex places one stone per pick on 121
+cells and always has a winner when the board fills, so 121 bounds every line,
+and a line that fills the board ends by its rules exactly at it. Such a game
+declares that fact as its bound, and its lines end by their rules at or
+before it. Because reaching the bound is an end rather than a refusal, what
+tells a looping `until` in a corpus game from a long one is that measurement,
+made a pin: every registered game, on every seed of the coverage manifest,
+ends by its rules under its reference policy, with headroom under its bound,
+or at or before it for a rules-bounded game, where the pin checks `ended_by`
+alone (`tests/test_length_registry_pin.py`). A game whose rules let a table play on
 without end -- Coup when every seat takes the first pick, Tichu under a uniform
 draw -- meets its bound on those lines, and the pin asserts them as Length
 Stops.
@@ -3811,6 +3816,13 @@ cells checks where a set of cells does, and a none argument, or a none
 inside one, is refused at play; so is a value reaching the verb through the
 Permissive Top that is not a collection of the board's cells. A set-valued sibling (`region`) is not the
 language: it waits for the game that needs a region as a value.
+
+Hex is the corpus witness ([games/hex.md](games/hex.md)) for the hex
+family, its borders, the Set Form and the fixed point together:
+`board: hex_rhombus(11)`, `pieces: hex_stones`, the 121 `tile[cell]`
+cells, `place(at : cell)`, and the win test `connected(near_edge(actor),
+far_edge(actor), cells where holds(cell, actor))`, asked once per
+placement.
 
 ## Game result: `winner:` and `loser:`
 

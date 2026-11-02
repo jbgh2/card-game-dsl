@@ -60,6 +60,7 @@ PROSE_ONLY_TWINS: frozenset[str] = frozenset(
         "go-fish",
         "gops",
         "hearts",
+        "hex",
         "holdem",
         "holdem-heads-up",
         "klondike",

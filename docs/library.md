@@ -813,6 +813,7 @@ conventions:
   ```text
   { side: [black, white], kind: [stone], copies: { black: 61, white: 60 } }
   ```
+  Used by hex.
 
 - `draughts_men` = English draughts' pieces: twelve men a side and a king
   for each, since every man may be crowned once. Red is the first side,
@@ -902,7 +903,7 @@ a family that does not declare what the verb reads.
   `dir` and answers none of `lines`, `neighbor`, `has_step`,
   `is_diagonal`, `is_forward`, `home` and `far_row`; `grid`, `morris9` and
   `draughts` declare no borders and answer neither `near_edge` nor
-  `far_edge`.
+  `far_edge`. Used by hex.
 
 - `draughts(width, height)` = the board of the draughts family: the
   playable squares of a `width` by `height` board, `width` in `3..16` (a
@@ -1078,7 +1079,7 @@ and which one is the game's own choice:
   It expands each cell at most once and reads nothing but
   the adjacency and its arguments (decisions.md "Boards and cells").
   Answered by `morris9` and `hex_rhombus`; refused on a grid or a draughts
-  board, which declare no adjacency.
+  board, which declare no adjacency. Used by hex.
 - `neighbor(from, along, player) → Cell` — the cell one step along direction
   `along` in `player`'s frame. Total by contract: an off-board step is guarded
   by `has_step`, not returned (decisions.md "Boards and cells", transfer).
