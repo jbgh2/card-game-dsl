@@ -442,7 +442,9 @@ def test_nothing_satisfying_is_the_empty_set() -> None:
 def test_equality_with_a_region_verb_is_by_value(source: str, expected: bool) -> None:
     """Both truth values against the region verb. Red under: the set arm
     returning a list, which no region verb's tuple equals (the `same
-    members` cell). The control reads the region verb's own members."""
+    members` and `is not` cells). The control reads the region verb's own
+    members. A bracket list against either is the same mismatch, issue
+    #1023."""
     assert set(_home(0)) != set(_home(1))
     game, expr = _checked_board_expr(source)
     assert evaluate(expr, _board_ctx(game, {})) is expected
@@ -568,12 +570,12 @@ H = "function holds(c : cell, p : Player) = (square[c] is not empty) and (top_of
 )
 def test_a_sentence_beside_the_set_form_stays_a_syntax_error(source: str) -> None:
     """Membership's right side sits below the query forms, so
-    `at in cells where P` is the parse refusal `x in players where P` gets;
-    `the cells where` is not the set form; a fused spelling is not a word.
-    Red under, per cell: the set form placed in `?primary` (the two
-    membership cells); `_THE_KW QNOUN _WHERE_KW expr` added to `quantifier`
-    (the `the`-led cell); `_WHERE_KW` without its lookahead (the fused
-    body)."""
+    `at in cells where P` is the parse refusal `x in players where P` gets,
+    whose words name no fix for any register (issue #1024); `the cells
+    where` is not the set form; a fused spelling is not a word. Red under,
+    per cell: the set form placed in `?primary` (the two membership cells);
+    `_THE_KW QNOUN _WHERE_KW expr` added to `quantifier` (the `the`-led
+    cell); `_WHERE_KW` without its lookahead (the fused body)."""
     message = _reject(source)
     assert message.startswith("syntax error"), message
     assert TWIN_MESSAGE not in message, message
