@@ -64,9 +64,10 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               type names a value type or one of the game's named-member
               position domains (``_declared_type_universe``, the one set the
               ``StateDecl`` arm reads and a function parameter's set
-              extends); an integer position domain and ``dir`` are refused
-              there naming the parameters that take them, and ``cell`` in a
-              game with no ``board:`` naming the clause that mints it. A board verb stands only on a
+              extends); an integer position domain, ``dir`` and ``cell`` in
+              a game with no ``board:`` are refused there
+              (``_state_type_refusal``), each naming a declaration that checks
+              in that game. A board verb stands only on a
               board whose family declares what the verb reads
               (``BOARD_VERB_NEEDS``; ``_check_board_call`` for the game's
               call, the ``_BOARD_NEED_GATES`` rows on the ``uses`` line for a
@@ -11187,24 +11188,37 @@ def _declared_type_universe(game: n.Game) -> frozenset[str]:
 
 def _state_type_refusal(game: n.Game, type_name: str) -> str | None:
     """How a `state` variable's refusal of a type outside
-    `_declared_type_universe` ends, for the type names a parameter takes and
-    the board's `cell` in a game with no `board:`; None for every other name,
-    which is unknown."""
+    `_declared_type_universe` ends, for the type names a parameter takes, the
+    direction domain wherever it is spelled, and the board's `cell` in a game
+    with no `board:`; None for every other name, which is unknown. Each ending
+    names a declaration that checks in the game it is told in: whether `dir`
+    is minted is `_minted_directions`' to say, and what a game without it
+    lacks `_direction_refusal`'s."""
     if any(p.name == type_name and p.members_named is None for p in game.positions):
         return (
             "a position domain of numbers: a move or function parameter takes "
             "one, and a state variable remembers it as an `Integer`"
         )
-    if type_name == DIRECTION_DOMAIN:
+    if type_name in _minted_directions(game):
         return (
             "the board's direction domain: a move or function parameter takes "
-            "a direction, and a state variable cannot hold one"
+            "a direction (`along : dir`), and a state variable cannot hold one"
         )
+    if (unminted := _direction_refusal(game, type_name)) is not None:
+        instead = (
+            "if it is the turn order's direction, a state variable holds it as "
+            "a `SeatDirection`"
+            if game.board is None
+            else "a state variable remembers a square as a `cell?`"
+        )
+        return f"{unminted} -- {instead}"
     if type_name == BOARD_DOMAIN and game.board is None:
-        return (
-            "the squares a `board:` mints, but the game declares no `board:` "
-            "-- declare one, with the `pieces:` that stand on it"
+        fix = (
+            "a board game declares `pieces:` in place of `cards:`, and a `board:`"
+            if game.content_flavor == "card"
+            else "declare the `board:` its pieces stand on"
         )
+        return f"the squares a `board:` mints, but the game declares no `board:` -- {fix}"
     return None
 
 

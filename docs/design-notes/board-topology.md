@@ -574,8 +574,8 @@ does not move.
    question's recorded residual.
 5. **Stratego, Barrage variant** (10×10 with lakes; 8 pieces per side:
    Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb; two-square
-   rule in scope — its shuttle tracking reuses the cell-typed state
-   variable the draughts chain anchor lifts — chase
+   rule in scope -- its shuttle tracking reuses the cell-typed state
+   variable the draughts chain anchor lifts -- chase
    rule scoped out and named in the entry; **no
    native oracle** — verified absent from OpenSpiel; DeepNash was
    never open-sourced). The moat rung: C3 attribute-level projections

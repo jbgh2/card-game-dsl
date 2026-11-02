@@ -404,7 +404,7 @@ def type_from_name(
     Both domain sources are required, so every caller hands over the game's
     domains rather than branching on them locally: a caller resolving the
     name without them would admit `slot`/`dir`/`cell` at resolve and then map
-    it to the top — the leak this module closes.
+    it to the top, the leak this module closes.
     """
     base: Type
     if name in positions:

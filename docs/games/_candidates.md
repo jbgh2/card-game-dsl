@@ -606,9 +606,10 @@ Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb, placed secretly in
 the back rows. Pieces move one square orthogonally (Scouts any clear
 distance); attacking reveals both ranks and removes the loser (Spy
 kills Marshal when attacking; Miner defuses Bomb; Flag capture wins);
-two-square shuttle rule in scope (its tracking state is
-position-typed — the recorded position-typed-state Owner Guard lifts here,
-first witness), the chase rule scoped out and named.
+two-square shuttle rule in scope (its tracking state is a per-seat
+`cell?` store, the cell-typed state the
+[english-draughts](english-draughts.md) chain anchor lifts), the chase rule
+scoped out and named.
 
 **Why interesting.** The one moat-level rung: position-public,
 rank-private pieces force **attribute-level projections** (C3) and
