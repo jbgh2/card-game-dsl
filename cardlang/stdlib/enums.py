@@ -47,6 +47,7 @@ _DECK_SIZE: dict[str, int] = {
     "breakthrough_men": 32,
     "morris_men": 18,
     "hex_stones": 121,
+    "draughts_men": 48,
 }
 
 

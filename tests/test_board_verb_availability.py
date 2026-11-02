@@ -15,7 +15,7 @@ entry, and the misuse probes:
     parameter, the bare quantifier, a function parameter and an outcome
     payload}, crossed with {answered, refused naming the family}. The
     expected column is the hand table `ANSWERS`, authored from the
-    family-by-verb matrices of issues #976 and #969, never read off
+    family-by-verb matrices of issues #976, #969 and #981, never read off
     `BOARD_VERB_NEEDS`. An answered cell checks and plays its probe; a
     refused cell is refused at resolve on a line naming the position and the
     family, and a call's refusal, or a `lines(k)` refused on a family with no
@@ -152,9 +152,8 @@ DIR_POSITIONS: tuple[str, ...] = (
 
 
 def _positions() -> list[str]:
-    """The derived positions, with any call position the expected column
-    names that the registry does not yet hold, so a verb's cells stand red
-    before the verb exists."""
+    """The derived positions, and every call position the expected column
+    names, so the column cannot name a verb without a cell running it."""
     verbs = (BOARD_ONLY_CALL_FUNCS - {"lines"}) | {
         p.removeprefix("call ")
         for answered in ANSWERS.values()
@@ -166,7 +165,7 @@ def _positions() -> list[str]:
 
 
 # The expected column, authored from the family-by-verb matrices of issues
-# #976 and #969: the positions each family answers; every other position is
+# #976, #969 and #981: the positions each family answers; every other position is
 # refused. `hex_rhombus` answering `neighbors` is the one cell #969's matrix
 # does not list: its adjacency is declared as edges, which that verb reads.
 ANSWERS: dict[str, frozenset[str]] = {
@@ -211,7 +210,6 @@ ANSWERED_VERBS: dict[str, tuple[str, ...]] = {
 FAMILIES = sorted(set(BOARD_FAMILIES) | set(ANSWERS))
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="no draughts family")
 def test_the_expected_column_covers_every_family() -> None:
     """The hand table names every registered family and no other, so a family
     added to the registry is a red here until its row is authored."""
@@ -393,24 +391,8 @@ def _word(family: str, position: str) -> str:
     return "dir"
 
 
-def _pending(family: str, position: str) -> list[pytest.MarkDecorator]:
-    if family == "draughts":
-        return [pytest.mark.xfail(strict=True, raises=(AssertionError, KeyError), reason="no draughts family")]
-    if position == "call is_forward":
-        return [pytest.mark.xfail(strict=True, raises=KeyError, reason="no is_forward")]
-    if family == "grid" and position.startswith("call ") and position not in ANSWERS[family]:
-        return [pytest.mark.xfail(strict=True, raises=AssertionError, reason="grid lists is_forward")]
-    return []
-
-
-@pytest.mark.parametrize(
-    ("family", "position"),
-    [
-        pytest.param(f, p, marks=_pending(f, p), id=f"{f}-{p}")
-        for f in FAMILIES
-        for p in _positions()
-    ],
-)
+@pytest.mark.parametrize("position", _positions())
+@pytest.mark.parametrize("family", FAMILIES)
 def test_a_board_position_is_answered_or_refused_naming_the_family(
     family: str, position: str
 ) -> None:
@@ -452,23 +434,11 @@ def _shadow_cells() -> list[tuple[str, str]]:
     return cells + [("bare", "lines")]
 
 
-def _shadow_params() -> list[Any]:
-    return [
-        pytest.param(
-            f, v,
-            marks=[pytest.mark.xfail(strict=True, raises=KeyError, reason="no draughts family")]
-            if f == "draughts" else [],
-            id=f"{f}-{v}",
-        )
-        for f, v in _shadow_cells()
-    ]
-
-
 _SHADOW_ARGS = {TCell: "a1", TDir: "ahead", TPlayer: 0, TInteger: 3}
 
 
 @pytest.mark.expects_shadow_guard
-@pytest.mark.parametrize(("family", "verb"), _shadow_params())
+@pytest.mark.parametrize(("family", "verb"), _shadow_cells())
 def test_a_verb_on_a_board_lacking_its_part_meets_the_runtime_shadow_guard(
     family: str, verb: str
 ) -> None:
@@ -491,7 +461,7 @@ def test_a_verb_on_a_board_lacking_its_part_meets_the_runtime_shadow_guard(
 
 def _args(family: str) -> tuple[int, ...]:
     row = BOARD_FAMILIES[family]
-    return tuple(min(max(row.lo, 3), row.hi) for _ in range(row.arity))
+    return tuple(min(max(b.lo, 3), b.hi) for b in row.bounds)
 
 
 @pytest.mark.parametrize("family", sorted(BOARD_FAMILIES))
@@ -598,12 +568,12 @@ def test_morris9_mills_are_the_sixteen_lines_and_each_point_is_in_two() -> None:
         ),
         pytest.param(
             _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(0)"),
-            "board family 'hex_rhombus' arguments must be in 1..16, got 0",
+            "board family 'hex_rhombus' takes a side in 1..16, got 0",
             id="hex_rhombus of side zero",
         ),
         pytest.param(
             _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(17)"),
-            "board family 'hex_rhombus' arguments must be in 1..16, got 17",
+            "board family 'hex_rhombus' takes a side in 1..16, got 17",
             id="hex_rhombus past the position-domain cap",
         ),
         pytest.param(

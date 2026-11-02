@@ -65,7 +65,7 @@ def position_domains_of(game: n.Game) -> Mapping[str, tuple[int, ...] | tuple[st
 def directions_of(game: n.Game) -> Mapping[str, tuple[str, ...]]:
     """A resolved game's movement-direction domains: name -> ordered members.
     A `board:` clause whose family has a movement frame mints the single `dir`
-    domain (its seat-relative forward directions); a boardless game, and a
+    domain (its frame's seat-relative directions); a boardless game, and a
     board with no frame (`morris9`), have none. The SIBLING of
     `position_domains_of` for the SEPARATE `dir` source (decisions.md "Boards
     and cells", rung-2 movement).

@@ -330,7 +330,7 @@ def _board_args(family: str) -> tuple[int, ...]:
     """Arguments the family's registry row accepts: each its lowest bound
     raised to 3, so a frame has a middle rank to step from."""
     row = BOARD_FAMILIES[family]
-    return tuple(min(max(row.lo, 3), row.hi) for _ in range(row.arity))
+    return tuple(min(max(b.lo, 3), b.hi) for b in row.bounds)
 
 
 def _board_clause(family: str) -> str:
@@ -342,7 +342,12 @@ def _board_clause(family: str) -> str:
 # Whether each family's board carries a movement frame, and so mints `dir`:
 # authored from the registry rows' design (decisions.md "Boards and cells"),
 # never read off the entry the cells test.
-MINTS_DIRECTIONS: dict[str, bool] = {"grid": True, "morris9": False, "hex_rhombus": False}
+MINTS_DIRECTIONS: dict[str, bool] = {
+    "grid": True,
+    "morris9": False,
+    "hex_rhombus": False,
+    "draughts": True,
+}
 
 
 def test_the_frame_column_covers_every_family() -> None:

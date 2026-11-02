@@ -47,21 +47,22 @@ domain:     BOARD_FAMILIES rows x argument space (arity,
             and the largest side the position-domain cap admits.
             The topology pins (edges joining two distinct board cells and
             reaching every cell, line lengths increasing and derived from
-            exactly one topology, a frame covering exactly the cells, each
+            exactly one topology, a frame holding the cells on its rectangle, each
             seat's borders distinct board cells in board order) are each fed
             the one bad builder output they name.
             A group of board features sits outside BoardEntry, and none is a
             gap in this registry's own domain: relations beyond one adjacency
-            set, jump triples (draughts), track frames (backgammon),
-            crownhead / arbitrary-depth home regions, and frames for more
-            than two seats -- each waiting on a witness game that needs it
-            (issue #124). The frame is what breakthrough witnesses: the
+            set, jump triples, track frames (backgammon), and frames for
+            more than two seats -- each waiting on a witness game that needs
+            it (issue #124). The draughts family's geometry is
+            tests/test_draughts_board.py's. The frame is what breakthrough
+            witnesses: the
             two-seat 180 frame, the seat-relative forward directions, and the
             back-two-ranks / far-rank regions; the declared adjacency is what
             nine men's morris witnesses.
 registry:   cardlang.stdlib.boards.BOARD_FAMILIES, .board_entry, .BoardEntry
             (.lines, .neighbors, .directions, .is_diagonal, .neighbor,
-            .has_step, .home, .far_row, .near_edge, .far_edge), .GridFrame,
+            .has_step, .home, .far_row, .near_edge, .far_edge), .MovementFrame,
             .SeatBorders, the grid builder's _GRID_DIRECTION_OFFSETS table and
             the hex builder's _HEX_FORWARD_OFFSETS;
             cardlang.builtins.functions.BOARD_VERB_NEEDS (the matrix walk);
@@ -290,9 +291,17 @@ def test_board_entry_rejects_bad_args(
         board_entry(family, args)
 
 
-def test_board_families_are_the_three_rows() -> None:
-    rows = {name: (f.arity, f.lo, f.hi) for name, f in BOARD_FAMILIES.items()}
-    assert rows == {"grid": (2, 1, 16), "morris9": (0, 0, 0), "hex_rhombus": (1, 1, 16)}
+def test_board_families_are_the_four_rows() -> None:
+    rows = {
+        name: tuple((b.name, b.lo, b.hi) for b in f.bounds) for name, f in BOARD_FAMILIES.items()
+    }
+    assert rows == {
+        "grid": (("width", 1, 16), ("height", 1, 16)),
+        "morris9": (),
+        "hex_rhombus": (("side", 1, 16),),
+        "draughts": (("width", 3, 16), ("height", 7, 16)),
+    }
+    assert all(f.arity == len(f.bounds) for f in BOARD_FAMILIES.values())
 
 
 def test_morris9_answers_lines_of_three_only() -> None:
@@ -314,8 +323,8 @@ def test_morris9_neighbors_hand_table() -> None:
 
 
 def test_every_family_answers_each_verb_its_entry_declares() -> None:
-    """The family-by-verb matrix walk: on each family's minimal entry (`lo`
-    repeated `arity` times, derived per row, so a new family is covered
+    """The family-by-verb matrix walk: on each family's minimal entry (each
+    argument at its lowest bound, derived per row, so a new family is covered
     without hand-listing), every board verb whose part the entry declares
     answers without raising, and every board verb is answered by some
     family. A verb reads its part of the entry, never a second enumeration
@@ -327,7 +336,7 @@ def test_every_family_answers_each_verb_its_entry_declares() -> None:
     answers `near_edge` or `far_edge`)."""
     answered: set[str] = set()
     for family, spec in BOARD_FAMILIES.items():
-        entry = board_entry(family, (spec.lo,) * spec.arity)
+        entry = board_entry(family, tuple(b.lo for b in spec.bounds))
         for verb, need in BOARD_VERB_NEEDS.items():
             if not entry.answers(need):
                 continue
@@ -782,10 +791,12 @@ def _borders(
         (dict(edges=_edges(("a1", "b1"), ("b1", "c1")), line_lengths=(3, 2)), "increasing order"),
         (
             dict(
-                frame=boards.GridFrame(2, 2, DIRECTIONS, tuple(_BASE_OFFSETS_INDEP.items())),
+                frame=boards.MovementFrame(
+                    2, 2, DIRECTIONS, tuple(_BASE_OFFSETS_INDEP.items()), home_depth=2
+                ),
                 line_lengths=(1,),
             ),
-            "frame must cover exactly",
+            "frame must hold the board's cells on its rectangle",
         ),
         (dict(borders=_borders(near=("a1", "z9"))), "near border must be distinct cells"),
         (dict(borders=_borders(near=())), "near border must be distinct cells"),

@@ -814,6 +814,16 @@ conventions:
   { side: [black, white], kind: [stone], copies: { black: 61, white: 60 } }
   ```
 
+- `draughts_men` = English draughts' pieces: twelve men a side and a king
+  for each, since every man may be crowned once. Red is the first side,
+  seat 0's, as the WCDF's rules have Red move first. A game holds the
+  kings in a pile of its own and crowns a man by two moves: the man off
+  its square, a king from the pile onto it.
+  ```text
+  { side: [red, white], kind: [man, king],
+    copies: { (red, man): 12, (red, king): 12, (white, man): 12, (white, king): 12 } }
+  ```
+
 Each entry captures a set's *composition* only. Card points
 (`card_points { }`), ranking for play (`ranking:`), follow-suit
 semantics, and trump status (`trump:`) are all per-game declarations
@@ -872,7 +882,8 @@ a family that does not declare what the verb reads.
   d5 d6 d7   e3 e4 e5   f2 f4 f6   g1 g4 g7
   ```
   It has no movement frame, so it mints no `dir` and answers none of
-  `neighbor`, `has_step`, `is_diagonal`, `home` and `far_row`; a move on
+  `neighbor`, `has_step`, `is_diagonal`, `is_forward`, `home` and
+  `far_row`; a move on
   it names its destination (`to : cell`) and tests `to in
   neighbors(from)`. Used by nine-mens-morris.
 
@@ -889,8 +900,28 @@ a family that does not declare what the verb reads.
   last file, seat 1 joining left to right; each corner hexagon is on both
   of its edges. It declares no lines and no movement frame, so it mints no
   `dir` and answers none of `lines`, `neighbor`, `has_step`,
-  `is_diagonal`, `home` and `far_row`; `grid` and `morris9` declare no
-  borders and answer neither `near_edge` nor `far_edge`.
+  `is_diagonal`, `is_forward`, `home` and `far_row`; `grid`, `morris9` and
+  `draughts` declare no borders and answer neither `near_edge` nor
+  `far_edge`.
+
+- `draughts(width, height)` = the board of the draughts family: the
+  playable squares of a `width` by `height` board, `width` in `3..16` (a
+  jump spans three files) and `height` in `7..16` (two three-rank homes
+  with a rank between them). A square is playable when `height - rank +
+  file` is odd, counting files from `0`, so the top-left corner never is:
+  at 8x8 that is the thirty-two dark squares with `a1` a playing square at
+  the first player's near left, as the WCDF's board has it, and on every
+  size the squares OpenSpiel's `checkers` plays on. Cells are named as the
+  grid's and ordered row-major from rank `1` (`a1 c1 e1 g1 b2 ...` at
+  8x8). Its movement **frame** has four diagonal directions, `ahead_left`,
+  `ahead_right`, `back_left` and `back_right` (its `dir` domain), the
+  second seat's the first's 180-degree rotation, so a step from a cell
+  lands on a cell or off the board; `is_forward` is true of the two
+  `ahead_*` members and `is_diagonal` of all four. Its **regions** are
+  `home(player)`, the playable squares of the back three ranks (twelve a
+  side at 8x8), and `far_row(player)`, the playable squares of the far
+  rank (the king-row). It declares no lines and no adjacency, so it
+  answers neither `lines` nor `neighbors`.
 
 A board mints the position domain `cell` (its cells, on the
 declared-position substrate) and, where its family has a movement
@@ -1046,8 +1077,11 @@ and which one is the game's own choice:
   board (the guard that gates `neighbor`).
 - `is_diagonal(along) → Boolean` — whether a step along `along` changes file
   (a grid's capturing directions).
-- `home(player) → Collection<Cell>` — a player's back two ranks (its setup
-  region).
+- `is_forward(along) -> Boolean` - whether a step along `along` advances
+  toward the far rank: a draughts man's two directions, and every grid
+  direction.
+- `home(player) -> Collection<Cell>` - a player's back ranks, two on a grid
+  and three on a draughts board (its setup region).
 - `far_row(player) → Collection<Cell>` — the far edge of `player`'s frame (its
   reach-to-win goal).
   These board helpers read the board's movement frame (a resolve error

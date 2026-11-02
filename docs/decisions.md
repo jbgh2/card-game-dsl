@@ -3465,13 +3465,16 @@ gives its integer arguments. A family that takes none is named bare.
 board: grid(3, 3)
 board: morris9
 board: hex_rhombus(11)
+board: draughts(8, 8)
 ```
 
 The `grid` family builds a rectangular board, `morris9` the fixed
-twenty-four-point nine men's morris board, and `hex_rhombus` an n-by-n
-rhombus of hexagons; unknown family, wrong arity (`morris9(3)`, a bare
-`grid`, `hex_rhombus(3, 3)`), or out-of-bounds arguments are resolve
-diagnostics (the registry declares each family's arity and bounds). A `board:` clause **requires
+twenty-four-point nine men's morris board, `hex_rhombus` an n-by-n
+rhombus of hexagons, and `draughts` the playable squares of a draughts
+board; unknown family, wrong arity (`morris9(3)`, a bare `grid`,
+`hex_rhombus(3, 3)`), or out-of-bounds arguments are resolve diagnostics
+naming the argument and its bounds (the registry declares each family's
+arguments, each with its own bounds). A `board:` clause **requires
 `pieces:`** — a board holds pieces, not cards — so `board:` in a card
 game is rejected, and the board-plus-`cards:` combination waits on a
 witnessed need.
@@ -3543,8 +3546,9 @@ collection of `TLine`, each an ordered tuple of cells; `grid(3, 3)`'s
 `lines(3)` is the eight tic-tac-toe lines, and `morris9`'s the sixteen
 mills. A family declares the lengths it answers (a grid every `k` up to
 its longer side, `morris9` only `3`), and a literal `k` it does not
-declare is a resolve error; `lines(…)` in a boardless game is rejected
-naming `board:`.
+declare is a resolve error; a family that declares no lines
+(`hex_rhombus`, `draughts`) refuses the call; `lines(...)` in a boardless
+game is rejected naming `board:`.
 
 ```text
 any line in lines(3) where all cells in line where square[cell] is not empty
@@ -3559,9 +3563,11 @@ and the win test `any line in lines(3) where all cells in line where …`.
 
 Where tic-tac-toe only *places* pieces, a game whose pieces *move*
 declares a move parameterized by a **movement direction** as well as a
-cell. A grid mints a second named-member domain, `dir`, whose members
-are the seat-relative forward directions `ahead`, `ahead_left`,
-`ahead_right`:
+cell. A board with a movement frame mints a second named-member domain,
+`dir`, whose members are the frame's seat-relative directions: on a grid
+the forward directions `ahead`, `ahead_left` and `ahead_right`, on a
+draughts board the four diagonals `ahead_left`, `ahead_right`,
+`back_left` and `back_right`:
 
 ```text
 move_type step(from : cell, along : dir) { when: … effect { … } }
@@ -3577,7 +3583,7 @@ and neither does a board whose family has no movement frame (`morris9`,
 `hex_rhombus`); naming it at any of those positions is refused naming
 `board:`, or the family and how a move on its board names a cell. Beside a
 frameless board, `positions { dir : ... }` is an ordinary declared
-position domain; beside a grid it collides with the minted one.
+position domain; beside a framed one it collides with the minted one.
 `TDir` is distinct from `TCell`: `along is a1` (direction against cell),
 `along is 3`, `along < along2`, and `along[…]` are all type errors, and a
 direction member is not expression-nameable — naming `ahead` in an
@@ -3592,7 +3598,7 @@ function can_jump(p : Player) =
   any cell where mine(cell, p) and (any dir where jump_ok(cell, dir, p))
 ```
 
-**Per-player frames.** A grid's directions are seat-relative: `ahead` is
+**Per-player frames.** A frame's directions are seat-relative: `ahead` is
 one player's forward and the other's backward, because the second seat's
 frame is the 180-degree rotation of the first's — one shared board, a
 declared per-player transform, never a second board. The transform is
@@ -3611,9 +3617,15 @@ Shadow Guards, and on a board with no frame naming its family:
 - `has_step(from, along, player)` — whether that step stays on the board.
 - `is_diagonal(along)` — whether a step along `along` changes file (the
   capturing directions on a grid, where straight steps do not capture).
-- `home(player)` and `far_row(player)` — a player's back-two-ranks setup
-  region and the opposite edge (its reach-to-win goal), each a
-  `Collection<Cell>` the cell membership and quantifier forms consume.
+- `is_forward(along)` - whether a step along `along` advances toward the
+  far rank: true of every grid direction and of a draughts board's two
+  `ahead_*` members, so a man's step and a king's are told apart by it.
+  It reads no seat: each seat's frame faces its own far rank.
+- `home(player)` and `far_row(player)` - a player's setup region, the
+  cells of its back ranks (two on a grid, three on a draughts board), and
+  the cells of the opposite edge (a reach-to-win goal, or the king-row),
+  each a `Collection<Cell>` the cell membership and quantifier forms
+  consume.
 
 **`for each cell` and cell membership.** Setup that fills a region
 iterates it: `for each cell c: <stmt>` runs the body once per board cell,
@@ -3690,18 +3702,29 @@ seat 1 file `a` to the last file; each corner hexagon belongs to both of
 its edges, so the two near borders share `a1` and the two far borders the
 opposite corner. It declares no lines and no movement frame.
 
+`board: draughts(width, height)` mints `cell` with the playable squares of
+a draughts board: the square at the top-left corner is never played, so at
+8x8 `a1` is, and the thirty-two dark squares are the cells. The playable
+region is the family's entry data, its cell list, never a guard over the
+whole rectangle, so no light square reserves an action id. Its movement
+frame has the four diagonals, two of them backward, and a step from a cell
+lands on a cell or off the board; its homes are each seat's back three
+ranks and its `far_row` the king-row. It declares no lines and no
+adjacency.
+
 **A board verb is answered by the families that declare what it reads.**
 Each verb reads one part of its board's entry: `lines` the line lengths
 the family declares, `neighbors` its declared adjacency, `neighbor`,
-`has_step`, `is_diagonal`, `home` and `far_row` its movement frame — as
-does the direction domain `dir` — and `near_edge` and `far_edge` each
-seat's borders. A family declares only the parts it has:
+`has_step`, `is_diagonal`, `is_forward`, `home` and `far_row` its
+movement frame -- as does the direction domain `dir` -- and `near_edge` and
+`far_edge` each seat's borders. A family declares only the parts it has:
 
 | family        | `lines(k)`                | `neighbors` | the frame verbs and `dir` | `near_edge`, `far_edge` |
 |---------------|---------------------------|-------------|---------------------------|-------------------------|
 | `grid`        | `k` up to its longer side | refused     | answered                  | refused                 |
 | `morris9`     | `k = 3`, the mills        | answered    | refused                   | refused                 |
 | `hex_rhombus` | refused                   | answered    | refused                   | answered                |
+| `draughts`    | refused                   | refused     | answered                  | refused                 |
 
 A call on a family that does not declare its verb's part is refused at
 the call, naming the board and the verbs it answers; reached through a

@@ -1,0 +1,13 @@
+// Guard: resolve.py's `_resolve_board` via `board_entry`. A draughts board's
+// height must lie in 7..16, so the two three-rank homes keep a rank between
+// them; `draughts(8, 6)` violates the lower bound, refused naming the height.
+game BoardDraughtsTooShort {
+  players: 2
+  max_length: 20
+  board: draughts(8, 6)
+  pieces: draughts_men
+  zones { box : Deck  reserve[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0 }
+  phase play { move all pieces from box where piece.side is red to reserve[0] }
+  winner: highest score
+}

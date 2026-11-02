@@ -89,6 +89,13 @@ place of the rank step reddens GRID G's `is_forward` rows and the oracle's
 men's directions.
 red under (lines): giving the draughts builder `line_lengths=(1,)` refuses
 the entry at construction (lines derive from the frame's full rectangle).
+red under (verb needs): mapping `is_forward` to `edges` in
+`BOARD_VERB_NEEDS` reddens tests/test_board_verb_availability.py's GRID V
+`call is_forward` cells on every family.
+The entry pins `__post_init__` holds for a frame of one colour -- a step
+landing on a cell, a home of every cell of its back ranks, a king-row of
+every cell of its rank, no lines off a partial rectangle -- are each fed the
+fault they name by a focused test below, and each asserts its own refusal.
 """
 
 from __future__ import annotations
@@ -102,8 +109,11 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import OwnerGuardError
-from cardlang.stdlib.boards import BOARD_FAMILIES, board_entry
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
+from cardlang.runtime.evaluate import native_call
+from cardlang.stdlib import boards
+from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
+from tests.test_movement_verbs import _boardless_ctx
 
 _FILE = "draughts.cardlang"
 
@@ -208,7 +218,6 @@ def _cells() -> list[Any]:
                             pytest.param(
                                 family, verb, seat, d, width, height,
                                 id=f"{family}-{size}-{verb}-p{seat}-{d}",
-                                marks=_mark(family, verb),
                             )
                         )
             for verb in _DIRECTION_VERBS:
@@ -217,7 +226,6 @@ def _cells() -> list[Any]:
                         pytest.param(
                             family, verb, None, d, width, height,
                             id=f"{family}-{size}-{verb}-{d}",
-                            marks=_mark(family, verb),
                         )
                     )
             for verb in _REGION_VERBS:
@@ -226,26 +234,15 @@ def _cells() -> list[Any]:
                         pytest.param(
                             family, verb, seat, None, width, height,
                             id=f"{family}-{size}-{verb}-p{seat}",
-                            marks=_mark(family, verb),
                         )
                     )
             rows.append(
                 pytest.param(
                     family, "lines", None, None, width, height,
                     id=f"{family}-{size}-lines",
-                    marks=_mark(family, "lines"),
                 )
             )
     return rows
-
-
-def _mark(family: str, verb: str) -> list[pytest.MarkDecorator]:
-    """The designed red of a cell before the family and the verb exist."""
-    if family == "draughts":
-        return [pytest.mark.xfail(strict=True, raises=OwnerGuardError, reason="no draughts family")]
-    if verb == "is_forward":
-        return [pytest.mark.xfail(strict=True, raises=AttributeError, reason="no is_forward")]
-    return []
 
 
 @pytest.mark.parametrize(("family", "verb", "seat", "direction", "width", "height"), _cells())
@@ -298,10 +295,6 @@ def test_a_frame_verb_answers_the_familys_geometry(
 
 # --- the hand tables -------------------------------------------------------------
 
-_PENDING = pytest.mark.xfail(strict=True, raises=OwnerGuardError, reason="no draughts family")
-_PENDING_CHECK = pytest.mark.xfail(strict=True, raises=AssertionError, reason="no draughts family")
-_PENDING_GAME = pytest.mark.xfail(strict=True, raises=DiagnosticError, reason="no draughts family")
-_PENDING_TEXT = _PENDING_CHECK
 
 DRAUGHTS_8x8_CELLS = (
     "a1 c1 e1 g1 b2 d2 f2 h2 a3 c3 e3 g3 b4 d4 f4 h4 "
@@ -346,7 +339,6 @@ DRAUGHTS_STEPS: list[tuple[tuple[int, int], str, str, int, str | None]] = [
 ]
 
 
-@_PENDING
 def test_draughts_8x8_is_the_thirty_two_dark_squares() -> None:
     entry = board_entry("draughts", (8, 8))
     assert entry.cells == tuple(DRAUGHTS_8x8_CELLS)
@@ -357,7 +349,6 @@ def test_draughts_8x8_is_the_thirty_two_dark_squares() -> None:
     assert entry.directions() == ("ahead_left", "ahead_right", "back_left", "back_right")
 
 
-@_PENDING
 def test_draughts_3x7_is_the_smallest_board_with_a_jump() -> None:
     entry = board_entry("draughts", (3, 7))
     assert entry.cells == tuple(DRAUGHTS_3x7_CELLS)
@@ -369,7 +360,7 @@ def test_draughts_3x7_is_the_smallest_board_with_a_jump() -> None:
 
 @pytest.mark.parametrize(
     ("size", "cell", "direction", "seat", "expected"),
-    [pytest.param(*row, marks=_PENDING, id=f"{row[0][0]}x{row[0][1]}-{row[1]}-{row[2]}-p{row[3]}")
+    [pytest.param(*row, id=f"{row[0][0]}x{row[0][1]}-{row[1]}-{row[2]}-p{row[3]}")
      for row in DRAUGHTS_STEPS],
 )
 def test_draughts_step_table(
@@ -388,7 +379,6 @@ def _admitted() -> list[tuple[int, int]]:
     return [(w, h) for w in range(wlo, whi + 1) for h in range(hlo, hhi + 1)]
 
 
-@pytest.mark.xfail(strict=True, raises=KeyError, reason="no draughts family")
 def test_the_family_admits_the_authored_bounds() -> None:
     family = BOARD_FAMILIES["draughts"]
     assert tuple((b.lo, b.hi) for b in family.bounds) == DRAUGHTS_BOUNDS
@@ -397,7 +387,7 @@ def test_the_family_admits_the_authored_bounds() -> None:
 
 @pytest.mark.parametrize(
     ("width", "height"),
-    [pytest.param(w, h, marks=_PENDING, id=f"{w}x{h}") for w, h in _admitted()],
+    [pytest.param(w, h, id=f"{w}x{h}") for w, h in _admitted()],
 )
 def test_every_admitted_board_holds_its_geometry(width: int, height: int) -> None:
     """Every admitted size builds; its cells are the playable squares; every
@@ -425,7 +415,10 @@ def test_every_admitted_board_holds_its_geometry(width: int, height: int) -> Non
 # --- the native oracle ----------------------------------------------------------
 
 # OpenSpiel's `checkers` at each parity of width and height: (columns, rows).
-_ORACLE_SIZES: list[tuple[int, int]] = [(8, 8), (3, 7), (10, 7), (5, 8)]
+# Each is no wider than it is tall: the oracle keeps a continuing jump's
+# square as `row * rows + column` (checkers.cc, `multiple_jump_piece_`), so
+# on a wider board it loses the jumping piece and fails its own check.
+_ORACLE_SIZES: list[tuple[int, int]] = [(8, 8), (3, 7), (6, 7), (5, 8)]
 
 # The oracle's four absolute directions (checkers.cc, `kDirRowOffsets`,
 # `kDirColumnOffsets`; its row 0 is the top rank) as each seat's frame names
@@ -456,7 +449,7 @@ def _decode(action: int, rows: int, columns: int) -> tuple[int, int, int, int]:
 
 @pytest.mark.parametrize(
     ("columns", "rows"),
-    [pytest.param(c, r, marks=_PENDING, id=f"{c}x{r}") for c, r in _ORACLE_SIZES],
+    [pytest.param(c, r, id=f"{c}x{r}") for c, r in _ORACLE_SIZES],
 )
 def test_the_cells_and_homes_are_the_oracles_squares_and_men(columns: int, rows: int) -> None:
     """The oracle's playable squares are `(row + column)` odd; its first
@@ -483,7 +476,7 @@ def test_the_cells_and_homes_are_the_oracles_squares_and_men(columns: int, rows:
 
 @pytest.mark.parametrize(
     ("columns", "rows"),
-    [pytest.param(c, r, marks=_PENDING, id=f"{c}x{r}") for c, r in _ORACLE_SIZES],
+    [pytest.param(c, r, id=f"{c}x{r}") for c, r in _ORACLE_SIZES],
 )
 def test_each_seats_frame_names_the_oracles_directions(columns: int, rows: int) -> None:
     """Over uniform playouts of the oracle, every legal move it offers lands
@@ -517,7 +510,6 @@ def test_each_seats_frame_names_the_oracles_directions(columns: int, rows: int) 
     assert checked
 
 
-@_PENDING
 def test_a_man_moves_along_exactly_the_forward_members() -> None:
     """The oracle's men move along directions 0 and 1 for its first player
     and 2 and 3 for its second; those are each seat's `is_forward` members."""
@@ -526,6 +518,55 @@ def test_a_man_moves_along_exactly_the_forward_members() -> None:
         assert [entry.is_forward(ORACLE_DIRECTIONS[seat][i]) for i in range(4)] == [
             i in men for i in range(4)
         ]
+
+
+# --- the entry pins, each fed the fault it names ---------------------------------
+
+
+def _home_two_ranks(self: BoardEntry, player: int) -> tuple[str, ...]:
+    height = self.args[1]
+    rows = range(2) if player == 0 else range(height - 2, height)
+    return tuple(c for c in self.cells if int(c[1:]) - 1 in rows)
+
+
+def _far_row_short(self: BoardEntry, player: int) -> tuple[str, ...]:
+    rank = self.args[1] if player == 0 else 1
+    return tuple(c for c in self.cells if int(c[1:]) == rank)[1:]
+
+
+def test_a_straight_step_on_the_dark_squares_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A straight direction on a board of one colour lands on a square that
+    is no cell: the entry refuses it at construction."""
+    monkeypatch.setitem(boards._DRAUGHTS_DIRECTION_OFFSETS, "ahead_left", (1, 0))
+    with pytest.raises(ValueError, match="land on a board cell"):
+        board_entry("draughts", (8, 8))
+
+
+def test_a_home_short_of_its_depth_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(BoardEntry, "home", _home_two_ranks)
+    with pytest.raises(ValueError, match="every cell of its 3 back ranks"):
+        board_entry("draughts", (8, 8))
+
+
+def test_a_king_row_short_of_its_rank_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(BoardEntry, "far_row", _far_row_short)
+    with pytest.raises(ValueError, match="every cell of one rank"):
+        board_entry("draughts", (8, 8))
+
+
+def test_lines_off_a_frame_of_one_colour_are_refused() -> None:
+    """Lines are read off a frame's whole rectangle, so an entry with a
+    frame its cells do not fill declares no lines."""
+    entry = board_entry("draughts", (8, 8))
+    with pytest.raises(ValueError, match="where the board answers lines") as caught:
+        BoardEntry(
+            family=entry.family,
+            args=entry.args,
+            cells=entry.cells,
+            frame=entry.frame,
+            line_lengths=(1,),
+        )
+    assert not isinstance(caught.value, OwnerGuardError)
 
 
 # --- board_entry's refusals -----------------------------------------------------
@@ -537,27 +578,27 @@ def test_a_man_moves_along_exactly_the_forward_members() -> None:
         pytest.param("checkers", (8, 8), "unknown board family 'checkers'", id="unknown"),
         pytest.param(
             "draughts", (8,), "board family 'draughts' takes 2 argument(s), got 1",
-            marks=_PENDING_TEXT, id="one-argument",
+            id="one-argument",
         ),
         pytest.param(
             "draughts", (8, 8, 8), "board family 'draughts' takes 2 argument(s), got 3",
-            marks=_PENDING_TEXT, id="three-arguments",
+            id="three-arguments",
         ),
         pytest.param(
             "draughts", (2, 7), "board family 'draughts' takes a width in 3..16, got 2",
-            marks=_PENDING_TEXT, id="width-2",
+            id="width-2",
         ),
         pytest.param(
             "draughts", (17, 8), "board family 'draughts' takes a width in 3..16, got 17",
-            marks=_PENDING_TEXT, id="width-17",
+            id="width-17",
         ),
         pytest.param(
             "draughts", (8, 6), "board family 'draughts' takes a height in 7..16, got 6",
-            marks=_PENDING_TEXT, id="height-6",
+            id="height-6",
         ),
         pytest.param(
             "draughts", (8, 17), "board family 'draughts' takes a height in 7..16, got 17",
-            marks=_PENDING_TEXT, id="height-17",
+            id="height-17",
         ),
     ],
 )
@@ -625,20 +666,20 @@ def _rendered(source: str) -> str | None:
     [
         pytest.param(
             "(reserve[actor] is not empty) and (top_of(reserve[actor]).kind is king)",
-            None, marks=_PENDING_CHECK, id="kind-is-king",
+            None, id="kind-is-king",
         ),
         pytest.param(
             "(reserve[actor] is not empty) and (top_of(reserve[actor]).side is red)",
-            None, marks=_PENDING_CHECK, id="side-is-red",
+            None, id="side-is-red",
         ),
         pytest.param(
             "(reserve[actor] is not empty) and (top_of(reserve[actor]).kind is red)",
-            "comparing kind with side can never be equal", marks=_PENDING_CHECK,
+            "comparing kind with side can never be equal",
             id="kind-is-red",
         ),
         pytest.param(
             "is_forward(along) and has_step(from, along, actor)",
-            None, marks=_PENDING_CHECK, id="is-forward-in-a-guard",
+            None, id="is-forward-in-a-guard",
         ),
     ],
 )
@@ -680,10 +721,18 @@ def test_a_draughts_men_sentence_checks_or_is_refused(when: str, needle: str | N
         ),
     ],
 )
-@_PENDING_CHECK
 def test_a_plausible_wrong_draughts_sentence_is_refused(source: str, needle: str) -> None:
     rendered = _rendered(source)
     assert rendered is not None and needle in rendered, rendered
+
+
+@pytest.mark.expects_shadow_guard
+def test_is_forward_without_a_board_meets_the_runtime_shadow_guard() -> None:
+    """Should `is_forward` reach play in a boardless game, the runtime refuses
+    it naming the resolve check that should have, as every board verb does."""
+    with pytest.raises(ShadowGuardError, match=r"declares no `board:`") as caught:
+        native_call("is_forward", ["ahead_left"], _boardless_ctx())
+    assert caught.value.leaked == "resolve._check_board_call"
 
 
 # --- the witnesses ---------------------------------------------------------------
@@ -754,7 +803,6 @@ def _pick(candidates: list[Any], name: str, params: tuple[str, str] | None = Non
     ]
 
 
-@_PENDING_GAME
 @pytest.mark.parametrize("seed", range(12))
 def test_the_skeletons_steps_are_the_oracles_moves_until_a_capture(seed: int) -> None:
     """At every decision before the oracle offers a capture or reaches its
@@ -791,7 +839,6 @@ def test_the_skeletons_steps_are_the_oracles_moves_until_a_capture(seed: int) ->
     assert compared[0] and compared[1], compared
 
 
-@_PENDING_GAME
 @pytest.mark.parametrize("seed", range(6))
 def test_one_side_alone_steps_crowns_and_steps_back(seed: int) -> None:
     """With only seat 0's men on the board, the steps offered are exactly

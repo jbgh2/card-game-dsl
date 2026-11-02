@@ -125,14 +125,14 @@ def test_hex_stones_composition() -> None:
     assert stones[0].suit == "black"
 
 
-@pytest.mark.xfail(strict=True, raises=KeyError, reason="no draughts_men")
 def test_draughts_men_composition() -> None:
     """English draughts: twelve men a side and a king for every man, since
     each may be crowned once. Red is the first side, seat 0's, as the WCDF's
     rules have Red move first; `side` is the suit slot, `kind` the rank slot.
 
-    red under: changing the red king copy count in
-    `COMPONENT_SETS["draughts_men"]` to 11 (with `_DECK_SIZE` matching it)."""
+    red under: changing the red and white king copy counts in
+    `COMPONENT_SETS["draughts_men"]` to 11 and 13 (the size still matches
+    `_DECK_SIZE`, so only this pin can see it)."""
     cs = COMPONENT_SETS["draughts_men"]
     assert cs.flavor == "piece" and cs.axes == ("side", "kind")
     assert "draughts_men" not in DECKS

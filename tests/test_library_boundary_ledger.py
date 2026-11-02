@@ -403,6 +403,7 @@ _CALL_SPELLINGS: dict[str, tuple[str, str]] = {
     "neighbor": ("neighbor(who, who, who) is who", ""),
     "has_step": ("has_step(who, who, who)", ""),
     "is_diagonal": ("is_diagonal(who)", ""),
+    "is_forward": ("is_forward(who)", ""),
     "home": ("home(who) is empty", ""),
     "far_row": ("far_row(who) is who", ""),
     "neighbors": ("neighbors(who) is empty", ""),
