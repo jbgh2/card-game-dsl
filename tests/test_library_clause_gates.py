@@ -69,7 +69,7 @@ registry:        gate members: `typecheck.RANKING_GATED_FUNCS`,
                  `TRICK_ORDER_GATED_WINNERS`, `TRICK_ORDER_EXCLUDED_WINNERS`,
                  `PRIMITIVE_CLIMB_LEADS`, `PRIMITIVE_CLIMB_FOLLOWS`; the Trick
                  Order twins: `typecheck.RANKING_TRICK_ORDER_TWINS`;
-                 `resolve._TEAM_CALL_FUNCS`, `resolve._FRAME_CALL_FUNCS`,
+                 `resolve._TEAM_CALL_FUNCS`, `resolve._SEAT_CALL_FUNCS`,
                  `resolve._CARD_POINTS_CALLS`, `resolve._SUIT_RANKING_CALLS`,
                  `resolve._REGION_CALL_FUNCS`;
                  roles and domains: `domains.ITERABLE_ROLES`,
@@ -93,10 +93,7 @@ does not prove:  that a member outside the Trick Order twin set has no Trick
                  home is the construct test, and a gate in the type layer, or
                  the Trick Order partition's two branches, reads the clause
                  itself, so the clause half of a row agrees with its gate only
-                 as far as the cells run both channels. Nor that a
-                 registered family lacks lines: every one declares them, so
-                 the `board_lines` row's unmet cells run on a test-only
-                 lineless board (`_PROBE_BOARD`).
+                 as far as the cells run both channels.
 """
 
 from __future__ import annotations
@@ -175,8 +172,10 @@ class Clauses:
     pieces: bool = False  # `pieces:` rather than `cards:`
     board: bool = False
     board_size: int = 3  # a square grid; the probe asks for `lines(3)`
-    # The board family: a square `grid` of `board_size`, or the fixed mill
-    # board `morris9`, which has adjacency and no movement frame.
+    # The board family: a square `grid` of `board_size`, the fixed mill
+    # board `morris9`, which has adjacency and no movement frame, or the
+    # `hex_rhombus` of side `board_size`, which has adjacency and each seat's
+    # borders, and no lines.
     board_family: str = "grid"
     players: int = 4
     teams: bool = True
@@ -204,6 +203,8 @@ def _teams_clause(players: int) -> str:
 def _board_line(c: Clauses) -> str:
     if not c.board:
         return ""
+    if c.board_family == "hex_rhombus":
+        return f"  board: hex_rhombus({c.board_size})"
     if c.board_family != "grid":
         return f"  board: {c.board_family}"
     return f"  board: grid({c.board_size}, {c.board_size})"
@@ -211,9 +212,8 @@ def _board_line(c: Clauses) -> str:
 
 # A board no registered family builds, registered for a cell by
 # `_install_probe_board`: three points in a row, joined by two edges, with no
-# lines and no frame. It is the board that lacks lines, which every registered
-# family declares, and the board whose cells' regions are shorter than the
-# mill board's.
+# lines and no frame. It is the board whose cells' regions are shorter than
+# the mill board's.
 _PROBE_BOARD = "probe_path"
 
 
@@ -380,13 +380,17 @@ GATES: tuple[Gate, ...] = (
     Gate("suit_ranking", resolve_module._SUIT_RANKING_CALLS, "`suit ranking:`"),
     Gate("teams", resolve_module._TEAM_CALL_FUNCS, "teams:"),
     Gate("board", BOARD_ONLY_CALL_FUNCS, "board:"),
-    Gate("two_seats", resolve_module._FRAME_CALL_FUNCS, "players"),
+    # The seat verbs, one row per part they read (`resolve._SEAT_GATES`),
+    # authored here from the family-by-verb matrix.
+    Gate("two_seats_frame", frozenset({"far_row", "has_step", "home", "neighbor"}), "players"),
+    Gate("two_seats_borders", frozenset({"far_edge", "near_edge"}), "players"),
     # The one board verb whose ARGUMENT is judged against the board's size
     # (`resolve._check_board_call`): a literal `k` past the board's span.
     Gate("board_span", frozenset({"lines"}), "grid(2, 2)"),
     # What a board family must declare for each board verb to read
     # (`builtins.functions.BOARD_VERB_NEEDS`), each authored here from the
-    # family-by-verb matrix: a movement frame, a declared adjacency, lines.
+    # family-by-verb matrix: a movement frame, a declared adjacency, lines,
+    # each seat's borders.
     Gate(
         "board_frame",
         frozenset({"far_row", "has_step", "home", "is_diagonal", "neighbor"}),
@@ -394,20 +398,26 @@ GATES: tuple[Gate, ...] = (
     ),
     Gate("board_edges", frozenset({"neighbors"}), "board: grid"),
     Gate("board_lines", frozenset({"lines"}), "board:"),
+    Gate("board_borders", frozenset({"far_edge", "near_edge"}), "board: grid"),
     Gate("cards", DECK_ONLY_CALL_FUNCS, "piece"),
 )
 
 # The mill board: adjacency and lines of three, no movement frame.
 _MORRIS = replace(_BOARD, board_family="morris9")
-# The test-only lineless path (`_PROBE_BOARD`).
+# The hex rhombus: adjacency and each seat's borders, no lines, no frame.
+_HEX = replace(_BOARD, board_family="hex_rhombus")
+# The test-only path (`_PROBE_BOARD`).
 _PROBE = replace(_BOARD, board_family=_PROBE_BOARD)
 
 
 def _home(member: str) -> Clauses:
     """A game every gate on `member` is met in: the mill board for a verb
-    reading declared adjacency, which the grid lacks."""
+    reading declared adjacency and the hex rhombus for one reading a seat's
+    borders, each of which the grid lacks."""
     if BOARD_VERB_NEEDS.get(member) == "edges":
         return _MORRIS
+    if BOARD_VERB_NEEDS.get(member) == "borders":
+        return _HEX
     if member in BOARD_ONLY_CALL_FUNCS:
         return _BOARD
     return replace(
@@ -476,8 +486,10 @@ def _unmet(gate: Gate, member: str) -> Clauses:
         case "board_edges":
             return _BOARD
         case "board_lines":
-            return _PROBE
-        case "two_seats":
+            return _HEX
+        case "board_borders":
+            return _BOARD
+        case "two_seats_frame" | "two_seats_borders":
             return replace(home, players=3)
         case "cards":
             return _PIECES
@@ -1434,13 +1446,16 @@ def _region_members() -> list[NodeMember]:
             )
             continue
         seat = isinstance(CALL_SIGS[region].params[0], TPlayer)
+        # A seat's border runs one side of the hex rhombus; every other
+        # region is the grid's.
+        board = _HEX if BOARD_VERB_NEEDS[region] == "borders" else _BOARD
         members.append(
             NodeMember(
                 "board_position", region,
                 f"function probe_fn({'p : Player' if seat else ''}) = "
                 f"{region}({'p' if seat else '3'})[{_PAST}]",
-                f"{region}(...)[{_PAST}]", "board: grid(3, 3)",
-                NodeGame(replace(_BOARD, board_size=10)), NodeGame(_BOARD),
+                f"{region}(...)[{_PAST}]", _board_line(board).strip(),
+                NodeGame(replace(board, board_size=10)), NodeGame(board),
                 game_word="past the end",
             )
         )

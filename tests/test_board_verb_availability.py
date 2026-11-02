@@ -3,8 +3,8 @@ refused, naming the family, by one that does not.
 
 A `board:` family declares its topology as data on `BoardEntry`
 (`cardlang/stdlib/boards.py`): its cells, an optional adjacency (`edges`),
-the line lengths it answers, and an optional movement frame. Every board
-verb reads one of them (`builtins.functions.BOARD_VERB_NEEDS`), and so does
+the line lengths it answers, an optional movement frame, and optional seat
+borders. Every board verb reads one of them (`builtins.functions.BOARD_VERB_NEEDS`), and so does
 the board direction domain `dir`, which only a frame mints. This module is
 the family-by-verb grid, the entry-integrity grid over every family's built
 entry, and the misuse probes:
@@ -15,18 +15,20 @@ entry, and the misuse probes:
     parameter, the bare quantifier, a function parameter and an outcome
     payload}, crossed with {answered, refused naming the family}. The
     expected column is the hand table `ANSWERS`, authored from the
-    family-by-verb matrix of issue #976, never read off `BOARD_VERB_NEEDS`.
-    An answered cell checks and plays its probe; a refused cell is refused at
-    resolve on a line naming the position and the family, and a call's
-    refusal names every verb the family answers. Behind it, each refused
+    family-by-verb matrices of issues #976 and #969, never read off
+    `BOARD_VERB_NEEDS`. An answered cell checks and plays its probe; a
+    refused cell is refused at resolve on a line naming the position and the
+    family, and a call's refusal, or a `lines(k)` refused on a family with no
+    lines, names every verb the family answers. Behind it, each refused
     (family, verb) cell, and `lines` on an entry declaring no topology, is
     called at play and meets the runtime Shadow Guard.
   * GRID E -- over every family's built entry: cells unique, nonempty and
     within the position-domain ceiling; edges joining two distinct cells,
     total over the cells; every line a straight run of declared length along
     the edges where the family declares edges; `neighbors(c)` in board cell
-    order; a frame present exactly where the checked game's board mints
-    `dir`. The `morris9` hand tables (thirty-two edges, the degree sequence,
+    order; each seat's two borders distinct board cells in board order; a
+    frame present exactly where the checked game's board mints `dir`. The
+    `morris9` hand tables (thirty-two edges, the degree sequence,
     the sixteen mills written out, every point in exactly two) are its
     independent cross-checks.
   * The misuse probes -- the plausible wrong sentences around the new
@@ -50,8 +52,9 @@ domain:     `BOARD_FAMILIES` x the positions above x {answered, refused}
             witness game (issue #124): relations beyond one adjacency set,
             jump triples, track frames, double-indexed families, in-file
             boards. A family library spells no `cell` type and no `dir`, so
-            of the board verbs it reaches `home`, `far_row` and `lines`, and
-            `neighbors` through a `for each cell` binder; its
+            of the board verbs it reaches the seat verbs `home`, `far_row`,
+            `near_edge` and `far_edge`, and `lines`, and `neighbors` through a
+            `for each cell` binder; its
             reach is the `uses`-line row of `resolve._CLAUSE_GATES` that the
             game's own call reads (tests/test_library_clause_gates.py).
 registry:   `cardlang.stdlib.boards.BOARD_FAMILIES`, `BoardEntry`;
@@ -78,7 +81,12 @@ held by:    the availability refusal is Derived and Pinned: `BOARD_VERB_NEEDS`
             cannot be written. A frameless family minting no `dir` is
             Unrepresentable: `BoardEntry.frame` is optional,
             `board_domains.directions_of` reads it, and the `dir` source is
-            empty without it.
+            empty without it. That every `BoardNeed` has a part an entry is
+            asked for is Unrepresentable: `BoardEntry.answers` matches the
+            `BoardNeed` literal exhaustively, so a need with no arm is a
+            `mypy --strict` error. The hex rhombus's geometry is
+            tests/test_boards_registry.py's, against an independent
+            re-derivation from coordinates and OpenSpiel's `hex`.
 does not prove:  that `neighbors` is the adjacency a player of the real game
             knows: the hand table is checked against itself and the derived
             mills, and the differential against OpenSpiel's
@@ -89,14 +97,18 @@ does not prove:  that `neighbors` is the adjacency a player of the real game
             and tests/test_movement_verbs.py's, and `neighbors`' are the
             hand table of tests/test_boards_registry.py and the slide witness
             here, which holds every offered slide set equal to a hand-drawn
-            adjacency. The availability row for `lines`
-            refuses nothing while every family declares lines; its cells are
-            marked.
+            adjacency.
 
 red under (edges): dropping `("a1", "d1")` from `boards._MORRIS9_EDGES`
 reddens the degree table, the edge count and the mills table of GRID E.
 red under (availability): mapping `neighbors` to `frame` in
-`BOARD_VERB_NEEDS` reddens GRID V's `call neighbors` cells on both families.
+`BOARD_VERB_NEEDS` reddens GRID V's `call neighbors` cells on every family.
+red under (needs): deleting the `"borders"` arm of `BoardEntry.answers` is
+`mypy --strict`'s "Missing return statement" at `answers`.
+red under (borders): mapping `near_edge` to `frame` in `BOARD_VERB_NEEDS`
+reddens GRID V's `call near_edge` cells on `grid` and `hex_rhombus`, every
+`hex_rhombus` refusal's list of the verbs it answers, and the `near_edge`
+misuse probes.
 """
 
 from __future__ import annotations
@@ -112,7 +124,7 @@ from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import ShadowGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import native_call
 from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
 from cardlang.types import TBoolean, TCell, TCollection, TDir, TInteger, TPlayer
@@ -125,6 +137,7 @@ _FILE = "availability.cardlang"
 BOARD_CLAUSES: dict[str, str] = {
     "grid": "grid(8, 8)",
     "morris9": "morris9",
+    "hex_rhombus": "hex_rhombus(3)",
 }
 
 LINE_LENGTHS: tuple[int, ...] = (1, 2, 3, 4)
@@ -142,8 +155,10 @@ def _positions() -> list[str]:
     return calls + [f"lines({k})" for k in LINE_LENGTHS] + list(DIR_POSITIONS)
 
 
-# The expected column, authored from issue #976's family-by-verb matrix: the
-# positions each family answers; every other position is refused.
+# The expected column, authored from the family-by-verb matrices of issues
+# #976 and #969: the positions each family answers; every other position is
+# refused. `hex_rhombus` answering `neighbors` is the one cell #969's matrix
+# does not list: its adjacency is declared as edges, which that verb reads.
 ANSWERS: dict[str, frozenset[str]] = {
     "grid": frozenset(
         {
@@ -160,12 +175,14 @@ ANSWERS: dict[str, frozenset[str]] = {
         }
     ),
     "morris9": frozenset({"call neighbors", "lines(3)"}),
+    "hex_rhombus": frozenset({"call far_edge", "call near_edge", "call neighbors"}),
 }
 
 # The board verbs each family answers, as its refusals list them.
 ANSWERED_VERBS: dict[str, tuple[str, ...]] = {
     "grid": ("far_row", "has_step", "home", "is_diagonal", "lines", "neighbor"),
     "morris9": ("lines", "neighbors"),
+    "hex_rhombus": ("far_edge", "near_edge", "neighbors"),
 }
 
 FAMILIES = sorted(set(BOARD_FAMILIES) | set(ANSWERS))
@@ -181,12 +198,18 @@ def test_the_expected_column_covers_every_family() -> None:
 
 def test_the_expected_column_covers_every_position() -> None:
     """Each family's answered set is drawn from the derived positions, and
-    its answered verbs are the call positions it answers plus `lines`."""
+    its answered verbs are the call positions it answers, plus `lines`
+    where it answers some `lines(k)`."""
     positions = set(_positions())
     for family, answered in ANSWERS.items():
         assert answered <= positions, sorted(answered - positions)
         calls = {p.removeprefix("call ") for p in answered if p.startswith("call ")}
-        assert set(ANSWERED_VERBS[family]) == calls | {"lines"}
+        lines = {"lines"} if _answers_lines(family) else set()
+        assert set(ANSWERED_VERBS[family]) == calls | lines
+
+
+def _answers_lines(family: str) -> bool:
+    return any(p.startswith("lines(") for p in ANSWERS[family])
 
 
 def test_every_board_verb_reads_one_declared_part() -> None:
@@ -334,12 +357,14 @@ def _stop(player: int, candidates: list[Any], k: int) -> list[Any]:
     return [next(c for c in candidates if c == ("stop", None))]
 
 
-def _word(position: str) -> str:
+def _word(family: str, position: str) -> str:
     """What a refusal of `position` must name: the verb, the length it was
-    asked for, or `dir`."""
+    asked for on a family with lines, `lines` on one with none, or `dir`."""
     if position.startswith("call "):
         return f"`{position.removeprefix('call ')}`"
     if position.startswith("lines("):
+        if not _answers_lines(family):
+            return "`lines`"
         return f"got {position.removeprefix('lines(').removesuffix(')')}"
     return "dir"
 
@@ -359,10 +384,11 @@ def test_a_board_position_is_answered_or_refused_naming_the_family(
     hits = [
         line
         for line in rendered.splitlines()
-        if _word(position) in line and family in line
+        if _word(family, position) in line and family in line
     ]
     assert hits, rendered
-    if position.startswith("call "):
+    lineless = position.startswith("lines(") and not _answers_lines(family)
+    if position.startswith("call ") or lineless:
         assert any(all(f"`{v}`" in line for v in ANSWERED_VERBS[family]) for line in hits), hits
 
 
@@ -429,11 +455,11 @@ def test_every_entry_holds_its_topology_together(family: str) -> None:
         for c in cells:
             nbrs = entry.neighbors(c)
             assert nbrs == tuple(x for x in cells if frozenset((c, x)) in entry.edges)
-    assert entry.line_lengths, (
-        f"{family} declares no line length: a lineless family is the witness the "
-        "`board_lines` cells of tests/test_library_clause_gates.py wait on, so "
-        "unskip them rather than give the family lines"
-    )
+    if entry.borders is not None:
+        for p in (0, 1):
+            for run in (entry.near_edge(p), entry.far_edge(p)):
+                assert run and len(set(run)) == len(run) and set(run) <= cellset, run
+                assert list(run) == sorted(run, key=cells.index), run
     for k in entry.line_lengths:
         lines = entry.lines(k)
         assert lines == entry.lines(k)
@@ -514,6 +540,38 @@ def test_morris9_mills_are_the_sixteen_lines_and_each_point_is_in_two() -> None:
             id="grid without its arguments",
         ),
         pytest.param(
+            _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(3, 3)"),
+            "board family 'hex_rhombus' takes 1 argument(s), got 2",
+            id="hex_rhombus with two arguments",
+        ),
+        pytest.param(
+            _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(0)"),
+            "board family 'hex_rhombus' arguments must be in 1..16, got 0",
+            id="hex_rhombus of side zero",
+        ),
+        pytest.param(
+            _game("hex_rhombus").replace("hex_rhombus(3)", "hex_rhombus(17)"),
+            "board family 'hex_rhombus' arguments must be in 1..16, got 17",
+            id="hex_rhombus past the position-domain cap",
+        ),
+        pytest.param(
+            _game("hex_rhombus", setup="    probe := number of cells where cell in near_edge(2)\n"),
+            "seat 2 is out of range",
+            id="near_edge of a seat past the two",
+        ),
+        pytest.param(
+            _game(
+                "hex_rhombus", setup="    probe := number of cells where cell in near_edge(0)\n"
+            ).replace("players: 2", "players: 3"),
+            "`near_edge` reads a seat's own two edges of the board",
+            id="near_edge in a three-seat game",
+        ),
+        pytest.param(
+            _game("hex_rhombus", params="at : cell, along : dir"),
+            "board family 'hex_rhombus' mints no directions",
+            id="dir move parameter on hex_rhombus",
+        ),
+        pytest.param(
             _game(
                 "morris9",
                 setup="    probe := number of cells where (any cell in neighbors(cell) where true)\n",
@@ -533,15 +591,28 @@ def test_a_plausible_wrong_sentence_is_refused(source: str, needle: str) -> None
     assert rendered is not None and needle in rendered, rendered
 
 
+def test_a_computed_seat_past_the_two_is_refused_at_play() -> None:
+    """A computed seat reaches play unchallenged by the literal check, and
+    the border verb's seat Owner Guard refuses it in the game author's
+    channel."""
+    source = _game(
+        "hex_rhombus", setup="    probe := number of cells where cell in near_edge(1 + 1)\n"
+    )
+    game = check_dsl(source, _FILE)
+    with pytest.raises(OwnerGuardError, match="`near_edge` reads seat 2"):
+        play_game(game, random.Random(0), chooser=_stop)
+
+
 # A literal position into a board region whose argument the sentence does not
 # fix: the board bounds the region by its largest count over every argument
 # it admits -- every cell for `neighbors(c)` (the mill board's largest degree
-# is four), every declared length for a computed `lines(k)` (on the mill
+# is four, `hex_rhombus(3)`'s six), every declared length for a computed `lines(k)` (on the mill
 # board, the sixteen mills; on `grid(8, 8)` the lines of two, 56 across, 56
 # up and 98 diagonal). (family, region expression, the first position past
 # it.)
 _UNFIXED_REGIONS = [
     ("morris9", "neighbors(c)", 4),
+    ("hex_rhombus", "neighbors(c)", 6),
     ("morris9", "lines(k)", 16),
     ("grid", "lines(k)", 210),
 ]
