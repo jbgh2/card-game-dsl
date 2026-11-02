@@ -117,7 +117,7 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           `domains.DOMAINS` for the quantifier nouns, `SIMULTANEOUS_ROLES` for
           `each … simultaneously`, `runtime.values.content_noun` crossed with
           `types.Flavor` and singular/plural for the transfer and reveal filters,
-          `resolve._COLLECTION_NOUNS` with `board_domains.BOARD_DOMAIN` for the
+          `board_domains.LINE_NOUN` with `board_domains.BOARD_DOMAIN` for the
           position queries — its pin: `test_the_fixed_binder_spellings_come_
           from_their_registries`, with `_UNREACHABLE_SPELLINGS` carrying the one
           a registry admits and no game text reaches. The author-chosen /
@@ -213,7 +213,7 @@ from lark.exceptions import VisitError
 
 from cardlang.ast import nodes as n
 from cardlang.attribution import is_library_warning
-from cardlang.board_domains import BOARD_DOMAIN
+from cardlang.board_domains import BOARD_DOMAIN, LINE_NOUN
 from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, line_kind
 from cardlang.domains import DOMAINS, SIMULTANEOUS_ROLES, Role, role_names
@@ -229,7 +229,6 @@ import cardlang.parse
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import (
     _AUTHOR_CHOSEN_BINDERS,
-    _COLLECTION_NOUNS,
     _CONTEXTUAL_SLOTS,
     _LIBRARY_DEF_KINDS,
     _LIBRARY_UNSWEPT,
@@ -1327,6 +1326,9 @@ _LEAK_READS: dict[str, tuple[str, str | None]] = {
     "zone": ("pile", None),
     "deck_value": ("hearts", None),
     "card_literal": ("(Q of hearts)", None),
+    # A position domain is the game's to declare; the collection form names it
+    # as the bare form does, and no library spelling has a contracted twin.
+    "position": ("(number of columns in [1, 2] where true)", None),
 }
 
 
@@ -1359,6 +1361,7 @@ _AXIS_NAMESPACE: dict[str, frozenset[str]] = {
     "zone": frozenset({"zones"}),
     "deck_value": frozenset({"enums"}),
     "card_literal": frozenset({"ranks", "suits"}),
+    "position": frozenset({"collection_nouns"}),
 }
 
 
@@ -1385,9 +1388,12 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # (`_refuse_bare_always`), and a game's definition reached by name is
     # the `call` column's leak. `shapes` is the catalogue's row labels, a
     # subset of `enums` (where a bare label resolves), read for one
-    # refusal's wording.
+    # refusal's wording. `bound_names` is every name the game binds, read
+    # by the membership-capture check at a collection set to know a capture
+    # may be there; no reference resolves against it.
     game_fed = {f.name for f in fields(_Categories)} - {
-        "locals", "functions", "flavor", "definitions", "rule_clause", "shapes"
+        "locals", "functions", "flavor", "definitions", "rule_clause", "shapes",
+        "bound_names",
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():
@@ -1422,6 +1428,7 @@ game Host {
   players: 2
   cards: standard52
   max_length: 100
+  positions { column : 1..4 }
   zones { deck : Deck  hand[player] : Hand<player>  pile : Discard }
   state {
     declared_thing   : Integer = 0
@@ -2488,10 +2495,12 @@ def _fixed_spellings() -> dict[str, frozenset[str]]:
     rather than a hole. A kind absent from this map is one whose binder the
     author spells.
 
-    `DomainQuery` is the one kind with a spelling from BOTH sides: the bare form
-    over a declared `positions { }` domain takes the author's own noun, and that
-    sub-position is not here because the guard never reaches it (see
-    `test_a_declaration_level_collision_is_reported_by_another_guard`)."""
+    `DomainQuery` is the one kind with a spelling from BOTH sides: a bare or
+    collection form over a declared `positions { }` domain takes the author's
+    own noun, and that sub-position is not here because the guard never
+    reaches it (see
+    `test_a_declaration_level_collision_is_reported_by_another_guard`); the
+    language fixes the board's minted `cell` and the collection form's `line`."""
     flavors = typing.get_args(Flavor)
     content = {content_noun(f, plural=p) for f in flavors for p in (False, True)}
     card = content_noun("card", plural=False)
@@ -2503,7 +2512,7 @@ def _fixed_spellings() -> dict[str, frozenset[str]]:
         "Comprehension": frozenset({card}),
         "Transfer": frozenset(content),
         "EpistemicOp": frozenset(content_noun(f, plural=False) for f in flavors),
-        "DomainQuery": _COLLECTION_NOUNS | {BOARD_DOMAIN},
+        "DomainQuery": frozenset({LINE_NOUN, BOARD_DOMAIN}),
     }
 
 

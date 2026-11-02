@@ -3333,9 +3333,10 @@ diagnostics (deferred, recorded in issue #111). Quantifiers
 range over a position domain's members like any other quantifiable
 domain — `any column where …`, `all columns where …`, `number of columns
 where …`, and the set of the members satisfying a predicate, `columns
-where …`; for a board's `cell` domain the register adds two collection
-forms over lines and cells, detailed with `lines(k)` in "Boards and
-cells" below (tests/test_cell_queries.py, tests/test_cell_set_form.py). A position-indexed family
+where …`, each also over a collection of the domain's members (`columns
+in [1, 2] where …`); for a board the register adds the lines a collection
+form ranges over, detailed with `lines(k)` in "Boards and cells" below
+(tests/test_cell_queries.py, tests/test_cell_set_form.py). A position-indexed family
 is always subscripted: no seat owns one of its instances, so a bare name
 has nothing to mean ("Per-observer visibility on zones", "A family named
 bare is the acting player's own").
@@ -3538,30 +3539,54 @@ cells where <pred>
 ```
 
 The last is the register's Set Form, the twin of `players where
-<pred>` and `cards in <zone> where <pred>`: the members of the domain
-satisfying the predicate, in the Position Domain's member order, as a collection —
-`Collection<Cell>` over a board's `cell`, `Collection<Integer>` over an
-integer domain (`columns where <pred>`). It compares by value with a
-Region Verb's collection (`(cells where cell in home(0)) is home(0)`)
-and meets every other consumer as one does. Cells live on the board,
-not in a zone, so the Set Form takes no source: `cells in <expr> where
-<pred>` is refused naming the Set Form, with the membership in the
-predicate. A membership's right side sits below the query forms, so a
-set tested for membership is parenthesized, `at in (cells where
-<pred>)`, as `p in (players where <pred>)` is. The Set Form gathers
-positions, so `dirs where` is refused naming the direction domain.
+<pred>`: the members of the domain satisfying the predicate, in the
+Position Domain's member order, as a collection — `Collection<Cell>` over
+a board's `cell`, `Collection<Integer>` over an integer domain (`columns
+where <pred>`). It compares by value with a Region Verb's collection
+(`(cells where cell in home(0)) is home(0)`) and meets every other
+consumer as one does. The Set Form gathers positions, so `dirs where` is
+refused naming the direction domain.
 
 ```cardlang-fragment cell_set
 function stones_of(p : Player) = cells where holds(cell, p)
 ```
 
-An unknown noun is a diagnostic naming the declared domains; a
-boardless, positionless game naming `cell` under `any` or `all` is guided
-to the collection escape instead, the only quantifiers with a collection form.
-Where a collection value exists, two collection forms
-iterate it: `any line in <lines> where <pred>` walks a collection of
-lines (binder `line`, type `TLine`), and `all cells in <line> where
-<pred>` walks the cells of one line (binder `cell`, type `TCell`).
+An unknown noun is a diagnostic naming the declared domains, and a noun
+naming a name of another kind (a zone, a state variable, a definition, a
+reserved word) is refused saying what the name is, with the sentence that
+checks where the kind has one. A bare `line` on a board is guided to the
+collection form.
+
+Every query kind has a collection form too, as the card register has every
+one over `in <zone>`: `any`, `all`, `number of` and the set, each over `in
+<collection>`, the noun one of the game's position domains or the board's
+`line`. ADR-0017 records the ruling and the twin refusing the collection
+set that it replaced.
+
+```text
+any cell in home(p) where square[cell] is empty
+number of cells in line where square[cell] is empty
+cells in home(p) where holds(cell, p)
+number of lines in lines(3) where <pred>
+```
+
+The collection set is the members of its source satisfying the predicate,
+in the source's order; the collection count is how many of them do, and
+its `where` is mandatory (with it optional, `number of cells in cells
+where P` would read two ways). A collection form's source is a collection
+of its noun's members: a collection of cells or a line for `cell`, of
+lines for `line` (a collection noun only where the game has a board), of
+the domain's Integers for an integer domain, whose type every Integer
+shares, so a source holding a non-member is refused at play, at the
+query. A card zone is no such source, and a zone named under a noun that
+is no position domain is refused naming `cards in <zone> where <pred>`. A
+membership's right side sits below the query forms, so `at in cells where
+<pred>` reads as the collection set over `at`; where `at` names a value
+in scope, it is refused naming the sentence that checks: the
+parenthesized membership, `at in (cells where <pred>)`, where the source
+is a query's own noun, and the membership joined with `and`, `at in
+mine and <pred>`, elsewhere. A library's collection form names no
+position domain of the game it is used by, as its bare form names none.
 `lines(k)` is the native call the board's declared length-`k` lines are
 read through — on a grid every straight run of `k` cells along a row,
 column, or diagonal, on a family with declared adjacency every straight

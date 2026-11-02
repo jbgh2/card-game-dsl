@@ -1,1 +1,0 @@
-cell_set_in_collection_not_admitted.cardlang:28:16: error: cells live on the board, not in a zone: the set form is `cells where <pred>`, with the membership in the predicate
