@@ -73,6 +73,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _far_row(ctx, args[0])
         case "neighbors":
             return _neighbors(ctx, args[0])
+        case "near_edge":
+            return _near_edge(ctx, args[0])
+        case "far_edge":
+            return _far_edge(ctx, args[0])
         case "player_holding":
             return _player_holding(args[0], ctx)
         case "team_of":
@@ -170,7 +174,8 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
 
 
 def _seat(ctx: Ctx, fn: str, player: int) -> int:
-    """A frame verb's player argument must be a seat of this game. A LITERAL
+    """A seat verb's player argument (a grid's frame verbs, a seat's
+    borders) must be a seat of this game. A LITERAL
     out-of-range seat is refused statically (typecheck `_check_role_literal`),
     but that check returns early on anything that is not an integer literal, so
     a COMPUTED seat -- `home(1 + 1)` -- reaches here unchallenged. Nothing
@@ -225,6 +230,16 @@ def _far_row(ctx: Ctx, player: int) -> tuple[str, ...]:
     """The rank at the far edge of `player`'s frame (the reach-to-win goal)
     -- a Collection<Cell>."""
     return _board_of(ctx, "far_row").far_row(_seat(ctx, "far_row", player))
+
+
+def _near_edge(ctx: Ctx, player: int) -> tuple[str, ...]:
+    """The board edge `player` starts from -- a Collection<Cell>."""
+    return _board_of(ctx, "near_edge").near_edge(_seat(ctx, "near_edge", player))
+
+
+def _far_edge(ctx: Ctx, player: int) -> tuple[str, ...]:
+    """The board edge `player` joins its near edge to -- a Collection<Cell>."""
+    return _board_of(ctx, "far_edge").far_edge(_seat(ctx, "far_edge", player))
 
 
 def _neighbors(ctx: Ctx, cell: str) -> tuple[str, ...]:

@@ -1,7 +1,7 @@
 // Guard: resolve's `_check_move_params`, through `_minted_directions`. Only a
 // board with a movement frame mints the board direction domain `dir`;
 // `morris9` has none, so `along : dir` is refused naming the family and how a
-// move on this board names its destination.
+// move on this board names a cell.
 game DirParameterOnMorris9 {
   players: 2
   max_length: 30

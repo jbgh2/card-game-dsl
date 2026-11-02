@@ -342,7 +342,7 @@ def _board_clause(family: str) -> str:
 # Whether each family's board carries a movement frame, and so mints `dir`:
 # authored from the registry rows' design (decisions.md "Boards and cells"),
 # never read off the entry the cells test.
-MINTS_DIRECTIONS: dict[str, bool] = {"grid": True, "morris9": False}
+MINTS_DIRECTIONS: dict[str, bool] = {"grid": True, "morris9": False, "hex_rhombus": False}
 
 
 def test_the_frame_column_covers_every_family() -> None:

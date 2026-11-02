@@ -601,9 +601,11 @@ does not move.
    move's When Clause — blockade loss detected in the turn body before
    any offer, and the first cyclic movement. Faithful: the two rule
    termini only, its cyclic lines ending at its `max_length` as Length
-   Stops scored a tie (`at max_length: tie`); the oracle's 200-turn cap
-   is the native differential's truncation point (issue #978), not a
-   rule of the game.
+   Stops scored a tie (`at max_length: tie`); the oracle's turn cap
+   (`kMaxNumTurns`, 200 completed turns) is the native differential's
+   truncation point
+   (`tests/test_differential_nine_mens_morris.py`), not a rule of the
+   game.
 8. **English draughts** (8×8, 12 men; captures mandatory, chosen jump
    sequences completed, crowning ends the move; the federation's draw
    in its automatic form, a counter reset by any capture and by any
