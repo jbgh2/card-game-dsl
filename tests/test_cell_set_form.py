@@ -641,7 +641,8 @@ def test_the_collection_twin_names_the_set_form(source: str) -> None:
 def test_the_twin_captures_no_other_sentence(source: str) -> None:
     """The twin is led by the word its message names, so a membership whose
     right side is a bare set form, and a collection twin over another noun,
-    keep the main parser's syntax error. Red under: the twin led by
+    keep the main parser's syntax error, whose words are issue #1024. Red
+    under: the twin led by
     `QNOUN` (every cell); led by any plural noun (`plural local`, `integer
     noun`, `lines`)."""
     message = _reject(source)
