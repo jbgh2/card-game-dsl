@@ -112,6 +112,9 @@ _PARSE_LEVEL_CASES = frozenset(
         # <expr> where ...` production -- a raw grammar dead end, not a
         # resolve guard (issue #111).
         "cell_count_in_collection_not_admitted",
+        # The position set takes no source: `cells in <expr> where ...` is the
+        # Diagnostic Grammar twin's refusal, raised by the parser.
+        "cell_set_in_collection_not_admitted",
         # `?mode_item` admits `active_rules` and `transition_to` only, so a
         # `legal_moves:` in a mode body never reaches a tree. This case moved
         # here from the resolve level when #208 gave the config-only class to
