@@ -3570,12 +3570,18 @@ in the source's order; the collection count is how many of them do, and
 its `where` is mandatory (with it optional, `number of cells in cells
 where P` would read two ways). A collection form's source is a collection
 of its noun's members: a collection of cells or a line for `cell`, of
-lines for `line`, of Integers for an integer domain. A card zone is no
-such source, and a zone named under a noun that is no position domain is
-refused naming `cards in <zone> where <pred>`. A membership's right side
-sits below the query forms, so `at in cells where <pred>` reads as the
-collection set over `at`; where `at` names a value in scope, it is refused
-naming the parenthesized membership, `at in (cells where <pred>)`.
+lines for `line` (a collection noun only where the game has a board), of
+the domain's Integers for an integer domain, whose type every Integer
+shares, so a source holding a non-member is refused at play, at the
+query. A card zone is no such source, and a zone named under a noun that
+is no position domain is refused naming `cards in <zone> where <pred>`. A
+membership's right side sits below the query forms, so `at in cells where
+<pred>` reads as the collection set over `at`; where `at` names a value
+in scope, it is refused naming the sentence that checks: the
+parenthesized membership, `at in (cells where <pred>)`, where the source
+is a query's own noun, and the membership joined with `and`, `at in
+mine and <pred>`, elsewhere. A library's collection form names no
+position domain of the game it is used by, as its bare form names none.
 `lines(k)` is the native call the board's declared length-`k` lines are
 read through — on a grid every straight run of `k` cells along a row,
 column, or diagonal, on a family with declared adjacency every straight

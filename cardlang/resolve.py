@@ -1080,10 +1080,12 @@ def _member_namespace(node: object) -> str | None:
 
 
 def _domain_query_namespace(node: object) -> str | None:
-    """A bare `any <domain> where …` names a declared position domain and binds
-    a member of it; the collection form (`all cells in <expr>`) binds a fixed
-    noun and names nothing. Only the bare form is a reference."""
-    return "position" if cast(n.DomainQuery, node).source is None else None
+    """A position query's noun names a declared position domain and binds a
+    member of it, in the bare form and the collection form alike (`any cell
+    where …`, `cells in home(p) where …`). The collection form's one fixed
+    noun, the board's `line`, names nothing."""
+    nd = cast(n.DomainQuery, node)
+    return None if nd.source is not None and nd.binder == LINE_NOUN else "position"
 
 
 @dataclass(frozen=True)
@@ -8247,10 +8249,11 @@ def _check_reserved_binders(game: n.Game, bag: DiagnosticBag) -> None:
     user-chosen binders: `for each <role> <binder>:`, `each <role>
     simultaneously:`, and `let <name>[<index>]`."""
     for nd in _walk(game):
-        if isinstance(nd, n.DomainQuery) and nd.source is None:
-            # A bare position query's binder is its noun, a domain name the
-            # designer did not choose as a binder; `_check_domain_query` owns
-            # it and names a reserved word as what it is.
+        if isinstance(nd, n.DomainQuery):
+            # A position query's binder is its noun, a domain name the designer
+            # did not choose as a binder; `_check_domain_query` and
+            # `_membership_capture` own it and name a reserved word as what it
+            # is.
             continue
         for name in _introduced_binders(nd):
             _check_reserved(name, "binder", getattr(nd, "span", None), bag)
@@ -10768,8 +10771,11 @@ def _unknown_shape_label(node: n.BinOp, cats: _Categories) -> n.NameRef | None:
 
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     if isinstance(node, n.DomainQuery) and _may_be_a_membership(node, cats):
-        # The Owner Guard `_check_domain_query` leaves to the lexical scope.
-        _membership_capture(node, cats, bag)
+        # The Owner Guard `_check_domain_query` leaves to the lexical scope. A
+        # refused capture's predicate is written over the outer binder, so it
+        # is not read under the captured noun.
+        if _membership_capture(node, cats, bag):
+            return node
     if isinstance(node, n.AppliesWhen) and _refuse_bare_always(
         node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
     ):
@@ -12334,7 +12340,7 @@ def _check_domain_query(
             if nd.binder not in declared and (
                 nd.binder in _minted_directions(game) or lack is not None
             ):
-                bag.error(_direction_is_no_position(head, nd.binder, universe), nd.span)
+                bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
                 return
         if lack is not None:
             bag.error(f"`{head}` ranges over the board directions, but {lack}", nd.span)
@@ -12355,23 +12361,19 @@ def _check_domain_query(
         noun_kind = "position domain"
     else:
         head = f"{n.collection_query_head(nd.kind, nd.spelled)} in …"
-        if nd.binder == n.SUBSET_BINDER or nd.spelled == n.SUBSET_BINDER + "s":
+        if cats.flavor == "card" and (
+            nd.binder == n.SUBSET_BINDER or nd.spelled == n.SUBSET_BINDER + "s"
+        ):
             # `subset` names a real domain in the language, just not this
             # form's: `in` iterates a collection's MEMBERS, and subsets are
             # spelled with `of`. Calling the word unknown would be false, and
             # would send a designer looking for a declaration to add.
-            bag.error(
-                f"`{phrase} {nd.spelled} in ...` iterates a collection's "
-                f"members; subsets are spelled with `of` -- write "
-                f"`{phrase} {nd.spelled} of <n> [or more] cards in <zone> "
-                f"where ...`",
-                nd.span,
-            )
+            bag.error(_subset_refusal(nd.kind, head), nd.span)
             return
         if nd.binder not in declared and (
             nd.binder in _minted_directions(game) or lack is not None
         ):
-            bag.error(_direction_is_no_position(head, nd.binder, universe), nd.span)
+            bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
             return
         if game.board is not None:
             universe += f"; the board's lines: `{LINE_NOUN}`"
@@ -12416,16 +12418,50 @@ def _check_domain_query(
         bag.error(f"unknown {noun_kind} '{nd.binder}' -- {universe}", nd.span)
 
 
+def _subset_refusal(kind: n.DomainQueryKind, head: str) -> str:
+    """A subset query written with `in`: subsets are spelled with `of`, and
+    the subset register has no set, so the set is told the forms it has."""
+    tail = "of <n> [or more] cards in <zone> where <pred>"
+    match kind:
+        case "any":
+            form = f"`any subset {tail}`"
+        case "all":
+            form = f"`all subsets {tail}`"
+        case "count":
+            form = f"`number of subsets {tail}`"
+        case "set":
+            return (
+                f"`{head}` iterates a collection's members; subsets are spelled "
+                f"with `of`, and are asked about or counted, never gathered -- "
+                f"write `any subset {tail}` or `number of subsets {tail}`"
+            )
+        case unreachable:
+            assert_never(unreachable)
+    return (
+        f"`{head}` iterates a collection's members; subsets are spelled with "
+        f"`of` -- write {form}"
+    )
+
+
 def collection_nouns(game: n.Game) -> frozenset[str]:
     """The nouns a collection form ranges by: the game's position domains,
-    and the board's lines (decisions.md "Boards and cells")."""
-    return frozenset({p.name for p in game.positions} | {LINE_NOUN})
+    and, where the game has a board, its lines (decisions.md "Boards and
+    cells")."""
+    lines = {LINE_NOUN} if game.board is not None else set()
+    return frozenset({p.name for p in game.positions} | lines)
 
 
-def _direction_is_no_position(head: str, binder: str, universe: str) -> str:
+def _direction_is_no_position(
+    kind: n.DomainQueryKind, head: str, binder: str, universe: str
+) -> str:
+    reach = (
+        "gathers the members of a position domain"
+        if kind not in n.DIRECTION_QUERY_KINDS
+        else "ranges over a position domain's members"
+    )
     return (
-        f"`{head}` gathers the members of a position domain, and `{binder}` is "
-        f"the board direction domain, not a position domain -- {universe}"
+        f"`{head}` {reach}, and `{binder}` is the board direction domain, not a "
+        f"position domain -- {universe}"
     )
 
 
@@ -12467,16 +12503,17 @@ def _may_be_a_membership(nd: n.DomainQuery, cats: _Categories) -> bool:
     )
 
 
-def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag) -> None:
+def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag) -> bool:
     """A collection set over a noun nothing ranges by, read in the noun's
     lexical scope: where the noun names a value there, it is `x in <query>`
     written without its parentheses, and the refusal names the sentence that
-    checks; elsewhere the noun is unknown."""
+    checks; elsewhere the noun is unknown. True where the refusal is the
+    capture's."""
     assert nd.source is not None
     if _classify(nd.spelled, cats) is None and nd.binder in cats.collection_nouns:
         plural = n.collection_query_head(nd.kind, nd.spelled + "s")
         bag.error(f"`{nd.spelled} in …` needs the plural noun -- write `{plural} in …`", nd.span)
-        return
+        return False
     if _classify(nd.spelled, cats) is None:
         universe = (
             f"declared position domains: {', '.join(sorted(cats.collection_nouns - {LINE_NOUN}))}"
@@ -12484,9 +12521,11 @@ def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
             else "this game declares no position domains"
         )
         bag.error(f"unknown collection noun '{nd.binder}' -- {universe}", nd.span)
-        return
+        return False
     source = n.short_spelling(nd.source)
-    if isinstance(nd.source, n.NameRef) and source is not None:
+    if isinstance(nd.source, n.NameRef) and nd.source.name in _query_nouns(cats):
+        # `cells`, `players`: the source is a query's own noun, so the query
+        # it began is parenthesized.
         fixed = f"{nd.spelled} in ({source} where <pred>)"
     else:
         fixed = f"{nd.spelled} in {source or '<collection>'} and <pred>"
@@ -12497,6 +12536,15 @@ def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
         f"condition is joined with `and`: write `{fixed}`",
         nd.span,
     )
+    return True
+
+
+def _query_nouns(cats: _Categories) -> frozenset[str]:
+    """The plural nouns a query begins with where a membership's right side
+    would be one: the position domains' plurals and the player register's."""
+    positions = cats.collection_nouns - {LINE_NOUN}
+    players = {name + "s" for name in role_names(frozenset({Role.PLAYER}))}
+    return frozenset({noun + "s" for noun in positions} | players)
 
 
 def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:

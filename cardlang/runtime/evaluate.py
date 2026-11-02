@@ -781,8 +781,11 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
     A COLLECTION form iterates its evaluated source, in the source's order.
     `any`/`all` fold Boolean, short-circuiting like the card queries; `count`
     returns how many members satisfy the predicate; `set` returns them, in
-    the Position Domain's order. Resolve/typecheck have already validated the noun and
-    the source kind, so this arm reads uniformly over every member kind."""
+    the Position Domain's order for the bare form and in the source's for the
+    collection form. Resolve/typecheck have already validated the noun and
+    the source kind, so this arm reads uniformly over every member kind; a
+    collection source holding a non-member of the noun's Position Domain is
+    refused here, the one fact its type cannot carry."""
     if e.source is None:
         if e.binder in ctx.rs.position_domains:
             members: Any = ctx.rs.position_domains[e.binder]
@@ -796,6 +799,16 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
             )
     else:
         members = elements(evaluate(e.source, ctx))
+        domain = ctx.rs.position_domains.get(e.binder)
+        stray = next((m for m in members if m not in domain), None) if domain is not None else None
+        if stray is not None:
+            # A source is typed by its members' type, which an integer domain
+            # shares with every Integer, so a non-member is refused here.
+            raise OwnerGuardError(
+                f"`{n.collection_query_head(e.kind, e.spelled)} in …` ranges over "
+                f"`{e.binder}`'s members, but its source holds {stray!r}, which is no "
+                f"`{e.binder}` of this game"
+            )
     results = (evaluate(e.where, ctx.with_local(e.binder, m)) for m in members)
     match e.kind:
         case "any":

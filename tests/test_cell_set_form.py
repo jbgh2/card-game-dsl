@@ -26,10 +26,15 @@ The grid, axis by axis, each read from where the language defines it:
   * GRID K -- the collection form: every query kind (`DOMAIN_QUERY_KINDS`)
     over every collection noun each game shape holds, its value in its
     source's order, and the refusals of a wrong noun or source, each naming
-    a fix that checks.
+    a fix that checks; GRID U's derived noun axis under the set, count and
+    `any` collection forms, judged on the FIRST refusal; the library cells
+    (a library's collection form names no game domain); and a source member
+    outside its integer domain, refused at the query.
   * The membership capture -- `x in <noun>s where …` with no parentheses
     reads as the collection set over `x`; where `x` names a value in scope
-    it is refused naming the parenthesized membership, which checks.
+    it is the FIRST and only refusal, naming the parenthesized membership
+    where the source is a query's own noun and the `and` membership
+    elsewhere, and that sentence, its predicate filled in, checks.
   * GRID H -- the host: the Set Form at every expression host of the
     direction lift's grid (`tests/test_direction_lift.py::HOSTS`), each
     pinned to the AST field the query lands in.
@@ -122,7 +127,7 @@ from cardlang.ir import IRDict, emit
 from cardlang.parse import _parser as _main_parser, parse_library, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import GameDescriptionError
+from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.stdlib.boards import board_entry
 from tests import test_direction_lift as lift
@@ -149,6 +154,14 @@ def _reject(source: str) -> str:
     parts = [exc.value.diagnostic.message]
     parts.extend(getattr(exc.value, "__notes__", []) or [])
     return "\n".join(parts)
+
+
+def _first(source: str) -> str:
+    """The FIRST refusal `check_dsl` reports, alone: the one a designer reads,
+    where `_reject` joins every diagnostic the stage collected."""
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(source, "set.cardlang")
+    return exc.value.diagnostic.message
 
 
 def _outcome(source: str) -> str | None:
@@ -1161,45 +1174,213 @@ def test_a_collection_forms_refusal_names_a_fix_that_checks(source: str, needles
 # written without its parentheses, and resolve says so (issue #1024 holds the
 # class's other registers).
 
-CAPTURES: dict[str, tuple[str, str, str]] = {
+# label -> (the source with `@CAP@` where the capture stands, the capture as
+# written, the sentence the refusal must name, the predicate that fills its
+# `<pred>`). The named sentence, filled in at the capture's place, must check.
+CAPTURES: dict[str, tuple[str, str, str, str]] = {
     "a move parameter in a When Clause": (
-        _in_when("at in cells where square[cell] is empty"),
+        _in_when("@CAP@"),
+        "at in cells where square[cell] is empty",
         "at in (cells where <pred>)",
-        _in_when("at in (cells where square[cell] is empty)"),
+        "square[cell] is empty",
     ),
     "a move parameter in an effect": (
-        _in_effect("if at in cells where square[cell] is empty { done := true }"),
+        _in_effect("if @CAP@ { done := true }"),
+        "at in cells where square[cell] is empty",
         "at in (cells where <pred>)",
-        _in_effect("if at in (cells where square[cell] is empty) { done := true }"),
+        "square[cell] is empty",
     ),
     "the acting player in the player register": (
-        _in_effect("if actor in players where player is 0 { done := true }"),
+        _in_effect("if @CAP@ { done := true }"),
+        "actor in players where player is 0",
         "actor in (players where <pred>)",
-        _in_effect("if actor in (players where player is 0) { done := true }"),
+        "player is 0",
     ),
-    "a plural local": (
-        _in_effect("let dests = home(actor)\n    if dests in cells where true { done := true }"),
-        "dests in (cells where <pred>)",
-        _in_effect("let dests = home(actor)\n    if at in (cells where true) { done := true }"),
+    "a plural-named local tested against a query": (
+        _in_effect("let picks = at\n    if @CAP@ { done := true }"),
+        "picks in cells where true",
+        "picks in (cells where <pred>)",
+        "true",
+    ),
+    "a parameter tested against a local": (
+        _in_effect("let mine = home(actor)\n    if @CAP@ { done := true }"),
+        "at in mine where square[at] is empty",
+        "at in mine and <pred>",
+        "square[at] is empty",
     ),
     "an outer binder inside a count": (
-        board_game() + "function f(p : Player) = number of cells where cell in home(p) where square[cell] is empty\n",
+        board_game() + "function f(p : Player) = number of cells where @CAP@\n",
+        "cell in home(p) where square[cell] is empty",
         "cell in home(p) and <pred>",
-        board_game() + "function f(p : Player) = number of cells where cell in home(p) and square[cell] is empty\n",
+        "square[cell] is empty",
     ),
 }
 
 
 @pytest.mark.parametrize("label", sorted(CAPTURES))
 def test_an_unparenthesized_membership_is_told_to_parenthesize(label: str) -> None:
-    """Refused at resolve, naming the parenthesized spelling; the sentence
-    with the parentheses (or the membership moved into the predicate)
-    checks. Red under: `resolve` reading a captured noun as an unknown
-    collection noun."""
-    source, sentence, fix = CAPTURES[label]
-    message = _reject(source)
-    assert f"write `{sentence}`" in message, message
-    check_dsl(fix, "set.cardlang")
+    """The FIRST refusal is the capture's, naming the sentence that checks:
+    the parenthesized query where the source is a query's own noun, the
+    membership joined with `and` elsewhere; and it is the only refusal, the
+    predicate written over the outer binder not read under the captured noun.
+    The named sentence, its predicate filled in, checks. Red under: `resolve`
+    reading a captured noun as an unknown collection noun, or as a reserved
+    binder."""
+    template, capture, sentence, fill = CAPTURES[label]
+    source = template.replace("@CAP@", capture)
+    assert f"write `{sentence}`" in _first(source)
+    assert _reject(source) == _first(source)
+    check_dsl(template.replace("@CAP@", sentence.replace("<pred>", fill)), "set.cardlang")
+
+
+# --- GRID K, the noun: every name kind under a collection form ----------------
+
+
+def _collection_noun_cells() -> list[object]:
+    cells: list[object] = []
+    for shape in sorted(SHAPES):
+        for noun, kind in sorted(_noun_axis(shape).items()):
+            for query in ("set", "count", "any"):
+                cells.append(pytest.param(shape, noun, kind, query, id=f"{shape}-{noun}-{query}"))
+    return cells
+
+
+@pytest.mark.parametrize(("shape", "noun", "kind", "query"), _collection_noun_cells())
+def test_a_collection_nouns_first_refusal_says_what_the_name_is(
+    shape: str, noun: str, kind: str, query: n.DomainQueryKind
+) -> None:
+    """GRID U's nouns under the collection forms: a Position Domain checks
+    over its members, the board's `line` over its lines, and every other
+    noun's FIRST refusal says what the name is, never a binder the designer
+    did not choose. Red under: `_check_reserved_binders` reading a collection
+    form's noun (the reserved-word cells)."""
+    sources = COLLECTION_SOURCES.get(shape, {})
+    on_board = "board:" in SHAPES[shape]
+    source = sources.get(noun) or ("lines(3)" if noun == LINE_NOUN and on_board else "[1]")
+    query_text = _collection_query(query, noun, source)
+    host = SHAPES[shape] + f"function probe_k(p : Player) = {_as_boolean(query, query_text)}\n"
+    if kind == "position domain" or (noun == LINE_NOUN and on_board):
+        check_dsl(host, "set.cardlang")
+        return
+    first = _first(host)
+    assert "pick another name" not in first, first
+    if kind == "direction domain":
+        assert DIRECTION_REFUSAL in first, first
+    elif kind in ("collection noun", "unknown"):
+        assert f"unknown collection noun '{noun}'" in first, first
+    elif kind == "subset binder":
+        assert "subsets are spelled with `of`" in first, first
+    else:
+        assert f"`{noun}` {KIND_WORDS[kind]}" in first, first
+
+
+# --- GRID K, the library: a collection form names the game's domain ----------
+
+
+
+@pytest.mark.parametrize(
+    ("host", "body", "names"),
+    [
+        pytest.param(_integer_game("column"), "number of columns in [1, 2] where column > 1", "column", id="count over column"),
+        pytest.param(_integer_game("column"), "columns in [1, 2] where column > 1", "column", id="set over column"),
+        pytest.param(_integer_game("column"), "any column in [1, 2] where column > 1", "column", id="any over column"),
+        pytest.param(board_game(), "number of cells in home(p) where true", "cell", id="count over cell"),
+        pytest.param(board_game(), "cells in home(p) where true", "cell", id="set over cell"),
+    ],
+)
+def test_a_librarys_collection_form_over_a_game_domain_is_refused_in_its_file(
+    host: str, body: str, names: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A library cannot assume the importing game's Position Domains, so its
+    collection form over one is refused in the library's own file, as its
+    bare form is. Red under: `resolve._domain_query_namespace` answering
+    None for a collection form."""
+    library = parse_library(
+        f"library {_LIB} {{\nfunction lib_f(p : Player) = {body}\n}}\n", f"docs/libraries/{_LIB}.cardlang"
+    )
+    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
+    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(host.replace("  players:", f"  uses {_LIB}\n  players:", 1), "set.cardlang")
+    first = exc.value.diagnostic.format()
+    assert first.startswith(f"docs/libraries/{_LIB}.cardlang:"), first
+    assert f"'{names}'" in first, first
+
+
+def test_a_librarys_lines_collection_is_its_own_to_write(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`line` is the language's noun, not the game's: a library counts the
+    board's lines on a board game that answers them."""
+    library = parse_library(
+        f"library {_LIB} {{\nfunction lib_f(p : Player) = number of lines in lines(3) where true\n}}\n",
+        f"docs/libraries/{_LIB}.cardlang",
+    )
+    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
+    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    check_dsl(board_game().replace("  players:", f"  uses {_LIB}\n  players:", 1), "set.cardlang")
+
+
+# --- GRID K, the source's members ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("source", "fills"),
+    [
+        pytest.param("columns in [9] where true", {}, id="set"),
+        pytest.param("number of columns in [0, 9] where true", {}, id="count"),
+        pytest.param("number of columns in [1, 9] where cascade[column] is empty", {1: 1}, id="count reading a zone"),
+        pytest.param("any column in [9] where true", {}, id="any"),
+    ],
+)
+def test_a_source_member_outside_the_domain_is_refused_at_the_query(source: str, fills: dict[int, int]) -> None:
+    """An integer domain's members share their type with every Integer, so a
+    source holding a non-member checks; the query refuses it at play, in the
+    designer's words, before a predicate reads it. Red under: the
+    `_domain_query` member check removed."""
+    game, expr = _checked_fc_expr(source)
+    with pytest.raises(OwnerGuardError, match="which is no `column` of this game"):
+        evaluate(expr, _fc_ctx(game, fills))
+
+
+# --- GRID K, the subset and line refusals' fixes -------------------------------
+
+
+@pytest.mark.parametrize("kind", n.DOMAIN_QUERY_KINDS)
+def test_a_subset_query_written_with_in_names_a_form_that_checks(kind: n.DomainQueryKind) -> None:
+    """Subsets are spelled with `of`; the refusal names the form the query
+    kind has, and the set, which the subset register lacks, the count.
+    Red under: the refusal naming `<kind's phrase> subsets of …` for the set."""
+    query = _collection_query(kind, "subset", "hand[0]")
+    first = _first(card_game(body=f"    let s = {_as_boolean(kind, query)}\n"))
+    assert "subsets are spelled with `of`" in first and "` subsets" not in first, first
+    named = first.split("write `")[1].split("`")[0]
+    filled = named.replace("<n> [or more]", "2").replace("<zone>", "hand[0]").replace("<pred>", "true")
+    boolean = f"(({filled}) > 0)" if filled.startswith("number of") else f"({filled})"
+    check_dsl(card_game(body=f"    let s = {boolean}\n"), "set.cardlang")
+
+
+@pytest.mark.parametrize(
+    ("source", "needle", "fix"),
+    [
+        pytest.param(
+            card_game(body="    let s = number of lines in [1] where true\n"),
+            "unknown collection noun 'line'",
+            None,
+            id="lines in a boardless game",
+        ),
+        pytest.param(
+            card_game(body="    let s = lines in hand[0] where true\n"),
+            "`cards in hand[0] where <pred>`",
+            card_game(body="    let s = cards in hand[0] where true\n"),
+            id="lines over a zone in a boardless game",
+        ),
+    ],
+)
+def test_line_is_a_collection_noun_only_on_a_board(source: str, needle: str, fix: str | None) -> None:
+    """Red under: `collection_nouns` admitting `line` without a board."""
+    first = _first(source)
+    assert needle in first and "lines(3)" not in first, first
+    if fix is not None:
+        check_dsl(fix, "set.cardlang")
 
 
 @pytest.mark.parametrize(

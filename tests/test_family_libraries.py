@@ -1326,6 +1326,9 @@ _LEAK_READS: dict[str, tuple[str, str | None]] = {
     "zone": ("pile", None),
     "deck_value": ("hearts", None),
     "card_literal": ("(Q of hearts)", None),
+    # A position domain is the game's to declare; the collection form names it
+    # as the bare form does, and no library spelling has a contracted twin.
+    "position": ("(number of columns in [1, 2] where true)", None),
 }
 
 
@@ -1358,6 +1361,7 @@ _AXIS_NAMESPACE: dict[str, frozenset[str]] = {
     "zone": frozenset({"zones"}),
     "deck_value": frozenset({"enums"}),
     "card_literal": frozenset({"ranks", "suits"}),
+    "position": frozenset({"collection_nouns"}),
 }
 
 
@@ -1384,13 +1388,12 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # (`_refuse_bare_always`), and a game's definition reached by name is
     # the `call` column's leak. `shapes` is the catalogue's row labels, a
     # subset of `enums` (where a bare label resolves), read for one
-    # refusal's wording. `collection_nouns` and `bound_names` are what the
-    # membership-capture check reads at a collection set: the game's position
-    # domains with the board's lines, and every name the game binds; no bare
-    # reference resolves against either.
+    # refusal's wording. `bound_names` is every name the game binds, read
+    # by the membership-capture check at a collection set to know a capture
+    # may be there; no reference resolves against it.
     game_fed = {f.name for f in fields(_Categories)} - {
         "locals", "functions", "flavor", "definitions", "rule_clause", "shapes",
-        "collection_nouns", "bound_names",
+        "bound_names",
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():
@@ -1425,6 +1428,7 @@ game Host {
   players: 2
   cards: standard52
   max_length: 100
+  positions { column : 1..4 }
   zones { deck : Deck  hand[player] : Hand<player>  pile : Discard }
   state {
     declared_thing   : Integer = 0
@@ -2491,10 +2495,12 @@ def _fixed_spellings() -> dict[str, frozenset[str]]:
     rather than a hole. A kind absent from this map is one whose binder the
     author spells.
 
-    `DomainQuery` is the one kind with a spelling from BOTH sides: the bare form
-    over a declared `positions { }` domain takes the author's own noun, and that
-    sub-position is not here because the guard never reaches it (see
-    `test_a_declaration_level_collision_is_reported_by_another_guard`)."""
+    `DomainQuery` is the one kind with a spelling from BOTH sides: a bare or
+    collection form over a declared `positions { }` domain takes the author's
+    own noun, and that sub-position is not here because the guard never
+    reaches it (see
+    `test_a_declaration_level_collision_is_reported_by_another_guard`); the
+    language fixes the board's minted `cell` and the collection form's `line`."""
     flavors = typing.get_args(Flavor)
     content = {content_noun(f, plural=p) for f in flavors for p in (False, True)}
     card = content_noun("card", plural=False)
