@@ -8,7 +8,8 @@
 
 It prints its evidence lines and exits 0 only when the review the lane
 requires is on record at that head (docs/harness.md, "Arming is merging";
-the lane requirements are "The Merge Lanes").
+the lane requirements are "The Merge Lanes"). Either record below is a
+review on record; every record at the head must also allow the lane.
 
 Two records are read, each bound to a head:
 
@@ -18,22 +19,23 @@ Two records are read, each bound to a head:
   access (`author_association` OWNER, MEMBER or COLLABORATOR) writes one;
   anyone else's marker is not a record. Every record naming the head is
   read, and a later one never clears an earlier one's findings, because a
-  CONFIRMED finding is fixed only by a new head. Lane D passes when no
-  record at the head carries a CONFIRMED finding; Lane C passes when one
-  record at the head ran Standard or Thorough and every record's CONFIRMED
-  findings are filed; both refuse a record whose Phase-0 artifact gate is
-  `absent`. A record is read as it stands, edits included.
+  CONFIRMED finding is fixed only by a new head. Lane D refuses any
+  record at the head that carries a CONFIRMED finding; Lane C refuses one
+  with a CONFIRMED finding left unfiled, and needs a record at Standard or
+  Thorough unless Codex reviewed the head; both refuse a record whose
+  Phase-0 artifact gate is `absent`. A record is read as it stands, edits
+  included.
 * **The Codex review state** -- the `codex-review-state:v1` marker the
-  Codex bot keeps in its summary comment, newest comment only. A marker it
-  cannot read refuses, at any head; Codex still running at the head
-  refuses. Its findings are review threads, which the gate's thread clause
-  owns (the marker's `has_unresolved_findings` does not clear when the
-  threads resolve), so they are printed as evidence here. A clean Codex
-  review never stands in for the Review Record, because the lanes require
-  a `cardlang-code-review` pass.
+  Codex bot keeps in its summary comment, newest comment only. A review
+  it completed at the head is a review on record for either lane
+  (ADR-0018). A marker it cannot read refuses, at any head; Codex still
+  running at the head refuses. Its findings are review threads, which the
+  gate's thread clause owns (the marker's `has_unresolved_findings` does
+  not clear when the threads resolve), so they are printed as evidence
+  here, and a Codex review never clears a Review Record's findings.
 
-Fails closed: no record at the head is `absent`, a record only at older
-heads is `stale` (`reviewed head X, merging head Y`), and a record or
+Fails closed: no record at the head is `absent`, records only at older
+heads are `stale` (`reviewed head X, merging head Y`), and a record or
 marker it cannot read, or one outside the closed vocabulary below, is
 `refused` -- never read as satisfied.
 
@@ -145,8 +147,8 @@ def _order(c: dict[str, Any]) -> tuple[str, int]:
     return (str(c.get("updated_at") or c.get("created_at") or ""), int(c.get("id") or 0))
 
 
-def _codex_lines(comments: list[dict[str, Any]], head: str) -> tuple[list[str], bool]:
-    """Evidence lines for the Codex arm, and whether it refuses."""
+def _codex_lines(comments: list[dict[str, Any]], head: str) -> tuple[list[str], bool, str | None]:
+    """Evidence lines for the Codex arm, whether it refuses, and the head it reviewed."""
     bot = [
         c for c in comments
         if (c.get("user") or {}).get("login") == CODEX_LOGIN
@@ -154,7 +156,7 @@ def _codex_lines(comments: list[dict[str, Any]], head: str) -> tuple[list[str], 
         and CODEX_MARKER in str(c.get("body") or "")
     ]
     if not bot:
-        return ["codex: no review state on record -- not required"], False
+        return ["codex: no review state on record"], False, None
     latest = max(bot, key=_order)
     match = _CODEX_RE.search(str(latest.get("body") or ""))
     try:
@@ -167,16 +169,15 @@ def _codex_lines(comments: list[dict[str, Any]], head: str) -> tuple[list[str], 
         sha, status = review.get("commit_sha"), review.get("status")
         unresolved = review.get("has_unresolved_findings")
     except (Unreadable, json.JSONDecodeError, KeyError) as err:
-        return [f"codex: review state in comment {latest.get('id')} unreadable ({err}) -- FAIL"], True
+        return [f"codex: review state in comment {latest.get('id')} unreadable ({err}) -- FAIL"], True, None
+    if not isinstance(sha, str) or not _SHA_RE.match(sha):
+        return [f"codex: no reviewed commit in comment {latest.get('id')} ({sha!r}) -- not read"], False, None
     if sha != head:
-        return [f"codex: last reviewed {str(sha)[:12]}, not the merging head -- not read"], False
+        return [f"codex: last reviewed {sha[:12]}, not the merging head -- not read"], False, sha
     if status != "completed":
-        return [f"codex: review at head {head[:12]} is {status!r}, not completed -- FAIL"], True
+        return [f"codex: review at head {head[:12]} is {status!r}, not completed -- FAIL"], True, None
     found = "reports findings (the thread clause owns them)" if unresolved is not False else "no findings"
-    return [
-        f"codex: completed at head {head[:12]}, {found} "
-        "(evidence only; the lane requires the cardlang-code-review Review Record)"
-    ], False
+    return [f"codex: completed at head {head[:12]}, {found} -- review on record"], False, sha
 
 
 def _refusal(record: Record, lane: str) -> str | None:
@@ -201,7 +202,8 @@ def judge(comments: object, head: str, lane: str) -> Verdict:
     if not _SHA_RE.match(head):
         raise ValueError(f"head {head!r} is not a full lower-case commit sha")
     flat = _flatten(comments)
-    lines, refused = _codex_lines(flat, head)
+    lines, refused, codex_head = _codex_lines(flat, head)
+    codex_at_head = codex_head == head
 
     records: list[tuple[tuple[str, int], Record]] = []
     for c in flat:
@@ -221,7 +223,7 @@ def judge(comments: object, head: str, lane: str) -> Verdict:
             refused = True
 
     at_head = [r for _, r in sorted(records, key=lambda kr: kr[0]) if r.head == head]
-    if at_head:
+    if at_head or codex_at_head:
         for record in at_head:
             reason = _refusal(record, lane)
             summary = (
@@ -231,24 +233,31 @@ def judge(comments: object, head: str, lane: str) -> Verdict:
             )
             lines.append(f"review: {summary} -- {'ok' if reason is None else f'FAIL ({reason})'}")
             refused = refused or reason is not None
-        if not any(_meets_tier(r, lane) for r in at_head):
+        if not codex_at_head and not any(_meets_tier(r, lane) for r in at_head):
             lines.append(
                 f"review: no record at head {head[:12]} ran Standard or Thorough -- FAIL "
-                "(Lane C requires the full review)"
+                "(Lane C requires the full review, or Codex's)"
             )
             refused = True
         outcome = "refused" if refused else "pass"
-    elif records:
-        latest = max(records, key=lambda kr: kr[0])[1]
-        lines.append(
-            f"review: reviewed head {latest.head[:12]}, merging head {head[:12]} -- FAIL "
-            f"(the newest Review Record is comment {latest.comment_id}; review the merging head)"
-        )
+    elif records or codex_head:
+        reviewed: list[tuple[str, str]] = []
+        if records:
+            latest = max(records, key=lambda kr: kr[0])[1]
+            reviewed.append((latest.head, f"the newest Review Record is comment {latest.comment_id}"))
+        if codex_head:
+            reviewed.append((codex_head, "the Codex review state"))
+        for old, source in reviewed:
+            lines.append(
+                f"review: reviewed head {old[:12]}, merging head {head[:12]} -- FAIL "
+                f"({source}; review the merging head)"
+            )
         outcome = "refused" if refused else "stale"
     else:
         lines.append(
-            f"review: no {MARKER} comment at head {head[:12]} -- FAIL "
-            "(looked for the cardlang-code-review Review Record from an author with write access)"
+            f"review: no {MARKER} comment and no completed Codex review at head {head[:12]} -- FAIL "
+            "(looked for the cardlang-code-review Review Record from an author with write access, "
+            "and the Codex bot's review state)"
         )
         outcome = "refused" if refused else "absent"
     return Verdict(outcome, tuple(lines))

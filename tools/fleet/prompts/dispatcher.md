@@ -79,8 +79,9 @@ chartered:
   Handle each review round per the thread rule (disposition reply +
   resolve; a finding on the fix for a previous finding escalates to the
   operator — say so on the PR and stand down); after any fix push,
-  run cardlang-code-review again at the new head, post its Review
-  Record, and query-then-watch again. The charter's arm-in-background language is
+  run cardlang-code-review again at the new head and post its Review
+  Record (or comment `@codex review` and wait for Codex's), then
+  query-then-watch again. The charter's arm-in-background language is
   for interactive sessions; every other step of its round binds here
   unchanged.
 - Merge ONLY on ./tools/merge-gate.sh exit 0 (merge commit bound to the

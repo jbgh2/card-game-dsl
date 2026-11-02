@@ -98,8 +98,9 @@ single CI runner; raising it is a charter edit.
    finding on the fix for a previous finding escalates the PR to the
    operator — say so in the PR and stand down. A fix push makes a head
    no review has read: run `cardlang-code-review` again at the new head
-   and post its Review Record before step 7, since the gate reads the
-   record at the head that would merge. On a wake where the gate
+   and post its Review Record, or let Codex review it (`@codex review`),
+   before step 7, since the gate reads the review at the head that
+   would merge. On a wake where the gate
    completed but no review has landed, re-arm in `reviews` mode.
 7. **Merge path.** Run `tools/merge-gate.sh <PR>`. Exit 0: merge with a
    merge commit bound to the head the gate printed (`gh pr merge <PR>

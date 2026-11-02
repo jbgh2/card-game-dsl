@@ -290,11 +290,14 @@ above in human-readable form:
 `tools/merge-gate.sh` reads every record at the head that would merge
 (`tools/review_record.py` owns the reading and its closed vocabulary):
 Lane D passes when none carries a CONFIRMED finding; Lane C passes when
-one ran Standard or Thorough and every CONFIRMED finding is filed; an
-`absent` artifact gate, a record only at an older head, or a word
-outside these fails the gate. A later record never clears an earlier
-one's findings: re-running the review at an unchanged head adds a
-record, it does not replace one. A pre-PR review — the Dispatcher's, before `gh pr create` —
+every CONFIRMED finding is filed and one record ran Standard or
+Thorough, or Codex completed a review at that head; an `absent`
+artifact gate, a record only at an older head, or a word outside these
+fails the gate. A Codex review at the head is a review on record
+without a Review Record (docs/harness.md, "The Merge Lanes"). A later
+record never clears an earlier one's findings, nor does a Codex review:
+re-running the review at an unchanged head adds a record, it does not
+replace one. A pre-PR review — the Dispatcher's, before `gh pr create` —
 posts its record once the PR exists, and only if the head is still the
 one it read; a push after the record means the review runs again.
 

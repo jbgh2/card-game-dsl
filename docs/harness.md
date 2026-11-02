@@ -32,16 +32,17 @@ never renumbers. Four lanes:
   merge button.
 - **Merge Lane C — reviewed agent merge.** Any agent merges once CI is
   green, the full `cardlang-code-review` at the tier its classification
-  selects is clean or its findings are filed, and — where the change
+  selects, or a Codex review, is clean or its findings are filed, and — where the change
   trips the `surface-totality-audit` trigger — that skill's artifacts are
   in the change. One escalation is built in: a review round that finds a
   defect in the fix for a previous finding escalates the PR to Merge
   Lane B. Nth-order findings on an agent's own fix are the operator's to
   adjudicate, never the fixing agent's.
 - **Merge Lane D — clean-pass agent merge.** Any agent merges once CI is
-  green and one `cardlang-code-review` pass at Quick tier reports no
-  CONFIRMED finding. Other findings are filed with their reachability,
-  not driven to fix-now.
+  green and one `cardlang-code-review` pass at Quick tier, or a Codex
+  review, reports no CONFIRMED finding. Other findings are filed with
+  their reachability, not driven to fix-now. A Codex review stands in
+  for the `cardlang-code-review` pass on either lane (ADR-0018).
 
 The lane is decided by the change's **class** from the table below, never
 per-PR by preference. Two rules compose the table:
@@ -137,17 +138,19 @@ the review on record, its threads answered. Armed-then-reviewed would
 collapse Merge Lane C into D. The server cannot see whether a review
 happened at all — a green PR with no threads merges when armed,
 reviewed or not — so the gate reads the review's record at the head
-that would merge: the Review Records the `cardlang-code-review` skill
-posts at every tier (its "Output" section), every one at that head
-satisfying the lane — Lane D no CONFIRMED finding, Lane C one record at
-Standard or Thorough and every CONFIRMED finding filed, neither lane a
-record whose artifact gate is `absent`. A later record never clears an
-earlier one's findings, since a finding is fixed only by a new head. No
-record at the head fails the gate, and so does a record only at an
-older head (`reviewed head X, merging head Y`). A Codex review state the
-gate cannot read, or Codex still running at the head, fails it too;
-Codex's findings are review threads, which the thread clause owns, and
-a clean Codex review never stands in for the Review Record.
+that would merge. Two records count as the review: the Review Records
+the `cardlang-code-review` skill posts at every tier (its "Output"
+section), and the review state Codex keeps in its summary comment, once
+Codex has completed a review at that head. Every Review Record at the
+head must satisfy the lane — Lane D no CONFIRMED finding, Lane C every
+CONFIRMED finding filed and, unless Codex reviewed the head, one record
+at Standard or Thorough, neither lane a record whose artifact gate is
+`absent`. Neither a later record nor a Codex review clears a record's
+findings, since a finding is fixed only by a new head. Codex's own
+findings are review threads, which the thread clause owns. No review at
+the head fails the gate, and so does a review only at an older head
+(`reviewed head X, merging head Y`); a Codex review state the gate
+cannot read, or Codex still running at the head, fails it too.
 `tools/review_record.py` owns the reading and its closed vocabulary. The arm binds to a head, not to
 the PR: the lane's requirements must hold for the head that merges, and
 a push to an armed PR creates a head the review never saw while the
