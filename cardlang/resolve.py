@@ -11183,7 +11183,7 @@ def _state_type_refusal(game: n.Game, type_name: str) -> str | None:
     if type_name == BOARD_DOMAIN and game.board is None:
         return (
             "the squares a `board:` mints, but the game declares no `board:` "
-            "-- declare the board the squares belong to"
+            "-- declare one, with the `pieces:` that stand on it"
         )
     return None
 

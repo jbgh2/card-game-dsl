@@ -215,7 +215,7 @@ def _expect(source: str, expected: str | tuple[str, ...] | None) -> None:
 # The refusal each refused class owns, in the words its fix needs.
 INTEGER_DOMAIN = ("is typed `column`", "a position domain of numbers", "as an `Integer`")
 DIRECTION = ("is typed `dir`", "a move or function parameter takes", "a state variable cannot hold one")
-NO_BOARD = ("is typed `cell`", "declares no `board:`")
+NO_BOARD = ("is typed `cell`", "declares no `board:`", "with the `pieces:` that stand on it")
 
 
 # --- GRID D: the declaration ---------------------------------------------------
@@ -253,6 +253,19 @@ DECL_CELLS += [
     # spelled `cell` holds numbers, the integer class.
     ("boardless-cell?", boardless(state="    v : cell? = none"), NO_BOARD),
     ("boardless-cell", boardless(state="    v : cell = none"), NO_BOARD),
+    # Each refusal's named fix, taken, checks.
+    (
+        "boardless-cell?-fix-taken",
+        boardless(state="    v : cell? = none")
+        .replace("  cards: standard52\n", "  board: grid(3, 3)\n  pieces: xo_marks\n")
+        .replace("deck : Deck  hand[player] : Hand<player>", "box : Deck"),
+        ACCEPT,
+    ),
+    (
+        "boardless-column-fix-taken",
+        boardless(positions="  positions { column : 1..3 }", state="    v : Integer = 1"),
+        ACCEPT,
+    ),
     (
         "boardless-integer-cell?",
         boardless(positions="  positions { cell : 1..3 }", state="    v : cell? = none"),

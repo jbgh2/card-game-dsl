@@ -688,8 +688,8 @@ def test_a_direction_payload_types_dir(produce: str, arm: str, needle: str) -> N
 def test_a_plausible_wrong_sentence_is_refused(source: str, needle: str) -> None:
     """Red under, per cell: `"dir"` added to `resolve._PROCEDURE_PARAM_DOMAINS`
     (procedure parameter); `_check_move_params` looking `t.removesuffix("?")`
-    up in the directions (optional move parameter); the `StateDecl` arm of
-    `_validate_refs` admitting `_minted_directions(game)` (state type)."""
+    up in the directions (optional move parameter); `resolve._state_type_refusal`
+    losing its `dir` branch (state type)."""
     assert needle in _reject(source)
 
 
