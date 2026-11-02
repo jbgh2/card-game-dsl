@@ -47,6 +47,14 @@ keeps every seat's goal: the half-turn `(file, rank) -> (10 - file, 12 -
 rank)`. A mapping composed with it agrees with native at every layer here, so
 the orientation is pinned only by `test_mapping_names_every_cell_as_native_
 does`, which reads native's own cell strings rather than a literal.
+
+red under (adjacency): `(1, 1)` in place of `(1, -1)` in
+`boards._HEX_FORWARD_OFFSETS` reddens both staircases (our game is not
+terminal at the last stair) and the random trajectories (our game is
+terminal where native is not); depth 1 and the two straight lines stay
+green, as they must.
+red under (orientation): `to_native` composed with the half-turn reddens
+`test_mapping_names_every_cell_as_native_does` alone, the residual above.
 """
 
 from __future__ import annotations

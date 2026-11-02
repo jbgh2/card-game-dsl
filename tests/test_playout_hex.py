@@ -59,7 +59,8 @@ does not prove:  that the adjacency is OpenSpiel's: the flood fill reads this
 red under (guard): delete `when: tile[at] is empty` from hex.cardlang; the
 offer stops being the empty cells at the second decision.
 red under (win): delete the `if connected(...)` block from hex.cardlang; a
-joined side is still offered a decision, and no line ends by its rules.
+joined side is still offered a decision, and a full board leaves an offer
+with no legal placement.
 red under (adjacency): `(1, 1)` in place of `(1, -1)` in
 `boards._HEX_FORWARD_OFFSETS`; the game declares a win the flood fill does
 not see, or misses one it does.
@@ -229,9 +230,9 @@ def _playout(seed: int) -> Playout:
     final = _board(rs)
     _check_counts(final, _reserves(rs))
     assert sum(1 for v in final.values() if v is not None) == len(seats)
-    outcome = (result.scores[0], result.scores[1])
-    assert outcome in LEGAL_OUTCOMES, f"illegal terminal result {outcome}"
     assert result.ended_by.value == "rules", f"seed {seed}: the line ended by {result.ended_by}"
+    outcome = (result.scores.get(0), result.scores.get(1))
+    assert outcome in LEGAL_OUTCOMES, f"illegal terminal result {outcome}"
     assert result.loser is None
     playout = Playout(result, final, len(seats))
     assert _joined(final, playout.winner), (

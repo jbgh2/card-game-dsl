@@ -210,11 +210,14 @@ def test_placements_are_public_identity_events() -> None:
     and the two observers' board-directed subsequences are EQUAL — placements
     are common knowledge at the event level.
 
-    red under (demonstrated out of band, reverted): flipping ``Cell``'s
-    projection to ``count_only`` renders the tile-destination view as an int
-    count (``('move', 'reserve[0]', ('mark:x',), 'square[a1]', 1)``) instead of
-    the identity tuple, so the ``isinstance(dst_view, tuple)`` assertion fails —
-    the identity claim is not vacuous.
+    red under: ``dst_view = len(cards)`` in ``observe.movement`` renders the
+    tile-destination view as a count
+    (``('move', 'reserve[0]', ('stone:black',), 'tile[a1]', 1)``) instead of
+    the identity tuple, so the ``isinstance(dst_view, tuple)`` assertion fails.
+    Flipping ``Cell``'s projection to ``count_only`` does not reach this pin:
+    the checker's Hidden Read Owner Guard then refuses Breakthrough's
+    ``when:``, which reads a square's top piece, and the corpus registry this
+    module imports fails first.
     """
     _, pause = _advance(PATH, 5, 4)
     assert isinstance(pause, DecisionNode)
