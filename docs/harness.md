@@ -137,14 +137,18 @@ the review on record, its threads answered. Armed-then-reviewed would
 collapse Merge Lane C into D. The server cannot see whether a review
 happened at all — a green PR with no threads merges when armed,
 reviewed or not — so the gate reads the review's record at the head
-that would merge: the Review Record the `cardlang-code-review` skill
-posts at every tier (its "Output" section), satisfying the lane — Lane
-D any tier with no CONFIRMED finding, Lane C Standard or Thorough with
-every CONFIRMED finding filed. No record at the head fails the gate,
-and so does a record only at an older head (`reviewed head X, merging
-head Y`); a Codex review at the head refuses on unresolved findings and
-never stands in for the Review Record. `tools/review_record.py` owns
-the reading and its closed vocabulary. The arm binds to a head, not to
+that would merge: the Review Records the `cardlang-code-review` skill
+posts at every tier (its "Output" section), every one at that head
+satisfying the lane — Lane D no CONFIRMED finding, Lane C one record at
+Standard or Thorough and every CONFIRMED finding filed, neither lane a
+record whose artifact gate is `absent`. A later record never clears an
+earlier one's findings, since a finding is fixed only by a new head. No
+record at the head fails the gate, and so does a record only at an
+older head (`reviewed head X, merging head Y`). A Codex review state the
+gate cannot read, or Codex still running at the head, fails it too;
+Codex's findings are review threads, which the thread clause owns, and
+a clean Codex review never stands in for the Review Record.
+`tools/review_record.py` owns the reading and its closed vocabulary. The arm binds to a head, not to
 the PR: the lane's requirements must hold for the head that merges, and
 a push to an armed PR creates a head the review never saw while the
 platform keeps the arm riding (any write-permission push leaves

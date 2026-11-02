@@ -102,7 +102,9 @@ single CI runner; raising it is a charter edit.
    record at the head that would merge. On a wake where the gate
    completed but no review has landed, re-arm in `reviews` mode.
 7. **Merge path.** Run `tools/merge-gate.sh <PR>`. Exit 0: merge with a
-   merge commit and delete the branch (releasing the Lease). Anything
+   merge commit bound to the head the gate printed (`gh pr merge <PR>
+   --merge --delete-branch --match-head-commit <head>`), releasing the
+   Lease. Anything
    else: post the gate's evidence block as a PR comment so the operator
    sees exactly what stands between the PR and green, and leave it.
 8. **Report** to the invoking context: taken, produced (PR numbers),

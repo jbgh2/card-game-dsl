@@ -16,15 +16,21 @@ Two records are read, each bound to a head:
   posts (its "Output" section), whose first line is
   `<!-- cardlang-review-record:v1 {...} -->`. Only an author with write
   access (`author_association` OWNER, MEMBER or COLLABORATOR) writes one;
-  anyone else's marker is not a record. The newest record naming the head
-  governs. Lane D passes on any tier with zero CONFIRMED findings; Lane C
-  passes on Standard or Thorough with every CONFIRMED finding filed; both
-  require a Phase-0 artifact gate other than `absent`.
+  anyone else's marker is not a record. Every record naming the head is
+  read, and a later one never clears an earlier one's findings, because a
+  CONFIRMED finding is fixed only by a new head. Lane D passes when no
+  record at the head carries a CONFIRMED finding; Lane C passes when one
+  record at the head ran Standard or Thorough and every record's CONFIRMED
+  findings are filed; both refuse a record whose Phase-0 artifact gate is
+  `absent`. A record is read as it stands, edits included.
 * **The Codex review state** -- the `codex-review-state:v1` marker the
-  Codex bot keeps in its summary comment. Codex at the head with its review
-  incomplete or findings unresolved refuses; a clean Codex review is
-  printed as evidence and never stands in for the Review Record, because
-  the lanes require a `cardlang-code-review` pass.
+  Codex bot keeps in its summary comment, newest comment only. A marker it
+  cannot read refuses, at any head; Codex still running at the head
+  refuses. Its findings are review threads, which the gate's thread clause
+  owns (the marker's `has_unresolved_findings` does not clear when the
+  threads resolve), so they are printed as evidence here. A clean Codex
+  review never stands in for the Review Record, because the lanes require
+  a `cardlang-code-review` pass.
 
 Fails closed: no record at the head is `absent`, a record only at older
 heads is `stale` (`reviewed head X, merging head Y`), and a record or
@@ -32,9 +38,12 @@ marker it cannot read, or one outside the closed vocabulary below, is
 `refused` -- never read as satisfied.
 
 Held by: Derived and Pinned (tests/test_review_record.py) for the
-predicate, bound to the head the gate reads. Which of Standard or Thorough
-a Lane C change selects is Review-Enforced Prose: the tier is the review
-skill's judgment of the delta, recorded by the reviewer.
+predicate, bound to the head the gate reads. Review-Enforced Prose holds
+two residuals the record cannot carry: which of Standard or Thorough a
+Lane C change selects (the review skill's judgment of the delta), and that
+findings short of CONFIRMED are filed (the record counts CONFIRMED only).
+The gate runs this module under the system `python3`, so it stays
+stdlib-only and parses at Python 3.9 (pinned in the same module).
 """
 
 from __future__ import annotations
@@ -163,28 +172,27 @@ def _codex_lines(comments: list[dict[str, Any]], head: str) -> tuple[list[str], 
         return [f"codex: last reviewed {str(sha)[:12]}, not the merging head -- not read"], False
     if status != "completed":
         return [f"codex: review at head {head[:12]} is {status!r}, not completed -- FAIL"], True
-    if unresolved is not False:
-        return [f"codex: unresolved findings at head {head[:12]} -- FAIL"], True
+    found = "reports findings (the thread clause owns them)" if unresolved is not False else "no findings"
     return [
-        f"codex: completed at head {head[:12]}, no unresolved findings "
+        f"codex: completed at head {head[:12]}, {found} "
         "(evidence only; the lane requires the cardlang-code-review Review Record)"
     ], False
 
 
-def _satisfies(record: Record, lane: str) -> str | None:
-    """None when the record meets the lane, else the reason it does not."""
+def _refusal(record: Record, lane: str) -> str | None:
+    """None when the record's findings and artifact gate allow the lane."""
     if record.artifact_gate == "absent":
         return "the Phase-0 artifact gate reports the surface-totality artifacts absent"
-    if lane == "D":
-        if record.confirmed:
-            return f"{record.confirmed} CONFIRMED finding(s); Lane D requires none"
-        return None
-    if record.tier == "Quick":
-        return "tier Quick; Lane C requires the full review (Standard or Thorough)"
+    if lane == "D" and record.confirmed:
+        return f"{record.confirmed} CONFIRMED finding(s); Lane D requires none"
     open_findings = record.confirmed - len(record.filed)
     if open_findings:
         return f"{open_findings} CONFIRMED finding(s) neither fixed nor filed"
     return None
+
+
+def _meets_tier(record: Record, lane: str) -> bool:
+    return lane == "D" or record.tier != "Quick"
 
 
 def judge(comments: object, head: str, lane: str) -> Verdict:
@@ -212,19 +220,22 @@ def judge(comments: object, head: str, lane: str) -> Verdict:
             lines.append(f"review: Review Record in comment {cid} unreadable: {err} -- FAIL")
             refused = True
 
-    at_head = [r for key, r in sorted(records, key=lambda kr: kr[0]) if r.head == head]
+    at_head = [r for _, r in sorted(records, key=lambda kr: kr[0]) if r.head == head]
     if at_head:
-        record = at_head[-1]
-        reason = _satisfies(record, lane)
-        summary = (
-            f"Review Record (comment {record.comment_id}) at head {head[:12]}: tier {record.tier}, "
-            f"{record.confirmed} CONFIRMED, filed {list(record.filed) or 'none'}, "
-            f"artifact gate {record.artifact_gate}"
-        )
-        if reason is None:
-            lines.append(f"review: {summary} -- ok for Lane {lane}")
-        else:
-            lines.append(f"review: {summary} -- FAIL ({reason})")
+        for record in at_head:
+            reason = _refusal(record, lane)
+            summary = (
+                f"Review Record (comment {record.comment_id}) at head {head[:12]}: tier {record.tier}, "
+                f"{record.confirmed} CONFIRMED, filed {list(record.filed) or 'none'}, "
+                f"artifact gate {record.artifact_gate}"
+            )
+            lines.append(f"review: {summary} -- {'ok' if reason is None else f'FAIL ({reason})'}")
+            refused = refused or reason is not None
+        if not any(_meets_tier(r, lane) for r in at_head):
+            lines.append(
+                f"review: no record at head {head[:12]} ran Standard or Thorough -- FAIL "
+                "(Lane C requires the full review)"
+            )
             refused = True
         outcome = "refused" if refused else "pass"
     elif records:

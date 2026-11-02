@@ -83,8 +83,9 @@ chartered:
   Record, and query-then-watch again. The charter's arm-in-background language is
   for interactive sessions; every other step of its round binds here
   unchanged.
-- Merge ONLY on ./tools/merge-gate.sh exit 0 (merge commit, delete the
-  branch); otherwise post the gate's evidence block as a PR comment and
+- Merge ONLY on ./tools/merge-gate.sh exit 0 (merge commit bound to the
+  head the gate printed: `gh pr merge <N> --merge --delete-branch
+  --match-head-commit <head>`); otherwise post the gate's evidence block as a PR comment and
   leave the PR for the operator.
 - Never: Lane A work, editing #143 or doctrine, spending money, working
   blocked issues, merging past the gate — and never a write to the
