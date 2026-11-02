@@ -1,13 +1,13 @@
-"""The grid of `tests/native_oracle.py::walk_paired_prefix`: how one paired
-line ends, at every combination of the game's node and the oracle's state the
-walker can meet.
+"""The grid of the Prefix Walk, `tests/native_oracle.py::walk_paired_prefix`:
+how one paired line ends, at every combination of the game's node and the
+oracle's state the walker can meet.
 
 Each cell walks a scripted tic-tac-toe line against a scripted oracle: the
 real native `tic_tac_toe` state, wrapped so that it ends the line early, plays
 on past the game's terminal, or reports the other outcome. The wrapper stands
-in for an oracle whose draw rule differs from the game's; the two real
-witnesses are the nine men's morris differential (the oracle's turn cap) and
-the breakthrough and tic-tac-toe manifests below (no truncation at all).
+in for an oracle whose draw rule differs from the game's; the real witnesses
+are the differentials that call the walker (`git grep -l walk_paired_prefix --
+tests`), the breakthrough and tic-tac-toe manifests below among them.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -17,32 +17,43 @@ property:   every line a paired walk returns is agreed to a shared terminal
             two sides is a loud failure naming the ply, and a manifest whose
             every line truncated is refused.
 domain:     the game's node kinds (the return union of `replay.run`), crossed
-            at a decision node with the oracle live or terminal, the
-            predicate's verdict, and the oracle's terminal outcome; at the
+            at a decision node with the oracle live or terminal, the ply it
+            ended at (the root, or a decision past it), the predicate's
+            verdict, and the oracle's terminal outcome; at the
             game's terminal, with how the game ended (`EndedBy`), its outcome
             (each `classify` class for a rules end; the Length Stop's own tie
             in a scratch copy whose `max_length` falls inside a line), the
             oracle live, agreeing or disagreeing, and the predicate's verdict.
             Beside the grid: a game terminal at its root, a wrong first mover,
-            a paused replay disagreeing with the live run at either end, and
-            the tally over each `LineEnd` constructor. A native chance or
+            a paused replay disagreeing with the live run at either end (by
+            its node, or by the seat at a truncation) or refusing the
+            history, and the tally over each Line End constructor. A native
+            chance or
             simultaneous node is outside the walker by design, refused by
             `assert_node_agrees` at the node.
 registry:   node kinds: `typing.get_type_hints(replay.run)["return"]`; ends:
             `EndedBy`; line ends: `typing.get_args(native_oracle.LineEnd)`.
 held by:    comparing returns on a truncated line is Unrepresentable
             (`Truncated` carries none, and `tally_line_ends` dispatches with
-            `assert_never`); a truncation at a live oracle is Unrepresentable
-            (the predicate is asked only of a terminal oracle, which cannot
-            become live again, so it is monotone along a line by
-            construction); the all-truncated refusal is Derived and Pinned,
-            because "some line reached a rules end" is a fact about a run, not
-            a type.
+            `assert_never`). A truncation at a live oracle is Derived and
+            Pinned: the walker asks the predicate only behind
+            `native.is_terminal()`, and the live-oracle rows here record any
+            ask of a live oracle; why not higher: the OpenSpiel state is
+            untyped, so no type separates a terminal state from a live one.
+            Every other refusal and the all-truncated refusal are Derived and
+            Pinned, each one check in the walker and its row here; why not
+            higher: each is a fact about the values one run produces, not a
+            type.
 does not prove:  that a predicate names the oracle's rule rather than a
             genuine draw the game lacks (the walker holds that a truncation
             is a draw, and the caller's predicate holds which draw); nor that
             the two sides would agree past a truncation; nor anything at the
-            node where the line truncates, which the oracle no longer poses.
+            node where the line truncates, which the oracle no longer poses;
+            nor that a line the game ends in a draw by its own rule, on the
+            very ply the oracle's named draw rule ends it, is a rules end: the
+            outcomes agree there, so the walker returns `Rules`. Nine men's
+            morris has no rules draw, so it never meets that ply; issue #983
+            carries the question for English draughts.
 """
 
 from __future__ import annotations
@@ -61,7 +72,7 @@ pyspiel = pytest.importorskip("pyspiel")
 
 from cardlang.openspiel import replay
 from cardlang.openspiel.encoding import ActionSpace
-from cardlang.openspiel.replay import DecisionNode, TerminalNode
+from cardlang.openspiel.replay import DecisionNode, HistoryMismatch, TerminalNode
 from cardlang.runtime.driver import EndedBy
 from tests import native_oracle
 from tests.native_oracle import (
@@ -91,6 +102,7 @@ SCRIPTS: dict[str, tuple[str, ...]] = {
     "draw": ("a3", "b2", "c3", "b3", "b1", "c2", "a2", "a1", "c1"),
 }
 ORACLE_ENDS_AT = 3  # a decision node of every script, past the first mover's
+ORACLE_END_PLIES = (0, ORACLE_ENDS_AT)  # the root, and a decision past it
 LENGTH_STOP = 3  # the scratch copy's `max_length`, inside every script
 
 
@@ -209,17 +221,19 @@ class Cell:
     outcome: str  # the script's `classify` class
     oracle: str  # "live", "ended-draw", "ended-decisive", "agrees", "disagrees"
     named: bool  # the predicate's verdict
+    at: int | None = None  # the ply an oracle ending at our decision ends at
 
     @property
     def id(self) -> str:
         kind = self.node.__name__ if self.ended_by is None else f"Terminal-{self.ended_by.name}"
-        return f"{kind}/{self.outcome}/oracle-{self.oracle}/{'named' if self.named else 'unnamed'}"
+        where = "" if self.at is None else f"@{self.at}"
+        return f"{kind}/{self.outcome}/oracle-{self.oracle}{where}/{'named' if self.named else 'unnamed'}"
 
     def shape(self) -> Shape:
         if self.oracle == "ended-draw":
-            return Shape(ends_at=ORACLE_ENDS_AT)
+            return Shape(ends_at=self.at)
         if self.oracle == "ended-decisive":
-            return Shape(ends_at=ORACLE_ENDS_AT, end_returns=(1.0, -1.0))
+            return Shape(ends_at=self.at, end_returns=(1.0, -1.0))
         if self.oracle == "live" and self.node is TerminalNode:
             return Shape(plays_on=True)
         if self.oracle == "agrees" and self.ended_by is EndedBy.LENGTH:
@@ -235,8 +249,12 @@ def derive_cells() -> list[Cell]:
     cells: list[Cell] = []
     for node in NODE_KINDS:
         if node is DecisionNode:
-            for oracle, named in product(("live", "ended-draw", "ended-decisive"), (False, True)):
-                cells.append(Cell(node, None, "p0", oracle, named))
+            for named in (False, True):
+                cells.append(Cell(node, None, "p0", "live", named))
+            for oracle, at, named in product(
+                ("ended-draw", "ended-decisive"), ORACLE_END_PLIES, (False, True)
+            ):
+                cells.append(Cell(node, None, "p0", oracle, named, at))
             continue
         assert node is TerminalNode, f"replay.run returns a node kind the grid lacks: {node}"
         for ended_by, oracle, named in product(EndedBy, ("live", "agrees", "disagrees"), (False, True)):
@@ -247,6 +265,7 @@ def derive_cells() -> list[Cell]:
 
 
 ORACLE_ENDED = r"native is already terminal while our game still offers a decision"
+ROOT = r"step 0: the oracle's root is terminal by the rule truncate_when names"
 DECISIVE = r"step 3: truncate_when names a decisive oracle end \[1\.0, -1\.0\]"
 ORACLE_LIVE = r"step \d+: our game is terminal \(\[-?1\.0, -?1\.0\]\) but native is not"
 TIE_LIVE = r"step 9: our game ended in a tie by its own rule while the oracle plays on"
@@ -257,10 +276,14 @@ LENGTH = r"step 3: our game's Length Stop ended the line"
 EXPECTED: dict[str, str] = {
     "DecisionNode/p0/oracle-live/unnamed": "rules",
     "DecisionNode/p0/oracle-live/named": "rules",
-    "DecisionNode/p0/oracle-ended-draw/unnamed": f"fail: {ORACLE_ENDED}",
-    "DecisionNode/p0/oracle-ended-draw/named": "truncated",
-    "DecisionNode/p0/oracle-ended-decisive/unnamed": f"fail: {ORACLE_ENDED}",
-    "DecisionNode/p0/oracle-ended-decisive/named": f"fail: {DECISIVE}",
+    "DecisionNode/p0/oracle-ended-draw@0/unnamed": f"fail: step 0: {ORACLE_ENDED}",
+    "DecisionNode/p0/oracle-ended-draw@0/named": f"fail: {ROOT}",
+    "DecisionNode/p0/oracle-ended-decisive@0/unnamed": f"fail: step 0: {ORACLE_ENDED}",
+    "DecisionNode/p0/oracle-ended-decisive@0/named": f"fail: {ROOT}",
+    "DecisionNode/p0/oracle-ended-draw@3/unnamed": f"fail: step 3: {ORACLE_ENDED}",
+    "DecisionNode/p0/oracle-ended-draw@3/named": "truncated",
+    "DecisionNode/p0/oracle-ended-decisive@3/unnamed": f"fail: step 3: {ORACLE_ENDED}",
+    "DecisionNode/p0/oracle-ended-decisive@3/named": f"fail: {DECISIVE}",
     **{
         f"Terminal-RULES/{o}/oracle-live/{n}": f"fail: {TIE_LIVE if o == 'draw' else ORACLE_LIVE}"
         for o in ("p0", "p1", "draw") for n in ("named", "unnamed")
@@ -375,6 +398,43 @@ def test_paused_replay_disagreeing_at_a_truncation_is_refused(
     with pytest.raises(AssertionError, match="step 3: the paused replay of the line ends"):
         walk_paired_prefix(
             TTT, TTT_NATIVE, ttt_to_native, Predicate(True), 0,
+            scripted(SCRIPTS["p0"]), label="paused",
+        )
+
+
+def _other_seat(*args: Any, **kwargs: Any) -> DecisionNode | TerminalNode:
+    node = replay.run(*args, **kwargs)
+    assert isinstance(node, DecisionNode)
+    return DecisionNode(1 - node.player, node.legal, node.rs, node.obs_logs)
+
+
+def test_paused_replay_offering_another_seat_at_a_truncation_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """red under: the truncation's closing replay comparing `legal` alone."""
+    install(monkeypatch, Shape(ends_at=ORACLE_ENDS_AT))
+    _patched_run(monkeypatch, paused=_other_seat)
+    with pytest.raises(AssertionError, match="step 3: the paused replay of the line ends at a decision of P0"):
+        walk_paired_prefix(
+            TTT, TTT_NATIVE, ttt_to_native, Predicate(True), 0,
+            scripted(SCRIPTS["p0"]), label="paused",
+        )
+
+
+def _refuses(*args: Any, **kwargs: Any) -> DecisionNode | TerminalNode:
+    raise HistoryMismatch("planted refusal")
+
+
+def test_paused_replay_refusing_the_history_names_the_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """red under: the closing replay calling `run` without the walker's label."""
+    _patched_run(monkeypatch, paused=_refuses)
+    with pytest.raises(
+        AssertionError, match="paused step 5: the paused replay refuses the line's history: planted"
+    ):
+        walk_paired_prefix(
+            TTT, TTT_NATIVE, ttt_to_native, Predicate(False), 0,
             scripted(SCRIPTS["p0"]), label="paused",
         )
 

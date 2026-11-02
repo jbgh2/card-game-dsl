@@ -20,10 +20,10 @@ a game that violates either cannot be walked here:
   one addition its rung of the board-topology ladder will require; until a game
   forces it, a chance node is a loud guard, not a silent skip.
 
-The prefix walk. `walk_paired_prefix` walks one line against an oracle that
+The Prefix Walk. `walk_paired_prefix` walks one line against an oracle that
 may end it earlier than the game does, by a draw rule the game does not play
-(a turn cap, a no-capture counter), and returns how the line ended as a
-`LineEnd`: `Rules` or `Truncated`. It drives one live run of the game through
+(a turn cap, a no-capture counter), and returns how the line ended as a Line
+End (`LineEnd`): `Rules` or `Truncated`. It drives one live run of the game through
 `replay.run`'s `beyond` continuation, so a line costs one run rather than one
 replay per ply, and closes every line with one paused replay of its whole
 history, which must end where the live run ended. `choose` picks each action
@@ -36,33 +36,47 @@ Contract:
   `expected_first_player` with no chance node, and our adapter's DecisionNode player
   and mapped legal-action set match native's at every node reachable under the
   shared policy. `to_native` maps a decoded cardlang action to the native
-  action id denoting the same move.
+  action id denoting the same move. A native state once terminal stays
+  terminal (an external fact about OpenSpiel's states).
 - Establishes: on return, both implementations walked to a terminal through the
   identical mapped decision tree; the two returns vectors are handed back for
   the caller to compare (exactly, or by `assert_outcomes_agree`'s
-  scale-agnostic win/loss/draw classification).
+  scale-agnostic win/loss/draw classification). Held by: Born-Green Pin, the
+  tic-tac-toe and breakthrough differentials, whose tripwires (a wrong
+  direction map, a blind capture bit) redden it; why not higher: agreement is a
+  fact about two implementations' runs, which no type carries.
 - Divergence is loud: any mismatch raises AssertionError carrying the walk
   label, the ply index, and the decoded-action history (a complete board
   reconstruction for a placement game), never a silent skip or a papered-over
-  disagreement.
-- Assumes (prefix walk): `truncate_when` names the oracle's own draw rule,
-  never one of the game's, as a predicate on a terminal native state; the
-  game's root is a decision.
-- Establishes (prefix walk): every returned `LineEnd` is `Rules` (both sides
+  disagreement. Held by: Born-Green Pin, the tripwires matching the failure's
+  text; why not higher: a message is a string no type constrains.
+- Assumes (Prefix Walk): `truncate_when` names the oracle's own draw rule,
+  never one of the game's, as a predicate asked of a terminal native state.
+- Establishes (Prefix Walk): every returned Line End is `Rules` (both sides
   terminal, ours by its rules, the outcomes agreeing) or `Truncated` (the
-  oracle terminal at one of our decisions, its end named by `truncate_when`
-  and a draw). Every other meeting fails naming the ply: an unnamed oracle
-  end, a decisive truncation, our terminal against a live oracle (a tie by the
-  game's own rule said so), a Length Stop, a wrong first mover, a paused replay
-  ending elsewhere. `tally_line_ends` refuses a manifest with no `Rules` end.
-- Illegal after: comparing returns on a truncated line, and truncating a line
-  the oracle still plays.
-- Held by: both illegal states are Unrepresentable. `Truncated` carries no
-  returns and `tally_line_ends` dispatches over the union with `assert_never`;
-  the predicate is asked only of a terminal oracle, which cannot become live
-  again, so it is monotone along a line by construction. The all-truncated
-  refusal is Derived and Pinned: "some line reached a rules end" is a fact
-  about a run, not a type.
+  oracle terminal at one of our decisions past the root, its end named by
+  `truncate_when` and a draw). Held by: Unrepresentable, the closed union
+  `LineEnd` that `tally_line_ends` dispatches over with `assert_never`.
+  Every other meeting fails naming the ply, each held by Derived and Pinned
+  (one check in the walker, and its row in the grid of
+  `tests/test_native_oracle_prefix.py`): the oracle terminal at one of our
+  decisions with its end unnamed (`assert_node_agrees`'s terminal check); a
+  truncation that is decisive, or at our root; our terminal against a live
+  oracle, a tie by the game's own rule said so; a Length Stop; a game terminal
+  at its root; a wrong first mover; a paused replay ending elsewhere or
+  refusing the history. `tally_line_ends` refuses a manifest with no `Rules`
+  end, Derived and Pinned: the tally is the walker's own and the refusal
+  reads it. Why not higher, for each: the fact is about the values one run
+  produces (an untyped OpenSpiel state, a returns vector, a history), which
+  no type the walker receives carries.
+- Illegal after: comparing returns on a truncated line, held by
+  Unrepresentable (`Truncated` carries no returns). Truncating a line the
+  oracle still plays, held by Derived and Pinned: the walker asks
+  `truncate_when` only behind `native.is_terminal()`, and the grid's
+  live-oracle rows record any ask of a live oracle; why not higher: the
+  OpenSpiel state is untyped, so no type separates a terminal state from a
+  live one. The predicate is monotone along a line by that check and the
+  terminal state assumed absorbing above.
 """
 
 from __future__ import annotations
@@ -78,7 +92,7 @@ import pytest
 pyspiel = pytest.importorskip("pyspiel")
 
 from cardlang.openspiel.encoding import ActionSpace
-from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
+from cardlang.openspiel.replay import DecisionNode, HistoryMismatch, TerminalNode, load, run
 from cardlang.runtime.driver import EndedBy
 from cardlang.runtime.state import RuntimeState
 
@@ -270,19 +284,23 @@ def walk_paired_prefix(
     world: list[RuntimeState] = []
     history: list[int] = []
     decoded: list[Any] = []
-    offer: list[int] = []
+    asked: list[DecisionNode] = []
 
     def where() -> str:
         return f"{label} step {len(history)}"
 
     def beyond(player: int, legal: list[int]) -> int:
-        offer[:] = legal
+        asked[:] = [DecisionNode(player, legal, world[0], {})]
         if not history:
             assert player == expected_first_player, (
                 f"{label}: first mover is P{player}, expected "
                 f"P{expected_first_player}"
             )
         if native.is_terminal() and truncate_when(native):
+            assert history, (
+                f"{where()}: the oracle's root is terminal by the rule "
+                f"truncate_when names, so the line compares nothing"
+            )
             drawn = list(native.returns())
             assert classify(drawn) == "draw", (
                 f"{where()}: truncate_when names a decisive oracle end {drawn}; "
@@ -290,7 +308,7 @@ def walk_paired_prefix(
             )
             raise _OracleDrew
         assert_node_agrees(
-            native, DecisionNode(player, legal, world[0], {}), to_native, space,
+            native, asked[0], to_native, space,
             label=label, step=len(history), history=decoded,
         )
         action = choose(legal, space)
@@ -305,10 +323,15 @@ def walk_paired_prefix(
     try:
         ours = run(dsl_path, seed, (), on_first_decision=world.append, beyond=beyond)
     except _OracleDrew:
-        paused = run(dsl_path, seed, tuple(history))
-        assert isinstance(paused, DecisionNode) and paused.legal == offer, (
+        paused = _replay(dsl_path, seed, history, where())
+        live = asked[0]
+        assert (
+            isinstance(paused, DecisionNode)
+            and paused.player == live.player
+            and paused.legal == live.legal
+        ), (
             f"{where()}: the paused replay of the line ends at {_describe(paused)}, "
-            f"not at the live run's decision offering {offer}"
+            f"not at the live run's {_describe(live)}"
         )
         return Truncated(len(history))
 
@@ -335,7 +358,7 @@ def walk_paired_prefix(
         assert_outcomes_agree(ours.returns, native_returns)
     except AssertionError as diverged:
         raise AssertionError(f"{where()}: {diverged}; board={decoded}") from None
-    paused = run(dsl_path, seed, tuple(history))
+    paused = _replay(dsl_path, seed, history, where())
     assert (
         isinstance(paused, TerminalNode)
         and paused.returns == ours.returns
@@ -349,6 +372,18 @@ def walk_paired_prefix(
 
 class _OracleDrew(Exception):
     """The oracle ended the line by the rule `truncate_when` names."""
+
+
+def _replay(
+    dsl_path: str, seed: int, history: list[int], where: str
+) -> DecisionNode | TerminalNode:
+    """The paused adapter's node at the end of the line."""
+    try:
+        return run(dsl_path, seed, tuple(history))
+    except HistoryMismatch as refused:
+        raise AssertionError(
+            f"{where}: the paused replay refuses the line's history: {refused}"
+        ) from None
 
 
 def _describe(node: DecisionNode | TerminalNode) -> str:

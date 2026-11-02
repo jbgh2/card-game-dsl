@@ -71,9 +71,12 @@ registry:   `tests/native_oracle.py::assert_node_agrees`;
 held by:    the point table is a Born-Green Pin (the bijection, and every
             point's place in pyspiel's rendering); why not higher: the oracle's
             point order is external data with no source in the tree. The
-            truncation is Derived: `turn_cap` reads the oracle's own terminal
-            returns, the walker asks it only of a terminal oracle, and no code
-            here counts turns or holds the cap's value. The oracle's version
+            truncation is a Born-Green Pin: `turn_cap` reads the turn number
+            in the oracle's own rendering against `ORACLE_TURN_CAP`, and the
+            walker asks it only of a terminal oracle; why not higher: the
+            cap's value is external data with no source in the tree, and the
+            shuffle and the policy lines that truncate are its witnesses, the
+            walk failing at the cap under any other value. The oracle's version
             is held by the census, which plays slides onto `a7`.
 does not prove:  that the game and the oracle agree past the oracle's turn
             cap, where the oracle has no game to compare; nor at a node no
@@ -86,8 +89,12 @@ the anchor test, the policy walk, every scripted line whose play tells the two
 points apart (the double mill, both reduction wins, the blockade), and the
 first tripwire, whose own exchange then restores the true table so nothing
 raises. It leaves green the walks it cannot tell apart (the prefix walk, the
-two removal lines whose mills lie on the top and bottom rows, the shuffle) and
-the second tripwire, which walks one of those removal lines.
+two removal lines whose mills lie on the top and bottom rows, the shuffle, and
+`test_truncation_predicate_is_load_bearing`, which walks the shuffle) and the
+second tripwire, which walks one of those removal lines.
+red under (turn cap): `ORACLE_TURN_CAP = 199` reddens the shuffle and the
+policy walk, each failing where the oracle's cap ends a line it no longer
+names.
 red under (removal rule): dropping the in-mill conjunct of `remove`'s When
 Clause in the game reddens `test_scripted_mill_excludes_enemy_mill_men` and
 the policy walk; the second tripwire then fails on its own precondition,
@@ -170,9 +177,16 @@ def mapping(points: Sequence[str]) -> ToNative:
 TO_NATIVE = mapping(ORACLE_POINTS)
 
 
+ORACLE_TURN_CAP = 200  # `kMaxNumTurns` in the oracle's source
+TURN_NUMBER = re.compile(r"^Turn number: (\d+)$", re.MULTILINE)
+
+
 def turn_cap(native: Any) -> bool:
-    """The oracle's turn cap, read off its own terminal: its one drawn end."""
-    return list(native.returns()) == [0.0, 0.0]
+    """The oracle's turn cap: the turn number its own rendering carries is
+    `ORACLE_TURN_CAP`."""
+    found = TURN_NUMBER.findall(str(native))
+    assert len(found) == 1, f"the oracle's rendering carries {len(found)} turn numbers"
+    return int(found[0]) == ORACLE_TURN_CAP
 
 
 class _Stopped(Exception):
@@ -202,17 +216,17 @@ def paired_line(
 ) -> Line:
     """One line of `walk_paired_prefix`, the oracle's turn cap its truncation.
     A line the rules end ends on both sides with equal returns."""
-    _, space = load(path)
     line = Line(label)
 
     def advance(player: int, decoded: Any) -> None:
-        line.history.append(space.encode(decoded))
         line.decoded.append(decoded)
         line.players.append(player)
 
     def recording(legal: list[int], space: ActionSpace) -> int:
         line.offer = [space.decode(a) for a in legal]
-        return choose(legal, space)
+        action = choose(legal, space)
+        line.history.append(action)
+        return action
 
     try:
         line.end = walk_paired_prefix(
