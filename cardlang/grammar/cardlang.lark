@@ -683,10 +683,10 @@ subset_size: sum _OR_KW _MORE_KW -> subset_floor
 // The `q_*_domain`/`q_*_in` forms are the positional twin (decisions.md
 // "Boards and cells"): the BARE forms range a binder over a declared
 // position domain (a board's `cell`, an integer `positions {}` name), and
-// the Boolean and counting folds also over the board direction domain (a
+// the Boolean and counting quantifiers also over the board direction domain (a
 // board's `dir`); the COLLECTION forms iterate an evaluated `line`/`cell`
-// collection. The bare set form, `<noun>s where <pred>`, is the members of a
-// position domain satisfying the predicate, the twin of `players where` and
+// collection. The bare Set Form, `<noun>s where <pred>`, is the members of a
+// Position Domain satisfying the predicate, the twin of `players where` and
 // `cards in <zone> where`; it takes no `in <collection>`, and its only
 // collection twin is the Diagnostic Grammar's refusal. Every noun is the
 // QNOUN terminal, which EXCLUDES the keyword-form nouns
@@ -696,7 +696,7 @@ subset_size: sum _OR_KW _MORE_KW -> subset_floor
 // capture (proven at zero ambiguity over the corpus in
 // tests/test_grammar_ambiguity.py; the precedence is pinned in
 // tests/test_cell_queries.py). Resolve validates a bare noun against the
-// game's position domains, and for the Boolean and counting folds its
+// game's position domains, and for the Boolean and counting quantifiers its
 // direction domain, and a collection noun against the admitted `{line, cell}`
 // set; the plural convention (`any` singular, `all`/`number of`/the set
 // plural) is a resolve Owner Guard, not a grammar one. A membership's right

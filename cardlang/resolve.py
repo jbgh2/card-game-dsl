@@ -51,8 +51,8 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               an ``as it stands`` Stop Result sits only on a game with a
               ``winner:`` clause. A bare
               ``DomainQuery`` noun names a declared position domain or, for a
-              fold in ``n.DIRECTION_FOLDS``, the direction domain the board
-              minted; a set's noun names a position domain alone, held by
+              query kind in ``n.DIRECTION_QUERY_KINDS``, the direction domain the board
+              minted; a Set Form's noun names a Position Domain alone, held by
               Derived and Pinned (the noun is a designer's string until this
               pass classifies it against ``game.positions``;
               tests/test_cell_set_form.py's noun grid). A move parameter's
@@ -4704,22 +4704,25 @@ def resolve(game: n.Game) -> n.Game:
     written = game
     game = _instantiate_rules(game, library_rules, bag)
 
+    # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
+    # (`any cel where square[cell] …`) changes the binder name, so the body's
+    # `cell` reference would classify as unresolved first and mask the sharper
+    # unknown-noun diagnostic (bag order is report order). After
+    # `_instantiate_rules`, so instantiated rule bodies are covered too, and
+    # before a rule's clause shapes are read, so a noun naming something else
+    # is told what it names before its clause is judged by the query's shape.
+    noun_cats = _categories(game)
+    for dq in _walk(game):
+        if isinstance(dq, n.DomainQuery):
+            _check_domain_query(dq, game, noun_cats, bag)
+        elif isinstance(dq, n.SubsetQuery):
+            _check_subset_source(dq, bag)
+
     for rule in game.rules:
         _resolve_rule(rule, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
     _check_rule_removes(game.phases, known_rule_names, bag)
     _check_rules_reach_a_trick(game, bag)
-
-    # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
-    # (`any cel where square[cell] …`) changes the binder name, so the body's
-    # `cell` reference would classify as unresolved first and mask the sharper
-    # unknown-noun diagnostic (bag order is report order). After
-    # `_instantiate_rules`, so instantiated rule bodies are covered too.
-    for dq in _walk(game):
-        if isinstance(dq, n.DomainQuery):
-            _check_domain_query(dq, game, bag)
-        elif isinstance(dq, n.SubsetQuery):
-            _check_subset_source(dq, bag)
 
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
@@ -8160,6 +8163,11 @@ def _check_reserved_binders(game: n.Game, bag: DiagnosticBag) -> None:
     user-chosen binders: `for each <role> <binder>:`, `each <role>
     simultaneously:`, and `let <name>[<index>]`."""
     for nd in _walk(game):
+        if isinstance(nd, n.DomainQuery) and nd.source is None:
+            # A bare position query's binder is its noun, a domain name the
+            # designer did not choose as a binder; `_check_domain_query` owns
+            # it and names a reserved word as what it is.
+            continue
         for name in _introduced_binders(nd):
             _check_reserved(name, "binder", getattr(nd, "span", None), bag)
 
@@ -12111,17 +12119,108 @@ def _no_board_for_directions(game: n.Game, name: str) -> str:
     return f" -- `{DIRECTION_DOMAIN}` is " + refusal
 
 
-def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
+def _bare_noun_refusal(
+    nd: n.DomainQuery, head: str, game: n.Game, cats: _Categories, universe: str
+) -> str | None:
+    """The refusal of a bare position query whose noun is a name of another
+    kind, in words that say what the name is and a sentence for it that
+    checks; None for a name resolve does not know, which the caller refuses
+    as an unknown position domain. The kinds are resolve's own: the name
+    categories `_classify` reads, the definitions, the reserved words
+    (`_RESERVED_WHY`), and the binders the language fixes."""
+    reach = (
+        "gathers the members of a position domain"
+        if nd.kind not in n.DIRECTION_QUERY_KINDS
+        else "ranges over a position domain"
+    )
+    for name in dict.fromkeys((nd.binder, nd.spelled)):
+        said = _what_a_bare_noun_names(name, nd.kind, game, cats)
+        if said is not None:
+            what, fix = said
+            return f"`{head}` {reach}, and `{name}` is {what} -- {fix or universe}"
+    return None
+
+
+def _what_a_bare_noun_names(
+    name: str, kind: n.DomainQueryKind, game: n.Game, cats: _Categories
+) -> tuple[str, str | None] | None:
+    """What `name` is to resolve, and the sentence that says what a bare query
+    over it meant, when one exists (else None, and the caller names the
+    position domains)."""
+    zone = next((z for z in game.zones if z.name == name), None)
+    if zone is not None:
+        ref = name if zone.index is None else f"{name}[…]"
+        what = "a zone" if zone.index is None else "a zone family"
+        if cats.flavor == "piece":
+            return what, (
+                f"a piece game reads a zone's pieces in a movement's `where` "
+                f"filter (`move all pieces from {ref} where <pred> to <zone>`)"
+            )
+        return what, f"the cards in it satisfying a predicate are `cards in {ref} where <pred>`"
+    if name == n.SUBSET_BINDER and cats.flavor == "card":
+        return "the subset binder", (
+            "subsets are asked with `of`: "
+            "`number of subsets of <n> [or more] cards in <zone> where <pred>`"
+        )
+    if name == "piece" and cats.flavor == "piece":
+        return "the piece binder of a movement's `where` filter", (
+            "a movement filters pieces: `move all pieces from <zone> where <pred> to <zone>`"
+        )
+    if name == "seat":
+        return "a player's place in the turn ring", (
+            f"the seats are the players: write "
+            f"`{_player_register_spelling(kind)} where <pred>`"
+        )
+    if name in _RESERVED_WHY:
+        return f"a reserved word ({_RESERVED_WHY[name]})", None
+    if name in cats.state_vars:
+        return "a state variable", None
+    if name in cats.ranks and cats.flavor == "card":
+        return "a rank", None
+    if name in cats.suits and cats.flavor == "card":
+        return "a suit", None
+    if name in cats.enums | cats.ranks | cats.suits:
+        return "an enum value", None
+    for label, defs in (
+        ("a function", game.functions),
+        ("a procedure", game.procedures),
+        ("a move type", game.move_types),
+        ("a rule", game.rules),
+        ("a phase", game.phases),
+    ):
+        if any(d.name == name for d in defs):
+            return label, None
+    return None
+
+
+def _player_register_spelling(kind: n.DomainQueryKind) -> str:
+    """The player register's head for the same kind of query."""
+    match kind:
+        case "any":
+            return "any player"
+        case "all":
+            return "all players"
+        case "count":
+            return "number of players"
+        case "set":
+            return "players"
+        case unreachable:
+            assert_never(unreachable)
+
+
+def _check_domain_query(
+    nd: n.DomainQuery, game: n.Game, cats: _Categories, bag: DiagnosticBag
+) -> None:
     """Validate a positional-quantifier noun (decisions.md "Boards and cells").
 
     A BARE form (`source is None`) ranges over a declared position domain,
-    and a fold in `n.DIRECTION_FOLDS` also over the direction domain the
-    board minted (`_minted_directions`); such a fold naming a `dir` no board
+    and a query kind in `n.DIRECTION_QUERY_KINDS` also over the direction domain the
+    board minted (`_minted_directions`); such a query naming a `dir` no board
     minted is refused naming what it lacks (`_unminted_direction`), and the
     set, which gathers positions alone, is refused naming the direction
     domain wherever `dir` is not a declared position domain. A COLLECTION
     form (`in <expr>`) ranges over one of the rung-1 collection nouns
-    {line, cell}, and only a fold in `n.COLLECTION_FOLDS` is offered it in a
+    {line, cell}, and only a query kind in `n.COLLECTION_QUERY_KINDS` is offered it in a
     hint. The plural convention is a resolve Owner Guard, not a grammar one:
     `any` takes the singular noun, `all`/`number of`/the set the plural
     (singular + "s"); a singular where the plural is required is guided to
@@ -12140,7 +12239,7 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
             if declared
             else "this game declares no position domains"
         )
-        if nd.kind in n.DIRECTION_FOLDS:
+        if nd.kind in n.DIRECTION_QUERY_KINDS:
             directions = _minted_directions(game)
         else:
             # The set gathers positions; the direction domain is not one.
@@ -12166,17 +12265,22 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
         if (
             nd.binder in _COLLECTION_NOUNS
             and nd.binder not in declared
-            and nd.kind in n.COLLECTION_FOLDS
+            and nd.kind in n.COLLECTION_QUERY_KINDS
         ):
             # A bare `any line where …`: the noun is a collection noun, so the
             # designer almost certainly dropped the `in <collection>` clause.
-            # Only a fold with a collection form is offered it.
+            # Only a query kind with a collection form is offered it.
             universe += (
                 f" (a `{nd.binder}` is quantified from a collection: "
                 f"`{phrase} {nd.spelled} in <collection> where ...`)"
             )
         target_ok = nd.binder in declared or nd.binder in directions
         noun_kind = "position domain"
+        if not target_ok:
+            named = _bare_noun_refusal(nd, head, game, cats, universe)
+            if named is not None:
+                bag.error(named, nd.span)
+                return
     else:
         if nd.binder == n.SUBSET_BINDER or nd.spelled == n.SUBSET_BINDER + "s":
             # `subset` names a real domain in the language, just not this

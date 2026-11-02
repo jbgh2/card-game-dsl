@@ -606,8 +606,8 @@ def _rule(r: n.RuleDef) -> IRDict:
 # --- expressions ---
 
 
-def _domain_query_fold(kind: n.DomainQueryKind) -> str:
-    """The `query` value a position query's fold emits: its kind's own name."""
+def _domain_query_spelling(kind: n.DomainQueryKind) -> str:
+    """The `query` key a position query emits: its query kind's own name."""
     match kind:
         case "any" | "all" | "count" | "set":
             return kind
@@ -680,7 +680,7 @@ def _expr(e: n.Expr) -> IRDict:
         case n.DomainQuery():
             dq: IRDict = {
                 "kind": "domain_query",
-                "query": _domain_query_fold(e.kind),
+                "query": _domain_query_spelling(e.kind),
                 "binder": e.binder,
                 "where": _expr(e.where),
             }

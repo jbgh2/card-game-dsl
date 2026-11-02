@@ -61,11 +61,11 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               board's direction domain, type ``TDir`` from
               ``TypeEnv.directions``; a bare noun in neither the position nor
               the direction source raises ``ShadowGuardError`` naming
-              ``resolve._check_domain_query``. Every position query's fold is
+              ``resolve._check_domain_query``. Every position query's kind is
               typed by an exhaustive match over ``n.DomainQueryKind`` (held by
-              Unrepresentable: a fold with no arm is a mypy error), a set as
+              Unrepresentable: a query kind with no arm is a mypy error), a Set Form as
               the collection of its position domain's member type, which
-              meets every consumer as a region verb's collection does.
+              meets every consumer as a Region Verb's collection does.
 Now illegal:  a type-invalid program, per the Owner Guards above and their
               completeness ledgers. Also a `Sig` built from an entry's
               spelling anywhere but ``_param_type``, a declared collection
@@ -861,7 +861,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 case "any" | "all":
                     return TBoolean()
                 case "set":
-                    # A set has no source: its members are its domain's.
+                    # A Set Form has no source: its members are its Position Domain's.
                     return TCollection(_bare_domain_member_type(e, env))
                 case unreachable_kind:
                     assert_never(unreachable_kind)
@@ -2759,17 +2759,17 @@ _FIELDLESS_RECEIVERS = (TCell, TDir, TLine, TEnum, TString, TNull, TOutcome)
 def _bare_domain_member_type(e: n.DomainQuery, env: TypeEnv) -> Type:
     """The member type of the domain a BARE position query's noun names: a
     position domain's (`TCell` for a board's `cell`, `TInteger` for an
-    integer domain), else, for a fold in `DIRECTION_FOLDS`, the board-minted
+    integer domain), else, for a query kind in `DIRECTION_QUERY_KINDS`, the board-minted
     direction domain's (`TDir`). Resolve's `_check_domain_query` admits no
     other noun, so a noun in neither source raises as its Shadow Guard."""
     if e.binder in env.positions:
         return env.positions[e.binder]
-    if e.binder in env.directions and e.kind in n.DIRECTION_FOLDS:
+    if e.binder in env.directions and e.kind in n.DIRECTION_QUERY_KINDS:
         return env.directions[e.binder]
     raise ShadowGuardError(
         "resolve._check_domain_query",
         f"the bare quantifier noun '{e.binder}' names no domain the "
-        f"`{n.domain_query_head(e.kind, e.spelled)}` fold ranges over in this game",
+        f"`{n.domain_query_head(e.kind, e.spelled)}` query ranges over in this game",
     )
 
 
