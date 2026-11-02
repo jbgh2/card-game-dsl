@@ -461,7 +461,7 @@ def test_a_verb_on_a_board_lacking_its_part_meets_the_runtime_shadow_guard(
 
 def _args(family: str) -> tuple[int, ...]:
     row = BOARD_FAMILIES[family]
-    return tuple(min(max(b.lo, 3), b.hi) for b in row.bounds)
+    return tuple(min(max(b.lo, 3), b.hi) for b in row.params)
 
 
 @pytest.mark.parametrize("family", sorted(BOARD_FAMILIES))

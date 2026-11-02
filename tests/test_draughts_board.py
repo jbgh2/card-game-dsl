@@ -8,15 +8,18 @@ backward, and each seat's home is its back three ranks. `is_forward` says
 which of a frame's directions a man may take. `draughts_men` holds a side's
 men and the kings they are crowned into. This module is their grid:
 
-  * GRID G -- {family: grid, draughts} x {verb: neighbor, has_step,
-    is_diagonal, is_forward, home, far_row, lines} x {seat: 0, 1, where the
-    verb takes one} x {direction: the union of both families' members, where
-    the verb takes one} x {size: each family's smallest admitted board,
-    8x8, a non-square board, the largest}, every cell of the board inside
-    each row. The expected column is `_Spec`'s independent geometry -- its
-    own offsets, playable rule, home depth and forward set, never read off
-    the registry -- and a direction of the other family is a registry-bug
-    refusal on the entry.
+  * GRID G -- {family: every family with a movement frame} x {verb: every
+    verb reading a frame, and `lines`} x {seat: 0, 1, where the verb's
+    signature takes one} x {direction: every member a framed entry or a
+    `_Spec` names, where the signature takes one} x {size: each family's
+    smallest admitted board, 8x8, a non-square board, the largest}, every
+    cell of the board inside each row; the families and verbs are derived
+    from their registries and held equal to the hand tables. The expected
+    column is `_Spec`'s geometry -- its own offsets, home depth and forward
+    set, never read off the registry; its playable rule restates the
+    builder's, so the cells are anchored by the hand tables and the oracle
+    -- and a direction of the other family is a registry-bug refusal on the
+    entry.
   * The hand tables for `draughts(8, 8)` and `draughts(3, 7)`: cells, homes,
     king-rows and steps written out.
   * The integrity sweep over every admitted `(width, height)`.
@@ -46,9 +49,11 @@ property:   `draughts(w, h)` builds, for every admitted size, a board whose
             twelve men and twelve kings a side, `side` and `kind` its axes.
 domain:     GRID G's axes above; every `(width, height)` the family's bounds
             admit for the integrity sweep; OpenSpiel's `checkers` at the
-            sizes `_ORACLE_SIZES` names, each no wider than it is tall, each
-            parity of width and height among them; `board_entry`'s refusal shapes {unknown family,
-            arity, each bound's low and high side}; `draughts_men` x
+            sizes `_ORACLE_SIZES` names -- every GRID G draughts size and
+            each parity of width and height -- a playout on a board wider
+            than it is tall stopping at its first continuing jump;
+            `board_entry`'s refusal shapes {unknown family, arity, each
+            bound's low and high side}; `draughts_men` x
             {`piece.kind is king`, `piece.side is red`, `piece.kind is red`}.
             The family by every board verb and the `dir` positions is
             tests/test_board_verb_availability.py's GRID V.
@@ -60,7 +65,9 @@ registry:   the family: `cardlang.stdlib.boards.BOARD_FAMILIES["draughts"]`,
             availability: tests/test_board_verb_availability.py::
             test_a_board_position_is_answered_or_refused_naming_the_family.
 held by:    a frame's directions are a Born-Green Pin against `_Spec` and
-            the oracle: offsets are integers no type relates to a name.
+            the oracle, and its cells against the hand tables and the oracle
+            (`_Spec` restates the playable rule, so it anchors no cell):
+            offsets and squares are integers no type relates to a name.
             `is_forward` is Unrepresentable as disagreeing with its offset:
             it is read off the offset's rank step, as `is_diagonal` is off
             its file step, so a direction flagged forward that steps back
@@ -69,16 +76,16 @@ held by:    a frame's directions are a Born-Green Pin against `_Spec` and
             off the board, and `__post_init__` refuses a step that stays on
             the rectangle and lands off the cells. A family's arity is
             Unrepresentable as disagreeing with its bounds: the arity is the
-            length of the bounds. The piece set's composition is a
+            number of its `params`. The piece set's composition is a
             Born-Green Pin, as every set's is (tests/test_component_sets.py).
 does not prove:  that a game of draughts plays the WCDF rules: the jump,
             the continuing capture, crowning that ends a move and the draw
             are a game's sentences over these verbs, and the differential
             of that game against `checkers` carries them. The witnesses
             here walk steps alone, so a line stops at its first capture.
-            Nor that the family agrees with the oracle on a board wider than
-            it is tall: the oracle loses a continuing jump's piece there, so
-            those sizes are held by `_Spec` and the sweep alone.
+            Nor that a continuing jump on a board wider than it is tall lands
+            where the oracle's does: the oracle loses the jumping piece
+            there, so those playouts stop at the first one.
 
 red under (cells): `% 2 == 0` in place of `% 2 == 1` in the draughts
 builder's playable test reddens the hand tables, GRID G's `draughts` rows,
@@ -90,7 +97,8 @@ red under (home depth): a draughts home depth of 2 reddens the hand homes,
 the sweep's home count and the oracle's starting men.
 red under (forward): reading `is_forward` off the file step (`dcol`) in
 place of the rank step reddens GRID G's `is_forward` rows and the oracle's
-men's directions.
+men's directions; `is_forward` answering True of every direction reddens
+the oracle's men's directions, which a man is offered exactly.
 red under (lines): giving the draughts builder `line_lengths=(1,)` refuses
 the entry at construction (lines derive from the frame's full rectangle).
 red under (verb needs): mapping `is_forward` to `edges` in
@@ -110,14 +118,15 @@ from typing import Any
 
 import pytest
 
+from cardlang.builtins.functions import BOARD_VERB_NEEDS
+from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
-from cardlang.runtime.evaluate import native_call
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.stdlib import boards
 from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
-from tests.test_movement_verbs import _boardless_ctx
+from cardlang.types import TDir, TPlayer
 
 _FILE = "draughts.cardlang"
 
@@ -132,7 +141,9 @@ _FILES = "abcdefghijklmnop"
 class _Spec:
     """A family's geometry, authored here and never read off the registry:
     each direction's seat-0 offset (drank, dfile), the forward members,
-    whether only one colour of square is played, and the home depth."""
+    whether only one colour of square is played, and the home depth. Its
+    playable rule restates the builder's, so the cells it lists are anchored
+    by the hand tables and the oracle, never by this class."""
 
     offsets: dict[str, tuple[int, int]]
     forward: frozenset[str]
@@ -201,51 +212,69 @@ SIZES: dict[str, tuple[tuple[int, int], ...]] = {
     "draughts": ((3, 7), (8, 8), (10, 7), (16, 16)),
 }
 
+# The frame verbs GRID G's expected column reads, authored by hand; the
+# registry's set is held equal to it below.
+HAND_FRAME_VERBS = frozenset({"neighbor", "has_step", "is_diagonal", "is_forward", "home", "far_row"})
+
+
+def _smallest(family: str) -> tuple[int, ...]:
+    return tuple(p.lo for p in BOARD_FAMILIES[family].params)
+
+
+# The axes, each derived from its registry: the families whose entry has a
+# movement frame, the verbs that read one, and every direction a framed entry
+# or a `_Spec` names.
+FRAMED_FAMILIES = frozenset(
+    f for f in BOARD_FAMILIES if board_entry(f, _smallest(f)).frame is not None
+)
+FRAME_VERBS = frozenset(v for v, need in BOARD_VERB_NEEDS.items() if need == "frame")
 ALL_DIRECTIONS: tuple[str, ...] = tuple(
-    sorted({d for spec in SPECS.values() for d in spec.offsets})
+    sorted(
+        {d for spec in SPECS.values() for d in spec.offsets}
+        | {d for f in FRAMED_FAMILIES for d in board_entry(f, _smallest(f)).directions()}
+    )
 )
 
-_SEAT_VERBS = ("neighbor", "has_step")
-_DIRECTION_VERBS = ("is_diagonal", "is_forward")
-_REGION_VERBS = ("home", "far_row")
+
+def test_the_grid_axes_are_the_registrys() -> None:
+    """The families GRID G authors a geometry for are the framed ones, and
+    its verbs are the ones reading a frame.
+
+    red under: a third family with a movement frame in `BOARD_FAMILIES`, or
+    a third need-`frame` verb in `BOARD_VERB_NEEDS`."""
+    assert FRAMED_FAMILIES == set(SPECS) == set(SIZES)
+    assert FRAME_VERBS == HAND_FRAME_VERBS
 
 
 def _cells() -> list[Any]:
+    """GRID G's cells: each framed family at each of its sizes, by each
+    frame verb and `lines`, crossed with a seat where the verb's signature
+    takes one and a direction where it takes one."""
     rows: list[Any] = []
-    for family, sizes in SIZES.items():
-        for width, height in sizes:
+    families = sorted(FRAMED_FAMILIES | set(SPECS))
+    verbs = sorted(FRAME_VERBS | HAND_FRAME_VERBS) + ["lines"]
+    for family in families:
+        for width, height in SIZES.get(family, (_smallest(family),)):
             size = f"{width}x{height}"
-            for verb in _SEAT_VERBS:
-                for seat in (0, 1):
-                    for d in ALL_DIRECTIONS:
+            for verb in verbs:
+                params = CALL_SIGS[verb].params if verb in CALL_SIGS else ()
+                seats: tuple[int | None, ...] = (
+                    (0, 1) if any(isinstance(p, TPlayer) for p in params) else (None,)
+                )
+                dirs: tuple[str | None, ...] = (
+                    ALL_DIRECTIONS if any(isinstance(p, TDir) for p in params) else (None,)
+                )
+                for seat in seats:
+                    for d in dirs:
+                        tag = "".join(
+                            [f"-p{seat}" if seat is not None else "", f"-{d}" if d else ""]
+                        )
                         rows.append(
                             pytest.param(
                                 family, verb, seat, d, width, height,
-                                id=f"{family}-{size}-{verb}-p{seat}-{d}",
+                                id=f"{family}-{size}-{verb}{tag}",
                             )
                         )
-            for verb in _DIRECTION_VERBS:
-                for d in ALL_DIRECTIONS:
-                    rows.append(
-                        pytest.param(
-                            family, verb, None, d, width, height,
-                            id=f"{family}-{size}-{verb}-{d}",
-                        )
-                    )
-            for verb in _REGION_VERBS:
-                for seat in (0, 1):
-                    rows.append(
-                        pytest.param(
-                            family, verb, seat, None, width, height,
-                            id=f"{family}-{size}-{verb}-p{seat}",
-                        )
-                    )
-            rows.append(
-                pytest.param(
-                    family, "lines", None, None, width, height,
-                    id=f"{family}-{size}-lines",
-                )
-            )
     return rows
 
 
@@ -385,8 +414,8 @@ def _admitted() -> list[tuple[int, int]]:
 
 def test_the_family_admits_the_authored_bounds() -> None:
     family = BOARD_FAMILIES["draughts"]
-    assert tuple((b.lo, b.hi) for b in family.bounds) == DRAUGHTS_BOUNDS
-    assert tuple(b.name for b in family.bounds) == ("width", "height")
+    assert tuple((b.lo, b.hi) for b in family.params) == DRAUGHTS_BOUNDS
+    assert tuple(b.name for b in family.params) == ("width", "height")
 
 
 @pytest.mark.parametrize(
@@ -418,11 +447,11 @@ def test_every_admitted_board_holds_its_geometry(width: int, height: int) -> Non
 
 # --- the native oracle ----------------------------------------------------------
 
-# OpenSpiel's `checkers` at each parity of width and height: (columns, rows).
-# Each is no wider than it is tall: the oracle keeps a continuing jump's
-# square as `row * rows + column` (checkers.cc, `multiple_jump_piece_`), so
-# on a wider board it loses the jumping piece and fails its own check.
-_ORACLE_SIZES: list[tuple[int, int]] = [(8, 8), (3, 7), (6, 7), (5, 8)]
+# OpenSpiel's `checkers` at every GRID G draughts size and each parity of
+# width and height: (columns, rows).
+_ORACLE_SIZES: list[tuple[int, int]] = sorted(
+    set(SIZES["draughts"]) | {(8, 8), (3, 7), (6, 7), (5, 8), (9, 8)}
+)
 
 # The oracle's four absolute directions (checkers.cc, `kDirRowOffsets`,
 # `kDirColumnOffsets`; its row 0 is the top rank) as each seat's frame names
@@ -435,6 +464,13 @@ ORACLE_DIRECTIONS: dict[int, tuple[str, str, str, str]] = {
 
 def _oracle_square(rows: int, row: int, column: int) -> str:
     return f"{_FILES[column]}{rows - row}"
+
+
+def _oracle_board(state: Any, rows: int, columns: int) -> list[str]:
+    """The oracle's printed board, one string of `columns` squares per row,
+    row 0 the top rank; its rank labels are right-aligned, so each row is
+    read from its end."""
+    return [line[-columns:] for line in str(state).splitlines()[:rows]]
 
 
 def _oracle(columns: int, rows: int) -> Any:
@@ -461,12 +497,12 @@ def test_the_cells_and_homes_are_the_oracles_squares_and_men(columns: int, rows:
     three, which are `home(0)` and `home(1)`."""
     entry = board_entry("draughts", (columns, rows))
     state = _oracle(columns, rows).new_initial_state()
-    lines = str(state).splitlines()
-    squares: dict[str, str] = {}
-    for row in range(rows):
-        board_row = lines[row][len(str(rows - row)):]
-        for column in range(columns):
-            squares[_oracle_square(rows, row, column)] = board_row[column]
+    board = _oracle_board(state, rows, columns)
+    squares = {
+        _oracle_square(rows, row, column): board[row][column]
+        for row in range(rows)
+        for column in range(columns)
+    }
     playable = {
         _oracle_square(rows, row, column)
         for row in range(rows)
@@ -485,18 +521,30 @@ def test_the_cells_and_homes_are_the_oracles_squares_and_men(columns: int, rows:
 def test_each_seats_frame_names_the_oracles_directions(columns: int, rows: int) -> None:
     """Over uniform playouts of the oracle, every legal move it offers lands
     where `neighbor` -- once for a step, twice for a jump -- lands along the
-    member `ORACLE_DIRECTIONS` names for the mover's seat, and a man is
-    offered exactly the directions `is_forward` admits."""
+    member `ORACLE_DIRECTIONS` names for the mover's seat, and each seat's
+    men are offered, over the playouts, exactly the directions `is_forward`
+    admits.
+
+    On a board wider than it is tall a playout stops at its first continuing
+    jump, or at a refusal of the oracle's own: it keeps the jumping piece's
+    square as `row * rows + column` (checkers.cc, `multiple_jump_piece_`),
+    so there it loses the piece.
+
+    red under: `is_forward` answering True of every direction."""
+    pyspiel = pytest.importorskip("pyspiel")
     entry = board_entry("draughts", (columns, rows))
     game = _oracle(columns, rows)
+    wide = columns > rows
     checked = 0
+    offered_to_men: dict[int, set[str]] = {0: set(), 1: set()}
     for seed in range(8):
         rng = random.Random(seed)
         state = game.new_initial_state()
         while not state.is_terminal():
             seat = state.current_player()
-            board = str(state).splitlines()
-            for action in state.legal_actions():
+            board = _oracle_board(state, rows, columns)
+            legal = state.legal_actions()
+            for action in legal:
                 row, column, direction, capture = _decode(action, rows, columns)
                 member = ORACLE_DIRECTIONS[seat][direction]
                 start = _oracle_square(rows, row, column)
@@ -506,12 +554,22 @@ def test_each_seats_frame_names_the_oracles_directions(columns: int, rows: int) 
                     land = entry.neighbor(land, member, seat)
                 name = state.action_to_string(seat, action)
                 assert name == f"{start}{land}", (seed, name, member)
-                piece = board[row][len(str(rows - row)) + column]
-                if piece in "o+":
+                if board[row][column] in "o+":
                     assert entry.is_forward(member), (seed, name, member)
+                    offered_to_men[seat].add(member)
                 checked += 1
-            state.apply_action(rng.choice(state.legal_actions()))
+            action = rng.choice(legal)
+            try:
+                state.apply_action(action)
+            except pyspiel.SpielError:
+                if not wide:
+                    raise
+                break
+            if wide and action % 2 and not state.is_terminal() and state.current_player() == seat:
+                break
     assert checked
+    forward = {d for d in entry.directions() if entry.is_forward(d)}
+    assert offered_to_men == {0: forward, 1: forward}, offered_to_men
 
 
 def test_a_man_moves_along_exactly_the_forward_members() -> None:
@@ -728,15 +786,6 @@ def test_a_draughts_men_sentence_checks_or_is_refused(when: str, needle: str | N
 def test_a_plausible_wrong_draughts_sentence_is_refused(source: str, needle: str) -> None:
     rendered = _rendered(source)
     assert rendered is not None and needle in rendered, rendered
-
-
-@pytest.mark.expects_shadow_guard
-def test_is_forward_without_a_board_meets_the_runtime_shadow_guard() -> None:
-    """Should `is_forward` reach play in a boardless game, the runtime refuses
-    it naming the resolve check that should have, as every board verb does."""
-    with pytest.raises(ShadowGuardError, match=r"declares no `board:`") as caught:
-        native_call("is_forward", ["ahead_left"], _boardless_ctx())
-    assert caught.value.leaked == "resolve._check_board_call"
 
 
 # --- the witnesses ---------------------------------------------------------------

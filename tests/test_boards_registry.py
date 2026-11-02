@@ -293,7 +293,7 @@ def test_board_entry_rejects_bad_args(
 
 def test_board_families_are_the_four_rows() -> None:
     rows = {
-        name: tuple((b.name, b.lo, b.hi) for b in f.bounds) for name, f in BOARD_FAMILIES.items()
+        name: tuple((b.name, b.lo, b.hi) for b in f.params) for name, f in BOARD_FAMILIES.items()
     }
     assert rows == {
         "grid": (("width", 1, 16), ("height", 1, 16)),
@@ -301,7 +301,7 @@ def test_board_families_are_the_four_rows() -> None:
         "hex_rhombus": (("side", 1, 16),),
         "draughts": (("width", 3, 16), ("height", 7, 16)),
     }
-    assert all(f.arity == len(f.bounds) for f in BOARD_FAMILIES.values())
+    assert all(f.arity == len(f.params) for f in BOARD_FAMILIES.values())
 
 
 def test_morris9_answers_lines_of_three_only() -> None:
@@ -336,7 +336,7 @@ def test_every_family_answers_each_verb_its_entry_declares() -> None:
     answers `near_edge` or `far_edge`)."""
     answered: set[str] = set()
     for family, spec in BOARD_FAMILIES.items():
-        entry = board_entry(family, tuple(b.lo for b in spec.bounds))
+        entry = board_entry(family, tuple(b.lo for b in spec.params))
         for verb, need in BOARD_VERB_NEEDS.items():
             if not entry.answers(need):
                 continue

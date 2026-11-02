@@ -58,9 +58,11 @@ Held by:      the frame, the edges and the borders are Unrepresentable as
               Unrepresentable as disagreeing with its bounds: it is the
               number of its `BoardParam`s. A frame's direction offsets and
               its playable squares are a Born-Green Pin: each family's table
-              is authored here, held against the independent geometry of
+              is authored here, anchored by the hand tables of
               tests/test_boards_registry.py and tests/test_draughts_board.py
-              and, for draughts, OpenSpiel's `checkers`.
+              and, for draughts, by OpenSpiel's `checkers` at every size the
+              draughts grid names; the grid's own geometry restates the
+              playable rule, so it is no anchor for the cells.
               The morris edge data is a Born-Green Pin: authored here with no
               source above it in the tree, pinned by the hand tables of
               tests/test_board_verb_availability.py (GRID E), with the
@@ -505,7 +507,7 @@ class BoardEntry:
         """Registry-bug refusal for a declared adjacency: every edge joins two
         distinct cells of this board, and on a board of more than one cell
         every cell has at least one."""
-        cellset = set(self.cells)
+        cellset = self._cell_set
         for edge in edges:
             if len(edge) != 2 or not edge <= cellset:
                 raise ValueError(
@@ -552,7 +554,7 @@ class BoardEntry:
         dirs = self.directions()
 
         squares = {_cell_name(c, r) for r in range(height) for c in range(width)}
-        if not set(self.cells) <= squares or (self.line_lengths and set(self.cells) != squares):
+        if not self._cell_set <= squares or (self.line_lengths and self._cell_set != squares):
             raise ValueError(
                 "BoardEntry frame must hold the board's cells on its rectangle, and "
                 "every square of it where the board answers lines(k) "
@@ -571,7 +573,7 @@ class BoardEntry:
                     f"of player 0 (registry bug: direction {d!r})"
                 )
 
-        cellset = set(self.cells)
+        cellset = self._cell_set
         for cell in self.cells:
             for d in dirs:
                 for p in (0, 1):
@@ -723,25 +725,25 @@ class BoardFamily:
     """One BOARD_FAMILIES row: its arguments in order, each with its bounds,
     plus the builder that turns validated args into a BoardEntry."""
 
-    bounds: tuple[BoardParam, ...]
+    params: tuple[BoardParam, ...]
     build: Callable[[tuple[int, ...]], BoardEntry]
 
     @property
     def arity(self) -> int:
-        return len(self.bounds)
+        return len(self.params)
 
 
 BOARD_FAMILIES: dict[str, BoardFamily] = {
     "grid": BoardFamily(
-        bounds=(BoardParam("width", 1, 16), BoardParam("height", 1, 16)), build=_grid
+        params=(BoardParam("width", 1, 16), BoardParam("height", 1, 16)), build=_grid
     ),
-    "morris9": BoardFamily(bounds=(), build=_morris9),
+    "morris9": BoardFamily(params=(), build=_morris9),
     # 16 is the largest side whose n * n cells fit the position-domain cap.
-    "hex_rhombus": BoardFamily(bounds=(BoardParam("side", 1, 16),), build=_hex_rhombus),
+    "hex_rhombus": BoardFamily(params=(BoardParam("side", 1, 16),), build=_hex_rhombus),
     # A jump spans three files; two three-rank homes with a rank between them
     # span seven ranks.
     "draughts": BoardFamily(
-        bounds=(BoardParam("width", 3, 16), BoardParam("height", 7, 16)), build=_draughts
+        params=(BoardParam("width", 3, 16), BoardParam("height", 7, 16)), build=_draughts
     ),
 }
 
@@ -762,7 +764,7 @@ def board_entry(family: str, args: tuple[int, ...]) -> BoardEntry:
         raise OwnerGuardError(
             f"board family {family!r} takes {declared.arity} argument(s), got {len(args)}"
         )
-    for param, value in zip(declared.bounds, args):
+    for param, value in zip(declared.params, args):
         if not (param.lo <= value <= param.hi):
             raise OwnerGuardError(
                 f"board family {family!r} takes a {param.name} in "

@@ -330,7 +330,7 @@ def _board_args(family: str) -> tuple[int, ...]:
     """Arguments the family's registry row accepts: each its lowest bound
     raised to 3, so a frame has a middle rank to step from."""
     row = BOARD_FAMILIES[family]
-    return tuple(min(max(b.lo, 3), b.hi) for b in row.bounds)
+    return tuple(min(max(b.lo, 3), b.hi) for b in row.params)
 
 
 def _board_clause(family: str) -> str:

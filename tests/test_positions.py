@@ -178,7 +178,7 @@ def test_no_board_family_can_mint_past_the_member_ceiling() -> None:
     """
     assert BOARD_FAMILIES, "the board-family registry derived to nothing"
     for name, family in sorted(BOARD_FAMILIES.items()):
-        widest = board_entry(name, tuple(b.hi for b in family.bounds))
+        widest = board_entry(name, tuple(b.hi for b in family.params))
         assert len(widest.cells) <= _POSITION_MEMBER_CEILING, (
             f"board family '{name}' at its widest mints {len(widest.cells)} "
             f"cells, past the {_POSITION_MEMBER_CEILING}-member ceiling a "

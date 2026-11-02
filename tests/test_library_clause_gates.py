@@ -228,7 +228,7 @@ def _probe_path(args: tuple[int, ...]) -> BoardEntry:
 
 def _install_probe_board(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        BOARD_FAMILIES, _PROBE_BOARD, BoardFamily(bounds=(), build=_probe_path)
+        BOARD_FAMILIES, _PROBE_BOARD, BoardFamily(params=(), build=_probe_path)
     )
 
 
