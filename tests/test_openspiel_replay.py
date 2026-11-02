@@ -111,7 +111,7 @@ def test_on_first_decision_mutates_the_replayed_world() -> None:
 
 def test_returns_for_team_scored_game_maps_players_through_teams() -> None:
     game, _ = load(str(GAMES / "bridge.cardlang"))
-    from cardlang.runtime.driver import GameResult, seat_scores_of
+    from cardlang.runtime.driver import GameResult, ScoredBy, seat_scores_of
     from cardlang.runtime.values import TeamOf
 
     assert game.winner is not None
@@ -123,6 +123,8 @@ def test_returns_for_team_scored_game_maps_players_through_teams() -> None:
         loser=None,
         hands_played=1,
         ended_by=EndedBy.RULES,
+        scored_by=ScoredBy.RANKING,
+        rank_dir=game.winner.rank_dir,
     )
     rets = returns_for(game, result)
     assert len(rets) == 4
@@ -132,7 +134,7 @@ def test_returns_for_team_scored_game_maps_players_through_teams() -> None:
 
 def test_returns_for_loser_game() -> None:
     game, _ = load(str(GAMES / "getaway.cardlang"))
-    from cardlang.runtime.driver import GameResult
+    from cardlang.runtime.driver import GameResult, ScoredBy
 
     n = game.players.count
     result = GameResult(
@@ -142,6 +144,8 @@ def test_returns_for_loser_game() -> None:
         loser=2,
         hands_played=1,
         ended_by=EndedBy.RULES,
+        scored_by=ScoredBy.LOSER,
+        rank_dir=None,
     )
     rets = returns_for(game, result)
     assert rets[2] == float(-(n - 1))

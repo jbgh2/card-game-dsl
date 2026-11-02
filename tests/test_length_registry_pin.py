@@ -3,8 +3,8 @@ with headroom under its `max_length`; the corpus's legal Length Stops are
 asserted as stops; and `max_game_length` is a promise every registered game
 keeps (docs/decisions.md, "Game length as a declared contract").
 
-A game that reaches its bound ends there as a tie, flagged, and nothing
-refuses it. So what a looping `until` in a corpus game would have been
+A game that reaches its bound ends there, flagged, scored by its Stop
+Result, and nothing refuses it. So what a looping `until` in a corpus game would have been
 refused for, this module measures instead: a registered game whose
 reference-policy line stops by length, or runs within its dial of the bound,
 is red here.
@@ -17,7 +17,8 @@ property:        every registered game, on every seed of the manifest,
                  picks; its lowest-id line, walked natively, reaches a
                  terminal at or before its bound, ended the way
                  `LOWEST_ID_ENDS` names; Coup under `first` and Tichu under
-                 the uniform Chooser end by length, as ties.
+                 the uniform Chooser end by length, each scored as it stands
+                 as its file declares.
 domain:          the games this process registers at import, the corpus
                  (`registry.GAMES`) and every file `CARDLANG_GAMES` names,
                  crossed with the coverage manifest. A game registered later
@@ -34,7 +35,7 @@ held by:         Born-Green Pin: whether a game's lines end by its rules is a
                  cannot decide.
 does not prove:  that a line no policy in the table walks ends by its rules:
                  a designer's game under play the policy never makes may
-                 still meet its bound, and ends there as a tie.
+                 still meet its bound, and ends there by its Stop Result.
 
 red under: register tests/test_length_stop.py's `bounded_tic_tac_toe()`
 (tic-tac-toe at `max_length: 5`) through `CARDLANG_GAMES`; a uniform line that
@@ -105,14 +106,15 @@ HEADROOM: dict[str, tuple[int, str]] = {
 
 
 # How the lowest-id line of seed `SWAP_SEEDS[0]` ends, for the games whose
-# line their rules never end (measured 2026-10-31): a table taking the first
-# pick at every decision loops, and the line ends at the bound. Every other
-# registered game's ends by its rules.
+# line their rules never end (measured 2026-10-31; nine-mens-morris
+# 2026-11-01): a table taking the first pick at every decision loops, and the
+# line ends at the bound. Every other registered game's ends by its rules.
 LOWEST_ID_ENDS: dict[str, str] = {
     "belote": "length",
     "coup": "length",
     "gin-rummy": "length",
     "klondike": "length",
+    "nine-mens-morris": "length",
     "tichu": "length",
 }
 
@@ -180,21 +182,24 @@ def test_the_lowest_id_line_reaches_a_terminal_within_the_advertised_length(shor
 
 def test_coup_under_first_is_a_length_stop() -> None:
     """A table whose every seat takes the first pick repeats one exchange:
-    Coup's lines are legally unbounded, and this one ends by length, a tie."""
+    Coup's lines are legally unbounded, and this one ends by length, scored
+    as it stands: no seat has been exiled, so every seat's `alive` pays 1."""
     path = str(_GAMES_DIR / "coup.cardlang")
     line = LiveLine(path, 1)
     end = line.play({seat: FirstSeatPolicy() for seat in range(4)})
     assert _ended_by(end) == "length"
     assert len(line.history) == 500
-    assert end.returns == [0.0, 0.0, 0.0, 0.0]
+    assert end.returns == [1.0, 1.0, 1.0, 1.0]
 
 
 def test_tichu_under_the_uniform_chooser_is_a_length_stop() -> None:
     """A uniform Chooser calls tichu at about half of every offer and the race
-    to 1000 diverges: seed 0 reaches the bound."""
+    to 1000 diverges: seed 0 reaches the bound, scored as it stands, and the
+    team standing higher on `score` wins."""
     game = check_source(_GAMES_DIR / "tichu.cardlang")
     world: list[RuntimeState] = []
     result = play_game(game, random.Random(0), on_first_decision=world.append)
     assert _ended_by(result) == "length"
     assert world[0].decisions_made == game.max_length
-    assert result.winners == frozenset(range(4))
+    assert result.scores == {0: -12505, 1: -9095}
+    assert result.winners == frozenset({1, 3})

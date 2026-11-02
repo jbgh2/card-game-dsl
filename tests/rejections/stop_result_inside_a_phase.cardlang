@@ -1,0 +1,18 @@
+// Guard: parse.py's `max_length` hint (`_PARSE_HINTS`), at its second
+// site: a Stop Result written inside a phase, whose sentence must read
+// as true there too.
+game StopResultInsideAPhase {
+  players: 2
+  max_length: 30
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { coins[player] : Integer = 0  done : Boolean = false }
+  phase play {
+    at max_length: tie
+    turns t from 0 over all players until done {
+      as t { offer to t one of [stop] }
+    }
+  }
+  winner: highest coins
+}
+move_type stop { effect { done := true } }

@@ -157,8 +157,9 @@ the move's name; decisions.md, "A move type's stake") whenever a plain move is
 on offer beside it, and draws among the rest; the header says which opponent is
 at which seat. An opponent that always takes the first pick
 repeats itself, so a table where every seat does, you included, can play a game
-to its `max_length`. The game ends there as a tie, and the session says the
-table played it to its bound ([decisions.md](decisions.md), "Game length as a
+to its `max_length`. The game ends there, scored by its Stop Result (a tie
+unless it declares `at max_length: as it stands` or a ranking), and the
+session says the table played it to its bound ([decisions.md](decisions.md), "Game length as a
 declared contract"). Under `cardlang demo` the same stop exits 1 and leads the
 summary: uniform-random play is not meant to come near the bound, so if it does,
 raise the bound or find the loop that should have ended.

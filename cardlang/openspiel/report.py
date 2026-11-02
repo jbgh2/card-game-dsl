@@ -5,7 +5,7 @@ one credit per rollout its rules ended, so a tie credits the lowest-numbered
 tied seat alone and a game whose seats can share a top return reads as more
 seat-biased than it is (issue #353). A rollout that reached the game's
 `max_length` (a [[length-stop]], `CardlangState.ended_by`) credits no seat and
-is counted on its own, since its tie is the bound's and not the rules'."""
+is counted on its own, since its result is the bound's and not the rules'."""
 
 from __future__ import annotations
 

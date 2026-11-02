@@ -509,8 +509,8 @@ kept-the-copy world (the runtime's filter guarantees the proven card
 returns; tabletop common knowledge is epsilon finer — the public-transit
 encoding closes it if a consumer ever needs that bit). Interactive Coup
 has legally unbounded lines: a table that only ever exchanges never reaches
-the forced coup, and such a line ends at the game's `max_length` as a tie, a
-Length Stop
+the forced coup, and such a line ends at the game's `max_length`, a Length
+Stop scored as it stands
 ([decisions.md](decisions.md), "Game length as a declared contract").
 
 The anticipated new-axis risk (action → response → counter-response

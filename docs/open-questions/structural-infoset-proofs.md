@@ -152,13 +152,13 @@ checklist for resolving this question.
   only at another depth, is outside today's coverage. Every shared proof runs
   the manifest, not the swap proof alone: own-view soundness, the
   per-visible-fact matrix, the rng pin, perfect recall and adapter agreement
-  too — so the terminal-returns comparison in particular now lands on five
-  distinct game outcomes per game rather than one. Three games run one seed,
-  declared with their reasons in `test_coverage.ONE_SEED_SWAP_PROOFS` and
-  pinned tight in both directions: Breakthrough, FreeCell and Tic-Tac-Toe
-  are perfect-information games whose proof is a DEGENERACY argument over
-  the zone declarations (no populated zone projects below identity, so no
-  hidden pair exists to swap), which no second deal can vary. Klondike also
+  too — so the terminal-returns comparison lands on each manifest seed's
+  own outcome, a distinct one wherever the deal moves the line. The games
+  whose swap proof runs one seed are declared with their reasons in
+  `test_coverage.ONE_SEED_SWAP_PROOFS` and pinned tight in both directions:
+  each is a perfect-information game whose proof is a DEGENERACY argument
+  over the zone declarations (no populated zone projects below identity, so
+  no hidden pair exists to swap), which no second deal can vary. Klondike also
   overrides the shared proof — a 1-player analogue swapping a face-down
   tableau card against the undrawn stock — and runs the full manifest.
   *Covered constructively for Cheat only* (`tests/openspiel_ready/worlds.py` +
@@ -273,9 +273,13 @@ checklist for resolving this question.
   terminal returns agree (reaching Terminal is itself asserted, so the
   comparison cannot rot into dead code), Coup's among them: its greedy line
   is legally unbounded at interactive scope and ends at its `max_length`,
-  a Length Stop the record names (`ended_by`). The multi-hand
-  score-target games whose greedy line runs past any affordable cap record
-  `terminal=False`, their returns exercised only by the conformance sim. That comparison holds the adapter against its own replay route, so
+  a Length Stop the record names (`ended_by`). A game whose
+  `GameSpec.adapter_terminal_steps` is None — its greedy line runs past any
+  affordable cap, or cycles until its `max_length` — records
+  `terminal=False`; its returns are exercised by the conformance sim, and by
+  whatever its own proof module adds (nine men's morris compares the
+  adapter's returns on a uniform line the rules end,
+  `test_adapter_returns_agree_on_a_rules_ended_line`). That comparison holds the adapter against its own replay route, so
   it cannot see a divergence both share. *Covered across routes:*
   `tests/test_route_agreement.py` holds a native playout — the route the
   table, the rigs and the playout tests take — against pyspiel at sampled

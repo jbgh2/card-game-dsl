@@ -1,0 +1,1 @@
+max_length_clause_after_the_bound.cardlang:5:18: error: syntax error: unexpected `then`; expected `phase`, `state` or `teams`, among others — `max_length:` takes a whole number and nothing more; what a game is worth when the engine stops it at its bound is a game clause of its own: `at max_length: tie`, `at max_length: as it stands`, or `at max_length: highest <variable>`

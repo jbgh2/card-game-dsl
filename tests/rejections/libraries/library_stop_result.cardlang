@@ -1,0 +1,5 @@
+// Guard: the library grammar. A Stop Result says what ONE game is worth at
+// its bound, so it is a game clause and a library has no place for it.
+library stops {
+  at max_length: tie
+}

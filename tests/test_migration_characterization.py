@@ -594,7 +594,7 @@ def test_every_hash_seed_axis_entry_names_a_corpus_game() -> None:
 #
 # Tichu takes its reference policy, as its own captures do: under the uniform
 # chooser a Tichu match's race diverges and the line ends at the declared
-# `max_length` as a tie, so playing it uniformly here would capture a game its
+# `max_length`, so playing it uniformly here would capture a game its
 # bound ended instead of one its rules did.
 _HASHSEED_CAPTURE = """
 import dataclasses, json, random, sys

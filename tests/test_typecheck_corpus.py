@@ -65,6 +65,7 @@ PROSE_ONLY_TWINS: frozenset[str] = frozenset(
         "klondike",
         "kuhn-poker",
         "leduc-poker",
+        "nine-mens-morris",
         "oh-hell",
         "pinochle",
         "president",

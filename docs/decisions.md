@@ -1722,12 +1722,14 @@ because a decision site applies a call only once every pick is in. The game is
 read at the position standing at the stopped pick: no statement past it runs,
 no `after_each`, and every phase frame stands.
 
-A Length Stop is a **tie by default**: every seat a winner, no loser, every
-seat's return 0. Neither the `winner:` target nor the `loser:` selection is
-read at the stop: a stopped position is one no rule ended, and a `loser:`
-selection asked there would name a seat nobody's play made the loser. What a
-game is worth at its bound is the one thing a game's own declaration may change
-(issue #967); a game that declares nothing is the tie.
+**A stopped game is scored by its Stop Result**, the game clause written
+beside its bound ("Game result: `winner:` and `loser:`"), and a game that
+declares none is a **tie**: every seat a winner, no loser, every seat's return
+0. The `loser:` selection is never read at the stop: a stopped position is one
+no rule ended, and a selection asked there would name a seat nobody's play
+made the loser. A ranking read at the stop reads its target from the
+game-level frame, the one declaration a result clause may name, so a phase
+frame standing at the stop and shadowing it is never read.
 
 The result says how the game ended, in every channel. `GameResult.ended_by` is
 a closed pair, `rules` or `length`; the adapter's terminal node and a live
@@ -1805,8 +1807,9 @@ by the loop's `until`, and ends the game by its rules.
 
 `max_length` is the bound the engine stops a game at, not a value a rule can
 read: a rule naming it is refused with the two spellings a designer means -- a
-turn count in a state variable, or nothing at all. The declaration takes a
-number and nothing more; a clause after it is a syntax error that says so.
+turn count in a state variable compared to a number, or the Stop Result. The
+declaration takes a number and nothing more; a clause after it is a syntax
+error that names the Stop Result.
 
 Static bounds derived from a game's own structure (e.g. card-conservation
 arguments for trick-taking games) could tighten the declared value further,
@@ -3713,7 +3716,11 @@ optional, or of any other declared type is refused at check time with a
 diagnostic naming the declaration: an unindexed one has no per-member
 value, an optional one may hold `none`, and the rest either cannot be
 compared or compare fine and mean nothing (a `Player`-typed target would
-deliver seat ids as utilities). See [Winner](glossary/winner.md).
+deliver seat ids as utilities). The variable is never named for a word a game
+clause opens with (`pieces`, `phase`, `at`): the name ends the clause, so a
+ranking whose name is left off would otherwise read the next clause's word as
+its target; the refusal says to rename the variable. See
+[Winner](glossary/winner.md).
 
 An *elimination* game has no score: players drop out until one
 remains, and that survivor is named directly, so `loser: <selection>`
@@ -3732,6 +3739,34 @@ A game declares one or the other, never both. `winner:` is not sugar for
 `loser:` of the complement: an elimination game may end with several
 non-losers whom the rules never rank, so there is no single winner to
 name.
+
+**A game may declare its Stop Result; a game that declares nothing is a
+tie.** The Stop Result is what a game is worth when the engine stops it at
+its bound, a Length Stop ("Game length as a declared contract"), written
+beside the bound it qualifies:
+
+```cardlang-fragment stop_result
+max_length: 500
+at max_length: as it stands      // Coup: `winner: highest alive`, read where the game stopped
+```
+
+It has three members: `at max_length: tie`, every seat a winner and every
+return 0; `at max_length: as it stands`, the `winner:` clause read at the
+stopped position; and `at max_length: highest <variable>` (or `lowest`), a
+ranking of a state variable in `winner:`'s own shape. `as it stands` reads the game's `winner:` clause at the stopped position, so
+it is refused on a game whose result is `loser:`: an elimination cut short has
+not decided its loser, and its selection would name nobody, several seats, or
+the wrong one. A ranking takes the target `winner:` takes, refused at check
+time on the same terms and in words addressed to the clause, and it may rank
+a game whose result is `loser:`, whose stopped result then carries scores and
+ranked returns as a `winner:` game's does. A phase's variable is refused as a
+ranking's target at either clause: a `winner:` is decided once every phase has
+exited, and the bound can stop a game while the declaring phase still runs. A
+game's Stop Result matches its written rules where they give a basis for a
+standing -- Coup's exiled have lost by the rules, and Tichu's race is measured
+by its score, so both stand as they stand -- and is the tie otherwise: an
+elimination cut short has no loser, so Getaway declares none. See
+[Stop Result](glossary/stop-result.md).
 
 **The result names a set of winning seats.** A finished game reports its
 winners as the set of seats sharing the best score: every seat that ranks

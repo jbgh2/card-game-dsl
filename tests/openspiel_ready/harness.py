@@ -24,8 +24,9 @@ by `test_coverage.py`):
    generator or to hidden-stock order).
 6. Adapter agreement: the registered pyspiel game renders the same partition
    the DSL-level proofs certify — current player, legal actions, their
-   rendered text, and every information state; games whose greedy line
-   terminates walk to the end and assert the terminal returns agree too.
+   rendered text, and every information state; a game whose spec sets
+   `adapter_terminal_steps` walks its greedy line to the end and asserts the
+   terminal returns agree too.
 
 Passing runs record their coverage (partition.RECORDS; see conftest.py);
 failing checks report their witness — the perturbed fact and the
@@ -371,10 +372,11 @@ class GameSpec:
     # returns agree (it fails loudly if the line stops terminating, rather
     # than silently skipping). A line whose rules never end it ends at the
     # game's `max_length`, and the record says which (`ended_by`): Coup's is
-    # one. None = the greedy line does not terminate in affordable steps (the
-    # multi-hand score-target games -- Bridge, Hearts, Oh Hell, Seven-Card
-    # Stud, Skat, Tichu, all still past 400 greedy steps), and the walk stops
-    # at `depth` with `terminal=False` in the coverage record.
+    # one. None = the greedy line does not reach TerminalNode in affordable
+    # steps -- it runs past any affordable cap, or cycles until its
+    # `max_length` -- and the walk stops at `depth` with `terminal=False` in
+    # the coverage record; the game's own proof module says what else compares
+    # its returns.
     adapter_terminal_steps: int | None = None
 
     @property
@@ -1431,14 +1433,14 @@ class ReadinessProofs:
         check: two independent runs of the same (seed, history) must render
         byte-identically.
 
-        When the spec sets `adapter_terminal_steps` (games whose greedy line
-        terminates), the walk then continues cheaply to the
+        When the spec sets `adapter_terminal_steps` (a game whose greedy line
+        ends within an affordable cap), the walk then continues cheaply to the
         end of the game and asserts the DSL and pyspiel TERMINAL RETURNS
         agree; reaching TerminalNode within the cap is itself asserted, so the
-        returns comparison cannot rot into dead code. The remaining games
-        (multi-hand score targets whose greedy line exceeds any affordable
-        cap) record `terminal=False` in the coverage record — their returns
-        surface is exercised only by the conformance sim."""
+        returns comparison cannot rot into dead code. A game whose spec sets
+        none records `terminal=False` in the coverage record — its returns
+        surface is exercised by the conformance sim and by whatever its own
+        proof module adds."""
         spec = self.spec
         game = pyspiel.load_game(spec.short_name)
         _, space = load(spec.path)

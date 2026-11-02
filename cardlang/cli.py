@@ -86,7 +86,7 @@ from cardlang.play.session import (
 )
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
-from cardlang.runtime.driver import EndedBy, GameResult, play_game
+from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
 from cardlang.runtime.errors import GameDescriptionError, InstallationError, Located
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
@@ -765,7 +765,7 @@ def length_stop_line(game: n.Game, decisions: int) -> str:
     author whose bound it is."""
     return (
         f"uniform-random play reached {game.name}'s max_length ({decisions} "
-        f"decisions) without its rules ending it; the game is a tie. The bound "
+        f"decisions) without its rules ending it; {stop_result_words(game)}. The bound "
         f"is sized so the reference playout policy never approaches it: raise it "
         f"if this game genuinely runs this long, fix the loop if it should have "
         f"ended, or, if a table can lawfully play on without end, say so in the "
@@ -777,7 +777,7 @@ def _summary(game: n.Game, result: GameResult, decisions: int, seed: int) -> str
     """The outcome in per-seat returns, led by the Length Stop's line when the
     game reached its bound.
 
-    `result.scores` is keyed by the `winner:` target's own index domain, so a
+    `result.scores` is keyed by the ranked target's own index domain, so a
     team-scored game's keys are teams and a `loser:` game has none at all
     (`driver.GameResult`); `returns_for` reads the per-seat scores instead, so
     the line pays the seats OpenSpiel pays.
