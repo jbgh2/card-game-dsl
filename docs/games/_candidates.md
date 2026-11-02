@@ -533,6 +533,22 @@ The native differential against OpenSpiel's `nine_mens_morris` is
 `tests/test_differential_nine_mens_morris.py`, truncating at that
 implementation's turn cap (`kMaxNumTurns`, 200 completed turns).)
 
+(English draughts, the ladder's eighth rung, is now in the corpus
+([english-draughts.md](english-draughts.md)): the move-existence rung,
+the WCDF's rules on the 8x8 board. Mandatory capture is the rulebook's
+own branch, an `offer` of jumps behind an `if` over `can_jump`, the first
+writer of the direction quantifier and of `dir`-typed function
+parameters; the continuing capture runs on the `turns` form's `again`
+axis with its piece remembered in a square-typed state variable,
+promotion is a supply swap that ends the move, and the federation's
+forty-move rule is counter state read in the ring's `until`, in its
+automatic form, the repetition claim excluded. English over
+International deliberately: no capture maximization, so the gated
+optimization query class stays unwitnessed. The native differential
+against OpenSpiel's `checkers` is
+`tests/test_differential_english_draughts.py`, truncating at that
+implementation's forty-ply capture-free draw.)
+
 ### backgammon
 
 2 players, the 24-point track + bar + bear-off, 15 checkers each, two
@@ -610,37 +626,6 @@ variant. **No OpenSpiel oracle** (verified absent) — acceptance is the
 proof battery plus playout characterization, flagged as the ladder's
 one non-differential rung.
 
-
-### english-draughts
-
-2 players, 8×8 board (dark squares), 12 men each. Men move/capture
-diagonally forward; captures are **mandatory** and a chosen jump
-sequence must be completed (no maximum-capture rule); reaching the
-back row crowns a king (ending the move) that moves/captures both
-ways; lose with no pieces or no legal move; the federation's 40-move
-rule draws, in its automatic form: eighty plies with no capture and no
-uncrowned man moved.
-
-**Why interesting.** The move-existence rung: mandatory capture as the
-rulebook's own branch, an `offer` behind an `if` over a named function
-`can_jump(t)`, the first writer of the direction quantifier and of
-`dir`-typed function parameters; with
-[nine-mens-morris](nine-mens-morris.md)'s in-mill removal restriction (a
-When Clause), the board witnesses of the one-site law
-([decisions.md](../decisions.md), "Rule demand forms") -- jump
-`(from, over, to)` triples as declared relation data, multi-jump
-chains on the `turns` form's `again` axis with a position-typed chain
-anchor (reusing the guard-lift the [stratego-barrage](#stratego-barrage)
-rung lands),
-promotion as a supply swap, and counter-based draw state. English over
-International deliberately: no capture maximization, so the gated
-optimization query class stays unwitnessed.
-
-**Notes.** WCDF/APA English draughts rules, the repetition claim
-excluded in the header. OpenSpiel `checkers` is the oracle: it
-implements forced captures and a forty-ply capture-only draw, which the
-differential keeps in the harness, comparing each line up to the
-oracle's draw point.
 
 ## Edge-case experiments
 
