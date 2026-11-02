@@ -25,7 +25,9 @@ domain:     the game's node kinds (the return union of `replay.run`), crossed
             oracle live, agreeing or disagreeing, and the predicate's verdict.
             Beside the grid: a game terminal at its root, a wrong first mover,
             a paused replay disagreeing with the live run at either end, and
-            the tally over each `LineEnd` constructor.
+            the tally over each `LineEnd` constructor. A native chance or
+            simultaneous node is outside the walker by design, refused by
+            `assert_node_agrees` at the node.
 registry:   node kinds: `typing.get_type_hints(replay.run)["return"]`; ends:
             `EndedBy`; line ends: `typing.get_args(native_oracle.LineEnd)`.
 held by:    comparing returns on a truncated line is Unrepresentable
@@ -281,6 +283,7 @@ CELLS = derive_cells()
 
 
 def test_expected_column_covers_the_derived_cells() -> None:
+    """red under: a third member of `EndedBy` in `cardlang/runtime/driver.py`."""
     assert sorted(EXPECTED) == sorted(c.id for c in CELLS)
 
 
@@ -308,7 +311,10 @@ def test_line_end_grid(cell: Cell, monkeypatch: pytest.MonkeyPatch, length_copy:
 
 
 def test_scripts_end_as_their_class() -> None:
-    """Each script is a real tic-tac-toe line ending in its own class."""
+    """Each script is a real tic-tac-toe line ending in its own class.
+
+    red under: `to_native` in `tests/test_differential_tic_tac_toe.py` reading
+    the files as `"bac"`, which turns the drawn line into a win."""
     for outcome, script in SCRIPTS.items():
         state = pyspiel.load_game(TTT_NATIVE).new_initial_state()
         for cell in script:
@@ -381,6 +387,7 @@ SAMPLES: dict[type, LineEnd] = {
 
 @pytest.mark.parametrize("kind", LINE_ENDS, ids=lambda k: k.__name__)
 def test_tally_counts_each_line_end(kind: type) -> None:
+    """red under: `tally_line_ends` counting a `Truncated` end under `draw`."""
     end = SAMPLES[kind]
     ends = [SAMPLES[Rules], end]
     tally = tally_line_ends(ends)
@@ -389,6 +396,7 @@ def test_tally_counts_each_line_end(kind: type) -> None:
 
 
 def test_samples_cover_every_line_end() -> None:
+    """red under: a third member of `LineEnd` in `tests/native_oracle.py`."""
     assert set(SAMPLES) == set(LINE_ENDS)
 
 
@@ -478,7 +486,9 @@ def breakthrough_script(moves: Sequence[tuple[str, str]]) -> Choose:
 
 def test_blind_capture_bit_is_a_tripwire() -> None:
     """The prefix walk FAILS when `to_native` never sets the capture bit: the
-    contact opening agrees until a diagonal step has an enemy under it."""
+    contact opening agrees until a diagonal step has an enemy under it.
+
+    red under: `walk_paired_prefix` dropping its `assert_node_agrees` call."""
     with pytest.raises(AssertionError, match="legal actions diverge"):
         breakthrough_line(
             breakthrough_script(CONTACT_OPENING), Mirror(capture_bit=False),
@@ -488,7 +498,9 @@ def test_blind_capture_bit_is_a_tripwire() -> None:
 
 def test_advance_out_of_step_is_a_tripwire() -> None:
     """The prefix walk FAILS at the next node when `advance` misses a ply: the
-    mirror still holds P1 to move, so P0's steps map onto P1's directions."""
+    mirror still holds P1 to move, so P0's steps map onto P1's directions.
+
+    red under: `walk_paired_prefix` dropping its `assert_node_agrees` call."""
     mirror = Mirror()
     plies = iter(range(1 << 30))
 

@@ -48,7 +48,7 @@ Coverage:
     over `POLICY_SEEDS`, walked to a rules end or the truncation. The tally
     asserts both winners and a truncation; the census asserts every directed
     edge of the board played as a slide and every mill closed.
-(d) Three tripwires: the mapping with `a7` and `d7` exchanged, a scratch copy
+(d) The tripwires: the mapping with `a7` and `d7` exchanged, a scratch copy
     of the game whose removal drops its in-mill conjunct, and the shuffle
     walked with a `truncate_when` that names nothing. Each must redden the
     comparison.
