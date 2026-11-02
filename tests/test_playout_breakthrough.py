@@ -23,9 +23,10 @@ playout, and once more against the terminal board:
   either stands on their far row or has taken the loser's last man — the two
   termini the `until` predicate encodes, each driven non-vacuously below.
 
-Plus two length facts. `max_length: 500` is a non-termination backstop, not a
-rule: a game that HIT it would be silently truncated and would diverge from the
-oracle, which has no move limit. The measured maximum is 108 plies (2026-07-22;
+Plus two length facts. `max_length: 500` is the bound a game ends at, not a
+rule: a game that reached it would end there as a tie, a Length Stop, and
+would diverge from the oracle, which has no move limit. The measured maximum is
+108 plies (2026-07-22;
 the same over these 100 seeds and over a 400-seed sweep), so the declared cap is
 asserted to stay a large multiple of what play produces.
 
@@ -368,10 +369,13 @@ def test_the_wipe_out_terminus_fires_under_capture_seeking_play() -> None:
 
 
 def test_random_play_never_approaches_the_declared_max_length() -> None:
-    """`max_length` is a non-termination backstop, not a rule. A game that hit
-    it would be silently truncated — and would diverge from the oracle, which
-    has no move limit — so the declared cap must stay far above what real lines
-    produce. Measured 2026-07-22: 108 plies, over these 100 seeds and over 400."""
+    """`max_length` is the bound a game ends at, not a rule. A game that
+    reached it would end there as a tie, a Length Stop -- and would diverge
+    from the oracle, which has no move limit -- so the declared cap must stay
+    far above what real lines produce. Measured 2026-07-22: 108 plies, over
+    these 100 seeds and over 400.
+
+    red under: declare `max_length: 400` in breakthrough.cardlang."""
     game = _game()
     assert game.max_length is not None
     longest = max(

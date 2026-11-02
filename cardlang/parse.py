@@ -2944,6 +2944,12 @@ _PARSE_HINTS: dict[str, tuple[str | None, str]] = {
         " — `legal_moves:` is a phase clause: a mode toggles rules, never the "
         "move menu, so a mode body takes `active_rules:`/`transition_to:` only",
     ),
+    "max_length": (
+        None,
+        " — `max_length:` takes a whole number and nothing more: the bound "
+        "needs no clause, because the engine stops a game there and the game "
+        "is a tie",
+    ),
     "primitives": (
         "library",
         " — `primitives { }` is a game clause: a Primitive's meaning belongs "

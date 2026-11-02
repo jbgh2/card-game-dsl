@@ -378,7 +378,7 @@ the three auction outcomes and cribbage's pegging call sites.
 choose-k); Tichu universe **211,204,694** plays (straights 208,779,520 = 98.85% —
 why it is codec-not-list); Big Two universe 19,898, enumerated and golden-pinned
 (codec deliberately `None` to keep pinned ids byte-identical); President universe
-195; `ClimbForm` 5000-play non-termination guard; universe soundness invariant
+195; `ClimbForm`'s ring under the decisionless-spin guard; universe soundness invariant
 stated twice in code: *supersets safe, collisions fatal* — each card-set appears at
 most once, which is what pattern exclusivity buys.
 

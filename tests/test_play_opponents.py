@@ -38,10 +38,10 @@ registry:        opponents: `cardlang.openspiel.seat_policy.OPPONENTS`; games:
                  field's values: tests/test_play_session.py's `_BAD_SAVES`; the
                  seat a line asks, Delegated Play included:
                  tests/test_live_line.py.
-does not prove:  That an opponent plays well. That a table ends: when every seat
-                 keeps taking the first item, some games run into their
-                 `max_length`, and the refusal names the game as at fault (issue
-                 #698). That `first` and `random` are the opponents a designer
+does not prove:  That an opponent plays well. That a table ends by its rules:
+                 when every seat keeps taking the first item, some games reach
+                 their `max_length` and end there as a tie (docs/decisions.md,
+                 "Game length as a declared contract"). That `first` and `random` are the opponents a designer
                  needs; only `seat_policy.OPPONENTS` says which exist. An
                  opponent that takes an argument. The table has no column for
                  one, by decision: no opponent takes an argument, and a column

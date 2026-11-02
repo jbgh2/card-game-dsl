@@ -45,7 +45,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, TextIO, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.openspiel.encoding import ActionSpace
@@ -55,6 +55,7 @@ from cardlang.openspiel.seat_policy import OPPONENTS, SeatBinding, SeatPolicy
 from cardlang.pipeline import game_identity
 from cardlang.play.opponents import by_opponent
 from cardlang.play.view import render_view
+from cardlang.runtime.driver import EndedBy
 
 # What a person may type at a prompt besides a number on the menu.
 CONTROLS: dict[str, str] = {
@@ -445,6 +446,13 @@ class Session:
         view = end.views.get(self.seat)
         say("")
         say("the game is over")
+        match end.ended_by:
+            case EndedBy.RULES:
+                pass
+            case EndedBy.LENGTH:
+                say(self._stopped())
+            case _ as unreachable:
+                assert_never(unreachable)
         if view is not None:
             say(render_view(self.game, view, recent=RECENT_EVENTS))
         say("")
@@ -463,6 +471,18 @@ class Session:
                 )
                 continue
             say(f"type one of: {' '.join(CONTROLS)}")
+
+    def _stopped(self) -> str:
+        """The [[length-stop]] in the table's voice: the people playing did
+        it, and the game finished."""
+        name = self.game.name
+        return (
+            f"{name} reached its max_length, {self.game.max_length} decisions, "
+            f"without its rules ending it, so the game is a tie. "
+            f"{self.who_played()}. A table that keeps repeating a pick can play "
+            f"{name} without end; if this game should always end sooner, a loop "
+            f"is not reaching its `until`."
+        )
 
     def _left(self) -> None:
         self.prompt.say("")

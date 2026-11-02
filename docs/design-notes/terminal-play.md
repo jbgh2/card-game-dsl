@@ -131,9 +131,9 @@ boundary's currency, and because a later arena that benchmarks an opponent
 must seat the same object a person plays against. `first` answers the lowest
 legal id, which is the first item on a person's menu. It is a baseline that
 answers the same way every time, so a table where every seat takes the first
-item can repeat one exchange until the game's `max_length` refuses it (issue
-#698; what the bound means for a legally unbounded line is
-[open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md)).
+item can repeat one exchange until the game reaches its `max_length`, where it
+ends as a tie and the session says so ([decisions.md](../decisions.md), "Game
+length as a declared contract").
 
 `ranked` is the opponent that plays (`openspiel/ranked.py`). It reads the seat's
 view and the game's own declarations and nothing else: the declared ranking

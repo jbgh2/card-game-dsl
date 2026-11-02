@@ -60,7 +60,7 @@ from cardlang.runtime.chance import (
 )
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.chooser import sequential_decisions
-from cardlang.runtime.driver import GameResult, play_game
+from cardlang.runtime.driver import EndedBy, GameResult, play_game
 from cardlang.runtime.state import ChooserAbort, RuntimeState
 
 
@@ -107,9 +107,14 @@ class TerminalNode:
     The suffix is deliberate twice over: the single-word form collides with the
     grammar's lexer terminology, and the two-word scheme leaves room for the
     `SimultaneousNode` a native simultaneous-move export would add.
+
+    `ended_by` is the driver's own answer to how the game ended, carried from
+    its `GameResult`: a game that reached its `max_length` (a [[length-stop]])
+    is a terminal node like one its rules ended.
     """
 
     returns: list[float]
+    ended_by: EndedBy
 
 
 @dataclass(frozen=True)
@@ -252,9 +257,12 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
     each seat's score (`GameResult.seat_scores`, its team's for a team-keyed
     target), sign-adjusted so higher is better (negated for `lowest`
     winners). An elimination (`loser:`) game returns +1 per survivor and
-    -(n-1) for the loser, which sums to zero. A translation of the driver's
-    result, never a second reading of the game's declarations."""
+    -(n-1) for the loser, which sums to zero. A game tied at its bound
+    returns 0 to every seat. A translation of the driver's result, never a
+    second reading of the game's declarations."""
     n_players = game.players.count
+    if result.tied_at_the_bound:
+        return [0.0] * n_players
     if game.winner is None:
         assert result.loser is not None
         return [
@@ -317,12 +325,14 @@ class HistoryMismatch(ValueError):
 
 @dataclass(frozen=True)
 class LiveEnd:
-    """How a live line ended: the game's returns, and each seat's view at the
+    """How a live line ended: the game's returns, each seat's view at the
     terminal position (none when the game ended before any decision, since the
-    engine then hands over no world to derive from)."""
+    engine then hands over no world to derive from), and whether its rules
+    ended it or it reached its `max_length` (`GameResult.ended_by`)."""
 
     returns: list[float]
     views: dict[int, SeatView]
+    ended_by: EndedBy
 
 
 class LiveLine:
@@ -380,7 +390,7 @@ class LiveLine:
                 f"the game ended after {chooser.cursor} of the "
                 f"{len(chooser.history)} recorded picks; the rest run past the end"
             )
-        return LiveEnd(returns_for(game, result), views)
+        return LiveEnd(returns_for(game, result), views, result.ended_by)
 
 
 @dataclass(frozen=True)
@@ -474,4 +484,9 @@ def run(
     except ChooserAbort as abort:
         assert abort.rs is not None
         return DecisionNode(abort.player, list(cast("list[int]", abort.legal)), abort.rs, logs)
-    return TerminalNode(returns_for(game, result))
+    if chooser.cursor < len(history):
+        raise HistoryMismatch(
+            f"the game ended after {chooser.cursor} of the {len(history)} "
+            f"recorded picks; the rest run past the end"
+        )
+    return TerminalNode(returns_for(game, result), result.ended_by)
