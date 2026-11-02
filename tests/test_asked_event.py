@@ -408,8 +408,8 @@ def test_the_ask_is_derived_in_one_place() -> None:
 
 
 def _bare_ctx(phase: Any) -> Any:
-    """A context holding only what `decide` reads: the phase, and a Chooser
-    that answers. Built by hand rather than played out of a game, because the
+    """A context holding only what `decide` reads: the phase, a bound its
+    picks do not reach, and a Chooser that answers. Built by hand rather than played out of a game, because the
     two probes below are about decisions a game cannot produce."""
     import random
 
@@ -417,6 +417,7 @@ def _bare_ctx(phase: Any) -> Any:
     from cardlang.runtime.values import Seating
 
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
+    rs.max_length = 10
     return Ctx(rs=rs, chooser=lambda _p, cands, n: cands[:n], current_phase=phase)
 
 

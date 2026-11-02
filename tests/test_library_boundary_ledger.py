@@ -2140,6 +2140,11 @@ WALKERS: dict[str, str] = {
     "resolve._check_functions": "test_a_library_reaching_the_games_text[call-cycle, call-site-pronoun-*]",
     "resolve._report_recursion": "test_a_library_reaching_the_games_text[call-cycle]",
     "resolve._check_unoffered_move_types": "reports the game's own move type, at its declaration",
+    "resolve._check_rule_reaches_a_reader": (
+        "looks up the move type a rule names to say who declares it, and reports "
+        "at the rule; a rule or move type in library text is told by the "
+        "library's certificate"
+    ),
     "resolve._reaches_a_trick_round": (
         "follows offers into move types' effects to find a trick round: refuses "
         "nothing itself"

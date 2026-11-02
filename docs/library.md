@@ -805,6 +805,7 @@ conventions:
   ```text
   { side: [white, black], kind: [man], copies: { white: 9, black: 9 } }
   ```
+  Used by nine-mens-morris.
 
 Each entry captures a set's *composition* only. Card points
 (`card_points { }`), ranking for play (`ranking:`), follow-suit
@@ -866,7 +867,7 @@ a family that does not declare what the verb reads.
   It has no movement frame, so it mints no `dir` and answers none of
   `neighbor`, `has_step`, `is_diagonal`, `home` and `far_row`; a move on
   it names its destination (`to : cell`) and tests `to in
-  neighbors(from)`.
+  neighbors(from)`. Used by nine-mens-morris.
 
 - `hex_rhombus(n)` = the Hex board: an n-by-n rhombus of hexagons, `n` in
   `1..16`. Cells are named and ordered as the grid's (`a1 b1 … a2 …`,
@@ -1025,11 +1026,12 @@ and which one is the game's own choice:
   or either diagonal, on `morris9` the sixteen mills (decisions.md "Boards
   and cells"), for the `any line in lines(k) where …` register. A resolve
   error in a game with no `board:`, and for a literal `k` the board does not
-  declare. Used by tic-tac-toe (`lines(3)`, the eight winning lines).
+  declare. Used by tic-tac-toe (`lines(3)`, the eight winning lines) and
+  nine-mens-morris (`lines(3)`, the sixteen mills).
 - `neighbors(c) → Collection<Cell>` — the cells the board's declared
   adjacency joins to `c`, in board order, for the membership form `to in
   neighbors(from)`. Answered by `morris9`; refused on a grid, which declares
-  no adjacency.
+  no adjacency. Used by nine-mens-morris.
 - `neighbor(from, along, player) → Cell` — the cell one step along direction
   `along` in `player`'s frame. Total by contract: an off-board step is guarded
   by `has_step`, not returned (decisions.md "Boards and cells", transfer).

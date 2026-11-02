@@ -1,0 +1,17 @@
+// Guard: RESULT_VAR_NAME's clause-keyword exclusion. A ranking with its
+// name left off is refused at the next clause, not read as its target.
+game StopResultRankingNameLeftOff {
+  players: 2
+  max_length: 30
+  at max_length: highest
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { coins[player] : Integer = 0  done : Boolean = false }
+  phase play {
+    turns t from 0 over all players until done {
+      as t { offer to t one of [stop] }
+    }
+  }
+  winner: highest coins
+}
+move_type stop { effect { done := true } }

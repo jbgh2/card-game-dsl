@@ -227,7 +227,7 @@ def _needed(spec: GameSpec, prefers: tuple[str, ...]) -> bool:
     this game's cap arm makes measurable."""
     cap = spec.adapter_terminal_steps
     if cap is not None:
-        _line, returns = greedy_line(spec.path, seed=SEED, cap=cap, prefers=prefers)
+        _line, returns, _ended_by = greedy_line(spec.path, seed=SEED, cap=cap, prefers=prefers)
         return returns is None
     return bool(_reaches(spec, spec.greedy_prefers) - _reaches(spec, prefers))
 

@@ -140,6 +140,9 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     "_ContinueTo": {"in_game_description_tree": False, "is_runtime_error": False},
     "_SkipHand": {"in_game_description_tree": False, "is_runtime_error": False},
     "ChooserAbort": {"in_game_description_tree": False, "is_runtime_error": False},
+    # A game reaching its declared `max_length`: an end, not a defect, caught
+    # by the driver alone.
+    "LengthStop": {"in_game_description_tree": False, "is_runtime_error": False},
     # A person at the table taking a pick back or leaving: the only way a
     # running game stops is an exception unwinding it.
     "TakeBack": {"in_game_description_tree": False, "is_runtime_error": False},

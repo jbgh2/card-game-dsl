@@ -216,6 +216,7 @@ def test_the_string_valued_class_is_swept_not_patched() -> None:
         "NameRef.ref_kind",
         "ShapePart.kind",
         "ShapeRow.qualifiers",
+        "StopResult.kind",
     ], (
         f"the string-valued-but-not-str-annotated class is {members} — every "
         f"member must be in the registry's domain, so widening it means "

@@ -17,10 +17,21 @@ it emits the decider's `asked` observation before the Chooser is consulted, so
 what a seat is asked reaches it by the same channel as what it chose. `decide`
 is also the one site that records a pick: the decider's log gains one `chose`
 event per pick, whether the Chooser makes its picks at once or one at a time
-(`sequential_decisions`), so every route records one decision alike. Illegal
-after this: `ctx.chooser(...)` outside `decide`; a decision site absent from
-`delegation.DECISION_POINTS`; a decision asked outside every phase; a `chose`
-event emitted anywhere but `decide`'s recorder.
+(`sequential_decisions`), so every route records one decision alike. And it is
+the one site that counts them: `RuntimeState.decisions_made` gains one per pick
+as the pick is recorded, and a pick is admitted only while the count is below
+the game's `max_length`. The pick that would exceed it ends the game as a
+[[length-stop]] (`state.LengthStop`) before it is asked: before the `asked`
+event when the call begins at the bound, before the pick's hand-off to the
+Chooser inside a call walked one pick at a time, and before it is recorded on
+a call the Chooser answers at once, whose further picks are discarded. A call
+cut short applies none of its picks, since every decision site applies a call
+only once `decide` returns. So a run makes exactly `max_length` picks on every
+route that reaches the bound. Illegal after this: `ctx.chooser(...)` outside
+`decide`; a decision site absent from `delegation.DECISION_POINTS`; a decision
+asked outside every phase; a `chose` event emitted anywhere but `decide`'s
+recorder; a second site counting decisions; a Chooser asked for a pick with the
+count at the bound.
 """
 
 from __future__ import annotations
@@ -28,18 +39,29 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any
 
 from cardlang.runtime.delegation import DECISION_POINTS
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.observe import PAYLOAD_SHAPES, render
-from cardlang.runtime.state import Chooser, Ctx
+from cardlang.runtime.state import Chooser, Ctx, LengthStop
 from cardlang.runtime.values import Player
 
-# The recorder of the decision `decide` is asking: it enters one pick in the
-# decider's log. Set only while a Chooser call is in progress, so a Chooser that
-# walks its call one pick at a time records each pick as it is made.
-_RECORDER: ContextVar[Callable[[Any], None] | None] = ContextVar("_RECORDER", default=None)
+
+@dataclass(frozen=True, slots=True)
+class _Asking:
+    """The decision `decide` is asking, as a Chooser call walked one pick at a
+    time reaches it: `admit` ends the game if the next pick would pass the
+    bound, and `record` enters one pick in the decider's log and the count."""
+
+    admit: Callable[[], None]
+    record: Callable[[Any], None]
+
+
+# Set only while a Chooser call is in progress, so a Chooser that walks its
+# call one pick at a time is admitted and records each pick as it is made.
+_ASKING: ContextVar[_Asking | None] = ContextVar("_ASKING", default=None)
 
 
 def sequential_decisions(
@@ -53,8 +75,9 @@ def sequential_decisions(
     A call for `n` [[candidate]]s branches the tree `n` times, each from the
     pool the ones before it left (docs/authoring.md, "`move chosen N cards` is
     N sequential single-card decisions"). `decide` answers at one of those
-    decisions, and the pick enters the [[decider]]'s log through the recorder
-    of the decision being asked (`decide` below) as it is made. Every route
+    decisions once the decision being asked (`decide` below) has admitted it,
+    and the pick enters the [[decider]]'s log through that decision's recorder
+    as it is made. Every route
     that walks a call this way reads this one definition, so no two of them
     can number the same call differently or leave a seat remembering
     different halves of it.
@@ -73,10 +96,10 @@ def sequential_decisions(
         # route that reads a call one pick at a time, before the first pick
         # leaves a later one choosing from nothing.
         raise OwnerGuardError(f"cannot choose {n} of {len(candidates)} candidates")
-    record = _RECORDER.get()
-    if record is None:
+    asking = _ASKING.get()
+    if asking is None:
         # Shadow Guard: the OWNER is `decide`'s Contract, the one route from a
-        # decision site to the Chooser, which sets the recorder for the length
+        # decision site to the Chooser, which sets what is asking for the length
         # of the call.
         raise AssertionError(
             "sequential_decisions walked a Chooser call no decision is asking; "
@@ -85,10 +108,11 @@ def sequential_decisions(
     pool = list(candidates)
     taken: list[Any] = []
     for _ in range(n):
+        asking.admit()
         choice = decide(player, pool)
         pool.remove(choice)
         taken.append(choice)
-        record(choice)
+        asking.record(choice)
     return taken
 
 
@@ -147,19 +171,31 @@ def decide(
             f"a {word} decision at {site} asks for {n!r} picks — a decision "
             f"offers at least one, and an amount is checked before it is asked"
         )
+    rs = ctx.rs
+
+    def admit() -> None:
+        if rs.decisions_made >= rs.max_length:
+            raise LengthStop(rs.decisions_made)
+
+    admit()
     ctx.observe(decider, ("asked", ctx.current_phase.name, word, n, destination))
     recorded: list[Any] = []
 
     def record(pick: Any) -> None:
-        # The decider's own record of one pick, delivered to it alone.
+        # The decider's own record of one pick, delivered to it alone, and the
+        # pick counted. Admitted first: for a Chooser that answered at once
+        # this is where the bound falls, and for one walked pick by pick
+        # `sequential_decisions` has admitted the pick before asking it.
+        admit()
         ctx.observe(decider, ("chose", render(pick)))
         recorded.append(pick)
+        rs.decisions_made += 1
 
-    token = _RECORDER.set(record)
+    token = _ASKING.set(_Asking(admit, record))
     try:
         taken = ctx.chooser(decider, candidates, n)
     finally:
-        _RECORDER.reset(token)
+        _ASKING.reset(token)
     # A Chooser that makes its picks at once records them here, in the order it
     # made them; one that walked its call has recorded every pick already.
     for pick in taken[len(recorded):]:

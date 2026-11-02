@@ -26,7 +26,8 @@ domain:          Positions: one uniform line per registered game at `_SEED`,
                  time (a live line, the adapter's replay), beside the per-call
                  uniform chooser. Fixture games stand in for the shapes no
                  registered game has: a call for more cards than the pool holds,
-                 a game with no decision, a line refused at its `max_length`, and
+                 a game with no decision, a line refused for a loop with no decision in
+                 it after its picks, and
                  a decision inside `after_each`.
 registry:        games: `cardlang.openspiel.registry.GAMES`; the generator rule:
                  `cardlang.openspiel.replay.generator_for`, over
@@ -611,8 +612,10 @@ def test_a_policy_that_raised_is_not_asked_again_while_the_run_unwinds(tmp_path:
     assert asked == [0]
 
 
-_SHORT = """\
-game ShortLength {
+# Four picks, then a loop with no decision in it that never ends: refused,
+# past its bound of boundaries, after the picks.
+_SPINS_AFTER_PICKS = """\
+game SpinsAfterPicks {
   players: 2
   max_length: 4
   cards: standard52
@@ -629,10 +632,13 @@ game ShortLength {
     shuffle deck
     deal 5 cards from deck to each hand
   }
-  phase play repeat until rounds >= 3 {
+  phase play repeat until rounds >= 2 {
     as 0 { move chosen 1 card from hand to pile }
     as 1 { move chosen 1 card from hand to pile }
     rounds += 1
+  }
+  phase spin {
+    repeat until rounds < 0 { rounds += 1 }
   }
   winner: highest score
 }
@@ -640,7 +646,7 @@ game ShortLength {
 
 
 def test_a_game_refusal_ends_the_line_with_the_picks_before_it_kept(tmp_path: Path) -> None:
-    path = _fixture(tmp_path, "short_length", _SHORT)
+    path = _fixture(tmp_path, "spins_after_picks", _SPINS_AFTER_PICKS)
     line = LiveLine(path, 0)
     with pytest.raises(OwnerGuardError, match="max_length"):
         line.play({0: UniformSeatPolicy(0), 1: UniformSeatPolicy(0)})

@@ -67,6 +67,7 @@ per-PR by preference. Two rules compose the table:
 | `docs/games/` corpus and family libraries — DSL-only edits, zero engine diff | `docs/games/**`, `docs/libraries/**` | C |
 | Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md` and the `docs/glossary/` entries it is generated from, CLAUDE.md) | `docs/*.md`, `docs/glossary/**`, `CLAUDE.md` | B |
 | Docs — exploratory (`design-notes/`, `open-questions/`, `research/`, `superpowers/`) | `docs/design-notes/**`, `docs/open-questions/**`, `docs/research/**`, `docs/superpowers/**` | C |
+| Docs — rulings (one dated Architecture Decision Record per operator ruling; the operator reads the record of their own ruling before it stands) | `docs/adr/**` | B |
 | Tests / goldens — coverage-only additions, no behavior change claimed | `tests/**` | C |
 | Tests / goldens — anything else (golden regeneration, proof-harness changes) | `tests/**` | B |
 | `.claude/skills/` | `.claude/**` | B |
@@ -370,7 +371,8 @@ held says the queue is ordered wrong. A class that lands there twice is a
 class the review promotes into its own slots. It closes by the rule
 above — the epic's taker on a checkable finish line, the review on a
 judgment one — or the operator closes or empties it at any time, naming
-why on the epic; either way the review reads the closure.
+why on the epic; either way the review reads the closure. ADR-0005
+records the ruling and the uniform three that lost.
 
 **An Operator's Swarm fills that slot with several milestones at once.**
 The operator may open, instead of one Operator's Milestone, several
@@ -386,7 +388,8 @@ exactly as it reads the Operator's Milestone — each epic's closure, and
 what the set says about the queue — and the controller records on each
 epic it closes how long the unit's PRs waited on the runner, the
 measurement that decides whether the shape spreads beyond the
-operator's slot.
+operator's slot. ADR-0009 records the ruling and the two shapes that
+lost.
 
 **The tier is triage, and triage is the direction review's.** A filer
 states facts — kind, reachability, the body — and never a tier: the

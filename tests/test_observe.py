@@ -60,6 +60,7 @@ from cardlang.runtime.values import Card, TeamOf
 def _ctx_with_log() -> tuple[Ctx, dict[int, list[tuple[Any, ...]]]]:
     rs = RuntimeState(Seating(4), _store(), random.Random(0))
     rs.team_of = TeamOf({0: 0, 1: 1, 2: 0, 3: 1})
+    rs.max_length = 10  # a bound the picks below do not reach
     logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(4)}
     ctx = Ctx(
         rs=rs,

@@ -54,6 +54,13 @@ impossible — so a caller reports it as theirs to look at, without calling the
 file illegal. `IllegalMove` carries `Located` for the same reason a
 game-description refusal does; carrying a span is not joining a tree.
 
+`LengthStop` (runtime/state.py) is not a defect either: a game that reaches its
+declared `max_length` ends there, a [[length-stop]], and nothing raises a
+`GameDescriptionError` for a bound reached by picks. It is a signal beside
+`ChooserAbort`, caught by `driver.play_game` alone, and carries no `Located`:
+no sentence refused. What stays in this tree is a loop that makes no pick and
+never ends, which the iteration guards refuse as an `OwnerGuardError`.
+
 `InstallationError` and `GameRegistrationError` are defined here but are
 deliberately NOT under `GameDescriptionError` — see their own docstrings. They
 live in this module because this is where the engine says who must act on a

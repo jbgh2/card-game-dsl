@@ -104,7 +104,7 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         classification="accepted-then-crashes-at-playout",
         stage="playout",
         exception_type_name="OwnerGuardError",
-        message_substring="exceeded the game's declared max_length",
+        message_substring="with no decision made",
         note=(
             "docs/games/cribbage.cardlang, `delete_line` seed 2, deleting "
             "the pegging loop's `move chosen one card from hand[active] "

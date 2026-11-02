@@ -1,0 +1,1 @@
+stop_result_twice.cardlang:7:3: error: a game declares one `at max_length:` — the repeat would silently replace the first; keep one

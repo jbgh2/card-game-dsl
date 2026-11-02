@@ -54,6 +54,8 @@ names the survivor. The three blocks the game repeats — the challenge window
 `procedure`s, written once and `run` at each site, with each argument bound once
 at the call ([decisions.md](../decisions.md) "Named procedures"). The forced Coup at 10 coins drives every aggressive line to an
 end; a table that only ever exchanges makes no coin progress, so the
-declared `max_length` backstop is Coup's real termination bound on
-maximally passive lines
-([open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md)).
+declared `max_length` is Coup's real termination bound on maximally
+passive lines; a game that reaches it is a Length Stop scored as it stands
+(`at max_length: as it stands`): the exiled have lost by the rules and the
+survivors share the win ([decisions.md](../decisions.md) "Game length as a
+declared contract").

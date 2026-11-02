@@ -10,15 +10,16 @@ The playout drives the call windows through a REFERENCE POLICY, not the uniform
 chooser: a uniform chooser calls tichu at ~50% of every offer, a random call is
 worth about -50 in expectation, and the 1000-point race then diverges —
 measured at 2,200+ hands with no terminus. That divergence is real Tichu (a
-table of indiscriminate callers never finishes; recorded as the second witness
-in open-questions/unbounded-lines-and-max-length.md), so the game text stays
+table of indiscriminate callers never finishes, and its line ends at the
+game's `max_length`, scored as it stands: docs/decisions.md, "Game length as a
+declared contract"), so the game text stays
 faithful and the play-style assumption lives here: a seat calls grand tichu in
 4% of hands and small tichu in about 7%, uniform otherwise. Both are
 PER-HAND rates, and each per-offer gate is derived from its rate and the
 number of offers a seat takes in a hand (grand: one poll per card of the first eight,
 tichu.cardlang): a per-offer gate copied across the eight polls calls grand in
 28% of hands, and the race diverges exactly as under the uniform chooser
-(measured 2026-09-26 at the probe: 45 of 300 games refused at `max_length`).
+(measured 2026-09-26 at the probe: 45 of 300 games reached `max_length`).
 """
 
 from __future__ import annotations

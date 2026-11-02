@@ -1275,8 +1275,8 @@ def test_a_game_that_refuses_mid_session_keeps_the_picks_before_it(tmp_path: Pat
     assert len(_saved(saved)["history"]) == 2
 
 
-def test_a_game_that_overruns_its_length_mid_session_is_refused(sit: _Sit) -> None:
-    sitting = sit([str(FIXTURES / "exceeds_max_length.cardlang"), "--seed", "1", *_VS], "1\n")
+def test_a_loop_with_no_decision_in_it_mid_session_is_refused(sit: _Sit) -> None:
+    sitting = sit([str(FIXTURES / "decisionless_spin.cardlang"), "--seed", "1", *_VS], "1\n")
     assert sitting.code == 1
     assert "max_length" in sitting.err
     assert "Traceback" not in sitting.err

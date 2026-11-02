@@ -31,7 +31,7 @@ What is proven here
   with no root chance node and its generator refuses every draw
   (``cardlang.runtime.chance``). The property is proven over the corpus
   registry in ``tests/test_chance_free.py`` — classifier against an
-  independent draw counter, and a greedy line to a terminal node under
+  independent draw counter, and a uniform line ended by the rules under
   refusal — rather than restated per game here.
 
 The singleton-partition argument (the "bulletproof" claim)
