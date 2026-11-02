@@ -223,7 +223,7 @@ def paired_line(
         return line
     if isinstance(line.end, Rules):
         assert line.end.ours == line.end.native, (
-            f"{label} step {line.end.ply}: returns diverge — ours "
+            f"{label} step {line.end.ply}: returns diverge, ours "
             f"{list(line.end.ours)} native {list(line.end.native)}"
         )
         line.returns = list(line.end.ours)

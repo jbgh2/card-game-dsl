@@ -286,7 +286,7 @@ def walk_paired_prefix(
             drawn = list(native.returns())
             assert classify(drawn) == "draw", (
                 f"{where()}: truncate_when names a decisive oracle end {drawn}; "
-                f"a truncation is the oracle's own draw — board={decoded}"
+                f"a truncation is the oracle's own draw; board={decoded}"
             )
             raise _OracleDrew
         assert_node_agrees(
@@ -319,22 +319,22 @@ def walk_paired_prefix(
     )
     assert ours.ended_by is EndedBy.RULES, (
         f"{where()}: our game's Length Stop ended the line ({ours.returns}); a "
-        f"compared line ends by the game's rules — board={decoded}"
+        f"compared line ends by the game's rules; board={decoded}"
     )
     if not native.is_terminal():
         assert classify(ours.returns) != "draw", (
             f"{where()}: our game ended in a tie by its own rule while the "
-            f"oracle plays on — board={decoded}"
+            f"oracle plays on; board={decoded}"
         )
         raise AssertionError(
             f"{where()}: our game is terminal ({ours.returns}) but native is "
-            f"not — board={decoded}"
+            f"not; board={decoded}"
         )
     native_returns = list(native.returns())
     try:
         assert_outcomes_agree(ours.returns, native_returns)
     except AssertionError as diverged:
-        raise AssertionError(f"{where()}: {diverged} — board={decoded}") from None
+        raise AssertionError(f"{where()}: {diverged}; board={decoded}") from None
     paused = run(dsl_path, seed, tuple(history))
     assert (
         isinstance(paused, TerminalNode)
