@@ -64,6 +64,10 @@ CALL_SIGS: dict[str, Sig] = {
     "is_diagonal": Sig((TDir(),), TBoolean()),
     "home": Sig((TPlayer(),), TCollection(TCell())),
     "far_row": Sig((TPlayer(),), TCollection(TCell())),
+    # A seat's two borders on a board that declares them (the hex rhombus):
+    # the edge it starts from and the edge it joins it to, the `home` shape.
+    "near_edge": Sig((TPlayer(),), TCollection(TCell())),
+    "far_edge": Sig((TPlayer(),), TCollection(TCell())),
     # The cells a board's declared adjacency joins to a cell, in board order
     # (decisions.md "Boards and cells") -- the `home` shape, so `to in
     # neighbors(from)` and a quantifier narrowed by membership consume it.

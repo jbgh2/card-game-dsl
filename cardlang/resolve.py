@@ -492,13 +492,14 @@ from cardlang.typecheck import (
 )
 from cardlang.types import Flavor, TCell, TCollection, TInteger, TPlayer, TTeam
 
-# The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
-# is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
-# Derived as exactly the board verbs taking a player argument, so a later
-# player-taking board verb joins this set (and its two-seat Owner Guard) by
-# construction rather than by a hand-list that would drift. The player-free
-# board calls (`lines`, `is_diagonal`) are not frame reads and stay unaffected.
-_FRAME_CALL_FUNCS = frozenset(
+# The board-only calls that read the board from one of its two seats -- a
+# grid's per-player frame, where one seat's forward is the other's backward,
+# or a seat's own borders (cardlang/stdlib/boards.py). Derived as exactly the
+# board verbs taking a player argument, so a later player-taking board verb
+# joins this set (and its two-seat Owner Guard) by construction rather than by
+# a hand-list that would drift. The player-free board calls (`lines`,
+# `is_diagonal`, `neighbors`) read no seat and stay unaffected.
+_SEAT_CALL_FUNCS = frozenset(
     fn
     for fn in BOARD_ONLY_CALL_FUNCS
     if any(isinstance(p, TPlayer) for p in CALL_SIGS[fn].params)
@@ -2067,6 +2068,7 @@ _BOARD_NEED_PHRASES: dict[BoardNeed, str] = {
     "lines": "the board's lines",
     "edges": "the board's declared adjacency (which points it joins)",
     "frame": "the board's movement frame (each seat's forward directions)",
+    "borders": "each seat's two borders (the board edges it joins)",
 }
 
 
@@ -2112,6 +2114,41 @@ def _board_need_gate(need: BoardNeed) -> _ClauseGate:
 # One row per need, in `BOARD_NEEDS` order: a verb's refusal on a board that
 # does not declare what it reads.
 _BOARD_NEED_GATES: tuple[_ClauseGate, ...] = tuple(_board_need_gate(need) for need in BOARD_NEEDS)
+
+
+# Why a seat verb needs exactly two seats, by the part it reads, in the
+# designer's words. Keyed by every need a seat verb reads: a seat verb reading
+# a need with no reason here fails at import, building `_SEAT_GATES`.
+_SEAT_NEED_REASONS: dict[BoardNeed, str] = {
+    "frame": (
+        "the board's movement frame, which faces two seats against each other "
+        "(one seat's forward is the other's backward)"
+    ),
+    "borders": "a seat's own two edges of the board, which the board gives to two seats",
+}
+
+
+def _seat_gate(need: BoardNeed) -> _ClauseGate:
+    """The row refusing every seat verb that reads `need` in a game without
+    exactly two seats -- asked of the game's own call by `_check_board_call`
+    and of a library's on its `uses` line."""
+    return _builtin_gate(
+        frozenset(v for v in _SEAT_CALL_FUNCS if BOARD_VERB_NEEDS[v] == need),
+        lambda g: g.board is not None and g.players.count != 2,
+        "read " + _SEAT_NEED_REASONS[need],
+        lambda g: f"this game declares `players: {g.players.count}`",
+        lambda g: "declare `players: 2`",
+        clause="players",
+        role="beside",
+    )
+
+
+# One row per need a seat verb reads, in `BOARD_NEEDS` order.
+_SEAT_GATES: tuple[_ClauseGate, ...] = tuple(
+    _seat_gate(need)
+    for need in BOARD_NEEDS
+    if any(BOARD_VERB_NEEDS[v] == need for v in _SEAT_CALL_FUNCS)
+)
 
 
 # Every gate on a construct's legality that a game clause decides, in the order
@@ -2195,15 +2232,7 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
     _CELL_RANGE_GATE,
     _BOARD_POSITION_GATE,
     *_BOARD_NEED_GATES,
-    _builtin_gate(
-        _FRAME_CALL_FUNCS,
-        lambda g: g.board is not None and g.players.count != 2,
-        "read a grid's two-player movement frame",
-        lambda g: f"this game declares `players: {g.players.count}`",
-        lambda g: "the frame is defined for two seats, so it needs `players: 2`",
-        clause="players",
-        role="beside",
-    ),
+    *_SEAT_GATES,
     _builtin_gate(
         RANKING_GATED_FUNCS,
         lambda g: not _declares_ranking(g),
@@ -12148,9 +12177,9 @@ def _unminted_direction(game: n.Game, name: str) -> str | None:
     entry = _declared_board(game)
     if entry is None or board_directions(entry):
         return None
-    destination = "a move on this board names its destination (`to : cell`)"
+    destination = "a move on this board names the cell it acts on (`at : cell`)"
     if entry.answers("edges"):
-        destination += " and the When Clause tests `to in neighbors(from)`"
+        destination += ", and `neighbors(c)` gives the cells the board joins to a cell"
     return f"board family '{entry.family}' mints no directions; {destination}"
 
 
@@ -12497,20 +12526,20 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
             verb, _, rest = gate.reads.partition(" ")
             bag.error(f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}", nd.span)
             return
-    # A frame verb reads the grid's two-seat per-player frame, defined only for
-    # players 0 and 1. Without this Owner Guard a game with three-plus (or one) seats
-    # resolves clean and then dies at setup/play with the frame's registry-bug
+    # A seat verb reads the board from one of its two seats -- a grid's
+    # per-player frame, or a seat's borders -- defined only for players 0 and
+    # 1. Without this Owner Guard a game with three-plus (or one) seats
+    # resolves clean and then dies at setup/play with the board's registry-bug
     # `ValueError` when a verb is called for seat 2 -- a typechecked game
-    # failing at runtime, in the wrong channel. Require exactly two players.
-    count = game.players.count
-    if nd.func in _FRAME_CALL_FUNCS and count != 2:
-        bag.error(
-            f"`{nd.func}` reads a grid's two-player movement frame (one seat's "
-            f"forward is the other's, the 180-degree opposite), but the game "
-            f"declares {count} players — the frame is defined for two seats "
-            f"(design-notes/board-topology.md); name seats directly for more",
-            nd.span,
-        )
+    # failing at runtime, in the wrong channel. The row for the part the verb
+    # reads (`_SEAT_GATES`) says why, as the `uses` line does.
+    for gate in _SEAT_GATES:
+        if _refuses(gate, nd, game):
+            verb, _, rest = gate.reads.partition(" ")
+            bag.error(
+                f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}; {gate.fix(game)}",
+                nd.span,
+            )
     args = nd.args
     if nd.func == "lines" and len(args) == 1 and isinstance(args[0], n.IntLit):
         try:

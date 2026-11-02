@@ -593,13 +593,21 @@ does not move.
    chance nor the unbounded-lines machinery — its position this late
    is purely that `reachable` deserves an isolated rung.
 7. **Nine Men's Morris** (with the flying phase; oracle
-   `nine_mens_morris`). Adds the enumerated non-grid graph, the
-   place→move→fly phase shift, mills as declared lines with a removal
-   decision (and the may-not-remove-from-a-mill-unless-forced
-   restriction), blockade loss, and the first cyclic movement. Faithful:
-   the two rule termini only, its cyclic lines ending at its
-   `max_length` as Length Stops, and the oracle's 200-turn cap kept in
-   the harness as the differential's truncation point.
+   `nine_mens_morris`; in the corpus,
+   [games/nine-mens-morris.md](../games/nine-mens-morris.md)). Adds the
+   enumerated non-grid graph (`board: morris9`, its adjacency read by
+   `neighbors`, its mills by `lines(3)`), the place→move→fly phase shift
+   as the offer's branch, mills with a removal decision — a second
+   `offer` inside the turn, with the
+   may-not-remove-from-a-mill-unless-forced restriction as the removal
+   move's When Clause — blockade loss detected in the turn body before
+   any offer, and the first cyclic movement. Faithful: the two rule
+   termini only, its cyclic lines ending at its `max_length` as Length
+   Stops scored a tie (`at max_length: tie`); the oracle's turn cap
+   (`kMaxNumTurns`, 200 completed turns) is the native differential's
+   truncation point
+   (`tests/test_differential_nine_mens_morris.py`), not a rule of the
+   game.
 8. **English draughts** (8×8, 12 men; captures mandatory, chosen jump
    sequences completed, crowning ends the move; the federation's draw
    in its automatic form, a counter reset by any capture and by any

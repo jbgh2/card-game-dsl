@@ -3459,18 +3459,20 @@ to its witness; see issue #118.
 ## Boards and cells
 
 A game with a spatial board declares it with a `board: <family>(<args>)`
-clause: it selects a family from the closed `BOARDS` registry
-([library.md](library.md), "Built-in boards") and gives its integer
-arguments. A family that takes none is named bare.
+clause: it selects a [Board Family](glossary/board-family.md) from the
+closed `BOARDS` registry ([library.md](library.md), "Built-in boards") and
+gives its integer arguments. A family that takes none is named bare.
 
 ```text
 board: grid(3, 3)
 board: morris9
+board: hex_rhombus(11)
 ```
 
-The `grid` family builds a rectangular board, and `morris9` the fixed
-twenty-four-point nine men's morris board; unknown family, wrong arity
-(`morris9(3)`, a bare `grid`), or out-of-bounds arguments are resolve
+The `grid` family builds a rectangular board, `morris9` the fixed
+twenty-four-point nine men's morris board, and `hex_rhombus` an n-by-n
+rhombus of hexagons; unknown family, wrong arity (`morris9(3)`, a bare
+`grid`, `hex_rhombus(3, 3)`), or out-of-bounds arguments are resolve
 diagnostics (the registry declares each family's arity and bounds). A `board:` clause **requires
 `pieces:`** — a board holds pieces, not cards — so `board:` in a card
 game is rejected, and the board-plus-`cards:` combination waits on a
@@ -3613,9 +3615,9 @@ positions admit it, typed `TDir`: a move parameter, `any dir where`,
 `all dirs where` and `number of dirs where`, and the type of a function
 parameter or an outcome payload. The Set Form gathers positions, so
 `dirs where` is refused naming the direction domain. A game with no `board:` mints no `dir`,
-and neither does a board whose family has no movement frame (`morris9`);
-naming it at any of those positions is refused naming `board:`, or the
-family and how a move on its board names its destination. Beside a
+and neither does a board whose family has no movement frame (`morris9`,
+`hex_rhombus`); naming it at any of those positions is refused naming
+`board:`, or the family and how a move on its board names a cell. Beside a
 frameless board, `positions { dir : ... }` is an ordinary declared
 position domain; beside a grid it collides with the minted one.
 `TDir` is distinct from `TCell`: `along is a1` (direction against cell),
@@ -3717,20 +3719,38 @@ function can_slide_from(c : cell) = any cell where (cell in neighbors(c)) and (p
 The collection form `any cell in neighbors(c) where …` stays refused:
 `in` iterates a single line, and `neighbors(c)` is a collection of cells.
 
+`board: hex_rhombus(n)` mints `cell` with the n-by-n hexagons of a Hex
+board, named and ordered as the grid names its cells (`a1` row-major to
+`k11` at n = 11), and declares their six-neighbour adjacency: a hexagon
+touches the cells beside it along its rank, above and below it in its
+file, and the up-left and down-right diagonal (`b1` touches `a2`; `a1`
+does not touch `b2`), so `neighbors(c)` reads it. It also declares each
+seat's two **borders**, the board edges a connection game joins:
+`near_edge(p)` and `far_edge(p)`, each a `Collection<Cell>` in board order.
+Seat 0 joins rank 1 (`near_edge(0)`) to the last rank (`far_edge(0)`), and
+seat 1 file `a` to the last file; each corner hexagon belongs to both of
+its edges, so the two near borders share `a1` and the two far borders the
+opposite corner. It declares no lines and no movement frame.
+
 **A board verb is answered by the families that declare what it reads.**
 Each verb reads one part of its board's entry: `lines` the line lengths
-the family declares, `neighbors` its declared adjacency, and `neighbor`,
+the family declares, `neighbors` its declared adjacency, `neighbor`,
 `has_step`, `is_diagonal`, `home` and `far_row` its movement frame — as
-does the direction domain `dir`. A family declares only the parts it has:
+does the direction domain `dir` — and `near_edge` and `far_edge` each
+seat's borders. A family declares only the parts it has:
 
-| family    | `lines(k)`               | `neighbors` | the frame verbs and `dir` |
-|-----------|--------------------------|-------------|---------------------------|
-| `grid`    | `k` up to its longer side | refused     | answered                  |
-| `morris9` | `k = 3`, the mills        | answered    | refused                   |
+| family        | `lines(k)`                | `neighbors` | the frame verbs and `dir` | `near_edge`, `far_edge` |
+|---------------|---------------------------|-------------|---------------------------|-------------------------|
+| `grid`        | `k` up to its longer side | refused     | answered                  | refused                 |
+| `morris9`     | `k = 3`, the mills        | answered    | refused                   | refused                 |
+| `hex_rhombus` | refused                   | answered    | refused                   | answered                |
 
 A call on a family that does not declare its verb's part is refused at
 the call, naming the board and the verbs it answers; reached through a
-family library, it is refused on the game's `uses` line. The mills are
+family library, it is refused on the game's `uses` line. A verb taking a
+seat (`neighbor`, `has_step`, `home`, `far_row`, `near_edge`, `far_edge`)
+reads the board from one of its two seats, so a game calling one declares
+`players: 2`. The mills are
 never a second list beside the adjacency: an adjacency family's lines are
 the straight runs along its edges, so a line off the edges cannot be
 written.
