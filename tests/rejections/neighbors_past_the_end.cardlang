@@ -1,0 +1,30 @@
+// Guard: resolve's literal-position check (`_check_positional_index_range`,
+// through `_static_length`). A point's neighbours on the mill board are at
+// most four -- its largest degree -- so position 9 of `neighbors(c)` is past
+// the end on every point and is refused where it is written.
+game NeighborsPastTheEnd {
+  players: 2
+  max_length: 30
+  board: morris9
+  pieces: morris_men
+  zones {
+    box             : Deck
+    point[cell]     : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [slide, stop]
+    }
+  }
+  winner: highest score
+}
+move_type slide(from : cell) {
+  when: point[neighbors(from)[9]] is empty
+  effect { done := true }
+}
+move_type stop { effect { done := true } }

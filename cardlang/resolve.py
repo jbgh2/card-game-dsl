@@ -53,7 +53,14 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               type name the direction domain only where the board minted it
               (``_minted_directions``, the one gate each of them reads), so a
               later pass may look any such name up in the position or the
-              direction source and find it. Every piece of
+              direction source and find it. A board verb stands only on a
+              board whose family declares what the verb reads
+              (``BOARD_VERB_NEEDS``; ``_check_board_call`` for the game's
+              call, the ``_BOARD_NEED_GATES`` rows on the ``uses`` line for a
+              library's), so the runtime may read the board entry's edges,
+              lines or frame behind any board verb it meets; held by Derived
+              and Pinned, one table pinned total against
+              ``BOARD_ONLY_CALL_FUNCS``. Every piece of
               library text spliced into the game -- a family library's move
               types, functions, procedures and provided state declarations,
               and every library rule a game activates, the standard
@@ -342,13 +349,21 @@ from typing import (
 )
 
 from cardlang.ast import nodes as n
-from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
+from cardlang.board_domains import (
+    BOARD_DOMAIN,
+    DIRECTION_DOMAIN,
+    board_directions,
+    directions_of,
+)
 from cardlang.builtins.functions import (
     ARRIVAL_RECORD_CALLS,
     BUILTIN_ARGUMENT_READS,
     BUILTIN_IMPLICIT_READS,
+    BOARD_NEEDS,
     BOARD_ONLY_CALL_FUNCS,
+    BOARD_VERB_NEEDS,
     CALL_FUNCS,
+    BoardNeed,
     DECK_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
@@ -435,7 +450,7 @@ from cardlang.libraries import library_names, load_library
 from cardlang.runtime.delegation import CHOOSER_HELPER, SOURCE_HELPER
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import content_kind_clause, content_noun
-from cardlang.stdlib.boards import board_entry
+from cardlang.stdlib.boards import BoardEntry, board_entry, board_spelling
 from cardlang.stdlib.enums import (
     SEAT_DIRECTION_VALUES,
     enum_values,
@@ -466,7 +481,7 @@ from cardlang.typecheck import (
     card_content_forms,
     ranking_gated_slots,
 )
-from cardlang.types import Flavor, TCollection, TPlayer, TTeam
+from cardlang.types import Flavor, TCell, TCollection, TInteger, TPlayer, TTeam
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
 # is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
@@ -2017,7 +2032,71 @@ def _board_spelling(game: n.Game) -> str:
     board = game.board
     if board is None:
         return "none"
-    return f"{board.family}({', '.join(map(str, board.args))})"
+    return board_spelling(board.family, board.args)
+
+
+def _declared_board(game: n.Game) -> BoardEntry | None:
+    """The entry the game's `board:` clause builds, or None for a boardless
+    game or a `board:` the registry refuses (that refusal is the clause's own,
+    by `_resolve_board`)."""
+    if game.board is None:
+        return None
+    try:
+        return board_entry(game.board.family, game.board.args)
+    except OwnerGuardError:
+        return None
+
+
+# What each need is to a designer: the part of a board a verb reads.
+_BOARD_NEED_PHRASES: dict[BoardNeed, str] = {
+    "lines": "the board's lines",
+    "edges": "the board's declared adjacency (which points it joins)",
+    "frame": "the board's movement frame (each seat's forward directions)",
+}
+
+
+def _answered_verbs(entry: BoardEntry) -> str:
+    """The board verbs `entry` answers, as a refusal lists them."""
+    verbs = sorted(v for v, need in BOARD_VERB_NEEDS.items() if entry.answers(need))
+    if not verbs:
+        return "no board verb"
+    if len(verbs) == 1:
+        return f"`{verbs[0]}`"
+    return ", ".join(f"`{v}`" for v in verbs[:-1]) + f" or `{verbs[-1]}`"
+
+
+def _board_need_gate(need: BoardNeed) -> _ClauseGate:
+    """The row refusing every board verb that reads `need` on a board whose
+    family does not declare it -- asked of the game's own call by
+    `_check_board_call` and of a library's on its `uses` line."""
+
+    def unmet(g: n.Game) -> bool:
+        entry = _declared_board(g)
+        return entry is not None and not entry.answers(need)
+
+    def lacks(g: n.Game) -> str:
+        # Asked only where `unmet` held, so the entry stands.
+        entry = _declared_board(g)
+        answered = _answered_verbs(entry) if entry is not None else "no board verb"
+        return (
+            f"`board: {_board_spelling(g)}` has none — on this board a game may "
+            f"call {answered}"
+        )
+
+    return _builtin_gate(
+        frozenset(v for v, n_ in BOARD_VERB_NEEDS.items() if n_ == need),
+        unmet,
+        "read " + _BOARD_NEED_PHRASES[need],
+        lacks,
+        lambda g: "declare a board that has one, or use a library written for this board",
+        clause="board",
+        role="beside",
+    )
+
+
+# One row per need, in `BOARD_NEEDS` order: a verb's refusal on a board that
+# does not declare what it reads.
+_BOARD_NEED_GATES: tuple[_ClauseGate, ...] = tuple(_board_need_gate(need) for need in BOARD_NEEDS)
 
 
 # Every gate on a construct's legality that a game clause decides, in the order
@@ -2100,6 +2179,7 @@ _CLAUSE_GATES: tuple[_ClauseGate, ...] = (
     ),
     _CELL_RANGE_GATE,
     _BOARD_POSITION_GATE,
+    *_BOARD_NEED_GATES,
     _builtin_gate(
         _FRAME_CALL_FUNCS,
         lambda g: g.board is not None and g.players.count != 2,
@@ -2255,6 +2335,11 @@ def _check_library_lines_span(
         entry = board_entry(game.board.family, game.board.args)
     except OwnerGuardError:
         return
+    # Shadow Guard: a board that declares no lines at all is the lines row of
+    # `_BOARD_NEED_GATES`'s refusal (its Owner Guard), told on this same line;
+    # the span is judged only where some length is declared.
+    if not entry.answers("lines"):
+        return
     for call, where in calls:
         if call.func != "lines" or len(call.args) != 1:
             continue
@@ -2264,7 +2349,7 @@ def _check_library_lines_span(
         try:
             entry.lines(arg.value)
         except OwnerGuardError:
-            board = f"{game.board.family}({', '.join(map(str, game.board.args))})"
+            board = _board_spelling(game)
             bag.error(
                 cite_library(library.name, None) + f" calls `lines({arg.value})` (in "
                 + cite_where(where, call.span)
@@ -5561,8 +5646,12 @@ _REGION_CALL_FUNCS = frozenset(
 def _static_length(obj: n.Expr, game: n.Game) -> int | None:
     """How many members a positional collection holds, where the sentence
     states it: a `[...]` list's own count, or a board region on the declared
-    board. A per-seat region answers the largest seat's count, so a position
-    one seat holds is never refused. None where the count is runtime data."""
+    board. A region whose argument the sentence does not fix answers the
+    largest count over every argument the board admits -- each seat for a
+    per-seat region, each cell for a cell's region (`neighbors(c)`, the
+    board's largest degree), each declared length for `lines(k)` with a
+    computed `k` -- so a position some argument holds is never refused. None
+    where the count is runtime data."""
     if isinstance(obj, n.ListLit):
         return len(obj.elements)
     if not (isinstance(obj, n.Call) and obj.func in _REGION_CALL_FUNCS):
@@ -5570,11 +5659,20 @@ def _static_length(obj: n.Expr, game: n.Game) -> int | None:
     if game.board is None or len(obj.args) != 1:
         return None
     try:
-        method = getattr(board_entry(game.board.family, game.board.args), obj.func)
-        if isinstance(CALL_SIGS[obj.func].params[0], TPlayer):
-            return max(len(method(seat)) for seat in range(game.players.count))
+        entry = board_entry(game.board.family, game.board.args)
+        method = getattr(entry, obj.func)
+        param = CALL_SIGS[obj.func].params[0]
         arg = obj.args[0]
-        return len(method(arg.value)) if isinstance(arg, n.IntLit) else None
+        admitted: tuple[object, ...]
+        if isinstance(param, TPlayer):
+            admitted = tuple(range(game.players.count))
+        elif isinstance(param, TCell):
+            admitted = entry.cells
+        elif isinstance(param, TInteger):
+            admitted = (arg.value,) if isinstance(arg, n.IntLit) else entry.line_lengths
+        else:
+            return None
+        return max((len(method(a)) for a in admitted), default=None)
     except (OwnerGuardError, ValueError):
         # Refused where it is written: an invalid `board:` clause
         # (`_resolve_board`), or the call itself (`_check_board_call`, the
@@ -6852,14 +6950,32 @@ def _resolve_board(
             game.board.span,
         )
         return game
-    # The board mints a SECOND domain, `dir` (the movement directions), as a
-    # separate source (`directions_of`) rather than a `game.positions` entry.
-    # A declared `positions { dir : ... }` clashes with it -- the `cell`
-    # collision's twin. No early return: unlike a `cell` clash, a declared
-    # `dir` does not block minting `cell` (they are different names), so the
-    # error is emitted and cell minting proceeds; the bag halts the pipeline
-    # either way.
-    if DIRECTION_DOMAIN in declared_positions:
+    # Family/args validity is the registry's to judge: `board_entry` raises an
+    # OwnerGuardError naming the violated bound (unknown family, wrong arity,
+    # out-of-bounds arg), which becomes a diagnostic at the clause span, told
+    # after the `dir` checks below. Narrow BY TYPE, not by `ValueError`: the
+    # same call builds a `BoardEntry`, whose `__post_init__` pins the
+    # registry's own output. Those address the engine maintainer, and a
+    # `ValueError` catch would turn each into a diagnostic on the designer's
+    # `board:` line — an engine bug presenting as a compile error on a correct
+    # game.
+    entry: BoardEntry | None
+    refused: OwnerGuardError | None = None
+    try:
+        entry = board_entry(game.board.family, game.board.args)
+    except OwnerGuardError as exc:
+        entry, refused = None, exc
+    # A board whose family has a movement frame mints a SECOND domain, `dir`
+    # (the movement directions), as a separate source (`directions_of`) rather
+    # than a `game.positions` entry; a frameless board (`morris9`) mints none,
+    # and a declared `positions { dir : ... }` beside it is an ordinary
+    # domain. A board the registry refuses is judged as though it mints `dir`.
+    # A declared `dir` clashes with a minted one -- the `cell` collision's
+    # twin. No early return: unlike a `cell` clash, a declared `dir` does not
+    # block minting `cell` (they are different names), so the error is
+    # emitted and cell minting proceeds; the bag halts the pipeline either way.
+    mints_directions = entry is None or bool(board_directions(entry))
+    if mints_directions and DIRECTION_DOMAIN in declared_positions:
         bag.error(
             f"the board mints a movement-direction domain named "
             f"'{DIRECTION_DOMAIN}', which collides with the declared "
@@ -6870,8 +6986,10 @@ def _resolve_board(
     # The `cell` clash above is checked against BOTH declared positions and the
     # reserved set; `dir` gets the same second check, so every name the board
     # mints is refused against the same sources.
-    direction_clash = _reserved_domain_source(
-        game, DIRECTION_DOMAIN, MINTED_DIRECTION_SITE
+    direction_clash = (
+        _reserved_domain_source(game, DIRECTION_DOMAIN, MINTED_DIRECTION_SITE)
+        if mints_directions
+        else None
     )
     if direction_clash is not None:
         bag.error(
@@ -6881,18 +6999,8 @@ def _resolve_board(
             f"'{DIRECTION_DOMAIN}')",
             game.board.span,
         )
-    # Family/args validity is the registry's to judge: `board_entry` raises an
-    # OwnerGuardError naming the violated bound (unknown family, wrong arity,
-    # out-of-bounds arg), which becomes a diagnostic at the clause span.
-    # Narrow BY TYPE, not by `ValueError`: the same call builds a `BoardEntry`,
-    # whose `__post_init__` pins the registry's own output. Those address the
-    # engine maintainer, and a `ValueError` catch swallowed all 14 of them into
-    # a diagnostic on the designer's `board:` line — an engine bug presenting
-    # as a compile error on a correct game.
-    try:
-        entry = board_entry(game.board.family, game.board.args)
-    except OwnerGuardError as exc:
-        bag.error(str(exc), game.board.span)
+    if entry is None:
+        bag.error(str(refused), game.board.span)
         return game
     # `lo`/`hi` are unread for a named-member domain (`.members` returns
     # `members_named`); they carry the member count so the struct stays
@@ -10853,8 +10961,8 @@ def _combination_outside_a_parameter(type_name: str, where: str) -> str | None:
 def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     """A function parameter's and an outcome payload's declared type name names
     a real type: a value type, a declared position domain, or the direction
-    domain the board minted (`_minted_directions`); a boardless game's `dir`
-    is refused naming `board:`.
+    domain the board minted (`_minted_directions`); a `dir` no board minted is
+    refused naming what the game lacks (`_unminted_direction`).
 
     Validating a declared type name is resolve's job: `StateDecl` is guarded
     in `_validate_refs` and move parameters have their own domain gate, and
@@ -10891,10 +10999,11 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
 
     for fn in game.functions:
         for p in fn.params:
-            if _directions_need_a_board(game, base_of(p.type_name)):
+            refusal = _direction_refusal(game, base_of(p.type_name))
+            if refusal is not None:
                 bag.error(
                     f"parameter '{p.name}' of function " + cite_named(fn, f"'{fn.name}'")
-                    + f" is typed `{p.type_name}`, " + _BOARD_DIRECTION_NEEDS_A_BOARD,
+                    + f" is typed `{p.type_name}`, " + refusal,
                     fn.span,
                 )
             elif base_of(p.type_name) not in parameter_known:
@@ -10911,10 +11020,9 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                 refused = _combination_outside_a_parameter(payload, "an outcome's payload")
                 if refused is not None:
                     bag.error(refused, case.span or phase.span)
-                elif _directions_need_a_board(game, base_of(payload)):
+                elif (refusal := _direction_refusal(game, base_of(payload))) is not None:
                     bag.error(
-                        f"the payload of case '{case.tag}' is typed `{payload}`, "
-                        + _BOARD_DIRECTION_NEEDS_A_BOARD,
+                        f"the payload of case '{case.tag}' is typed `{payload}`, " + refusal,
                         case.span or phase.span,
                     )
                 elif base_of(payload) not in known:
@@ -11837,9 +11945,9 @@ def _check_subset_source(sq: n.SubsetQuery, bag: DiagnosticBag) -> None:
 
 
 def _minted_directions(game: n.Game) -> frozenset[str]:
-    """The board direction domains the game's board minted: `{dir}` once the
-    board validated, `{}` for a boardless game or a board that failed
-    (decisions.md "Boards and cells").
+    """The board direction domains the game's board minted: `{dir}` once a
+    board with a movement frame validated, `{}` for a boardless game, a board
+    with no frame, or a board that failed (decisions.md "Boards and cells").
 
     The one gate every position admitting `dir` reads -- a move parameter, a
     bare quantifier noun, a function parameter's and an outcome payload's
@@ -11847,46 +11955,60 @@ def _minted_directions(game: n.Game) -> frozenset[str]:
     asks whether the board minted `cell` (a named-member position domain):
     `_resolve_board` mints nothing for a board that failed validation, and
     `directions_of` re-derives from the board entry, which raises on such a
-    board, so `cell` and `dir` stand or fall together."""
+    board, so `dir` never stands without `cell`; it falls alone where the
+    validated board has no movement frame (`directions_of` is empty)."""
     board_minted = any(
         p.name == BOARD_DOMAIN and p.members_named is not None for p in game.positions
     )
     return frozenset(directions_of(game)) if board_minted else frozenset()
 
 
-def _directions_need_a_board(game: n.Game, name: str) -> bool:
-    """Whether `name` is the direction domain spelled in a game with no
-    `board:` to mint it and no declared domain of that name -- the refusal a
-    boardless game's `dir` earns at every position that admits one."""
-    return (
-        name == DIRECTION_DOMAIN
-        and game.board is None
-        and all(p.name != name for p in game.positions)
-    )
+def _unminted_direction(game: n.Game, name: str) -> str | None:
+    """What a game lacks for `name` to be the direction domain, where `name`
+    is that domain's spelling and the game neither mints nor declares it: no
+    `board:` at all, or a board whose family has no movement frame (and so
+    mints no `dir`, `board_domains.directions_of`). None for every other name,
+    and for a board the registry refuses, whose refusal is the clause's own.
+    The one test every position admitting `dir` asks before calling the name
+    unknown."""
+    if name != DIRECTION_DOMAIN or any(p.name == name for p in game.positions):
+        return None
+    if game.board is None:
+        return "the game declares no `board:`"
+    entry = _declared_board(game)
+    if entry is None or board_directions(entry):
+        return None
+    destination = "a move on this board names its destination (`to : cell`)"
+    if entry.answers("edges"):
+        destination += " and the When Clause tests `to in neighbors(from)`"
+    return f"board family '{entry.family}' mints no directions; {destination}"
 
 
-# How every refusal of a boardless game's `dir` ends: what `dir` is, and the
-# clause the game lacks.
-_BOARD_DIRECTION_NEEDS_A_BOARD = (
-    "the board direction domain a `board:` mints, but the game declares no `board:`"
-)
+def _direction_refusal(game: n.Game, name: str) -> str | None:
+    """How a declared type's refusal of an unminted `dir` ends: what `dir` is,
+    and what the game lacks (`_unminted_direction`)."""
+    lack = _unminted_direction(game, name)
+    if lack is None:
+        return None
+    return "the board direction domain a `board:` mints, but " + lack
 
 
 def _no_board_for_directions(game: n.Game, name: str) -> str:
-    """The clause a move parameter's refusal of a boardless game's `dir` (or
-    `dir?`) ends with, naming the missing `board:`; empty for every other
-    name."""
-    if not _directions_need_a_board(game, name.removesuffix("?")):
+    """The clause a move parameter's refusal of an unminted `dir` (or `dir?`)
+    ends with, naming what the game lacks; empty for every other name."""
+    refusal = _direction_refusal(game, name.removesuffix("?"))
+    if refusal is None:
         return ""
-    return f" -- `{DIRECTION_DOMAIN}` is " + _BOARD_DIRECTION_NEEDS_A_BOARD
+    return f" -- `{DIRECTION_DOMAIN}` is " + refusal
 
 
 def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
     """Validate a positional-quantifier noun (decisions.md "Boards and cells").
 
     A BARE form (`source is None`) ranges over a declared position domain or
-    the direction domain the board minted (`_minted_directions`); a boardless
-    game naming `dir` is refused naming `board:`. A COLLECTION form
+    the direction domain the board minted (`_minted_directions`); a game
+    naming a `dir` no board minted is refused naming what it lacks
+    (`_unminted_direction`). A COLLECTION form
     (`in <expr>`) ranges over one of the rung-1 collection nouns {line, cell}.
     The plural convention is a resolve Owner Guard, not a grammar one: `any`
     takes the singular noun, `all`/`number of` the plural (singular +
@@ -11900,10 +12022,10 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
     if nd.source is None:
         declared = {p.name for p in game.positions}
         directions = _minted_directions(game)
-        if _directions_need_a_board(game, nd.binder):
+        lack = _unminted_direction(game, nd.binder)
+        if lack is not None:
             bag.error(
-                f"`{phrase} {nd.spelled}` ranges over the board directions, "
-                f"but the game declares no `board:`",
+                f"`{phrase} {nd.spelled}` ranges over the board directions, but {lack}",
                 nd.span,
             )
             return
@@ -11961,17 +12083,31 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
 
 def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     """The board-reading native calls (`lines`, BOARD_ONLY_CALL_FUNCS): a
-    boardless game has no board to read, and a literal `k` outside the board's
-    line span is a static error. The bound is reused from the board entry's own
-    `lines()` (cardlang/stdlib/boards.py), so resolve and the runtime share one
+    boardless game has no board to read; a board whose family does not declare
+    what the verb reads (`BOARD_VERB_NEEDS`) does not answer it; and a literal
+    `k` outside the lengths the board declares is a static error. The
+    availability test is the `_BOARD_NEED_GATES` row the `uses` line asks of a
+    library; the bound is reused from the board entry's own `lines()`
+    (cardlang/stdlib/boards.py), so resolve and the runtime share one
     definition of it; a NON-literal `k` (no rung-1 witness) is left to that
-    runtime bound, surfaced as a typed error (recorded residual, issue #111)."""
+    runtime bound, surfaced as a typed error (recorded residual, issue #111).
+
+    Held by: Derived and Pinned. `BOARD_VERB_NEEDS` maps each board verb to
+    the `BoardEntry` field it reads, pinned total against
+    BOARD_ONLY_CALL_FUNCS; this check and the runtime `_board_of` both read
+    it. Not higher: the Builtin namespace is a string registry throughout, and
+    an enum for the board verbs alone would give one registry two shapes."""
     if game.board is None:
         bag.error(
             f"`{nd.func}` reads the board, but the game declares no `board:`",
             nd.span,
         )
         return
+    for gate in _BOARD_NEED_GATES:
+        if _refuses(gate, nd, game):
+            verb, _, rest = gate.reads.partition(" ")
+            bag.error(f"`{nd.func}` {verb}s {rest}, but {gate.lacks(game)}", nd.span)
+            return
     # A frame verb reads the grid's two-seat per-player frame, defined only for
     # players 0 and 1. Without this Owner Guard a game with three-plus (or one) seats
     # resolves clean and then dies at setup/play with the frame's registry-bug

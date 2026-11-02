@@ -1,0 +1,13 @@
+// Guard: `board_entry`'s arity Owner Guard (cardlang/stdlib/boards.py), read
+// by resolve's `_resolve_board`. `morris9` is a fixed board and takes no
+// argument; `morris9(3)` gives it one.
+game BoardMorris9WithArguments {
+  players: 2
+  max_length: 20
+  board: morris9(3)
+  pieces: morris_men
+  zones { box : Deck  reserve[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0 }
+  phase play { move all pieces from box where piece.side is white to reserve[0] }
+  winner: highest score
+}

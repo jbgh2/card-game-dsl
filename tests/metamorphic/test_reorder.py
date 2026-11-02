@@ -79,6 +79,7 @@ _PARSE_LEVEL_CASES = frozenset(
         "duplicate_pieces_clause",
         "board_duplicate_clause",
         "pieces_and_cards_together",
+        "morris_men_beside_cards",
         "no_game_block",
         "two_game_blocks",
         # The [[phase-scoped-read]]'s transposed-binder twin: a

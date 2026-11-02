@@ -1,0 +1,13 @@
+// Guard: `board_entry`'s arity Owner Guard (cardlang/stdlib/boards.py), read
+// by resolve's `_resolve_board`. A grid is sized by its two arguments; a bare
+// `board: grid` gives it none.
+game BoardGridWithoutArguments {
+  players: 2
+  max_length: 20
+  board: grid
+  pieces: xo_marks
+  zones { box : Deck  reserve[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0 }
+  phase play { move all pieces from box where piece.side is x to reserve[0] }
+  winner: highest score
+}

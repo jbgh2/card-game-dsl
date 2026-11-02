@@ -240,6 +240,17 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
             cards=(("man", "light"),) * 16 + (("man", "dark"),) * 16,
         ),
     ),
+    # Nine men's morris: nine men a side, one kind; white is the first side,
+    # seat 0's, as the OpenSpiel oracle's `W` is.
+    "morris_men": ComponentSet(
+        "piece",
+        ("side", "kind"),
+        Deck(
+            suits=(),
+            ranks=(),
+            cards=(("man", "white"),) * 9 + (("man", "black"),) * 9,
+        ),
+    ),
 }
 
 # The card-flavored projection every pre-existing deck consumer reads;

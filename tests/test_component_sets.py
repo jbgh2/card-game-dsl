@@ -76,6 +76,20 @@ def test_breakthrough_men_composition() -> None:
     assert all(m.rank == "man" for m in men)
 
 
+def test_morris_men_composition() -> None:
+    """Nine men's morris: eighteen men, nine a side, one kind. White is the
+    first side, seat 0's, as the OpenSpiel oracle's `W` is.
+
+    red under: changing the white copy count in `COMPONENT_SETS["morris_men"]`
+    to 8."""
+    men = build_deck("morris_men")
+    assert len(men) == 18
+    assert sum(1 for m in men if m.suit == "white") == 9
+    assert sum(1 for m in men if m.suit == "black") == 9
+    assert all(m.rank == "man" for m in men)
+    assert men[0].suit == "white"
+
+
 def test_build_deck_preserves_registry_literal_order() -> None:
     """Order is the registry-literal order by construction: the suits x
     ranks cross product for a uniform deck (sampled on standard52's first

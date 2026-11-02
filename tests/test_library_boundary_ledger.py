@@ -405,6 +405,7 @@ _CALL_SPELLINGS: dict[str, tuple[str, str]] = {
     "is_diagonal": ("is_diagonal(who)", ""),
     "home": ("home(who) is empty", ""),
     "far_row": ("far_row(who) is who", ""),
+    "neighbors": ("neighbors(who) is empty", ""),
     "highest_trump_or_led_suit": ("highest_trump_or_led_suit(pile, c.suit) is who", ""),
     "highest_by_trick_order": ("highest_by_trick_order(pile) is who", ""),
     "follows_lead": ("follows_lead(c, pile)", ""),

@@ -1,0 +1,30 @@
+// Guard: resolve's `_check_move_params`, through `_minted_directions`. Only a
+// board with a movement frame mints the board direction domain `dir`;
+// `morris9` has none, so `along : dir` is refused naming the family and how a
+// move on this board names its destination.
+game DirParameterOnMorris9 {
+  players: 2
+  max_length: 30
+  board: morris9
+  pieces: xo_marks
+  zones {
+    box             : Deck
+    point[cell]     : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }
+  state { score[player] : Integer = 0  done : Boolean = false }
+  phase setup {
+    move all pieces from box to reserve[0]
+  }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [place, stop]
+    }
+  }
+  winner: highest score
+}
+move_type place(at : cell, along : dir) {
+  when: point[at] is empty
+  effect { move one piece from reserve[actor] to point[at] }
+}
+move_type stop { effect { done := true } }

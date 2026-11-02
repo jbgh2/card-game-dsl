@@ -15,6 +15,9 @@ Nothing here is the **[[stdlib]]**, which is the layer written in the language
 
 from __future__ import annotations
 
+import typing
+from typing import Literal
+
 # Value callbacks referenced by bare name (a `round`'s `winner` callback):
 #
 # - a *trick* winner function, under one of TWO contracts keyed by
@@ -137,6 +140,7 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "is_diagonal",  # rung-2 movement: whether a dir captures (changes file)
         "home",  # rung-2 movement: a player's back-two-ranks setup region (Collection<Cell>)
         "far_row",  # rung-2 movement: the opponent's back row, the reach-to-win goal
+        "neighbors",  # the cells a board's declared adjacency joins to a cell
         "player_holding",
         "team_of",  # the team a player belongs to
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
@@ -289,6 +293,7 @@ TRICK_ORDER_ROW_UNCALLABLE: frozenset[str] = frozenset(
         "is_diagonal",
         "home",
         "far_row",
+        "neighbors",
         "highest_trump_or_led_suit",  # the standard winner, excluded beside a block anyway
         "highest_by_trick_order",  # a consumer: reads every row of the order it would define
         "follows_lead",  # a consumer, likewise
@@ -341,6 +346,7 @@ BUILTIN_READS_NOTHING: frozenset[str] = frozenset(
         "is_diagonal",
         "home",
         "far_row",
+        "neighbors",
         "team_of",
         "suit_value",
         "error",
@@ -470,5 +476,28 @@ BOARD_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "is_diagonal",  # whether a dir captures -- reads the board's direction data
         "home",  # a player's home region -- reads ctx.rs.board
         "far_row",  # the far rank (reach goal) -- reads ctx.rs.board
+        "neighbors",  # the cells joined to a cell -- reads ctx.rs.board
     }
 )
+
+# What a board verb reads off its board's entry: the line lengths it answers,
+# its declared adjacency, or its movement frame. `stdlib.boards.BoardEntry.
+# answers` says whether an entry declares each.
+BoardNeed = Literal["lines", "edges", "frame"]
+BOARD_NEEDS: tuple[BoardNeed, ...] = typing.get_args(BoardNeed)
+
+# What each board verb reads off its board's `BoardEntry` (`BoardNeed`): the
+# line lengths the family answers, its declared adjacency, or its movement
+# frame. A family that does not declare a verb's need does not answer the
+# verb: resolve refuses the call naming the family (`resolve._BOARD_NEED_GATES`)
+# and the runtime's `_board_of` stands behind it as the Shadow Guard. Keyed
+# exactly by BOARD_ONLY_CALL_FUNCS (tests/test_board_verb_availability.py).
+BOARD_VERB_NEEDS: dict[str, BoardNeed] = {
+    "lines": "lines",
+    "neighbors": "edges",
+    "neighbor": "frame",
+    "has_step": "frame",
+    "is_diagonal": "frame",
+    "home": "frame",
+    "far_row": "frame",
+}

@@ -233,7 +233,7 @@ _ROW_UNCALLABLE = frozenset(
     {
         "player_holding",  # walks every hand
         "error",  # not a value
-        "lines", "neighbor", "has_step", "is_diagonal", "home", "far_row",  # the board
+        "lines", "neighbor", "has_step", "is_diagonal", "home", "far_row", "neighbors",  # the board
         "highest_trump_or_led_suit",  # the standard winner, excluded beside a block anyway
         "highest_by_trick_order",  # a consumer of every row
         "follows_lead",  # a consumer of every row
@@ -588,6 +588,7 @@ def _row_hermeticity_cells() -> list[Cell]:
         "is_diagonal": "is_diagonal(0)",
         "home": "home(0) is empty",
         "far_row": "far_row(0) is 0",
+        "neighbors": "neighbors(0) is empty",
         "highest_trump_or_led_suit": "highest_trump_or_led_suit(pile, hearts) is 0",
         "highest_by_trick_order": "highest_by_trick_order(pile) is 0",
         "follows_lead": "follows_lead(card, pile)",
