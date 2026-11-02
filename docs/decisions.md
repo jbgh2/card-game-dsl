@@ -3553,7 +3553,8 @@ collection form.
 Every query kind has a collection form too, as the card register has every
 one over `in <zone>`: `any`, `all`, `number of` and the set, each over `in
 <collection>`, the noun one of the game's position domains or the board's
-`line`.
+`line`. ADR-0017 records the ruling and the twin refusing the collection
+set that it replaced.
 
 ```text
 any cell in home(p) where square[cell] is empty
