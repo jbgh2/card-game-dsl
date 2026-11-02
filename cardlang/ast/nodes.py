@@ -284,7 +284,7 @@ class CardQuery:
 
 # The folds of the positional quantifier register, one per bare alternative
 # of the grammar's `quantifier` rule that builds a `DomainQuery`.
-DomainQueryKind = Literal["any", "all", "count"]
+DomainQueryKind = Literal["any", "all", "count", "set"]
 DOMAIN_QUERY_KINDS: tuple[DomainQueryKind, ...] = get_args(DomainQueryKind)
 
 
@@ -292,16 +292,18 @@ DOMAIN_QUERY_KINDS: tuple[DomainQueryKind, ...] = get_args(DomainQueryKind)
 class DomainQuery:
     """The generic position-domain / collection quantifier register
     (decisions.md "Boards and cells"), the positional twin of the fixed
-    `Quantifier` forms. Five surface spellings, one node:
+    `Quantifier` forms. Six surface spellings, one node:
 
     - BARE, over a declared position domain or the board's direction domain
       (`source is None`):
       `any <domain> where <pred>`      (kind "any")
       `all <domain>s where <pred>`     (kind "all")
       `number of <domain>s where <pred>` (kind "count")
+      `<domain>s where <pred>`         (kind "set", position domains only)
       -- `binder` is the singular domain noun, bound per member of the
       domain's ordered members (`cell` or `dir` for a board, an integer
-      `positions {}` name like `column`).
+      `positions {}` name like `column`); the set is the members satisfying
+      the predicate, in that order.
 
     - COLLECTION, over an evaluated collection (`source` present):
       `any line in <source> where <pred>`  (noun `line`, binds each line)
@@ -329,7 +331,26 @@ DOMAIN_QUERY_KIND_PHRASE: dict[DomainQueryKind, str] = {
     "any": "any",
     "all": "all",
     "count": "number of",
+    "set": "",
 }
+
+# The folds whose bare form ranges over the board direction domain as well as
+# the position domains; the set gathers positions alone (decisions.md "Boards
+# and cells"). Resolve's `_check_domain_query` is the one reader that admits
+# a noun by it.
+DIRECTION_FOLDS: frozenset[DomainQueryKind] = frozenset({"any", "all", "count"})
+
+# The folds with a collection form, `<fold> <noun> in <collection> where`
+# (the grammar's `q_any_in` / `q_all_in`).
+COLLECTION_FOLDS: frozenset[DomainQueryKind] = frozenset({"any", "all"})
+
+
+def domain_query_head(kind: DomainQueryKind, spelled: str) -> str:
+    """A position query's head as a diagnostic quotes it: the fold's phrase
+    and the noun as written (`any cell`, `number of cells`), or for the set,
+    which has no leading word, the noun and its `where` (`cells where`)."""
+    phrase = DOMAIN_QUERY_KIND_PHRASE[kind]
+    return f"{phrase} {spelled}" if phrase else f"{spelled} where"
 
 
 @dataclass(frozen=True, slots=True)

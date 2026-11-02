@@ -61,7 +61,11 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               board's direction domain, type ``TDir`` from
               ``TypeEnv.directions``; a bare noun in neither the position nor
               the direction source raises ``ShadowGuardError`` naming
-              ``resolve._check_domain_query``.
+              ``resolve._check_domain_query``. Every position query's fold is
+              typed by an exhaustive match over ``n.DomainQueryKind`` (held by
+              Unrepresentable: a fold with no arm is a mypy error), a set as
+              the collection of its position domain's member type, which
+              meets every consumer as a region verb's collection does.
 Now illegal:  a type-invalid program, per the Owner Guards above and their
               completeness ledgers. Also a `Sig` built from an entry's
               spelling anywhere but ``_param_type``, a declared collection
@@ -698,10 +702,10 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_contract_type", "directions"): ClauseRead("typing", reason="a contract row's spelling"),
     ("_param_type", "positions"): ClauseRead("typing", reason="a parameter's declared type"),
     ("_param_type", "directions"): ClauseRead("typing", reason="a parameter's declared type"),
-    ("_domain_query_binder_type", "positions"): ClauseRead(
-        "typing", reason="a position query's binder"
+    ("_bare_domain_member_type", "positions"): ClauseRead(
+        "typing", reason="a position query's binder and a position set's members"
     ),
-    ("_domain_query_binder_type", "directions"): ClauseRead(
+    ("_bare_domain_member_type", "directions"): ClauseRead(
         "typing", reason="a direction query's binder"
     ),
     ("_index_domain_spelling", "positions"): ClauseRead(
@@ -856,6 +860,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     return TInteger()
                 case "any" | "all":
                     return TBoolean()
+                case "set":
+                    # A set has no source: its members are its domain's.
+                    return TCollection(_bare_domain_member_type(e, env))
                 case unreachable_kind:
                     assert_never(unreachable_kind)
         case n.SubsetQuery():
@@ -2749,27 +2756,33 @@ _INDEXABLE_RECEIVERS = (TPlayer, TTeam, TInteger, TBoolean)
 _FIELDLESS_RECEIVERS = (TCell, TDir, TLine, TEnum, TString, TNull, TOutcome)
 
 
+def _bare_domain_member_type(e: n.DomainQuery, env: TypeEnv) -> Type:
+    """The member type of the domain a BARE position query's noun names: a
+    position domain's (`TCell` for a board's `cell`, `TInteger` for an
+    integer domain), else, for a fold in `DIRECTION_FOLDS`, the board-minted
+    direction domain's (`TDir`). Resolve's `_check_domain_query` admits no
+    other noun, so a noun in neither source raises as its Shadow Guard."""
+    if e.binder in env.positions:
+        return env.positions[e.binder]
+    if e.binder in env.directions and e.kind in n.DIRECTION_FOLDS:
+        return env.directions[e.binder]
+    raise ShadowGuardError(
+        "resolve._check_domain_query",
+        f"the bare quantifier noun '{e.binder}' names no domain the "
+        f"`{n.domain_query_head(e.kind, e.spelled)}` fold ranges over in this game",
+    )
+
+
 def _domain_query_binder_type(
     e: n.DomainQuery, env: TypeEnv, bag: DiagnosticBag
 ) -> Type:
     """The type a DomainQuery binds its element to, plus (for collection forms)
-    the source-shape Owner Guard. A BARE form binds the member type of the
-    domain its noun names: a position domain's (`TCell` for a board's `cell`,
-    `TInteger` for an integer domain), else the board-minted direction
-    domain's (`TDir`). Resolve's `_check_domain_query` admits no other noun,
-    so a noun in neither source raises as its Shadow Guard. A COLLECTION
-    form's noun fixes BOTH the binder type and the required source type:
-    `line` iterates a collection of lines, `cell` iterates one line."""
+    the source-shape Owner Guard. A BARE form binds its domain's member type
+    (`_bare_domain_member_type`). A COLLECTION form's noun fixes BOTH the
+    binder type and the required source type: `line` iterates a collection of
+    lines, `cell` iterates one line."""
     if e.source is None:
-        if e.binder in env.positions:
-            return env.positions[e.binder]
-        if e.binder in env.directions:
-            return env.directions[e.binder]
-        raise ShadowGuardError(
-            "resolve._check_domain_query",
-            f"the bare quantifier noun '{e.binder}' names neither a position "
-            f"domain nor a direction domain of this game",
-        )
+        return _bare_domain_member_type(e, env)
     want, desc = (
         (TCollection(TLine()), "a collection of lines (e.g. `lines(3)`)")
         if e.binder == "line"
@@ -3254,8 +3267,9 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             _check_expr(e.source, env, bag)  # the `in` source is in enclosing scope
         scoped = env.with_local(e.binder, binder_t)
         _check_expr(e.where, scoped, bag)
-        phrase = n.DOMAIN_QUERY_KIND_PHRASE[e.kind]
-        _check_bool(e.where, scoped, bag, f"`{phrase} {e.spelled}` predicate")
+        _check_bool(
+            e.where, scoped, bag, f"`{n.domain_query_head(e.kind, e.spelled)}` predicate"
+        )
         return
     if isinstance(e, n.SubsetQuery):
         _check_subset_query(e, env, bag)

@@ -3304,9 +3304,10 @@ variable, and a position-typed `state` declaration are all rejected with
 diagnostics (deferred, recorded in issue #111). Quantifiers
 range over a position domain's members like any other quantifiable
 domain — `any column where …`, `all columns where …`, `number of columns
+where …`, and the set of the members satisfying a predicate, `columns
 where …`; for a board's `cell` domain the register adds two collection
 forms over lines and cells, detailed with `lines(k)` in "Boards and
-cells" below (tests/test_cell_queries.py). A position-indexed family
+cells" below (tests/test_cell_queries.py, tests/test_cell_set_form.py). A position-indexed family
 is always subscripted: no seat owns one of its instances, so a bare name
 has nothing to mean ("Per-observer visibility on zones", "A family named
 bare is the acting player's own").
@@ -3491,22 +3492,43 @@ enumerates its range.
 
 **The cell/line query register.** The bare quantifier forms range a
 binder over any declared position domain ("Position domains and
-positional zones") and over the board's direction domain (below); the
-board adds two collection forms and the
+positional zones") and, but for the set, over the board's direction
+domain (below); the board adds two collection forms and the
 `lines(k)` call that feeds them. A bare form's noun is the domain name,
 validated against the game's declared domains (a board's `cell`, an
 integer `positions { }` name) and the board's direction domain `dir`,
-with `any` taking the singular noun and `all`/`number of` the plural:
+with `any` taking the singular noun and `all`, `number of` and the set
+the plural:
 
 ```text
 any cell where square[cell] is empty
 all cells where square[cell] is not empty
 number of cells where <pred>
+cells where <pred>
+```
+
+The last is the register's set form, the twin of `players where
+<pred>` and `cards in <zone> where <pred>`: the members of the domain
+satisfying the predicate, in the domain's order, as a value —
+`Collection<Cell>` over a board's `cell`, `Collection<Integer>` over an
+integer domain (`columns where <pred>`). It compares by value with a
+region verb's collection (`(cells where cell in home(0)) is home(0)`)
+and meets every other consumer as one does. Cells live on the board,
+not in a zone, so the set takes no source: `cells in <expr> where
+<pred>` is refused naming the set form, with the membership in the
+predicate. A membership's right side sits below the query forms, so a
+set tested for membership is parenthesized, `at in (cells where
+<pred>)`, as `p in (players where <pred>)` is. The set gathers
+positions, so `dirs where` is refused naming the direction domain.
+
+```cardlang-fragment cell_set
+function stones_of(p : Player) = cells where holds(cell, p)
 ```
 
 An unknown noun is a diagnostic naming the declared domains; a
-boardless, positionless game naming `cell` is guided to the collection
-escape instead. Where a collection value exists, two collection forms
+boardless, positionless game naming `cell` under `any` or `all` is guided
+to the collection escape instead, the only folds with a collection form.
+Where a collection value exists, two collection forms
 iterate it: `any line in <lines> where <pred>` walks a collection of
 lines (binder `line`, type `TLine`), and `all cells in <line> where
 <pred>` walks the cells of one line (binder `cell`, type `TCell`).
@@ -3547,7 +3569,8 @@ is not a position, so `dir` never reaches the zone index or `for each`;
 it is a closed domain, so the bare quantifier family and the declared-type
 positions admit it, typed `TDir`: a move parameter, `any dir where`,
 `all dirs where` and `number of dirs where`, and the type of a function
-parameter or an outcome payload. A game with no `board:` mints no `dir`,
+parameter or an outcome payload. The set form gathers positions, so
+`dirs where` is refused naming the direction domain. A game with no `board:` mints no `dir`,
 and neither does a board whose family has no movement frame (`morris9`);
 naming it at any of those positions is refused naming `board:`, or the
 family and how a move on its board names its destination. Beside a

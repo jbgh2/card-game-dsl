@@ -50,8 +50,12 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               walks state declarations to learn how the result is keyed, and
               an ``as it stands`` Stop Result sits only on a game with a
               ``winner:`` clause. A bare
-              ``DomainQuery`` noun names a declared position domain or the
-              direction domain the board minted, and a move parameter's
+              ``DomainQuery`` noun names a declared position domain or, for a
+              fold in ``n.DIRECTION_FOLDS``, the direction domain the board
+              minted; a set's noun names a position domain alone, held by
+              Derived and Pinned (the noun is a designer's string until this
+              pass classifies it against ``game.positions``;
+              tests/test_cell_set_form.py's noun grid). A move parameter's
               domain, a function parameter's type and an outcome payload's
               type name the direction domain only where the board minted it
               (``_minted_directions``, the one gate each of them reads), so a
@@ -12110,43 +12114,63 @@ def _no_board_for_directions(game: n.Game, name: str) -> str:
 def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
     """Validate a positional-quantifier noun (decisions.md "Boards and cells").
 
-    A BARE form (`source is None`) ranges over a declared position domain or
-    the direction domain the board minted (`_minted_directions`); a game
-    naming a `dir` no board minted is refused naming what it lacks
-    (`_unminted_direction`). A COLLECTION form
-    (`in <expr>`) ranges over one of the rung-1 collection nouns {line, cell}.
-    The plural convention is a resolve Owner Guard, not a grammar one: `any`
-    takes the singular noun, `all`/`number of` the plural (singular +
-    "s"); a singular where the plural is required is guided to the plural
-    spelling, an unknown noun to the declared universe.
+    A BARE form (`source is None`) ranges over a declared position domain,
+    and a fold in `n.DIRECTION_FOLDS` also over the direction domain the
+    board minted (`_minted_directions`); such a fold naming a `dir` no board
+    minted is refused naming what it lacks (`_unminted_direction`), and the
+    set, which gathers positions alone, is refused naming the direction
+    domain wherever `dir` is not a declared position domain. A COLLECTION
+    form (`in <expr>`) ranges over one of the rung-1 collection nouns
+    {line, cell}, and only a fold in `n.COLLECTION_FOLDS` is offered it in a
+    hint. The plural convention is a resolve Owner Guard, not a grammar one:
+    `any` takes the singular noun, `all`/`number of`/the set the plural
+    (singular + "s"); a singular where the plural is required is guided to
+    the plural spelling, an unknown noun to the declared universe.
 
     suit/rank quantifiers never reach here: QNOUN excludes those spellings, so
     `any suit where …` is the fixed `Quantifier` form (guarded in a piece game
     by the CARD_AXIS_ROLES case below) -- the noun exclusion IS that guard."""
     phrase = n.DOMAIN_QUERY_KIND_PHRASE[nd.kind]
+    head = n.domain_query_head(nd.kind, nd.spelled)
     if nd.source is None:
         declared = {p.name for p in game.positions}
-        directions = _minted_directions(game)
         lack = _unminted_direction(game, nd.binder)
-        if lack is not None:
-            bag.error(
-                f"`{phrase} {nd.spelled}` ranges over the board directions, but {lack}",
-                nd.span,
-            )
-            return
         universe = (
             f"declared position domains: {', '.join(sorted(declared))}"
             if declared
             else "this game declares no position domains"
         )
+        if nd.kind in n.DIRECTION_FOLDS:
+            directions = _minted_directions(game)
+        else:
+            # The set gathers positions; the direction domain is not one.
+            directions = frozenset()
+            if nd.binder not in declared and (
+                nd.binder in _minted_directions(game) or lack is not None
+            ):
+                bag.error(
+                    f"`{head}` gathers the members of a position domain, and "
+                    f"`{nd.binder}` is the board direction domain, not a position "
+                    f"domain -- {universe}",
+                    nd.span,
+                )
+                return
+        if lack is not None:
+            bag.error(f"`{head}` ranges over the board directions, but {lack}", nd.span)
+            return
         if directions:
             universe += (
                 "; the board direction domain: "
                 + ", ".join(sorted(directions))
             )
-        if nd.binder in _COLLECTION_NOUNS and nd.binder not in declared:
+        if (
+            nd.binder in _COLLECTION_NOUNS
+            and nd.binder not in declared
+            and nd.kind in n.COLLECTION_FOLDS
+        ):
             # A bare `any line where …`: the noun is a collection noun, so the
             # designer almost certainly dropped the `in <collection>` clause.
+            # Only a fold with a collection form is offered it.
             universe += (
                 f" (a `{nd.binder}` is quantified from a collection: "
                 f"`{phrase} {nd.spelled} in <collection> where ...`)"
@@ -12175,8 +12199,8 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
         # singular names a real target, else fall through to unknown-noun.
         if target_ok:
             bag.error(
-                f"`{phrase} {nd.spelled}` needs the plural noun -- write "
-                f"`{phrase} {nd.spelled}s`",
+                f"`{head}` needs the plural noun -- write "
+                f"`{n.domain_query_head(nd.kind, nd.spelled + 's')}`",
                 nd.span,
             )
             return

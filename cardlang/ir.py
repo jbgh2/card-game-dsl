@@ -609,7 +609,7 @@ def _rule(r: n.RuleDef) -> IRDict:
 def _domain_query_fold(kind: n.DomainQueryKind) -> str:
     """The `query` value a position query's fold emits: its kind's own name."""
     match kind:
-        case "any" | "all" | "count":
+        case "any" | "all" | "count" | "set":
             return kind
         case unreachable:
             assert_never(unreachable)

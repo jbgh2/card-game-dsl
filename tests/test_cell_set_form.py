@@ -55,8 +55,7 @@ domain:     {game shape} x {noun: the game's position domains, the
             the bare noun only: `cells in <expr> where` is not the
             language, and the twin is its one refusal, cut as the word its
             message names, so `columns in <expr> where` keeps the main
-            parser's syntax error. The `connected` argument waits on the
-            Builtin, issue #971.
+            parser's syntax error.
 registry:   nouns: cardlang/board_domains.py::position_domains_of,
             DIRECTION_DOMAIN, BOARD_DOMAIN; collection nouns:
             cardlang/resolve.py::_COLLECTION_NOUNS; hosts:
@@ -85,23 +84,25 @@ does not prove:  that the consumer axis is every slot a collection can
 from __future__ import annotations
 
 import random
+import re
 from collections.abc import Iterator
 from dataclasses import fields, is_dataclass
 from importlib import resources
+from typing import assert_never
 
 import pytest
 from lark import Lark, Tree
-from lark.exceptions import LarkError
 
 import cardlang.resolve as resolve_module
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, position_domains_of
 from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import IRDict, emit
-from cardlang.parse import parse_library
+from cardlang.parse import _diagnostic_parser, parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _COLLECTION_NOUNS
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import GameDescriptionError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.stdlib.boards import board_entry
 from tests import test_direction_lift as lift
@@ -115,16 +116,6 @@ from tests.test_cell_queries import (
     _snippet,
     board_game,
     card_game,
-)
-
-# Every cell that writes the set form is refused at parse until the
-# production lands. Each mark names the designed red: an acceptance cell
-# raises the parse refusal, a message cell fails its assertion.
-RED_ACCEPT = pytest.mark.xfail(
-    strict=True, raises=DiagnosticError, reason="issue #972: the set form is not in the grammar yet"
-)
-RED_MESSAGE = pytest.mark.xfail(
-    strict=True, raises=AssertionError, reason="issue #972: the set form is not in the grammar yet"
 )
 
 TWIN_MESSAGE = (
@@ -194,13 +185,7 @@ def _universe_cells() -> list[object]:
         for noun in sorted({*declared, DIRECTION_DOMAIN, *_COLLECTION_NOUNS, UNKNOWN_NOUN}):
             admitted = noun in declared
             cells.append(
-                pytest.param(
-                    shape,
-                    noun,
-                    admitted,
-                    id=f"{shape}-{noun}",
-                    marks=RED_ACCEPT if admitted else RED_MESSAGE,
-                )
+                pytest.param(shape, noun, admitted, id=f"{shape}-{noun}")
             )
     return cells
 
@@ -247,7 +232,6 @@ def test_the_set_forms_noun_is_a_position_domain(shape: str, noun: str, admitted
         ),
     ],
 )
-@RED_MESSAGE
 def test_a_singular_noun_is_guided_to_the_plural(source: str, needle: str) -> None:
     assert needle in _reject(source)
 
@@ -273,14 +257,13 @@ def _set_query_hosts(node: object, host: tuple[str, str] | None = None) -> Itera
 
 
 @pytest.mark.parametrize("host", sorted(lift.HOSTS))
-@RED_ACCEPT
 def test_the_set_form_checks_in_every_host(host: str) -> None:
     """Each host's Boolean compares the set with itself over a call-free
     predicate, since a state default refuses every call."""
     build, field = lift.HOSTS[host]
     query = "(cells where true)"
     game = check_dsl(build(f"({query} is {query})"), "set.cardlang")
-    assert list(_set_query_hosts(game)) == [field]
+    assert list(_set_query_hosts(game)) == [field, field]
 
 
 # --- GRID C: the consumer, held to the region verb's answer --------------------
@@ -344,15 +327,21 @@ CONSUMERS: dict[str, str] = {
 }
 
 
+def _channel(message: str | None) -> str | None:
+    """A refusal as the slot gives it. A checker message names types, never
+    the operand's text, so it compares whole; a parse refusal's expected-token
+    list depends on the operand's first token, so it compares by channel."""
+    if message is not None and message.startswith("syntax error"):
+        return "syntax error"
+    return message
+
+
 @pytest.mark.parametrize("slot", sorted(CONSUMERS))
-@RED_MESSAGE
 def test_a_consumer_answers_the_set_as_it_answers_a_region_verb(slot: str) -> None:
-    """The region verb's outcome in the slot, read live, is the set form's.
-    A refusal message names types, never the operand's text, so the two
-    messages are equal; the red is the set form's parse refusal."""
+    """The region verb's outcome in the slot, read live, is the set form's."""
     template = CONSUMERS[slot]
-    region = _outcome(template.replace("@SET@", REGION))
-    assert _outcome(template.replace("@SET@", SET_FORM)) == region, (slot, region)
+    region = _channel(_outcome(template.replace("@SET@", REGION)))
+    assert _channel(_outcome(template.replace("@SET@", SET_FORM))) == region, (slot, region)
 
 
 def test_the_consumer_axis_commands_both_outcomes() -> None:
@@ -362,6 +351,48 @@ def test_the_consumer_axis_commands_both_outcomes() -> None:
     outcomes = {slot: _outcome(t.replace("@SET@", REGION)) for slot, t in CONSUMERS.items()}
     assert any(o is None for o in outcomes.values()), outcomes
     assert any(o is not None for o in outcomes.values()), outcomes
+
+
+def _integer_participants_game() -> str:
+    """Two seats taking turns over an integer domain's set, whose members
+    run past the seat count."""
+    return (
+        "game IntegerTurns {\n"
+        "  players: 2\n"
+        "  max_length: 30\n"
+        "  cards: standard52\n"
+        "  positions { column : 1..4 }\n"
+        "  zones { deck : Deck  pile[column] : Cascade<column> }\n"
+        "  state { done : Boolean = false  k : Integer = 0  score[player] : Integer = 0 }\n"
+        "  phase p {\n"
+        "    turns t from 0 over (columns where true) until done {\n"
+        "      offer to t one of [tick]\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest score\n"
+        "}\n"
+        "move_type tick { effect {\n"
+        "  k := k + 1\n"
+        "  if k > 5 { done := true }\n"
+        "} }\n"
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="issue #824: a computed non-seat in a turn's participants is dropped silently",
+)
+def test_an_integer_set_naming_no_seat_is_refused_as_participants() -> None:
+    """An integer set coerces to a participants collection as an integer
+    list does; a member naming no seat is a typed refusal at play, as the
+    leader slot's is."""
+    game = check_dsl(_integer_participants_game(), "set.cardlang")
+    try:
+        play_game(game, random.Random(0))
+    except GameDescriptionError:
+        return
+    raise AssertionError("the members naming no seat were dropped from the ring")
 
 
 @pytest.mark.xfail(strict=True, raises=DiagnosticError, reason="issue #971: `connected` is not a Builtin yet")
@@ -379,7 +410,6 @@ def _home(player: int) -> tuple[str, ...]:
     return board_entry("grid", (3, 3)).home(player)
 
 
-@RED_ACCEPT
 def test_the_set_is_a_tuple_in_the_domains_order() -> None:
     """Red under: `evaluate._domain_query`'s set arm returning a list."""
     game, expr = _checked_board_expr("cells where true")
@@ -388,13 +418,11 @@ def test_the_set_is_a_tuple_in_the_domains_order() -> None:
     assert value == NINE_CELLS
 
 
-@RED_ACCEPT
 def test_the_set_holds_the_satisfying_members_in_order() -> None:
     game, expr = _checked_board_expr("cells where square[cell] is not empty")
     assert evaluate(expr, _board_ctx(game, {"c3": "x", "a1": "o", "b2": "x"})) == ("a1", "b2", "c3")
 
 
-@RED_ACCEPT
 def test_nothing_satisfying_is_the_empty_set() -> None:
     game, expr = _checked_board_expr("cells where false")
     assert evaluate(expr, _board_ctx(game, {})) == ()
@@ -411,7 +439,6 @@ def test_nothing_satisfying_is_the_empty_set() -> None:
         ),
     ],
 )
-@RED_ACCEPT
 def test_equality_with_a_region_verb_is_by_value(source: str, expected: bool) -> None:
     """Both truth values against the region verb. Red under: the set arm
     returning a list, which no region verb's tuple equals (the `same
@@ -421,7 +448,6 @@ def test_equality_with_a_region_verb_is_by_value(source: str, expected: bool) ->
     assert evaluate(expr, _board_ctx(game, {})) is expected
 
 
-@RED_ACCEPT
 def test_the_inner_binder_shadows_the_outer() -> None:
     """The outer `cell` stands on the membership's left; the inner set binds
     its own. Every outer cell inside home(0) counts once."""
@@ -429,13 +455,11 @@ def test_the_inner_binder_shadows_the_outer() -> None:
     assert evaluate(expr, _board_ctx(game, {})) == len(_home(0))
 
 
-@RED_ACCEPT
 def test_an_integer_domains_set_ascends() -> None:
     game, expr = _checked_fc_expr("columns where cascade[column] is empty")
     assert evaluate(expr, _fc_ctx(game, {2: 1, 4: 3})) == (1, 3)
 
 
-@RED_ACCEPT
 def test_the_set_form_plays() -> None:
     """The execution witness: a move may be made only on a cell of the set,
     and a uniform playout reaches the end."""
@@ -457,7 +481,6 @@ def _domain_queries(ir: object) -> Iterator[IRDict]:
             yield from _domain_queries(item)
 
 
-@RED_ACCEPT
 def test_the_ir_names_the_set_fold() -> None:
     ir = emit(check_dsl(_in_when("at in (cells where square[cell] is empty)"), "set.cardlang"))
     assert [q["query"] for q in _domain_queries(ir)] == ["set"]
@@ -493,7 +516,6 @@ def _hidden_game(when: str) -> str:
 HIDDEN_READ = "(number of cards in hand[1] where card.rank is A) > 0"
 
 
-@RED_MESSAGE
 def test_a_hidden_read_in_the_body_is_judged_as_the_other_folds_are() -> None:
     """The set's body is judged at its enclosing clause, the When Clause:
     the same read under `any column where` gets the same verdict."""
@@ -505,7 +527,6 @@ def test_a_hidden_read_in_the_body_is_judged_as_the_other_folds_are() -> None:
 _LIB = "probe_set_lib"
 
 
-@RED_ACCEPT
 def test_a_library_naming_cells_is_refused_in_its_own_file(monkeypatch: pytest.MonkeyPatch) -> None:
     """A library names no board-minted domain; its set form is refused in
     its own file, as its `number of cells where` is."""
@@ -568,7 +589,6 @@ def test_the_double_where_sentence_is_ambiguous_on_the_player_register(explicit_
     assert _count_ambig(tree) == 1
 
 
-@pytest.mark.xfail(strict=True, raises=LarkError, reason="issue #972: the set form is not in the grammar yet")
 def test_the_double_where_sentence_is_ambiguous_on_the_position_register(explicit_parser: Lark) -> None:
     """The same class on the set form, recorded beside its player twin."""
     tree = explicit_parser.parse(_snippet("    if any cell in cells where mine where (n is 0) { n := 1 }\n"))
@@ -594,7 +614,6 @@ def test_the_double_where_sentence_is_ambiguous_on_the_position_register(explici
         ),
     ],
 )
-@RED_MESSAGE
 def test_the_collection_twin_names_the_set_form(source: str) -> None:
     assert TWIN_MESSAGE in _reject(source)
 
@@ -621,8 +640,47 @@ def test_the_twin_captures_no_other_sentence(source: str) -> None:
     """The twin is led by the word its message names, so a membership whose
     right side is a bare set form, and a collection twin over another noun,
     keep the main parser's syntax error. Red under: the twin led by
-    `QNOUN` (every cell but `integer noun` and `lines`, which a plural-led
-    twin also takes)."""
+    `QNOUN` (every cell); led by any plural noun (`plural local`, `integer
+    noun`, `lines`)."""
     message = _reject(source)
     assert message.startswith("syntax error"), message
     assert TWIN_MESSAGE not in message, message
+
+
+def test_the_twins_word_is_the_boards_noun() -> None:
+    """The twin's lead word is the plural of the noun a `board:` mints, the
+    word its message names. Red under: the terminal spelled `cell`."""
+    terminals = {t.name: t for t in _diagnostic_parser().terminals}
+    pattern = re.compile(terminals["_SET_TWIN_CELLS_KW"].pattern.to_regexp())
+    assert pattern.fullmatch(BOARD_DOMAIN + "s")
+    assert not pattern.match(BOARD_DOMAIN + "sx")
+
+
+def _as_boolean(kind: n.DomainQueryKind, query: str) -> str:
+    match kind:
+        case "any" | "all":
+            return f"({query})"
+        case "count":
+            return f"(({query}) > 0)"
+        case "set":
+            return f"(({query}) is ({query}))"
+        case unreachable:
+            assert_never(unreachable)
+
+
+@pytest.mark.parametrize("kind", n.DOMAIN_QUERY_KINDS)
+def test_a_collection_nouns_hint_offers_only_a_form_the_fold_has(kind: n.DomainQueryKind) -> None:
+    """A bare collection noun on a board is refused; the hint offers
+    `<fold> <noun> in <collection> where` only to a fold with a collection
+    form (the grammar's `q_any_in` / `q_all_in`), and the form it offers
+    checks. Red under: the hint's `n.COLLECTION_FOLDS` gate removed (the
+    `count` and `set` cells)."""
+    phrase = n.DOMAIN_QUERY_KIND_PHRASE[kind]
+    spelled = "line" if kind == "any" else "lines"
+    message = _reject(_in_when(_as_boolean(kind, f"{phrase} {spelled} where true".strip())))
+    assert "unknown position domain 'line'" in message, message
+    if kind in n.COLLECTION_FOLDS:
+        assert f"`{phrase} {spelled} in <collection> where ...`" in message, message
+        check_dsl(_in_when(f"{phrase} {spelled} in lines(3) where true"), "set.cardlang")
+    else:
+        assert "in <collection>" not in message, message
