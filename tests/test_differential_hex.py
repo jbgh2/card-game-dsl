@@ -50,6 +50,36 @@ rank)`. A mapping composed with it agrees with native at every layer here, so
 the orientation is pinned only by `test_mapping_names_every_cell_as_native_
 does`, which reads native's own cell strings rather than a literal.
 
+Completeness ledger (decisions.md "Closed-domain completeness")
+---------------------------------------------------------------
+property:   at every node a walk reaches, the game and the oracle agree on the
+            seat to move and on the mapped legal-action set; every line ends
+            by the rules on both sides at the same ply, with equal returns.
+domain:     the nodes of the prefix tree to depth 1; the nodes of the
+            scripted lines; the nodes of every line over the first
+            `TRAJECTORIES` policy seeds. Hex ends by its rules on every line,
+            so no truncation or prefix rule bounds the domain.
+registry:   `tests/native_oracle.py::assert_node_agrees`;
+            `tests/native_oracle.py::assert_outcomes_agree`;
+            `tests/native_oracle.py::walk_paired_alternating`; `to_native`,
+            the oracle's own numbering; `cardlang.stdlib.boards.
+            board_entry("hex_rhombus", (11,))`'s cells, adjacency and seat
+            borders, which every walk reads through the game.
+held by:    the cell mapping is a Born-Green Pin (the bijection, and every
+            cell's name in pyspiel's own `action_to_string`); why not higher:
+            the oracle's numbering is external data with no source in the
+            tree. The seat goals are a Born-Green Pin: the scripted lines meet
+            each seat's borders at all four corners, and the transposed
+            mapping, which exchanges the goals, is the tripwire that fails;
+            why not higher: which edges the oracle joins for each seat is
+            external data.
+does not prove:  agreement at a node no walk reaches: the depth-1 prefix walk
+            catches only structural mapping errors, and the adjacency is
+            carried by the scripted and policy lines, not by every position;
+            nor the orientation against the half-turn, which only the
+            cell-name test pins (the residual above); nor any board size but
+            11.
+
 red under (adjacency): `(1, 1)` in place of `(1, -1)` in
 `boards._HEX_FORWARD_OFFSETS` reddens both staircases (our game is not
 terminal at the last stair) and the random trajectories (our game is
