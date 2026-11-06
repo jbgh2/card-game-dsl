@@ -3716,7 +3716,7 @@ side, `step` with diagonal-only capture, and the two termini its oracle
 names.
 
 **Guards stated as behavior.** A bare cell name in an expression (`a1`),
-and now a direction name (`ahead`), is an unknown name, not a literal —
+or a direction name (`ahead`), is an unknown name, not a literal —
 named only through a parameter or a quantifier binder; naming a specific
 cell in a setup or rule waits on its witness (issue #111).
 A position domain is not a state index, the direction domain `dir` is
@@ -3724,7 +3724,7 @@ not a `state` type, and an integer position domain is not a `for each`
 role.
 The remaining board-topology surface — the `HiddenCell` and `Point`
 zone-type rows, double-indexed families, `roll` chance, probes,
-`reachable`, in-file boards — is guarded per rung of the board-topology
+`region`, in-file boards — is guarded per rung of the board-topology
 ladder ([design-notes/board-topology.md](design-notes/board-topology.md);
 issue #124).
 
@@ -3747,8 +3747,8 @@ move_type slide(from : cell, to : cell) {
 function can_slide_from(c : cell) = any cell where (cell in neighbors(c)) and (point[cell] is empty)
 ```
 
-The collection form `any cell in neighbors(c) where …` stays refused:
-`in` iterates a single line, and `neighbors(c)` is a collection of cells.
+The collection form reads the same fact without the membership,
+`any cell in neighbors(c) where point[cell] is empty`.
 
 `board: hex_rhombus(n)` mints `cell` with the n-by-n hexagons of a Hex
 board, named and ordered as the grid names its cells (`a1` row-major to
