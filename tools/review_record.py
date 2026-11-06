@@ -1,10 +1,27 @@
-"""The merge gate's review clause: is a review on record at the merging head?
+"""The Review Record: written by the review, read by the merge gate.
 
-`tools/merge-gate.sh` pipes a pull request's issue comments here (the
-`gh api --paginate --slurp` listing) with the head it read and the lane
-`tools/lane-of.sh` printed:
+The review posts through `post`, the one writer (the `cardlang-code-review`
+skill's "Output"):
 
-    python3 tools/review_record.py --head SHA --lane C|D < comments.json
+    python3 tools/review_record.py post --pr N --head SHA --tier T \
+        --artifact-gate G findings.json [--dry-run] [--record-only]
+
+`findings.json` is the review's findings list (`file`, `line`, `summary`,
+`failure_scenario`, `verdict`, `category`, `reaches`). Each finding
+becomes one review thread at the head the review read -- on its line when
+the diff carries a comment there, on its file when the file is in the
+diff, and otherwise on the diff's first file naming where it is -- so a
+finding's disposition is its thread's, exactly as for Codex (ADR-0019;
+docs/harness.md, "Review threads"). The Review Record follows, its
+CONFIRMED count derived from the same list. Nothing is posted when the
+pull request is no longer at the head the review read, and nothing
+further once a post fails.
+
+`tools/merge-gate.sh` pipes a pull request's issue comments to `judge`
+(the `gh api --paginate --slurp` listing) with the head it read and the
+lane `tools/lane-of.sh` printed:
+
+    python3 tools/review_record.py judge --head SHA --lane C|D < comments.json
 
 It prints its evidence lines and exits 0 only when the review the lane
 requires is on record at that head (docs/harness.md, "Arming is merging";
@@ -13,16 +30,15 @@ review on record; every record at the head must also allow the lane.
 
 Two records are read, each bound to a head:
 
-* **The Review Record** -- the comment the `cardlang-code-review` skill
-  posts (its "Output" section), whose first line is
+* **The Review Record** -- the comment `post` writes, whose first line is
   `<!-- cardlang-review-record:v1 {...} -->`. Only an author with write
   access (`author_association` OWNER, MEMBER or COLLABORATOR) writes one;
   anyone else's marker is not a record. Every record naming the head is
   read, and a later one never clears an earlier one's findings, because a
   CONFIRMED finding is fixed only by a new head. Lane D refuses any
-  record at the head that carries a CONFIRMED finding; Lane C refuses one
-  with a CONFIRMED finding left unfiled, and needs a record at Standard or
-  Thorough unless Codex reviewed the head; both refuse a record whose
+  record at the head that carries a CONFIRMED finding; Lane C needs a
+  record at Standard or Thorough unless Codex reviewed the head, and
+  leaves the findings to their threads; both refuse a record whose
   Phase-0 artifact gate is `absent`. A record is read as it stands, edits
   included.
 * **The Codex review state** -- the `codex-review-state:v1` marker the
@@ -40,12 +56,14 @@ marker it cannot read, or one outside the closed vocabulary below, is
 `refused` -- never read as satisfied.
 
 Held by: Derived and Pinned (tests/test_review_record.py) for the
-predicate, bound to the head the gate reads. Review-Enforced Prose holds
-two residuals the record cannot carry: which of Standard or Thorough a
-Lane C change selects (the review skill's judgment of the delta), and that
-findings short of CONFIRMED are filed (the record counts CONFIRMED only).
-The gate runs this module under the system `python3`, so it stays
-stdlib-only and parses at Python 3.9 (pinned in the same module).
+predicate, bound to the head the gate reads, and for the writer, whose
+record count and threads derive from one findings list
+(tests/test_review_post.py). Review-Enforced Prose holds two residuals
+the record cannot carry: which of Standard or Thorough a Lane C change
+selects (the review skill's judgment of the delta), and that a record was
+written by `post` rather than by hand. The gate runs this module under
+the system `python3`, so it stays stdlib-only and parses at Python 3.9
+(pinned in the same module).
 """
 
 from __future__ import annotations
@@ -53,24 +71,33 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Any, Literal, get_args
+from typing import Any, Callable, Literal, Mapping, Optional, Sequence, get_args
 
 Tier = Literal["Quick", "Standard", "Thorough"]
 ArtifactGate = Literal["present", "absent", "not-triggered"]
 Lane = Literal["C", "D"]
 Outcome = Literal["pass", "absent", "stale", "refused"]
+FindingVerdict = Literal["CONFIRMED", "PLAUSIBLE"]
+Reach = Literal["R1", "R2", "R3", "R4"]
+Anchor = Literal["line", "file", "outside"]
 TIERS: tuple[str, ...] = get_args(Tier)
 ARTIFACT_GATES: tuple[str, ...] = get_args(ArtifactGate)
 LANES: tuple[str, ...] = get_args(Lane)
 OUTCOMES: tuple[str, ...] = get_args(Outcome)
+FINDING_VERDICTS: tuple[str, ...] = get_args(FindingVerdict)
+REACHES: tuple[str, ...] = get_args(Reach)
+ANCHORS: tuple[str, ...] = get_args(Anchor)
 
 MARKER = "cardlang-review-record:v1"
 CODEX_MARKER = "codex-review-state:v1"
 CODEX_LOGIN = "chatgpt-codex-connector[bot]"
 TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
-RECORD_FIELDS = frozenset({"head_sha", "tier", "confirmed", "filed", "artifact_gate"})
+RECORD_FIELDS = frozenset({"head_sha", "tier", "confirmed", "artifact_gate"})
+FINDING_FIELDS = frozenset({"file", "line", "summary", "failure_scenario", "verdict", "category", "reaches"})
+FINDING_OPTIONAL = frozenset({"short_summary"})
 
 _RECORD_RE = re.compile(r"\A\s*<!--\s*" + re.escape(MARKER) + r"\s+(\{.*?\})\s*-->", re.DOTALL)
 _CODEX_RE = re.compile(r"<!--\s*" + re.escape(CODEX_MARKER) + r"\s+(\{.*?\})\s*-->", re.DOTALL)
@@ -82,9 +109,19 @@ class Record:
     head: str
     tier: str
     confirmed: int
-    filed: tuple[int, ...]
     artifact_gate: str
     comment_id: int
+
+
+@dataclass(frozen=True)
+class Finding:
+    file: str
+    line: Optional[int]
+    summary: str
+    failure_scenario: str
+    verdict: str
+    category: str
+    reaches: str
 
 
 @dataclass(frozen=True)
@@ -114,7 +151,7 @@ def parse_record(payload_text: str, comment_id: int) -> Record:
             f"fields {sorted(keys)} are not {sorted(RECORD_FIELDS)}"
         )
     head, tier = payload["head_sha"], payload["tier"]
-    confirmed, filed, gate = payload["confirmed"], payload["filed"], payload["artifact_gate"]
+    confirmed, gate = payload["confirmed"], payload["artifact_gate"]
     if not isinstance(head, str) or not _SHA_RE.match(head):
         raise Unreadable(f"head_sha {head!r} is not a full lower-case commit sha")
     if tier not in TIERS:
@@ -123,13 +160,7 @@ def parse_record(payload_text: str, comment_id: int) -> Record:
         raise Unreadable(f"artifact_gate {gate!r} is not one of {', '.join(ARTIFACT_GATES)}")
     if not _count(confirmed) or confirmed < 0:
         raise Unreadable(f"confirmed {confirmed!r} is not a count")
-    if not isinstance(filed, list) or not all(_count(n) and n > 0 for n in filed):
-        raise Unreadable(f"filed {filed!r} is not a list of issue numbers")
-    if len(set(filed)) != len(filed):
-        raise Unreadable(f"filed {filed!r} names an issue twice")
-    if len(filed) > confirmed:
-        raise Unreadable(f"filed names {len(filed)} issues for {confirmed} CONFIRMED findings")
-    return Record(head, tier, confirmed, tuple(filed), gate, comment_id)
+    return Record(head, tier, confirmed, gate, comment_id)
 
 
 def _flatten(comments: object) -> list[dict[str, Any]]:
@@ -186,9 +217,6 @@ def _refusal(record: Record, lane: str) -> str | None:
         return "the Phase-0 artifact gate reports the surface-totality artifacts absent"
     if lane == "D" and record.confirmed:
         return f"{record.confirmed} CONFIRMED finding(s); Lane D requires none"
-    open_findings = record.confirmed - len(record.filed)
-    if open_findings:
-        return f"{open_findings} CONFIRMED finding(s) neither fixed nor filed"
     return None
 
 
@@ -228,7 +256,7 @@ def judge(comments: object, head: str, lane: str) -> Verdict:
             reason = _refusal(record, lane)
             summary = (
                 f"Review Record (comment {record.comment_id}) at head {head[:12]}: tier {record.tier}, "
-                f"{record.confirmed} CONFIRMED, filed {list(record.filed) or 'none'}, "
+                f"{record.confirmed} CONFIRMED (their threads carry the dispositions), "
                 f"artifact gate {record.artifact_gate}"
             )
             lines.append(f"review: {summary} -- {'ok' if reason is None else f'FAIL ({reason})'}")
@@ -263,11 +291,199 @@ def judge(comments: object, head: str, lane: str) -> Verdict:
     return Verdict(outcome, tuple(lines))
 
 
-def main(argv: list[str] | None = None) -> int:
+def _text(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} {value!r} is not a non-empty string")
+    return value
+
+
+def parse_findings(data: object) -> tuple[Finding, ...]:
+    """The review's findings list, refused outside its closed vocabulary."""
+    if not isinstance(data, list) or not all(isinstance(f, dict) for f in data):
+        raise ValueError("findings must be a JSON list of objects")
+    findings = []
+    for n, raw in enumerate(data, 1):
+        keys = set(raw)
+        if not FINDING_FIELDS <= keys or not keys <= FINDING_FIELDS | FINDING_OPTIONAL:
+            raise ValueError(f"finding {n}: fields {sorted(keys)} are not {sorted(FINDING_FIELDS)}")
+        line = raw["line"]
+        if line is not None and (not _count(line) or line < 1):
+            raise ValueError(f"finding {n}: line {line!r} is not a line number or null")
+        if raw["verdict"] not in FINDING_VERDICTS:
+            raise ValueError(f"finding {n}: verdict {raw['verdict']!r} is not one of {', '.join(FINDING_VERDICTS)}")
+        if raw["reaches"] not in REACHES:
+            raise ValueError(f"finding {n}: reaches {raw['reaches']!r} is not one of {', '.join(REACHES)}")
+        findings.append(
+            Finding(
+                file=_text(raw["file"], f"finding {n}: file"),
+                line=line,
+                summary=_text(raw["summary"], f"finding {n}: summary"),
+                failure_scenario=_text(raw["failure_scenario"], f"finding {n}: failure_scenario"),
+                verdict=raw["verdict"],
+                category=_text(raw["category"], f"finding {n}: category"),
+                reaches=raw["reaches"],
+            )
+        )
+    return tuple(findings)
+
+
+_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+
+
+def commentable_lines(patch: Optional[str]) -> frozenset[int]:
+    """The new-side lines of a file's patch a review comment can sit on."""
+    lines: set[int] = set()
+    new = 0
+    for text in (patch or "").split("\n"):
+        hunk = _HUNK_RE.match(text)
+        if hunk:
+            new = int(hunk.group(1))
+        elif new and text[:1] in ("+", " "):
+            lines.add(new)
+            new += 1
+    return frozenset(lines)
+
+
+def _where(finding: Finding) -> str:
+    return f"{finding.file}:{finding.line}" if finding.line is not None else finding.file
+
+
+def _thread_body(finding: Finding) -> str:
+    return (
+        f"**{finding.verdict}** -- {finding.reaches}, {finding.category} -- `{_where(finding)}`\n\n"
+        f"{finding.summary}\n\n**Failure scenario:** {finding.failure_scenario}\n\n"
+        "Reply with its disposition -- fixed (the commit), filed (the issue), refuted (the executed "
+        'evidence) or escalated -- then resolve the thread (docs/harness.md, "Review threads").'
+    )
+
+
+def review_payload(
+    findings: Sequence[Finding], patches: Mapping[str, Optional[str]], head: str, tier: str
+) -> Optional[dict[str, Any]]:
+    """The pull-request review holding one thread per finding; None for no findings."""
+    if not findings:
+        return None
+    if not patches:
+        raise ValueError("the pull request changes no file, so no thread can be anchored")
+    first = next(iter(patches))
+    comments = []
+    for finding in findings:
+        body = _thread_body(finding)
+        if finding.file in patches:
+            if finding.line is not None and finding.line in commentable_lines(patches[finding.file]):
+                comments.append({"path": finding.file, "line": finding.line, "side": "RIGHT", "body": body})
+            else:
+                comments.append({"path": finding.file, "subject_type": "file", "body": body})
+        else:
+            comments.append(
+                {"path": first, "subject_type": "file", "body": f"Outside this diff: `{_where(finding)}`.\n\n{body}"}
+            )
+    confirmed = sum(f.verdict == "CONFIRMED" for f in findings)
+    return {
+        "commit_id": head,
+        "event": "COMMENT",
+        "body": (
+            f"`cardlang-code-review` at tier {tier} read head `{head[:12]}`: {len(findings)} finding(s), "
+            f"{confirmed} CONFIRMED, one thread each. The Review Record follows as a comment."
+        ),
+        "comments": comments,
+    }
+
+
+def record_text(head: str, tier: str, artifact_gate: str, findings: Sequence[Finding]) -> str:
+    """The Review Record comment, its count derived from the findings it posts."""
+    if tier not in TIERS:
+        raise ValueError(f"tier {tier!r} is not one of {', '.join(TIERS)}")
+    if artifact_gate not in ARTIFACT_GATES:
+        raise ValueError(f"artifact gate {artifact_gate!r} is not one of {', '.join(ARTIFACT_GATES)}")
+    if not _SHA_RE.match(head):
+        raise ValueError(f"head {head!r} is not a full lower-case commit sha")
+    confirmed = sum(f.verdict == "CONFIRMED" for f in findings)
+    payload = {"head_sha": head, "tier": tier, "confirmed": confirmed, "artifact_gate": artifact_gate}
+    listed = "".join(f"\n- **{f.verdict}** ({f.reaches}) `{_where(f)}` -- {f.summary}" for f in findings)
+    return (
+        f"<!-- {MARKER} {json.dumps(payload)} -->\n\n## Review Record\n\n"
+        f"`cardlang-code-review` at tier **{tier}** read head `{head}`: {len(findings)} finding(s), "
+        f"{confirmed} CONFIRMED; artifact gate `{artifact_gate}`. Each finding is a review thread on "
+        f"this pull request, and its disposition is the thread's.\n{listed}\n"
+    )
+
+
+Gh = Callable[[list[str], Optional[str]], str]
+
+
+def _gh(args: list[str], stdin: Optional[str] = None) -> str:
+    done = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, check=True)
+    return done.stdout
+
+
+def post(
+    pr: int,
+    head: str,
+    tier: str,
+    artifact_gate: str,
+    findings: Sequence[Finding],
+    *,
+    repo: str,
+    run: Gh = _gh,
+    dry_run: bool = False,
+    record_only: bool = False,
+) -> int:
+    """Post the review's threads, then its record; 0 posted, 1 not posted, 2 a post failed."""
+    record = record_text(head, tier, artifact_gate, findings)
+    try:
+        current = run(["pr", "view", str(pr), "--repo", repo, "--json", "headRefOid", "--jq", ".headRefOid"], None)
+        if current.strip() != head:
+            print(f"post: the review read {head[:12]}, the pull request is at {current.strip()[:12]} -- "
+                  "nothing posted; review the current head")
+            return 1
+        review = None
+        if not record_only:
+            pages = json.loads(run(["api", "--paginate", "--slurp", f"repos/{repo}/pulls/{pr}/files"], None))
+            patches = {f["filename"]: f.get("patch") for f in _flatten(pages)}
+            review = review_payload(findings, patches, head, tier)
+        if dry_run:
+            print(json.dumps({"review": review, "record": record}, indent=2))
+            return 0
+        if review is not None:
+            posted = json.loads(run(["api", "-X", "POST", f"repos/{repo}/pulls/{pr}/reviews", "--input", "-"],
+                                    json.dumps(review)))
+            print(f"post: {len(review['comments'])} thread(s) in review {posted.get('html_url')}")
+        posted = json.loads(run(["api", "-X", "POST", f"repos/{repo}/issues/{pr}/comments", "--input", "-"],
+                                json.dumps({"body": record})))
+        print(f"post: Review Record {posted.get('html_url')}")
+    except subprocess.CalledProcessError as err:
+        print(f"post: gh {' '.join(err.cmd[1:4])} failed ({(err.stderr or '').strip()}) -- nothing further posted"
+              + ("" if record_only else "; once any threads it did post are checked, rerun with --record-only"))
+        return 2
+    return 0
+
+
+def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("--head", required=True)
-    parser.add_argument("--lane", required=True)
+    commands = parser.add_subparsers(dest="command", required=True)
+    judging = commands.add_parser("judge", help="the merge gate's review clause")
+    judging.add_argument("--head", required=True)
+    judging.add_argument("--lane", required=True)
+    posting = commands.add_parser("post", help="post a review's threads and its Review Record")
+    posting.add_argument("--pr", type=int, required=True)
+    posting.add_argument("--head", required=True)
+    posting.add_argument("--tier", required=True)
+    posting.add_argument("--artifact-gate", required=True)
+    posting.add_argument("--repo", default="jbgh2/card-game-dsl")
+    posting.add_argument("--dry-run", action="store_true")
+    posting.add_argument("--record-only", action="store_true")
+    posting.add_argument("findings", help="the review's findings list, a JSON file")
     args = parser.parse_args(argv)
+    if args.command == "post":
+        try:
+            with open(args.findings) as handle:
+                findings = parse_findings(json.load(handle))
+            return post(args.pr, args.head, args.tier, args.artifact_gate, findings, repo=args.repo,
+                        dry_run=args.dry_run, record_only=args.record_only)
+        except (OSError, ValueError) as err:
+            print(f"post: nothing posted -- {err}")
+            return 2
     try:
         verdict = judge(json.load(sys.stdin), args.head, args.lane)
     except (ValueError, json.JSONDecodeError) as err:

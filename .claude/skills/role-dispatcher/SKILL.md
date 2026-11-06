@@ -87,8 +87,9 @@ single CI runner; raising it is a charter edit.
    - PR via `cardlang-pr-description`. `Closes #N`. When the item is
      listed in issue #143, the PR body's "For the reviewer" bullets name
      the trim per #143's own maintenance contract — the Dispatcher never
-     edits #143 itself. Then post the review's Review Record on the PR
-     (the review skill's "Output"), naming the head the review read.
+     edits #143 itself. Then post the review through its writer (the
+     review skill's "Output"): its findings as threads and its Review
+     Record, at the head the review read.
 6. **Arm, then answer.** After opening the PR, arm `tools/pr-watch.sh`
    in the background (review activity and the gate are independent
    signals, watched concurrently — never sequence "wait for CI, then
@@ -98,7 +99,7 @@ single CI runner; raising it is a charter edit.
    finding on the fix for a previous finding escalates the PR to the
    operator — say so in the PR and stand down. A fix push makes a head
    no review has read: run `cardlang-code-review` again at the new head
-   and post its Review Record, or let Codex review it (`@codex review`),
+   and post it through the writer, or let Codex review it (`@codex review`),
    before step 7, since the gate reads the review at the head that
    would merge. On a wake where the gate
    completed but no review has landed, re-arm in `reviews` mode.

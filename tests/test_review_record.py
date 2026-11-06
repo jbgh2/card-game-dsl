@@ -7,16 +7,18 @@ property:   `judge` passes a Merge Lane C or D pull request only when a
             Review Record naming it, or the Codex bot's review completed
             at it (ADR-0018) -- and every Review Record at that head
             satisfies the lane: Lane D, no CONFIRMED finding in any of
-            them; Lane C, every CONFIRMED finding in each filed, and one of
-            them a tier above Quick unless Codex reviewed the head; for
-            both, no record whose Phase-0 artifact gate is `absent`.
-            Neither a later record nor a Codex review clears a record's
-            findings. Every other comment set lands
+            them; Lane C, one of them a tier above Quick unless Codex
+            reviewed the head; for both, no record whose Phase-0 artifact
+            gate is `absent`. Neither a later record nor a Codex review
+            clears a record's findings. A finding's disposition is its
+            review thread's (ADR-0019), which the gate's thread clause
+            owns, so the record carries the count and never the
+            dispositions. Every other comment set lands
             in exactly one of the three failing outcomes, and a marker it
             cannot read is `refused`, never skipped.
 domain:     every tier crossed with every artifact-gate verdict, every lane
-            the gate judges, and the three findings shapes a record at the
-            head can carry (clean, all filed, one left open), and every
+            the gate judges, and the two findings shapes a record at the
+            head can carry (clean, CONFIRMED findings), and every
             Codex review state beside it (none, completed at the head,
             completed at an older head), with the passing cells authored as
             literal sets; beside the grid, the
@@ -30,9 +32,9 @@ domain:     every tier crossed with every artifact-gate verdict, every lane
 registry:   tiers: `tools.review_record.TIERS`; artifact-gate verdicts:
             `tools.review_record.ARTIFACT_GATES`; lanes:
             `tools.review_record.LANES`; outcomes:
-            `tools.review_record.OUTCOMES`; the review skill's written
-            vocabulary:
-            tests/test_review_record.py::test_the_skill_writes_the_vocabulary_the_gate_reads
+            `tools.review_record.OUTCOMES`; the record's writer, which the
+            review skill posts through:
+            tests/test_review_record.py::test_the_skill_posts_through_the_writer
 held by:    Derived and Pinned -- the gate derives the predicate from the
             pull request's own comments, bound to the head it reads, and
             this grid pins the derivation; the vocabulary is a `Literal`
@@ -40,17 +42,17 @@ held by:    Derived and Pinned -- the gate derives the predicate from the
             because the record arrives as text a reviewer wrote. Two
             residuals are Review-Enforced Prose because the record cannot
             carry them: which of Standard or Thorough a Lane C change
-            selects (the review skill's judgment of the delta), and that
-            findings short of CONFIRMED are filed (the record counts
-            CONFIRMED only). The gate's interpreter is the system `python3`,
+            selects (the review skill's judgment of the delta), and that a
+            record was written by the writer, which posts every finding
+            as a thread, rather than by hand. The gate's interpreter is the system `python3`,
             held by the Born-Green Pin that the module parses at 3.9.
 does not prove:  that the review a record describes actually ran, or ran
             honestly -- the gate reads a trusted author's claim, as edited,
             and binds it to a head, and a collaborator writing or editing a
             false record passes it, and a Codex review state proves only that
             the bot reported reviewing the head, not what it read;
-            nor that a filed issue number names an open issue about the
-            finding; nor that a review left as a pull-request review body,
+            nor that a thread's disposition reply is true; nor that a
+            Review Record left as a pull-request review body,
             rather than an issue comment, is read -- only issue comments are
             the record's channel.
 """
@@ -80,12 +82,12 @@ PASSING = frozenset(
         ("Thorough", "not-triggered", "D", "clean"),
         ("Standard", "present", "C", "clean"),
         ("Standard", "not-triggered", "C", "clean"),
-        ("Standard", "present", "C", "filed"),
-        ("Standard", "not-triggered", "C", "filed"),
+        ("Standard", "present", "C", "confirmed"),
+        ("Standard", "not-triggered", "C", "confirmed"),
         ("Thorough", "present", "C", "clean"),
         ("Thorough", "not-triggered", "C", "clean"),
-        ("Thorough", "present", "C", "filed"),
-        ("Thorough", "not-triggered", "C", "filed"),
+        ("Thorough", "present", "C", "confirmed"),
+        ("Thorough", "not-triggered", "C", "confirmed"),
     }
 )
 
@@ -94,15 +96,11 @@ PASSING = frozenset(
 PASSING_BESIDE_CODEX = PASSING | {
     ("Quick", "present", "C", "clean"),
     ("Quick", "not-triggered", "C", "clean"),
-    ("Quick", "present", "C", "filed"),
-    ("Quick", "not-triggered", "C", "filed"),
+    ("Quick", "present", "C", "confirmed"),
+    ("Quick", "not-triggered", "C", "confirmed"),
 }
 
-FINDINGS: dict[str, tuple[int, list[int]]] = {
-    "clean": (0, []),
-    "filed": (2, [1101, 1102]),
-    "open": (2, [1101]),
-}
+FINDINGS: dict[str, int] = {"clean": 0, "confirmed": 2}
 
 _ids = iter(range(1, 10**6))
 
@@ -130,7 +128,6 @@ def record_body(**fields: object) -> str:
         "head_sha": HEAD,
         "tier": "Standard",
         "confirmed": 0,
-        "filed": [],
         "artifact_gate": "not-triggered",
     }
     payload.update(fields)
@@ -175,8 +172,7 @@ GRID = [
 
 @pytest.mark.parametrize(("tier", "gate", "lane", "shape", "codex_state"), GRID)
 def test_grid(tier: str, gate: str, lane: str, shape: str, codex_state: str) -> None:
-    confirmed, filed = FINDINGS[shape]
-    body = record_body(tier=tier, artifact_gate=gate, confirmed=confirmed, filed=filed)
+    body = record_body(tier=tier, artifact_gate=gate, confirmed=FINDINGS[shape])
     comments = [comment(body)]
     sha = CODEX_STATES[codex_state]
     if sha is not None:
@@ -206,17 +202,16 @@ def test_record_at_older_head_is_stale_naming_both_heads() -> None:
     assert any(f"reviewed head {OLD[:12]}, merging head {HEAD[:12]}" in line for line in verdict.lines)
 
 
-@pytest.mark.parametrize("lane", rr.LANES)
 @pytest.mark.parametrize("clean_first", [True, False])
-def test_a_clean_record_never_clears_findings_at_the_same_head(lane: str, clean_first: bool) -> None:
+def test_a_clean_record_never_clears_findings_at_the_same_head(clean_first: bool) -> None:
     findings = comment(record_body(tier="Thorough", confirmed=3), created_at="2026-11-01T10:00:00Z")
     clean = comment(record_body(), created_at="2026-11-01T09:00:00Z" if clean_first else "2026-11-01T11:00:00Z")
-    assert rr.judge([clean, findings], HEAD, lane).outcome == "refused"
+    assert rr.judge([clean, findings], HEAD, "D").outcome == "refused"
 
 
 def test_lane_c_tier_comes_from_any_record_at_the_head() -> None:
     quick = comment(record_body(tier="Quick"))
-    full = comment(record_body(tier="Thorough", confirmed=2, filed=[1101, 1102]))
+    full = comment(record_body(tier="Thorough", confirmed=2))
     assert rr.judge([quick], HEAD, "C").outcome == "refused"
     assert rr.judge([quick, full], HEAD, "C").outcome == "pass"
     assert rr.judge([quick, full], HEAD, "D").outcome == "refused"
@@ -249,12 +244,7 @@ def test_record_from_an_author_without_write_access_is_not_read(association: str
         {"confirmed": -1},
         {"confirmed": True},
         {"confirmed": "0"},
-        {"filed": [0]},
-        {"filed": ["1101"]},
-        {"filed": [1101, 1101], "confirmed": 2},
-        {"filed": [True], "confirmed": 1},
-        {"filed": [1101], "confirmed": 0},
-        {"filed": 1101, "confirmed": 1},
+        {"filed": []},
         {"head_sha": "abc123"},
         {"head_sha": HEAD.upper()},
         {"extra": 1},
@@ -302,10 +292,9 @@ def test_a_codex_review_at_an_older_head_alone_is_stale_naming_both_heads(lane: 
     assert any(f"reviewed head {OLD[:12]}, merging head {HEAD[:12]}" in line for line in verdict.lines)
 
 
-@pytest.mark.parametrize("lane", rr.LANES)
-def test_a_codex_review_never_clears_a_records_findings(lane: str) -> None:
+def test_a_codex_review_never_clears_a_records_findings() -> None:
     comments = [codex(codex_body(HEAD, unresolved=False)), comment(record_body(tier="Thorough", confirmed=3))]
-    assert rr.judge(comments, HEAD, lane).outcome == "refused"
+    assert rr.judge(comments, HEAD, "D").outcome == "refused"
 
 
 @pytest.mark.parametrize("lane", rr.LANES)
@@ -360,9 +349,9 @@ def test_the_module_parses_at_the_gates_python() -> None:
     assert "from __future__ import annotations" in source
 
 
-def test_the_skill_writes_the_vocabulary_the_gate_reads() -> None:
+def test_the_skill_posts_through_the_writer() -> None:
+    # red under: the Output section describing the record's JSON for a hand to type
     skill = (Path(__file__).resolve().parents[1] / ".claude/skills/cardlang-code-review/SKILL.md").read_text()
     output = skill.split("## Output", 1)[1].split("\n## ", 1)[0]
-    assert rr.MARKER in output
-    for word in (*rr.TIERS, *rr.ARTIFACT_GATES, "head_sha", "tier", "confirmed", "filed", "artifact_gate"):
-        assert f"`{word}`" in output, word
+    assert "tools/review_record.py post" in output
+    assert "head_sha" not in output

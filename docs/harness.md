@@ -142,12 +142,12 @@ that would merge. Two records count as the review: the Review Records
 the `cardlang-code-review` skill posts at every tier (its "Output"
 section), and the review state Codex keeps in its summary comment, once
 Codex has completed a review at that head. Every Review Record at the
-head must satisfy the lane — Lane D no CONFIRMED finding, Lane C every
-CONFIRMED finding filed and, unless Codex reviewed the head, one record
-at Standard or Thorough, neither lane a record whose artifact gate is
-`absent`. Neither a later record nor a Codex review clears a record's
-findings, since a finding is fixed only by a new head. Codex's own
-findings are review threads, which the thread clause owns. No review at
+head must satisfy the lane — Lane D no CONFIRMED finding, Lane C, unless
+Codex reviewed the head, one record at Standard or Thorough, neither
+lane a record whose artifact gate is `absent`. Neither a later record
+nor a Codex review clears a record's findings, since a finding is fixed
+only by a new head. Both reviewers' findings are review threads, which
+the thread clause owns ("Review threads", below). No review at
 the head fails the gate, and so does a review only at an older head
 (`reviewed head X, merging head Y`); a Codex review state the gate
 cannot read, or Codex still running at the head, fails it too.
@@ -180,7 +180,11 @@ ledger of what has been handled. Two obligations, lane-invariant:
 
 The merge precondition, any lane: **zero unresolved threads**. Top-level
 review bodies and standalone PR comments have no resolved state; their
-reply is their record. Reviewer-specific protocols (Codex's thumbs
+reply is their record. So every finding arrives as a thread, whichever
+reviewer found it: Codex posts its own, and a `cardlang-code-review`
+pass posts one per finding through `tools/review_record.py post`, the
+writer that then posts its Review Record (ADR-0019; the review skill's
+"Output"). Reviewer-specific protocols (Codex's thumbs
 reactions) ride on top as courtesy; the thread reply-and-resolve is this
 repo's own record.
 

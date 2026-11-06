@@ -92,7 +92,7 @@ lane=$(echo "$lane_out" | awk -F': ' '/^lane:/ { print $2 }')
 case "$lane" in
   C|D)
     comments=$(gh api --paginate --slurp "repos/$REPO/issues/$N/comments") || unreadable "comments"
-    echo "$comments" | python3 "$(dirname "$0")/review_record.py" --head "$head" --lane "$lane" || fail=1
+    echo "$comments" | python3 "$(dirname "$0")/review_record.py" judge --head "$head" --lane "$lane" || fail=1
     ;;
   *) echo "review: Merge Lane $lane is the operator's button -- the record is not judged" ;;
 esac

@@ -268,38 +268,45 @@ present / absent; grid run against the merge base or not; witnesses
 replayed or not) even when it produced no finding. List cut findings one line each — a silent cap reads as "covered
 everything".
 
-**The Review Record.** Every review of a pull request, at every tier,
-ends by posting one PR comment (`gh pr comment <N> --body-file <file>`)
-whose first line is the record's marker, followed by the findings list
-above in human-readable form:
+**Posting the review: threads, then the Review Record.** Every review of
+a pull request, at every tier, posts its findings and its record through
+one writer, so this review's findings and Codex's reach the pull request
+the same way (ADR-0019):
 
-```
-<!-- cardlang-review-record:v1 {"head_sha": "<the full sha reviewed>", "tier": "Standard", "confirmed": 0, "filed": [], "artifact_gate": "not-triggered"} -->
+```bash
+python3 tools/review_record.py post --pr <N> --head <the full sha reviewed> \
+    --tier <Quick|Standard|Thorough> --artifact-gate <present|absent|not-triggered> findings.json
 ```
 
-- `head_sha` — the full 40-character head commit the review read
-  (`gh pr view <N> --json headRefOid`), never a branch name.
-- `tier` — the tier run: `Quick`, `Standard` or `Thorough`.
-- `confirmed` — the count of CONFIRMED findings at that head.
-- `filed` — the issue numbers filed for CONFIRMED findings; a CONFIRMED
-  finding is fixed by a new head, which takes its own review and its own
-  record, or filed here.
-- `artifact_gate` — the Phase-0 verdict: `present`, `absent`, or
-  `not-triggered` when the diff does not trip the audit.
+`findings.json` is the JSON array above, CONFIRMED and PLAUSIBLE only.
+The writer posts one review holding one thread per finding at the head
+the review read — on the finding's line when the diff can carry a
+comment there, otherwise on its file, and for a file outside the diff on
+the diff's first file, naming where the finding is. It then posts the
+Review Record, whose CONFIRMED count it derives from the same list. A
+clean review posts the record alone. `--dry-run` prints both and posts
+nothing. The writer posts nothing when the pull request has moved past
+the head the review read: a push after the review means the review runs
+again.
+
+Each thread is then handled by the thread rule (docs/harness.md, "Review
+threads"): a disposition reply — fixed, filed, refuted or escalated —
+and the responder resolves it. A CONFIRMED finding is fixed only by a
+new head, which takes its own review.
 
 `tools/merge-gate.sh` reads every record at the head that would merge
 (`tools/review_record.py` owns the reading and its closed vocabulary):
 Lane D passes when none carries a CONFIRMED finding; Lane C passes when
-every CONFIRMED finding is filed and one record ran Standard or
-Thorough, or Codex completed a review at that head; an `absent`
-artifact gate, a record only at an older head, or a word outside these
-fails the gate. A Codex review at the head is a review on record
-without a Review Record (docs/harness.md, "The Merge Lanes"). A later
-record never clears an earlier one's findings, nor does a Codex review:
-re-running the review at an unchanged head adds a record, it does not
-replace one. A pre-PR review — the Dispatcher's, before `gh pr create` —
-posts its record once the PR exists, and only if the head is still the
-one it read; a push after the record means the review runs again.
+one record ran Standard or Thorough, or Codex completed a review at that
+head; an `absent` artifact gate, a record only at an older head, or a
+record the writer could not have written fails the gate, and the
+thread clause fails it while any finding's thread is unresolved. A Codex
+review at the head is a review on record without a Review Record
+(docs/harness.md, "The Merge Lanes"). A later record never clears an
+earlier one's findings, nor does a Codex review: re-running the review
+at an unchanged head adds a record, it does not replace one. A pre-PR
+review — the Dispatcher's, before `gh pr create` — posts once the PR
+exists.
 
 ## Effort scaling
 
