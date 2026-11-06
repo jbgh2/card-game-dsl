@@ -31,7 +31,7 @@ review on record; every record at the head must also allow the lane.
 Two records are read, each bound to a head:
 
 * **The Review Record** -- the comment `post` writes, whose first line is
-  `<!-- cardlang-review-record:v1 {...} -->`. Only an author with write
+  `<!-- cardlang-review-record:v2 {...} -->`. Only an author with write
   access (`author_association` OWNER, MEMBER or COLLABORATOR) writes one;
   anyone else's marker is not a record. Every record naming the head is
   read, and a later one never clears an earlier one's findings, because a
@@ -91,7 +91,7 @@ FINDING_VERDICTS: tuple[str, ...] = get_args(FindingVerdict)
 REACHES: tuple[str, ...] = get_args(Reach)
 ANCHORS: tuple[str, ...] = get_args(Anchor)
 
-MARKER = "cardlang-review-record:v1"
+MARKER = "cardlang-review-record:v2"
 CODEX_MARKER = "codex-review-state:v1"
 CODEX_LOGIN = "chatgpt-codex-connector[bot]"
 TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
@@ -366,18 +366,18 @@ def review_payload(
     if not patches:
         raise ValueError("the pull request changes no file, so no thread can be anchored")
     first = next(iter(patches))
-    comments = []
+    threads: list[dict[str, Any]] = []
     for finding in findings:
         body = _thread_body(finding)
         if finding.file in patches:
             if finding.line is not None and finding.line in commentable_lines(patches[finding.file]):
-                comments.append({"path": finding.file, "line": finding.line, "side": "RIGHT", "body": body})
+                threads.append({"path": finding.file, "subject": "LINE", "line": finding.line, "side": "RIGHT",
+                                "body": body})
             else:
-                comments.append({"path": finding.file, "subject_type": "file", "body": body})
+                threads.append({"path": finding.file, "subject": "FILE", "body": body})
         else:
-            comments.append(
-                {"path": first, "subject_type": "file", "body": f"Outside this diff: `{_where(finding)}`.\n\n{body}"}
-            )
+            threads.append({"path": first, "subject": "FILE",
+                            "body": f"Outside this diff: `{_where(finding)}`.\n\n{body}"})
     confirmed = sum(f.verdict == "CONFIRMED" for f in findings)
     return {
         "commit_id": head,
@@ -386,7 +386,7 @@ def review_payload(
             f"`cardlang-code-review` at tier {tier} read head `{head[:12]}`: {len(findings)} finding(s), "
             f"{confirmed} CONFIRMED, one thread each. The Review Record follows as a comment."
         ),
-        "comments": comments,
+        "threads": threads,
     }
 
 
@@ -411,10 +411,67 @@ def record_text(head: str, tier: str, artifact_gate: str, findings: Sequence[Fin
 
 Gh = Callable[[list[str], Optional[str]], str]
 
+# The REST review endpoint takes no file-level comment, so every thread is
+# added to a pending review through GraphQL, and the review is submitted
+# only once all of them are in.
+_ADD_THREAD = (
+    "mutation($review: ID!, $path: String!, $body: String!, $line: Int, $side: DiffSide, "
+    "$subject: PullRequestReviewThreadSubjectType) { addPullRequestReviewThread(input: "
+    "{pullRequestReviewId: $review, path: $path, body: $body, line: $line, side: $side, "
+    "subjectType: $subject}) { thread { id } } }"
+)
+
 
 def _gh(args: list[str], stdin: Optional[str] = None) -> str:
     done = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, check=True)
     return done.stdout
+
+
+def _response(out: str) -> dict[str, Any]:
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _failure(err: subprocess.CalledProcessError) -> str:
+    return f"gh {' '.join(str(a) for a in err.cmd[1:5])} failed ({(err.stderr or '').strip()})"
+
+
+def _post_review(pr: int, review: dict[str, Any], repo: str, run: Gh) -> Optional[str]:
+    """Post the review's threads; the review's URL, or None with nothing left posted."""
+    reviews = f"repos/{repo}/pulls/{pr}/reviews"
+    try:
+        pending = _response(run(["api", "-X", "POST", reviews, "--input", "-"],
+                                json.dumps({"commit_id": review["commit_id"], "comments": []})))
+    except subprocess.CalledProcessError as err:
+        print(f"post: {_failure(err)} -- nothing posted (a pending review of yours on the pull request "
+              "blocks a new one: submit or delete it first)")
+        return None
+    review_id, node = pending.get("id"), pending.get("node_id")
+    if not isinstance(review_id, int) or not isinstance(node, str):
+        print("post: the pending review's id is unreadable -- nothing submitted; delete your pending review "
+              "on the pull request, then post again")
+        return None
+    try:
+        for thread in review["threads"]:
+            variables = {"review": node, "path": thread["path"], "body": thread["body"],
+                         "subject": thread["subject"], "line": thread.get("line"), "side": thread.get("side")}
+            run(["api", "graphql", "--input", "-"], json.dumps({"query": _ADD_THREAD, "variables": variables}))
+        submitted = _response(run(["api", "-X", "POST", f"{reviews}/{review_id}/events", "--input", "-"],
+                                  json.dumps({"event": review["event"], "body": review["body"]})))
+    except subprocess.CalledProcessError as err:
+        try:
+            run(["api", "-X", "DELETE", f"{reviews}/{review_id}"], None)
+            left = "the pending review is deleted"
+        except subprocess.CalledProcessError:
+            left = f"delete pending review {review_id} by hand"
+        print(f"post: {_failure(err)} -- nothing posted; {left}; post again")
+        return None
+    url = str(submitted.get("html_url") or f"review {review_id}")
+    print(f"post: {len(review['threads'])} thread(s) in {url}")
+    return url
 
 
 def post(
@@ -433,29 +490,31 @@ def post(
     record = record_text(head, tier, artifact_gate, findings)
     try:
         current = run(["pr", "view", str(pr), "--repo", repo, "--json", "headRefOid", "--jq", ".headRefOid"], None)
-        if current.strip() != head:
-            print(f"post: the review read {head[:12]}, the pull request is at {current.strip()[:12]} -- "
-                  "nothing posted; review the current head")
-            return 1
         review = None
         if not record_only:
             pages = json.loads(run(["api", "--paginate", "--slurp", f"repos/{repo}/pulls/{pr}/files"], None))
             patches = {f["filename"]: f.get("patch") for f in _flatten(pages)}
             review = review_payload(findings, patches, head, tier)
-        if dry_run:
-            print(json.dumps({"review": review, "record": record}, indent=2))
-            return 0
-        if review is not None:
-            posted = json.loads(run(["api", "-X", "POST", f"repos/{repo}/pulls/{pr}/reviews", "--input", "-"],
-                                    json.dumps(review)))
-            print(f"post: {len(review['comments'])} thread(s) in review {posted.get('html_url')}")
-        posted = json.loads(run(["api", "-X", "POST", f"repos/{repo}/issues/{pr}/comments", "--input", "-"],
-                                json.dumps({"body": record})))
-        print(f"post: Review Record {posted.get('html_url')}")
     except subprocess.CalledProcessError as err:
-        print(f"post: gh {' '.join(err.cmd[1:4])} failed ({(err.stderr or '').strip()}) -- nothing further posted"
-              + ("" if record_only else "; once any threads it did post are checked, rerun with --record-only"))
+        print(f"post: {_failure(err)} -- nothing posted")
         return 2
+    if current.strip() != head:
+        print(f"post: the review read {head[:12]}, the pull request is at {current.strip()[:12]} -- "
+              "nothing posted; review the current head")
+        return 1
+    if dry_run:
+        print(json.dumps({"review": review, "record": record}, indent=2))
+        return 0
+    if review is not None and _post_review(pr, review, repo, run) is None:
+        return 2
+    try:
+        posted = _response(run(["api", "-X", "POST", f"repos/{repo}/issues/{pr}/comments", "--input", "-"],
+                               json.dumps({"body": record})))
+    except subprocess.CalledProcessError as err:
+        again = "rerun with --record-only, since the threads are posted" if review is not None else "post again"
+        print(f"post: {_failure(err)} -- the Review Record is not posted; {again}")
+        return 2
+    print(f"post: Review Record {posted.get('html_url') or 'posted'}")
     return 0
 
 

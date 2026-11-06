@@ -51,5 +51,9 @@ judges Lane C's filed list; the thread clause holds every finding's
 disposition instead, on both lanes. Lane D still refuses any CONFIRMED
 finding at the head. A finding about a file outside the diff is anchored
 on the diff's first file, because GitHub accepts review comments only on
-changed files. A record written by hand still parses, and the review
+changed files. GitHub's REST review endpoint takes no file-level comment,
+so the writer adds every thread to a pending review through GraphQL and
+submits the review only once all of them are in; a failed post deletes
+the pending review and leaves no thread behind. The record's marker is
+`cardlang-review-record:v2`, since its vocabulary changed. A record written by hand still parses, and the review
 skill's "Output" is what keeps reviews on the writer.

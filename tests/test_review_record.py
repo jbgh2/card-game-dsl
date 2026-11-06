@@ -266,6 +266,11 @@ def test_a_record_missing_a_field_is_refused(missing: str, lane: str) -> None:
     assert rr.judge([comment(body)], HEAD, lane).outcome == "refused"
 
 
+def test_a_record_under_an_older_marker_version_is_not_read() -> None:
+    body = record_body().replace(rr.MARKER, "cardlang-review-record:v1")
+    assert rr.judge([comment(body), comment(record_body())], HEAD, "D").outcome == "pass"
+
+
 def test_a_marker_quoted_below_the_first_line_is_not_a_record() -> None:
     quoted = comment("The gate reads this:\n\n```\n" + record_body() + "```\n")
     assert rr.judge([quoted], HEAD, "D").outcome == "absent"

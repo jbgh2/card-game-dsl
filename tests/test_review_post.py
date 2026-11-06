@@ -11,8 +11,11 @@ property:   `post` turns one review's findings into one review thread
             finding lands on a thread: on its line when the diff can
             carry a comment there, on its file when the file is in the
             diff, and otherwise on the diff's first file, naming where it
-            is. A findings list outside the closed vocabulary is refused
-            before anything is posted.
+            is. The threads go into one pending review submitted only once
+            all of them are in, so a failed post leaves no thread behind,
+            and its message says which post failed and what to do next. A
+            findings list outside the closed vocabulary is refused before
+            anything is posted.
 domain:     every finding verdict crossed with every anchor a finding can
             take (a line the diff added, a context line, a changed file's
             line no hunk shows, a changed file with no line, a file
@@ -22,8 +25,8 @@ domain:     every finding verdict crossed with every anchor a finding can
             file with no patch); beside the grid, the misuse probes: each
             closed field given a word outside its vocabulary, a field
             missing, a field unknown, and the post sequence under a moved
-            head, a failed review post, a dry run, zero findings, and a
-            record posted alone.
+            head, each of its posts failing in turn, an unreadable
+            response, a dry run, zero findings, and a record posted alone.
 registry:   finding verdicts: `tools.review_record.FINDING_VERDICTS`;
             reachability: `tools.review_record.REACHES`; anchors:
             `tools.review_record.ANCHORS`; the record vocabulary the
@@ -37,10 +40,9 @@ held by:    Derived and Pinned -- the record's count and the thread set
             review skill's "Output"), since a hand can still write a
             record.
 does not prove:  that the findings list is the review's whole output, or
-            that GitHub renders a thread where the payload asks -- the
-            fake `gh` here records the request, and the live post on a
-            pull request is the witness for the response; nor that a
-            thread's disposition reply is true.
+            that GitHub accepts the requests -- the fake `gh` here records
+            them, and the live post on a pull request is the witness for
+            the API; nor that a thread's disposition reply is true.
 """
 
 from __future__ import annotations
@@ -114,17 +116,16 @@ def test_every_finding_lands_on_a_thread(verdict: str, where: tuple[str, int | N
     payload = rr.review_payload(findings, CHANGED, HEAD, "Standard")
     assert payload is not None
     assert payload["commit_id"] == HEAD and payload["event"] == "COMMENT"
-    (comment,) = payload["comments"]
-    assert verdict in comment["body"] and "the scenario" in comment["body"]
+    (thread,) = payload["threads"]
+    assert verdict in thread["body"] and "the scenario" in thread["body"]
     if anchor == "line":
-        assert comment == {**comment, "path": path, "line": line, "side": "RIGHT"}
-        assert "subject_type" not in comment
+        assert thread == {**thread, "path": path, "subject": "LINE", "line": line, "side": "RIGHT"}
     elif anchor == "file":
-        assert comment["path"] == path and comment["subject_type"] == "file"
-        assert "line" not in comment
+        assert thread["path"] == path and thread["subject"] == "FILE"
+        assert "line" not in thread
     else:
-        assert comment["path"] == "tools/a.py" and comment["subject_type"] == "file"
-        assert f"Outside this diff: `{path}" in comment["body"]
+        assert thread["path"] == "tools/a.py" and thread["subject"] == "FILE"
+        assert f"Outside this diff: `{path}" in thread["body"]
 
 
 def test_anchor_cells_span_the_anchors() -> None:
@@ -193,21 +194,21 @@ def test_the_record_written_is_the_record_the_gate_reads(
     findings = rr.parse_findings([finding(verdict=v) for v in verdicts])
     body = rr.record_text(HEAD, tier, gate, findings)
     comment = {"id": 1, "author_association": "OWNER", "body": body, "user": {"login": "jbgh2", "type": "User"}}
+    # red under: `_refusal` returning None, or `_meets_tier` returning True
     verdict = rr.judge([comment], HEAD, lane)
     confirmed = verdicts.count("CONFIRMED")
-    expected = rr._refusal(rr.Record(HEAD, tier, confirmed, gate, 1), lane) is None and rr._meets_tier(
-        rr.Record(HEAD, tier, confirmed, gate, 1), lane
-    )
+    expected = gate != "absent" and (confirmed == 0 if lane == "D" else tier != "Quick")
     assert verdict.outcome == ("pass" if expected else "refused"), verdict.lines
     assert any(f"{confirmed} CONFIRMED" in line for line in verdict.lines)
 
 
 class FakeGh:
-    """Records every `gh` call; answers the reads the writer makes."""
+    """Records every `gh` call; answers the reads and posts the writer makes."""
 
-    def __init__(self, head: str = HEAD, fail_on: str | None = None) -> None:
+    def __init__(self, head: str = HEAD, fail_on: str | None = None, garble: str | None = None) -> None:
         self.head = head
         self.fail_on = fail_on
+        self.garble = garble
         self.calls: list[tuple[list[str], str | None]] = []
 
     def __call__(self, args: list[str], stdin: str | None = None) -> str:
@@ -215,18 +216,23 @@ class FakeGh:
         joined = " ".join(args)
         if self.fail_on and self.fail_on in joined:
             raise subprocess.CalledProcessError(1, ["gh", *args], stderr="HTTP 422")
+        if self.garble and self.garble in joined:
+            return "not json"
         if args[:2] == ["pr", "view"]:
             return self.head + "\n"
         if "pulls/7/files" in joined:
             return json.dumps([[{"filename": f, "patch": p} for f, p in CHANGED.items()]])
-        if "pulls/7/reviews" in joined:
-            return json.dumps({"id": 99, "html_url": "https://example.invalid/review/99"})
-        return json.dumps({"id": 100, "html_url": "https://example.invalid/comment/100"})
+        if joined.endswith("pulls/7/reviews --input -"):
+            return json.dumps({"id": 99, "node_id": "PRR_99", "state": "PENDING"})
+        if "graphql" in joined:
+            return json.dumps({"data": {"addPullRequestReviewThread": {"thread": {"id": "PRRT_1"}}}})
+        return json.dumps({"id": 100, "html_url": "https://example.invalid/100"})
 
-    def posts(self) -> list[str]:
-        return [a[a.index("-X") + 2] for a, _ in self.calls if "-X" in a]
+    def writes(self) -> list[str]:
+        return [f"{a[a.index('-X') + 1]} {a[a.index('-X') + 2]}" if "-X" in a else "graphql"
+                for a, _ in self.calls if "-X" in a or "graphql" in a]
 
-    def payload(self, endpoint: str) -> Any:
+    def body(self, endpoint: str) -> Any:
         return next(json.loads(s or "") for a, s in self.calls if "-X" in a and a[a.index("-X") + 2].endswith(endpoint))
 
 
@@ -234,43 +240,93 @@ def post(gh: FakeGh, findings: list[dict[str, object]], **kw: Any) -> int:
     return rr.post(7, HEAD, "Standard", "not-triggered", rr.parse_findings(findings), repo="o/r", run=gh, **kw)
 
 
+TWO = [finding(), finding(verdict="PLAUSIBLE", file="cardlang/elsewhere.py", line=None)]
+POSTED = [
+    "POST repos/o/r/pulls/7/reviews",
+    "graphql",
+    "graphql",
+    "POST repos/o/r/pulls/7/reviews/99/events",
+    "POST repos/o/r/issues/7/comments",
+]
+
+
 def test_the_review_posts_its_threads_then_its_record() -> None:
     gh = FakeGh()
-    assert post(gh, [finding(), finding(verdict="PLAUSIBLE", line=41)]) == 0
-    assert gh.posts() == ["repos/o/r/pulls/7/reviews", "repos/o/r/issues/7/comments"]
-    assert len(gh.payload("reviews")["comments"]) == 2
-    assert '"confirmed": 1' in gh.payload("comments")["body"]
+    assert post(gh, TWO) == 0
+    assert gh.writes() == POSTED
+    assert gh.body("pulls/7/reviews") == {"commit_id": HEAD, "comments": []}
+    threads = [json.loads(s or "")["variables"] for a, s in gh.calls if "graphql" in a]
+    assert [(t["path"], t["subject"], t["line"], t["side"]) for t in threads] == [
+        ("tools/a.py", "LINE", 2, "RIGHT"),
+        ("tools/a.py", "FILE", None, None),
+    ]
+    assert all(t["review"] == "PRR_99" for t in threads)
+    assert gh.body("reviews/99/events")["event"] == "COMMENT"
+    assert '"confirmed": 1' in gh.body("issues/7/comments")["body"]
+
+
+@pytest.mark.parametrize(
+    ("fail_on", "written", "deleted"),
+    [
+        ("pulls/7/reviews --input", POSTED[:1], False),
+        ("graphql", POSTED[:2], True),
+        ("reviews/99/events", POSTED[:4], True),
+    ],
+)
+def test_a_failed_review_post_leaves_no_thread_and_no_record(
+    fail_on: str, written: list[str], deleted: bool, capsys: pytest.CaptureFixture[str]
+) -> None:
+    gh = FakeGh(fail_on=fail_on)
+    assert post(gh, TWO) == 2
+    assert gh.writes() == written + (["DELETE repos/o/r/pulls/7/reviews/99"] if deleted else [])
+    out = capsys.readouterr().out
+    assert "nothing posted" in out and "--record-only" not in out
+
+
+def test_a_failed_record_post_names_the_record_only_rerun(capsys: pytest.CaptureFixture[str]) -> None:
+    gh = FakeGh(fail_on="issues/7/comments")
+    assert post(gh, TWO) == 2
+    assert gh.writes() == POSTED
+    out = capsys.readouterr().out
+    assert "the Review Record is not posted" in out and "--record-only" in out
+
+
+def test_an_unreadable_pending_review_submits_nothing(capsys: pytest.CaptureFixture[str]) -> None:
+    gh = FakeGh(garble="pulls/7/reviews --input")
+    assert post(gh, TWO) == 2
+    assert gh.writes() == POSTED[:1]
+    assert "pending review" in capsys.readouterr().out
+
+
+def test_an_unreadable_submit_response_still_posts_the_record() -> None:
+    gh = FakeGh(garble="events")
+    assert post(gh, TWO) == 0
+    assert gh.writes() == POSTED
 
 
 def test_a_moved_head_posts_nothing() -> None:
     gh = FakeGh(head=OLD)
     assert post(gh, [finding()]) == 1
-    assert gh.posts() == []
-
-
-def test_a_failed_review_post_posts_no_record() -> None:
-    gh = FakeGh(fail_on="pulls/7/reviews")
-    assert post(gh, [finding()]) == 2
-    assert gh.posts() == ["repos/o/r/pulls/7/reviews"]
+    assert gh.writes() == []
 
 
 def test_a_clean_review_posts_only_its_record() -> None:
     gh = FakeGh()
     assert post(gh, []) == 0
-    assert gh.posts() == ["repos/o/r/issues/7/comments"]
-    assert '"confirmed": 0' in gh.payload("comments")["body"]
+    assert gh.writes() == POSTED[-1:]
+    assert '"confirmed": 0' in gh.body("issues/7/comments")["body"]
 
 
 def test_a_dry_run_posts_nothing() -> None:
     gh = FakeGh()
-    assert post(gh, [finding()], dry_run=True) == 0
-    assert gh.posts() == []
+    assert post(gh, TWO, dry_run=True) == 0
+    assert gh.writes() == []
 
 
 def test_a_record_posted_alone_posts_no_threads() -> None:
     gh = FakeGh()
-    assert post(gh, [finding()], record_only=True) == 0
-    assert gh.posts() == ["repos/o/r/issues/7/comments"]
+    assert post(gh, TWO, record_only=True) == 0
+    assert gh.writes() == POSTED[-1:]
 
 
 @pytest.mark.parametrize(("tier", "gate"), [("Light", "present"), ("Quick", "skipped")])
