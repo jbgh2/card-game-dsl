@@ -371,12 +371,10 @@ decision: the guard demands a clear path (`between(from, to)` empty —
 a class-2 query over declared data), not a per-step decision chain.
 Draughts multi-jumps are the opposite: each hop **is** a decision, and
 the `turns` form's `again` axis ([decisions.md](../decisions.md) "The
-`turns` form") plus a position-typed chain-anchor state variable
-(public, as all state is) expresses "same piece continues" —
-position-typed `state` is currently **rejected surface** (a recorded
-guarded residual, issue #111); the Owner Guard lifts at stage 5, whose Barrage shuttle
-rule is its first forcing witness, and the chain anchor reuses the
-lift. Mandatory capture is the rulebook's own branch: `if can_jump(t)
+`turns` form") plus a chain-anchor state variable typed by the board's
+`cell` domain (`chain_from : cell? = none`, public, as all state is)
+expresses "same piece continues". The chain anchor is the lift's first
+witness, and Barrage's shuttle rule reuses it. Mandatory capture is the rulebook's own branch: `if can_jump(t)
 { offer to t one of [jump] } else { offer to t one of [step] }`, with
 `can_jump` a named function over the board -- one scan per turn, the
 branch the oracle's `LegalActions()` takes. A rule binds at the trick
@@ -576,8 +574,8 @@ does not move.
    question's recorded residual.
 5. **Stratego, Barrage variant** (10×10 with lakes; 8 pieces per side:
    Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb; two-square
-   rule in scope — its shuttle tracking is the first forcing witness
-   for position-typed state, whose recorded Owner Guard lifts here — chase
+   rule in scope -- its shuttle tracking reuses the cell-typed state
+   variable the draughts chain anchor lifts -- chase
    rule scoped out and named in the entry; **no
    native oracle** — verified absent from OpenSpiel; DeepNash was
    never open-sourced). The moat rung: C3 attribute-level projections
@@ -615,17 +613,24 @@ does not move.
    truncation point
    (`tests/test_differential_nine_mens_morris.py`), not a rule of the
    game.
-8. **English draughts** (8×8, 12 men; captures mandatory, chosen jump
-   sequences completed, crowning ends the move; the federation's draw
-   in its automatic form, a counter reset by any capture and by any
-   uncrowned man's move and drawn at eighty plies, while the oracle
-   `checkers` implements forced captures and a forty-ply capture-only
-   draw kept in the harness). Adds mandatory capture as an `offer`
-   behind an `if` over a move-existence function (`any dir where`),
-   jump triples,
-   multi-jump chains on the `again` axis, promotion, counter-based
-   draw state. English over International deliberately: no
-   maximum-capture optimization, so class 7 stays unwitnessed.
+8. **English draughts** (8x8, 12 men; oracle `checkers`; in the corpus,
+   [games/english-draughts.md](../games/english-draughts.md)). Adds
+   mandatory capture as the rulebook's own branch, an `offer` of jumps
+   behind an `if` over the move-existence function `can_jump`
+   (`any cell where any dir where jump_ok(...)`), the other branch
+   offering steps; the continuing capture on the `turns` form's `again`
+   axis, its piece remembered in the square-typed state variable
+   `chain_from : cell? = none` that the jump's When Clause reads;
+   promotion as a supply swap, the crowned man to its reserve and a king
+   from `kings[actor]` onto its square, which ends the move; the loss
+   written by the move that leaves the opponent no legal move
+   (`can_move`); and the federation's draw in its automatic form, a
+   counter reset by any capture and by any uncrowned man's move and read
+   at eighty plies in the ring's `until`. The oracle's forty-ply
+   capture-free draw is the native differential's truncation point
+   (`tests/test_differential_english_draughts.py`), not a rule of the
+   game. English over International deliberately: no maximum-capture
+   optimization, so class 7 stays unwitnessed.
 
 ### 3.3 Coverage
 
@@ -642,7 +647,7 @@ that forces it; every rung earns at least one):
 | Attribute projections (C3), anonymous identity (C6), combat probe | | | | | ● | | | |
 | Hex rhombus (declared adjacency, seat borders), `connected` fixed point (class 5), the Set Form | | | | | | ● | | |
 | Enumerated graph, phase-shift, declared mills + removal decision, blockade loss | | | | | | | ● | |
-| Mandatory capture as an `offer` behind an `if` over a move-existence function (`any dir where`), jump triples, `again` chains, promotion, draw counters | | | | | | | | ● |
+| Mandatory capture as an `offer` behind an `if` over a move-existence function (`any dir where`), `again` chains anchored on a square-typed state variable, promotion as a supply swap, draw counters | | | | | | | | ● |
 | Differential oracle | ● | ● | ● | ● | — | ● | ● | ● |
 
 Deliberately **not** on the ladder, with reasons recorded so they are
@@ -732,10 +737,9 @@ parse them.
 - **Stage 5 — the moat workstream.** C3 attribute-level emission
   classes + C6 anonymous-persistent movement identity, with the
   partition-proof battery extended **first** as the acceptance bar.
-  Also lifts the position-typed `state` Owner Guard (a recorded residual):
-  the two-square shuttle rule tracks the mover's previous from/to,
-  the Owner Guard's first forcing witness; draughts' chain anchor reuses the
-  lift at stage 7. Witness: Barrage. Explicitly a moat-level event
+  The two-square shuttle rule tracks the mover's previous from/to in
+  cell-typed state variables, the lift draughts' chain anchor makes.
+  Witness: Barrage. Explicitly a moat-level event
   with its own sign-off.
 - **Stage 6 — fixed points.** `connected` as a bounded Builtin with
   deterministic frontier order; `region` when a game needs one.
@@ -770,11 +774,12 @@ questions, not silently deciding them:
   selecting a `BOARDS` family; and a bare `a1` stays a name, not a minted
   cell constant (cell literals are a recorded residual,
   issue #111). One-spelling-per-concept held throughout.
-- **Position-typed state**: currently rejected surface with a
-  recorded residual (issue #111); stage 5 lifts it against its first witness
-  (Barrage's two-square tracking), and the draughts chain anchor
-  reuses it — public like all state, with the state-type set growing
-  by declared position domains.
+- **Position-typed state**: a `state` variable may be typed by the
+  board's named-member domain, the draughts chain anchor its first
+  witness and Barrage's two-square tracking its second -- public like
+  all state; an integer position domain stays no `state` type
+  ([decisions.md](../decisions.md), "Position domains and positional
+  zones").
 - **Repetition history** -- out: a draw rule is a counter, a cyclic line
   ends at the bound (decisions.md, "Game length as a declared
   contract"), and a repetition rule, when a witness forces it, is
@@ -787,7 +792,7 @@ questions, not silently deciding them:
 - **The positional residuals this ladder does not lift**: the landed
   positional machinery is this design's substrate (§2.2), and the
   ladder lifts exactly three of its recorded Owner Guards (quantifiers and
-  iteration at stage 2, position-typed state at stage 5). The others
+  iteration at stage 2, position-typed state at stage 7). The others
   stay guarded on their own witnesses — the positional slice movement
   on Spider, the position-family gather on a first gathering layout
   (issue #111) — and nothing here re-sequences them.

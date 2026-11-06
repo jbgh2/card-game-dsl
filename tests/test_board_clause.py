@@ -419,12 +419,13 @@ def test_duplicate_board_clause_is_rejected() -> None:
     )
 
 
-# --- position-typed state stays guarded (KNOWN_TYPE_NAMES unchanged) -----------
+# --- a cell-typed state variable names no cell literal; a cell-indexed one stays guarded
 
 
-def test_cell_typed_state_variable_is_rejected() -> None:
-    # `foo : cell` -- a position domain is not a declarable state TYPE.
-    assert "unknown type 'cell' in declaration of 'foo'" in _reject(
+def test_cell_typed_state_default_names_no_cell_literal() -> None:
+    # `foo : cell = a1` -- the type is admitted, and `a1` is an unknown name, not
+    # a cell literal (issue #111).
+    assert "unresolved name 'a1'" in _reject(
         board_game(state="    result[player] : Integer = 0\n    foo : cell = a1\n")
     )
 

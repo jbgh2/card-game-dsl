@@ -350,6 +350,7 @@ def test_refusing_generator_refuses_every_draw() -> None:
 CHANCE_FREE_CORPUS: frozenset[str] = frozenset(
     {
         "cardlang_breakthrough",
+        "cardlang_english_draughts",
         "cardlang_hex",
         "cardlang_nine_mens_morris",
         "cardlang_tic_tac_toe",
