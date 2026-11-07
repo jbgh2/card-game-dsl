@@ -86,9 +86,11 @@ perfect recall." That is false of the engine. Consider this sequence:
 
 At the second decision, nothing in the seat's information state records what
 it saw at the first. An assignment emits no observation event, and the
-information state renders only the current value. The model predicted this
-before any engine run (`state_recall_forgets`), and `probe_state_recall.py`
-reproduces it in the real engine:
+information state renders only the current value. The gap surfaced while the
+model's definitions were being written: stating perfect recall exactly, and
+deciding what an assignment emits, exposed it before any proof existed. The
+engine run (`probe_state_recall.py`) confirmed it, and only after that was it
+encoded in Coq as `state_recall_forgets`:
 
 ```
 seed 0 first : ...|state:flag=0;...|obs:('move', 'deck', 1, 'hand[1]', 1);('asked', 'peek', 'choose', 1, None)
