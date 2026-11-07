@@ -14,8 +14,8 @@ diff, and otherwise on the diff's first file naming where it is -- so a
 finding's disposition is its thread's, exactly as for Codex (ADR-0019;
 docs/harness.md, "Review threads"). The Review Record follows, its
 CONFIRMED count derived from the same list. Nothing is posted when the
-pull request is no longer at the head the review read, and nothing
-further once a post fails.
+pull request is not at the head the review read, both before and after
+the diff is read, and nothing further once a post fails.
 
 `tools/merge-gate.sh` pipes a pull request's issue comments to `judge`
 (the `gh api --paginate --slurp` listing) with the head it read and the
@@ -488,18 +488,21 @@ def post(
 ) -> int:
     """Post the review's threads, then its record; 0 posted, 1 not posted, 2 a post failed."""
     record = record_text(head, tier, artifact_gate, findings)
+    view = ["pr", "view", str(pr), "--repo", repo, "--json", "headRefOid", "--jq", ".headRefOid"]
     try:
-        current = run(["pr", "view", str(pr), "--repo", repo, "--json", "headRefOid", "--jq", ".headRefOid"], None)
+        heads = [run(view, None).strip()]
         review = None
         if not record_only:
             pages = json.loads(run(["api", "--paginate", "--slurp", f"repos/{repo}/pulls/{pr}/files"], None))
+            heads.append(run(view, None).strip())
             patches = {f["filename"]: f.get("patch") for f in _flatten(pages)}
             review = review_payload(findings, patches, head, tier)
     except subprocess.CalledProcessError as err:
         print(f"post: {_failure(err)} -- nothing posted")
         return 2
-    if current.strip() != head:
-        print(f"post: the review read {head[:12]}, the pull request is at {current.strip()[:12]} -- "
+    moved = next((h for h in heads if h != head), None)
+    if moved is not None:
+        print(f"post: the review read {head[:12]}, the pull request is at {moved[:12]} -- "
               "nothing posted; review the current head")
         return 1
     if dry_run:

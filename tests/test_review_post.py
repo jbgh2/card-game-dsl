@@ -7,7 +7,8 @@ property:   `post` turns one review's findings into one review thread
             then the Review Record the gate reads, whose CONFIRMED count
             is derived from the same findings list (ADR-0019). It posts
             nothing when the pull request's head is not the head the
-            review read, and nothing further once a post fails. Every
+            review read, read both before and after the diff, and nothing
+            further once a post fails. Every
             finding lands on a thread: on its line when the diff can
             carry a comment there, on its file when the file is in the
             diff, and otherwise on the diff's first file, naming where it
@@ -24,8 +25,9 @@ domain:     every finding verdict crossed with every anchor a finding can
             marker, a second hunk, a header with its count omitted, a
             file with no patch); beside the grid, the misuse probes: each
             closed field given a word outside its vocabulary, a field
-            missing, a field unknown, and the post sequence under a moved
-            head, each of its posts failing in turn, an unreadable
+            missing, a field unknown, and the post sequence under a head
+            moved before or during the diff read, each of its posts
+            failing in turn, an unreadable
             response, a dry run, zero findings, and a record posted alone.
 registry:   finding verdicts: `tools.review_record.FINDING_VERDICTS`;
             reachability: `tools.review_record.REACHES`; anchors:
@@ -205,8 +207,11 @@ def test_the_record_written_is_the_record_the_gate_reads(
 class FakeGh:
     """Records every `gh` call; answers the reads and posts the writer makes."""
 
-    def __init__(self, head: str = HEAD, fail_on: str | None = None, garble: str | None = None) -> None:
+    def __init__(
+        self, head: str = HEAD, fail_on: str | None = None, garble: str | None = None, push_during_diff: bool = False
+    ) -> None:
         self.head = head
+        self.push_during_diff = push_during_diff
         self.fail_on = fail_on
         self.garble = garble
         self.calls: list[tuple[list[str], str | None]] = []
@@ -221,6 +226,8 @@ class FakeGh:
         if args[:2] == ["pr", "view"]:
             return self.head + "\n"
         if "pulls/7/files" in joined:
+            if self.push_during_diff:
+                self.head = OLD
             return json.dumps([[{"filename": f, "patch": p} for f, p in CHANGED.items()]])
         if joined.endswith("pulls/7/reviews --input -"):
             return json.dumps({"id": 99, "node_id": "PRR_99", "state": "PENDING"})
@@ -308,6 +315,13 @@ def test_a_moved_head_posts_nothing() -> None:
     gh = FakeGh(head=OLD)
     assert post(gh, [finding()]) == 1
     assert gh.writes() == []
+
+
+def test_a_head_moved_during_the_diff_read_posts_nothing(capsys: pytest.CaptureFixture[str]) -> None:
+    gh = FakeGh(push_during_diff=True)
+    assert post(gh, [finding()]) == 1
+    assert gh.writes() == []
+    assert f"the pull request is at {OLD[:12]}" in capsys.readouterr().out
 
 
 def test_a_clean_review_posts_only_its_record() -> None:
