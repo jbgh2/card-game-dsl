@@ -802,15 +802,23 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
     else:
         members = elements(evaluate(e.source, ctx))
         domain = ctx.rs.position_domains.get(e.binder)
-        stray = next((m for m in members if m not in domain), None) if domain is not None else None
-        if stray is not None:
-            # A source is typed by its members' type, which an integer domain
-            # shares with every Integer, so a non-member is refused here.
-            raise OwnerGuardError(
-                f"`{n.collection_query_head(e.kind, e.spelled)} in …` ranges over "
-                f"`{e.binder}`'s members, but its source holds {stray!r}, which is no "
-                f"`{e.binder}` of this game"
-            )
+        head = n.collection_query_head(e.kind, e.spelled)
+        # An optional fits where its base is read (`types.coercible`), and a
+        # source is typed by its members' type, which an integer domain shares
+        # with every Integer: `none` and a non-member are both refused here.
+        if domain is not None:
+            for m in members:
+                if m is None:
+                    raise OwnerGuardError(
+                        f"`{head} in …` ranges over `{e.binder}`'s members, but its "
+                        f"source holds none: an optional value put in it is none here "
+                        f"-- test it with `is not none` before putting it in the source"
+                    )
+                if m not in domain:
+                    raise OwnerGuardError(
+                        f"`{head} in …` ranges over `{e.binder}`'s members, but its "
+                        f"source holds {m!r}, which is no `{e.binder}` of this game"
+                    )
     results = (evaluate(e.where, ctx.with_local(e.binder, m)) for m in members)
     match e.kind:
         case "any":

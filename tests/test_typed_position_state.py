@@ -39,8 +39,8 @@ domain:          GRID D, the declaration: the state type -- every value type
                  play: the scalar anchor and the per-seat store end to end,
                  and a `none` square reaching each route that needs a
                  square -- a zone subscript, a move's destination, a user
-                 function's `cell` parameter, a per-seat key, a Builtin --
-                 each with its named fix played. A library's `state { }`
+                 function's `cell` parameter, a per-seat key, a Builtin, a
+                 collection form's source -- each with its named fix played. A library's `state { }`
                  and `requires` rows are a different domain: a library
                  declares no board, its type slot admits the value types
                  (`resolve._library_slot_names`), and a `requires` row
@@ -563,6 +563,14 @@ NONE_AT_PLAY: list[tuple[str, str, str, tuple[str, ...], str]] = [
         "    if any dir where has_step(last_at, dir, 0) { n := 1 }",
         ("`has_step` was given none where it needs a `cell`", "test it with `is none` before passing it"),
         "    if last_at is not none { if any dir where has_step(last_at, dir, 0) { n := 1 } }",
+    ),
+    (
+        "collection-form-source",
+        _ANCHOR,
+        "    if any cell in [last_at] where true { n := 1 }",
+        ("`any cell in …` ranges over `cell`'s members, but its source holds none",
+         "test it with `is not none` before putting it in the source"),
+        "    if last_at is not none { if any cell in [last_at] where true { n := 1 } }",
     ),
 ]
 

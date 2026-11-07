@@ -3587,8 +3587,8 @@ where P` would read two ways). A collection form's source is a collection
 of its noun's members: a collection of cells or a line for `cell`, of
 lines for `line` (a collection noun only where the game has a board), of
 the domain's Integers for an integer domain, whose type every Integer
-shares, so a source holding a non-member is refused at play, at the
-query. A card zone is no such source, and a zone named under a noun that
+shares, so a source holding a non-member, or `none`, is refused at play,
+at the query. A card zone is no such source, and a zone named under a noun that
 is no position domain is refused naming `cards in <zone> where <pred>`. A
 membership's right side sits below the query forms, so `at in cells where
 <pred>` reads as the collection set over `at`; where `at` names a value
