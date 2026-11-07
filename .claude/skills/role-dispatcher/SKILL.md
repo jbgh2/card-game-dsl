@@ -87,7 +87,9 @@ single CI runner; raising it is a charter edit.
    - PR via `cardlang-pr-description`. `Closes #N`. When the item is
      listed in issue #143, the PR body's "For the reviewer" bullets name
      the trim per #143's own maintenance contract — the Dispatcher never
-     edits #143 itself.
+     edits #143 itself. Then post the review through its writer (the
+     review skill's "Output"): its findings as threads and its Review
+     Record, at the head the review read.
 6. **Arm, then answer.** After opening the PR, arm `tools/pr-watch.sh`
    in the background (review activity and the gate are independent
    signals, watched concurrently — never sequence "wait for CI, then
@@ -95,10 +97,16 @@ single CI runner; raising it is a charter edit.
    per the thread rule (docs/harness.md, "Review threads"): every thread
    gets a disposition reply with evidence, the responder resolves, and a
    finding on the fix for a previous finding escalates the PR to the
-   operator — say so in the PR and stand down. On a wake where the gate
+   operator — say so in the PR and stand down. A fix push makes a head
+   no review has read: run `cardlang-code-review` again at the new head
+   and post it through the writer, or let Codex review it (`@codex review`),
+   before step 7, since the gate reads the review at the head that
+   would merge. On a wake where the gate
    completed but no review has landed, re-arm in `reviews` mode.
 7. **Merge path.** Run `tools/merge-gate.sh <PR>`. Exit 0: merge with a
-   merge commit and delete the branch (releasing the Lease). Anything
+   merge commit bound to the head the gate printed (`gh pr merge <PR>
+   --merge --delete-branch --match-head-commit <head>`), releasing the
+   Lease. Anything
    else: post the gate's evidence block as a PR comment so the operator
    sees exactly what stands between the PR and green, and leave it.
 8. **Report** to the invoking context: taken, produced (PR numbers),
