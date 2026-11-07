@@ -73,7 +73,7 @@ Counterexamples, computed:
 
 ## Findings
 
-### 1. Public state variables can break perfect recall (new)
+### 1. Public state variables can break perfect recall (issue #1041)
 
 `docs/decisions.md` states that "`forget` is the only operation that breaks
 perfect recall." That is false of the engine. Consider this sequence:

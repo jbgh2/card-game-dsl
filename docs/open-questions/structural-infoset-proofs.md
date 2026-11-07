@@ -199,12 +199,20 @@ checklist for resolving this question.
   frames only, every phase frame standing where the seat is asked —
   mid-round mechanic state is
   [round-state-in-information-states](round-state-in-information-states.md).
-- **Perfect recall over histories.** Information sets are functions of the
-  observation *log*, not the current snapshot — true by construction (the
-  log is embedded verbatim in the information state) and pinned by the
-  append-only proof. Worth adding: paired-line probes — two lines differing
-  in an observation a player received must yield that player different
-  information states.
+- **Perfect recall over histories.** Every history in one information set
+  carries the same sequence of the seat's own earlier information states.
+  *Partial:* the log half holds by construction, since the log is embedded
+  verbatim in the information state, and the append-only proof pins it. The
+  public-state half does not hold. The information state renders a state
+  variable's current value, and an assignment emits no observation event, so
+  a variable that showed a seat something it cannot otherwise see, and is
+  overwritten before that seat's next decision, is forgotten (issue #1041;
+  witness `experiments/infoset_proofs/witnesses/state_recall.cardlang`).
+  An append-only log does not catch this, and neither does any
+  comparison taken only at the pause. Worth adding: paired-line probes —
+  two lines differing in an observation a player received must yield that
+  player different information states — and a comparison of earlier
+  decisions across two worlds the seat cannot tell apart at the pause.
 - **Seed and undrawn-randomness non-observability.** No information state
   may be sensitive to the root chance seed beyond what dealt-and-observed
   cards already reveal, nor to rng draws not yet made. *Pinned structurally per game:* replacing
