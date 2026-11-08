@@ -30,7 +30,8 @@ Assumes:      every diagnostic a pass collects carries the span of the text it
 Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               its diagnostics, `raise_where_written` the only way a library
               checked alone raises its own, and `tell` the one place a
-              diagnostic's file is decided and its notes made. The words
+              diagnostic's file is decided and its notes made; a refusal
+              it tells again (`_retold`) keeps the Near Misses it offers. The words
               naming a library or its definitions in any sentence are made
               here. A refusal carrying a route is told
               at the route's game text, with its crossing kind's sentence
@@ -211,10 +212,8 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
                     certificate.reached.get(_key(origin)) if origin is not None else None
                 )
                 if witness is not None and origin is not None:
-                    moved = Diagnostic(
-                        d.severity,
-                        d.for_game or _certified(d.message, origin, witness),
-                        lines[library],
+                    moved = _retold(
+                        d, d.for_game or _certified(d.message, origin, witness), lines[library]
                     )
                 elif not certificate.proven:
                     unproven.setdefault(library, lines[library])
@@ -297,7 +296,7 @@ def _bare(
     notes = noted(raised_at + stands_on)
     if d.route is None and d.for_game is None and not d.stands_on and not notes:
         return d
-    return Diagnostic(d.severity, d.message, d.span, notes=notes)
+    return _retold(d, d.message, d.span, notes)
 
 
 def _note(
@@ -382,17 +381,26 @@ def cite_where(where: str, at: Span | None) -> LibraryCitation:
     return LibraryCitation(where, at)
 
 
+def _retold(
+    d: Diagnostic, message: str, span: Span | None, notes: tuple[Note, ...] = ()
+) -> Diagnostic:
+    """`d` told again, in `message` at `span` with `notes`: what it refuses,
+    and the Near Misses it offers, unchanged; the route, the game's sentence
+    and the library text it stood on spent here."""
+    return Diagnostic(d.severity, message, span, notes=notes, near_misses=d.near_misses)
+
+
 def _routed(d: Diagnostic) -> Diagnostic:
     route = d.route
     assert route is not None
     if d.for_game is not None:
-        return Diagnostic(d.severity, d.for_game, route.at)
+        return _retold(d, d.for_game, route.at)
     sentence = FIX_TABLE[route.kind]
     message = d.message
     if sentence is not None:
         fix = None if route.fix is None else rendered(route.fix)[0]
         message += ". " + sentence.format(name=route.name, library=route.library, fix=fix)
-    return Diagnostic(d.severity, message, route.at)
+    return _retold(d, message, route.at)
 
 
 def _certified(message: str, origin: n.LibraryOrigin, witness: str) -> str:

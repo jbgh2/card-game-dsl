@@ -409,6 +409,7 @@ from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
     COLLECTION_TYPE_CONSTRUCTOR,
     declared_names,
+    states_declared_in,
     ambiguous_read_names,
     declaring_phases,
     descendant_redeclarations,
@@ -444,6 +445,7 @@ from cardlang.diagnostics import (
     Sentence,
     Severity,
     Span,
+    near_misses,
     rendered,
 )
 from cardlang.domains import (
@@ -465,7 +467,7 @@ from cardlang.libraries import library_names, load_library
 from cardlang.runtime.delegation import CHOOSER_HELPER, SOURCE_HELPER
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import content_kind_clause, content_noun
-from cardlang.stdlib.boards import BoardEntry, board_entry, board_spelling
+from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry, board_spelling
 from cardlang.stdlib.enums import (
     SEAT_DIRECTION_VALUES,
     enum_values,
@@ -1521,10 +1523,12 @@ def _apply_uses(
             continue
         if use.name not in available:
             known = ", ".join(sorted(available)) or "none"
-            bag.error(
+            bag.unknown(
                 "unknown " + cite_library(use.name, None)
                 + f" — `uses` names a family library in docs/libraries/ "
                 f"(available: {known})",
+                use.name,
+                available,
                 use.span,
             )
             continue
@@ -3683,11 +3687,14 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     for ref in reach.unresolved:
         what = _library_own_name_is(library, ref.name)
         if what is None:
-            bag.error(
+            slots = _library_slot_names(library)
+            bag.unknown(
                 cite_library(library.name, ref.span) + f" reads '{ref.name}', which is neither in "
                 f"its `requires` contract nor defined in the library — add it to "
                 f"`requires {{ }}` if the including game must declare it, or move "
                 f"the definition that needs it into the game",
+                ref.name,
+                slots["state"] | slots["zone"] | slots["enum_value"],
                 ref.span,
             )
         else:
@@ -3718,12 +3725,14 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 call.span,
             )
         elif what is None:
-            bag.error(
+            bag.unknown(
                 cite_library(library.name, call.span) + f" calls '{call.func}', which is neither "
                 f"defined in the library nor a native function — contract for it "
                 f"with `{call.func}(<parameter> : <type>, …) : <result type>` in "
                 f"`requires {{ }}` so the including game defines it, or keep the "
                 f"definition that needs it in the game",
+                call.func,
+                _library_slot_names(library)["function"],
                 call.span,
             )
         elif what.kind == "primitive":
@@ -3775,12 +3784,14 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 getattr(leak.node, "span", None),
             )
             continue
-        bag.error(
+        bag.unknown(
             cite_library(library.name, getattr(leak.node, "span", None)) + f" names the "
             f"{_NAMESPACE_NOUN[leak.namespace]} '{leak.name}', which the library "
             f"does not have — it would resolve against whichever game imports "
             f"this, so the library is not self-contained: "
             f"{_NAMESPACE_ADVICE[leak.namespace]}",
+            leak.name.removesuffix("?"),
+            _library_slot_names(library).get(leak.namespace, frozenset()),
             getattr(leak.node, "span", None),
         )
     # A PROVIDED default reaching the contract is in scope for the general
@@ -4276,9 +4287,13 @@ def _check_definition_requirement(
                 if isinstance(want, n.FunctionContract) and want.name == "card_points"
                 else ""
             )
-            bag.error(
+            bag.unknown(
                 head + f", which game '{game.name}' does not define — add "
                 + _definition_template(want) + table,
+                want.name,
+                {f.name for f in game.functions}
+                | {m.name for m in game.move_types}
+                | {p.name for p in game.procedures},
                 use.span,
             )
         return None
@@ -4399,10 +4414,12 @@ def _check_zone_requirement(
                 use.span,
             )
         else:
-            bag.error(
+            bag.unknown(
                 cite_library(library.name, want.span) + f" requires zone " + cite_where(f"`{spelled}`", want.span) + f", which "
                 f"game '{game.name}' does not declare — add it to the game's "
                 f"`zones {{ }}` block",
+                want.name,
+                {z.name for z in game.zones},
                 use.span,
             )
         return
@@ -4617,10 +4634,12 @@ def _check_requires(
                     use.span,
                 )
                 continue
-            bag.error(
+            bag.unknown(
                 cite_library(library.name, want.span) + f" requires state " + cite_where(f"`{spelled}`", want.span) + f", which "
                 f"game '{game.name}' does not declare — add it to the game's "
                 f"`state {{ }}` block with the initial value the game wants",
+                want.name,
+                {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)},
                 use.span,
             )
             continue
@@ -5210,9 +5229,11 @@ def _instantiate_rules(
                     suits is not None and arg.name not in suits
                 ):
                     of: Said = "" if template.origin is None else " of " + named(ref.name, template)
-                    bag.error(
+                    bag.unknown(
                         f"argument for rule parameter '{p.name}: Suit'" + of
                         + " must be a suit literal (one of the deck's suits)",
+                        arg.name if isinstance(arg, n.NameRef) else "",
+                        suits or (),
                         ref.span,
                     )
                     args_ok = False
@@ -6287,9 +6308,11 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     nd.span,
                 )
             else:
-                bag.error(
+                bag.unknown(
                     f"climb round over the catalogue '{lead}': `follows` names "
                     f"'{follows}', which is no function of this game",
+                    follows,
+                    functions,
                     nd.span,
                 )
             return nd
@@ -6315,15 +6338,19 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     nd.span,
                 )
             else:
-                bag.error(
+                bag.unknown(
                     f"climb round `follows` query '{follows}' is not a "
                     f"combination follows query; '{lead}' follows with '{own}'",
+                    follows,
+                    (own,),
                     nd.span,
                 )
             return nd
-        bag.error(
+        bag.unknown(
             f"climb round `combinations` query '{lead}' is not a combination "
             f"lead query, nor a combination catalogue of this game",
+            lead,
+            (*PRIMITIVE_CLIMB_ENGINES, *catalogues),
             nd.span,
         )
         return nd
@@ -7143,7 +7170,10 @@ def _resolve_board(
             game.board.span,
         )
     if entry is None:
-        bag.error(str(refused), game.board.span)
+        if game.board.family in BOARD_FAMILIES:
+            bag.error(str(refused), game.board.span)
+        else:
+            bag.unknown(str(refused), game.board.family, BOARD_FAMILIES, game.board.span)
         return game
     # `lo`/`hi` are unread for a named-member domain (`.members` returns
     # `members_named`); they carry the member count so the struct stays
@@ -7167,7 +7197,12 @@ def _resolve_zone(
         or zone.index in positions
     )
     if not index_known:
-        bag.error(f"unknown index role '{zone.index}'", zone.span)
+        bag.unknown(
+            f"unknown index role '{zone.index}'",
+            zone.index or "",
+            (*role_names(_KNOWN_ROLES), *positions),
+            zone.span,
+        )
 
     ref = zone.type_ref
     takes_owner = LIBRARY_ZONE_TYPES.get(ref.name)
@@ -7186,7 +7221,7 @@ def _resolve_zone(
                 ref.span,
             )
         else:
-            bag.error(f"unknown zone type '{ref.name}'", ref.span)
+            bag.unknown(f"unknown zone type '{ref.name}'", ref.name, LIBRARY_ZONE_TYPES, ref.span)
         return
     if takes_owner and len(ref.args) != 1:
         bag.error(
@@ -7197,7 +7232,12 @@ def _resolve_zone(
         bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span)
     for arg in ref.args:
         if role_of(arg.name) not in _KNOWN_ROLES and arg.name not in positions:
-            bag.error(f"unknown owner '{arg.name}'", arg.span)
+            bag.unknown(
+                f"unknown owner '{arg.name}'",
+                arg.name,
+                (*role_names(_KNOWN_ROLES), *positions),
+                arg.span,
+            )
         elif takes_owner and zone.index is None:
             # An owned zone type has no index to key its owner by. The runtime
             # keys a family solely by its index (ZoneStore / zone_observer_key
@@ -7683,7 +7723,12 @@ def _check_rule_reaches_a_reader(
         return
     form = KERNEL_MOVE_FORMS.get(target)
     if form is None:
-        bag.error("rule " + named + f" constrains unknown move type '{target}'", rule.span)
+        bag.unknown(
+            "rule " + named + f" constrains unknown move type '{target}'",
+            target,
+            (*move_types, *KERNEL_MOVE_FORMS),
+            rule.span,
+        )
         return
     head = "rule " + named + f" constrains '{target}', which no decision site consults: {trick}. "
     match form:
@@ -7792,15 +7837,19 @@ def _resolve_transition(
     transition: n.TransitionTo, mode_names: set[str], bag: DiagnosticBag
 ) -> None:
     if transition.mode not in mode_names:
-        bag.error(
+        bag.unknown(
             f"transition_to target '{transition.mode}' is not a sibling mode "
             f"of this phase — a transition ends one condition and begins "
             f"another, so its target is a `mode` declared beside this one",
+            transition.mode,
+            mode_names,
             transition.span,
         )
     if transition.event.move_type not in LIBRARY_MOVE_TYPES:
-        bag.error(
+        bag.unknown(
             f"transition event names unknown move type '{transition.event.move_type}'",
+            transition.event.move_type,
+            LIBRARY_MOVE_TYPES,
             transition.event.span,
         )
     elif transition.event.move_type != "play_to_trick":
@@ -7885,7 +7934,12 @@ def _resolve_phase_item(
     if isinstance(item, n.ActiveRules):
         for ref in item.refs:
             if ref.name not in known_rule_names:
-                bag.error(f"active_rules names undefined rule '{ref.name}'", ref.span)
+                bag.unknown(
+                    f"active_rules names undefined rule '{ref.name}'",
+                    ref.name,
+                    known_rule_names,
+                    ref.span,
+                )
             if ref.delta == "override":
                 overridden = known_rule_names.get(ref.name)
                 words = f"`override {ref.name}`"
@@ -7898,7 +7952,12 @@ def _resolve_phase_item(
     elif isinstance(item, n.LegalMoves):
         for name in item.move_types:
             if name not in LIBRARY_MOVE_TYPES:
-                bag.error(f"legal_moves names unknown move type '{name}'", item.span)
+                bag.unknown(
+                    f"legal_moves names unknown move type '{name}'",
+                    name,
+                    LIBRARY_MOVE_TYPES,
+                    item.span,
+                )
     elif isinstance(item, n.Mode):
         for block in item.active_rules:
             _resolve_phase_item(block, sibling_names, known_rule_names, bag)
@@ -8303,18 +8362,22 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
     cs = component_set(game.deck)
     if cs is None:
         if game.content_flavor == "card":
-            bag.error(
+            bag.unknown(
                 f"unknown deck '{game.deck}' — known decks: "
                 f"{', '.join(sorted(DECKS))}",
+                game.deck,
+                DECKS,
                 game.span,
             )
         else:
             piece_sets = sorted(
                 name for name, c in COMPONENT_SETS.items() if c.flavor == "piece"
             )
-            bag.error(
+            bag.unknown(
                 f"unknown piece set '{game.deck}' — known piece sets: "
                 f"{', '.join(piece_sets)}",
+                game.deck,
+                piece_sets,
                 game.span,
             )
     elif cs.flavor != game.content_flavor:
@@ -8381,9 +8444,11 @@ def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
 
     if game.direction is not None and game.direction not in GAME_DIRECTIONS:
         options = " or ".join(f"`direction: {d}`" for d in GAME_DIRECTIONS)
-        bag.error(
+        bag.unknown(
             f"unknown direction '{game.direction}' — declare {options} "
             f"(omitting the clause means clockwise)",
+            game.direction,
+            GAME_DIRECTIONS,
             game.span,
         )
 
@@ -8468,7 +8533,13 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
         return
     if not game.ranking or not _deck_known(game.deck):
         return
+    from cardlang.runtime.values import RANKING_CONVENTIONS
+
     known = rank_names(game.deck)
+    # A clause whose words together nearly spell a convention ("aces hgih",
+    # "Aces High", "ace ten") is offered the convention, not a rank.
+    phrase = " ".join(game.ranking)
+    meant_a_convention = bool(near_misses(phrase, RANKING_CONVENTIONS))
     seen: dict[str, None] = {}
     for rank in game.ranking:
         if rank in seen:
@@ -8487,8 +8558,6 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
             # the bad entry is a word from some convention's spelling,
             # point at the closed set instead of leaving the author to
             # guess rank spellings.
-            from cardlang.runtime.values import RANKING_CONVENTIONS
-
             conv_words = {
                 w.lower()
                 for key in RANKING_CONVENTIONS
@@ -8496,7 +8565,8 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
             }
             if rank.lower() in conv_words:
                 hint = (
-                    "  (did you mean a ranking convention? one of: "
+                    f"  (`{rank}` is a word of a ranking convention, which "
+                    f"`ranking:` names whole: one of "
                     + ", ".join(sorted(RANKING_CONVENTIONS)) + ")"
                 )
             elif rank in suit_names(game.deck):
@@ -8506,10 +8576,12 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
                 )
             else:
                 hint = ""
-            bag.error(
+            bag.unknown(
                 f"ranking: names unknown rank '{rank}' — not a rank of deck "
                 f"'{game.deck}' (known ranks: {', '.join(sorted(known))})"
                 + hint,
+                phrase if meant_a_convention else rank,
+                RANKING_CONVENTIONS if meant_a_convention else known,
                 game.span,
             )
 
@@ -8553,9 +8625,11 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag, refused: set[str]) ->
             )
         seen.add(entry.rank)
         if entry.rank not in known:
-            bag.error(
+            bag.unknown(
                 f"card_points names unknown rank '{entry.rank}' — not a rank "
                 f"of deck '{game.deck}' (known ranks: {', '.join(sorted(known))})",
+                entry.rank,
+                known,
                 entry.span or game.span,
             )
     if len(bag.items) > before:
@@ -8661,9 +8735,11 @@ def _resolve_suit_ranking(game: n.Game, bag: DiagnosticBag, refused: set[str]) -
                 span,
             )
         else:
-            bag.error(
+            bag.unknown(
                 f"suit ranking: '{name}' is not a suit of deck '{game.deck}' — "
                 f"list {_declared_suits_phrase(game.deck)} strongest first",
+                name,
+                DECKS[game.deck].suits,
                 span,
             )
     for declared in DECKS[game.deck].suits:
@@ -8858,11 +8934,13 @@ def _check_primitive_name(
         )
         return
     if unimplemented(frozenset({decl.name})):
-        bag.error(
+        bag.unknown(
             f"nothing implements the Primitive `{decl.name}` — a "
             f"`primitives` entry names Python the engine can find "
             f"(cardlang/primitives_block.py, PRIMITIVE_IMPLEMENTATIONS); check "
             f"the spelling, or register the implementation",
+            decl.name,
+            PRIMITIVE_IMPLEMENTATIONS,
             decl.span,
         )
 
@@ -9033,9 +9111,12 @@ def _check_primitive_reads(
                 if read.name in engine_fact_names()
                 else ""
             )
-            bag.error(
+            bag.unknown(
                 f"`{decl.name}` reads `{read.name}`, which this game declares "
                 f"in neither `zones {{ }}` nor `state {{ }}`{hint}",
+                read.name,
+                {z.name for z in game.zones}
+                | {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)},
                 read.span or decl.span,
             )
             continue
@@ -9135,12 +9216,14 @@ def _check_read_tail(
     phase = read.phase
     if phase not in phase_names(game):
         known = phase_names(game)
-        bag.error(
+        bag.unknown(
             f"`{decl.name}` reads `{read.name} in {phase}`, but this game "
             f"declares no phase `{phase}`"
             f"{_tail_names_instead(game, phase)} — a scope tail names the "
             f"phase whose `state {{ }}` declares the name "
             f"({_phase_list(known) if known else 'this game declares no phase'})",
+            phase,
+            known,
             read.span or decl.span,
         )
         return True
@@ -9163,9 +9246,11 @@ def _check_read_tail(
             )
         else:
             remedy = " — check the spelling, or declare it in that phase"
-        bag.error(
+        bag.unknown(
             f"`{decl.name}` reads `{read.name} in {phase}`, but phase "
             f"`{phase}` declares no state `{read.name}`{remedy}",
+            read.name,
+            states_declared_in(game, phase),
             read.span or decl.span,
         )
         return True
@@ -10796,10 +10881,12 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     ):
         # A fixed trump is a suit of the deck, so a name that is none is told
         # the deck's suits, where an unresolved name would say only that.
-        bag.error(
+        bag.unknown(
             f"round `trump` names '{node.trump.name}', which is neither a suit of "
             f"this deck ({', '.join(sorted(cats.suits))}) nor a state variable — "
             f"write the suit, or a `Suit?` state variable the game sets",
+            node.trump.name,
+            (*cats.suits, *cats.state_vars),
             node.trump.span,
         )
         rest = _rewrite(replace(node, trump=None), cats, bag)
@@ -10811,10 +10898,12 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         and cats.shapes
         and (label := _unknown_shape_label(node, cats)) is not None
     ):
-        bag.error(
+        bag.unknown(
             f"`{label.name}` is no row label of this game's catalogue — a "
             f"play's `.shape` is one of "
             f"{', '.join(f'`{x}`' for x in sorted(cats.shapes))}",
+            label.name,
+            cats.shapes,
             label.span,
         )
         # The label is told once here; its side stays unclassified.
@@ -10853,7 +10942,15 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             elif node.name == "max_length":
                 bag.error(MAX_LENGTH_AS_VALUE, node.span)
                 return replace(node, ref_kind=kind)
-            bag.error(f"unresolved name '{node.name}'{hint}", node.span)
+            bag.unknown(
+                f"unresolved name '{node.name}'{hint}",
+                node.name,
+                (
+                    *cats.locals, *cats.state_vars, *cats.zones, *cats.enums,
+                    *_PRONOUNS, "none", "true", "false",
+                ),
+                node.span,
+            )
         return replace(node, ref_kind=kind)
     if isinstance(node, n.Produces):
         # Each arm's payload binders scope to that arm's body only — they must not
@@ -11271,9 +11368,11 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                     fn.span,
                 )
             elif base_of(p.type_name) not in parameter_known:
-                bag.error(
+                bag.unknown(
                     f"unknown type '{p.type_name}' in parameter '{p.name}' of "
                     f"function " + cite_named(fn, f"'{fn.name}'"),
+                    base_of(p.type_name),
+                    parameter_known,
                     fn.span,
                 )
     for phase in _walk(game):
@@ -11290,9 +11389,11 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
                         case.span or phase.span,
                     )
                 elif base_of(payload) not in known:
-                    bag.error(
+                    bag.unknown(
                         f"unknown type '{payload}' in payload of case "
                         f"'{case.tag}'",
+                        base_of(payload),
+                        known,
                         case.span or phase.span,
                     )
     # Move parameters are deliberately NOT checked here: `_check_move_params`
@@ -11723,11 +11824,13 @@ def _check_procedures(
             if refused is not None:
                 bag.error(refused, p.span)
             elif p.type_name not in _PROCEDURE_PARAM_DOMAINS:
-                bag.error(
+                bag.unknown(
                     f"procedure parameter '{p.name}: {p.type_name}' has an "
                     f"unsupported domain — procedure parameters support "
                     f"{', '.join(sorted(_PROCEDURE_PARAM_DOMAINS))} only "
                     f"(corpus-first; extend when a game needs another)",
+                    p.type_name,
+                    _PROCEDURE_PARAM_DOMAINS,
                     p.span,
                 )
 
@@ -11831,7 +11934,7 @@ def _check_procedures(
         if isinstance(nd, n.RunStmt):
             invoked.add(nd.name)
             if nd.name not in known:
-                bag.error(f"run of unknown procedure '{nd.name}'", nd.span)
+                bag.unknown(f"run of unknown procedure '{nd.name}'", nd.name, known, nd.span)
             else:
                 _check_positive_arguments(known[nd.name], nd, bag)
     # Only the game's OWN procedures: a library's are its own to define, and
@@ -12005,9 +12108,11 @@ def _check_move_params(
                     + ", ".join(sorted(directions))
                     + ")"
                 )
-            bag.error(
+            bag.unknown(
                 f"move " + cite_named(mt, f"'{mt.name}'") + f" has unsupported parameter domain '{t}' "
                 f"(expected {expected})" + _no_board_for_directions(game, t),
+                t,
+                (*_FIXED_DOMAINS, "Card", *positions, *directions),
                 span,
             )
         # Exact string, matching `_FIXED_DOMAINS`'s own convention (never by
@@ -12161,7 +12266,7 @@ def _check_offering_moves(
     offerings from reporting the same defect once per mention."""
     for name in names:
         if name not in defined_move_types:
-            bag.error(f"offer names unknown move type '{name}'", span)
+            bag.unknown(f"offer names unknown move type '{name}'", name, defined_move_types, span)
 
 
 def _spelled_zone(member: n.Expr) -> str | None:
@@ -12440,11 +12545,13 @@ def _check_domain_query(
         if not target_ok:
             zone = _zone_source(nd.source, game)
             if zone is not None and cats.flavor == "card":
-                bag.error(
+                bag.unknown(
                     f"`{head}` ranges over a position domain's members, and "
                     f"`{nd.binder}` is no position domain of this game; `{zone}` is "
                     f"a zone -- the cards in it satisfying a predicate are "
                     f"`cards in {zone} where <pred>`",
+                    nd.spelled,
+                    _nouns_a_query_may_mean(game, cats),
                     nd.span,
                 )
                 return
@@ -12466,10 +12573,31 @@ def _check_domain_query(
             )
             bag.error(f"`{head}` needs the plural noun -- write `{fixed}`", nd.span)
             return
-        bag.error(f"unknown {noun_kind} '{nd.spelled}' -- {universe}", nd.span)
-        return
-    if not target_ok:
-        bag.error(f"unknown {noun_kind} '{nd.binder}' -- {universe}", nd.span)
+        refused: str | None = nd.spelled
+    else:
+        refused = None if target_ok else nd.binder
+    if refused is not None:
+        bag.unknown(
+            f"unknown {noun_kind} '{refused}' -- {universe}",
+            refused,
+            _nouns_a_query_may_mean(game, cats),
+            nd.span,
+        )
+
+
+def _nouns_a_query_may_mean(game: n.Game, cats: _Categories) -> frozenset[str]:
+    """Every noun a domain or collection query may begin with, singular and
+    plural: the game's position domains, its board lines and directions, and
+    the keyword nouns the grammar keeps for the player, team, suit, rank and
+    card forms."""
+    nouns = {
+        *(p.name for p in game.positions),
+        *collection_nouns(game),
+        *_minted_directions(game),
+        *role_names(_ITERATION_ROLES),
+        content_noun(cats.flavor, plural=False),
+    }
+    return frozenset(nouns | {noun + "s" for noun in nouns})
 
 
 def _subset_refusal(kind: n.DomainQueryKind, head: str) -> str:
@@ -12574,7 +12702,15 @@ def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
             if cats.collection_nouns - {LINE_NOUN}
             else "this game declares no position domains"
         )
-        bag.error(f"unknown collection noun '{nd.binder}' -- {universe}", nd.span)
+        nouns = {
+            *cats.collection_nouns, *role_names(_ITERATION_ROLES), content_noun(cats.flavor, plural=False)
+        }
+        bag.unknown(
+            f"unknown collection noun '{nd.binder}' -- {universe}",
+            nd.spelled,
+            nouns | {noun + "s" for noun in nouns},
+            nd.span,
+        )
         return False
     source = n.short_spelling(nd.source)
     if isinstance(nd.source, n.NameRef) and nd.source.name in _query_nouns(cats):
@@ -12704,12 +12840,17 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # trick winner is an unknown name here rather than a call that
                 # resolves and then dispatches through a table this game never
                 # claimed (issue #364).
-                bag.error(
-                    _slot_name_outside_slot(nd.func)
-                    or f"call to unknown function '{nd.func}'"
-                    + _undeclared_primitive_hint(game, nd.func),
-                    nd.span,
-                )
+                outside = _slot_name_outside_slot(nd.func)
+                if outside is not None:
+                    bag.error(outside, nd.span)
+                else:
+                    bag.unknown(
+                        f"call to unknown function '{nd.func}'"
+                        + _undeclared_primitive_hint(game, nd.func),
+                        nd.func,
+                        (*native_namespace, *defined_functions, *K.KERNEL_CONTRACT_NAMES),
+                        nd.span,
+                    )
             case n.Call() if nd.func in defined_functions:
                 # A call the game's OWN `function` defines. Every arm below
                 # keys a name against a corpus-wide native registry, and a
@@ -12811,9 +12952,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.span,
                     )
                 elif nd.type_name not in state_types:
-                    bag.error(
+                    bag.unknown(
                         f"unknown type '{nd.type_name}' in declaration of "
                         + cite_named(nd, f"'{nd.name}'"),
+                        nd.type_name,
+                        state_types,
                         nd.span,
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
@@ -12865,8 +13008,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.span,
                 )
             case n.Produces() if nd.phase not in outcome_phases:
-                bag.error(
+                bag.unknown(
                     f"produces names unknown outcome phase '{nd.phase}'",
+                    nd.phase,
+                    outcome_phases,
                     nd.span,
                 )
             case n.ForEach() if _refuses(_CELL_RANGE_GATE, nd, game):
@@ -12882,9 +13027,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # `board:` clause (`_resolve_board`).
                 and not (_cell_ranges(nd, game) and game.board is not None)
             ):
-                bag.error(
+                bag.unknown(
                     f"unknown `for each` role '{nd.role}' (expected one of "
                     f"{', '.join(sorted(role_names(_ITERATION_ROLES) + sorted(iterable_positions)))})",
+                    nd.role,
+                    (*role_names(_ITERATION_ROLES), *iterable_positions),
                     nd.span,
                 )
             case (n.ForEach() | n.Quantifier()) if (
@@ -12964,9 +13111,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 )
             case n.CardLiteral():
                 if nd.rank not in cats.ranks:
-                    bag.error(f"unknown rank '{nd.rank}' in card literal", nd.span)
+                    bag.unknown(f"unknown rank '{nd.rank}' in card literal", nd.rank, cats.ranks, nd.span)
                 if nd.suit not in cats.suits:
-                    bag.error(f"unknown suit '{nd.suit}' in card literal", nd.span)
+                    bag.unknown(f"unknown suit '{nd.suit}' in card literal", nd.suit, cats.suits, nd.span)
             case n.RotateStmt():
                 # Both checks in ONE arm: a bare `case n.RotateStmt():` above a guarded
                 # one consumes the node, so the guarded arm never runs. (It did exactly
@@ -12976,7 +13123,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(bad, nd.span)
                 for value in nd.values:
                     if value not in cats.enums:
-                        bag.error(f"rotate through unknown value '{value}'", nd.span)
+                        bag.unknown(
+                            f"rotate through unknown value '{value}'", value, cats.enums, nd.span
+                        )
             case n.AssignStmt():
                 bad = _bad_write_target(game, nd)
                 if bad is not None:
@@ -13108,12 +13257,17 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.Winner() | n.StopResult() if (
                 nd.state_var is not None and nd.state_var not in cats.state_vars
             ):
-                bag.error(
-                    _slot_name_outside_slot(nd.state_var)
-                    or f"{ranking_slot(nd).unknown} references unknown "
-                    f"variable '{nd.state_var}'",
-                    nd.span,
-                )
+                outside = _slot_name_outside_slot(nd.state_var)
+                if outside is not None:
+                    bag.error(outside, nd.span)
+                else:
+                    bag.unknown(
+                        f"{ranking_slot(nd).unknown} references unknown "
+                        f"variable '{nd.state_var}'",
+                        nd.state_var,
+                        cats.state_vars,
+                        nd.span,
+                    )
             case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:
                 # The go-again flag is ordinary game state the body's effects
                 # write (decisions.md "The `turns` form") — a plain string
@@ -13121,10 +13275,12 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # never sees it; validate it here or it fails only at the
                 # first turn boundary, where the executor reads it out of
                 # round state — which requires the name to be in scope.
-                bag.error(
+                bag.unknown(
                     f"`again {nd.again}`: names no declared state variable — "
                     f"the go-again flag is ordinary Boolean game state the "
                     f"body's move effects write",
+                    nd.again,
+                    cats.state_vars,
                     nd.span,
                 )
             case n.Offer():
@@ -13139,11 +13295,20 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # Boolean type by the type checker.
                 zone_names = {z.name for z in game.zones}
                 if nd.source_zone not in zone_names:
-                    bag.error(f"climb round source zone '{nd.source_zone}' is unknown", nd.span)
+                    bag.unknown(
+                        f"climb round source zone '{nd.source_zone}' is unknown",
+                        nd.source_zone, zone_names, nd.span,
+                    )
                 if nd.play_zone not in zone_names:
-                    bag.error(f"climb round play zone '{nd.play_zone}' is unknown", nd.span)
+                    bag.unknown(
+                        f"climb round play zone '{nd.play_zone}' is unknown",
+                        nd.play_zone, zone_names, nd.span,
+                    )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
-                    bag.error(f"climb round move type '{nd.move_type}' is unknown", nd.span)
+                    bag.unknown(
+                        f"climb round move type '{nd.move_type}' is unknown",
+                        nd.move_type, LIBRARY_MOVE_TYPES, nd.span,
+                    )
                 elif nd.move_type != CLIMB_DECISION_MOVE_TYPE:
                     # The climbing form's decision site is hardwired to
                     # `play_combination` — nothing in `ClimbForm` reads this
@@ -13161,9 +13326,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.TrickRound():
                 zone_names = {z.name for z in game.zones}
                 if nd.source_zone not in zone_names:
-                    bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
+                    bag.unknown(
+                        f"round source zone '{nd.source_zone}' is unknown",
+                        nd.source_zone, zone_names, nd.span,
+                    )
                 if nd.play_zone not in zone_names:
-                    bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
+                    bag.unknown(
+                        f"round play zone '{nd.play_zone}' is unknown",
+                        nd.play_zone, zone_names, nd.span,
+                    )
                 else:
                     # A trick's plays ARE the provenance every winner reads, so
                     # the zone they land in must project identity to every
@@ -13189,9 +13360,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             nd.span,
                         )
                 if nd.winner_fn not in _ROUND_QUERY_REGISTRIES[(n.TrickRound, "winner_fn")]:
-                    bag.error(
+                    bag.unknown(
                         f"trick round winner '{nd.winner_fn}' is not a trick "
                         f"winner function",
+                        nd.winner_fn,
+                        _ROUND_QUERY_REGISTRIES[(n.TrickRound, "winner_fn")],
                         nd.span,
                     )
                 elif nd.winner_fn in TRICK_ORDER_GATED_WINNERS:
@@ -13217,7 +13390,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.span,
                     )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
-                    bag.error(f"round move type '{nd.move_type}' is unknown", nd.span)
+                    bag.unknown(
+                        f"round move type '{nd.move_type}' is unknown",
+                        nd.move_type, LIBRARY_MOVE_TYPES, nd.span,
+                    )
                 elif nd.move_type != "play_to_trick":
                     # The trick form's decision site is hardwired to
                     # `play_to_trick`; any other name would silently run as a
@@ -13232,9 +13408,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     and nd.early_termination
                     not in _ROUND_QUERY_REGISTRIES[(n.TrickRound, "early_termination")]
                 ):
-                    bag.error(
+                    bag.unknown(
                         f"round early-termination predicate "
                         f"'{nd.early_termination}' is unknown",
+                        nd.early_termination,
+                        _ROUND_QUERY_REGISTRIES[(n.TrickRound, "early_termination")],
                         nd.span,
                     )
 
