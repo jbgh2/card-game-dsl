@@ -14,10 +14,19 @@ property:        a refusal of a name absent from the set the checker looked
                  it up in renders the declared names that resemble it -- at
                  most three, most alike first, alphabetical among equals, the
                  refused spelling itself never -- in one `did you mean`
-                 clause, and renders none where nothing resembles it; the
-                 resemblance measure is one function, shared with the parse
-                 layer's ranking of what the grammar expected; a refusal the
+                 clause, and renders none where nothing resembles it; each
+                 is written as its position writes it, and drawn from the
+                 names that position's form takes (the one move type a round
+                 form runs, the nouns a query's form and kind take, the
+                 definitions of a contract row's own kind); the resemblance
+                 measure is one function, shared with the parse layer's
+                 ranking of what the grammar expected; a refusal the
                  attribution step retells keeps its Near Misses.
+                 Where a check's set is wider than what resolves at the
+                 position -- game-wide state at a phase's position, the
+                 call-site pronouns in a function body, a literal where a
+                 zone is wanted -- a Near Miss can name a name refused there
+                 (issue #1063).
 domain:          every refusal site in the resolve, typecheck and catalogue
                  passes that refuses a designer-written spelling because the
                  set it was looked up in lacks it, each witnessed by one slip
@@ -38,12 +47,16 @@ registry:        sites: `_owner_sites` (an AST scrape of every
                  `DiagnosticBag.unknown` call in `_SCRAPED`) against
                  `WITNESSES`; re-spelled refusals: `_respelled_sites` over
                  the same modules; ref kinds: `cardlang.ast.nodes.REF_KINDS`
-                 against `REF_KIND_WITNESSES`.
+                 against `REF_KIND_WITNESSES`; keyword nouns: the grammar's
+                 `QNOUN` exclusion against `cardlang.domains.ITERABLE_ROLES`.
+                 attribution: `test_attribution_builds_a_refusal_only_by_retelling_it`.
 held by:         Derived and Pinned. The owner is a single constructor
                  (`DiagnosticBag.unknown`) and a single renderer
                  (`Diagnostic.format`); the pins catch a site that re-spells
                  an unknown-name refusal itself and a routed site with no
-                 witness. A refusal's sentence is a `str` and no union tells
+                 witness. The attribution step's retellings are held by one
+                 constructor, `_retold`, and a pin that it builds a refusal
+                 nowhere else. A refusal's sentence is a `str` and no union tells
                  an unknown-name sentence from any other, so the fact cannot
                  be held by a type; a typed lookup returning `Found | Miss`
                  was priced and gives no higher rung, since a site may still
@@ -53,7 +66,10 @@ does not prove:  that every site of the class is routed. The re-spelling pin
                  reads refusals worded `unknown` or `unresolved`; a name
                  refusal worded otherwise and left unrouted is invisible to
                  it, and the instrument for that is a fresh read of the
-                 package's refusals against `WITNESSES`. Nor that the Near
+                 package's refusals against `WITNESSES`. A refusal whose
+                 sentence the scrape cannot read -- held in a variable,
+                 built by a helper, or appended to the bag as a `Diagnostic`
+                 -- is invisible to it for the same reason. Nor that the Near
                  Misses offered are the name the author meant: the measure
                  ranks spelling, and a slip that lands nearer another
                  declared name is offered that name first.
@@ -62,6 +78,7 @@ does not prove:  that every site of the class is routed. The re-spelling pin
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import get_args
@@ -102,10 +119,11 @@ def _template(expr: ast.expr) -> str:
     return "{}"
 
 
-def _calls(method: str) -> list[tuple[str, str, int]]:
-    """Every `<x>.<method>(sentence, ...)` call in `_SCRAPED`, as (module,
-    innermost enclosing function, line), with the sentence's template."""
-    found: list[tuple[str, str, int]] = []
+def _calls(method: str) -> list[tuple[str, str, int, str]]:
+    """Every `<x>.<method>(sentence, ...)` call in `_SCRAPED`, as its key
+    (module, innermost enclosing function, the sentence's template cut to 60
+    characters), its module and line, and the whole template."""
+    found: list[tuple[str, str, int, str]] = []
     for rel in _SCRAPED:
         tree = ast.parse((_ROOT / rel).read_text())
         owner: dict[int, str] = {}
@@ -120,20 +138,21 @@ def _calls(method: str) -> list[tuple[str, str, int]]:
                 and node.func.attr == method
                 and node.args
             ):
-                key = f"{Path(rel).stem}::{owner.get(id(node), '<module>')}::{_template(node.args[0])[:60]}"
-                found.append((key, rel, node.lineno))
+                template = _template(node.args[0])
+                key = f"{Path(rel).stem}::{owner.get(id(node), '<module>')}::{template[:60]}"
+                found.append((key, rel, node.lineno, template))
     return found
 
 
 def _owner_sites() -> list[str]:
-    return [key for key, _rel, _line in _calls("unknown")]
+    return [key for key, _rel, _line, _template in _calls("unknown")]
 
 
 def _respelled_sites() -> list[str]:
     """Refusals still composed by `bag.error` with an unknown-name sentence."""
     out: list[str] = []
-    for key, rel, line in _calls("error"):
-        words = key.split("::", 2)[2].lower()
+    for key, rel, line, template in _calls("error"):
+        words = template.lower()
         if " unknown" in f" {words}" or "unresolved name" in words or "is unknown" in words:
             out.append(f"{rel}:{line}  {key}")
     return out
@@ -219,6 +238,27 @@ WITNESSES: dict[str, Slip] = {
     "resolve::_instantiate_rules::argument for rule parameter '{}: Suit'{} must be a suit lite": Slip(
         "docs/games/hearts.cardlang", "active_rules: [+ NoLeadingSuitUntilBroken(hearts)]",
         "active_rules: [+ NoLeadingSuitUntilBroken(heart)]", "must be a suit literal", "hearts"),
+    "resolve::_validate_refs::state variable {} is indexed by '{}', which is not an indexa": Slip(
+        "docs/games/hearts.cardlang", "cumulative_score[player] : Integer = 0",
+        "cumulative_score[playr] : Integer = 0", "indexed by 'playr'", "player"),
+    "resolve::_check_require_indexes::{} {} state {} indexed by '{}', which is not an indexable ro": Slip(
+        (
+            "library:library nm_probe {\n  requires { score[player] : Integer }\n"
+            "  function probe(p : Player) = score[p]\n}\n"
+        ),
+        "score[player] : Integer",
+        "score[playr] : Integer", "indexed by 'playr'", "player"),
+    "resolve::_check_template::rule parameter '{}: {}' has an unsupported domain — rule par": Slip(
+        "docs/games/hearts.cardlang", "active_rules: [+ NoLeadingSuitUntilBroken(hearts)]",
+        "active_rules: [+ HeartsRule(hearts)]", "unsupported domain", "Suit",
+        also=((
+            "rule MustLeadTwoOfClubs {",
+            (
+                "rule HeartsRule(s : Siut) { constrains: play_to_trick\n"
+                "  demands: cards in hand where card.suit is s\n  if_impossible: hand\n}\n\n"
+                "rule MustLeadTwoOfClubs {"
+            ),
+        ),)),
     # The primitives block.
     "resolve::_check_primitive_name::nothing implements the Primitive `{}` — a `primitives` entry": Slip(
         "docs/games/cribbage.cardlang", "peg_pair_points() : Integer                 reads play_pile",
@@ -405,22 +445,25 @@ REF_KIND_WITNESSES: dict[n.RefKind, Slip] = {
                  "applies_when: state.led_suit is nnoe", "unresolved name 'nnoe'", "none"),
     "pronoun": Slip("docs/games/hearts.cardlang", "let shooter = actor", "let shooter = actr",
                     "unresolved name 'actr'", "actor"),
+    # The game's hand zone is renamed, so `hand` resolves here only as the
+    # Play Source a rule clause reads.
     "play_source": Slip("docs/games/hearts.cardlang", "demands: cards in hand where card is 2 of clubs",
                         "demands: cards in hnad where card is 2 of clubs", "unresolved name 'hnad'",
-                        "hand"),
+                        "hand",
+                        also=(("hand[player]     : Hand<player>", "holding[player]  : Hand<player>"),)),
 }
 
 
 def _rendered_errors(slip: Slip) -> list[str]:
     """Every error line the slipped source renders, primary and collected."""
     if slip.source.startswith("library:"):
-        from cardlang.resolve import _check_library_encapsulation
+        from cardlang.resolve import check_library_alone
 
         text = slip.source.removeprefix("library:")
         if slip.old not in text:
             pytest.fail(f"the library body no longer holds {slip.old!r}: re-plant this slip")
         bag = DiagnosticBag()
-        _check_library_encapsulation(parse_library(text.replace(slip.old, slip.new, 1), "nm_probe.cardlang"), bag)
+        check_library_alone(parse_library(text.replace(slip.old, slip.new, 1), "nm_probe.cardlang"), bag)
         return [line for d in bag.items for line in d.format().splitlines()]
     path = _ROOT / slip.source
     text = path.read_text()
@@ -526,6 +569,19 @@ _PROBES: dict[str, tuple[Slip, bool]] = {
         Slip("docs/games/hearts.cardlang", "transition_to: hearts_broken when",
              "transition_to: hearts_not_brokn when", "transition_to target 'hearts_not_brokn'",
              "hearts_not_broken"), False),
+    "a trick round is offered the one move type it runs": (
+        Slip("docs/games/hearts.cardlang", "round play_to_trick from", "round play_combinaton from",
+             "round move type 'play_combinaton'", "play_combination"), False),
+    "a climb round is offered the one move type it runs": (
+        Slip("docs/games/big-two.cardlang", "round climb play_combination from",
+             "round climb play_to_trik from", "climb round move type 'play_to_trik'", "play_to_trick"),
+        False),
+    "a transition event is offered the one move type it reads": (
+        Slip("docs/games/hearts.cardlang", "when play_to_trick where", "when transfer_between_hand where",
+             "transition event names unknown move type", "transfer_between_hands"), False),
+    "a piece game is offered no card axis": (
+        Slip("docs/games/breakthrough.cardlang", "until (any player where result[player] is 1)",
+             "until (any suiit where result[player] is 1)", "'suiit'", "suit"), False),
     "a library's own binding is offered": (
         Slip("library:" + _LIB_HEAD + "  function probe(owed : Integer) = owed\n}\n", "= owed",
              "= owd", "reads 'owd'", "owed"), True),
@@ -556,6 +612,46 @@ def test_a_misuse_probe_is_answered_rightly(probe: str) -> None:
         assert "did you mean " not in line, line
     clause = line.split("did you mean ", 1)[1] if "did you mean " in line else ""
     assert f"`{slip.meant}`" not in clause, line
+
+
+def test_attribution_builds_a_refusal_only_by_retelling_it() -> None:
+    """Every refusal the attribution step tells again keeps its Near Misses
+    because `_retold` is the one place the step builds one; a `Diagnostic`
+    built anywhere else in the step is a warning it makes itself. red under:
+    `_routed`'s `return _retold(d, d.for_game, route.at)` written as
+    `return Diagnostic(d.severity, d.for_game, route.at)`."""
+    tree = ast.parse((_ROOT / "cardlang/attribution.py").read_text())
+    built_elsewhere: list[int] = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, ast.FunctionDef) or fn.name == "_retold":
+            continue
+        for node in ast.walk(fn):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "Diagnostic"
+                and not (
+                    node.args
+                    and isinstance(node.args[0], ast.Attribute)
+                    and node.args[0].attr == "WARNING"
+                )
+            ):
+                built_elsewhere.append(node.lineno)
+    assert built_elsewhere == [], f"attribution.py builds a refusal outside `_retold` at {built_elsewhere}"
+
+
+def test_the_keyword_nouns_offered_are_the_grammar_s() -> None:
+    """The keyword nouns a query is offered are the ones the grammar keeps out
+    of `QNOUN` for its own forms. red under: dropping `teams?` from the
+    `QNOUN` exclusion in `cardlang/grammar/cardlang.lark`."""
+    from cardlang.domains import ITERABLE_ROLES, role_names
+    from cardlang.runtime.values import content_noun
+
+    lark = (_ROOT / "cardlang/grammar/cardlang.lark").read_text()
+    found = re.search(r"^QNOUN: /\(\?!\(\?:([^)]*)\)", lark, re.MULTILINE)
+    assert found is not None, "the QNOUN terminal's exclusion moved"
+    kept = {w.removesuffix("s?") for w in found.group(1).split("|") if w.endswith("s?")}
+    assert kept == {*role_names(ITERABLE_ROLES), content_noun("card", plural=False)}
 
 
 # --------------------------------------------------------------------------

@@ -4497,12 +4497,14 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
         if decl.index is None or role_of(decl.index) in ZONE_INDEX_ROLES:
             continue
         roles = ", ".join(role_names(ZONE_INDEX_ROLES))
-        bag.error(
+        bag.unknown(
             cite_library(library.name, decl.span) + f" {verb} state "
             + cite_named(decl, f"'{decl.name}'") + " indexed by "
             f"'{decl.index}', which is not an indexable role ({roles}) — a "
             f"library indexes by a seat or a team, and a game may not declare "
             f"that index either",
+            decl.index,
+            role_names(ZONE_INDEX_ROLES),
             decl.span,
         )
 
@@ -5041,10 +5043,12 @@ def _check_template(rule: n.RuleDef, bag: DiagnosticBag, flavor: Flavor) -> bool
     binders = _template_binders(rule, flavor)
     for p in rule.params:
         if p.type_name != "Suit":
-            bag.error(
+            bag.unknown(
                 f"rule parameter '{p.name}: {p.type_name}' has an unsupported "
                 f"domain — rule parameters support Suit only (corpus-first; "
                 f"extend when a game needs another)",
+                p.type_name,
+                ("Suit",),
                 rule.span,
             )
             ok = False
@@ -7874,7 +7878,7 @@ def _resolve_transition(
         bag.unknown(
             f"transition event names unknown move type '{transition.event.move_type}'",
             transition.event.move_type,
-            LIBRARY_MOVE_TYPES,
+            ("play_to_trick",),
             transition.event.span,
         )
     elif transition.event.move_type != "play_to_trick":
@@ -9141,7 +9145,8 @@ def _check_primitive_reads(
                 f"in neither `zones {{ }}` nor `state {{ }}`{hint}",
                 read.name,
                 {z.name for z in game.zones}
-                | {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)},
+                | {nd.name for nd in _walk(game) if isinstance(nd, n.StateDecl)}
+                - phase_local_state_names(game),
                 read.span or decl.span,
             )
             continue
@@ -10967,12 +10972,15 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             elif node.name == "max_length":
                 bag.error(MAX_LENGTH_AS_VALUE, node.span)
                 return replace(node, ref_kind=kind)
+            # Ranked against the game-wide categories, which can be wider than
+            # what resolves here (issue #1063).
             bag.unknown(
                 f"unresolved name '{node.name}'{hint}",
                 node.name,
                 (
                     *cats.locals, *cats.state_vars, *cats.zones, *cats.enums,
                     *_PRONOUNS, "none", "true", "false",
+                    *((PLAY_SOURCE_NAME,) if cats.rule_clause else ()),
                 ),
                 node.span,
             )
@@ -12621,9 +12629,8 @@ def _nouns_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> fro
     if nd.source is None:
         if nd.kind in n.DIRECTION_QUERY_KINDS:
             nouns |= _minted_directions(game)
-        nouns |= set(
-            role_names(_ITERATION_ROLES) if nd.kind in ("any", "all") else [Role.PLAYER.value]
-        )
+        roles = _ITERATION_ROLES - (CARD_AXIS_ROLES if flavor == "piece" else frozenset())
+        nouns |= set(role_names(roles) if nd.kind in ("any", "all") else [Role.PLAYER.value])
     else:
         nouns |= collection_nouns(game) | {content_noun(flavor, plural=False)}
     return frozenset(noun if nd.kind == "any" else noun + "s" for noun in nouns)
@@ -12994,11 +13001,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # driver's key-set dispatch defaulted every non-team role
                     # to seats) — the declared index was accepted and ignored.
                     roles = ", ".join(role_names(ZONE_INDEX_ROLES))
-                    bag.error(
+                    bag.unknown(
                         "state variable " + cite_named(nd, f"'{nd.name}'") + f" is indexed by "
                         f"'{nd.index}', which is not an indexable role "
                         f"({roles}) — a value domain has no per-member store "
                         f"(roadmap.md records the extension)",
+                        nd.index,
+                        role_names(ZONE_INDEX_ROLES),
                         nd.span,
                     )
                 elif _refuses(_TEAM_STATE_GATE, nd, game):
@@ -13335,7 +13344,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.unknown(
                         f"climb round move type '{nd.move_type}' is unknown",
-                        nd.move_type, LIBRARY_MOVE_TYPES, nd.span,
+                        nd.move_type, (CLIMB_DECISION_MOVE_TYPE,), nd.span,
                     )
                 elif nd.move_type != CLIMB_DECISION_MOVE_TYPE:
                     # The climbing form's decision site is hardwired to
@@ -13420,7 +13429,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.unknown(
                         f"round move type '{nd.move_type}' is unknown",
-                        nd.move_type, LIBRARY_MOVE_TYPES, nd.span,
+                        nd.move_type, ("play_to_trick",), nd.span,
                     )
                 elif nd.move_type != "play_to_trick":
                     # The trick form's decision site is hardwired to
