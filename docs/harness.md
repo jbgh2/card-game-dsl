@@ -264,6 +264,8 @@ The disqualifiers, in the order the sweep counts them:
 - it lacks a kind label or carries `needs-triage` — unclassified;
 - it lacks a `reachability:` label — unordered;
 - it carries any `blocked:` label — witness-gated;
+- it carries `optimization` — parked for the Optimization Pass, which the
+  operator opens as a milestone (CLAUDE.md, "The tracker");
 - it has an open blocked-by dependency;
 - it is assigned — a human hand (or a Lease's assignee mirror) is on it,
   and assignment is the one-click shield that keeps the fleet off work
