@@ -1794,7 +1794,8 @@ def _check_enum_literal(
     if lit.value in domain:
         bag.error(said, span)
     else:
-        bag.unknown(said, lit.value, domain, span)
+        # A numeric value is written as a string here, a name-form one bare.
+        bag.unknown(said, lit.value, domain, span, written=lambda v: f'"{v}"' if v.isdigit() else v)
 
 
 def _library_axis_refusal(

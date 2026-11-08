@@ -3303,6 +3303,9 @@ class _LibraryReach:
     #: The definitions the library's text names, per definition namespace
     #: (`move_type`, `function`, `procedure`).
     definition_reads: dict[str, frozenset[str]]
+    #: Each unresolved name's Near Misses, by span, as `_rewrite` ranked them
+    #: against the scope it read the name in (locals and pronouns included).
+    unresolved_near: dict[Span | None, tuple[str, ...]]
 
 
 def _library_reach(library: n.Library) -> _LibraryReach:
@@ -3415,6 +3418,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
             ns: slot_reads[ns] for ns in ("move_type", "function", "procedure")
         },
         always_refused=always_refused,
+        unresolved_near={d.span: d.near_misses for d in collected.items},
     )
 
 
@@ -3687,14 +3691,15 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     for ref in reach.unresolved:
         what = _library_own_name_is(library, ref.name)
         if what is None:
-            slots = _library_slot_names(library)
+            # The set the name was read against is the scope `_rewrite` held,
+            # and its Near Misses are the ones ranked there.
             bag.unknown(
                 cite_library(library.name, ref.span) + f" reads '{ref.name}', which is neither in "
                 f"its `requires` contract nor defined in the library — add it to "
                 f"`requires {{ }}` if the including game must declare it, or move "
                 f"the definition that needs it into the game",
                 ref.name,
-                slots["state"] | slots["zone"] | slots["enum_value"],
+                reach.unresolved_near.get(ref.span, ()),
                 ref.span,
             )
         else:
@@ -4291,9 +4296,7 @@ def _check_definition_requirement(
                 head + f", which game '{game.name}' does not define — add "
                 + _definition_template(want) + table,
                 want.name,
-                {f.name for f in game.functions}
-                | {m.name for m in game.move_types}
-                | {p.name for p in game.procedures},
+                _definitions_of_kind(game, want),
                 use.span,
             )
         return None
@@ -7170,10 +7173,8 @@ def _resolve_board(
             game.board.span,
         )
     if entry is None:
-        if game.board.family in BOARD_FAMILIES:
-            bag.error(str(refused), game.board.span)
-        else:
-            bag.unknown(str(refused), game.board.family, BOARD_FAMILIES, game.board.span)
+        assert refused is not None
+        _tell_board_refusal(refused, game.board.family, game.board.span, bag)
         return game
     # `lo`/`hi` are unread for a named-member domain (`.members` returns
     # `members_named`); they carry the member count so the struct stays
@@ -7186,6 +7187,30 @@ def _resolve_board(
         span=game.board.span,
     )
     return replace(game, positions=game.positions + (minted,))
+
+
+def _definitions_of_kind(game: n.Game, want: n.DefinitionContract) -> frozenset[str]:
+    """The game's own definitions of the kind a Definition Contract row asks for."""
+    match want:
+        case n.FunctionContract():
+            return frozenset(f.name for f in game.functions)
+        case n.MoveContract():
+            return frozenset(m.name for m in game.move_types)
+        case n.ProcedureContract():
+            return frozenset(p.name for p in game.procedures)
+        case _:
+            assert_never(want)
+
+
+def _tell_board_refusal(
+    refused: OwnerGuardError, family: str, span: Span | None, bag: DiagnosticBag
+) -> None:
+    """Tell the board registry's refusal: a family it does not register is a
+    name refused against `BOARD_FAMILIES`, any other refusal its own."""
+    if family in BOARD_FAMILIES:
+        bag.error(str(refused), span)
+    else:
+        bag.unknown(str(refused), family, BOARD_FAMILIES, span)
 
 
 def _resolve_zone(
@@ -7834,7 +7859,7 @@ def _resolve_phase_level(
 
 
 def _resolve_transition(
-    transition: n.TransitionTo, mode_names: set[str], bag: DiagnosticBag
+    transition: n.TransitionTo, mode_names: set[str], source: str, bag: DiagnosticBag
 ) -> None:
     if transition.mode not in mode_names:
         bag.unknown(
@@ -7842,7 +7867,7 @@ def _resolve_transition(
             f"of this phase — a transition ends one condition and begins "
             f"another, so its target is a `mode` declared beside this one",
             transition.mode,
-            mode_names,
+            mode_names - {source},
             transition.span,
         )
     if transition.event.move_type not in LIBRARY_MOVE_TYPES:
@@ -7962,7 +7987,7 @@ def _resolve_phase_item(
         for block in item.active_rules:
             _resolve_phase_item(block, sibling_names, known_rule_names, bag)
         for transition in item.transitions:
-            _resolve_transition(transition, sibling_names, bag)
+            _resolve_transition(transition, sibling_names, item.name, bag)
     elif isinstance(item, (n.Phase, n.StateBlock, n.BeforeEach, n.AfterEach)):
         # Phases recurse via the level walk; state blocks resolve later; hook
         # bodies are plain statement sequences with nothing item-level to check.
@@ -12551,7 +12576,7 @@ def _check_domain_query(
                     f"a zone -- the cards in it satisfying a predicate are "
                     f"`cards in {zone} where <pred>`",
                     nd.spelled,
-                    _nouns_a_query_may_mean(game, cats),
+                    _nouns_a_query_takes(nd, game, cats.flavor),
                     nd.span,
                 )
                 return
@@ -12579,25 +12604,29 @@ def _check_domain_query(
     if refused is not None:
         bag.unknown(
             f"unknown {noun_kind} '{refused}' -- {universe}",
-            refused,
-            _nouns_a_query_may_mean(game, cats),
+            nd.spelled,
+            _nouns_a_query_takes(nd, game, cats.flavor),
             nd.span,
         )
 
 
-def _nouns_a_query_may_mean(game: n.Game, cats: _Categories) -> frozenset[str]:
-    """Every noun a domain or collection query may begin with, singular and
-    plural: the game's position domains, its board lines and directions, and
-    the keyword nouns the grammar keeps for the player, team, suit, rank and
-    card forms."""
-    nouns = {
-        *(p.name for p in game.positions),
-        *collection_nouns(game),
-        *_minted_directions(game),
-        *role_names(_ITERATION_ROLES),
-        content_noun(cats.flavor, plural=False),
-    }
-    return frozenset(nouns | {noun + "s" for noun in nouns})
+def _nouns_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> frozenset[str]:
+    """The nouns a query of `nd`'s form and kind may begin with, spelled as
+    that kind spells them -- singular after `any`, plural otherwise: the
+    game's position domains; in the bare form, the board directions where the
+    kind ranges over them and the keyword nouns the grammar gives `any` and
+    `all` (player, team, suit, rank), `players` alone for the others; in the
+    collection form, the board lines and the content noun."""
+    nouns = {p.name for p in game.positions}
+    if nd.source is None:
+        if nd.kind in n.DIRECTION_QUERY_KINDS:
+            nouns |= _minted_directions(game)
+        nouns |= set(
+            role_names(_ITERATION_ROLES) if nd.kind in ("any", "all") else [Role.PLAYER.value]
+        )
+    else:
+        nouns |= collection_nouns(game) | {content_noun(flavor, plural=False)}
+    return frozenset(noun if nd.kind == "any" else noun + "s" for noun in nouns)
 
 
 def _subset_refusal(kind: n.DomainQueryKind, head: str) -> str:
@@ -12702,13 +12731,12 @@ def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
             if cats.collection_nouns - {LINE_NOUN}
             else "this game declares no position domains"
         )
-        nouns = {
-            *cats.collection_nouns, *role_names(_ITERATION_ROLES), content_noun(cats.flavor, plural=False)
-        }
+        # A collection set (the one kind this capture reads) takes the plural
+        # of a collection noun or of the content noun.
         bag.unknown(
             f"unknown collection noun '{nd.binder}' -- {universe}",
             nd.spelled,
-            nouns | {noun + "s" for noun in nouns},
+            {noun + "s" for noun in (*cats.collection_nouns, content_noun(cats.flavor, plural=False))},
             nd.span,
         )
         return False
@@ -12783,7 +12811,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
         try:
             board_entry(game.board.family, game.board.args).lines(args[0].value)
         except OwnerGuardError as exc:
-            bag.error(str(exc), nd.span)
+            _tell_board_refusal(exc, game.board.family, nd.span, bag)
 
 
 def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:

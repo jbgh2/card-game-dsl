@@ -31,7 +31,7 @@ Held by:      Derived and Pinned -- a refusal's sentence is a `str`, which no
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 from enum import Enum
@@ -293,11 +293,17 @@ class DiagnosticBag:
         route: Route | None = None,
         for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
+        written: Callable[[str], str] | None = None,
     ) -> None:
         """Refuse `spelled`, absent from `among`, the set it was looked up in:
-        `error`, with the set's Near Misses carried as data."""
+        `error`, with the set's Near Misses carried as data, each as `written`
+        spells it where the refusal stands (a numeric rank in a string
+        position is written quoted)."""
         self.error(message, span, route=route, for_game=for_game, stands_on=stands_on)
-        self.items[-1] = replace(self.items[-1], near_misses=near_misses(spelled, among))
+        near = near_misses(spelled, among)
+        if written is not None:
+            near = tuple(written(name) for name in near)
+        self.items[-1] = replace(self.items[-1], near_misses=near)
 
     def warning(self, message: str, span: Span | None = None) -> None:
         self.items.append(Diagnostic(Severity.WARNING, message, span))

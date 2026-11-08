@@ -185,7 +185,7 @@ WITNESSES: dict[str, Slip] = {
     "resolve::_resolve_suit_ranking::suit ranking: '{}' is not a suit of deck '{}' — list {} stro": Slip(
         "docs/games/bridge.cardlang", "suit ranking: spades hearts diamonds clubs",
         "suit ranking: spades hearts diamonds clbs", "suit ranking: 'clbs'", "clubs"),
-    "resolve::_resolve_board::{}": Slip(
+    "resolve::_tell_board_refusal::{}": Slip(
         "docs/games/breakthrough.cardlang", "board: grid(8, 8)", "board: gird(8, 8)",
         "unknown board family 'gird'", "grid"),
     "catalogue_pass::_check_sequence::`sequence:` names `{}`, which is no rank of `{}`": Slip(
@@ -282,7 +282,7 @@ WITNESSES: dict[str, Slip] = {
         "demands: crads in hand where card is 2 of clubs", "`crad` is no position domain", "cards"),
     "resolve::_membership_capture::unknown collection noun '{}' -- {}": Slip(
         "docs/games/hearts.cardlang", "demands: cards in hand where card is 2 of clubs",
-        "demands: crad in hand where card is 2 of clubs", "unknown collection noun 'crad'", "card",
+        "demands: crad in hand where card is 2 of clubs", "unknown collection noun 'crad'", "cards",
         also=(("let shooter = actor", "let shooter = actor\n    let crad = actor"),)),
     "resolve::_check_domain_query::unknown {} '{}' -- {}": Slip(
         "docs/games/hearts.cardlang", "if any player where base[player] is 26 {",
@@ -512,7 +512,33 @@ _PROBES: dict[str, tuple[Slip, bool]] = {
     "a ranking convention misspelled": (
         Slip("docs/games/hearts.cardlang", "ranking: aces high", "ranking: Aces Hihg",
              "unknown rank", "aces high"), True),
+    "a numeric rank is offered as a string": (
+        Slip("docs/games/belote.cardlang", 'elif card.rank is "9" then 107',
+             'elif card.rank is "99" then 107', '"99" is not a Rank value', '"9"'), True),
+    "the spelling as typed is never offered back": (
+        Slip("docs/games/tic-tac-toe.cardlang", "(all cells where square[cell] is not empty)",
+             "(all lines where square[cell] is not empty)", "position domain 'line'", "lines"),
+        False),
+    "a noun the query's form cannot take is not offered": (
+        Slip("docs/games/hearts.cardlang", "if any player where base[player] is 26 {",
+             "if any crd where base[player] is 26 {", "'crd'", "card"), False),
+    "a mode is not offered its own name": (
+        Slip("docs/games/hearts.cardlang", "transition_to: hearts_broken when",
+             "transition_to: hearts_not_brokn when", "transition_to target 'hearts_not_brokn'",
+             "hearts_not_broken"), False),
+    "a library's own binding is offered": (
+        Slip("library:" + _LIB_HEAD + "  function probe(owed : Integer) = owed\n}\n", "= owed",
+             "= owd", "reads 'owd'", "owed"), True),
 }
+
+
+def test_every_copy_of_a_refusal_offers_alike() -> None:
+    """A refusal a check tells at two sites renders the same at both."""
+    slip = Slip("docs/games/tic-tac-toe.cardlang", "board: grid(3, 3)", "board: gird(3, 3)",
+                "unknown board family 'gird'", "grid")
+    hits = [line for line in _rendered_errors(slip) if slip.marker in line]
+    assert len(hits) > 1, hits
+    assert all(line.endswith("; did you mean `grid`?") for line in hits), hits
 
 
 @pytest.mark.parametrize("probe", sorted(_PROBES))
