@@ -238,10 +238,9 @@ def _diagnostics(text: str, name: str) -> list[tuple[str | None, str]]:
     try:
         check_dsl(text, name)
     except DiagnosticError as exc:
-        notes = getattr(exc, "__notes__", [])
-        if not notes:
-            d = exc.diagnostic
-            return [(d.span.source_name if d.span else None, d.message)]
+        # Every refusal is read as rendered, the single one included, so a
+        # refusal reads the same whichever way it is raised.
+        notes = getattr(exc, "__notes__", []) or [exc.diagnostic.format()]
         out = []
         for line in "\n".join(notes).splitlines():
             if is_library_warning(line) or line_kind(line) == "note":

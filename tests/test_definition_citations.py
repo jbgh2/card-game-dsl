@@ -126,8 +126,13 @@ def _plain(message: object) -> list[str]:
     return [p for p in message.parts if isinstance(p, str)]
 
 
-# The frames between a check and the bag, which name no check.
-_PASSING_FRAMES = frozenset({"error", "_emit", "_tell", "recording"})
+# The frames between a check and the bag, which name no check: every public
+# method of the bag, and the helpers that hand a sentence on to one.
+_PASSING_FRAMES = frozenset(
+    name
+    for name, member in vars(D.DiagnosticBag).items()
+    if callable(member) and not name.startswith("_")
+) | {"_emit", "_tell", "recording"}
 
 
 def _site(frame: FrameType | None) -> str:

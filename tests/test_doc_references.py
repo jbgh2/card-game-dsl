@@ -92,6 +92,8 @@ import ast
 import re
 from pathlib import Path
 
+from cardlang.diagnostics import DiagnosticBag
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ROADMAP = REPO_ROOT / "docs" / "roadmap.md"
 
@@ -117,9 +119,14 @@ WHOLE_FILE_POINTERS: tuple[tuple[str, str], ...] = (
     ("CLAUDE.md", "for the full list of"),
 )
 
-# The bag methods that emit designer-facing text. A string reaching one of
-# these is a diagnostic; a string anywhere else in a module is not.
-DIAGNOSTIC_METHODS = frozenset({"error", "warn", "warning"})
+# The bag methods that emit designer-facing text, derived from the bag: every
+# public method but the one that renders what it holds. A string reaching one
+# of these is a diagnostic; a string anywhere else in a module is not.
+DIAGNOSTIC_METHODS = frozenset(
+    name
+    for name, member in vars(DiagnosticBag).items()
+    if callable(member) and not name.startswith("_") and name != "format"
+)
 
 _MENTION = re.compile(r"roadmap\.md")
 # A quoted title must follow the mention closely — within the connective text
