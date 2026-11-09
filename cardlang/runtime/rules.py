@@ -18,6 +18,9 @@ move type asked about, a `demands` carries its `if_impossible`).
 Establishes: the legal card list for that one decision, the trick round's
 card decision. Illegal after this: a second caller -- the one-site law is
 pinned by tests/test_rule_sites.py.
+Held by: the one-site law is Derived and Pinned, the AST census of
+tests/test_rule_sites.py; not higher, because which code may consult the
+cascade is a fact about the call graph, which no type in the engine holds.
 """
 
 from __future__ import annotations

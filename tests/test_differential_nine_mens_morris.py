@@ -42,7 +42,8 @@ Coverage:
     enemy mill; the every-man-in-a-mill removal offering the whole mill; a
     placement closing two mills earning one removal; a reduction win for each
     seat, the loser flying onto a point its man is not adjacent to; a
-    blockade, the blocked seat losing with more than two men; a shuffle past
+    blockade, the blocked seat losing with more than two men; a seat at
+    three men, every man hemmed in, flying rather than blockaded; a shuffle past
     the oracle's turn cap, where the truncation fires with no man removed.
 (c) `test_random_trajectories_agree_with_native`: seeded uniform policies
     over `POLICY_SEEDS`, walked to a rules end or the truncation. The tally
@@ -99,6 +100,11 @@ red under (removal rule): dropping the in-mill conjunct of `remove`'s When
 Clause in the game reddens `test_scripted_mill_excludes_enemy_mill_men` and
 the policy walk; the second tripwire then fails on its own precondition,
 naming the conjunct it plants out as already gone.
+red under (flying arm): deleting `can_move`'s flying arm, `or ((men_left[p]
+<= 3) and (any cell where point[cell] is empty))`, reddens
+`test_scripted_hemmed_in_three_men_fly` alone: the game ends the line as
+White's blockade where the oracle offers White its flies. No other line here
+reaches a hemmed-in seat at three men.
 """
 
 from __future__ import annotations
@@ -351,6 +357,27 @@ BLOCKADE: tuple[Step, ...] = (
     ("d2", "f2"), ("b2", "d2"),
 )
 
+# White at three men with every man hemmed in, so only flying moves one: a
+# uniform line over the oracle (`random.Random(172).choice` on its legal
+# actions), cut at that turn.
+HEMMED_FLIER: tuple[Step, ...] = (
+    "c4", "c5", "d5", "e4", "c3", "d7", "b2", "a1", "d1", "f2", "d6", "d3",
+    "g1", "a7", "g4", "a4", "d5", "f4", "g7", "f4", ("c4", "b4"),
+    ("f2", "d2"), ("b4", "b6"), ("e4", "f4"), ("d6", "d5"), ("f4", "f2"),
+    ("b6", "d6"), ("a4", "b4"), ("g4", "f4"), ("a7", "a4"), ("g1", "g4"),
+    ("d3", "e3"), ("c3", "c4"), ("e3", "d3"), ("d1", "g1"), ("d2", "d1"),
+    ("c4", "c3"), ("d1", "d2"), ("d5", "e5"), ("b4", "b6"), ("d6", "f6"),
+    ("a4", "a7"), "f6", ("g1", "d1"), ("d3", "e3"), ("c3", "d3"),
+    ("a1", "a4"), ("b2", "b4"), ("d7", "d6"), ("g4", "g1"), ("d6", "d5"),
+    ("b4", "b2"), ("a4", "b4"), ("d3", "c3"), ("d5", "d6"), ("c3", "d3"),
+    ("g7", "d7"), ("f4", "f6"), ("c5", "c4"), ("e5", "e4"), ("d7", "g7"),
+    ("d3", "c3"), ("d6", "d7"), "e4", ("f6", "f4"), ("b4", "a4"),
+    ("d1", "a1"), ("g7", "g4"), ("a1", "d1"), ("e3", "d3"), ("f4", "f6"),
+    ("g4", "g7"), "b2", ("f6", "f4"), ("a4", "b4"), ("f4", "g4"),
+    ("b4", "b2"), "g4", ("g1", "d6"), ("a7", "a4"), ("d6", "a7"),
+    ("d7", "d6"), ("c3", "d7"), ("d3", "e3"), ("d1", "c3"), ("e3", "d3"),
+)
+
 # Eighteen placements closing no mill, then White's d3 and Black's f4 stepping
 # out and back for as long as the line runs.
 SHUFFLE_PLACEMENTS: tuple[Step, ...] = (
@@ -467,6 +494,21 @@ def test_scripted_blockade() -> None:
     )
     assert 9 - taken_from_white > 2, "White still holds more than two men"
     assert line.players[-1] == 1, "Black's move leaves White without one"
+
+
+def test_scripted_hemmed_in_three_men_fly() -> None:
+    """A seat at three men whose every man is hemmed in still moves: it flies,
+    and is not blockaded. The flies' destinations are the vacant points, and
+    no flier stands beside one."""
+    line = paired_line(scripted(HEMMED_FLIER), label="hemmed flier")
+    assert line.end is None, "the script stops the line at White's hemmed-in turn"
+    assert {name for name, _ in line.offer} == {"fly"}
+    fliers = {args[0] for _, args in line.offer}
+    vacant = {args[1] for _, args in line.offer}
+    assert len(fliers) == 3, f"White flies three men, got {sorted(fliers)}"
+    entry = board_entry("morris9", ())
+    beside = {c: set(entry.neighbors(c)) & vacant for c in fliers}
+    assert not any(beside.values()), f"a flier stands beside a vacant point: {beside}"
 
 
 def test_scripted_line_truncates_at_the_turn_cap() -> None:

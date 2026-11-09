@@ -345,8 +345,8 @@ kept, the duplicate's witnesses are carried onto it as a comment, and the
 duplicate closes with `gh issue close N --duplicate-of M`.
 
 Keep the label set minimal. The whole vocabulary is five **kinds** — `bug`,
-`enhancement`, `documentation`, `tech-debt`, `epic` — two **modifiers**,
-`blocked:needs-witness` and `needs-triage`, the four **reachability**
+`enhancement`, `documentation`, `tech-debt`, `epic` — three **modifiers**,
+`blocked:needs-witness`, `needs-triage` and `optimization`, the four **reachability**
 labels, `reachability:R1`–`R4` (below), and the two **priority** tiers,
 `priority:P1` and `priority:P2` — triage, set only by the direction
 review and never at filing (`docs/harness.md`, "The Ready Front"). Area labels
@@ -401,6 +401,12 @@ discipline upstream to be correct, which is the point.
   corpus-first rule stated without its evidence, so the label does not apply.
 - **`needs-triage`** means "filed fast, kind not yet decided" — a deliberate,
   visible state, not a resting place. It comes off when a kind goes on.
+- **`optimization`** marks work whose fix changes only cost — harness or
+  runtime time and memory — and no answer a designer or a proof sees. It
+  parks the issue for the Optimization Pass: off the Ready Front until the
+  operator opens the pass as a milestone, so the class is worked together
+  rather than site by site. The body carries the measurement that prices
+  it, dated and with its command.
 - **`epic`** issues are checklist containers for multi-stage workstreams;
   they hold sub-items, not work of their own. A finding that bears on an
   epic's goal — closing the epic with it open would leave the goal sentence,

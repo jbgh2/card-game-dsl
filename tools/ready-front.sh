@@ -132,6 +132,8 @@ result=$(jq -s \
       then "unordered (no reachability label)"
     elif ([labelnames[] | select(startswith("blocked:"))] | length) > 0
       then "witness-gated (blocked: label)"
+    elif labelnames | index("optimization")
+      then "parked for the Optimization Pass"
     elif ([.blockedBy.nodes[] | select(.state == "OPEN")] | length) > 0
       then "blocked (open dependency)"
     elif .assignees.totalCount > 0 then "claimed (assigned)"

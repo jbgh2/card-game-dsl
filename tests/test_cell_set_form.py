@@ -29,7 +29,7 @@ The grid, axis by axis, each read from where the language defines it:
     a fix that checks; GRID U's derived noun axis under the set, count and
     `any` collection forms, judged on the FIRST refusal; the library cells
     (a library's collection form names no game domain); and a source member
-    outside its integer domain, refused at the query.
+    outside its integer domain, or `none`, refused at the query.
   * The membership capture -- `x in <noun>s where …` with no parentheses
     reads as the collection set over `x`; where `x` names a value in scope
     it is the FIRST and only refusal, naming the parenthesized membership
@@ -1341,6 +1341,25 @@ def test_a_source_member_outside_the_domain_is_refused_at_the_query(source: str,
     game, expr = _checked_fc_expr(source)
     with pytest.raises(OwnerGuardError, match="which is no `column` of this game"):
         evaluate(expr, _fc_ctx(game, fills))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param("columns in [1, none] where true", id="set"),
+        pytest.param("number of columns in [none, 1] where true", id="count"),
+        pytest.param("number of columns in [none, 9] where true", id="count hiding a non-member"),
+        pytest.param("any column in [1, none] where false", id="any"),
+    ],
+)
+def test_a_none_source_member_is_refused_at_the_query(source: str) -> None:
+    """An optional value fits where its base is read (`types.coercible`: no
+    flow narrowing), so a source holding `none` checks; the query refuses it
+    at play, naming none, whatever stands beside it. Red under: the member
+    check reading `None` as its own "no stray" answer."""
+    game, expr = _checked_fc_expr(source)
+    with pytest.raises(OwnerGuardError, match="its source holds none"):
+        evaluate(expr, _fc_ctx(game, {}))
 
 
 # --- GRID K, the subset and line refusals' fixes -------------------------------

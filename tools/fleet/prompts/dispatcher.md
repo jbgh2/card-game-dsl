@@ -66,7 +66,9 @@ chartered:
   cardlang-code-review at the classification's tier →
   PR via cardlang-pr-description (Closes #N; when the item is listed in
   issue #143, the PR body's "For the reviewer" bullets name the trim per
-  #143's contract — never edit #143 itself).
+  #143's contract — never edit #143 itself) → post the review through
+  `tools/review_record.py post` (its findings as threads, then its
+  Review Record), at the head the review read.
 - Watch, then answer — linearized for a headless session (a background
   watcher would outlive you): after ALL of the round's PRs are open,
   take them one at a time, and for each FIRST query what already landed
@@ -78,11 +80,14 @@ chartered:
   Handle each review round per the thread rule (disposition reply +
   resolve; a finding on the fix for a previous finding escalates to the
   operator — say so on the PR and stand down); after any fix push,
+  run cardlang-code-review again at the new head and post it through
+  the writer (or comment `@codex review` and wait for Codex's), then
   query-then-watch again. The charter's arm-in-background language is
   for interactive sessions; every other step of its round binds here
   unchanged.
-- Merge ONLY on ./tools/merge-gate.sh exit 0 (merge commit, delete the
-  branch); otherwise post the gate's evidence block as a PR comment and
+- Merge ONLY on ./tools/merge-gate.sh exit 0 (merge commit bound to the
+  head the gate printed: `gh pr merge <N> --merge --delete-branch
+  --match-head-commit <head>`); otherwise post the gate's evidence block as a PR comment and
   leave the PR for the operator.
 - Never: Lane A work, editing #143 or doctrine, spending money, working
   blocked issues, merging past the gate — and never a write to the

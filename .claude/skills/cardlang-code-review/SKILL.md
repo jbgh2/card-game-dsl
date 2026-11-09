@@ -268,6 +268,46 @@ present / absent; grid run against the merge base or not; witnesses
 replayed or not) even when it produced no finding. List cut findings one line each — a silent cap reads as "covered
 everything".
 
+**Posting the review: threads, then the Review Record.** Every review of
+a pull request, at every tier, posts its findings and its record through
+one writer, so this review's findings and Codex's reach the pull request
+the same way (ADR-0019):
+
+```bash
+python3 tools/review_record.py post --pr <N> --head <the full sha reviewed> \
+    --tier <Quick|Standard|Thorough> --artifact-gate <present|absent|not-triggered> findings.json
+```
+
+`findings.json` is the JSON array above, CONFIRMED and PLAUSIBLE only.
+The writer posts one review holding one thread per finding at the head
+the review read — on the finding's line when the diff can carry a
+comment there, otherwise on its file, and for a file outside the diff on
+the diff's first file, naming where the finding is. It then posts the
+Review Record, whose CONFIRMED count it derives from the same list. A
+clean review posts the record alone. `--dry-run` prints both and posts
+nothing. The writer posts nothing when the pull request has moved past
+the head the review read: a push after the review means the review runs
+again.
+
+Each thread is then handled by the thread rule (docs/harness.md, "Review
+threads"): a disposition reply — fixed, filed, refuted or escalated —
+and the responder resolves it. A CONFIRMED finding is fixed only by a
+new head, which takes its own review.
+
+`tools/merge-gate.sh` reads every record at the head that would merge
+(`tools/review_record.py` owns the reading and its closed vocabulary):
+Lane D passes when none carries a CONFIRMED finding; Lane C passes when
+one record ran Standard or Thorough, or Codex completed a review at that
+head; an `absent` artifact gate, a record only at an older head, or a
+record the writer could not have written fails the gate, and the
+thread clause fails it while any finding's thread is unresolved. A Codex
+review at the head is a review on record without a Review Record
+(docs/harness.md, "The Merge Lanes"). A later record never clears an
+earlier one's findings, nor does a Codex review: re-running the review
+at an unchanged head adds a record, it does not replace one. A pre-PR
+review — the Dispatcher's, before `gh pr create` — posts once the PR
+exists.
+
 ## Effort scaling
 
 - **Quick check**: no subagent fan-out; angles A + B inline over changed
