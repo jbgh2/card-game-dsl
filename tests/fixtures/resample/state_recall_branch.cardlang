@@ -1,0 +1,30 @@
+// A probe, not a corpus game: the implicit-flow twin of state_recall. Only
+// constants are written, chosen by an `if` that reads hand[1], which seat 0
+// cannot see. The value is shown to seat 0 at its first decision and
+// overwritten before its second; the State Delta of its second decision node
+// keeps what it was shown.
+game StateRecallBranch {
+  players: 2
+  max_length: 4
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+  }
+  state {
+    flag : Integer = 0
+    guess[player] : Integer = 0
+  }
+  phase setup {
+    shuffle deck
+    deal 1 card from deck to hand[1]
+  }
+  phase peek {
+    if (number of cards in hand[1] where rank_value(card) >= 8) > 0 { flag := 1 } else { flag := 0 }
+    as 0 { guess[0] := choose integer in 0 .. 1 }
+    flag := 0
+    as 0 { guess[0] := choose integer in 0 .. 1 }
+  }
+  winner: highest guess
+}

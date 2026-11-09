@@ -99,6 +99,10 @@ SHAPE_MEMBERS: dict[str, tuple[Any, ...]] = {
     "construct": tuple(sorted(CONSTRUCTS)),
     "count": (1, 3, 52),
     "destination": ("trick_pile", "hand[2]", "square[a1]", None),
+    "variable": ("flag", "guess", "went_again"),
+    # A slot's key or content as `render_state_variable` spells it, an empty
+    # String's own spelling, and nothing (an unindexed slot, a slot not in scope).
+    "rendering": ("1", "True", "{0:0,1:0}", "Q♠", "None", "", None),
 }
 
 # The nearest wrong values per shape: what a site that forgot to render,
@@ -131,6 +135,12 @@ _REFUSALS: dict[str, tuple[Any, ...]] = {
     # A card handed over as a zone, a perturbed label, and the neighbouring
     # shapes; None is a MEMBER here, not a refusal.
     "destination": ("Q♠", "hand[2]«perturbed»", 3, ("hand", 1), True),
+    # A variable is named as declared: an indexed slot's label, a zone's
+    # label, a card, and the neighbouring fields are not a name.
+    "variable": ("guess[0]", "hand[2]", "Q♠", "", None, 3, "two words"),
+    # Content handed over unrendered — an integer, a flag, a card, a
+    # collection — is the value, not its spelling.
+    "rendering": (1, True, Card("Q", "spades"), ("1",), {"0": "1"}, 1.5),
 }
 
 # Every card and piece rendering the component sets hold.

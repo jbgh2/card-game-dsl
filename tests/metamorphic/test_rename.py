@@ -88,7 +88,7 @@ def test_no_corpus_game_has_an_unsafe_name(path: Path) -> None:
 def test_renamed_game_plays_out_identically(path: Path, seed: int) -> None:
     parsed = pairing.parse_corpus_game(path)
     plan = build_rename_plan(parsed)
-    rename_hook = trace_rename(plan.zone_map)
+    rename_hook = trace_rename(plan.zone_map, plan.state_map)
     a, b = pairing.run_pair(path, alpha_rename, seed)
     witness = pairing.compare_traces(a, b, rename=rename_hook)
     assert witness is None, f"{path} seed={seed}: {witness}"

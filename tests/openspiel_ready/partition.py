@@ -81,6 +81,10 @@ PAYLOAD_PROBES: dict[str, Callable[[Any], Any]] = {
     # None is a member of this shape, so the probe names a zone where the
     # event named none, and another where it named one.
     "destination": lambda label: "elsewhere" if label != "elsewhere" else "other_zone",
+    "variable": lambda name: "perturbed_" + name,
+    # None is a member of this shape, so the probe names a rendering where the
+    # event named none, and changes one where it named one.
+    "rendering": _perturbed_value,
 }
 
 # One member of every field shape, from which the matrix builds an event of
@@ -96,6 +100,8 @@ SYNTHETIC_PAYLOAD: dict[str, Any] = {
     "construct": "offer",
     "count": 1,
     "destination": "synthetic",
+    "variable": "synthetic_variable",
+    "rendering": "«synthetic»",
 }
 
 

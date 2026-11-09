@@ -14,7 +14,11 @@ Contract
 Assumes: a checked game, and a [[context]] naming the phase and the decider.
 Establishes: `decide` is the one route from a decision site to the Chooser, and
 it emits the decider's `asked` observation before the Chooser is consulted, so
-what a seat is asked reaches it by the same channel as what it chose. `decide`
+what a seat is asked reaches it by the same channel as what it chose. Before
+the `asked`, every seat receives the decision node's [[state-delta]]
+(`observe.state_delta`): each public State Variable slot changed since the
+previous decision node, with the rendering it had there, so every seat's log
+fixes the public state it was shown at every earlier node. `decide`
 is also the one site that records a pick: the decider's log gains one `chose`
 event per pick, whether the Chooser makes its picks at once or one at a time
 (`sequential_decisions`), so every route records one decision alike. And it is
@@ -30,7 +34,7 @@ only once `decide` returns. So a run makes exactly `max_length` picks on every
 route that reaches the bound. Illegal after this: `ctx.chooser(...)` outside
 `decide`; a decision site absent from `delegation.DECISION_POINTS`; a decision
 asked outside every phase; a `chose` event emitted anywhere but `decide`'s
-recorder; a second site counting decisions; a Chooser asked for a pick with the
+recorder; a `was` event emitted anywhere but the State Delta `decide` delivers; a second site counting decisions; a Chooser asked for a pick with the
 count at the bound.
 """
 
@@ -44,7 +48,7 @@ from typing import Any
 
 from cardlang.runtime.delegation import DECISION_POINTS
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.observe import PAYLOAD_SHAPES, render
+from cardlang.runtime.observe import PAYLOAD_SHAPES, render, state_delta
 from cardlang.runtime.state import Chooser, Ctx, LengthStop
 from cardlang.runtime.values import Player
 
@@ -178,6 +182,7 @@ def decide(
             raise LengthStop(rs.decisions_made)
 
     admit()
+    state_delta(ctx)
     ctx.observe(decider, ("asked", ctx.current_phase.name, word, n, destination))
     recorded: list[Any] = []
 

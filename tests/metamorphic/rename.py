@@ -223,10 +223,10 @@ class RenamePlan:
     """The rename this transform will apply. `name_map` covers both zones
     and state variables (safe to share one flat map — see the module
     docstring: their namespaces never collide, asserted below). `zone_map`
-    is the subset the trace-level hook needs: state-variable names never
-    appear inside an observation event (only VALUES are rendered, never a
-    declaring variable's own name — `runtime/observe.py`'s closed event
-    vocabulary), so only zone labels ever need translating back.
+    and `state_map` partition it, and are the halves the trace-level hook
+    needs: a zone's label appears in the "move"/"reveal"/"asked" events, and
+    a State Variable's name in the "was" events of a State Delta
+    (`runtime/observe.py`'s closed event vocabulary), so both translate back.
 
     `unsafe`, `excluded_global`, and `excluded_coupled` partition every name
     NOT in `name_map`, each for a different, documented reason (module
@@ -234,6 +234,7 @@ class RenamePlan:
 
     name_map: dict[str, str]
     zone_map: dict[str, str]
+    state_map: dict[str, str]
     unsafe: frozenset[str]
     excluded_global: frozenset[str]
     excluded_coupled: frozenset[str]
@@ -304,10 +305,12 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
                 name_map[old] = candidate
                 break
     zone_map = {old: new for old, new in name_map.items() if old in zone_names}
+    state_map = {old: new for old, new in name_map.items() if old not in zone_names}
     _order_preserving_check(zone_names, zone_map)
     return RenamePlan(
         name_map=name_map,
         zone_map=zone_map,
+        state_map=state_map,
         unsafe=frozenset(unsafe),
         excluded_global=frozenset(excluded_global),
         excluded_coupled=frozenset(excluded_coupled),
@@ -395,13 +398,17 @@ def alpha_rename(game: n.Game) -> n.Game:
     return cast(n.Game, _rewrite(game, plan.name_map))
 
 
-def trace_rename(zone_map: dict[str, str]) -> Callable[[Event], Event]:
+def trace_rename(
+    zone_map: dict[str, str], state_map: dict[str, str]
+) -> Callable[[Event], Event]:
     """The trace-level `rename` hook `pairing.compare_traces` wants: labels
     in the TRANSFORMED side's "move"/"reveal"/"asked" events carry the NEW zone
-    spelling (`_label` in `runtime/observe.py`: `name` or `name[key]`); this
-    maps them back to the original so the transformed side's trace compares
-    byte-for-byte against the untransformed side's."""
+    spelling (`_label` in `runtime/observe.py`: `name` or `name[key]`), and its
+    "was" events the NEW State Variable name; this maps both back to the
+    original so the transformed side's trace compares byte-for-byte against
+    the untransformed side's."""
     inverse = {new: old for old, new in zone_map.items()}
+    state_inverse = {new: old for old, new in state_map.items()}
 
     def relabel(label: str) -> str:
         if "[" in label:
@@ -430,6 +437,9 @@ def trace_rename(zone_map: dict[str, str]) -> Callable[[Event], Event]:
                 count,
                 None if destination is None else relabel(destination),
             )
+        if tag == "was":
+            _, variable, slot, shown = event
+            return (tag, state_inverse.get(variable, variable), slot, shown)
         return event
 
     return rename

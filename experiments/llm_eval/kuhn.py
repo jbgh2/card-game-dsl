@@ -495,6 +495,12 @@ machine-generated and terse. Its layout is:
         it was, how many picks it wanted, and where they land (None when the
         decision moves no card of its own). It says what you were asked, never
         what anyone holds.
+      * ('was', <variable>, <slot>, <value>) — a public state variable that
+        changed since the previous decision, with the value it showed then.
+        `<slot>` names the seat for a per-seat variable (None otherwise), and
+        `<value>` is None if the variable was not yet in play. The state
+        section shows today's values; these entries are how you remember
+        earlier ones.
 """
 
 FORMAT_TEXT_RENDERED = """\

@@ -53,7 +53,12 @@ import pytest
 pyspiel = pytest.importorskip("pyspiel")
 
 import cardlang.openspiel.game as ogame  # registers on import
-from cardlang.openspiel.infostate import derive, information_state, render_information_state
+from cardlang.openspiel.infostate import (
+    SeatView,
+    derive,
+    information_state,
+    render_information_state,
+)
 from cardlang.openspiel.replay import (
     DecisionNode,
     HistoryMismatch,
@@ -828,6 +833,21 @@ def mentions(value: Any, card: Card) -> int:
     return 0
 
 
+def told_apart(a: SeatView, b: SeatView) -> bool:
+    """Whether two Seat Views differ only in public state: every zone and
+    every observation event outside the State Delta agree, so whatever tells
+    the worlds apart is a State Variable's value, now or at an earlier
+    decision node. State is public (decisions.md, "Hidden information lives
+    only in zones; state is public"), so a swap that moves one moved a fact
+    every seat was shown, the pause seat's view as much as a decider's
+    (`_blind_decider`); the pair was never hidden from it, and a difference
+    anywhere else is still the leak the swap proof refuses."""
+    def private(view: SeatView) -> tuple[Any, ...]:
+        return (view.zones, tuple(e for e in view.obs_log if e[0] != "was"))
+
+    return a != b and private(a) == private(b)
+
+
 def _blind_decider(a: RecordedPick, b: RecordedPick, hidden: frozenset[Card]) -> int | None:
     """The seat a pick is compared for, or None when it is sighted. One seat
     deciding in both worlds is sighted when its two views render different
@@ -1103,6 +1123,13 @@ class ReadinessProofs:
                 continue
             pause_b = replayed.pause
             info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
+            if info_a != info_b and told_apart(
+                derive(p, pause_a.rs, pause_a.obs_logs[p]),
+                derive(p, pause_b.rs, pause_b.obs_logs[p]),
+            ):
+                last_drop = "the swap moved a public fact the pause seat was shown"
+                dropped += 1
+                continue
             assert info_a == info_b, (
                 f"{spec.short_name}: swapping hidden {x}<->{y} ({who}) "
                 f"CHANGED P{p}'s information state — the info-set leaks.\n"

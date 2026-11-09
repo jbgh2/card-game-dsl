@@ -64,7 +64,7 @@ def test_render_covers_the_declared_value_shapes_and_refuses_the_rest() -> None:
     unstable repr in a certified-deterministic string."""
     import pytest
 
-    from cardlang.openspiel.infostate import render_state_variable
+    from cardlang.runtime.observe import render_state_variable
     from cardlang.runtime.values import Card
 
     assert render_state_variable(3) == "3"

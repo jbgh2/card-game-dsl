@@ -13297,8 +13297,9 @@ HIDDEN_READ_POSITIONS: dict[tuple[type, str], tuple[str, str]] = {
     ),
     (n.AssignStmt, "value"): (
         READ_POSITION_OUTSIDE,
-        "state is public, so an assignment is an announcement (issue #471 holds "
-        "a Primitive's result stored this way)",
+        "state is public: every seat is shown it at each decision node, and "
+        "its log keeps each node's State Delta (issue #471 holds a Primitive's "
+        "result stored this way)",
     ),
     (n.AssignStmt, "index"): (READ_POSITION_OUTSIDE, "state is public: an assignment's key is announced"),
     (n.AssignStmt, "target"): (READ_POSITION_OUTSIDE, "names the state variable written"),
