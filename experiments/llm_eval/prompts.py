@@ -135,6 +135,12 @@ machine-generated and terse. Its layout is:
         it was, how many picks it wanted, and the zone they went to (or None
         where that was not settled yet). It says what you were asked, never
         what anyone holds.
+      * ('was', <variable>, <slot>, <value>) — a public state variable that
+        changed since the previous decision, with the value it showed then.
+        `<slot>` names the seat for a per-seat variable (None otherwise), and
+        `<value>` is None if the variable was not yet in play. The state
+        section shows today's values; these entries are how you remember
+        earlier ones.
 
 This log is the reason you know what you played even though `played` and `pile`
 show you only counts: your own choices are in your log, and nobody else's are
@@ -356,6 +362,11 @@ entries look like:
     how many picks it wanted, and the zone they went to (or None where that
     was not settled yet). It says what you were asked, never what anyone
     holds.
+  * ('was', <variable>, <slot>, <value>) — a public state variable that
+    changed since the previous decision, with the value it showed then.
+    `<slot>` names the seat for a per-seat variable (None otherwise), and
+    `<value>` is None if the variable was not yet in play. The state section
+    shows today's values; these entries are how you remember earlier ones.
 
 The log is the reason you know what you played even though the pile and the
 face-down cards show you only counts: your own choices are in your log, and

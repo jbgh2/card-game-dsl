@@ -534,11 +534,18 @@ class _Walk:
                 # DECISION rather than by omission — the refusal below is what
                 # keeps that distinction real.
                 continue
+            elif tag == "was":
+                # A State Delta: the rendering a public State Variable had at
+                # the previous decision node. Public state the observer was
+                # shown, so a proposal it contradicts fails the replay check
+                # (`gap_replay`), and it moves no card.
+                # Skipped by DECISION, like the ask.
+                continue
             else:
                 raise ValueError(
                     f"observation event {tag!r} is not one this sampler models "
                     f"(it replays 'move', 'announce' and 'chose', and skips "
-                    f"'asked', which moves nothing): {event!r}"
+                    f"'asked' and 'was', which move nothing): {event!r}"
                 )
         return self._finish()
 

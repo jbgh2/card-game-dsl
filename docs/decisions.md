@@ -2869,6 +2869,25 @@ bid meaning, a running count) is a state variable *because* it is
 public, while the concealed truth it may misrepresent sits in a
 face-down zone whose projection hides it.
 
+**A seat holds the public state at every decision node it is shown.**
+Public means shown to every seat at each decision node, not announced at
+each write. At every decision node the kernel delivers to every seat a
+[State Delta](glossary/state-delta.md): one `was` [observation
+event](#observation-events) per State Variable slot whose rendering
+changed since the previous decision node, carrying the rendering it had
+there, emitted from the one route a decision reaches the
+[Chooser](glossary/chooser.md) by, before the `asked`. A seat's log then
+fixes the public state it was shown at every earlier node, so overwriting
+a variable, a phase's local variables leaving scope or resetting, and a
+branch choosing which value is written cannot make a seat forget what it
+was shown: perfect recall holds for the public half of the information
+state by construction, whichever write door changed a slot and whatever
+chose the write. A value written and overwritten between two decision
+nodes was shown at neither, and no seat hears it. Whether a game should
+publish a concealed fact into state at all is a separate question
+(issue #471); a State Delta makes a seat remember what it was shown, not
+whether showing it was honest play.
+
 The corollary is a modeling rule: **anything an observer must not know
 is contents, not state.** A hidden scalar (a secret counter, a sealed
 simultaneous bid) is encoded as tokens or cards in a zone whose
@@ -3014,6 +3033,12 @@ the cards it has committed. The rule is the same on every route a
 game is played by — the table, a native playout, OpenSpiel — so
 one decision reads identically in a seat's information state
 whichever route produced it.
+
+**The public state at earlier nodes.** Every seat's log carries the
+State Delta of each decision node, so the public state a seat was
+shown at any earlier node follows from its log and the current state
+(["Hidden information lives only in zones; state is
+public"](#hidden-information-lives-only-in-zones-state-is-public)).
 
 ### Formal distinctions
 

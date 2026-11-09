@@ -785,20 +785,22 @@ def test_first_answers_as_a_person_picking_the_first_item(short_name: str, tmp_p
 # Each line is the uniform draw at the named seat under the action ids the
 # space mints today: a nullary offer move sits in the sorted names block, so
 # the ids a draw lands on are the block's, and a layout change re-pins them.
+# The draw is a digest of the seat's information state (`UniformSeatPolicy`),
+# so a change to what a seat's log carries re-pins them too.
 _UNIFORM_LINES: dict[tuple[str, int], list[int]] = {
     ("cardlang_hearts", 0): [
-        9, 11, 18, 20, 21, 12, 7, 0, 30, 10, 46, 47, 0, 10, 9, 5, 25, 14, 24, 16, 40,
-        26, 42, 41, 8, 1
+        9, 11, 18, 20, 21, 12, 7, 0, 30, 10, 46, 47, 0, 10, 4, 6, 25, 17, 20, 16, 40, 11, 42,
+        44, 22
     ],
     ("cardlang_hearts", 3): [
-        11, 51, 49, 20, 21, 12, 7, 0, 30, 1, 3, 10, 0, 3, 2, 12, 6, 7, 1, 11, 4, 5, 15,
-        9, 10, 32, 8
+        11, 51, 49, 20, 21, 12, 7, 0, 30, 1, 3, 10, 0, 3, 4, 6, 45, 39, 43, 49, 17, 24, 15, 18,
+        23
     ],
-    ("cardlang_holdem", 2): [4, 2, 3, 0, 4, 2, 4, 3, 0, 2, 0, 2, 3, 0, 2, 2, 4],
-    ("cardlang_kuhn_poker", 0): [0, 2],
+    ("cardlang_holdem", 2): [4, 2, 3, 0, 5, 2, 0, 4, 2, 5, 2, 2, 0, 2],
+    ("cardlang_kuhn_poker", 0): [0, 4],
     ("cardlang_president", 1): [
-        64, 52, 93, 52, 52, 80, 52, 52, 91, 54, 52, 52, 52, 79, 52, 52, 52, 52, 103, 104,
-        52, 52, 52, 67, 52, 52, 52, 52, 60, 100, 52
+        64, 52, 93, 52, 52, 80, 52, 52, 91, 54, 52, 52, 52, 79, 52, 52, 52, 52, 67, 96, 90, 52,
+        52, 66, 52, 52, 52, 52, 59, 77, 52
     ],
 }
 

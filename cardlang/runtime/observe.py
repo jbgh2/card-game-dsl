@@ -34,6 +34,18 @@ admits. This is what each carries:
                                           that is public by construction:
                                           delivered to every player whatever
                                           the zone's declared visibility says
+  ("was", variable, slot, <rendering>)   a [[state-delta]]: one State Variable
+                                          slot whose rendering changed since
+                                          the previous decision node, with the
+                                          rendering it had there — None for a
+                                          slot not in scope there. The slot is
+                                          an indexed variable's key, rendered,
+                                          or None for an unindexed one.
+                                          Delivered to every player at every
+                                          decision node (`state_delta`), before
+                                          the `asked`, so a seat's log fixes
+                                          the public state it was shown at
+                                          every earlier node
 
 Which observer learns what is otherwise driven by the zone declarations alone
 (decisions.md "Knowledge, visibility, and the projection model") — no game names
@@ -43,7 +55,7 @@ its observers.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, TypeGuard
 
 from cardlang.domains import zone_observer_key
@@ -119,12 +131,18 @@ PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
     "destination": lambda value: (
         value is None or (isinstance(value, str) and _LABEL.fullmatch(value) is not None)
     ),
+    # a declared State Variable's name, as the grammar's NAME terminal spells it
+    "variable": lambda value: isinstance(value, str) and _NAME.fullmatch(value) is not None,
+    # what `render_state_variable` spells — a slot's key, or a slot's content
+    # — or nothing: an unindexed variable's slot, or a slot not in scope
+    "rendering": lambda value: value is None or isinstance(value, str),
 }
 
 # The closed set of observation-event kinds, each with the shape of every field
 # it carries after its tag (closed-domain completeness, decisions.md). Emission
-# sites: `announce`/`movement` below, `chooser.decide` (the `asked` and one
-# `chose` per pick), and `execute._reveal`. A new kind, or a new field on one, is
+# sites: `announce`/`movement` below, `chooser.decide` (the `asked`, one
+# `chose` per pick, and the `was` events of `state_delta` below), and
+# `execute._reveal`. A new kind, or a new field on one, is
 # declared here first. Pinned by tests/test_observation_payloads.py, which plays
 # every registered game with an observer installed and holds every delivered
 # event to its row.
@@ -141,6 +159,7 @@ EVENT_PAYLOADS: dict[str, tuple[str, ...]] = {
     "announce": ("seat", "value"),
     "move": ("label", "view", "label", "view"),
     "reveal": ("label", "card"),
+    "was": ("variable", "rendering", "rendering"),
 }
 
 
@@ -225,6 +244,93 @@ def announce(ctx: Ctx, actor: Player, value: Any) -> None:
         return
     for p in ctx.rs.seating.players:
         ctx.observe(p, ("announce", actor, render(value)))
+
+
+def render_state_variable(value: Any) -> str:
+    """A State Variable's content, spelled canonically: the one spelling every
+    rendering of a Seat View, and every State Delta, gives it."""
+    if isinstance(value, Mapping):
+        items = sorted(value.items(), key=lambda kv: repr(kv[0]))
+        return "{" + ",".join(f"{k}:{render_state_variable(v)}" for k, v in items) + "}"
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return "[" + ",".join(sorted(render_state_variable(v) for v in value)) + "]"
+    if isinstance(value, (int, str, Card)) or value is None:
+        return str(value)
+    # Closed-domain completeness: a state value outside the declared shapes
+    # has no deterministic rendering — fail loudly rather than embed an
+    # unstable repr in the information state (determinism is a certified
+    # property; see open-questions/structural-infoset-proofs.md).
+    raise AssertionError(
+        f"state value of type {type(value).__name__} has no declared "
+        f"rendering in information_state — add it deliberately"
+    )
+
+
+def public_state(rs: RuntimeState) -> dict[str, Any]:
+    """The State Variables in scope, as every seat is shown them: each scope
+    frame merged, later frames shadowing earlier (phase-local over game).
+
+    The one reading of the public state. The information state renders it
+    and `state_delta` diffs it, so what a seat is shown and what its log
+    records of a change are one definition. The values are the frames' own
+    objects: a caller copies before keeping one.
+    """
+    merged: dict[str, Any] = {}
+    for frame in rs.frames:
+        merged.update(frame)
+    return merged
+
+
+# One State Variable slot: the variable's name, and an indexed variable's key
+# as `render_state_variable` spells it (None for an unindexed variable).
+Slot = tuple[str, str | None]
+
+
+def shown_slots(rs: RuntimeState) -> dict[Slot, str]:
+    """Every slot of the public state, rendered. An indexed variable is one
+    slot per key, so a write to one key is one change, whichever door wrote it
+    — an indexed assignment changes its slot in place."""
+    slots: dict[Slot, str] = {}
+    for name, value in public_state(rs).items():
+        if isinstance(value, Mapping):
+            for key, item in value.items():
+                slots[(name, render_state_variable(key))] = render_state_variable(item)
+        else:
+            slots[(name, None)] = render_state_variable(value)
+    return slots
+
+
+def state_delta(ctx: Ctx) -> None:
+    """Deliver the [[state-delta]] of this decision node to every seat: one
+    `was` event per slot whose rendering differs from the previous decision
+    node's, carrying the rendering it had there.
+
+    A seat is shown the public state at every decision node, so this is what
+    makes its log fix every earlier node's public state from the current one,
+    whichever write door changed a slot between them, and whatever chose the
+    write (decisions.md "Hidden information lives only in zones; state is
+    public"). A slot written and overwritten between two nodes was shown at
+    neither, and no event names it. The first decision node of a run has no
+    earlier one and delivers nothing.
+
+    Called by `chooser.decide` alone, before the `asked`; the snapshot it
+    keeps (`RuntimeState.shown_slots`) is the previous node's.
+    """
+    if ctx.observer is None:
+        return
+    rs = ctx.rs
+    now = shown_slots(rs)
+    before, rs.shown_slots = rs.shown_slots, now
+    if before is None:
+        return
+    changed = sorted(
+        (slot for slot in before.keys() | now.keys() if before.get(slot) != now.get(slot)),
+        key=lambda slot: (slot[0], slot[1] is not None, slot[1] or ""),
+    )
+    for name, key in changed:
+        event = ("was", name, key, before.get((name, key)))
+        for p in rs.seating.players:
+            ctx.observe(p, event)
 
 
 def _is_owner(

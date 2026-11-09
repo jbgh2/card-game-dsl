@@ -103,6 +103,11 @@ EVENT_LINES: dict[str, Callable[..., str]] = {
         f"to {destination} ({_seen(destination_view, noun)})"
     ),
     "reveal": lambda label, card, noun: f"revealed {card} in {label}",
+    "was": lambda variable, slot, shown, noun: (
+        f"`{variable if slot is None else f'{variable}[{slot}]'}` "
+        + ("was not in scope" if shown is None else f"was `{shown}`")
+        + " at the decision before"
+    ),
 }
 
 

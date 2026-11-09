@@ -148,6 +148,13 @@ entitled to observe:
                                        the decision moves no card of its own).
                                        It says what you were asked, never what
                                        anyone holds.
+  ('was','pot',None,'3')               a public state variable that changed
+                                       since the previous decision, with the
+                                       value it showed then (the slot names
+                                       the seat for a per-seat variable, else
+                                       None). The state section shows today's
+                                       values; these entries are how you
+                                       remember earlier ones.
 The log is how you know the betting so far. A card that reached a hidden zone
 appears as a count, never an identity — the state simply does not contain what
 you are not entitled to.

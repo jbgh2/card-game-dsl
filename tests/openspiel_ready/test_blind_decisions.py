@@ -4,7 +4,9 @@ property:        The swap proof fails when a seat that has seen neither
                  swapped card is offered different legal actions, or is asked
                  in one world and not the other, at any recorded pick before
                  the pause or at the pause itself, and does not fail at a pick
-                 whose decider has seen one; and a game reading a hidden card
+                 whose decider has seen one, nor at a pause seat that tells the
+                 worlds apart only through public state (`harness.told_apart`);
+                 and a game reading a hidden card
                  where the checker refuses as a Hidden Read never reaches the
                  proof.
 domain:          Every recorded pick of the greedy line to the spec's depth
@@ -256,3 +258,26 @@ def test_spread_pairs_reorders_and_keeps_every_pair() -> None:
     assert sorted(spread) == sorted(pairs)
     assert [x for x, _ in spread[:3]] == ["a", "b", "c"]
     assert len({y for _, y in spread[:3]}) == 3
+
+
+def test_only_a_public_difference_tells_the_pause_seat_apart() -> None:
+    """The pause comparison drops a pair whose worlds differ only in public
+    state, and nothing else: a zone, or any event outside the State Delta,
+    still reads as the leak the swap proof refuses.
+
+    red under: `told_apart` returning `a != b`; the zone and event cells below
+    then read as public, and a leak through either is dropped as told."""
+    from cardlang.openspiel.infostate import SeatView
+
+    from .harness import told_apart
+
+    base = SeatView(0, (("hand[1]", 1),), (("high", 0),), (("asked", "p", "choose", 1, None),))
+    by_state = SeatView(0, base.zones, (("high", 1),), base.obs_log)
+    by_delta = SeatView(0, base.zones, base.state, (("was", "high", None, "1"), *base.obs_log))
+    by_zone = SeatView(0, (("hand[1]", 2),), base.state, base.obs_log)
+    by_event = SeatView(0, base.zones, base.state, (("reveal", "hand[1]", "Q♠"), *base.obs_log))
+    assert not told_apart(base, base)
+    assert told_apart(base, by_state)
+    assert told_apart(base, by_delta)
+    assert not told_apart(base, by_zone)
+    assert not told_apart(base, by_event)

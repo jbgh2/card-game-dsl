@@ -162,6 +162,10 @@ _NEAR_ALIKE: dict[str, tuple[Any, ...]] = {
     "construct": (),
     "count": (),
     "destination": ("play", "passing"),
+    "variable": (),
+    # The words the line uses for a slot not in scope, and the spelling of a
+    # `none` State Variable, each held apart from the absence it resembles.
+    "rendering": ("not in scope", "None", "0"),
 }
 
 

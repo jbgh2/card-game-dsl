@@ -1,7 +1,10 @@
 """What an observer learns from a simultaneous block, and when.
 
 property:        While an `each … simultaneously` block runs, an observer
-                 receives nothing but its own `asked` and `chose` records; at
+                 receives nothing but its own `asked` and `chose` records,
+                 after the State Delta of the block's first decision node —
+                 the writes made before the block began, since no State
+                 Variable changes between a block's decisions; at
                  block-exit it receives the block's moves as one batch — one
                  `move` event per seat that passed cards, in seat order, with
                  nothing between them (decisions.md, "Simultaneous moves and
@@ -109,6 +112,10 @@ def test_a_simultaneous_block_lands_as_one_batch_at_block_exit(
             kinds = [event[0] for event in events]
             first_move = kinds.index("move") if "move" in kinds else len(kinds)
             before, batch = events[:first_move], events[first_move:]
+            opening = next(
+                (i for i, event in enumerate(before) if event[0] != "was"), len(before)
+            )
+            before = before[opening:]
             assert all(event[0] in ("asked", "chose") for event in before), (
                 f"{where}: P{observer} learned {[e for e in before if e[0] not in ('asked', 'chose')]} "
                 f"before block-exit"

@@ -21,34 +21,18 @@ to guarantee, kept equal by review.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any
 
-from cardlang.runtime.observe import ZoneView, view_of
+from cardlang.runtime.observe import (
+    ZoneView,
+    public_state,
+    render_state_variable,
+    view_of,
+)
 from cardlang.runtime.reads import deep_freeze
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card
-
-
-def render_state_variable(value: Any) -> str:
-    """A State Variable's content, spelled canonically: the one spelling every
-    rendering of a Seat View gives it."""
-    if isinstance(value, Mapping):
-        items = sorted(value.items(), key=lambda kv: repr(kv[0]))
-        return "{" + ",".join(f"{k}:{render_state_variable(v)}" for k, v in items) + "}"
-    if isinstance(value, (list, tuple, set, frozenset)):
-        return "[" + ",".join(sorted(render_state_variable(v) for v in value)) + "]"
-    if isinstance(value, (int, str, Card)) or value is None:
-        return str(value)
-    # Closed-domain completeness: a state value outside the declared shapes
-    # has no deterministic rendering — fail loudly rather than embed an
-    # unstable repr in the information state (determinism is a certified
-    # property; see open-questions/structural-infoset-proofs.md).
-    raise AssertionError(
-        f"state value of type {type(value).__name__} has no declared "
-        f"rendering in information_state — add it deliberately"
-    )
 
 
 @dataclass(frozen=True)
@@ -107,13 +91,10 @@ def _facts(
             f"no seat {player!r} at this table: a seat view is derived for one "
             f"of seats 0..{len(rs.seating.players) - 1}"
         )
-    merged: dict[str, Any] = {}
-    for frame in rs.frames:  # later frames shadow earlier (phase-local over game)
-        merged.update(frame)
     return SeatView(
         player=player,
         zones=_zone_facts(rs, player),
-        state=tuple(sorted(merged.items())),
+        state=tuple(sorted(public_state(rs).items())),
         obs_log=tuple(obs_log),
     )
 

@@ -144,7 +144,12 @@ does not emit. Measured on every pinned seed by replaying the pre-move digests
 with those two deltas applied — 200 of 200 equal the re-captured file for each
 of the four games, and the relabel alone matches none (2026-10-09) — and the
 `decision` retirement is a `Migration` row below, so
-`test_retired_traces_are_actually_gone` executes it.
+`test_retired_traces_are_actually_gone` executes it. Each file was
+re-captured again, 2026-11-09, when every seat's log gained each decision
+node's State Delta (issue #1041, ADR-0021): measured on every pinned seed by
+recomputing the digest with the `was` events filtered out, 200 of 200 equal
+the stored hash for each of the six files, and the unfiltered digest moved
+on all 200 (2026-11-09).
 
 The two trace-claim tests are born green for every row -- each asserts what
 the tree already does -- so their reddening mutations are recorded here

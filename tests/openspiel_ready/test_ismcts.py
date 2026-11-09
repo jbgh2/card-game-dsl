@@ -94,6 +94,29 @@ def _path(filename: str) -> str:
     return str(_GAMES_DIR / filename)
 
 
+def _assert_recall(
+    path: str, seed: int, history: tuple[int, ...], world: R.Constructed, observer: int
+) -> None:
+    """Perfect recall over a Constructed World: at each of the observer's
+    earlier decisions on the line, its information state in the constructed
+    world is the one it had in the true world. A seat that cannot tell the
+    two worlds apart now could not tell them apart then (Kuhn), so an earlier
+    difference is a recall failure at the pause."""
+    for j in range(len(history)):
+        then = run(path, seed, history[:j])
+        assert isinstance(then, DecisionNode)
+        if then.player != observer:
+            continue
+        there = run(path, world.seed, world.history[:j], script=world.script)
+        assert isinstance(there, DecisionNode) and there.player == observer
+        assert information_state(observer, there.rs, there.obs_logs[observer]) == (
+            information_state(observer, then.rs, then.obs_logs[observer])
+        ), (
+            f"{path}: seat {observer} cannot tell the worlds apart at pick "
+            f"{len(history)} but could at its decision at pick {j} — it forgot"
+        )
+
+
 def _check(
     path: str, seed: int, history: tuple[int, ...], observer: int
 ) -> tuple[set[tuple[str, bool]], set[tuple[str, bool]]]:
@@ -119,6 +142,7 @@ def _check(
     assert information_state(observer, node.rs, node.obs_logs[observer]) == information_state(
         observer, true.rs, true.obs_logs[observer]
     )
+    _assert_recall(path, seed, history, world, observer)
     # The construction reads only the information state: from the constructed
     # world, which the observer cannot tell from the true one, the same
     # sampler randomness constructs the same world. red under: an unseen pick
@@ -243,6 +267,37 @@ def test_every_game_resamples_or_is_a_pinned_refusal(short_name: str, filename: 
         f"{short_name} meets pick cells no witness covers: {sorted(unwitnessed)} — "
         f"name a witness game for each in WITNESSED"
     )
+
+
+@pytest.mark.parametrize("fixture", ["state_recall", "state_recall_branch"])
+def test_a_constructed_world_keeps_the_public_state_a_seat_was_shown(fixture: str) -> None:
+    """The recall comparison every swept game passes through `_check`, held to
+    reddening: seat 0 is shown a public value derived from seat 1's concealed
+    card, which converges before its second decision, so a world dealing the
+    card's other rank class is indistinguishable at the pause unless the
+    State Delta of that decision node records the value.
+
+    red under: dropping `state_delta(ctx)` from `chooser.decide` — both
+    fixtures fail the comparison at pick 0 (executed 2026-11-09)."""
+    path = str(_FIXTURES / f"{fixture}.cardlang")
+    distinct = set()
+    for seed in range(8):
+        first = run(path, seed, ())
+        assert isinstance(first, DecisionNode)
+        history = (first.legal[0],)
+        pause = run(path, seed, history)
+        assert isinstance(pause, DecisionNode) and pause.player == 0
+        for sampler in range(8):
+            world = R.resample(path, seed, (), history, 0, random.Random(sampler), 4096)
+            _assert_recall(path, seed, history, world, 0)
+            node = run(path, world.seed, world.history, script=world.script)
+            assert isinstance(node, DecisionNode)
+            (card,) = node.rs.zones.instance("hand", 1).cards
+            distinct.add(card.rank)
+    # The comparison must have had worlds to refuse: constructed worlds dealt
+    # seat 1 more than one rank, so a recall failure could not hide behind a
+    # sampler that only rebuilt the true deal.
+    assert len(distinct) > 1
 
 
 def _cell_cases() -> list[Any]:

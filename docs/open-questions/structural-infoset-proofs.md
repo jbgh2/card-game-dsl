@@ -199,12 +199,21 @@ checklist for resolving this question.
   frames only, every phase frame standing where the seat is asked —
   mid-round mechanic state is
   [round-state-in-information-states](round-state-in-information-states.md).
-- **Perfect recall over histories.** Information sets are functions of the
-  observation *log*, not the current snapshot — true by construction (the
-  log is embedded verbatim in the information state) and pinned by the
-  append-only proof. Worth adding: paired-line probes — two lines differing
-  in an observation a player received must yield that player different
-  information states.
+- **Perfect recall over histories.** Every history in one information set
+  carries the same sequence of the seat's own earlier information states.
+  *Covered:* the log half holds by construction, since the log is embedded
+  verbatim in the information state, and the append-only proof pins it. The
+  public-state half holds by construction too: every seat's log carries each
+  decision node's [State Delta](../glossary/state-delta.md)
+  ([decisions.md](../decisions.md) "Hidden information lives only in zones;
+  state is public"). The comparison is executed per game over Constructed
+  Worlds (`_assert_recall`, tests/openspiel_ready/test_ismcts.py), whose
+  witnesses redden with the delta removed, and per write door in
+  tests/test_state_recall.py. What a green leaves sampled is the zone half's
+  premise, that every zone change reaches every seat through its
+  projections (epic #999), and the picks past `SWEEP_AT`. Worth adding:
+  paired-line probes — two lines differing in an observation a player
+  received must yield that player different information states.
 - **Seed and undrawn-randomness non-observability.** No information state
   may be sensitive to the root chance seed beyond what dealt-and-observed
   cards already reveal, nor to rng draws not yet made. *Pinned structurally per game:* replacing

@@ -22,9 +22,9 @@ from collections.abc import Callable, Iterable
 from functools import cache
 
 from cardlang.ast import nodes as n
-from cardlang.openspiel.infostate import SeatView, render_state_variable
+from cardlang.openspiel.infostate import SeatView
 from cardlang.play.events import counted, event_line
-from cardlang.runtime.observe import ZoneView
+from cardlang.runtime.observe import ZoneView, render_state_variable
 from cardlang.runtime.values import Card, deck_ranks, deck_suits
 from cardlang.types import Flavor
 

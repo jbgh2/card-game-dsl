@@ -156,16 +156,16 @@ def test_the_observation_stream_is_pinned(member: Path) -> None:
 # replaces — the measurement is what carries the property across the
 # re-capture, not the re-capture itself.
 _DIGESTS: dict[str, str] = {
-    'green-lane-mini.cardlang': '3bbc4e7d74d42e97',
-    'green-lane.cardlang': 'e13ade8b7601bd1d',
-    'variants/v1-impound-mini.cardlang': '3bbc4e7d74d42e97',
-    'variants/v1-impound.cardlang': 'e13ade8b7601bd1d',
-    'variants/v2-bounty-mini.cardlang': '3bbc4e7d74d42e97',
-    'variants/v2-bounty.cardlang': '7f8a664d3853ab5d',
-    'variants/v2b-delayed-bounty-mini.cardlang': '3bbc4e7d74d42e97',
-    'variants/v2b-delayed-bounty.cardlang': '7f8a664d3853ab5d',
-    'variants/v3-graded-mini.cardlang': '11e22c8e2f294852',
-    'variants/v3-graded.cardlang': '68feab1de6d932d9',
-    'variants/v4-composed-mini.cardlang': '11e22c8e2f294852',
-    'variants/v4-composed.cardlang': '68feab1de6d932d9',
+    'green-lane-mini.cardlang': '4e5d1d2985b3ff79',
+    'green-lane.cardlang': '9025cf8588b25e9b',
+    'variants/v1-impound-mini.cardlang': '4e5d1d2985b3ff79',
+    'variants/v1-impound.cardlang': 'afde8c5e8fd2c5e0',
+    'variants/v2-bounty-mini.cardlang': '4e5d1d2985b3ff79',
+    'variants/v2-bounty.cardlang': '1d2ebcf39add22b5',
+    'variants/v2b-delayed-bounty-mini.cardlang': '4e5d1d2985b3ff79',
+    'variants/v2b-delayed-bounty.cardlang': 'b16549f91cada99e',
+    'variants/v3-graded-mini.cardlang': 'b06df55ee66b225b',
+    'variants/v3-graded.cardlang': '042f6cc7581dd9f2',
+    'variants/v4-composed-mini.cardlang': 'b06df55ee66b225b',
+    'variants/v4-composed.cardlang': 'e216363d9fe2a1ba',
 }

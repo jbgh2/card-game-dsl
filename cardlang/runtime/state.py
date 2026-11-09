@@ -477,6 +477,11 @@ class RuntimeState:
         self.board: BoardEntry | None = None
         self.max_length: int = 0  # the game's declared bound: a game ends at it
         self.decisions_made: int = 0  # every pick made, counted by `chooser.decide`
+        # The public state as the previous decision node showed it, slot by
+        # slot (`observe.shown_slots`), or None before the first: the State
+        # Delta `observe.state_delta` delivers at each node is the diff against
+        # it, and that function is its one writer.
+        self.shown_slots: dict[tuple[str, str | None], str] | None = None
         # Content flavor ("card"/"piece") and the axis->Card-attribute map for a
         # piece set (identity for a card deck): the driver sets both from the
         # game's component set; `_card_pred`/`_select_joint` bind the flavor noun,
