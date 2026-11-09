@@ -1,1 +1,1 @@
-board_unknown_family.cardlang:8:3: error: unknown board family 'hexgrid' (registered families: ['draughts', 'grid', 'hex_rhombus', 'morris9'])
+board_unknown_family.cardlang:8:3: error: unknown board family 'hexgrid' (registered families: ['draughts', 'grid', 'hex_rhombus', 'morris9']); did you mean `grid`?

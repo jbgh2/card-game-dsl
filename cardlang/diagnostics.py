@@ -6,13 +6,34 @@ compile half of the [[failure-channel]], the runtime half being
 `runtime/errors.py`. The quality of these messages is the tool's value
 (docs/building.md, "CI gates"), so the span is threaded through from the very
 first stage rather than bolted on later.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      a check refusing a designer-written spelling because the set it
+              looked the spelling up in lacks it holds that set at the
+              refusal.
+Establishes:  `resemblance` is the one measure of how alike two spellings
+              are, and `near_misses` the one ranking of a set's [[near-miss]]es
+              by it; `DiagnosticBag.unknown` is the one way a check refuses
+              a spelling absent from a set it holds, and the refusal carries
+              that set's Near Misses as data (`Diagnostic.near_misses`);
+              `Diagnostic.format` is the one place the `did you mean` clause
+              is worded.
+Now illegal:  a check composing an unknown-name refusal with
+              `DiagnosticBag.error` (tests/test_near_misses.py census), a
+              second resemblance measure, and a Near Miss applied to a
+              designer's text for them: it can name the wrong declared
+              thing, so it is only ever offered.
+Held by:      Derived and Pinned -- a refusal's sentence is a `str`, which no
+              union tells apart, so the census holds the routing.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field, replace
+from difflib import SequenceMatcher
 from enum import Enum
 
 
@@ -118,6 +139,35 @@ class Sentence:
 Said = str | LibraryCitation | Sentence
 
 
+#: The fewest Near Misses a refusal is worth reading past, and the least
+#: resemblance a declared name needs to be one. The cutoff is difflib's own
+#: `get_close_matches` default: a one-letter slip, a transposition or a
+#: dropped letter in a name of four letters or more clears it, and a name
+#: sharing no run of letters with the spelling does not.
+NEAR_MISS_LIMIT = 3
+NEAR_MISS_CUTOFF = 0.6
+
+
+def resemblance(typed: str, declared: str) -> float:
+    """How alike two spellings are, from 0 to 1, ignoring case."""
+    return SequenceMatcher(None, typed.casefold(), declared.casefold()).ratio()
+
+
+def near_misses(spelled: str, among: Iterable[str]) -> tuple[str, ...]:
+    """The declared names in `among` that `spelled` nearly spells: at most
+    `NEAR_MISS_LIMIT`, most alike first and alphabetical among equals, each
+    at least `NEAR_MISS_CUTOFF` alike, and never `spelled` itself."""
+    scored = sorted(
+        (-resemblance(spelled, name), name) for name in set(among) if name != spelled
+    )
+    return tuple(name for score, name in scored if -score >= NEAR_MISS_CUTOFF)[:NEAR_MISS_LIMIT]
+
+
+def _or_list(names: tuple[str, ...]) -> str:
+    quoted = [f"`{name}`" for name in names]
+    return quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + " or " + quoted[-1]
+
+
 def rendered(message: Said) -> tuple[str, tuple[Span, ...]]:
     """`message`'s words, and the span of each library text it names."""
     if isinstance(message, str):
@@ -169,7 +219,11 @@ class Diagnostic:
     family-library text is told in: the crossing a walk followed into that
     text, the sentence the game's author reads when the refusal is told to
     them, and the library text a refusal standing at the game's text was
-    reached through. No diagnostic leaves a pass carrying any of them."""
+    reached through. No diagnostic leaves a pass carrying any of them.
+
+    `near_misses` are the declared names a refused spelling nearly spells
+    (`near_misses`), offered by `format` and carried through every retelling;
+    never mechanically applicable."""
 
     severity: Severity
     message: str
@@ -178,9 +232,13 @@ class Diagnostic:
     for_game: str | None = None
     notes: tuple[Note, ...] = ()
     stands_on: tuple[Span, ...] = ()
+    near_misses: tuple[str, ...] = ()
 
     def format(self) -> str:
-        lines = [_located(self.span, self.severity.value, self.message)]
+        message = self.message
+        if self.near_misses:
+            message += f"; did you mean {_or_list(self.near_misses)}?"
+        lines = [_located(self.span, self.severity.value, message)]
         lines.extend(_located(note.span, NOTE, note.message) for note in self.notes)
         return "\n".join(lines)
 
@@ -224,6 +282,28 @@ class DiagnosticBag:
         self.items.append(
             Diagnostic(Severity.ERROR, words, span, route, game_words, stands_on=on + cited)
         )
+
+    def unknown(
+        self,
+        message: Said,
+        spelled: str,
+        among: Iterable[str],
+        span: Span | None = None,
+        *,
+        route: Route | None = None,
+        for_game: Said | None = None,
+        stands_on: Span | tuple[Span, ...] | None = None,
+        written: Callable[[str], str] | None = None,
+    ) -> None:
+        """Refuse `spelled`, absent from `among`, the set it was looked up in:
+        `error`, with the set's Near Misses carried as data, each as `written`
+        spells it where the refusal stands (a numeric rank in a string
+        position is written quoted)."""
+        self.error(message, span, route=route, for_game=for_game, stands_on=stands_on)
+        near = near_misses(spelled, among)
+        if written is not None:
+            near = tuple(written(name) for name in near)
+        self.items[-1] = replace(self.items[-1], near_misses=near)
 
     def warning(self, message: str, span: Span | None = None) -> None:
         self.items.append(Diagnostic(Severity.WARNING, message, span))

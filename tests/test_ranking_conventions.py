@@ -37,7 +37,7 @@ registry:   `cardlang.runtime.values.RANKING_CONVENTIONS` and
             The partial-enumeration guard: tests/test_ranking_guard.py.
             The duplicate-clause `once` sweep:
             tests/test_game_clause_guards.py.
-does not prove:  that the "did you mean" hint fires for every plausible
+does not prove:  that the convention hint fires for every plausible
             misspelling. It is probed on representative ones — word flip,
             case flip, space-for-hyphen, a plausible non-convention — never
             on every string within edit distance of a key. The hint is
@@ -259,7 +259,7 @@ def test_misspelled_convention_rejects_with_the_hint(clause: str) -> None:
         resolve(parse_text(_probe_source("standard52", f"ranking: {clause}"), "probe.cardlang"))
     msg = str(exc.value)
     assert "names unknown rank" in msg
-    assert "did you mean a ranking convention" in msg
+    assert "is a word of a ranking convention" in msg
 
 
 def test_plain_unknown_rank_gets_no_convention_hint() -> None:
@@ -270,7 +270,7 @@ def test_plain_unknown_rank_gets_no_convention_hint() -> None:
         resolve(parse_text(_probe_source("standard52", "ranking: A K Q 11"), "probe.cardlang"))
     msg = str(exc.value)
     assert "names unknown rank '11'" in msg
-    assert "did you mean a ranking convention" not in msg
+    assert "is a word of a ranking convention" not in msg
 
 
 # --- the corpus migrations: expansion == the enumeration each replaced ---

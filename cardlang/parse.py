@@ -91,7 +91,6 @@ Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
 
 from __future__ import annotations
 
-import difflib
 import re
 import unicodedata
 from collections.abc import Iterable
@@ -113,6 +112,7 @@ from cardlang.diagnostics import (
     DiagnosticError,
     Severity,
     Span,
+    resemblance,
 )
 from cardlang.extract import FencedBlock
 
@@ -2665,7 +2665,7 @@ def _expected_words(exc: UnexpectedInput, typed: str) -> tuple[str, ...]:
     def rank(word: str) -> tuple[float, bool, str]:
         spelling = _spelling(word)
         return (
-            -difflib.SequenceMatcher(None, typed, spelling).ratio(),
+            -resemblance(typed, spelling),
             not spelling[:1].isalpha(),
             word,
         )

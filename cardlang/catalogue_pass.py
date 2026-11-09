@@ -152,7 +152,9 @@ def _check_sequence(
     deck_ranks = rank_names(game.deck)
     for r in seq.ranks:
         if r not in deck_ranks:
-            bag.error(f"`sequence:` names `{r}`, which is no rank of `{game.deck}`", seq.span)
+            bag.unknown(
+                f"`sequence:` names `{r}`, which is no rank of `{game.deck}`", r, deck_ranks, seq.span
+            )
             ok = False
     counts = Counter(seq.ranks)
     for r, k in counts.items():

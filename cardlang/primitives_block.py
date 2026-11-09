@@ -708,6 +708,11 @@ def _phase_state_declarations(game: n.Game) -> tuple[tuple[str, str], ...]:
     return tuple((path[-1], name) for path, name in _phase_state_paths(game))
 
 
+def states_declared_in(game: n.Game, phase: str) -> frozenset[str]:
+    """The names phase `phase`'s own `state { }` declares."""
+    return frozenset(name for at, name in _phase_state_declarations(game) if at == phase)
+
+
 def phase_names(game: n.Game) -> frozenset[str]:
     """Every phase of the game, nested ones included — what a scope tail may
     name. Game-unique by `_check_duplicate_names`, so a tail names one phase."""

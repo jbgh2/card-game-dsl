@@ -1778,7 +1778,8 @@ def _check_enum_literal(
     if origin is not None and enum.name in env.axis_enums:
         bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span)
         return
-    if lit.value not in _enum_domain(env, enum.name):
+    domain = _enum_domain(env, enum.name)
+    if lit.value not in domain:
         problem = f'"{lit.value}" is not a {enum.name} value of this deck'
     elif not lit.value.isdigit():
         problem = (
@@ -1788,11 +1789,13 @@ def _check_enum_literal(
         )
     else:
         return
-    if site is None:
-        bag.error(problem, lit.span)
+    said: Said = problem if site is None else site[0] + f": {problem}"
+    span = lit.span if site is None else site[1]
+    if lit.value in domain:
+        bag.error(said, span)
     else:
-        msg, span = site
-        bag.error(msg + f": {problem}", span)
+        # A numeric value is written as a string here, a name-form one bare.
+        bag.unknown(said, lit.value, domain, span, written=lambda v: f'"{v}"' if v.isdigit() else v)
 
 
 def _library_axis_refusal(
@@ -3494,9 +3497,11 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             # private working memory (`state.idx`, the trick's ring cursor) read
             # clean, ran, and silently changed the game. See stdlib/round_state.py.
             field_list = ", ".join(f"`{f}`" for f in sorted(ROUND_STATE_FIELDS))
-            bag.error(
+            bag.unknown(
                 f"a round publishes no `{e.field}` — `state.` names a round's "
                 f"published state, which is {field_list}",
+                e.field,
+                ROUND_STATE_FIELDS,
                 e.span,
             )
             return
@@ -3513,18 +3518,22 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             field_list = " and ".join(f"`{f}`" for f in sorted(env.item_fields))
             if not _library_field_gate(e, field_list, env, bag):
                 noun = content_noun(env.flavor, plural=False).capitalize()
-                bag.error(
+                bag.unknown(
                     f"{noun} has no field '{e.field}' (its fields are {field_list})",
+                    e.field,
+                    env.item_fields,
                     e.span,
                 )
         elif isinstance(bare, TCombination):
             # A climbing play's fields are `COMBINATION_FIELDS`: its shape is
             # read here, its cards through the card-source forms.
             if e.field not in COMBINATION_FIELDS:
-                bag.error(
+                bag.unknown(
                     f"a Combination has no field `{e.field}` — its one field is "
                     f"`shape`, and its cards are read `cards in "
                     f"{_name_of(e.obj) or 'play'}`",
+                    e.field,
+                    COMBINATION_FIELDS,
                     e.span,
                 )
             elif COMBINATION_FIELDS[e.field] is None:
@@ -4146,9 +4155,11 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
     elif stmt.item not in own:
         # A truly unknown noun (`chips`, `coins`): the deferred-resource Owner Guard,
         # unchanged (card games are byte-identical -- own is card/cards there).
-        bag.error(
+        bag.unknown(
             f"movements move cards; '{stmt.item}' is not a supported item noun "
             "(resource movements are deferred — roadmap.md)",
+            stmt.item,
+            own,
             stmt.span,
         )
     if stmt.visibility is not None:
@@ -4204,7 +4215,7 @@ def _check_produce_stmt(
     """One `produce` names a declared outcome and supplies payloads of the
     declared arity and types."""
     if sub.tag not in outcome.cases:
-        bag.error(f"{owner} produces unknown outcome case '{sub.tag}'", sub.span)
+        bag.unknown(f"{owner} produces unknown outcome case '{sub.tag}'", sub.tag, outcome.cases, sub.span)
         return
     payload_types = outcome.cases[sub.tag]
     if len(sub.payloads) != len(payload_types):
@@ -4576,9 +4587,11 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                     node.span,
                                 )
                             else:
-                                bag.error(
+                                bag.unknown(
                                     f"continue to '{node.phase}' is not a later sibling "
                                     "phase",
+                                    node.phase,
+                                    later,
                                     node.span,
                                 )
                         elif isinstance(node, n.SkipToNextHand) and not here_loop:
@@ -4682,8 +4695,10 @@ def _check_produces(
     seen: set[str] = set()
     for arm in stmt.arms:
         if arm.tag not in outcome.cases:
-            bag.error(
+            bag.unknown(
                 f"produces names unknown outcome case '{arm.tag}' of '{stmt.phase}'",
+                arm.tag,
+                outcome.cases,
                 arm.span,
             )
             continue
