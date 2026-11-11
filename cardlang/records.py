@@ -6,14 +6,18 @@ and, for a check, one Diagnostic Record per told diagnostic. A record holds
 what the text output shows a designer, as fields: the [[diagnostic-code]],
 the severity, the author who must act, the span, the message, the notes, and
 the Near Misses as suggestions marked `offered`. The words are the
-diagnostic's own; this module composes none and decides no author.
+diagnostic's own; this module composes none and decides no author. A
+`cardlang query --json` envelope holds one [[checker-query]]'s answer, with
+any refusal as Diagnostic Records of the same shape.
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      every diagnostic it is handed is told (`Told`): its file
               decided by `cardlang.attribution` or by the raise that made
               it, and its author stamped there.
-Establishes:  `envelope` is the one producer of a Record Envelope and
+Establishes:  `envelope` (a check's) and `query_envelope` (a Checker
+              Query's, from the one `query.Answer` its text is rendered from)
+              are the producers of a Record Envelope, and
               `span_record` the one encoding of a place in it; a record's
               `message` is `Diagnostic.message`, and its suggestions are
               `Diagnostic.near_misses`, each `offered`; `refusal_diagnostic`
@@ -33,10 +37,11 @@ Held by:      Unrepresentable for the refusal types (the match ends in
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from enum import Enum
-from typing import assert_never
+from typing import TypeVar, assert_never
 
+from cardlang import query as q
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import Author, Diagnostic, Severity, Span, Told
 from cardlang.runtime.errors import (
@@ -58,6 +63,7 @@ class Kind(Enum):
     """What a Record Envelope holds."""
 
     DIAGNOSTICS = "diagnostics"
+    QUERY = "query"
 
 
 class Applicability(Enum):
@@ -104,6 +110,90 @@ def envelope(told: Sequence[Told]) -> Record:
         "schema": SCHEMA,
         "kind": Kind.DIAGNOSTICS.value,
         "diagnostics": [diagnostic_record(t) for t in told],
+    }
+
+
+def query_envelope(answer: q.Answer) -> Record:
+    """The Record Envelope of a Checker Query: where it was asked, any refusal
+    of the whole question (the checker's, or the position's), and each of the
+    three answers or the refusal standing in its place -- the facts the text a
+    designer reads (`query.render`) is made from."""
+    return {
+        "schema": SCHEMA,
+        "kind": Kind.QUERY.value,
+        "at": {"file": answer.path, "line": answer.line, "column": answer.column},
+        "diagnostics": [diagnostic_record(t) for t in answer.refused],
+        "answer": None if answer.located is None else _answer_record(answer),
+    }
+
+
+def _answer_record(answer: q.Answer) -> Record:
+    loc = answer.located
+    assert loc is not None
+    return {
+        "part": {"what": loc.words, "span": span_record(loc.span), "text": loc.text},
+        "scope": _or_refused(answer.scope, _scope_record),
+        "type": _or_refused(answer.type, _type_record),
+        "seats": _or_refused(answer.seats, _seats_record),
+    }
+
+
+_Answered = TypeVar("_Answered")
+
+
+def _or_refused(
+    value: _Answered | Told | None, record: Callable[[_Answered], Record]
+) -> Record | None:
+    if value is None:
+        return None
+    if isinstance(value, Told):
+        return {"refused": diagnostic_record(value)}
+    return record(value)
+
+
+def _scope_record(scope: q.Scope) -> Record:
+    return {
+        "span": span_record(scope.span),
+        "names": [{"name": s.name, "sort": s.sort} for s in scope.names],
+        "at-a-name": scope.at_a_name,
+    }
+
+
+def _type_record(typed: q.Typed) -> Record:
+    return {
+        "span": span_record(typed.span),
+        "text": typed.text,
+        "types": list(typed.types),
+        "open": typed.open,
+    }
+
+
+def _side_record(side: q.Side | None) -> Record | None:
+    return None if side is None else {"zone": side.zone, "label": side.label}
+
+
+def _seats_record(seats: q.Seats) -> Record:
+    return {
+        "form": "static",
+        "span": span_record(seats.span),
+        "site": seats.site,
+        "construct": seats.construct,
+        "decider": seats.decider,
+        "pick": seats.pick,
+        "source": _side_record(seats.source),
+        "destination": _side_record(seats.destination),
+        "observers": [
+            {
+                "who": o.who,
+                "holds-source": o.holds_source,
+                "holds-destination": o.holds_destination,
+                "source": o.source,
+                "destination": o.destination,
+                "learns": o.learns,
+            }
+            for o in seats.observers
+        ],
+        "every-seat": seats.every_seat,
     }
 
 

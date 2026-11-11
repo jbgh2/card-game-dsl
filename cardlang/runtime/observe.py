@@ -56,7 +56,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping
-from typing import Any, TypeGuard
+from typing import Any, Literal, TypeGuard
 
 from cardlang.domains import zone_observer_key
 from cardlang.runtime.delegation import CONSTRUCTS
@@ -160,6 +160,27 @@ EVENT_PAYLOADS: dict[str, tuple[str, ...]] = {
     "move": ("label", "view", "label", "view"),
     "reveal": ("label", "card"),
     "was": ("variable", "rendering", "rendering"),
+}
+
+
+# What the seats other than the deciding seat learn of a pick, by the
+# construct asking (`delegation.CONSTRUCTS`, the word an `asked` event carries):
+# "announced", every seat hears the pick (`announce`); "moved", no seat hears
+# it, and the others learn of it only through the movement it makes, as the
+# zones' projections show it; "pass announced", a pass or a decline is
+# announced and a play is seen through its movement. The deciding seat itself
+# is always asked and remembers each pick (`chooser.decide`). Read by a
+# Checker Query (`cardlang.query`). The rung, recorded: no emission site reads
+# this table, so it is Derived and Pinned, held to what every registered game
+# emits by tests/test_query_seats.py, rather than a column the sites announce by.
+PICK_SHOWN: dict[str, Literal["announced", "moved", "pass announced"]] = {
+    "transfer": "moved",
+    "joint": "moved",
+    "simultaneous": "moved",
+    "offer": "announced",
+    "choose": "announced",
+    "trick": "moved",
+    "climb": "pass announced",
 }
 
 
@@ -333,12 +354,21 @@ def state_delta(ctx: Ctx) -> None:
             ctx.observe(p, event)
 
 
+def held(index: str | None, position_domains: Mapping[str, Any]) -> bool:
+    """Whether a zone indexed by `index` has a holder among the observers: a
+    seat or a team family does, a single zone or a family over a Position
+    Domain does not (no observer IS a column), so every observer sees it
+    through its type's `others` column."""
+    return index is not None and index not in position_domains
+
+
 def _is_owner(
     rs: RuntimeState, zone_name: str, key: Player | str | None, observer: Player
 ) -> bool:
     index = rs.zones.zone_index[zone_name]
-    if key is None or index is None:
+    if key is None or not held(index, rs.position_domains):
         return False
+    assert index is not None
     # The observer owns the family instance whose key is their own member in
     # the index domain — their seat, their team — read from the domain table's
     # `zone_key_of` column rather than an `== "team"` re-spelling (which
@@ -366,9 +396,19 @@ def view_of(
     (decisions.md "Projections: what visibility controls"), so no reader of a
     view meets the storage order.
     """
-    proj = zone_projection(
-        rs.zones.zone_type[zone_name], _is_owner(rs, zone_name, key, observer)
-    )
+    return _projected(projection_for(rs, zone_name, key, observer), cards)
+
+
+def projection_for(
+    rs: RuntimeState, zone_name: str, key: Player | str | None, observer: Player
+) -> str:
+    """The projection `observer` sees this zone instance through: its type's
+    owner column for the instance's holder, its others column for every other
+    observer."""
+    return zone_projection(rs.zones.zone_type[zone_name], _is_owner(rs, zone_name, key, observer))
+
+
+def _projected(proj: str, cards: Any) -> ZoneView:
     if proj == "identity":
         return tuple(sorted(cards, key=str))
     if proj == "count_only":
@@ -396,14 +436,24 @@ def movement(
     if ctx.observer is None or not cards:
         return
     for p in ctx.rs.seating.players:
-        src_view = view_of(ctx.rs, src[0], src[1], p, cards)
-        dst_view = view_of(ctx.rs, dst[0], dst[1], p, cards)
-        if src_view is None and dst_view is None:
+        src_proj = projection_for(ctx.rs, src[0], src[1], p)
+        dst_proj = projection_for(ctx.rs, dst[0], dst[1], p)
+        if not movement_seen(src_proj, dst_proj):
             continue
+        src_view = _projected(src_proj, cards)
+        dst_view = _projected(dst_proj, cards)
         ctx.observe(
             p,
             ("move", _label(*src), _rendered(src_view), _label(*dst), _rendered(dst_view)),
         )
+
+
+def movement_seen(source_projection: str, destination_projection: str) -> bool:
+    """Whether an observer seeing a movement's source and destination through
+    these projections learns of the movement at all: not when both are
+    `trivial`, which shows nothing. The one rule `movement` emits by, and the
+    one a Checker Query reads (`cardlang.query`)."""
+    return not (source_projection == "trivial" and destination_projection == "trivial")
 
 
 def _rendered(view: ZoneView) -> tuple[str, ...] | int | None:

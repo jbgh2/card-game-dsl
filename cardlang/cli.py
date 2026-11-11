@@ -6,6 +6,7 @@
     cardlang check docs/games/hearts.cardlang --json          # its refusals as one Record Envelope
     cardlang play docs/games/hearts.cardlang --vs all=random  # take a seat and play it
     cardlang demo docs/games/hearts.cardlang                  # one uniform-random self-play
+    cardlang query docs/games/hearts.cardlang --at 66:16      # what the checker knows there
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
 spellings reach one parser rather than two code paths that can disagree about
@@ -58,6 +59,12 @@ The two are split by who must act, not by how badly it went.
 place of the text, whatever the outcome, with the same exit code; every
 refusal it records is a Told Diagnostic, the command line's own (an
 unreadable path) told to whoever ran the command.
+
+`query` answers a [[checker-query]] (`cardlang.query`) on a file the checker
+accepts, and prints the checker's refusal, as `check` does, for one it
+refuses; a position the file or its game does not hold is refused to whoever
+ran the command, exit 2. `query --json` prints the answer as one Record
+Envelope in every case, with the same exit code.
 """
 
 from __future__ import annotations
@@ -101,7 +108,8 @@ from cardlang.play.session import (
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
-from cardlang.records import envelope, refusal_diagnostic
+from cardlang import query
+from cardlang.records import envelope, query_envelope, refusal_diagnostic
 from cardlang.runtime.errors import GameDescriptionError, InstallationError
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
@@ -163,6 +171,29 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
         help="print what --info-state and --view show at decision N — the "
         "position just before that one choice is made — instead of at the "
         "terminal position; --decisions lists the numbers",
+    )
+
+
+def _position(value: str) -> tuple[int, int]:
+    line, colon, column = value.partition(":")
+    if not colon or not line.isdigit() or not column.isdigit():
+        _usage(f"{value!r} is not a position; write LINE:COL, as in 66:16")
+    return int(line), int(column)
+
+
+def _add_query_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--at",
+        type=_position,
+        required=True,
+        metavar="LINE:COL",
+        help="the position to ask about, by the file's own lines and columns, "
+        "both counted from 1, as `check` reports them",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the answer as one Record Envelope on stdout",
     )
 
 
@@ -244,6 +275,11 @@ _COMMAND_TABLE: dict[str, tuple[str, Callable[[argparse.ArgumentParser], None]]]
     "demo": (
         "check a game file, then play one uniform-random self-play",
         _add_demo_arguments,
+    ),
+    "query": (
+        "check a game file, then say what is in scope at a position, the Type "
+        "of the expression there, and what each seat sees when it runs",
+        _add_query_arguments,
     ),
 }
 
@@ -359,6 +395,8 @@ def main(argv: list[str] | None = None) -> int:
     refusal = _unreadable(path)
     if args.command == "check" and args.json:
         return _check_json(path, refusal)
+    if args.command == "query" and args.json:
+        return _query_json(path, refusal, args.at)
     if refusal is not None:
         print(f"cardlang: {refusal}", file=sys.stderr)
         if implicit:
@@ -377,6 +415,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "play":
             return _play(path, args.seat, args.seed, args.save, args.resume, args.vs)
+        if args.command == "query":
+            return _query(path, args.at)
         return _check(path, args.emit_ir)
     except DiagnosticError as exc:
         print(exc.diagnostic.format(), file=sys.stderr)
@@ -462,6 +502,45 @@ def _check_json(path: Path, unreadable: str | None) -> int:
             told, exit_code = (refusal_diagnostic(exc),), _EXIT_CANNOT_PROCEED
     print(json.dumps(envelope(told), indent=2))
     return exit_code
+
+
+def _query(path: Path, at: tuple[int, int]) -> int:
+    """`query`: the checker's refusal, as `check` prints it, for a file it
+    refuses; otherwise the Checker Query's answer, on stdout, or the refusal
+    of the position, on stderr."""
+    check_source(path)
+    answer = query.ask_path(path, *at)
+    print(query.render(answer), file=sys.stdout if answer.located is not None else sys.stderr)
+    return answer.exit_code
+
+
+def _query_json(path: Path, unreadable: str | None, at: tuple[int, int]) -> int:
+    """`query --json`: one Record Envelope on stdout, whatever the outcome,
+    with the exit code the text output would give."""
+    line, column = at
+    refused: tuple[Told, ...] = ()
+    exit_code = _EXIT_OK
+    if unreadable is not None:
+        refused = (
+            Told(
+                Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
+                Author.INVOCATION,
+            ),
+        )
+        exit_code = _EXIT_CANNOT_PROCEED
+    else:
+        try:
+            check_source(path)
+        except DiagnosticError as exc:
+            refused, exit_code = exc.told, _EXIT_GAME_AT_FAULT
+        except InstallationError as exc:
+            refused, exit_code = (refusal_diagnostic(exc),), _EXIT_CANNOT_PROCEED
+    if refused:
+        answer = query.refused(str(path), line, column, refused, exit_code)
+    else:
+        answer = query.ask_path(path, line, column)
+    print(json.dumps(query_envelope(answer), indent=2))
+    return answer.exit_code
 
 
 def _check(path: Path, emit_ir: bool) -> int:

@@ -129,6 +129,14 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               Pinned: a withheld name is one lexical field (``withheld``), set
               where a binder is scoped and read by the one unresolved-name arm
               (tests/test_refusal_consequences.py).
+              Asked for one (``resolve(scopes=...)``), the pass fills the
+              Scope Record: at every node the classifying walk visits, keyed by
+              ``n.node_key``, the names a bare name written there classifies
+              as, by ``_classify`` under that node's categories, less those a
+              positional Owner Guard refuses where the node is a name
+              (``_record_scope``). It is the one source of "what is in scope
+              here" outside this pass (``cardlang.query``), and recording it
+              changes nothing the pass decides.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -4819,7 +4827,9 @@ def _check_requires(
     return stamps
 
 
-def resolve(game: n.Game) -> n.Game:
+def resolve(game: n.Game, *, scopes: dict[n.NodeKey, NamesInScope] | None = None) -> n.Game:
+    """`scopes`, when given, is filled with the Scope Record: what a bare name
+    resolves to at every node the classifying walk visits."""
     bag = DiagnosticBag()
     # First: `uses` splices each named library's definitions but its rules in,
     # so everything below sees one flat game; `_instantiate_rules` splices the
@@ -4920,7 +4930,7 @@ def resolve(game: n.Game) -> n.Game:
 
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
-    cats = replace(_categories(game), refused_binders=refused_binders)
+    cats = replace(_categories(game), refused_binders=refused_binders, scopes=scopes)
     game = _classify_names(game, cats, bag)
     game = _stamp_follows_reads(game)
     _validate_refs(game, cats, bag)
@@ -8348,6 +8358,42 @@ class _Categories:
     # fix would bind. Unresolved, such a name is a consequence of that
     # refusal and is not told.
     withheld: frozenset[str] = frozenset()
+    # The Scope Record a Checker Query asks for (`resolve(scopes=...)`),
+    # filled by `_rewrite` at every node it classifies under; None otherwise.
+    scopes: dict[n.NodeKey, NamesInScope] | None = None
+
+
+@dataclass(frozen=True)
+class NamesInScope:
+    """What a bare name written at one node would resolve to: each name this
+    pass classifies there, with its classification, less any a positional
+    Owner Guard of this pass refuses where a name stands (recorded at a name
+    only: `_name_positions` holds positional facts for names alone)."""
+
+    names: tuple[tuple[str, n.RefKind], ...]
+    at_a_name: bool
+
+
+def _record_scope(node: object, cats: _Categories) -> None:
+    """Record, in the Scope Record, what a bare name at `node` resolves to:
+    `_classify` over every name `cats` holds, with a rule clause's bare `hand`
+    the Play Source, exactly as the `NameRef` arm of `_rewrite` classifies."""
+    assert cats.scopes is not None
+    key = n.node_key(node)
+    if key is None:
+        return
+    position = cats.positions.get(id(node)) if isinstance(node, n.NameRef) else None
+    named: list[tuple[str, n.RefKind]] = []
+    for name in sorted({*cats.locals, *cats.state_vars, *cats.zones, *cats.enums, *_PRONOUNS}):
+        kind: n.RefKind | None = _classify(name, cats)
+        if cats.rule_clause and name == PLAY_SOURCE_NAME and name not in cats.locals:
+            kind = "play_source"
+        if kind is None:
+            continue
+        if position is not None and _position_refuses(position, name, kind, cats.zone_index):
+            continue
+        named.append((name, kind))
+    cats.scopes[key] = NamesInScope(tuple(named), at_a_name=position is not None)
 
 
 @dataclass(frozen=True)
@@ -11420,6 +11466,8 @@ def _resolving_here(node: n.NameRef, names: Sequence[str], cats: _Categories) ->
 
 
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
+    if cats.scopes is not None:
+        _record_scope(node, cats)
     if isinstance(node, n.DomainQuery) and _may_be_a_membership(node, cats):
         # The Owner Guard `_check_domain_query` leaves to the lexical scope. A
         # refused capture's predicate is written over the outer binder, so it

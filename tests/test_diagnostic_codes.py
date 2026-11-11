@@ -154,6 +154,11 @@ SHIPPED: tuple[str, ...] = (
     "engine-gap",
     "incomplete-installation",
     "unregistrable-game",
+    "position-outside-the-file",
+    "position-outside-the-game",
+    "not-an-expression",
+    "expression-not-typed",
+    "nothing-seen-here",
 )
 
 
