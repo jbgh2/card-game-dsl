@@ -73,11 +73,22 @@ registry:  for the general half, `_cited_docs()` -- every ``docs/*.md`` that som
            joins the domain the day someone quotes one of its sections and no
            list can lag. A heading's enumerator (``2. ``) is registered both
            ways, since a number is layout and citations omit it.
+           A doc that INDEXES a directory -- `docs/<stem>.md` beside
+           `docs/<stem>/`, the generated `glossary.md` and `decisions.md` --
+           carries its own titles and the titles of every file it links in
+           that directory (`_carried_titles`), so a title cited against the
+           index resolves in the file that holds it. The member set is
+           derived from the layout (`_index_docs`), never listed.
            For the roadmap half: roadmap.md's own headings, parsed at test time (``##``
            sections and ``**bold**`` item lead-ins, at any nesting depth), so
            renaming a section reddens every reference to the old name and no
            expected-title list can drift from the file.
-does not prove:  that a citation of any OTHER doc resolves. Outside
+does not prove:  which file a citation of an index meant when the title
+           it quotes is a bold lead-in repeated in two of the indexed files
+           (`**OpenSpiel compilation.**`): the title resolves, and the pool
+           cannot say which file. Headings are unique across a generated
+           index's files, which its generator refuses otherwise.
+           That a citation of any OTHER doc resolves. Outside
            roadmap.md only the titles that ARE quoted are checked, and most
            citations are bare: a line reading `see decisions.md` names a file
            this module never opens. Requiring a title everywhere is a
@@ -91,6 +102,8 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
+
+import pytest
 
 from cardlang.diagnostics import DiagnosticBag
 
@@ -181,6 +194,51 @@ def _titles_of(doc: Path) -> set[str]:
                 titles.add(_normalize(heading))
                 titles.add(_normalize(re.sub(r"^\d+[.)]\s+", "", heading)))
     return titles
+
+
+_LINK_TARGET = re.compile(r"\]\(([^)\s#]+)(?:#[^)\s]*)?\)")
+
+
+def _indexed_files(doc: Path) -> list[Path]:
+    """The files `doc` links inside the directory named for it.
+
+    An index is the doc a citation names -- `decisions.md, "Surface totality"`
+    -- and the title lives in one of the files it lists. A link whose target is
+    missing raises: a dangling index row would otherwise drop that file's
+    titles out of every citation's reach while the check reported clean.
+    """
+    home = doc.parent / doc.stem
+    if not home.is_dir():
+        return []
+    out: list[Path] = []
+    for found in _LINK_TARGET.finditer(doc.read_text()):
+        target = (doc.parent / found.group(1)).resolve()
+        if home.resolve() not in target.parents:
+            continue
+        if not target.is_file():
+            raise AssertionError(
+                f"{doc.name} links {found.group(1)}, which does not exist -- "
+                f"regenerate the index"
+            )
+        if target not in out:
+            out.append(target)
+    return out
+
+
+def _carried_titles(doc: Path) -> set[str]:
+    """The titles a citation of `doc` may quote: its own, and for an index,
+    those of every file it lists."""
+    titles = _titles_of(doc)
+    for indexed in _indexed_files(doc):
+        titles |= _titles_of(indexed)
+    return titles
+
+
+def _index_docs() -> list[Path]:
+    """Every `docs/<stem>.md` that sits beside a `docs/<stem>/` directory --
+    the layout a generated index has, derived rather than listed."""
+    docs = REPO_ROOT / "docs"
+    return sorted(p for p in docs.rglob("*.md") if (p.parent / p.stem).is_dir())
 
 
 def _live_titles() -> set[str]:
@@ -380,7 +438,7 @@ def test_every_quoted_section_title_resolves() -> None:
     there, `bbe49ce` renaming two headings and claiming it moved "every
     citation with them".
     """
-    live = {name: _titles_of(path) for name, path in _cited_docs().items()}
+    live = {name: _carried_titles(path) for name, path in _cited_docs().items()}
     unresolved: list[str] = []
     for path in _in_domain():
         relative = path.relative_to(REPO_ROOT).as_posix()
@@ -422,6 +480,71 @@ def test_every_whole_file_pointer_still_matches_a_real_site() -> None:
         "WHOLE_FILE_POINTERS entries match no roadmap.md mention — delete "
         f"them rather than leaving the exemption standing: {dead}"
     )
+
+
+@pytest.mark.parametrize("index", _index_docs(), ids=lambda p: p.name)
+def test_an_index_reaches_every_file_in_its_directory(index: Path) -> None:
+    """A citation of an index resolves in the files it links, so a file the
+    index does not link is a file whose titles no citation can reach.
+
+    red under: delete one row of `docs/decisions.md` (or rename a section file
+    without regenerating the index).
+    """
+    linked = set(_indexed_files(index))
+    home = index.parent / index.stem
+    present = {p.resolve() for p in home.glob("*.md") if not p.name.startswith("_")}
+    assert present, f"{home} holds no file -- {index.name} indexes nothing"
+    unreached = sorted(p.name for p in present - linked)
+    assert not unreached, (
+        f"{index.name} links no row for {unreached} -- regenerate the index"
+    )
+
+
+def test_a_title_cited_against_an_index_resolves_in_the_file_holding_it() -> None:
+    """The decisions index carries none of the spec's bold lead-ins itself;
+    they resolve only through the section files it lists."""
+    decisions = REPO_ROOT / "docs" / "decisions.md"
+    assert decisions in _index_docs()
+    lead = _normalize("Transfer `where` filter")
+    assert lead not in _titles_of(decisions)
+    assert lead in _carried_titles(decisions)
+
+
+def _plant_index(root: Path, rows: str, sections: dict[str, str]) -> Path:
+    (root / "spec").mkdir()
+    for name, text in sections.items():
+        (root / "spec" / name).write_text(text)
+    index = root / "spec.md"
+    index.write_text("# Spec\n\n" + rows)
+    return index
+
+
+def test_an_index_resolves_headings_and_bold_leads_of_its_files(tmp_path: Path) -> None:
+    index = _plant_index(
+        tmp_path,
+        "- [One](spec/one.md) -- first.\n  - [Inner](spec/one.md#inner)\n",
+        {"one.md": "## One\n\nBody.\n\n### Inner\n\n**A ruling.** Text.\n"},
+    )
+    carried = _carried_titles(index)
+    assert {"One", "Inner", "A ruling"} <= carried
+    assert "Absent" not in carried, "a title no file carries must not resolve"
+
+
+def test_a_file_the_index_does_not_link_contributes_no_title(tmp_path: Path) -> None:
+    index = _plant_index(
+        tmp_path,
+        "- [One](spec/one.md) -- first.\n",
+        {"one.md": "## One\n\nBody.\n", "two.md": "## Two\n\nBody.\n"},
+    )
+    assert "Two" not in _carried_titles(index)
+
+
+def test_an_index_row_naming_a_missing_file_is_refused(tmp_path: Path) -> None:
+    index = _plant_index(
+        tmp_path, "- [Gone](spec/gone.md) -- first.\n", {"one.md": "## One\n"}
+    )
+    with pytest.raises(AssertionError, match="gone.md, which does not exist"):
+        _carried_titles(index)
 
 
 # --- probes: the classifier itself cannot go vacuously green ---------------
