@@ -19,27 +19,15 @@ domain:          (a) the binders a node introduces from designer text a check
                  (axis `BINDER_SOURCES`, keyed by the registry); (b) the
                  checks that compute a fact from references as written, so
                  that one refused reference refuses correct text elsewhere:
-                 the mode-role invariant, and the members `RESIDUAL` names.
+                 the mode-role invariant, and the members `RESIDUAL` names,
+                 each a strict xfail naming its issue. Each suppression is
+                 crossed with a probe that an independent slip beside it is
+                 still told.
 registry:        axis (a) is `cardlang.resolve._BINDER_SCOPE_FIELDS`,
                  pinned equal to `BINDER_SOURCES`'s keys; axis (b) has no
                  defining registry -- a fact computed from references is a
                  property of a check's body -- so its members are the
                  framing check's list, each executed (`RESIDUAL`).
-covered:         the mode-role invariant (a transition target no sibling
-                 mode holds withholds the never-active refusal of every mode
-                 its fix could name, and the two-sources-one-target refusal
-                 of that target); the query nouns, bare and collection (the
-                 membership capture's refusals included), and `each <role>
-                 simultaneously`, whose refused spelling binds nothing and
-                 withholds the refusal of every name its fix would bind; each
-                 suppression with a probe that an independent slip beside it
-                 is still told.
-residual:        `RESIDUAL`, each a strict xfail naming issue #1087: a
-                 refused `run`, offer, template argument, deck, zone index or
-                 simultaneous role, each followed by refusals of correct text
-                 elsewhere, and a `cards:`/`pieces:` clause refused for the
-                 set it names, followed by refusals of every clause reading a
-                 card.
 held by:         Derived and Pinned: a withheld name is one lexical field
                  of `_Categories`, set where a binder is scoped and read by
                  the one unresolved-name arm, so no second site decides it;

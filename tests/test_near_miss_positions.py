@@ -20,20 +20,15 @@ domain:          every slip the Near Miss census holds (`WITNESSES`,
                  one per bare-name ref kind) and `POSITION_PROBES`, one per
                  positional Owner Guard of the resolve pass that judges a
                  classified bare name (`POSITIONAL_GUARDS`), crossed with
-                 every Near Miss each one offers.
+                 every Near Miss each one offers. A cell whose offer is of
+                 the wrong type for its position is a strict xfail naming its
+                 issue (`RESIDUAL`), and a positional guard the record does
+                 not read is a `POSITIONAL_GUARDS` row naming its issue.
 registry:        the census dictionaries, pinned to the routed sites by
                  tests/test_near_misses.py; the positional guards,
                  `POSITIONAL_GUARDS`, pinned equal to the functions of
                  `cardlang/resolve.py` that read a name's `ref_kind` and
                  refuse (an AST scrape).
-covered:         the state live in a phase body, a game-level clause and a
-                 `state { }` default; the call-site pronouns of a function and
-                 a procedure body; the kind a zone slot, a write target and a
-                 `to each` destination take; a bare zone family; the trick
-                 winners a round's trump admits.
-residual:        a Near Miss of the wrong TYPE for its position (typecheck's
-                 to judge, issue #1088); the positional guards
-                 `POSITIONAL_GUARDS` marks residual (issue #1089).
 held by:         Derived and Pinned. One record (`_name_positions`), built
                  from the walks the guards refuse by, and one predicate per
                  guard (`_position_refuses` is their disjunction); the scrape
