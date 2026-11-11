@@ -20,6 +20,7 @@ from cardlang.runtime.values import content_kind_clause
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.typecheck import card_content_forms
+from cardlang.catalogue_pass import check_catalogues
 from cardlang.resolve.walk import _walk
 from cardlang.resolve.binders import _introduced_binders
 from cardlang.resolve.reserved import RESERVED_VALUE_NAMES, _PARAM_BEARING, _RESERVED_WHY
@@ -40,6 +41,33 @@ from cardlang.resolve.clause_gates import (
     _round_trump_clauses,
 )
 from cardlang.resolve.round_winners import _refuses, _winner_refusals
+
+
+def step(game: n.Game, bag: DiagnosticBag) -> tuple[n.Game, set[str]]:
+    """The declarations step, in report order. Returns the game with its
+    ranking expanded, its card points lowered and its climb engines
+    resolved, and the reader clauses whose answers its Owner Guards
+    refused."""
+    _resolve_component_set(game, bag)
+    _reject_card_content_clauses(game, bag)
+    _resolve_direction(game, bag)
+    game = _expand_ranking(game, bag)
+    _resolve_ranking(game, bag)
+    refused_clauses: set[str] = set()
+    game = _resolve_card_points(game, bag, refused_clauses)
+    _resolve_suit_ranking(game, bag, refused_clauses)
+    game = _resolve_climb_engines(game, bag)
+    _check_trick_order_partition(game, bag, refused_clauses)
+    _check_piece_rounds(game, bag)
+    _check_duplicate_names(game, bag)
+    _check_climb_action_names(game, bag)
+    if game.catalogues or game.rank_sequence is not None:
+        check_catalogues(game, _label_namesakes(game).get, bag)
+    _check_reserved_params(game, bag)
+    _check_reserved_binders(game, bag)
+    _resolve_max_length(game, bag)
+    _check_teams(game, bag)
+    return game, refused_clauses
 
 
 def _check_reserved(

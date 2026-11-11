@@ -18,6 +18,20 @@ from cardlang.typecheck import KNOWN_TYPE_NAMES, POSITIVE_PARAM_DOMAIN
 from cardlang.resolve.declared import _tell_board_refusal
 
 
+def step(game: n.Game, bag: DiagnosticBag) -> tuple[n.Game, frozenset[str]]:
+    """The positions step. Returns the game with the board's domains minted
+    into `game.positions`, and the name of every position domain, declared
+    and minted."""
+    position_names = _resolve_positions(game, bag)
+    # The board mints its `cell` domain into `game.positions` (after the
+    # declared positions are validated, so the collision Owner Guard reads the
+    # pre-injection names); from here `game.positions` is the union and
+    # `position_names` names both kinds for the zone-index and move-parameter
+    # checks below.
+    game = _resolve_board(game, bag, position_names)
+    return game, frozenset(p.name for p in game.positions)
+
+
 # The bound on a declared position domain's member count: a Suit-sized or
 # column-sized layout is orders of magnitude below it, and a cross-product of
 # two runaway domains would otherwise silently explode the OpenSpiel

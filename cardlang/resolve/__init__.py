@@ -369,12 +369,19 @@ Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from cardlang.ast import nodes as n
 from cardlang.attribution import raise_if_errors
 from cardlang.diagnostics import DiagnosticBag
-from cardlang.catalogue_pass import check_catalogues
-from cardlang.stdlib.rules import stdlib_rules
+from cardlang.resolve import (
+    classification,
+    classified_checks,
+    declarations,
+    positions,
+    primitive_declarations,
+    result,
+    rule_instantiation,
+    zone_declarations,
+)
 from cardlang.resolve.splice import (
     _AUTHOR_CHOSEN_BINDERS as _AUTHOR_CHOSEN_BINDERS,
     _INJECTABLE_TARGETS as _INJECTABLE_TARGETS,
@@ -932,123 +939,23 @@ def resolve(game: n.Game) -> n.Game:
     game, library_rules = _apply_uses(game, bag)
     raise_if_errors(bag, _with_held_rules(game, library_rules), uses)
     own_move_types = frozenset(mt.name for mt in game.move_types if mt.origin is None)
-    _resolve_component_set(game, bag)
-    _reject_card_content_clauses(game, bag)
-    _resolve_direction(game, bag)
-    game = _expand_ranking(game, bag)
-    _resolve_ranking(game, bag)
-    refused_clauses: set[str] = set()
-    game = _resolve_card_points(game, bag, refused_clauses)
-    _resolve_suit_ranking(game, bag, refused_clauses)
-    game = _resolve_climb_engines(game, bag)
-    _check_trick_order_partition(game, bag, refused_clauses)
-    _check_piece_rounds(game, bag)
-    _check_duplicate_names(game, bag)
-    _check_climb_action_names(game, bag)
-    if game.catalogues or game.rank_sequence is not None:
-        check_catalogues(game, _label_namesakes(game).get, bag)
-    _check_reserved_params(game, bag)
-    _check_reserved_binders(game, bag)
-    _resolve_max_length(game, bag)
-    _check_teams(game, bag)
-    position_names = _resolve_positions(game, bag)
-    # The board mints its `cell` domain into `game.positions` (after the
-    # declared positions are validated, so the collision Owner Guard reads the
-    # pre-injection names); from here `game.positions` is the union and
-    # `position_names` names both kinds for the zone-index and move-parameter
-    # checks below.
-    game = _resolve_board(game, bag, position_names)
-    position_names = frozenset(p.name for p in game.positions)
-    # AFTER the board has minted its `cell` domain, because an entry's type
-    # slot may spell any of the game's position domains and `_resolve_board` is
-    # the one site that adds one. Validating earlier refused a name the rest of
-    # the pipeline accepts — the signature builder maps the resolved
-    # named-member position to `TCell`. Still before `_validate_refs`, which
-    # resolves calls against the namespace the block defines: a game whose
-    # block is wrong should hear about the block rather than about every call
-    # that then fails to resolve.
-    _check_primitives_block(game, bag)
-    # After the block is validated whole, because it asks a different question
-    # — where the game CALLS a scoped entry — and it must run before `expand`
-    # erases the `run` sites a procedure body is judged at.
-    _check_scoped_read_containment(game, bag)
-    for zone in game.zones:
-        _resolve_zone(zone, bag, position_names)
-
-    # Names that resolve to SOME rule template (local or library), independent
-    # of whether that template ever successfully instantiates — the set
-    # `active_rules names undefined rule` gates on below. Captured from the
-    # ORIGINAL `game.rules` (before instantiation, which drops a local
-    # template that fails to instantiate): a name is "undefined" only when no
-    # template exists for it anywhere, never merely because its own
-    # instantiation attempt hit some OTHER, already-separately-reported
-    # mismatch (arity, missing arguments, …) — that conflation would pile a
-    # spurious "undefined rule" note onto every such mismatch.
-    known_rule_names: dict[str, n.RuleDef] = {
-        **stdlib_rules(), **library_rules, **{r.name: r for r in game.rules}
-    }
-
-    # Library-rule splice and template instantiation: after this, every rule in
-    # `game.rules` is a concrete (parameter-free) definition the runtime can
-    # index by name.
+    game, refused_clauses = declarations.step(game, bag)
+    game, position_names = positions.step(game, bag)
+    primitive_declarations.step(game, bag)
+    zone_declarations.step(game, bag, position_names)
     written = game
-    game = _instantiate_rules(game, library_rules, bag)
-
-    # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
-    # (`any cel where square[cell] …`) changes the binder name, so the body's
-    # `cell` reference would classify as unresolved first and mask the sharper
-    # unknown-noun diagnostic (bag order is report order). After
-    # `_instantiate_rules`, so instantiated rule bodies are covered too, and
-    # before a rule's clause shapes are read, so a noun naming something else
-    # is told what it names before its clause is judged by the query's shape.
-    refused_binders = _refused_binder_sources(game, _categories(game), bag)
-
-    rule_move_types = {m.name: m for m in game.move_types}
-    for rule in game.rules:
-        _resolve_rule(rule, rule_move_types, bag)
-    _resolve_phase_level(game.phases, known_rule_names, bag)
-    _check_rule_removes(game.phases, known_rule_names, bag)
-    _check_rules_reach_a_trick(game, bag)
-
-    # Deep name resolution: classify every bare name and validate calls,
-    # card literals, and the rotate/winner targets.
-    cats = replace(_categories(game), refused_binders=refused_binders)
-    game = _classify_names(game, cats, bag)
-    game = _stamp_follows_reads(game)
+    game, refused_binders = rule_instantiation.step(game, library_rules, bag)
+    game, cats = classification.step(game, refused_binders, bag)
     _validate_refs(game, cats, bag)
-    _check_play_source(game, own_rules, bag)
-    _check_bare_family_refs(game, bag)
-    _check_declared_type_names(game, bag)
-    _check_state_default_scope(game, bag)
-    _check_state_scope(game, bag)
-    _check_functions(game, bag)
-    refused_clauses |= _check_kernel_answers(game, bag)
-    # After `_check_functions`, which owns a call-site pronoun reached through
-    # a designer function and the recursion of an answer's own call.
-    refused_clauses |= _check_answer_hermeticity(game, bag)
-    _check_unread_clauses(
-        written, [r for r in game.rules if r.origin is not None], refused_clauses, bag
+    classified_checks.step(
+        game,
+        bag,
+        own_rules=own_rules,
+        own_procedures=own_procedures,
+        written=written,
+        refused_clauses=refused_clauses,
     )
-    # After `_classify_names`: both read the `ref_kind` the classifier stamped,
-    # rather than re-deriving what is or is not a zone reference.
-    _check_arrival_record_pile_args(game, bag)
-    _check_procedures(game, bag, own_procedures)
-    _check_nested_ring_flags(game, bag)
-    _check_hosted_polls(game, bag)
-    _check_chooses(game, bag)
-    _check_positional_index_range(game, bag)
-    _check_actor_alias_comparisons(game, bag)
-    _check_delegation(game, bag)
-    _check_implicit_pools(game, bag)
-    _check_climb_play_zones(game, bag)
     _check_hidden_reads(game, bag)
-    game = _check_winner_target(game, bag)
-    # Last, so a fixture missing its result clause still surfaces the
-    # sharper diagnostic it was aimed at first (bag order is report order).
-    _resolve_winner_loser(game, bag)
-    # After every sharper diagnostic, for the same reason: a fixture written to
-    # probe one move type's declaration need not also present it.
-    _check_unoffered_move_types(game, own_move_types, bag)
-
+    game = result.step(game, bag, own_move_types)
     raise_if_errors(bag, _with_held_rules(game, library_rules), uses)
     return game

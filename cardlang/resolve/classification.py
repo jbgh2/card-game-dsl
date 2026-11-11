@@ -17,6 +17,20 @@ from cardlang.resolve.scope import (
     _refused_call_site_pronouns,
 )
 from cardlang.resolve.classifier import _Categories, _NamePosition, _rewrite
+from cardlang.resolve.classifier import _categories
+
+
+def step(
+    game: n.Game, refused_binders: dict[int, frozenset[str]], bag: DiagnosticBag
+) -> tuple[n.Game, _Categories]:
+    """The classification step. Returns the classified game, and the
+    categories it was classified against."""
+    # Deep name resolution: classify every bare name and validate calls,
+    # card literals, and the rotate/winner targets.
+    cats = replace(_categories(game), refused_binders=refused_binders)
+    game = _classify_names(game, cats, bag)
+    game = _stamp_follows_reads(game)
+    return game, cats
 
 
 def _stamp_follows_reads(game: n.Game) -> n.Game:

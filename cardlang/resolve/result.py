@@ -12,6 +12,18 @@ from cardlang.resolve.crossings import _definition_closure
 from cardlang.resolve.ranking_slots import _result_rankings, ranking_slot
 
 
+def step(game: n.Game, bag: DiagnosticBag, own_move_types: frozenset[str]) -> n.Game:
+    """The result step. Returns the game with every result ranking keyed."""
+    game = _check_winner_target(game, bag)
+    # Last, so a fixture missing its result clause still surfaces the
+    # sharper diagnostic it was aimed at first (bag order is report order).
+    _resolve_winner_loser(game, bag)
+    # After every sharper diagnostic, for the same reason: a fixture written to
+    # probe one move type's declaration need not also present it.
+    _check_unoffered_move_types(game, own_move_types, bag)
+    return game
+
+
 # The DEFINITION containers: a statement body reached by NAME, never by
 # containment. Every other statement holder (`if`, `repeat until`, `turns`,
 # `as`, a `produces:` arm, the loop hooks) sits inside a phase body, so

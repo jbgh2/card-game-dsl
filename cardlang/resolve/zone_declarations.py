@@ -9,6 +9,12 @@ from cardlang.diagnostics import DiagnosticBag
 from cardlang.domains import ZONE_INDEX_ROLES, Role, role_names, role_of
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 
+
+def step(game: n.Game, bag: DiagnosticBag, position_names: frozenset[str]) -> None:
+    """The zone declarations step, against every position domain's name."""
+    for zone in game.zones:
+        _resolve_zone(zone, bag, position_names)
+
 # Roles a zone may be indexed by or owned by — the `zone_key_of` column of the
 # domain table, not a hand-written local list.
 _KNOWN_ROLES = ZONE_INDEX_ROLES

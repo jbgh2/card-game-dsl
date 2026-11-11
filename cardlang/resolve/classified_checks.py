@@ -82,6 +82,43 @@ from cardlang.resolve.clause_gates import (
 from cardlang.resolve.ranking_slots import _result_rankings, ranking_slot
 
 
+def step(
+    game: n.Game,
+    bag: DiagnosticBag,
+    *,
+    own_rules: frozenset[str],
+    own_procedures: frozenset[str],
+    written: n.Game,
+    refused_clauses: set[str],
+) -> None:
+    """The classified checks step, in report order."""
+    _check_play_source(game, own_rules, bag)
+    _check_bare_family_refs(game, bag)
+    _check_declared_type_names(game, bag)
+    _check_state_default_scope(game, bag)
+    _check_state_scope(game, bag)
+    _check_functions(game, bag)
+    refused_clauses |= _check_kernel_answers(game, bag)
+    # After `_check_functions`, which owns a call-site pronoun reached through
+    # a designer function and the recursion of an answer's own call.
+    refused_clauses |= _check_answer_hermeticity(game, bag)
+    _check_unread_clauses(
+        written, [r for r in game.rules if r.origin is not None], refused_clauses, bag
+    )
+    # After `_classify_names`: both read the `ref_kind` the classifier stamped,
+    # rather than re-deriving what is or is not a zone reference.
+    _check_arrival_record_pile_args(game, bag)
+    _check_procedures(game, bag, own_procedures)
+    _check_nested_ring_flags(game, bag)
+    _check_hosted_polls(game, bag)
+    _check_chooses(game, bag)
+    _check_positional_index_range(game, bag)
+    _check_actor_alias_comparisons(game, bag)
+    _check_delegation(game, bag)
+    _check_implicit_pools(game, bag)
+    _check_climb_play_zones(game, bag)
+
+
 def _library_entry(steps: Sequence[tuple[Span | None, object]]) -> _LibraryEntry | None:
     """The last step a route from game-written text takes into library text,
     when the route ends in library text; None when it ends in the game's.

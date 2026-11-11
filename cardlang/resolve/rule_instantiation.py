@@ -16,6 +16,7 @@ from cardlang.runtime.values import content_noun
 from cardlang.stdlib.enums import suit_names
 from cardlang.stdlib.moves import KERNEL_MOVE_FORMS, LIBRARY_MOVE_TYPES, RULE_ENFORCED_MOVE_TYPE
 from cardlang.types import Flavor
+from cardlang.stdlib.rules import stdlib_rules
 from cardlang.resolve.walk import _traverse, _walk
 from cardlang.resolve.binders import _introduced_binders
 from cardlang.resolve.reserved import _RESERVED_WHY, _refuse_play_source_params
@@ -28,6 +29,48 @@ from cardlang.resolve.declared import (
     _unminted_direction,
 )
 from cardlang.resolve.classifier import _Categories, _may_be_a_membership, collection_nouns
+from cardlang.resolve.classifier import _categories
+
+
+def step(
+    game: n.Game, library_rules: dict[str, n.RuleDef], bag: DiagnosticBag
+) -> tuple[n.Game, dict[int, frozenset[str]]]:
+    """The rule instantiation step. Returns the game with every rule
+    concrete, and the binder sources whose query nouns it refused."""
+    # Names that resolve to SOME rule template (local or library), independent
+    # of whether that template ever successfully instantiates — the set
+    # `active_rules names undefined rule` gates on below. Captured from the
+    # ORIGINAL `game.rules` (before instantiation, which drops a local
+    # template that fails to instantiate): a name is "undefined" only when no
+    # template exists for it anywhere, never merely because its own
+    # instantiation attempt hit some OTHER, already-separately-reported
+    # mismatch (arity, missing arguments, …) — that conflation would pile a
+    # spurious "undefined rule" note onto every such mismatch.
+    known_rule_names: dict[str, n.RuleDef] = {
+        **stdlib_rules(), **library_rules, **{r.name: r for r in game.rules}
+    }
+
+    # Library-rule splice and template instantiation: after this, every rule in
+    # `game.rules` is a concrete (parameter-free) definition the runtime can
+    # index by name.
+    game = _instantiate_rules(game, library_rules, bag)
+
+    # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
+    # (`any cel where square[cell] …`) changes the binder name, so the body's
+    # `cell` reference would classify as unresolved first and mask the sharper
+    # unknown-noun diagnostic (bag order is report order). After
+    # `_instantiate_rules`, so instantiated rule bodies are covered too, and
+    # before a rule's clause shapes are read, so a noun naming something else
+    # is told what it names before its clause is judged by the query's shape.
+    refused_binders = _refused_binder_sources(game, _categories(game), bag)
+
+    rule_move_types = {m.name: m for m in game.move_types}
+    for rule in game.rules:
+        _resolve_rule(rule, rule_move_types, bag)
+    _resolve_phase_level(game.phases, known_rule_names, bag)
+    _check_rule_removes(game.phases, known_rule_names, bag)
+    _check_rules_reach_a_trick(game, bag)
+    return game, refused_binders
 
 
 def _template_binders(rule: n.RuleDef, flavor: Flavor) -> set[str]:

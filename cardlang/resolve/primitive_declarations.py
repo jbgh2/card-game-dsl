@@ -40,6 +40,23 @@ from cardlang.resolve.slots import _MOVE_TYPE_SLOT_OFFERS, slot_strings
 from cardlang.resolve.crossings import _cite_in
 
 
+def step(game: n.Game, bag: DiagnosticBag) -> None:
+    """The primitive declarations step."""
+    # AFTER the board has minted its `cell` domain, because an entry's type
+    # slot may spell any of the game's position domains and `_resolve_board` is
+    # the one site that adds one. Validating earlier refused a name the rest of
+    # the pipeline accepts — the signature builder maps the resolved
+    # named-member position to `TCell`. Still before `_validate_refs`, which
+    # resolves calls against the namespace the block defines: a game whose
+    # block is wrong should hear about the block rather than about every call
+    # that then fails to resolve.
+    _check_primitives_block(game, bag)
+    # After the block is validated whole, because it asks a different question
+    # — where the game CALLS a scoped entry — and it must run before `expand`
+    # erases the `run` sites a procedure body is judged at.
+    _check_scoped_read_containment(game, bag)
+
+
 def _check_primitives_block(game: n.Game, bag: DiagnosticBag) -> None:
     """The `primitives { }` block, validated whole.
 
