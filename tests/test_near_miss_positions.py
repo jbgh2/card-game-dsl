@@ -75,6 +75,7 @@ from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from tests.test_near_misses import _PROBES, REF_KIND_WITNESSES, WITNESSES, Slip
+from tests.resolver_package import resolver_tree
 
 _ROOT = Path(__file__).resolve().parent.parent
 _LIBRARY = "nm_probe.cardlang"
@@ -356,7 +357,7 @@ POSITIONAL_GUARDS: dict[str, str] = {
 def _guards_reading_ref_kind() -> set[str]:
     """Every top-level function or class of `cardlang/resolve.py` that reads
     a name's `ref_kind` and refuses."""
-    tree = ast.parse((_ROOT / "cardlang/resolve.py").read_text())
+    tree = resolver_tree()
     found: set[str] = set()
     for top in tree.body:
         if not isinstance(top, ast.FunctionDef | ast.ClassDef):
@@ -381,7 +382,7 @@ def test_every_guard_judging_a_classified_name_is_accounted_for() -> None:
 def test_every_guard_refusing_a_round_s_winner_reads_the_one_producer() -> None:
     """red under: `_check_trick_order_partition` deciding its winner arms
     without calling `_winner_refusals` (both calls written `()`)."""
-    tree = ast.parse((_ROOT / "cardlang/resolve.py").read_text())
+    tree = resolver_tree()
     unread: list[str] = []
     for top in tree.body:
         if not isinstance(top, ast.FunctionDef) or top.name == "_winner_refusals":

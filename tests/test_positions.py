@@ -101,6 +101,7 @@ from cardlang.stdlib.boards import BOARD_FAMILIES, board_entry
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.mechanics import param_domain
+from tests.resolver_package import resolver_tree
 
 
 def _game(
@@ -390,7 +391,7 @@ def test_every_reservation_site_passes_its_own_id() -> None:
     red under: add a `_reserved_domain_source(game, X, SOME_SITE)` call to
     `cardlang/resolve.py` without adding `SOME_SITE` to `RESERVATION_SITES`.
     """
-    tree = ast.parse(Path(resolve_mod.__file__).read_text())
+    tree = resolver_tree()
     passed: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):

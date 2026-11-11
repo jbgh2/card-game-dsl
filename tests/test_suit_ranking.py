@@ -62,6 +62,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import DECKS, deck_ranks, deck_suits
+from tests.resolver_package import patch_resolver
 
 # --- the deck axis, derived ----------------------------------------------------
 
@@ -386,8 +387,8 @@ def _check_position(
 ) -> str:
     if position.library:
         library = parse_library(position.library, "docs/libraries/probe_lib.cardlang")
-        monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({"probe_lib"}))
-        monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+        patch_resolver(monkeypatch, "library_names", lambda: frozenset({"probe_lib"}))
+        patch_resolver(monkeypatch, "load_library", lambda name: library)
     return _position_text(position, clause)
 
 
@@ -468,8 +469,8 @@ def test_a_library_rule_reads_the_clause_only_where_the_game_activates_it(
     red under: run `_check_unread_clauses` over the game before the library
     rules are spliced (the activated cell is refused both ways)."""
     library = parse_library(_LIBRARY_RULE, "docs/libraries/probe_lib.cardlang")
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({"probe_lib"}))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({"probe_lib"}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     body = _RULE_BODY if activated else _RULE_BODY.replace("    active_rules: [ByStrength]\n", "")
     text = _game(
         clause="suit ranking: spades hearts diamonds clubs" if declared else None,

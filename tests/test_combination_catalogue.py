@@ -82,6 +82,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, game_identity
 from cardlang.runtime.values import DECKS, RANKS, SUITS, build_deck, deck_ranks
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
+from tests.resolver_package import patch_resolver
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "declared_engine"
 MINIMAL = (FIXTURES / "minimal.cardlang").read_text()
@@ -632,8 +633,8 @@ def test_a_library_function_taking_a_combination_is_refused(
         "}\n",
         "docs/libraries/fam.cardlang",
     )
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"fam"}))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({"fam"}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     source = MINIMAL.replace("  players: 4", "  uses fam\n  players: 4", 1).replace(
         "combinations climb follows climb_follows", "combinations climb follows lib_follows", 1
     )
@@ -655,8 +656,8 @@ def test_a_library_round_over_the_games_catalogue_is_refused(monkeypatch: pytest
         "      move all cards from trick_pile to discard\n    }\n  }\n}\n",
         "docs/libraries/fam.cardlang",
     )
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"fam"}))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({"fam"}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     round_text = MINIMAL[MINIMAL.index("        round climb") : MINIMAL.index("        leader := winner\n")]
     source = MINIMAL.replace("  players: 4", "  uses fam\n  players: 4", 1).replace(
         round_text, "        offer to leader one of [start_trick]\n", 1

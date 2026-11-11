@@ -167,6 +167,7 @@ from cardlang.runtime.mechanics import CLIMB_ASK_KINDS
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.tichu_combinations import INTERRUPT_DECLINE, WISH_TOKENS
 from cardlang.runtime.values import Player
+from tests.resolver_package import patch_resolver
 
 # The miniature: one hand of Tichu-engine climbing tricks, whose Hosted Poll
 # counts its own runs and records the seat it was run for. `{prelude}` sits
@@ -1049,7 +1050,7 @@ def _runtime_verdict(kw: dict[str, str], monkeypatch: pytest.MonkeyPatch) -> str
     """Play the row with resolve's Hosted Poll judgement off: "static" when
     another check still refuses it, "refused" when the Shadow Guard fires,
     "played" when every seed runs to its end."""
-    monkeypatch.setattr(resolve_module, "_check_hosted_polls", lambda game, bag: None)
+    patch_resolver(monkeypatch, "_check_hosted_polls", lambda game, bag: None)
     try:
         game = check(**kw)
     except DiagnosticError:

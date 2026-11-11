@@ -131,6 +131,7 @@ import tests.test_library_boundary_ledger as L
 import tests.test_library_declaration_gates as D
 from tests.test_library_attribution import _cells
 from tests.test_rejections import case_paths
+from tests.resolver_package import pass_tree, patch_resolver
 
 _ROOT = Path(__file__).resolve().parent.parent
 _PACKAGE = _ROOT / "cardlang"
@@ -250,7 +251,7 @@ def test_the_stages_are_the_raises() -> None:
     red under: call `raise_if_errors` in `ir.emit`."""
     found: set[tuple[str, str]] = set()
     for module in ("resolve", "typecheck", "expand", "deckcheck", "ir"):
-        tree = ast.parse((_PACKAGE / f"{module}.py").read_text())
+        tree = pass_tree(module)
         for top in tree.body:
             for nd in ast.walk(top):
                 if isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name) and nd.func.id == "raise_if_errors":
@@ -263,8 +264,8 @@ def test_the_stages_are_the_raises() -> None:
 
 def _spliced(monkeypatch: pytest.MonkeyPatch, stage: str, witnesses: tuple[str, ...]) -> n.Game:
     lib = parse_library(_LIBRARY, L._LIB_FILE)
-    monkeypatch.setattr(R, "library_names", lambda: frozenset({L._LIB}))
-    monkeypatch.setattr(R, "load_library", lambda name: lib)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({L._LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: lib)
     sources = tuple((f"witness-{at}.cardlang", text) for at, text in enumerate(witnesses))
     monkeypatch.setattr(attribution, "witness_sources", lambda name: sources)
     parsed = parse_text(_GAME, L._GAME_FILE)
@@ -1055,8 +1056,8 @@ def _named_bag(monkeypatch: pytest.MonkeyPatch, cell: Named) -> list[str]:
     libraries = {
         name: parse_library(text, f"docs/libraries/{name}.cardlang") for name, text in cell.libraries
     }
-    monkeypatch.setattr(R, "library_names", lambda: frozenset(libraries))
-    monkeypatch.setattr(R, "load_library", lambda name: libraries[name])
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset(libraries))
+    patch_resolver(monkeypatch, "load_library", lambda name: libraries[name])
     monkeypatch.setattr(attribution, "witness_sources", lambda name: ())
     try:
         check_capacity(expand(typecheck(R.resolve(parse_text(cell.game, L._GAME_FILE)))))
@@ -1244,17 +1245,17 @@ def test_the_spelling_census_reads_every_spelling() -> None:
 # no line there: no library text stands behind the name, or another citation
 # in the same sentence carries the line.
 _UNSPANNED_CITATIONS: dict[tuple[str, str], str] = {
-    ("resolve.py", "_apply_uses"): "a repeated or unknown `uses` line, or the standard "
+    ("resolve/splice.py", "_apply_uses"): "a repeated or unknown `uses` line, or the standard "
     "library's: no library text is in question",
-    ("resolve.py", "_check_library_clause_gates"): "the subject; each definition the "
+    ("resolve/splice.py", "_check_library_clause_gates"): "the subject; each definition the "
     "gate lists is cited at its refused text",
-    ("resolve.py", "_check_library_lines_span"): "the subject; the definition holding "
+    ("resolve/splice.py", "_check_library_lines_span"): "the subject; the definition holding "
     "the call is cited at it",
     ("typecheck.py", "_library_field_gate"): "the subject; the definition holding the "
     "read is cited at it",
-    ("resolve.py", "_check_card_offering"): "the owner of a contract; the move type it "
+    ("resolve/references.py", "_check_card_offering"): "the owner of a contract; the move type it "
     "fixes is cited at its text",
-    ("resolve.py", "_check_bare_family_refs"): "the owner of a contract; the call it "
+    ("resolve/classified_checks.py", "_check_bare_family_refs"): "the owner of a contract; the call it "
     "leaves unanswerable is cited at its text",
 }
 _CITES = frozenset({"cite_library", "cite_definition", "cite_origin", "cite_where", "naming_library"})

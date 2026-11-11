@@ -254,6 +254,7 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.types import Flavor
 from tests.test_game_clause_guards import library_item_alternatives
+from tests.resolver_package import patch_resolver, resolver_tree
 
 # A minimal game that satisfies `poker_betting`'s whole `requires` contract. Every
 # probe below is this game plus exactly one thing wrong, so a failure names the
@@ -2101,10 +2102,8 @@ def _patch_libraries(
     """Point resolve at synthetic libraries. Probing collisions against the real
     corpus library would mean adding deliberately-broken files to docs/libraries/,
     where they would be indistinguishable from real family libraries."""
-    monkeypatch.setattr(
-        "cardlang.resolve.library_names", lambda: frozenset(libraries)
-    )
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: libraries[name])
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset(libraries))
+    patch_resolver(monkeypatch, "load_library", lambda name: libraries[name])
 
 
 # --- PROVIDED state: the read-only rule ---------------------------------------
@@ -2380,7 +2379,7 @@ def test_game_text_may_read_library_provided_state(
 # same-named outer declaration the author WROTE (`RESERVED_VALUE_NAMES`) — does
 # not reach here.
 
-_RESOLVE_PY = Path(__file__).resolve().parent.parent / "cardlang" / "resolve.py"
+_RESOLVE_PACKAGE = "the resolve package"
 
 
 def _binding_node_kinds() -> frozenset[str]:
@@ -2402,7 +2401,7 @@ def _binding_node_kinds() -> frozenset[str]:
     binder: `ProduceArm` escaped the registry itself (see `_node_binders`'s
     docstring), and it is a member of neither the `Expr` nor the `Stmt` union,
     so no union walk would have found it either."""
-    tree = pyast.parse(_RESOLVE_PY.read_text())
+    tree = resolver_tree()
     fn = next(
         f
         for f in pyast.walk(tree)
@@ -2429,7 +2428,7 @@ def _binding_node_kinds() -> frozenset[str]:
             continue
         binding |= named
     assert binding, (
-        f"the `_node_binders` match scrape of {_RESOLVE_PY.name} found no binding "
+        f"the `_node_binders` match scrape of {_RESOLVE_PACKAGE} found no binding "
         f"arms — it has gone stale, and a stale scrape makes the grid vacuous"
     )
     return frozenset(binding)
@@ -2443,7 +2442,7 @@ def _param_scoping_kinds() -> frozenset[str]:
     Derived rather than listed, because the value of the declared field is that a
     new row must ANSWER the question; a hand-list here would let a row answer it
     wrongly and nothing would notice."""
-    tree = pyast.parse(_RESOLVE_PY.read_text())
+    tree = resolver_tree()
     fn = next(
         f
         for f in pyast.walk(tree)
@@ -2471,7 +2470,7 @@ def _param_scoping_kinds() -> frozenset[str]:
         if named and scopes:
             kinds |= named
     assert kinds, (
-        f"the `_rewrite` params-scoping scrape of {_RESOLVE_PY.name} found no "
+        f"the `_rewrite` params-scoping scrape of {_RESOLVE_PACKAGE} found no "
         f"arms — it has gone stale, and a stale scrape makes the pin vacuous"
     )
     return frozenset(kinds)

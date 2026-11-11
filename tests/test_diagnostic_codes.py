@@ -54,6 +54,7 @@ from cardlang.runtime.errors import (
 )
 from cardlang.runtime.state import IllegalMove
 from tests.test_rejections import REJECTIONS_DIR
+from tests.resolver_package import patch_resolver
 
 _ROOT = Path(__file__).resolve().parent.parent
 
@@ -215,8 +216,8 @@ def _using(library_body: str, definitions: str = "") -> Tells:
         library = parse_library(
             f"library {_LIBRARY} {{\n{library_body}\n}}\n", f"docs/libraries/{_LIBRARY}.cardlang"
         )
-        mp.setattr(resolve, "library_names", lambda: frozenset({_LIBRARY}))
-        mp.setattr(resolve, "load_library", lambda name: library)
+        patch_resolver(mp, "library_names", lambda: frozenset({_LIBRARY}))
+        patch_resolver(mp, "load_library", lambda name: library)
         return _told(lambda: check_dsl(_HOST + definitions, "host.cardlang"))
 
     return tells

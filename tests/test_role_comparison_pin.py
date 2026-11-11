@@ -169,7 +169,11 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
 _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
     "ir.py": ["player", "player", "rank", "suit"],
     "parse.py": ["player", "player", "rank", "rank", "rank", "suit", "suit", "team", "team"],
-    "resolve.py": ["player", "player", "player", "player", "rank", "rank", "rank", "suit", "suit"],
+    "resolve/binders.py": ["player"],
+    "resolve/classified_checks.py": ["rank", "suit"],
+    "resolve/classifier.py": ["player"],
+    "resolve/hidden_reads.py": ["player", "player"],
+    "resolve/slots.py": ["rank", "rank", "suit"],
     "runtime/evaluate.py": ["player", "player"],
     # `_contract`'s return tag: a Skat contract KIND ("suit"/"grand"/"null"),
     # unrelated to the domain table's roles.

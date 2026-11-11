@@ -159,6 +159,7 @@ import tests.test_hosted_poll as HP
 import tests.test_library_clause_gates as CG
 import tests.test_library_type_gates as TG
 from tests.test_hidden_reads import _TYPES
+from tests.resolver_package import pass_tree, patch_resolver, resolver_tree
 
 _LIB = "boundarylib"
 _LIB_FILE = f"docs/libraries/{_LIB}.cardlang"
@@ -189,8 +190,8 @@ def _bag(
             lib = parse_library(library, _LIB_FILE)
         except DiagnosticError as exc:
             return _rendered(exc)
-        monkeypatch.setattr(R, "library_names", lambda: frozenset({_LIB}))
-        monkeypatch.setattr(R, "load_library", lambda name: lib)
+        patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+        patch_resolver(monkeypatch, "load_library", lambda name: lib)
         sources = tuple((f"witness-{at}.cardlang", text) for at, text in enumerate(witnesses))
         monkeypatch.setattr(attribution, "witness_sources", lambda name: sources)
     try:
@@ -602,7 +603,7 @@ def test_a_decision_no_one_can_make_in_a_library_function(
 
 def _rule_clause_slots() -> tuple[str, ...]:
     """The `RuleDef` fields `_rule_clauses` reads, in its order."""
-    tree = ast.parse(Path(R.__file__).read_text())
+    tree = resolver_tree()
     fn = next(
         nd for nd in ast.walk(tree)
         if isinstance(nd, ast.FunctionDef) and nd.name == "_rule_clauses"
@@ -1875,7 +1876,7 @@ _ALONE_WITNESSES: dict[str, str] = {
 
 
 def _library_alone_checks() -> set[str]:
-    tree = ast.parse(Path(R.__file__).read_text())
+    tree = resolver_tree()
     fn = next(
         nd for nd in ast.walk(tree)
         if isinstance(nd, ast.FunctionDef) and nd.name == "check_library_alone"
@@ -2082,8 +2083,7 @@ def crossing_walkers() -> frozenset[str]:
     or looks a definition up in a pool by name."""
     found: set[str] = set()
     for module in _PASSES:
-        path = Path(R.__file__).with_name(f"{module}.py")
-        tree = ast.parse(path.read_text())
+        tree = pass_tree(module)
         for top in tree.body:
             for fn in ast.walk(top):
                 if not isinstance(fn, ast.FunctionDef):

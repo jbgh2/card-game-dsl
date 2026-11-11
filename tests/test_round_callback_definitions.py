@@ -57,6 +57,7 @@ from cardlang.resolve import (
     _walk,
     slot_strings,
 )
+from tests.resolver_package import patch_resolver
 
 _HOST = """game H {{
   {uses}
@@ -222,8 +223,8 @@ def _with_library(monkeypatch: pytest.MonkeyPatch, name: str, body: str) -> str:
     its cell and the importing game differs with it."""
     library_name = f"lib_{name}"
     library = parse_library(f"library {library_name} {{ {body} }}", _LIBRARY)
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({library_name}))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda _: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({library_name}))
+    patch_resolver(monkeypatch, "load_library", lambda _: library)
     return f"uses {library_name}"
 
 

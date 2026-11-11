@@ -79,6 +79,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.resolve import _CALL_SITE_PRONOUNS, _PRONOUNS, _ROUND_QUERY_NAMES, resolve
 from cardlang.typecheck import typecheck
 from cardlang.runtime.driver import play_game
+from tests.resolver_package import patch_resolver
 
 _HOST = """game G {{
   players: 2
@@ -624,8 +625,8 @@ def _library_bag(monkeypatch: pytest.MonkeyPatch, library: str, host: str) -> li
     unmemoized: `pipeline.check_dsl` caches on the parsed tree while the
     library is patched per cell, so one cell's result could answer another's."""
     built = parse_library(library, "docs/libraries/contractlib.cardlang")
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"contractlib"}))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: built)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({"contractlib"}))
+    patch_resolver(monkeypatch, "load_library", lambda name: built)
     try:
         check_capacity(expand(typecheck(resolve(parse_text(host, "contracts.cardlang")))))
     except DiagnosticError as exc:

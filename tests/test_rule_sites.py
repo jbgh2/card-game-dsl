@@ -425,8 +425,8 @@ def test_the_enforced_move_type_has_two_readers() -> None:
     `cardlang.runtime.execute._offer`. The two modules' imports of it are
     their `<module>` scopes."""
     assert _constant_occurrences() == {
-        f"cardlang.resolve.{MODULE_SCOPE}",
-        "cardlang.resolve._check_rule_reaches_a_reader",
+        f"cardlang.resolve.rule_instantiation.{MODULE_SCOPE}",
+        "cardlang.resolve.rule_instantiation._check_rule_reaches_a_reader",
         f"{MECHANICS}.{MODULE_SCOPE}",
         f"{MECHANICS}.TrickForm.candidates",
     }

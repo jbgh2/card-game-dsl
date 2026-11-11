@@ -327,12 +327,12 @@ def _registry_guards_outside_the_shape(
 # Every cell, and the witness that makes it fire ALONE.
 _WITNESSES: dict[tuple[str, str, str], str] = {
     (
-        "resolve.py",
+        "resolve/zone_declarations.py",
         "<module>",
         "ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}",
     ): "test_widening_zone_index_roles_fails_resolve_at_import",
     (
-        "resolve.py",
+        "resolve/classified_checks.py",
         "<module>",
         "{f for _, f in _ZONE_SLOTS} == {_SOURCE_SLOT_FIELD, _PLAY_SLOT_FIELD}",
     ): "test_a_new_zone_reference_slot_fails_resolve_at_import",
@@ -497,7 +497,7 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
     exports, which other modules hold by identity.
 
     red under: delete the `assert ZONE_INDEX_ROLES == {...}` from
-    `resolve.py` — the widened registry then reaches the empty-domain guards,
+    `resolve/zone_declarations.py` — the widened registry then reaches the empty-domain guards,
     which implement the `team` row only."""
     script = (
         "import cardlang.domains as d\n"
@@ -526,22 +526,24 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
 
 def test_a_new_zone_reference_slot_fails_resolve_at_import() -> None:
     """`_REFERENCE_SLOTS` is resolve's own table, so the witness widens it in
-    resolve's source and executes that, in a subprocess for the same reason as
-    the witness above.
+    the source of the module that holds it (`resolve/slots.py`), executes
+    that as that module, and imports the resolver over it, in a subprocess
+    for the same reason as the witness above.
 
     red under: delete the `assert {f for _, f in _ZONE_SLOTS} == {...}` from
-    `resolve.py` -- the new slot then matches neither branch of
+    `resolve/classified_checks.py` -- the new slot then matches neither branch of
     `_check_bare_family_refs`, and any zone it names goes unguarded."""
     script = (
         "import pathlib, sys, types\n"
-        "src = pathlib.Path('cardlang/resolve.py').read_text()\n"
+        "src = pathlib.Path('cardlang/resolve/slots.py').read_text()\n"
         "row = '    (n.ClimbRound, \"play_zone\"): \"zone\",\\n'\n"
         "assert row in src\n"
         "src = src.replace(row, row + '    (n.ClimbRound, \"spare_zone\"): \"zone\",\\n', 1)\n"
-        "mod = types.ModuleType('cardlang.resolve')\n"
-        "sys.modules['cardlang.resolve'] = mod\n"
+        "mod = types.ModuleType('cardlang.resolve.slots')\n"
+        "sys.modules['cardlang.resolve.slots'] = mod\n"
         "try:\n"
-        "    exec(compile(src, 'cardlang/resolve.py', 'exec'), mod.__dict__)\n"
+        "    exec(compile(src, 'cardlang/resolve/slots.py', 'exec'), mod.__dict__)\n"
+        "    import cardlang.resolve  # noqa: F401\n"
         "except AssertionError as exc:\n"
         "    print('GUARD-FIRED', exc)\n"
         "else:\n"
@@ -684,12 +686,12 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # Its reddening mutation is a row in `_CONTRACT_ROWS` for `rules`, which
     # no library text can name (tests/test_definition_contracts.py::
     # test_the_contract_kind_registry_is_the_derived_one).
-    "resolve.py": [
-        "_UNCLASSIFIED_MOVE_TYPE_SLOTS",
-        "_UNKNOWN_CONTAINER_NAMESPACES",
-        "site in RESERVATION_SITES",
+    "resolve/library_alone.py": [
         "{f for f, _, _ in CONTRACT_KINDS} != set(_CONTRACT_ROWS) or set(_DEFINITION_KEYWORDS) != {f for f, _ in _LIBRARY_DEF_KINDS}",
     ],
+    "resolve/positions.py": ["site in RESERVATION_SITES"],
+    "resolve/result.py": ["_UNKNOWN_CONTAINER_NAMESPACES"],
+    "resolve/slots.py": ["_UNCLASSIFIED_MOVE_TYPE_SLOTS"],
     # The parse.py shape, one module over: a consumer validating a
     # grammar-admitted identifier against the registry that owns the row set,
     # so the registry stays the ONE place the set is stated and an arm it does

@@ -128,6 +128,7 @@ from cardlang.parse import _parser, parse_library, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
+from tests.resolver_package import patch_resolver
 
 # --- the shared minimal game shells ------------------------------------------
 
@@ -654,8 +655,8 @@ def test_library_function_body_host(monkeypatch: pytest.MonkeyPatch) -> None:
         "}\n",
         "ring_lib.cardlang",
     )
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"ring_lib"}))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: lib)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({"ring_lib"}))
+    patch_resolver(monkeypatch, "load_library", lambda name: lib)
     src = _game(
         "seat := libnxt(0)\n    s[seat] += 1",
         uses="uses ring_lib",
