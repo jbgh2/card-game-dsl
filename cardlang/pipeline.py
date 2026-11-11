@@ -66,8 +66,20 @@ def check_dsl(text: str, source_name: str) -> Game:
 
 
 def check_markdown(markdown: str, source_name: str) -> Game:
-    """Check a Markdown game file: extract -> parse -> resolve -> typecheck."""
-    block = extract_single_block(markdown, source_name)
+    """Check a Markdown game file: extract -> parse -> resolve -> typecheck.
+
+    A file with no fenced block is told the other shapes' extensions, since
+    a file holding the DSL as it is was most likely meant as one of them."""
+    renamed = " or ".join(
+        f"to end in {ext} if it holds {words}"
+        for ext, (words, check) in GAME_FILE_SHAPES.items()
+        if check is not check_markdown
+    )
+    unfenced = (
+        "a game file must contain its DSL in one block: fence the DSL, "
+        f"or rename the file {renamed}"
+    )
+    block = extract_single_block(markdown, source_name, unfenced=unfenced)
     return _check(parse_block(block))
 
 

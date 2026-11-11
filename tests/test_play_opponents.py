@@ -252,7 +252,7 @@ def test_each_vs_value_is_read_or_refused_as_a_usage_error(
 # What argparse makes of an invocation before any value reaches the grammar.
 _ARGPARSE_READINGS: dict[str, tuple[list[str], str]] = {
     "a seat written with a dash, after a space": (["--vs", "-1=first"], "expected one argument"),
-    "a second item without its flag": (["--vs", "1=first", "2=random"], "unrecognized arguments: 2=random"),
+    "a second item without its flag": (["--vs", "1=first", "2=random"], "so 2=random is one too many"),
     "the flag with nothing after it": (["--vs"], "expected one argument"),
 }
 

@@ -1,5 +1,6 @@
-"""A slip on the command line is told what was slipped: the command word, or
-the game file's extension.
+"""A slip on the command line is told what was slipped: the command word, a
+command-line option, a word after the file, the file itself, or the game
+file's extension.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -12,8 +13,22 @@ property:        a first word that is no command and names nothing on disk,
                  extension is not one the checker reads is refused naming the
                  extensions it reads, with the ones it nearly spells offered,
                  before its text is read and through every consumer that
-                 reads a game file by its path; and an offered word, put in
-                 place of the slip, gets the line past that refusal.
+                 reads a game file by its path; a Markdown file with no fenced
+                 block is told the extension that reads the DSL itself; a
+                 word that is no command-line option of the command is
+                 refused naming it, with the commands it is an option of, or
+                 else the command's own options it nearly spells, or else
+                 where they are listed;
+                 a word after the file is refused as one too many, or, when it
+                 is a command, with the order that works; a line naming no
+                 file, or an empty one, is refused for that; every refusal of
+                 the line's words speaks as the command typed, or as
+                 `cardlang` when none was, says when it read the line as
+                 `check`, and every word it says was typed was, a path
+                 included; each refusal keeps the CLI's exit status and
+                 failure channel, which every cell states; and an offered
+                 word, command or order, put in place of the slip, gets the
+                 line past that refusal.
 domain:          the commands, crossed with the slips generated from each
                  (two letters swapped, a letter dropped, a capital), crossed
                  with what follows the first word (a file, nothing, an
@@ -29,13 +44,26 @@ domain:          the commands, crossed with the slips generated from each
                  trailing dot. Extensions are compared exactly as typed, on
                  every platform, as every glob that collects game files
                  compares them: a capitalized extension is a slip, refused
-                 with the extension it capitalizes offered. A first word
-                 beginning with a dash is read as an option of `check`, and
-                 an empty first word as the current directory; what each is
-                 told is issue #1084's, marked below. Option prefixes are
-                 issue #624's.
+                 with the extension it capitalizes offered. The words after
+                 the command: every command and no command, crossed with
+                 every command-line option any command declares that the
+                 command does not
+                 (spaced from its value and joined to it with `=`), with each
+                 of its own options slipped (the last two letters swapped,
+                 the second letter of the name dropped), and with words no
+                 parser declares (`-v`, `--version`) first, before the file
+                 and after it; a second file, and each command after the
+                 file; no file, an empty file, an empty first word; a value
+                 on an option or on help that takes none; a path missing,
+                 spelled with `./`; and argparse's own refusal of a missing
+                 value under each command that takes one. A slip argparse
+                 reads as a prefix of an option, and every option prefix, is
+                 issue #624's. `-h` after any line prints that command's
+                 help and refuses nothing.
 registry:        commands: `cardlang.cli.COMMANDS`, derived from
-                 `cardlang.cli._COMMAND_TABLE`; extensions:
+                 `cardlang.cli._COMMAND_TABLE`; options per command and
+                 whether each takes a value: `cardlang.cli.build_parser`,
+                 walked by `_declared` below; extensions:
                  `cardlang.pipeline.GAME_FILE_SHAPES`; the resemblance
                  measure and the `did you mean` wording:
                  `cardlang.diagnostics.near_misses` and
@@ -43,16 +71,25 @@ registry:        commands: `cardlang.cli.COMMANDS`, derived from
                  file by path: `cardlang.pipeline.check_source`, each command
                  of `cardlang.cli.main`, and
                  `cardlang.openspiel.game.register_game_file`.
-held by:         Derived and Pinned. The command word and the extension are
-                 strings a person types, so no union holds them; each set has
-                 one owner, the refusals read it, and the axes here are
-                 derived from it, so a command or an extension gained arrives
-                 as new cells.
-does not prove:  that a slip outside the three generated shapes is offered
-                 its command or extension, which is the measure's claim
-                 (tests/test_near_misses.py); nor that the reading of a first
-                 word that both names a file and resembles a command is the
-                 one a designer meant.
+held by:         Derived and Pinned. The command word, the options, the
+                 extension and the line's other words are strings a person
+                 types, so no union holds them; each set has one owner, the
+                 refusals read it, and the axes here are derived from it, so
+                 a command, an option or an extension gained arrives as new
+                 cells. The voice of a refusal has one owner,
+                 `cardlang.cli._refuse`, which every refusal of the line's
+                 words reaches.
+does not prove:  that a slip outside the generated shapes is offered its
+                 command, option or extension, nor that every offer is apt:
+                 the measure finds `--version` like `--decisions` and `-v`
+                 like `--vs`, which is its claim (tests/test_near_misses.py);
+                 nor that the reading of a first word that both names a file
+                 and resembles a command is the one a designer meant. The
+                 property reads a refusal's subjects by the sentence shapes
+                 `_SUBJECTS` and `_ARGUMENT` name, so a refusal worded in a
+                 new shape is read for its voice alone until a shape names
+                 it; a cell whose refusal names no subject it can read fails
+                 unless the cell says it names none.
 """
 
 from __future__ import annotations
@@ -210,7 +247,7 @@ def test_a_slipped_command_that_names_a_file_is_read_as_the_file(
     said = _run([slip, *_FOLLOWS[follows]], capsys)
     assert "is not a command" not in said.err, said.err
     if follows == "a file":
-        assert said.code == 2 and "unrecognized arguments" in said.err, said.err
+        assert said.code == 2 and f"so {KUHN} is one too many" in said.err, said.err
     else:
         assert said.code == 1, said.err
         assert f"{slip} has no extension" in said.err, said.err
@@ -267,7 +304,7 @@ def test_the_bare_form_checks_a_file(
 
 
 # ---------------------------------------------------------------------------
-# The words after the command: options, extra words, the file itself.
+# The words after the command: command-line options, extra words, the file.
 # ---------------------------------------------------------------------------
 
 # The game file every line below names, relative to the repository, where
@@ -338,10 +375,17 @@ class _Cell:
     code: int
     channel: str
     says: tuple[str, ...]
+    # Whether the refusal names a word of the line; one refusing a line for
+    # naming no file, or an empty one, names none.
+    names: bool = True
 
 
 def _usage(argv: list[str], *says: str) -> _Cell:
     return _Cell(tuple(argv), 2, "usage", says)
+
+
+def _nameless(argv: list[str], *says: str) -> _Cell:
+    return _Cell(tuple(argv), 2, "usage", says, names=False)
 
 
 def _subject(command: str | None) -> str:
@@ -432,7 +476,7 @@ def _undeclared_cells() -> dict[str, _Cell]:
     for command in _WHO:
         here = "check" if command is None else command
         for word in _UNDECLARED:
-            near = near_misses(word, _DECLARED[here])
+            near = near_misses(word, (*_DECLARED[here], "-h", "--help"))
             tail = (
                 f"; did you mean {_or(tuple(f'`{n}`' for n in near))}?" if near else f"; {_hint(command)}"
             )
@@ -468,19 +512,19 @@ def _file_cells() -> dict[str, _Cell]:
     none."""
     cells: dict[str, _Cell] = {}
     for command in COMMANDS:
-        cells[f"{command}: no file"] = _usage(
+        cells[f"{command}: no file"] = _nameless(
             [command], f"{command} needs a game file, its name ending in {extensions_read()}"
         )
-        cells[f"{command}: an empty file"] = _usage(
+        cells[f"{command}: an empty file"] = _nameless(
             [command, ""], "argument file: an empty name names no file"
         )
-    cells["no command: only an option"] = _usage(
+    cells["no command: only an option"] = _nameless(
         ["--emit-ir"], f"{_IMPLICIT}, which needs a game file, its name ending in {extensions_read()}"
     )
-    cells["no command: an empty word"] = _usage(
+    cells["no command: an empty word"] = _nameless(
         [""], f"{_IMPLICIT}: argument file: an empty name names no file"
     )
-    cells["no command: an empty word, then a word"] = _usage(
+    cells["no command: an empty word, then a word"] = _nameless(
         ["", "x"], f"{_IMPLICIT}: argument file: an empty name names no file"
     )
     cells["no command: a value on an option that takes none"] = _usage(
@@ -547,7 +591,7 @@ def _told(cell: _Cell, said: _Said) -> None:
         assert words in " ".join(said.err.split()), said.err
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084")
+
 @pytest.mark.parametrize("cell", sorted(_CELLS))
 def test_each_line_is_told_what_it_typed_and_the_fix(
     cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -559,6 +603,7 @@ def test_each_line_is_told_what_it_typed_and_the_fix(
 def test_argparse_s_own_refusal_under_the_command_typed(
     cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """red under: have `cli._refuse` always speak as the top parser."""
     _told(_KEPT[cell], _run_in_repo(_KEPT[cell].argv, monkeypatch, capsys))
 
 
@@ -572,16 +617,16 @@ _SUBJECTS: tuple[re.Pattern[str], ...] = (
     re.compile(r"so (\S+) is one too many"),
     re.compile(r"(\S+) comes after the file"),
     re.compile(r"^cardlang: error: (\S+) is not a command", re.MULTILINE),
-    re.compile(r"argument (-\S+?): "),
 )
+# argparse names an option by every spelling it has, `-h/--help`.
+_ARGUMENT = re.compile(r"argument (-\S+?): ")
 
 
-_RED = pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084")
 
 
 @pytest.mark.parametrize(
     "cell",
-    [pytest.param(c, marks=_RED) for c in sorted(_CELLS)] + [pytest.param(c) for c in sorted(_KEPT)],
+    sorted({**_CELLS, **_KEPT}),
 )
 def test_no_refusal_names_a_word_never_typed(
     cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -589,8 +634,10 @@ def test_no_refusal_names_a_word_never_typed(
     """The property, over every line of the grid: the command a refusal
     speaks as is the one typed, and each word it says was typed was.
 
-    red under: have `cli._unreadable` name `Path(word)` rather than the word."""
-    argv = {**_CELLS, **_KEPT}[cell].argv
+    red under: have `cli._unreadable` name `Path(word)` rather than the word;
+    or have `cli._refuse` speak as `line.argv[0]`, the command parsed."""
+    line = {**_CELLS, **_KEPT}[cell]
+    argv = line.argv
     said = _run_in_repo(argv, monkeypatch, capsys)
     assert said.code != 0, said.err
     typed = _typed_command(argv)
@@ -599,12 +646,15 @@ def test_no_refusal_names_a_word_never_typed(
             assert spoken == typed, said.err
     words = set(argv) | {w.split("=", 1)[0] for w in argv}
     found = [m for pattern in _SUBJECTS for m in pattern.findall(said.err)]
-    assert found, f"no subject read from the refusal: {said.err}"
+    spelled = _ARGUMENT.findall(said.err)
+    assert bool(found or spelled) is line.names, f"the words named: {found + spelled}: {said.err}"
     for subject in found:
+        assert subject in words, (subject, said.err)
+    for subject in spelled:
         assert any(spelling in words for spelling in subject.split("/")), (subject, said.err)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084")
+
 @pytest.mark.parametrize("cell", sorted(_SLIPPED))
 def test_the_offered_option_gets_past_the_refusal(
     cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -619,7 +669,7 @@ def test_the_offered_option_gets_past_the_refusal(
     assert f"`{option}`" in said.err, said.err
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084")
+
 @pytest.mark.parametrize("option", [o for o in _EVERY_OPTION if o not in _DECLARED["check"]])
 def test_naming_the_command_an_option_belongs_to_gets_past_the_refusal(
     option: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -634,7 +684,7 @@ def test_naming_the_command_an_option_belongs_to_gets_past_the_refusal(
         assert "takes no" not in said.err, said.err
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084")
+
 @pytest.mark.parametrize("command", COMMANDS)
 def test_the_offered_order_gets_past_the_refusal(
     command: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -657,7 +707,7 @@ def test_every_generated_option_slip_resembles_its_option() -> None:
         assert option in near_misses(slip, _DECLARED[_typed_command(line.argv) or "check"]), slip
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084")
+
 def test_a_markdown_file_with_no_fence_is_told_the_dsl_may_stand_alone(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
