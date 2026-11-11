@@ -675,7 +675,8 @@ def test_no_refusal_names_a_word_never_typed(
     speaks as is the one typed, and each word it says was typed was.
 
     red under: have `cli._unreadable` name `Path(word)` rather than the word;
-    or have `cli._refuse` speak as `line.argv[0]`, the command parsed."""
+    or have `cli._refuse` speak as `line.argv[0]`, the command parsed; or have
+    `cli._normalize`'s refusal name `word.casefold()`."""
     argv, names = _PROPERTY[cell]
     _names_only_what_was_typed(argv, _run_in_repo(argv, monkeypatch, capsys), names)
 
