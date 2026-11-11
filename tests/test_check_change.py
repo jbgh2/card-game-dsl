@@ -234,7 +234,8 @@ def test_a_game_change_runs_every_module_naming_it_in_either_spelling() -> None:
 
 
 def _steps(path: str, mode: cc.Mode, status: cc.Status = M) -> dict[cc.Check, cc.Step]:
-    change = cc.Change(status, path, _classes().get(path, ()))
+    classes = _classes()[path] if path in _classes() else cc.lane_classes(str(REPO), (path,))[path]
+    change = cc.Change(status, path, classes)
     return {s.check: s for s in cc.plan((change,), _tree(), mode, str(REPO))}
 
 
@@ -286,11 +287,19 @@ def test_dev_is_the_named_development_pass() -> None:
     assert step.argv == ("pytest", "-q", "-m", "not slow", "-n", "auto")
 
 
-def test_a_module_runs_once_however_many_checks_select_it() -> None:
-    steps = _steps("tests/openspiel_ready/test_big_two.py", cc.Mode.TARGETED)
+@pytest.mark.parametrize(
+    ("path", "module"),
+    [
+        ("tests/openspiel_ready/test_big_two.py", "tests/openspiel_ready/test_big_two.py"),
+        ("docs/games/hearts.cardlang", "tests/test_migration_characterization.py"),
+    ],
+)
+def test_a_module_runs_once_however_many_checks_select_it(path: str, module: str) -> None:
+    """Red under: dropping the goldens module from `taken` in `plan`."""
+    steps = _steps(path, cc.Mode.TARGETED)
     modules = [a for s in steps.values() if s.argv[:1] == ("pytest",) for a in s.argv if a.endswith(".py")]
     assert len(modules) == len(set(modules))
-    assert "tests/openspiel_ready/test_big_two.py" in modules
+    assert module in modules
 
 
 def test_a_deleted_game_names_no_proof_module() -> None:

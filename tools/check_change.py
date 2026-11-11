@@ -224,6 +224,7 @@ class Step:
 
 
 _GATE = (Check.TYPECHECK, Check.LANGUAGE_SUITE, Check.RIGS)
+_GOLDENS_MODULE = "tests/test_migration_characterization.py"
 
 
 def _modules(
@@ -292,9 +293,11 @@ def plan(changes: tuple[Change, ...], tree: Tree, mode: Mode, root: str) -> tupl
             steps.append(Step(check, Disposition.NOT_SELECTED, ()))
             continue
         if check is Check.GOLDENS_FULL:
+            # The full-width run is a superset of the module's sampled run.
+            taken[_GOLDENS_MODULE] = check
             steps.append(Step(
                 check, Disposition.RUN, why,
-                ("pytest", "tests/test_migration_characterization.py", "-q"),
+                ("pytest", _GOLDENS_MODULE, "-q"),
                 (("CARDLANG_GOLDEN_SEEDS", "full"),),
             ))
             continue
