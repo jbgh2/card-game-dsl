@@ -309,6 +309,8 @@ def test_a_markdown_file_named_for_a_command(
     said = _run([name], capsys)
     _refused_as_a_command(said, name)
     assert f"; did you mean `{command}`?" in said.err
+    for word in _printed_words(said.err):
+        assert "is not a command" not in _run([word], capsys).err
     shutil.copy(MARKDOWN, tmp_path / name)
     assert _run([name], capsys).code == 0
 
@@ -423,6 +425,10 @@ def _who(command: str | None) -> str:
     return "no command" if command is None else command
 
 
+# The cells this round's refinement turns, red until it lands.
+_RED_CELLS: set[str] = set()
+
+
 def _option_cells() -> dict[str, _Cell]:
     """An option of another command, after the file, under every command and
     under none, spaced from its value and joined to it."""
@@ -448,13 +454,14 @@ def _option_cells() -> dict[str, _Cell]:
             if option in _TAKES_VALUE:
                 cells[name] = _usage([*_lead(command), _F, joined], said)
             else:
-                # An option that takes no value, given one: no command
-                # takes the word as typed.
+                # An option that takes no value, given one: the command it
+                # belongs to refuses the word too, in argparse's words.
                 cells[name] = _usage(
                     [*_lead(command), _F, joined],
-                    f"{_subject(command)} takes no {option}; no command takes every word "
-                    f"of this line: {_apart((option,))}",
+                    f"{_subject(command)} takes no {option}; {option} is an option of "
+                    f"{_and(owners)}, and {owners[0]} refuses this line too: argument {option}:",
                 )
+                _RED_CELLS.add(name)
     return cells
 
 
@@ -522,20 +529,21 @@ def _apart(options: tuple[str, ...]) -> str:
 
 
 def _pair_cells() -> dict[str, _Cell]:
-    """Two command-line options after the file, under check and under no
-    command: the first one check does not take, the second any other. The
-    offer is a command that takes both, or none."""
+    """Two command-line options after the file, under every command and
+    under none: the first one the command does not take, the second any
+    other. The offer is a command that takes both, or none."""
     cells: dict[str, _Cell] = {}
-    for command in ("check", None):
+    for command in _WHO:
+        here = "check" if command is None else command
         for first in _EVERY_OPTION:
-            if first in _DECLARED["check"]:
+            if first in _DECLARED[here]:
                 continue
             for second in _EVERY_OPTION:
                 if second == first:
                     continue
                 takers = tuple(c for c in COMMANDS if first in _DECLARED[c] and second in _DECLARED[c])
                 if takers:
-                    where = "first" if command is None else "in place of check"
+                    where = "first" if command is None else f"in place of {command}"
                     said = (
                         f"{_subject(command)} takes no {first}; {first} is an option of "
                         f"{_and(_owners(first))}, so name {_or(takers)} {where}"
@@ -568,6 +576,37 @@ def _order_cells() -> dict[str, _Cell]:
                 )
             name = f"no command: {option}, then {typed} after the file"
             cells[name] = _usage([_F, option, *_value(option), typed], said)
+    return cells
+
+
+def _second_file_cells() -> dict[str, _Cell]:
+    """A second file beside another command's option, under every command
+    and under none, and before a command named after the file: the command
+    that declares every option of the line refuses it too, and says why."""
+    cells: dict[str, _Cell] = {}
+    extra = "so other.cardlang is one too many"
+    for command in _WHO:
+        here = "check" if command is None else command
+        for option in _EVERY_OPTION:
+            if option in _DECLARED[here]:
+                continue
+            owners = _owners(option)
+            name = f"{_who(command)}: {option} and a second file"
+            cells[name] = _usage(
+                [*_lead(command), _F, option, *_value(option), "other.cardlang"],
+                f"{_subject(command)} takes no {option}; {option} is an option of {_and(owners)}, "
+                f"and {owners[0]} refuses this line too: {owners[0]} reads one game file and no "
+                f"other word, {extra}",
+            )
+            _RED_CELLS.add(name)
+    for typed in COMMANDS:
+        name = f"no command: a second file, then {typed} after the file"
+        cells[name] = _usage(
+            [_F, "other.cardlang", typed],
+            f"{typed} comes after the file, and a command goes first, but {typed} refuses this "
+            f"line too: {typed} reads one game file and no other word, {extra}",
+        )
+        _RED_CELLS.add(name)
     return cells
 
 
@@ -664,6 +703,7 @@ _CELLS: dict[str, _Cell] = {
     **_file_cells(),
     **_pair_cells(),
     **_order_cells(),
+    **_second_file_cells(),
     **_dash_cells(),
 }
 # The cells that keep what the tree already says.
@@ -707,7 +747,12 @@ def _told(cell: _Cell, said: _Said) -> None:
 
 
 
-@pytest.mark.parametrize("cell", sorted(_CELLS))
+_RED = pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084, review round")
+
+
+@pytest.mark.parametrize(
+    "cell", [pytest.param(c, marks=_RED) if c in _RED_CELLS else pytest.param(c) for c in sorted(_CELLS)]
+)
 def test_each_line_is_told_what_it_typed_and_the_fix(
     cell: str, table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1042,10 +1087,16 @@ def test_a_slipped_extension_is_refused_with_the_extension_offered(
 def test_the_offered_extension_gets_past_the_refusal(
     ext: str, shape: str, slip: str, tmp_path: Path
 ) -> None:
+    """Each extension the refusal prints, put in place of the slip."""
     path = _copy(tmp_path, ext, f"game{slip}")
-    offered = _refusal(path).diagnostic.near_misses
-    assert offered, "nothing offered"
-    assert check_source(path.rename(path.with_suffix(offered[0]))).players.count >= 1
+    offered = _printed_words(_refusal(path).diagnostic.format())
+    assert ext in offered, offered
+    for index, word in enumerate(offered):
+        # Each in a directory of its own: a capital slip and its offer are
+        # one file where names are compared without case.
+        (tmp_path / f"offer{index}").mkdir()
+        renamed = shutil.copy(path, tmp_path / f"offer{index}" / path.with_suffix(word).name)
+        assert check_source(renamed).players.count >= 1
 
 
 @pytest.mark.parametrize("ext", sorted(GAME_FILE_SHAPES))
@@ -1098,13 +1149,18 @@ def test_the_extension_is_refused_before_the_file_is_read(tmp_path: Path) -> Non
 
 @pytest.mark.parametrize("command", COMMANDS)
 def test_every_command_tells_a_slipped_extension(
-    command: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    command: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     path = _copy(tmp_path, ".cardlang", "hearts.cardlnag")
     said = _run([command, str(path)], capsys)
     assert said.code == 1, said.err
     assert said.err.startswith(f"error: {path} ends in .cardlnag"), said.err
     assert "; did you mean `.cardlang`?" in said.err
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    for word in _printed_words(said.err):
+        renamed = path.with_suffix(word)
+        shutil.copy(path, renamed)
+        assert "ends in" not in _run([command, str(renamed)], capsys).err
 
 
 def test_registering_a_slipped_extension_by_path_is_refused(tmp_path: Path) -> None:
@@ -1133,6 +1189,8 @@ def test_hearts_with_its_extension_slipped(tmp_path: Path, capsys: pytest.Captur
         f"error: {path} ends in .cardlnag, and a game file's name ends in "
         f"{extensions_read()}; did you mean `.cardlang`?\n"
     )
+    (offered,) = _printed_words(said.err)
+    assert _run(["check", str(path.rename(path.with_suffix(offered)))], capsys).code == 0
 
 
 def test_hearts_checked_with_the_command_slipped(capsys: pytest.CaptureFixture[str]) -> None:
