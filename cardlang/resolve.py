@@ -115,7 +115,8 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               (``_name_positions``, read off the tree's shape alone, and
               ``_position_refuses``, the disjunction of the guards'
               predicates); a trick round's winner is offered the winners that
-              round admits (``_winner_refused``). Held by Derived and Pinned
+              round admits (``_winner_refusals``, the one producer the
+              guards refusing a round's winner dispatch on). Held by Derived and Pinned
               (tests/test_near_miss_positions.py). A refused spelling's
               consequences are withheld where a fix drawn from the set it was
               looked up in could clear them, and only there: a node whose
@@ -1883,27 +1884,49 @@ def _unstated_trump_slots(node: object, game: n.Game) -> tuple[str, ...]:
     return ()
 
 
-def _ignored_trump(rnd: n.TrickRound) -> bool:
-    """A round `trump` clause its winner never reads: the winner is neither a
-    Trick Order winner nor one of `TRUMP_READING_WINNERS`."""
-    return (
+#: Why a trick round refuses the winner it names, by the guard that tells it:
+#: a piece game (`_check_piece_rounds`), the presence partition's winner arms
+#: (`_check_trick_order_partition`), and a `trump` clause the winner ignores
+#: (`_validate_refs`).
+_WinnerRefusal = Literal[
+    "reads a deck card",
+    "reads an absent Trick Order",
+    "reads an unstated trump",
+    "replaced by the Trick Order",
+    "early beside the Trick Order",
+    "ignores the trump clause",
+]
+
+
+def _winner_refusals(rnd: n.TrickRound, game: n.Game) -> tuple[_WinnerRefusal, ...]:
+    """Every reason `rnd` refuses its own winner, in the order its guards
+    tell them: the one producer each guard dispatches on and the winner
+    site's Near Misses read."""
+    out: list[_WinnerRefusal] = []
+    if game.content_flavor != "card":
+        if _refuses(_CARD_CONTENT_GATE, rnd, game):
+            out.append("reads a deck card")
+    elif not K.has_trick_order(game):
+        if _trick_order_reading_slots(rnd, game):
+            out.append("reads an absent Trick Order")
+        elif _unstated_trump_slots(rnd, game):
+            out.append("reads an unstated trump")
+    else:
+        if _trick_order_excluded_winners(rnd, game):
+            out.append("replaced by the Trick Order")
+        if (
+            rnd.early_termination is not None
+            and rnd.early_termination not in TRICK_ORDER_EARLY_PREDICATES
+            and rnd.winner_fn in TRICK_ORDER_GATED_WINNERS
+        ):
+            out.append("early beside the Trick Order")
+    if (
         rnd.trump is not None
         and rnd.winner_fn not in TRICK_ORDER_GATED_WINNERS
         and rnd.winner_fn not in TRUMP_READING_WINNERS
-    )
-
-
-def _winner_refused(rnd: n.TrickRound, game: n.Game) -> bool:
-    """Whether `rnd`'s own winner is refused at it: by the presence partition
-    (`_check_trick_order_partition`'s winner arms), or because the round's
-    `trump` clause is one the winner ignores."""
-    if game.content_flavor == "card":
-        if K.has_trick_order(game):
-            if _trick_order_excluded_winners(rnd, game):
-                return True
-        elif _trick_order_reading_slots(rnd, game) or _unstated_trump_slots(rnd, game):
-            return True
-    return _ignored_trump(rnd)
+    ):
+        out.append("ignores the trump clause")
+    return tuple(out)
 
 
 def _trick_order_excluded_winners(node: object, game: n.Game) -> tuple[str, ...]:
@@ -5694,7 +5717,7 @@ def _phase_scoped_names(game: n.Game) -> Iterator[tuple[n.NameRef, frozenset[str
                     if isinstance(node, n.NameRef):
                         yield node, inner
         # The qualifier and the outcome cases are part of THIS phase, so its
-        # own state is live in them (measured: `repeat until <own state>` runs).
+        # own state is live in them.
         for owned in (phase.qualifier, *phase.outcome_cases):
             for node in _walk(owned):
                 if isinstance(node, n.NameRef):
@@ -5708,8 +5731,7 @@ def _phase_scoped_names(game: n.Game) -> Iterator[tuple[n.NameRef, frozenset[str
     # by then — so they see game-level state only. DERIVED, not listed: walk the
     # `Game` node's own fields and skip the ones another guard owns, so a clause
     # added later is covered the day it exists rather than the day someone
-    # remembers it. `loser:` was found missing here by review, and it was found
-    # because it had been enumerated by hand.
+    # remembers it.
     for field in game.__dataclass_fields__:
         if field in _GAME_LEVEL_SKIP:
             continue
@@ -10162,7 +10184,8 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
         # `_check_library_clause_gates`'s, which this loop shadows.
         spliced = n.library_origins(game)
         for rnd in _trick_order_rounds(game):
-            if _trick_order_reading_slots(rnd, game):
+            refusals = _winner_refusals(rnd, game)
+            if "reads an absent Trick Order" in refusals:
                 others = ", ".join(sorted(TRICK_WINNER_NAMES - TRICK_ORDER_GATED_WINNERS))
                 bag.error(
                     f"round winner {rnd.winner_fn} reads the game's Trick "
@@ -10170,7 +10193,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                     f"or name {others}",
                     rnd.span,
                 )
-            elif _unstated_trump_slots(rnd, game):
+            elif "reads an unstated trump" in refusals:
                 # The round-configured twin of a Trick Order's required
                 # `is_trump`: a winner reading a trump the round never states
                 # would play no-trump.
@@ -10222,7 +10245,8 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 + " is the trump; drop the clause",
                 rnd.span,
             )
-        if _trick_order_excluded_winners(rnd, game):
+        refusals = _winner_refusals(rnd, game)
+        if "replaced by the Trick Order" in refusals:
             gated = ", ".join(sorted(TRICK_ORDER_GATED_WINNERS))
             bag.error(
                 f"round winner {rnd.winner_fn} beside " + named + " — it declares "
@@ -10231,11 +10255,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 f"{_drop_trick_order(game)}",
                 rnd.span,
             )
-        if (
-            rnd.early_termination is not None
-            and rnd.early_termination not in TRICK_ORDER_EARLY_PREDICATES
-            and rnd.winner_fn in TRICK_ORDER_GATED_WINNERS
-        ):
+        if "early beside the Trick Order" in refusals:
             bag.error(
                 f"`early` clause on winner {rnd.winner_fn} — `early` "
                 f"predicates read the literal led suit, and a Trick Order's "
@@ -10274,9 +10294,10 @@ def _check_piece_rounds(game: n.Game, bag: DiagnosticBag) -> None:
     game for a `ranking:` a piece game cannot declare. Spliced from a library,
     `_check_library_clause_gates` has refused it first."""
     for nd in _walk(game):
-        if not isinstance(nd, (n.TrickRound, n.ClimbRound)):
-            continue
-        if not _refuses(_CARD_CONTENT_GATE, nd, game):
+        if isinstance(nd, n.TrickRound):
+            if "reads a deck card" not in _winner_refusals(nd, game):
+                continue
+        elif not isinstance(nd, n.ClimbRound) or not _refuses(_CARD_CONTENT_GATE, nd, game):
             continue
         for phrase in card_content_forms(nd):
             bag.error(
@@ -11093,9 +11114,11 @@ def _rewrite_refused_binder(
 ) -> object:
     """Rewrite a node whose binder source is refused: it binds nothing, and
     the fields its binder would scope withhold `fixes`, the binders a fix of
-    the source would bind, so the correct names they read are not refused."""
+    the source would bind, and the binder the source as written would bind,
+    so the names they read are not refused for the source's refusal."""
     scope_fields = _BINDER_SCOPE_FIELDS[type(node)]
-    withheld = replace(cats, withheld=cats.withheld | fixes)
+    written = frozenset(_introduced_binders(node, cats.flavor))
+    withheld = replace(cats, withheld=cats.withheld | fixes | written)
     return _traverse(
         node, lambda f, v: _rewrite_value(v, withheld if f in scope_fields else cats, bag)
     )
@@ -13733,7 +13756,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         {
                             name
                             for name in _ROUND_QUERY_REGISTRIES[(n.TrickRound, "winner_fn")]
-                            if not _winner_refused(replace(nd, winner_fn=name), game)
+                            if not _winner_refusals(replace(nd, winner_fn=name), game)
                         },
                         nd.span,
                     )
@@ -13744,7 +13767,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # to ask. `_check_trick_order_partition` owns both cells,
                     # with a Trick Order and without one.
                     pass
-                elif _ignored_trump(nd):
+                elif "ignores the trump clause" in _winner_refusals(nd, game):
                     # The winner contract carries a `trump` argument for every
                     # member, but only TRUMP_READING_WINNERS' bodies read it:
                     # on the others the round's `trump` clause was evaluated,
