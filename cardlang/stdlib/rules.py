@@ -17,7 +17,7 @@ from functools import lru_cache
 from importlib import resources
 
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import DiagnosticBag
+from cardlang.diagnostics import Author, DiagnosticBag
 from cardlang.parse import parse_library
 
 #: The standard library's declared name, and the one name a `uses` line may
@@ -50,7 +50,7 @@ def load_stdlib(text: str, source_name: str) -> n.Library:
 
     bag = DiagnosticBag()
     check_library_alone(library, bag)
-    raise_where_written(bag)
+    raise_where_written(bag, Author.LIBRARY)
     return library
 
 

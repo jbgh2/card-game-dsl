@@ -29,10 +29,11 @@ from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast.nodes import Game
 from cardlang.attribution import raise_where_written
 from cardlang.deckcheck import check_capacity
-from cardlang.diagnostics import DiagnosticBag
+from cardlang.diagnostics import Author, DiagnosticBag
 from cardlang.expand import expand
 from cardlang.extract import extract_single_block
 from cardlang.ir import IRValue, emit
@@ -100,8 +101,9 @@ def check_source(path: str | Path) -> Game:
             f"{named}, and a game file's name ends in {extensions_read()}",
             p.suffix,
             GAME_FILE_SHAPES,
+            code=Code.WRONG_FILE_EXTENSION,
         )
-    raise_where_written(bag)
+    raise_where_written(bag, Author.GAME)
     _words, check = GAME_FILE_SHAPES[p.suffix]
     return check(p.read_text(), str(p))
 

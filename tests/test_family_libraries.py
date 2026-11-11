@@ -215,7 +215,7 @@ from cardlang.ast import nodes as n
 from cardlang.attribution import is_library_warning
 from cardlang.board_domains import BOARD_DOMAIN, LINE_NOUN
 from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, line_kind
+from cardlang.diagnostics import Author, DiagnosticBag, DiagnosticError, line_kind
 from cardlang.domains import DOMAINS, SIMULTANEOUS_ROLES, Role, role_names
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import (
@@ -534,7 +534,7 @@ def test_an_unhandled_library_item_is_loud() -> None:
     # author-facing channel and this is not. `game()`'s arm surfaces the same
     # way, which is what "the equivalent arm" means here.
     with pytest.raises(VisitError) as exc:
-        _transform(_Builder("L.cardlang", 0), tree)
+        _transform(_Builder("L.cardlang", 0, author=Author.LIBRARY), tree)
     assert isinstance(exc.value.orig_exc, AssertionError)
     assert "unexpected library item" in str(exc.value.orig_exc)
 

@@ -111,14 +111,17 @@ from lark.exceptions import UnexpectedCharacters, UnexpectedInput, VisitError
 from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.catalogue import ShapePartKind, ShapeQualifierKind
 from cardlang.diagnostics import (
+    Author,
     Diagnostic,
     DiagnosticBag,
     DiagnosticError,
     Severity,
     Span,
+    Told,
     near_misses,
     resemblance,
 )
@@ -415,13 +418,21 @@ RANK_DIRECTIONS: frozenset[str] = frozenset({"highest", "lowest"})
 class _Builder(Transformer[Token, n.Game]):
     """Turns the Lark tree into AST nodes, threading source location through."""
 
-    def __init__(self, source_name: str, line_offset: int, text: str = "") -> None:
+    def __init__(
+        self, source_name: str, line_offset: int, text: str = "", *, author: Author
+    ) -> None:
         super().__init__()
         self._source_name = source_name
         self._line_offset = line_offset
         # The parsed text, for the one callback that reads what precedes its
         # own span (`ranking`); empty where no game clause can be parsed.
         self._text = text
+        # Whose file the text is: every refusal the builder raises is told to
+        # them.
+        self._author = author
+
+    def _refusal(self, diagnostic: Diagnostic) -> DiagnosticError:
+        return DiagnosticError(Told(diagnostic, self._author))
 
     def _span(self, meta: Meta) -> Span:
         return Span(
@@ -470,12 +481,13 @@ class _Builder(Transformer[Token, n.Game]):
         # sentence of the language puts `suit` before `ranking:` on its line.
         before = self._text[: meta.start_pos].rstrip(" \t")
         if re.search(r"(?<![A-Za-z0-9_])suit\Z", before):
-            raise DiagnosticError(
+            raise self._refusal(
                 Diagnostic(
                     Severity.ERROR,
                     "the clause before `suit ranking:` has no value, so it took "
                     "the word `suit` as one — finish that clause",
                     span,
+                    code=Code.SYNTAX_ERROR,
                 )
             )
         if len(c) == 1 and isinstance(c[0], Token) and c[0].type == "RANK_CONV":
@@ -571,23 +583,25 @@ class _Builder(Transformer[Token, n.Game]):
 
     def ranking_suit_reject(self, meta: Meta, c: list[Token]) -> None:
         suits = " ".join(str(t) for t in c)
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"a game ranks its suits in a clause of their own — write "
                 f"`suit ranking: {suits}`, strongest first; `ranking:` orders ranks",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
     def suit_ranking_comma_reject(self, meta: Meta, c: list[Token]) -> None:
         suits = " ".join(str(t) for t in c)
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"`suit ranking:` separates its suits with spaces, as "
                 f"`ranking:` does — write `suit ranking: {suits}`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -596,23 +610,25 @@ class _Builder(Transformer[Token, n.Game]):
         # the colon habit is the most plausible wrong sentence (every scalar
         # clause a designer has met takes one). The `==`/`!=` mechanism: the
         # diagnostic grammar owns the shape so the rejection can name the fix.
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "`card_points` is a block clause and takes no colon — write "
                 "`card_points { A: 1 ... }`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
     def card_values_reject(self, meta: Meta, c: list[object]) -> None:
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "`card_values` is not a clause — the card-point table is "
                 "declared `card_points { A: 1 ... }`, and the Builtin reading "
                 "it is `card_points(card)`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -641,12 +657,13 @@ class _Builder(Transformer[Token, n.Game]):
         """`X in P[b]` — the binder written on the phase instead of on the
         variable. The replacement is exact, so the designer reads the sentence
         they meant rather than a shape error."""
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"a `reads` binder rides the variable, not the phase — write "
                 f"`{c[0]}[{c[2]}] in {c[1]}`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -675,7 +692,7 @@ class _Builder(Transformer[Token, n.Game]):
         The spelling is real, so this names WHERE it belongs rather than
         calling the word unknown or dying at the bracket — the placement is the
         designer's mistake, and the entry is the answer."""
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "a collection type (`Collection<Card>`) is spellable in a "
@@ -684,13 +701,14 @@ class _Builder(Transformer[Token, n.Game]):
                 "how a game picks one, and a function reading a climbing "
                 "play takes it as a `Combination`",
                 self._span(meta),
+                code=Code.TYPE_NOT_ALLOWED_HERE,
             )
         )
 
     # --- a Combination Shape's near misses and growth spellings ---
 
     def _shape_reject(self, meta: Meta, message: str) -> NoReturn:
-        raise DiagnosticError(Diagnostic(Severity.ERROR, message, self._span(meta)))
+        raise self._refusal(Diagnostic(Severity.ERROR, message, self._span(meta), code=Code.WRONG_SPELLING))
 
     def shape_run_of_reject(self, meta: Meta, c: list[Token]) -> n.ShapePart:
         self._shape_reject(meta, f"a run is written `{c[0]} in sequence` — the shape reads the game's `sequence:`")
@@ -764,12 +782,13 @@ class _Builder(Transformer[Token, n.Game]):
         die at the boundary. The designer's reason is the one the message
         carries — a set that might not be there has no rulebook reading, and
         an empty one is what they mean."""
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "a collection is never optional — `is empty` is its absence; "
                 "write `Collection<Card>`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -777,11 +796,12 @@ class _Builder(Transformer[Token, n.Game]):
         """A second element type. The keyed shape a designer reaches for here
         is the index bracket's, and a second spelling of one concept is the
         defect class this refuses into."""
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "a collection takes ONE element type — write `Collection<Card>`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -792,25 +812,27 @@ class _Builder(Transformer[Token, n.Game]):
         is a name for a group rather than a generic instantiation — so the
         message says the shape has no spelling and names where that is
         tracked, instead of teaching a form the language will not grow."""
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "a collection's element is a single type name — a collection "
                 "of collections has no spelling here (issue #254 tracks the "
                 "melds that would need one)",
                 self._span(meta),
+                code=Code.NOT_YET_SUPPORTED,
             )
         )
 
     def collection_optional_element_reject(self, meta: Meta, c: list[Token]) -> str:
         """A `?` on the element. An absence INSIDE a set has no rulebook
         reading; the operation the designer wants is a filter."""
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "an element is never optional — filter the collection "
                 "instead; write `Collection<Card>`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -820,13 +842,14 @@ class _Builder(Transformer[Token, n.Game]):
         No declaration in this language spells a type as a phrase, and `of`
         already carries three senses in expressions — so the sentence a reader
         of the design note writes first earns a replacement, not a life."""
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"a `primitives` entry spells a collection with angle "
                 f"brackets, not a phrase — write `Collection<{c[1]}>` in place "
                 f"of `{c[0]} of {c[1]}`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -876,24 +899,26 @@ class _Builder(Transformer[Token, n.Game]):
         return n.PrimitivesBlock(decls=decls, span=self._span(meta))
 
     def primitives_colon_reject(self, meta: Meta, c: list[object]) -> n.PrimitivesBlock:
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "`primitives` is a block clause and takes no colon — write "
                 "`primitives { name(p : Player) : Integer reads hand[p] }`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
     def primitives_arrow_reject(self, meta: Meta, c: list[object]) -> n.PrimitivesBlock:
         bad = next(x for x in c if isinstance(x, _PrimitiveArrowDecl))
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"a `primitives` entry names its return type after a colon, "
                 f"not an arrow — write `{bad.decl.name}(...) : "
                 f"{bad.decl.return_type}`",
                 bad.span,
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -901,7 +926,7 @@ class _Builder(Transformer[Token, n.Game]):
         self, meta: Meta, c: list[object]
     ) -> n.PrimitivesBlock:
         bad = next(x for x in c if isinstance(x, _PrimitiveDefaultDecl))
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"a `primitives` entry declares a signature, never a value — "
@@ -909,6 +934,7 @@ class _Builder(Transformer[Token, n.Game]):
                 f"a default the implementation would never see; delete the "
                 f"`= ...` after the signature",
                 bad.span,
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -918,7 +944,7 @@ class _Builder(Transformer[Token, n.Game]):
     # form that replaced it, in sentences that check clean as written.
 
     def trick_order_retired_reject(self, meta: Meta, c: list[object]) -> None:
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "a Trick Order is three functions, not a block: write "
@@ -927,11 +953,12 @@ class _Builder(Transformer[Token, n.Game]):
                 "is not the answer and `function card_strength(card : Card) = …` "
                 "where `rank_value` is not",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
     def trump_clause_retired_reject(self, meta: Meta, c: list[object]) -> None:
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "`trump:` is not a clause: a fixed trump is written on the round, "
@@ -939,6 +966,7 @@ class _Builder(Transformer[Token, n.Game]):
                 "game answers `is_trump`, the suit is written there: "
                 "`function is_trump(card : Card) = card.suit is spades`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -971,12 +999,13 @@ class _Builder(Transformer[Token, n.Game]):
         return replace(c[0], span=self._span(meta))
 
     def stop_result_lead_reject(self, meta: Meta, c: list[object]) -> None:
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "the game ends AT its bound and nothing lies beyond it — write "
                 "`at max_length: …`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -1114,12 +1143,13 @@ class _Builder(Transformer[Token, n.Game]):
         if keyword == "procedure":
             result = n.PROCEDURE_CONTRACT_TYPE
         row = f"{name}({listed}) : {result or '<result type>'}"
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"the `{keyword}` keyword begins the definition the game writes, "
                 f"not the `requires` row that names it — write `{row}`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -1152,12 +1182,13 @@ class _Builder(Transformer[Token, n.Game]):
                 # clauses; keeping the last would silently discard the first
                 # (decisions.md "Surface totality").
                 if seen_requires:
-                    raise DiagnosticError(
+                    raise self._refusal(
                         Diagnostic(
                             Severity.ERROR,
                             "a library declares one `requires` block — merge the "
                             "declarations into it",
                             item.span,
+                            code=Code.WRITTEN_TWICE,
                         )
                     )
                 seen_requires = True
@@ -1167,12 +1198,13 @@ class _Builder(Transformer[Token, n.Game]):
                 # same reason a GAME declares one `state { }`: keeping the last
                 # would silently discard the first.
                 if state is not None:
-                    raise DiagnosticError(
+                    raise self._refusal(
                         Diagnostic(
                             Severity.ERROR,
                             "a library declares one `state` block — merge the "
                             "declarations into it",
                             item.span,
+                            code=Code.WRITTEN_TWICE,
                         )
                     )
                 state = item
@@ -1682,13 +1714,14 @@ class _Builder(Transformer[Token, n.Game]):
         spelling is real, so the message names the list the language uses
         rather than dying at the token (the `collection_type_reject`
         precedent)."""
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"a subset source that names several zones lists them in "
                 f"brackets — write `... cards in [table, hand[p]] where ...`, "
                 f"not `{written}`",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -1702,17 +1735,18 @@ class _Builder(Transformer[Token, n.Game]):
         self._subset_source_reject(meta, "table and hand[p]")
 
     def subset_source_single_reject(self, meta: Meta, c: list[object]) -> None:
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "one zone is written bare — `... cards in table where ...`; "
                 "brackets list two or more zones",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
     def card_source_list_reject(self, meta: Meta, c: list[object]) -> None:
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 "a card query or fold ranges over one zone; only a subset query "
@@ -1720,6 +1754,7 @@ class _Builder(Transformer[Token, n.Game]):
                 "...`) — ask each zone on its own and combine the answers: add "
                 "the counts or sums, `or` the anys, `and` the alls",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -1890,12 +1925,13 @@ class _Builder(Transformer[Token, n.Game]):
             # Retired spellings (decisions.md "The expression register"): the
             # diagnostic grammar owns the tokens so the rejection can name the fix.
             word = "is" if op == "==" else "is not"
-            raise DiagnosticError(
+            raise self._refusal(
                 Diagnostic(
                     Severity.ERROR,
                     f"`{op}` is not an operator in this language — equality "
                     f"is the word form: write `{word}`",
                     self._span(meta),
+                    code=Code.WRONG_SPELLING,
                 )
             )
         return n.BinOp(op, _as_expr(c[0]), _as_expr(c[2]), span=self._span(meta))
@@ -1951,11 +1987,12 @@ class _Builder(Transformer[Token, n.Game]):
                 "there is no remainder form; write "
                 "`a - (a divided by b rounded down) * b`"
             )
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"`{symbol}` is not an operator in this language — {hint}",
                 self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -2072,11 +2109,12 @@ class _Builder(Transformer[Token, n.Game]):
                         "the repeat would silently replace the first; keep one",
                     )
                 )
-                raise DiagnosticError(
+                raise self._refusal(
                     Diagnostic(
                         Severity.ERROR,
                         f"a game declares one {what} — {fix}",
                         span,
+                        code=Code.WRITTEN_TWICE,
                     )
                 )
             seen.add(clause)
@@ -2162,6 +2200,7 @@ class _Builder(Transformer[Token, n.Game]):
                 f"<lo> .. <hi>`) — the seat count that sizes every per-player "
                 f"zone and the turn ring",
                 game_span,
+                code=Code.MISSING_DECLARATION,
             )
         if deck is not None and pieces is not None:
             # Span on whichever clause appears later, as `once()` points at
@@ -2170,6 +2209,7 @@ class _Builder(Transformer[Token, n.Game]):
                 "a game declares `cards:` or `pieces:`, not both — no game "
                 "has witnessed needing both",
                 pieces.span if pieces.span.start > deck.span.start else deck.span,
+                code=Code.CONFLICTING_CLAUSES,
             )
         elif deck is None and pieces is None:
             bag.error(
@@ -2177,12 +2217,10 @@ class _Builder(Transformer[Token, n.Game]):
                 f"<set>` — the components it is played with (e.g. `cards: "
                 f"standard52`)",
                 game_span,
+                code=Code.MISSING_DECLARATION,
             )
         if bag.has_errors:
-            error = DiagnosticError(bag.items[0])
-            if len(bag.items) > 1:
-                error.add_note(bag.format())
-            raise error
+            raise DiagnosticError(*(Told(d, self._author) for d in bag.items))
         # Shadow Guard for mypy narrowing only: the bag raise above is the
         # Owner Guard (players present, and exactly one content clause).
         assert players is not None
@@ -2291,13 +2329,14 @@ class _Builder(Transformer[Token, n.Game]):
         # The flag habit: every scalar clause a designer has met takes a colon.
         # The diagnostic grammar owns the shape so the rejection can name the fix.
         row = next(x for x in c if isinstance(x, _MoveStake))
-        raise DiagnosticError(
+        raise self._refusal(
             Diagnostic(
                 Severity.ERROR,
                 f"`{row.stake}` is a row, not a flag — write `{row.stake}` alone "
                 f"under the move's name; a move that stakes nothing is written "
                 f"by leaving the row out",
                 row.span or self._span(meta),
+                code=Code.WRONG_SPELLING,
             )
         )
 
@@ -2320,7 +2359,7 @@ class _Builder(Transformer[Token, n.Game]):
                 f"`{late.stake}` stands with the move's name, before `when:` — "
                 f"it says what the move is, not when it is legal"
             )
-        raise DiagnosticError(Diagnostic(Severity.ERROR, message, late.span or self._span(meta)))
+        raise self._refusal(Diagnostic(Severity.ERROR, message, late.span or self._span(meta), code=Code.OUT_OF_PLACE))
 
     def move_type_def(self, meta: Meta, c: list[object]) -> n.MoveTypeDef:
         name = str(c[0])
@@ -2387,22 +2426,24 @@ class _Builder(Transformer[Token, n.Game]):
         # totality"). One game per source.
         games = [x for x in c if isinstance(x, n.Game)]
         if not games:
-            raise DiagnosticError(
+            raise self._refusal(
                 Diagnostic(
                     Severity.ERROR,
                     "source declares no `game { }` block — a cardlang source "
                     "is one game plus its supporting definitions",
                     self._span(meta),
+                    code=Code.ONE_GAME_PER_FILE,
                 )
             )
         if len(games) > 1:
-            raise DiagnosticError(
+            raise self._refusal(
                 Diagnostic(
                     Severity.ERROR,
                     f"source declares {len(games)} `game {{ }}` blocks — a "
                     "cardlang source is one game; move the others to their "
                     "own files",
                     games[1].span,
+                    code=Code.ONE_GAME_PER_FILE,
                 )
             )
         game = games[0]
@@ -3189,16 +3230,24 @@ def parse_to_tree(
             composed = _diagnostic_parser().parse(text, start=start)
         except UnexpectedInput as later:
             later_error, later_pos = _syntax_error(later, text, source_name, line_offset, start)
-            raise DiagnosticError(later_error if later_pos > main_pos else main_error) from exc
+            raise DiagnosticError(
+                Told(later_error if later_pos > main_pos else main_error, author_of(start))
+            ) from exc
         # Every twin's builder method raises, and `compare` raises on the
         # operators `COMP_OP` gains (tools.dead_surface.refusing_methods and
         # the operator goldens, pinned by tests/test_diagnostic_grammar.py); a
         # composed tree the builder accepts is a defect there, and the main
         # error still stands.
-        _transform(_Builder(source_name, line_offset, text), composed)
-        raise DiagnosticError(main_error) from exc
+        _transform(_Builder(source_name, line_offset, text, author=author_of(start)), composed)
+        raise DiagnosticError(Told(main_error, author_of(start))) from exc
     assert isinstance(tree, Tree)
     return tree
+
+
+def author_of(start: str) -> Author:
+    """Whose file a text parsed from `start` is: a library's under the
+    `library` start symbol, a game's under any other."""
+    return Author.LIBRARY if start == "library" else Author.GAME
 
 
 def _syntax_error(
@@ -3232,7 +3281,7 @@ def _syntax_error(
             int(word.column or 1),
         )
         message = f"syntax error: unexpected `{word.value}`"
-        return Diagnostic(Severity.ERROR, message, at, near_misses=offered), pos
+        return Diagnostic(Severity.ERROR, message, at, near_misses=offered, code=Code.MISSPELLED_KEYWORD), pos
     raw_line: int = _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
     column: int = (
         pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
@@ -3249,7 +3298,7 @@ def _syntax_error(
     # outranks a clause keyword's reminder of where its clause belongs.
     hint = _reserved_result_name_hint(exc, lexeme) or _parse_hint(text, pos, raw_line, start)
     message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
-    return Diagnostic(Severity.ERROR, message, span), pos
+    return Diagnostic(Severity.ERROR, message, span, code=Code.SYNTAX_ERROR), pos
 
 
 def _transform(builder: _Builder, tree: Tree[Token]) -> object:
@@ -3269,7 +3318,7 @@ def parse_library(text: str, source_name: str) -> n.Library:
     family library or the standard library — into a Library node, spans mapped to ``source_name`` — so a diagnostic raised
     inside library text names the library file, not the game that used it."""
     tree = parse_to_tree(text, source_name, start="library")
-    result = _transform(_Builder(source_name, 0), tree)
+    result = _transform(_Builder(source_name, 0, author=Author.LIBRARY), tree)
     assert isinstance(result, n.Library)
     return result
 
@@ -3289,7 +3338,7 @@ def _parse_text_cached(text: str, source_name: str, line_offset: int) -> n.Game:
     edited text (an editor session, a watch mode) mints a fresh entry per
     edit and never reuses it, so it must bound or clear this cache."""
     tree = parse_to_tree(text, source_name, line_offset)
-    result = _transform(_Builder(source_name, line_offset, text), tree)
+    result = _transform(_Builder(source_name, line_offset, text, author=Author.GAME), tree)
     assert isinstance(result, n.Game)
     return result
 

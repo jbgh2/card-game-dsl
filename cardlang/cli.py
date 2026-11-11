@@ -3,6 +3,7 @@
     cardlang docs/games/hearts.cardlang                       # check only; silent on success
     cardlang docs/games/hearts.cardlang --emit-ir             # check, then print the IR JSON
     cardlang check docs/games/hearts.cardlang                 # the same check, named
+    cardlang check docs/games/hearts.cardlang --json          # its refusals as one Record Envelope
     cardlang play docs/games/hearts.cardlang --vs all=random  # take a seat and play it
     cardlang demo docs/games/hearts.cardlang                  # one uniform-random self-play
 
@@ -50,6 +51,11 @@ not seat, opponents that do not seat every other seat once, a saved game that
 cannot be resumed or saved, a game whose decisions the action space cannot
 number, a broken checkout, an argparse usage error.
 The two are split by who must act, not by how badly it went.
+
+`check --json` prints one Record Envelope (`cardlang.records`) on stdout in
+place of the text, whatever the outcome, with the same exit code; every
+refusal it records is a Told Diagnostic, the command line's own (an
+unreadable path) told to whoever ran the command.
 """
 
 from __future__ import annotations
@@ -63,8 +69,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, assert_never
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity, near_misses
+from cardlang.diagnostics import Author, Diagnostic, DiagnosticError, Severity, Told, near_misses
 from cardlang.openspiel.infostate import derive, render_information_state
 from cardlang.openspiel.replay import HistoryMismatch, load, returns_for
 from cardlang.pipeline import check_source, compile_path, extensions_read, game_identity
@@ -92,17 +99,29 @@ from cardlang.play.session import (
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
-from cardlang.runtime.errors import GameDescriptionError, InstallationError, Located
+from cardlang.records import envelope, refusal_diagnostic
+from cardlang.runtime.errors import GameDescriptionError, InstallationError
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
 
 
 def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+    # One JSON document on stdout: the IR, or the Record Envelope, never both.
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument(
         "--emit-ir",
         action="store_true",
         help="print the validated IR as JSON on success",
+    )
+    output.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "print every refusal as a Diagnostic Record, in one JSON document on "
+            "stdout (an empty list when the game checks clean); a command line "
+            "that cannot be read is still refused as text"
+        ),
     )
 
 
@@ -289,6 +308,7 @@ def _normalize(argv: list[str]) -> _Line | Diagnostic:
         f"{word} is not a command, and no file has that name; "
         f"the commands are: {', '.join(COMMANDS)}",
         near_misses=near,
+        code=Code.UNKNOWN_COMMAND,
     )
 
 
@@ -335,6 +355,8 @@ def main(argv: list[str] | None = None) -> int:
 
     path = Path(args.file)
     refusal = _unreadable(path)
+    if args.command == "check" and args.json:
+        return _check_json(path, refusal)
     if refusal is not None:
         print(f"cardlang: {refusal}", file=sys.stderr)
         if implicit:
@@ -392,7 +414,7 @@ def main(argv: list[str] | None = None) -> int:
         return _EXIT_CANNOT_PROCEED
 
 
-def _print_refusal(exc: Located) -> None:
+def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
     """A refusal, at the sentence that refused.
 
     Rendered through the checker's own `Diagnostic`, so the two halves of the
@@ -405,13 +427,39 @@ def _print_refusal(exc: Located) -> None:
     if exc.span is None:
         print(f"  {exc}", file=sys.stderr)
     else:
-        print(Diagnostic(Severity.ERROR, str(exc), exc.span).format(), file=sys.stderr)
+        print(refusal_diagnostic(exc).diagnostic.format(), file=sys.stderr)
     where = [w for w in (
         None if exc.phase is None else f"in phase {exc.phase}",
         None if exc.zone is None else f"moving from {exc.zone}",
     ) if w is not None]
     if where:
         print(f"  {', '.join(where)}", file=sys.stderr)
+
+
+def _check_json(path: Path, unreadable: str | None) -> int:
+    """`check --json`: one Record Envelope on stdout, whatever the outcome,
+    and the exit code the text output would give."""
+    told: tuple[Told, ...] = ()
+    exit_code = _EXIT_OK
+    if unreadable is not None:
+        told = (
+            Told(
+                Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
+                Author.INVOCATION,
+            ),
+        )
+        exit_code = _EXIT_CANNOT_PROCEED
+    else:
+        try:
+            check_source(path)
+        except DiagnosticError as exc:
+            told, exit_code = exc.told, _EXIT_GAME_AT_FAULT
+        except (GameDescriptionError, IllegalMove) as exc:
+            told, exit_code = (refusal_diagnostic(exc),), _EXIT_GAME_AT_FAULT
+        except InstallationError as exc:
+            told, exit_code = (refusal_diagnostic(exc),), _EXIT_CANNOT_PROCEED
+    print(json.dumps(envelope(told), indent=2))
+    return exit_code
 
 
 def _check(path: Path, emit_ir: bool) -> int:

@@ -84,6 +84,7 @@ from typing import get_args
 
 import pytest
 
+from cardlang.diagnostic_codes import Code
 from cardlang import diagnostics
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
@@ -678,8 +679,12 @@ def test_near_misses_are_ranked_most_alike_first_then_alphabetically_at_most_thr
 def test_a_diagnostic_renders_its_near_misses_as_one_clause() -> None:
     span = diagnostics.Span("g.cardlang", 0, 1, 3, 5)
     error = diagnostics.Severity.ERROR
-    one = diagnostics.Diagnostic(error, "unknown thing 'x'", span, near_misses=("a",))
-    three = diagnostics.Diagnostic(error, "unknown thing 'x'", span, near_misses=("a", "b", "c"))
+    one = diagnostics.Diagnostic(
+        error, "unknown thing 'x'", span, near_misses=("a",), code=Code.UNKNOWN_NAME
+    )
+    three = diagnostics.Diagnostic(
+        error, "unknown thing 'x'", span, near_misses=("a", "b", "c"), code=Code.UNKNOWN_NAME
+    )
     assert one.format() == "g.cardlang:3:5: error: unknown thing 'x'; did you mean `a`?"
     assert three.format() == "g.cardlang:3:5: error: unknown thing 'x'; did you mean `a`, `b` or `c`?"
 

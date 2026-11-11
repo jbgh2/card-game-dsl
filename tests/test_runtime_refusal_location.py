@@ -126,6 +126,7 @@ from typing import get_args
 import pytest
 
 import cardlang
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.cli import main
 from cardlang.diagnostics import Diagnostic, Severity, Span
@@ -897,5 +898,7 @@ def test_the_runtime_locator_reads_as_the_checker_locator_does(
     )
     assert located is not None, err
     span = Span(str(EMPTY_ZONE), 0, 0, line, int(located.split(":")[2]))
-    expected = Diagnostic(Severity.ERROR, "cannot choose 1 of 0 candidates", span)
+    expected = Diagnostic(
+        Severity.ERROR, "cannot choose 1 of 0 candidates", span, code=Code.REFUSED_DURING_PLAY
+    )
     assert located == expected.format()

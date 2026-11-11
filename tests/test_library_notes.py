@@ -109,9 +109,12 @@ import pytest
 
 import cardlang.attribution as attribution
 import cardlang.resolve as R
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.deckcheck import check_capacity
 from cardlang.diagnostics import (
+    Author,
+    Told,
     LINE_KINDS,
     Diagnostic,
     DiagnosticBag,
@@ -313,11 +316,11 @@ def _told(monkeypatch: pytest.MonkeyPatch, stage: str, telling: str, lives: str)
     bag = DiagnosticBag()
     if telling == "route":
         library = "stdlib" if lives == "stdlib" else L._LIB
-        bag.error("the probe refuses this", span, route=Route("call", at, library, "libp"))
+        bag.error("the probe refuses this", span, route=Route("call", at, library, "libp"), code=Code.UNKNOWN_NAME)
     elif telling == "stands-on":
-        bag.error("the probe refuses this", at, stands_on=span)
+        bag.error("the probe refuses this", at, stands_on=span, code=Code.UNKNOWN_NAME)
     else:
-        bag.error("the probe refuses this", span)
+        bag.error("the probe refuses this", span, code=Code.UNKNOWN_NAME)
     uses = parse_text(_GAME, L._GAME_FILE).uses if stage == "before-splice" else ()
     with pytest.raises(DiagnosticError) as exc:
         attribution.raise_if_errors(bag, game, uses)
@@ -449,7 +452,7 @@ def test_merged_refusals_keep_every_note(monkeypatch: pytest.MonkeyPatch) -> Non
     at = _game_text(game)
     bag = DiagnosticBag()
     for library_at in (span, same_line, other):
-        bag.error("the probe refuses this", library_at, route=Route("call", at, L._LIB, "libp"))
+        bag.error("the probe refuses this", library_at, route=Route("call", at, L._LIB, "libp"), code=Code.UNKNOWN_NAME)
     attribution.tell(bag, game)
     assert len(bag.items) == 1
     libp = next(p.span for p in game.procedures if p.name == "libp")
@@ -465,7 +468,7 @@ def test_a_moved_refusal_standing_at_game_text_keeps_what_it_reached(
     span, where = _refused("family")
     at = _game_text(game)
     bag = DiagnosticBag()
-    bag.error("the probe refuses this", at, route=Route("call", at, L._LIB, "libp"), stands_on=span)
+    bag.error("the probe refuses this", at, route=Route("call", at, L._LIB, "libp"), stands_on=span, code=Code.UNKNOWN_NAME)
     attribution.tell(bag, game)
     (told,) = bag.items
     libp = next(p.span for p in game.procedures if p.name == "libp")
@@ -486,17 +489,17 @@ def _union_cell(name: str, game: n.Game) -> tuple[DiagnosticBag, set[int]]:
     route = Route("call", at, L._LIB, "libp")
     bag = DiagnosticBag()
     if name == "raised-and-handed":
-        bag.error("the probe refuses this", family, route=route, stands_on=outside)
+        bag.error("the probe refuses this", family, route=route, stands_on=outside, code=Code.UNKNOWN_NAME)
         return bag, {family.line, outside.line, libp.span.line}
     if name == "raised-and-cited-for-the-game":
         sentence = attribution.cite_library(L._LIB, outside) + " refuses this"
-        bag.error("the probe refuses this", family, route=route, for_game=sentence)
+        bag.error("the probe refuses this", family, route=route, for_game=sentence, code=Code.UNKNOWN_NAME)
         return bag, {family.line, outside.line, libp.span.line}
     if name == "named-and-handed-the-game's-text":
-        bag.error("the probe refuses this", at, stands_on=at)
+        bag.error("the probe refuses this", at, stands_on=at, code=Code.UNKNOWN_NAME)
         return bag, {libp.span.line}
     assert name == "named-and-handed"
-    bag.error("the probe refuses this", at, stands_on=outside)
+    bag.error("the probe refuses this", at, stands_on=outside, code=Code.UNKNOWN_NAME)
     return bag, {libp.span.line, outside.line}
 
 
@@ -643,9 +646,9 @@ def test_no_refusal_leaves_the_step_with_its_inputs(monkeypatch: pytest.MonkeyPa
             game = _spliced(mp, stage, _WITNESSES[telling])
             span, _where = _refused(lives)
             bag = DiagnosticBag()
-            bag.error("the probe refuses this", _game_text(game), stands_on=span)
-            bag.error("the probe refuses this", span, route=Route("call", None, L._LIB, "libp"))
-            bag.error("the probe refuses this too", span, for_game="the game's sentence")
+            bag.error("the probe refuses this", _game_text(game), stands_on=span, code=Code.UNKNOWN_NAME)
+            bag.error("the probe refuses this", span, route=Route("call", None, L._LIB, "libp"), code=Code.UNKNOWN_NAME)
+            bag.error("the probe refuses this too", span, for_game="the game's sentence", code=Code.UNKNOWN_NAME)
             attribution.tell(bag, game)
         for d in bag.items:
             assert (d.route, d.for_game, d.stands_on) == (None, None, ()), (stage, telling, lives)
@@ -1283,9 +1286,9 @@ def test_a_library_checked_alone_raises_with_no_step_input() -> None:
     stands."""
     bag = DiagnosticBag()
     span = Span(_STDLIB_RULES, 0, 1, 1, 1)
-    bag.error(attribution.cite_library("stdlib", span) + " refuses this", span)
+    bag.error(attribution.cite_library("stdlib", span) + " refuses this", span, code=Code.UNKNOWN_NAME)
     with pytest.raises(DiagnosticError) as exc:
-        attribution.raise_where_written(bag)
+        attribution.raise_where_written(bag, Author.LIBRARY)
     told = exc.value.diagnostic
     assert (told.message, told.route, told.for_game, told.stands_on) == (
         "the standard library refuses this", None, None, (),
@@ -1296,16 +1299,16 @@ def test_only_the_step_raises_a_bag_after_parse() -> None:
     """A bag a check fills reaches a raise only through the step; the
     parser's bag never holds a Library Citation.
 
-    red under: raise `DiagnosticError(bag.items[0])` in `stdlib/rules.py`."""
+    A bag is raised as the diagnostics it holds, told: `DiagnosticError(*told)`.
+
+    red under: raise `DiagnosticError(*told)` in `stdlib/rules.py`."""
     raisers: set[str] = set()
     for path in sorted(_PACKAGE.rglob("*.py")):
         for nd in ast.walk(ast.parse(path.read_text())):
             if (
                 isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name)
                 and nd.func.id == "DiagnosticError" and nd.args
-                and isinstance(nd.args[0], ast.Subscript)
-                and isinstance(nd.args[0].value, ast.Attribute)
-                and nd.args[0].value.attr == "items"
+                and isinstance(nd.args[0], ast.Starred)
             ):
                 raisers.add(path.relative_to(_PACKAGE).as_posix())
     assert raisers == {"attribution.py", "parse.py"}
@@ -1352,16 +1355,19 @@ def _told_in_the_game(monkeypatch: pytest.MonkeyPatch, witness: L.Witness) -> li
     told: list[Diagnostic] = []
     real = attribution.tell
 
-    def recording(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) -> None:
-        real(bag, game, uses)
+    def recording(
+        bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()
+    ) -> tuple[Told, ...]:
+        result = real(bag, game, uses)
         if attribution._WITNESSING.get() or not attribution._holders(game) and not uses:
-            return
+            return result
         told.extend(
             d for d in bag.items
             if d.severity.value == "error"
             and d.span is not None
             and not d.span.source_name.startswith(("docs/libraries/", _STDLIB_RULES))
         )
+        return result
 
     monkeypatch.setattr(attribution, "tell", recording)
     witness(monkeypatch)
