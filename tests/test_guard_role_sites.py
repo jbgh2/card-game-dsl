@@ -96,6 +96,7 @@ _ACCOUNTED = frozenset(
         "DiagnosticError",
         "ResampleRefusal",
         "PausedRunStalled",
+        "_Refused",
         # not a defect: the game author wrote `error(...)` and the refusal is
         # the rule working
         "IllegalMove",

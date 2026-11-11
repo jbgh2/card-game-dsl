@@ -46,6 +46,13 @@ class Code(Enum):
     WRONG_FILE_EXTENSION = ("wrong-file-extension", "a game file's name ends in an extension the checker reads; rename the file")
     UNKNOWN_COMMAND = ("unknown-command", "the first word names no command and no file; write a command or a path")
     UNREADABLE_FILE = ("unreadable-file", "the file named cannot be read as text; name a readable game file")
+    COMMAND_GOES_FIRST = ("command-goes-first", "a command is written after the file; write it first")
+    UNKNOWN_OPTION = ("unknown-option", "the command takes no command-line option of that name; write one it takes")
+    OPTION_OF_ANOTHER_COMMAND = ("option-of-another-command", "the command-line option belongs to another command; name a command that takes every word of the line")
+    FILE_NAME_READS_AS_OPTION = ("file-name-reads-as-option", "a file's name begins with a dash, so it reads as a command-line option; spell it as a path")
+    EXTRA_WORD = ("extra-word", "the command reads one game file and no other word; drop the word")
+    MISSING_GAME_FILE = ("missing-game-file", "the command needs a game file and the line names none; name one")
+    COMMAND_LINE_USAGE = ("command-line-usage", "the command line does not read as the command's; write what the message says it expects")
 
     # --- names ------------------------------------------------------------
     UNKNOWN_NAME = ("unknown-name", "a name nothing in scope declares, refused where the checker cannot tell which sort of name was meant; read the suggestions, spell a declared name, or declare it")

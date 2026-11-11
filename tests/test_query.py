@@ -470,14 +470,16 @@ def test_an_unreadable_file_is_refused_to_whoever_asked(tmp_path: Path) -> None:
     assert code == 2 and [d["code"] for d in json.loads(out)["diagnostics"]] == ["unreadable-file"]
 
 
-@pytest.mark.parametrize("written", ["66", "66:", ":16", "a:b", "66-16"])
-def test_a_position_not_written_line_colon_column_is_a_usage_error(
-    written: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    with pytest.raises(SystemExit) as exit_info:
-        cli.main(["query", str(HEARTS), "--at", written])
-    assert exit_info.value.code == 2
-    assert "LINE:COL" in capsys.readouterr().err
+@pytest.mark.parametrize("json_too", [False, True])
+@pytest.mark.parametrize("written", [None, "66", "66:", ":16", "a:b", "66-16", "1"])
+def test_a_query_naming_no_position_is_refused_as_text(written: str | None, json_too: bool) -> None:
+    """Refused after the line is parsed, as `demo`'s `--at` without a seat
+    is, and as text under `--json` too, as a command line that cannot be
+    read is under `check --json`: exit 2, nothing on stdout."""
+    argv = ["query", str(HEARTS), *([] if written is None else ["--at", written])]
+    code, out, err = _cli(*argv, *(["--json"] if json_too else []))
+    assert (code, out) == (2, "")
+    assert err.startswith("cardlang: ") and "LINE:COL" in err
 
 
 def test_ask_answers_every_position_of_a_game() -> None:

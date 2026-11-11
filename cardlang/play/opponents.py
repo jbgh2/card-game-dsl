@@ -26,6 +26,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from cardlang.diagnostics import listed
 from cardlang.openspiel.seat_policy import OPPONENTS
 
 ALL = "all"
@@ -54,8 +55,7 @@ class Unnamed:
 
 
 def seats_named(seats: Sequence[int]) -> str:
-    names = [f"P{seat}" for seat in seats]
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    return listed([f"P{seat}" for seat in seats], "and")
 
 
 def described(name: str) -> str:
