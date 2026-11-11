@@ -1390,10 +1390,12 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # subset of `enums` (where a bare label resolves), read for one
     # refusal's wording. `bound_names` is every name the game binds, read
     # by the membership-capture check at a collection set to know a capture
-    # may be there; no reference resolves against it.
+    # may be there; no reference resolves against it. `refused_binders` and
+    # `withheld` are the binders a refused spelling's fix would bind, read to
+    # withhold a consequence, and resolve nothing.
     game_fed = {f.name for f in fields(_Categories)} - {
         "locals", "functions", "flavor", "definitions", "rule_clause", "shapes",
-        "bound_names",
+        "bound_names", "refused_binders", "withheld",
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():

@@ -4775,12 +4775,7 @@ def resolve(game: n.Game) -> n.Game:
     # `_instantiate_rules`, so instantiated rule bodies are covered too, and
     # before a rule's clause shapes are read, so a noun naming something else
     # is told what it names before its clause is judged by the query's shape.
-    noun_cats = _categories(game)
-    for dq in _walk(game):
-        if isinstance(dq, n.DomainQuery):
-            _check_domain_query(dq, game, noun_cats, bag)
-        elif isinstance(dq, n.SubsetQuery):
-            _check_subset_source(dq, bag)
+    refused_binders = _refused_binder_sources(game, _categories(game), bag)
 
     rule_move_types = {m.name: m for m in game.move_types}
     for rule in game.rules:
@@ -4791,7 +4786,7 @@ def resolve(game: n.Game) -> n.Game:
 
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
-    cats = _categories(game)
+    cats = replace(_categories(game), refused_binders=refused_binders)
     game = _classify_names(game, cats, bag)
     game = _stamp_follows_reads(game)
     _validate_refs(game, cats, bag)
@@ -8061,6 +8056,14 @@ class _Categories:
     # capture check reads at a collection set's node.
     collection_nouns: frozenset[str] = frozenset()
     bound_names: frozenset[str] = frozenset()
+    # The names a node's refused binder source would bind were it fixed, by
+    # the node (`_refused_binder_sources`): the node binds nothing, and a
+    # name in its scope spelled as one of them is withheld.
+    refused_binders: Mapping[int, frozenset[str]] = field(default_factory=dict)
+    # Lexical, like `locals`: names in scope that a refused binder source's
+    # fix would bind. Unresolved, such a name is a consequence of that
+    # refusal and is not told.
+    withheld: frozenset[str] = frozenset()
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -10911,13 +10914,62 @@ def _unknown_shape_label(node: n.BinOp, cats: _Categories) -> n.NameRef | None:
     return None
 
 
+def _rewrite_refused_binder(
+    node: object, fixes: frozenset[str], cats: _Categories, bag: DiagnosticBag
+) -> object:
+    """Rewrite a node whose binder source is refused: it binds nothing, and
+    the fields its binder would scope withhold `fixes`, the binders a fix of
+    the source would bind, so the correct names they read are not refused."""
+    scope_fields = _BINDER_SCOPE_FIELDS[type(node)]
+    withheld = replace(cats, withheld=cats.withheld | fixes)
+    return _traverse(
+        node, lambda f, v: _rewrite_value(v, withheld if f in scope_fields else cats, bag)
+    )
+
+
+def _refused_binder_sources(
+    game: n.Game, cats: _Categories, bag: DiagnosticBag
+) -> dict[int, frozenset[str]]:
+    """Validate every binder source a check refuses before names are
+    classified -- a query's noun, a simultaneous block's role -- and return,
+    by node, the binders the fixes of each refused source would bind. A
+    collection set that may be a membership is `_rewrite`'s, which holds the
+    lexical scope."""
+    refused: dict[int, frozenset[str]] = {}
+    for nd in _walk(game):
+        if isinstance(nd, n.DomainQuery):
+            if _check_domain_query(nd, game, cats, bag):
+                refused[id(nd)] = _binders_a_query_takes(nd, game, cats.flavor)
+        elif isinstance(nd, n.SubsetQuery):
+            _check_subset_source(nd, bag)
+        elif isinstance(nd, n.EachSimultaneous) and _simultaneous_role_refused(nd):
+            bag.error(
+                f"`each {nd.role} simultaneously` is not runnable — "
+                f"simultaneous moves are per "
+                f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
+                nd.span,
+            )
+            refused[id(nd)] = frozenset(role_names(SIMULTANEOUS_ROLES))
+    return refused
+
+
+def _simultaneous_role_refused(nd: n.EachSimultaneous) -> bool:
+    """Whether a simultaneous block's role is no seat domain: the registry's
+    `simultaneous` column, since a value domain has no actor to move."""
+    return role_of(nd.role) not in SIMULTANEOUS_ROLES
+
+
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     if isinstance(node, n.DomainQuery) and _may_be_a_membership(node, cats):
         # The Owner Guard `_check_domain_query` leaves to the lexical scope. A
         # refused capture's predicate is written over the outer binder, so it
         # is not read under the captured noun.
-        if _membership_capture(node, cats, bag):
+        fixes = _membership_capture(node, cats, bag)
+        if fixes is None:
             return node
+        return _rewrite_refused_binder(node, fixes, cats, bag)
+    if id(node) in cats.refused_binders:
+        return _rewrite_refused_binder(node, cats.refused_binders[id(node)], cats, bag)
     if isinstance(node, n.AppliesWhen) and _refuse_bare_always(
         node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
     ):
@@ -10971,6 +11023,8 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         if cats.rule_clause and node.name == PLAY_SOURCE_NAME and node.name not in cats.locals:
             return replace(node, ref_kind="play_source")
         kind = _classify(node.name, cats)
+        if kind is None and node.name in cats.withheld:
+            return node
         if kind is None:
             hint = ""
             noun = content_noun(cats.flavor, plural=False)
@@ -12510,8 +12564,9 @@ def _player_register_spelling(kind: n.DomainQueryKind) -> str:
 
 def _check_domain_query(
     nd: n.DomainQuery, game: n.Game, cats: _Categories, bag: DiagnosticBag
-) -> None:
-    """Validate a positional-quantifier noun (decisions.md "Boards and cells").
+) -> bool:
+    """Validate a positional-quantifier noun (decisions.md "Boards and cells"),
+    True where the noun is refused.
 
     A BARE form (`source is None`) ranges over a declared position domain,
     and a query kind in `n.DIRECTION_QUERY_KINDS` also over the direction
@@ -12553,10 +12608,10 @@ def _check_domain_query(
                 nd.binder in _minted_directions(game) or lack is not None
             ):
                 bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
-                return
+                return True
         if lack is not None:
             bag.error(f"`{head}` ranges over the board directions, but {lack}", nd.span)
-            return
+            return True
         if directions:
             universe += (
                 "; the board direction domain: "
@@ -12581,12 +12636,12 @@ def _check_domain_query(
             # spelled with `of`. Calling the word unknown would be false, and
             # would send a designer looking for a declaration to add.
             bag.error(_subset_refusal(nd.kind, head), nd.span)
-            return
+            return True
         if nd.binder not in declared and (
             nd.binder in _minted_directions(game) or lack is not None
         ):
             bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
-            return
+            return True
         if game.board is not None:
             universe += f"; the board's lines: `{LINE_NOUN}`"
         target_ok = nd.binder in collection_nouns(game)
@@ -12594,7 +12649,7 @@ def _check_domain_query(
         if _may_be_a_membership(nd, cats):
             # `x in <noun>s where …` with no parentheses: `_rewrite`, which
             # holds the lexical scope, tells a membership from a noun.
-            return
+            return False
         if not target_ok:
             zone = _zone_source(nd.source, game)
             if zone is not None and cats.flavor == "card":
@@ -12607,12 +12662,12 @@ def _check_domain_query(
                     _nouns_a_query_takes(nd, game, cats.flavor),
                     nd.span,
                 )
-                return
+                return True
     if not target_ok:
         named = _bare_noun_refusal(nd, head, game, cats, universe)
         if named is not None:
             bag.error(named, nd.span)
-            return
+            return True
     if nd.kind != "any" and not nd.spelled.endswith("s"):
         # A singular noun under `all`/`number of`/the Set Form: guide to the
         # plural if the singular names a real target, else fall through to
@@ -12625,17 +12680,19 @@ def _check_domain_query(
                 else f"{n.collection_query_head(nd.kind, plural)} in …"
             )
             bag.error(f"`{head}` needs the plural noun -- write `{fixed}`", nd.span)
-            return
+            return True
         refused: str | None = nd.spelled
     else:
         refused = None if target_ok else nd.binder
-    if refused is not None:
-        bag.unknown(
-            f"unknown {noun_kind} '{refused}' -- {universe}",
-            nd.spelled,
-            _nouns_a_query_takes(nd, game, cats.flavor),
-            nd.span,
-        )
+    if refused is None:
+        return False
+    bag.unknown(
+        f"unknown {noun_kind} '{refused}' -- {universe}",
+        nd.spelled,
+        _nouns_a_query_takes(nd, game, cats.flavor),
+        nd.span,
+    )
+    return True
 
 
 def _nouns_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> frozenset[str]:
@@ -12645,6 +12702,14 @@ def _nouns_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> fro
     kind ranges over them and the keyword nouns the grammar gives `any` and
     `all` (player, team, suit, rank), `players` alone for the others; in the
     collection form, the board lines and the content noun."""
+    return frozenset(
+        noun if nd.kind == "any" else noun + "s" for noun in _binders_a_query_takes(nd, game, flavor)
+    )
+
+
+def _binders_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> frozenset[str]:
+    """The singular of every noun `_nouns_a_query_takes` names: the binder a
+    query of `nd`'s form and kind binds for each."""
     nouns = {p.name for p in game.positions}
     if nd.source is None:
         if nd.kind in n.DIRECTION_QUERY_KINDS:
@@ -12653,7 +12718,7 @@ def _nouns_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> fro
         nouns |= set(role_names(roles) if nd.kind in ("any", "all") else [Role.PLAYER.value])
     else:
         nouns |= collection_nouns(game) | {content_noun(flavor, plural=False)}
-    return frozenset(noun if nd.kind == "any" else noun + "s" for noun in nouns)
+    return frozenset(nouns)
 
 
 def _subset_refusal(kind: n.DomainQueryKind, head: str) -> str:
@@ -12741,17 +12806,20 @@ def _may_be_a_membership(nd: n.DomainQuery, cats: _Categories) -> bool:
     )
 
 
-def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag) -> bool:
+def _membership_capture(
+    nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
+) -> frozenset[str] | None:
     """A collection set over a noun nothing ranges by, read in the noun's
     lexical scope: where the noun names a value there, it is `x in <query>`
     written without its parentheses, and the refusal names the sentence that
-    checks; elsewhere the noun is unknown. True where the refusal is the
-    capture's."""
+    checks; elsewhere the noun is refused. None where the refusal is the
+    capture's, else the binders the refused noun's fixes would bind."""
     assert nd.source is not None
+    fixes = frozenset((*cats.collection_nouns, content_noun(cats.flavor, plural=False)))
     if _classify(nd.spelled, cats) is None and nd.binder in cats.collection_nouns:
         plural = n.collection_query_head(nd.kind, nd.spelled + "s")
         bag.error(f"`{nd.spelled} in …` needs the plural noun -- write `{plural} in …`", nd.span)
-        return False
+        return fixes
     if _classify(nd.spelled, cats) is None:
         universe = (
             f"declared position domains: {', '.join(sorted(cats.collection_nouns - {LINE_NOUN}))}"
@@ -12763,10 +12831,10 @@ def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
         bag.unknown(
             f"unknown collection noun '{nd.binder}' -- {universe}",
             nd.spelled,
-            {noun + "s" for noun in (*cats.collection_nouns, content_noun(cats.flavor, plural=False))},
+            {noun + "s" for noun in fixes},
             nd.span,
         )
-        return False
+        return fixes
     source = n.short_spelling(nd.source)
     if isinstance(nd.source, n.NameRef) and nd.source.name in _query_nouns(cats):
         # `cells`, `players`: the source is a query's own noun, so the query
@@ -12781,7 +12849,7 @@ def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
         f"condition is joined with `and`: write `{fixed}`",
         nd.span,
     )
-    return True
+    return None
 
 
 def _query_nouns(cats: _Categories) -> frozenset[str]:
@@ -13120,17 +13188,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"over players",
                     nd.span,
                 )
-            case n.EachSimultaneous() if role_of(nd.role) not in SIMULTANEOUS_ROLES:
-                # The registry's `simultaneous` column, not a bare `!= "player"`:
-                # the roles that admit a simultaneous block are exactly the seat
-                # domains (a value domain has no actor to move simultaneously),
-                # and both the gate and the message it prints come from the rows.
-                bag.error(
-                    f"`each {nd.role} simultaneously` is not runnable — "
-                    f"simultaneous moves are per "
-                    f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
-                    nd.span,
-                )
+            case n.EachSimultaneous() if _simultaneous_role_refused(nd):
+                pass  # refused by `_refused_binder_sources`, before names are classified
             case n.EachSimultaneous() if n.simultaneous_body_error(nd.body) is not None:
                 # The form gated its DOMAIN (above) and not its BODY. The executor
                 # implements exactly one body shape, so everything else compiled and
