@@ -40,12 +40,16 @@ does not prove:  that the facts are true. The live gather reads GitHub's
             run and job lists, and a run whose route has just finished can
             show its `check` job for a moment with no labels, which counts
             as nothing. Nor that a laptop which answered the probe stays
-            awake for the job it is then given.
+            awake for the job it is then given. The three workflow tests
+            read ci.yml's clauses as text; that GitHub fails `check` behind
+            a failed route is shown by a run, not by a parse.
 red under:  `test_one_job_ahead_fits_and_two_do_not` fails if the load sum
             drops the waiting jobs; `test_a_silent_laptop_is_never_picked`
             fails if a silent probe falls through to the load comparison;
             `test_every_job_status_is_classified` fails if a status is
-            dropped from the waiting side.
+            dropped from the waiting side;
+            `test_a_failed_route_fails_the_gate_and_does_not_skip_it` fails
+            if `check` loses its condition or its first step.
 """
 
 from __future__ import annotations
@@ -254,3 +258,44 @@ def test_an_unknown_forced_lane_is_refused_by_name(force: str) -> None:
     assert "CI_ROUTE" in pick.stderr
     for valid in ("auto", "laptop", "hosted"):
         assert valid in pick.stderr
+
+
+# The workflow's wiring around the pick. A parse cannot show GitHub
+# evaluating it; it can show the clauses that make a failed route fail the
+# gate are the ones written.
+
+_WORKFLOW = _REPO / ".github" / "workflows" / "ci.yml"
+
+
+def _workflow_job(name: str) -> dict[str, object]:
+    import yaml
+
+    jobs = yaml.safe_load(_WORKFLOW.read_text())["jobs"]
+    job = jobs[name]
+    assert isinstance(job, dict)
+    return job
+
+
+def test_a_failed_route_fails_the_gate_and_does_not_skip_it() -> None:
+    check = _workflow_job("check")
+    assert check["needs"] == "route"
+    condition = str(check["if"])
+    assert "needs.route.result != 'skipped'" in condition
+    assert "!cancelled()" in condition
+    steps = check["steps"]
+    assert isinstance(steps, list)
+    guard = steps[0]
+    assert "needs.route.result != 'success'" in str(guard["if"])
+    assert "exit 1" in str(guard["run"])
+
+
+def test_only_the_laptop_lane_reaches_the_self_hosted_pool() -> None:
+    runs_on = str(_workflow_job("check")["runs-on"])
+    assert runs_on.count("self-hosted") == 1
+    assert runs_on.startswith("${{ needs.route.outputs.lane == 'laptop' && fromJSON(")
+
+
+def test_a_fork_or_a_draft_never_starts_the_route() -> None:
+    condition = str(_workflow_job("route")["if"])
+    assert "github.event.pull_request.head.repo.full_name == github.repository" in condition
+    assert "github.event.pull_request.draft == false" in condition

@@ -28,7 +28,7 @@
 # job times; the stale bound sits above the longest green pool job.
 #
 # Usage: ci-route.sh            live, inside the `route` job; writes `lane`
-#                               and `runner` to $GITHUB_OUTPUT.
+#                               (`laptop` or `hosted`) to $GITHUB_OUTPUT.
 #        ci-route.sh --decide   reads a facts object on stdin and prints
 #                               `<laptop|hosted|probe><TAB><reason>`; the
 #                               seam tests/test_ci_route.py drives.
@@ -41,8 +41,6 @@ STALE_MINUTES=45
 PROBE_WAIT_SECONDS=60
 PROBE_WORKFLOW=runner-probe.yml
 PROBE_REF=ci-probe-anchor
-POOL_RUNNER='["self-hosted","cardlang"]'
-HOSTED_RUNNER='"macos-latest"'
 
 DECIDE='
 def pool: (.labels // []) | index("self-hosted") != null;
@@ -112,12 +110,7 @@ WORKFLOW=ci.yml
 
 settle() {
   # $1 lane, $2 reason.
-  local runner=$HOSTED_RUNNER
-  [ "$1" = laptop ] && runner=$POOL_RUNNER
-  {
-    echo "lane=$1"
-    echo "runner=$runner"
-  } >> "$GITHUB_OUTPUT"
+  echo "lane=$1" >> "$GITHUB_OUTPUT"
   echo "route: $1 -- $2" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
   exit 0
 }

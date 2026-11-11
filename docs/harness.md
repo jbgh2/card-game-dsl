@@ -649,7 +649,8 @@ Two standing facts bind the harness, and one authority stays put:
   job picks one per run (`tools/ci-route.sh`): the self-hosted pool on the
   operator's laptop when the pool is awake and will finish the job first,
   a GitHub-hosted macOS runner when the pool is asleep or full. A closed
-  lid slows the gate and does not stop it (ADR-0022). The repository
+  lid slows the gate and does not stop it (ADR-0022). A `route` job that
+  fails fails `check` with it. The repository
   variable `CI_ROUTE` forces a lane (`laptop` or `hosted`), and setting it
   is the operator's. The Standing Roles' scheduled runs still need the
   laptop awake.

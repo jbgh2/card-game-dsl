@@ -57,6 +57,9 @@ macOS runner when it is asleep or full.
 - `tools/ci-route.sh` owns the pick and `tests/test_ci_route.py` crosses
   its facts. Branch protection still requires one check, `check`,
   whichever lane ran it.
+- A `route` job that fails fails `check`. A required check skipped behind
+  a failed job reads as passing to branch protection, so `check` runs and
+  fails instead.
 - The probe runs at the `ci-probe-anchor` tag, so its check lands on a
   commit that is no pull request's head. Without the tag every run takes
   the hosted lane, with a warning on the run.

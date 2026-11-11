@@ -47,7 +47,6 @@ jobs:
       contents: read
     outputs:
       lane: ${{ steps.pick.outputs.lane }}
-      runner: ${{ steps.pick.outputs.runner }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,9 +68,21 @@ jobs:
   # the same tests run, and none is skipped for its platform.
   check:
     needs: route
-    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
+    # Runs whenever `route` ran, a failed `route` included: a job skipped
+    # behind a failed need reports to branch protection as passing, so the
+    # first step fails the gate instead. A draft or a fork skips `route`,
+    # and `check` with it.
+    if: ${{ !cancelled() && needs.route.result != 'skipped' }}
+    # Only the lane `laptop` reaches the self-hosted pool. Anything that is
+    # not a lane lands on a hosted runner, where the first step fails.
+    runs-on: ${{ needs.route.outputs.lane == 'laptop' && fromJSON('["self-hosted", "cardlang"]') || needs.route.outputs.lane == 'hosted' && 'macos-latest' || 'ubuntu-latest' }}
     timeout-minutes: ${{ needs.route.outputs.lane == 'laptop' && 60 || 180 }}
     steps:
+      - name: The route picked a lane
+        if: needs.route.result != 'success' || (needs.route.outputs.lane != 'laptop' && needs.route.outputs.lane != 'hosted')
+        run: |
+          echo "::error title=check::the route job picked no lane (result: ${{ needs.route.result }}), so the gate did not run"
+          exit 1
       - uses: actions/checkout@v4
       - name: Venv (rebuilt whenever the dependency spec changes)
         if: needs.route.outputs.lane == 'laptop'
