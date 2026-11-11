@@ -24,6 +24,7 @@ from ..author_facts import (
     FactsRunner,
     FactsStatus,
     PlayoutFacts,
+    _known_identities,
     compare,
     extract,
     ks_two_sample,
@@ -138,3 +139,23 @@ def test_a_reference_without_facts_compares_nothing() -> None:
     nothing = FactsRecord(FactsStatus.CRASHED, detail="boom")
     some = FactsRecord(FactsStatus.OK, 2, "standard52", (PlayoutFacts(0, 1, 0, 0, 1, 2.0),))
     assert compare(nothing, some).verdict is DifferentialVerdict.NOT_COMPARABLE
+
+
+def test_a_seat_knows_the_cards_its_log_names_as_well_as_those_it_sees() -> None:
+    from cardlang.openspiel.infostate import SeatView
+    from cardlang.runtime.values import Card
+
+    view = SeatView(
+        player=0,
+        zones=(("hand[0]", (Card("A", "spades"), Card("2", "hearts"))), ("hand[1]", 2), ("deck", None)),
+        state=(),
+        obs_log=(
+            ("move", "hand[1]", 1, "trick", ("5♣",)),
+            ("move", "hand[0]", 1, "trick", ("A♠",)),
+            ("announce", 1, "pass"),
+        ),
+    )
+    names = frozenset({"A♠", "2♥", "5♣", "9♦"})
+    # Two in the hand and one more the log names; the hand's ace is not
+    # counted twice, and a word that is no card is not a card.
+    assert _known_identities(view, names) == 3

@@ -92,7 +92,7 @@ games:
 token_budget:
   max_input_tokens: 40000000
   max_output_tokens: 3000000
-  max_cost_usd: 60.0
+  max_cost_usd: 40.0
   window: all
 
 roster: [frontier, mid]
