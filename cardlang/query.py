@@ -64,7 +64,7 @@ from typing import assert_never, get_args
 from cardlang.ast import nodes as n
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import Author, Diagnostic, Severity, Span, Told
-from cardlang.domains import role_of
+from cardlang.domains import Role, role_of
 from cardlang.extract import extract_single_block
 from cardlang.parse import parse_block, parse_text
 from cardlang.resolve import NamesInScope, resolve
@@ -819,7 +819,7 @@ def _holder_words(zones: Mapping[str, n.ZoneDecl], side: Side) -> str:
     assert side.zone is not None
     index = zones[side.zone].index
     role = role_of(index) if index is not None else None
-    team = role is not None and role.value == "team"
+    team = role is Role.TEAM
     if side.each:
         return f"each seat of the team holding one {side.zone}" if team else f"the seat holding each {side.zone}"
     return f"each seat of the team holding {side.label}" if team else f"the seat holding {side.label}"

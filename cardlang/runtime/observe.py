@@ -357,7 +357,7 @@ def state_delta(ctx: Ctx) -> None:
             ctx.observe(p, event)
 
 
-def held(index: str | None, position_domains: Mapping[str, Any]) -> bool:
+def held(index: str | None, position_domains: Mapping[str, Any]) -> TypeGuard[str]:
     """Whether a zone indexed by `index` has a holder among the observers: a
     seat or a team family does, a single zone or a family over a Position
     Domain does not (no observer IS a column), so every observer sees it
@@ -371,7 +371,6 @@ def _is_owner(
     index = rs.zones.zone_index[zone_name]
     if key is None or not held(index, rs.position_domains):
         return False
-    assert index is not None
     # The observer owns the family instance whose key is their own member in
     # the index domain — their seat, their team — read from the domain table's
     # `zone_key_of` column rather than an `== "team"` re-spelling (which
