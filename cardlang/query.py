@@ -284,11 +284,13 @@ def locate(checked: Checked, line: int, column: int) -> Located | Told:
             None,
             Code.POSITION_OUTSIDE_THE_FILE,
         )
+    # A line's columns are its characters and its end, where a cursor stands
+    # after the last of them (the only column an empty line has).
     width = len(checked.file_lines[line - 1])
-    if not 1 <= column <= width:
-        where = "is empty" if width == 0 else f"has columns 1 to {width}"
+    if not 1 <= column <= width + 1:
         return _told(
-            f"line {line} of {checked.path} {where}, so column {column} is outside it",
+            f"line {line} of {checked.path} has columns 1 to {width + 1}, its last "
+            f"at the line's end, so column {column} is outside it",
             None,
             Code.POSITION_OUTSIDE_THE_FILE,
         )
