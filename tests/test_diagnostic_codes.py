@@ -46,6 +46,7 @@ import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 
@@ -81,6 +82,13 @@ SHIPPED: dict[str, str] = {
     "wrong-file-extension": "a game file's name ends in an extension the checker reads; rename the file",
     "unknown-command": "the first word names no command and no file; write a command or a path",
     "unreadable-file": "the file named cannot be read as text; name a readable game file",
+    "command-goes-first": "a command is written after the file; write it first",
+    "unknown-option": "the command takes no command-line option of that name; write one it takes",
+    "option-of-another-command": "the command-line option belongs to another command; name a command that takes every word of the line",
+    "file-name-reads-as-option": "a file's name begins with a dash, so it reads as a command-line option; spell it as a path",
+    "extra-word": "the command reads one game file and no other word; drop the word",
+    "missing-game-file": "the command needs a game file and the line names none; name one",
+    "command-line-usage": "the command line does not read as the command's; write what the message says it expects",
     "unknown-name": "a name nothing in scope declares, refused where the checker cannot tell which sort of name was meant; read the suggestions, spell a declared name, or declare it",
     "unknown-zone": "a zone no `zones { }` entry declares; spell a declared zone, or declare it",
     "unknown-state-variable": "a state variable no `state { }` block declares; spell a declared one, or declare it",
@@ -250,6 +258,34 @@ def _cli(argv: Callable[[Path], list[str]]) -> Tells:
     return tells
 
 
+def _refused_line(argv: Callable[[Path], list[str]]) -> Tells:
+    """A command line refused before it is read, its refusal caught where the
+    one renderer would print it."""
+
+    def tells(mp: pytest.MonkeyPatch, tmp: Path) -> frozenset[Code]:
+        told: list[Code] = []
+
+        def caught(_parser: object, _line: object, refusal: Diagnostic) -> NoReturn:
+            told.append(refusal.code)
+            raise SystemExit(2)
+
+        mp.setattr(cli, "_refuse", caught)
+        mp.chdir(tmp)
+        with pytest.raises(SystemExit):
+            cli.main(argv(tmp))
+        return frozenset(told)
+
+    return tells
+
+
+_HEARTS = str(_ROOT / "docs" / "games" / "hearts.cardlang")
+
+
+def _dash_named(tmp: Path) -> list[str]:
+    (tmp / "-g.cardlang").write_text("game g { }\n")
+    return ["check", "-g.cardlang"]
+
+
 def _unknown_command(_mp: pytest.MonkeyPatch, _tmp: Path) -> frozenset[Code]:
     refused = cli._normalize(["chek", "no-such-file.cardlang"])
     assert isinstance(refused, Diagnostic)
@@ -388,6 +424,13 @@ WITNESSES: dict[Code, Tells] = {
     Code.ONE_FENCED_BLOCK: _no_fenced_block,
     Code.WRONG_FILE_EXTENSION: _wrong_extension,
     Code.UNKNOWN_COMMAND: _unknown_command,
+    Code.COMMAND_GOES_FIRST: _refused_line(lambda _tmp: [_HEARTS, "demo"]),
+    Code.UNKNOWN_OPTION: _refused_line(lambda _tmp: ["check", _HEARTS, "--emitir"]),
+    Code.OPTION_OF_ANOTHER_COMMAND: _refused_line(lambda _tmp: ["check", _HEARTS, "--seed", "3"]),
+    Code.FILE_NAME_READS_AS_OPTION: _refused_line(_dash_named),
+    Code.EXTRA_WORD: _refused_line(lambda _tmp: ["check", _HEARTS, "extra"]),
+    Code.MISSING_GAME_FILE: _refused_line(lambda _tmp: ["check"]),
+    Code.COMMAND_LINE_USAGE: _refused_line(lambda _tmp: ["demo", _HEARTS, "--seed", "x"]),
     Code.UNREADABLE_FILE: _cli(lambda tmp: ["check", str(tmp / "missing.cardlang")]),
     Code.LIBRARY_REQUIREMENT_UNMET: _using("requires { probe_s : Integer }\nfunction probe_fn() = probe_s"),
     Code.REQUIREMENT_MATCHES_SEVERAL: _using(

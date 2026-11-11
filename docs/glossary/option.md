@@ -1,6 +1,6 @@
 ---
 term: option
-definition: the option (poker) — a forced poster's right to aggress when the betting comes back to it unraised, which Hold'em's big blind holds and Stud's bring-in poster, whose post is short of a full bet, does not. Always with its article, and only of that right · never a synonym for [[candidate]], for "legal move" or for "concrete move" (→ F-19)
+definition: the option (poker) — a forced poster's right to aggress when the betting comes back to it unraised, which Hold'em's big blind holds and Stud's bring-in poster, whose post is short of a full bet, does not. Always with its article, and only of that right · command-line option, or an option of a named command (`--seed` is an option of `demo`): a word beginning with a dash that a `cardlang` command takes · never a synonym for [[candidate]], for "legal move" or for "concrete move" (→ F-19)
 layer: card-family
 status: reserved
 reserved: true
