@@ -547,7 +547,7 @@ STOP_LEAD_TWIN = (
 def _refused(source: str) -> str:
     with pytest.raises(DiagnosticError) as refused:
         check_dsl(source, "misuse.cardlang")
-    return str(refused.value.diagnostic.message)
+    return refused.value.diagnostic.format()
 
 
 # (the sentence, a phrase its refusal carries). Each is refused at the layer
@@ -555,14 +555,14 @@ def _refused(source: str) -> str:
 MISUSE_REFUSED: dict[str, tuple[str, str]] = {
     "1 draw": (_misuse("at max_length: draw"), "unexpected `draw`; expected"),
     "1 drawn": (_misuse("at max_length: drawn"), "unexpected `drawn`; expected"),
-    "1 tied": (_misuse("at max_length: tied"), "unexpected `tied`; expected"),
+    "1 tied": (_misuse("at max_length: tied"), "unexpected `tied`; did you mean `tie`?"),
     "1 a number": (_misuse("at max_length: 600"), "unexpected `600`; expected"),
     "1 the value left off": (
         _misuse("", "winner: highest alive\n  at max_length:"),
         "unexpected `}`; expected",
     ),
     "2 as is": (_misuse("at max_length: as is"), "unexpected `is`; expected `it`"),
-    "2 as it stand": (_misuse("at max_length: as it stand"), "unexpected `stand`; expected `stands`"),
+    "2 as it stand": (_misuse("at max_length: as it stand"), "unexpected `stand`; did you mean `stands`?"),
     "2 no colon": (_misuse("at max_length tie"), "unexpected `tie`; expected `:`"),
     "2 atmax_length fused": (_misuse("atmax_length: tie"), "unexpected `atmax_length`"),
     "2 itstands fused": (_misuse("at max_length: as itstands"), "unexpected `itstands`; expected `it`"),
