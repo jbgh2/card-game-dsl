@@ -105,7 +105,7 @@ def test_resolve_iteration_roles_is_the_registrys_iterable_column() -> None:
     # Not just equal — the SAME object, so resolve can never quietly diverge by
     # reassigning its own local copy. `getattr` (rather than dotted attribute
     # access) sidesteps mypy strict's `--no-implicit-reexport`: `_ITERATION_ROLES`
-    # is an imported alias, not defined in resolve.py, so it is deliberately not
+    # is an imported alias, not defined in resolve/, so it is deliberately not
     # part of the module's typed public interface — this test still reaches the
     # real runtime binding.
     assert getattr(resolve, "_ITERATION_ROLES") is ITERABLE_ROLES

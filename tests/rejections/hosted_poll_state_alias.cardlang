@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hosted_polls`. The `state` pronoun evaluates to
+// Guard: resolve/classified_checks.py's `_check_hosted_polls`. The `state` pronoun evaluates to
 // the live round frame wherever it stands, so a `let` that names it carries
 // the unpublished frame to a later read: the pronoun is refused itself, not
 // only as the receiver of a `state.` read.

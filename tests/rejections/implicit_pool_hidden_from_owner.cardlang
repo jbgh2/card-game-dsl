@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_implicit_pools`. A `Card` parameter ranges over
+// Guard: resolve/classified_checks.py's `_check_implicit_pools`. A `Card` parameter ranges over
 // the acting seat's own `hand`, so `hand` must show its owner the cards in it;
 // a face-down `HiddenStack` would offer a seat cards it cannot see.
 game ImplicitPoolHiddenFromOwner {

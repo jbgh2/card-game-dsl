@@ -1,4 +1,4 @@
-// Guard: resolve.py `_check_bare_family_refs`. A round's `source` is the
+// Guard: resolve/classified_checks.py `_check_bare_family_refs`. A round's `source` is the
 // zone each player plays from, keyed by the acting seat, so it names a
 // family kept per player. The runtime refusal in `mechanics` is the Shadow
 // Guard.

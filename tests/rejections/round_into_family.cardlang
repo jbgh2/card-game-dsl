@@ -1,4 +1,4 @@
-// Guard: resolve.py `_check_bare_family_refs`. A round's `into` is the one
+// Guard: resolve/classified_checks.py `_check_bare_family_refs`. A round's `into` is the one
 // pile every play lands on, so it names a single zone, never a family. The
 // runtime refusal in `mechanics` is the Shadow Guard.
 game RoundIntoFamily {

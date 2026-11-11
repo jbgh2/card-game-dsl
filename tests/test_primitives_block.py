@@ -1953,7 +1953,7 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
     registry defines the class. The census below is the set every such site
     keys, read off the two passes that hold them:
 
-        grep -n '\\.func in \\|\\.func not in ' cardlang/resolve.py \\
+        grep -rn '\\.func in \\|\\.func not in ' cardlang/resolve/ \\
             cardlang/typecheck.py
 
     Sites keying a set of the GAME's own names (`fn_names`,

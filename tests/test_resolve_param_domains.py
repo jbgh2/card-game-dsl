@@ -3,7 +3,7 @@
 domain set closed (docs/decisions.md "Surface totality"): a `Card` parameter
 combined with any other parameter, a bounded-`Integer` parameter (deferred),
 and any other unsupported domain string. `_check_move_params`
-(cardlang/resolve.py) is the shared gate called from both the `offer`
+(cardlang/resolve/) is the shared gate called from both the `offer`
 statement, alone or as a `turns` ring's turn.
 """
 

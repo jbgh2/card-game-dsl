@@ -29,7 +29,7 @@ domain:          every slip the Near Miss census holds (`WITNESSES`,
 registry:        the census dictionaries, pinned to the routed sites by
                  tests/test_near_misses.py; the positional guards,
                  `POSITIONAL_GUARDS`, pinned equal to the functions of
-                 `cardlang/resolve.py` that read a name's `ref_kind` and
+                 `cardlang/resolve/` that read a name's `ref_kind` and
                  refuse (an AST scrape).
 held by:         Derived and Pinned. One record (`_name_positions`), built
                  from the walks the guards refuse by, and one predicate per
@@ -355,7 +355,7 @@ POSITIONAL_GUARDS: dict[str, str] = {
 
 
 def _guards_reading_ref_kind() -> set[str]:
-    """Every top-level function or class of `cardlang/resolve.py` that reads
+    """Every top-level function or class of `cardlang/resolve/` that reads
     a name's `ref_kind` and refuses."""
     tree = resolver_tree()
     found: set[str] = set()
@@ -374,7 +374,7 @@ def _guards_reading_ref_kind() -> set[str]:
 
 
 def test_every_guard_judging_a_classified_name_is_accounted_for() -> None:
-    """red under: a function in `cardlang/resolve.py` that reads `ref_kind`
+    """red under: a function in `cardlang/resolve/` that reads `ref_kind`
     and refuses, added without a row here."""
     assert _guards_reading_ref_kind() == set(POSITIONAL_GUARDS)
 

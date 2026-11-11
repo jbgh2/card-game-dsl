@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_rewrite`, the round `trump` arm. A fixed trump is a
+// Guard: resolve/classifier.py's `_rewrite`, the round `trump` arm. A fixed trump is a
 // suit of the deck, so a misspelt one is told the deck's suits.
 game RoundTrumpUnknownSuit {
   players: 4

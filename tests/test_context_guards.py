@@ -16,8 +16,8 @@ domain:    every branch of `_stmt_exprs` (`cardlang/typecheck.py`) — the
            hold none).
 registry:  `_stmt_exprs`'s own branches (read exhaustively — every one is
            named in `_check_stmt_exprs`'s docstring) cross-checked against
-           resolve.py's independent registry of the same fact,
-           `_BINDER_SCOPE_FIELDS` (`cardlang/resolve.py`), which lists which
+           resolve's independent registry of the same fact,
+           `_BINDER_SCOPE_FIELDS` (`cardlang/resolve/binders.py`), which lists which
            *fields* of a binder-introducing node see the binder: `Transfer:
            ("filter",)`, `EpistemicOp: ("filter",)` — confirming `filter` is
            the only `_stmt_exprs`-held field either registry scopes to an

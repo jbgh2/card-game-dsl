@@ -141,7 +141,7 @@ def test_hermeticity_diagnostic_names_every_call_site_pronoun() -> None:
     Derived from `_CALL_SITE_PRONOUNS` on both sides, so it cannot drift again.
 
     red under: drop a member from the rendered list in `_check_functions`
-    (cardlang/resolve.py) — e.g. hard-code "actor/action" — and this fails on the
+    (cardlang/resolve/) — e.g. hard-code "actor/action" — and this fails on the
     missing word. Verified by making that edit.
     """
     src = SRC.replace(

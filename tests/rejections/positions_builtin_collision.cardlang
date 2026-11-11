@@ -1,4 +1,4 @@
-// Guard: resolve.py `_resolve_positions`. A declared position may not
+// Guard: resolve/positions.py `_resolve_positions`. A declared position may not
 // reuse a name from any namespace in `POSITION_NAME_SOURCES`: the
 // reconciliation between those sources and the per-game block is
 // rejection, so lookups that consult positions first can never shadow a

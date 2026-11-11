@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_primitive_reads`, over
+// Guard: resolve/primitive_declarations.py's `_check_primitive_reads`, over
 // `primitives_block.phase_state_zone_names`. A `reads` name is classified
 // against the game's zones and its GAME-level state, so `pot` — a zone here
 // and a phase's own state variable there — classifies as the zone while the

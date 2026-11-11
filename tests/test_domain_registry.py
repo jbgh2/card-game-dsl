@@ -197,7 +197,7 @@ def test_a_non_row_noun_parses_but_is_rejected_at_resolve() -> None:
     # the table is issue #112.
     #
     # red under: removing (or `pass`-ing) the `_check_domain_query` call in
-    # `resolve()` (cardlang/resolve.py) makes this assertion fail -- verified
+    # `resolve()` (cardlang/resolve/) makes this assertion fail -- verified
     # by hand: check_dsl(src) then ACCEPTS the game silently (no exception),
     # so `_rejects` fails with "DID NOT RAISE". Reverted.
     _rejects(

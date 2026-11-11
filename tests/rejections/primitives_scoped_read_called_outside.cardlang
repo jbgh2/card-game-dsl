@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_scoped_read_containment`. The entry reads state
+// Guard: resolve/primitive_declarations.py's `_check_scoped_read_containment`. The entry reads state
 // only `outer` declares, so it is callable only where `outer` runs; this call
 // sits in a sibling phase, where that frame is gone.
 game ScopedReadCalledOutside {

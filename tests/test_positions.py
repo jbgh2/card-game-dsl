@@ -36,7 +36,7 @@ domain:     (a) the surface slots a domain id can occupy: zone index, zone
             issue #403.
 registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
             n.Game.positions; and, for the reservation product,
-            cardlang/resolve.py's `POSITION_NAME_SOURCES` (the namespaces,
+            cardlang/resolve/positions.py's `POSITION_NAME_SOURCES` (the namespaces,
             each carrying its own `names(game)`) x `RESERVATION_SITES` (the
             declaring/minting sites, a game's own and a library's alike). The
             sweep reads the SOURCE, never the guard's own set, so a registry
@@ -389,7 +389,7 @@ def test_every_reservation_site_passes_its_own_id() -> None:
     accumulation the source table was built to end, one axis over.
 
     red under: add a `_reserved_domain_source(game, X, SOME_SITE)` call to
-    `cardlang/resolve.py` without adding `SOME_SITE` to `RESERVATION_SITES`.
+    `cardlang/resolve/positions.py` without adding `SOME_SITE` to `RESERVATION_SITES`.
     """
     tree = resolver_tree()
     passed: set[str] = set()

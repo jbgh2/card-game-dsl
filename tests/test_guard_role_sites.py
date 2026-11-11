@@ -44,7 +44,7 @@ domain:     every `ast.Raise` node with an exception, in every module of the
             owns that channel and is total over the same two runtime packages.
             Assert-channel sites vanish under `python -O`, including three
             import-time registry reconciliations (in `cardlang/domains.py`,
-            `cardlang/resolve.py` and `cardlang/runtime/reads.py`); nothing in
+            `cardlang/resolve/` and `cardlang/runtime/reads.py`); nothing in
             this repo runs `-O`, and the exposure is R4 — recorded at the
             boundary rather than filed, per decisions.md "Reachability ranks
             the work".

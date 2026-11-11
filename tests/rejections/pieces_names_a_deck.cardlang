@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_resolve_component_set`, the cross-flavor arm. The
+// Guard: resolve/declarations.py's `_resolve_component_set`, the cross-flavor arm. The
 // name is KNOWN — it is a card deck — so the unknown-name list would be the
 // wrong diagnostic; the guard names the clause that selects it instead.
 game PiecesNamesADeck {

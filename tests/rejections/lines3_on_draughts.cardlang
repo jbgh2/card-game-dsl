@@ -1,4 +1,4 @@
-// Guard: resolve's board availability row (cardlang/resolve.py,
+// Guard: resolve's board availability row (cardlang/resolve/,
 // `_check_board_call`, `BOARD_VERB_NEEDS`). `lines` reads a board's lines;
 // `draughts` declares none (a draughts game is won by leaving the other
 // side no move), so the call is refused naming the family and the verbs it

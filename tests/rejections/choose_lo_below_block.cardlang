@@ -1,4 +1,4 @@
-// Guard: resolve.py's integer-`choose` literal-bounds check (docs/decisions.md,
+// Guard: resolve's integer-`choose` literal-bounds check (docs/decisions.md,
 // "The integer `choose` domain"). The reserved action block starts at 0, so a
 // literal lower bound below it names a value with no OpenSpiel action id —
 // refused statically, like a literal lower bound above the ceiling.

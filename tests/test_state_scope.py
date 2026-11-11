@@ -305,7 +305,7 @@ def test_the_game_level_walk_is_not_vacuous() -> None:
     holds an expression a game can write, so the pin is on the walker the loop
     uses: a reference inside a tuple, nested a level deep, is reached.
 
-    red under: change `_child_nodes`'s tuple arm in `cardlang/resolve.py` to
+    red under: change `_child_nodes`'s tuple arm in `cardlang/resolve/walk.py` to
     `return`.
     """
     from cardlang.ast import nodes as n

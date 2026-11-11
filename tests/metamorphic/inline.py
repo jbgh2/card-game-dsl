@@ -41,7 +41,7 @@ characters instead of AST tokens).
 
 This is sound for the pinned two-game domain specifically because: no
 procedure body itself contains a `run` — a LANGUAGE-LEVEL guarantee, not
-merely true of these games' text: `resolve.py`'s `_check_procedures` rejects
+merely true of these games' text: `resolve/classified_checks.py`'s `_check_procedures` rejects
 "a procedure may not invoke another (v1 — expansion is a single splice, not
 a call graph)", so no corpus game that passes resolve (all of them) could
 have nested calls to splice in sequence. Every

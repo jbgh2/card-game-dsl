@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hidden_reads`, where no seat is deciding. A
+// Guard: resolve/hidden_reads.py's `_check_hidden_reads`, where no seat is deciding. A
 // phase's gate is evaluated between seats, so every seat must be able to
 // check it; a gate on seat 0's concealed hand is the mis-modelled rule, and
 // the refusal names the announcement a rulebook has instead.

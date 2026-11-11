@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_resolve_board` via `board_entry`. The grid family's
+// Guard: resolve/positions.py's `_resolve_board` via `board_entry`. The grid family's
 // width must lie in 1..16; `grid(0, 3)` violates the lower bound, refused
 // naming the width.
 game BoardBadArgs {

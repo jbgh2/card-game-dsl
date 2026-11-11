@@ -186,7 +186,7 @@ def test_every_declared_corpus_ranking_is_a_permutation_and_partials_are_pinned(
     duplicate-free permutation of its deck's ranks — FULL for every game
     except those in `_DELIBERATE_PARTIAL_OMISSIONS`, whose omitted set must
     match the pinned rationale exactly (verified directly here, independent
-    of resolve.py, since resolve.py itself does not require coverage). A
+    of the resolve package, since the package itself does not require coverage). A
     convention form is expanded through the same public helper the resolver
     uses — for a convention the property holds by construction (the
     template filtered to the deck's own ranks), so the full/partial

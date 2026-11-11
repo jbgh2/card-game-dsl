@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_read_tail`, the fourth collision predicate. A
+// Guard: resolve/primitive_declarations.py's `_check_read_tail`, the fourth collision predicate. A
 // phase inside the named one re-declares the name, so the runtime's
 // innermost-frame walk would hand a call in there the descendant's value while
 // the declaration names the ancestor's — a wrong answer with no failure

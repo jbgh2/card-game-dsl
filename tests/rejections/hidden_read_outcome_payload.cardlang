@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hidden_reads`, a value read where it is
+// Guard: resolve/hidden_reads.py's `_check_hidden_reads`, a value read where it is
 // consumed. Seat 1 counts its own hearts into a phase outcome, and every seat
 // then discards that many: a count only seat 1 could see decides the others'
 // picks. A phase outcome is not announced, so the count is a hidden read at

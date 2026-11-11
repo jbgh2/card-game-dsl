@@ -50,7 +50,7 @@ domain:     the file-pair registry — `tests/rejections/*.cardlang` and
             its directory's (`tools.dead_surface.start_for`). The
             population it samples FROM is open rather than
             closed: every diagnostic emission site across `cardlang/parse.py`,
-            `cardlang/resolve.py`, `cardlang/typecheck.py` and
+            `cardlang/resolve/`, `cardlang/typecheck.py` and
             `cardlang/deckcheck.py` is a guard class, and the set grows as
             the language does — a new checker rule is a new guard, and it
             ships its own case with it (docs/building.md). Procedure

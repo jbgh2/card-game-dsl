@@ -6,7 +6,7 @@ filtered to the hand, which would reorder the candidate list and shift the
 chooser draw (card plays are offered in hand order, like every other card-play
 form). The domain set is closed at resolve time (decisions.md "Surface
 totality"): `Suit`/`Suit?`/`Rank`/`Player` (static) and `Card` (the live hand)
-are enumerable, and `Card` only as a move's sole parameter (`resolve.py`'s
+are enumerable, and `Card` only as a move's sole parameter (resolve's
 shared `_check_move_params`, exercised end to end for the closed set in
 tests/test_resolve_param_domains.py); anything else is rejected rather than
 left to crash `enumerate_domain` mid-playout.

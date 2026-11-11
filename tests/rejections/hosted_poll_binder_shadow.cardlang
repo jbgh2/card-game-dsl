@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hosted_binder`. A Hosted Poll's binder names
+// Guard: resolve/classifier.py's `_check_hosted_binder`. A Hosted Poll's binder names
 // the seat about to be asked; spelled like the game's `leader` state
 // variable, it would change what `leader` means inside the body alone.
 game HostedPollBinderShadow {
