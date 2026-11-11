@@ -14,7 +14,7 @@ assume a procedure-free tree.
 Game files come in the shapes `GAME_FILE_SHAPES` names, each by its
 extension: raw DSL (`.cardlang`) and Markdown (`.md`, DSL inside a fenced
 block). The extract step applies only to Markdown. `check_source` is the Owner
-Guard for a game file's name: a file with any other extension is refused, its
+Guard for a game file's extension: a file with any other extension is refused, its
 Near Misses among the extensions offered, before its text is read.
 
 Each stage raises :class:`~cardlang.diagnostics.DiagnosticError` on failure;
@@ -30,8 +30,9 @@ from functools import cache
 from pathlib import Path
 
 from cardlang.ast.nodes import Game
+from cardlang.attribution import raise_where_written
 from cardlang.deckcheck import check_capacity
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.diagnostics import DiagnosticBag
 from cardlang.expand import expand
 from cardlang.extract import extract_single_block
 from cardlang.ir import IRValue, emit
@@ -92,17 +93,16 @@ def check_source(path: str | Path) -> Game:
     collects game files compares it; the refusal names the file rather than a
     place in its text."""
     p = Path(path)
-    shape = GAME_FILE_SHAPES.get(p.suffix)
-    if shape is None:
+    bag = DiagnosticBag()
+    if p.suffix not in GAME_FILE_SHAPES:
         named = f"{p} ends in {p.suffix}" if p.suffix else f"{p} has no extension"
-        bag = DiagnosticBag()
         bag.unknown(
             f"{named}, and a game file's name ends in {extensions_read()}",
             p.suffix,
             GAME_FILE_SHAPES,
         )
-        raise DiagnosticError(bag.items[0])
-    _words, check = shape
+    raise_where_written(bag)
+    _words, check = GAME_FILE_SHAPES[p.suffix]
     return check(p.read_text(), str(p))
 
 

@@ -15,8 +15,8 @@ is refused as neither a command nor a file, naming the commands and offering
 the ones it nearly spells.
 
 This module owns one defect class — the values a caller supplies, which no
-earlier layer sees: the path argument, the seats `--info-state`, `--view` and
-`--seat` name, the files `--save` and `--resume` name, and the opponents `--vs`
+earlier layer sees: the command word, the path argument, the seats
+`--info-state`, `--view` and `--seat` name, the files `--save` and `--resume` name, and the opponents `--vs`
 seats (read and seated by `cardlang.play.opponents`). Everything else it
 RENDERS rather than decides. The compile stages' [[failure-channel]] and the
 runtime's are both already typed, and each

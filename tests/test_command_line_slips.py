@@ -27,12 +27,13 @@ domain:          the commands, crossed with the slips generated from each
                  extension inside another's name, with a name that is only
                  an extension, and with no extension, an unrelated one and a
                  trailing dot. Extensions are compared exactly as typed, on
-                 every platform: a capitalized extension is a slip, refused
-                 with the extension it capitalizes offered, and so is every
-                 glob that collects game files. A first word beginning with a
-                 dash is read as an option of `check`, and an empty first
-                 word as the current directory; what each is told is issue
-                 #1084's, marked below. Option prefixes are issue #624's.
+                 every platform, as every glob that collects game files
+                 compares them: a capitalized extension is a slip, refused
+                 with the extension it capitalizes offered. A first word
+                 beginning with a dash is read as an option of `check`, and
+                 an empty first word as the current directory; what each is
+                 told is issue #1084's, marked below. Option prefixes are
+                 issue #624's.
 registry:        commands: `cardlang.cli.COMMANDS`, derived from
                  `cardlang.cli._COMMAND_TABLE`; extensions:
                  `cardlang.pipeline.GAME_FILE_SHAPES`; the resemblance
@@ -75,6 +76,7 @@ _CONTENT: dict[str, Path] = {".cardlang": KUHN, ".md": MARKDOWN}
 
 
 def test_every_extension_has_a_game_of_its_shape() -> None:
+    """red under: add a `.txt` row to `GAME_FILE_SHAPES`."""
     assert set(_CONTENT) == set(GAME_FILE_SHAPES)
 
 
@@ -132,7 +134,9 @@ def _refused_as_a_command(said: _Said, word: str) -> None:
 
 
 def test_every_generated_slip_resembles_its_command() -> None:
-    """The slips stand for their command: the measure offers it."""
+    """The slips stand for their command: the measure offers it.
+
+    red under: raise `diagnostics.NEAR_MISS_CUTOFF` to 0.95."""
     for command, _shape, slip in _SLIPS:
         assert slip not in COMMANDS
         assert command in near_misses(slip, COMMANDS), (command, slip)
@@ -169,7 +173,10 @@ def test_the_offered_command_gets_past_the_refusal(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The offer is a claim: the line with the command in place of the slip
-    meets some other answer, or none."""
+    meets some other answer, or none.
+
+    red under: drop `argv[0] in COMMANDS` from `cli._normalize`'s
+    pass-through."""
     monkeypatch.chdir(tmp_path)
     said = _run([command, *_FOLLOWS[follows]], capsys)
     assert "is not a command" not in said.err, said.err
@@ -190,7 +197,9 @@ def test_a_slipped_command_that_names_a_file_is_read_as_the_file(
 ) -> None:
     """The file wins: a designer may name a game `chek`. With no extension,
     the file is then refused for its name, which says the word was read as a
-    file."""
+    file.
+
+    red under: drop the `Path(word).exists()` arm from `cli._normalize`."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / slip).write_text(KUHN.read_text())
     said = _run([slip, *_FOLLOWS[follows]], capsys)
@@ -212,7 +221,9 @@ def test_a_word_resembling_no_command(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Alone or before options, the word may be the file: both readings are
-    answered. Before another word, it stands where a command goes."""
+    answered. Before another word, it stands where a command goes.
+
+    red under: drop the options-only arm from `cli._normalize`."""
     monkeypatch.chdir(tmp_path)
     said = _run([word, *_FOLLOWS[follows]], capsys)
     assert said.code == 2, said.err
@@ -244,7 +255,9 @@ def test_a_markdown_file_named_for_a_command(
 def test_the_bare_form_checks_a_file(
     follows: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """`cardlang FILE [--emit-ir]`, as the module docstring has it."""
+    """`cardlang FILE [--emit-ir]`, as the module docstring has it.
+
+    red under: have `cli._normalize` leave the bare line without `check`."""
     assert _run([str(KUHN), *_FOLLOWS[follows]], capsys).code == 0
 
 
@@ -308,6 +321,7 @@ def _names_what_is_read(error: DiagnosticError, path: Path) -> None:
 
 @pytest.mark.parametrize("ext", sorted(GAME_FILE_SHAPES))
 def test_each_extension_read_is_checked(ext: str, tmp_path: Path) -> None:
+    """red under: map `.cardlang` to `check_markdown` in `GAME_FILE_SHAPES`."""
     assert check_source(_copy(tmp_path, ext, f"game{ext}")).players.count >= 1
 
 
@@ -343,6 +357,7 @@ def test_a_backup_extension_after_a_game_extension_is_refused(ext: str, tmp_path
 @pytest.mark.parametrize("inner", sorted(GAME_FILE_SHAPES))
 @pytest.mark.parametrize("outer", sorted(GAME_FILE_SHAPES))
 def test_the_last_extension_names_the_shape(inner: str, outer: str, tmp_path: Path) -> None:
+    """red under: have `check_source` dispatch on `p.suffixes[0]`."""
     assert check_source(_copy(tmp_path, outer, f"game{inner}{outer}")).players.count >= 1
 
 
