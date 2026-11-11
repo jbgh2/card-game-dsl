@@ -72,8 +72,11 @@ _NOTHING_TARGETED = {C.LANGUAGE_SUITE}
 # The expected column, authored from the prose -- never computed by the
 # selector. One row per cell: (status, path, cites ADR-NNNN, the rules that
 # fire).
+# Every non-empty diff fires these, whatever its paths.
+_EVERY_DIFF = frozenset({C.LANGUAGE_SUITE, C.READERS, C.GATE_IMPORT})
+
 CELLS: tuple[tuple[cc.Status, str, bool, frozenset[cc.Check]], ...] = tuple(
-    (status, path, cites, frozenset(expected))
+    (status, path, cites, frozenset(expected) | _EVERY_DIFF)
     for status, path, cites, expected in (
         (M, "cardlang/grammar/cardlang.lark", False, {C.LANGUAGE_SUITE, C.RIGS}),
         (M, "cardlang/parse.py", False, _ENGINE),
@@ -128,6 +131,9 @@ CELLS: tuple[tuple[cc.Status, str, bool, frozenset[cc.Check]], ...] = tuple(
 )
 
 
+_RED = pytest.mark.xfail(raises=AssertionError, strict=True, reason="readers and the gate import not written")
+
+
 @cache
 def _classes() -> dict[str, tuple[str, ...]]:
     return cc.lane_classes(str(REPO), tuple(sorted({path for _, path, _, _ in CELLS})))
@@ -146,7 +152,10 @@ def _fired(status: cc.Status, path: str, cites: bool) -> frozenset[cc.Check]:
 @pytest.mark.parametrize(
     ("status", "path", "cites", "check"),
     [
-        pytest.param(s, p, c, check, id=f"{s.value}-{p}{'-adr' if c else ''}-{check.value}")
+        pytest.param(
+            s, p, c, check, id=f"{s.value}-{p}{'-adr' if c else ''}-{check.value}",
+            marks=[_RED] if check in (C.READERS, C.GATE_IMPORT) else [],
+        )
         for s, p, c, _ in CELLS
         for check in cc.Check
     ],
@@ -170,8 +179,40 @@ def test_every_lane_row_has_a_cell() -> None:
 def test_every_rule_fires_somewhere_and_is_quiet_somewhere(check: cc.Check) -> None:
     """Red under: a new `Check` member with no cell that expects it."""
     assert any(check in expected for _, _, _, expected in CELLS)
-    if check is not cc.Check.LANGUAGE_SUITE:
+    if check not in _EVERY_DIFF:
         assert any(check not in expected for _, _, _, expected in CELLS)
+
+
+# Independent anchors: a changed path and one test module known, by reading
+# that module, to read the path (by name, by directory, or by import). The
+# selection must run the module; the anchor is never taken from the selector.
+READER_ANCHORS: tuple[tuple[cc.Status, str, str], ...] = (
+    (M, "docs/glossary/library.md", "tests/test_glossary.py"),
+    (M, "docs/authoring.md", "tests/test_doc_references.py"),
+    (M, "CLAUDE.md", "tests/test_doc_references.py"),
+    (A, "tests/rejections/zz_probe.cardlang", "tests/test_rejections.py"),
+    (A, "tests/rejections/zz_probe.expected", "tests/test_rejections.py"),
+    (M, "tests/golden/belote_stream_hashes.json", "tests/test_trick_order_migration.py"),
+    (M, "tests/fixtures/blind_decisions/blind_draw.cardlang", "tests/openspiel_ready/test_blind_decisions.py"),
+    (M, "tools/lane-of.sh", "tests/test_check_change.py"),
+    (M, ".github/workflows/ci.yml", "tests/test_check_change.py"),
+    (M, "cardlang/grammar/cardlang.lark", "tests/test_card_points.py"),
+    (M, "cardlang/stdlib/rules.cardlang", "tests/test_library_notes.py"),
+    (M, "tests/native_oracle.py", "tests/test_differential_hex.py"),
+    (M, "tests/openspiel_ready/harness.py", "tests/openspiel_ready/test_spades.py"),
+    (M, "tests/conftest.py", "tests/test_parse.py"),
+    (M, "tools/review_record.py", "tests/test_review_record.py"),
+)
+
+
+def _run_modules(steps: dict[cc.Check, cc.Step]) -> set[str]:
+    return {a for s in steps.values() if s.argv[:1] == ("pytest",) for a in s.argv if a.endswith(".py")}
+
+
+@pytest.mark.xfail(raises=AssertionError, strict=True, reason="readers not written")
+@pytest.mark.parametrize(("status", "path", "module"), READER_ANCHORS, ids=[p for _, p, _ in READER_ANCHORS])
+def test_a_changed_path_runs_the_modules_that_read_it(status: cc.Status, path: str, module: str) -> None:
+    assert module in _run_modules(_steps(path, cc.Mode.TARGETED, status))
 
 
 # --- the facts the rules read from the tree ---------------------------------

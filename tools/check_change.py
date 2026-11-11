@@ -72,6 +72,8 @@ class Check(enum.Enum):
     DOC_SNIPPETS = "doc-snippets"
     ADR_RECORDS = "adr-records"
     CHANGED_TESTS = "changed-test-modules"
+    READERS = "modules-reading-the-path"
+    GATE_IMPORT = "gate-import"
 
 
 class Status(enum.Enum):
@@ -202,6 +204,8 @@ def _fires(check: Check, changes: Sequence[Change], tree: Tree) -> tuple[str, ..
             c.path for c in changes
             if c.status is not Status.DELETED and _TEST_MODULE.fullmatch(c.path)
         )
+    if check is Check.READERS or check is Check.GATE_IMPORT:
+        return ()
     _never(check)
 
 
