@@ -152,7 +152,7 @@ def _check_sequence(
         )
         ok = False
     if len(seq.ranks) < 2:
-        bag.error("`sequence:` names at least 2 ranks, the shortest run's places", seq.span, code=Code.CATALOGUE_ROW_NAMES_NO_PLAY)
+        bag.error("`sequence:` names at least 2 ranks, the shortest run's places", seq.span, code=Code.RANKING_INCOMPLETE)
         ok = False
     deck_ranks = rank_names(game.deck)
     for r in seq.ranks:
