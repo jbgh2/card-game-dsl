@@ -18,8 +18,10 @@ domain:          every slip the Near Miss census holds (`WITNESSES`,
                  `REF_KIND_WITNESSES` and `_PROBES` of
                  tests/test_near_misses.py, one per routed refusal site and
                  one per bare-name ref kind) and `POSITION_PROBES`, one per
-                 positional Owner Guard of the resolve pass that judges a
-                 classified bare name (`POSITIONAL_GUARDS`), crossed with
+                 refusing arm of each positional Owner Guard of the resolve
+                 pass that judges a classified bare name
+                 (`POSITIONAL_GUARDS`) or a trick round's winner
+                 (`_winner_refusals`' reasons), crossed with
                  every Near Miss each one offers. A cell whose offer is of
                  the wrong type for its position is a strict xfail naming its
                  issue (`RESIDUAL`), and a positional guard the record does
@@ -32,9 +34,12 @@ registry:        the census dictionaries, pinned to the routed sites by
 held by:         Derived and Pinned. One record (`_name_positions`), built
                  from the walks the guards refuse by, and one predicate per
                  guard (`_position_refuses` is their disjunction); the scrape
-                 pins the guard set. Not higher: whether a guard reads a
-                 name's position is a property of its body, which no union
-                 states.
+                 pins the guard set. A round's refusals of its own winner
+                 have one producer (`_winner_refusals`) that every guard
+                 telling one dispatches on, and a scrape pins that every
+                 function reading a round's winner and refusing calls it.
+                 Not higher: whether a guard reads a name's position is a
+                 property of its body, which no union states.
 does not prove:  that a green offer is the name the designer meant, or that the
                  file checks clean once it is applied -- a refusal standing
                  elsewhere (a move type left unoffered, a deck a clause then
@@ -44,7 +49,17 @@ does not prove:  that a green offer is the name the designer meant, or that the
                  and an unrelated refusal within that window reads as red.
                  Nor that a position no census slip reaches offers rightly:
                  the domain is the census's slips, not every position the
-                 grammar admits.
+                 grammar admits. The record is keyed by node, so a name the
+                 tree holds at two positions (a node shared between
+                 splices) keeps the last position's facts while
+                 `_check_state_scope` judges each; every shared name sits in
+                 a callable body or the game's own state, where the facts
+                 agree, since a library holds no phase. The winner scrape
+                 sees a function that reads `winner_fn`; a guard reaching
+                 the winner through a typecheck helper (`card_content_forms`)
+                 is held by its call to the producer, which nothing pins; and
+                 the scrape reads a call to the producer anywhere in the
+                 function, not in each arm that tells a refusal.
 """
 
 from __future__ import annotations
@@ -105,6 +120,23 @@ POSITION_PROBES: dict[str, Slip] = {
     "a default names a seat's family bare": Slip(
         "docs/games/bridge.cardlang", "doubled_mult      : Integer = 1",
         "doubled_mult      : Integer = number of cards in hnad", "unresolved name 'hnad'", "1"),
+    "a default reads a pronoun": Slip(
+        "docs/games/bridge.cardlang", "dealer            : Player  = 0",
+        "dealer            : Player  = actr", "unresolved name 'actr'", "0"),
+    "a `to each` destination spelled near a binder": Slip(
+        "docs/games/hearts.cardlang", "deal 13 cards from deck to each hand",
+        "deal 13 cards from deck to each handd", "unresolved name 'handd'", "hand",
+        also=(("      deal 13 cards from deck to each hand", "      let handy = deck\n      deal 13 cards from deck to each hand"),)),
+    "a trick winner beside a Trick Order and an `early` clause": Slip(
+        "docs/games/getaway.cardlang",
+        "winner highest_of_led_suit early on_play_off_led_suit\n    move",
+        "winner highest_by_trick_ordr early on_play_off_led_suit\n    move",
+        "trick round winner 'highest_by_trick_ordr'", "highest_of_led_suit",
+        also=(("game Getaway {", "function is_trump(card : Card) = card.suit is spades\n\ngame Getaway {"),)),
+    "a trick winner in a piece game": Slip(
+        "docs/games/hearts.cardlang", "winner highest_of_led_suit", "winner highest_of_led_suti",
+        "trick round winner 'highest_of_led_suti'", "highest_of_led_suit",
+        also=(("cards: standard52", "pieces: breakthrough_men"),)),
 }
 
 # The refused spelling, where the slip's own edit does not show it alone.
@@ -120,6 +152,7 @@ SPELLED: dict[str, str] = {
 RESIDUAL: dict[str, str] = {
     "a call-site pronoun in a function": "the state `acted` and the seat direction `across` are not Players (issue #1088)",
     "a call-site pronoun in a procedure": "the seat direction `across` is not a Player (issue #1088)",
+    "a default reads a pronoun": "the seat direction `across` is not a Player (issue #1088)",
     "a round's trump": "`contract_level` is an Integer, not a Suit? (issue #1088)",
     "bool": "`captured` is cards, not a condition (issue #1088)",
 }
@@ -269,6 +302,10 @@ OFFERED: dict[str, list[str]] = {
     "a `to each` destination": ["hand"],
     "a `to each` destination spelled near a team's family": [],
     "a default names a seat's family bare": [],
+    "a default reads a pronoun": ["across", "action"],
+    "a `to each` destination spelled near a binder": ["hand"],
+    "a trick winner beside a Trick Order and an `early` clause": [],
+    "a trick winner in a piece game": [],
 }
 
 
@@ -339,6 +376,29 @@ def test_every_guard_judging_a_classified_name_is_accounted_for() -> None:
     """red under: a function in `cardlang/resolve.py` that reads `ref_kind`
     and refuses, added without a row here."""
     assert _guards_reading_ref_kind() == set(POSITIONAL_GUARDS)
+
+
+def test_every_guard_refusing_a_round_s_winner_reads_the_one_producer() -> None:
+    """red under: `_check_trick_order_partition` deciding its winner arms
+    without calling `_winner_refusals` (both calls written `()`)."""
+    tree = ast.parse((_ROOT / "cardlang/resolve.py").read_text())
+    unread: list[str] = []
+    for top in tree.body:
+        if not isinstance(top, ast.FunctionDef) or top.name == "_winner_refusals":
+            continue
+        reads = any(isinstance(nd, ast.Attribute) and nd.attr == "winner_fn" for nd in ast.walk(top))
+        refuses = any(
+            isinstance(nd, ast.Call) and isinstance(nd.func, ast.Attribute)
+            and nd.func.attr in ("error", "unknown")
+            for nd in ast.walk(top)
+        )
+        calls = any(
+            isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name) and nd.func.id == "_winner_refusals"
+            for nd in ast.walk(top)
+        )
+        if reads and refuses and not calls:
+            unread.append(top.name)
+    assert unread == []
 
 
 def _unclassified(value: object) -> object:
