@@ -4,45 +4,67 @@
 
 The diff is the branch against its merge base with `origin/main`, plus the
 working tree and untracked files; `--range A..B` reads a committed range
-instead (`C^1..C` for one merged commit). Every rule CLAUDE.md "Verifying
-changes" and docs/maintaining.md state as a function of a diff is a
-`Check`, and every run prints every `Check` with what became of it.
+instead (`C^1..C` for one merged commit). Under `--range` the diff's paths
+and contents come from the range, but every tree fact -- the games, the
+tables, the test modules that read a path, ci.yml -- comes from the working
+checkout, and the output says so: the answer is what today's tree selects
+for that diff. Every rule CLAUDE.md "Verifying changes" and
+docs/maintaining.md state as a function of a diff is a `Check`, and every
+run prints every `Check` with what became of it.
 
 Three modes, one selection:
 
 * the default runs the checks the diff calls for that a local run owes
-  before pushing -- the type check, the full-width goldens, the test
-  modules that name a changed game, the classifier tables, the census
-  pins, the doc-snippet and ADR pins, and the changed test modules --
-  while the language suite and, unless the diff reaches them, the rigs
-  are left to CI and printed as such;
-* `--full` runs the three gate checks in the form `.github/workflows/ci.yml`
-  writes them, plus the full-width goldens CI never sweeps; it is the
-  local evidence when CI is unavailable;
+  before pushing -- CI's import step, the type check and the rigs when the
+  diff reaches them, the full-width goldens, the test modules that name a
+  changed game, the classifier tables, the census pins, the doc-snippet
+  and ADR pins, the changed test modules, and the test modules that read a
+  changed path -- and leaves the language suite to CI;
+* `--full` runs every step of the CI workflow's `check` job as it writes
+  them, plus the full-width goldens CI never sweeps; it is the local
+  evidence when CI is unavailable;
 * `--dev` swaps the language suite for the development pass
   (`-m "not slow"`), and says on every run that it is not evidence.
 
 `--list` prints the selection and runs nothing. Every check runs through
 `tools/verify.sh`, which owns the interpreter choice, unpiped: its output
 passes through, its exit status is the run's, and the run's summary line
-is quoted as the evidence. A run that prints no summary line fails. CI
-stays the authority; this decides what to run locally and is no second
-gate.
+is quoted as the evidence. A run is ok only when it exits 0 and its
+summary line reports a pass (`N passed`, mypy's `Success`, an import's
+`ok`): no summary line, `12 skipped` or `10 deselected` is a failure. The
+results name every gate step the run did not run and say when the run is
+not a green of the gate. CI stays the authority; this decides what to run
+locally and is no second gate.
+
+A test module reads a changed path when it names the path or its basename,
+names a non-Python path's directory (as a path, or its last component as a
+string literal), imports a changed module under `tests/` or `tools/`
+(transitively), or sits under a changed `conftest.py`.
 
 Contract
 --------
-Assumes:      docs/harness.md "The Merge Lanes" is the one owner of path
-              classes, read through `tools/lane-of.sh`; docs/maintaining.md
-              "The pins a new game joins" and "Doc snippet tagging" name the
-              modules and docs those rules cover; the corpus is
-              `docs/games/*.cardlang` and the family libraries
-              `docs/libraries/*.cardlang`.
+Assumes:      three path classes are rows of docs/harness.md "The Merge
+              Lanes", read through `tools/lane-of.sh`: the corpus row (the
+              full-width goldens and the rigs), the experiments row (the
+              rigs) and the rulings row (the ADR pins). The other classes
+              are this module's own, each one regex or prefix: `.py`/`.pyi`
+              files, the trees `cardlang/`, `tests/` and `tools/`,
+              `pyproject.toml`, a game (`docs/games/<stem>.cardlang` and its
+              twin `.md`), a family library, a proof module and a test
+              module. The goldens rule follows CLAUDE.md's path class (any
+              change under `docs/games/`), so `docs/games/_candidates.md`
+              fires it, and no game rule, by design: it is no game.
+              docs/maintaining.md "The pins a new game joins" and "Doc
+              snippet tagging" name the modules and docs those rules cover;
+              `pyproject.toml` names mypy's `files`; the CI workflow's
+              `check` job names the gate's steps.
 Establishes:  for every `Check`, whether the diff fires it and why, from
               `triggered`, which dispatches over every member.
 Illegal after: a lane-table row this module keys on that no longer exists
-              (`_row`), a maintaining.md section that names no module, and a
-              named module that does not exist, each refused before
-              anything runs.
+              (`check_keyed_rows`), a maintaining.md section that names no
+              module, a named module that does not exist, and a `check` job
+              step this module cannot read, each refused before anything
+              runs.
 
 Held by: Derived and Pinned (tests/test_check_change.py).
 """
@@ -50,9 +72,11 @@ Held by: Derived and Pinned (tests/test_check_change.py).
 from __future__ import annotations
 
 import argparse
+import ast
 import enum
 import os
 import re
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -62,6 +86,7 @@ from typing import Callable, Mapping, NoReturn, Sequence
 
 
 class Check(enum.Enum):
+    GATE_IMPORT = "gate-import"
     TYPECHECK = "typecheck"
     LANGUAGE_SUITE = "language-suite"
     RIGS = "rigs"
@@ -73,7 +98,6 @@ class Check(enum.Enum):
     ADR_RECORDS = "adr-records"
     CHANGED_TESTS = "changed-test-modules"
     READERS = "modules-reading-the-path"
-    GATE_IMPORT = "gate-import"
 
 
 class Status(enum.Enum):
@@ -114,6 +138,15 @@ class Change:
 
 
 @dataclass(frozen=True)
+class GateStep:
+    """One step of the CI workflow's `check` job that runs a check."""
+
+    check: Check
+    argv: tuple[str, ...]
+    ci_text: str
+
+
+@dataclass(frozen=True)
 class Tree:
     games: frozenset[str]
     library_consumers: Mapping[str, frozenset[str]]
@@ -121,6 +154,10 @@ class Tree:
     classifier_modules: tuple[str, ...]
     census_modules: tuple[str, ...]
     tests_naming: Callable[[str], tuple[str, ...]]
+    readers: Callable[[str], tuple[str, ...]]
+    gate: tuple[GateStep, ...]
+    setup_steps: tuple[str, ...]
+    mypy_files: tuple[str, ...]
 
 
 # Rows of docs/harness.md "The Merge Lanes" a rule keys on, by the start of
@@ -173,8 +210,13 @@ def _affected_names(changes: Sequence[Change], tree: Tree) -> dict[str, str]:
 
 def _fires(check: Check, changes: Sequence[Change], tree: Tree) -> tuple[str, ...]:
     """Why `check` fires for this diff; empty when it does not."""
+    if check is Check.GATE_IMPORT:
+        return ("the gate runs it on every change",) if changes else ()
     if check is Check.TYPECHECK:
-        return tuple(c.path for c in changes if _is_python(c.path) or c.path == "pyproject.toml")
+        return tuple(
+            _typecheck_reason(c.path, tree) for c in changes
+            if _is_python(c.path) or c.path == "pyproject.toml"
+        )
     if check is Check.LANGUAGE_SUITE:
         return ("the gate runs it on every change",) if changes else ()
     if check is Check.RIGS:
@@ -204,9 +246,18 @@ def _fires(check: Check, changes: Sequence[Change], tree: Tree) -> tuple[str, ..
             c.path for c in changes
             if c.status is not Status.DELETED and _TEST_MODULE.fullmatch(c.path)
         )
-    if check is Check.READERS or check is Check.GATE_IMPORT:
-        return ()
+    if check is Check.READERS:
+        return tuple(c.path for c in changes)
     _never(check)
+
+
+def _typecheck_reason(path: str, tree: Tree) -> str:
+    """Why a path fires the type check, without claiming mypy reads it."""
+    if path == "pyproject.toml":
+        return "pyproject.toml (mypy's configuration)"
+    if any(path == f or path.startswith(f + "/") for f in tree.mypy_files):
+        return path
+    return f"{path} (outside mypy's `files`: checked only through a module that imports it)"
 
 
 def triggered(changes: tuple[Change, ...], tree: Tree) -> dict[Check, tuple[str, ...]]:
@@ -227,7 +278,7 @@ class Step:
     env: tuple[tuple[str, str], ...] = ()
 
 
-_GATE = (Check.TYPECHECK, Check.LANGUAGE_SUITE, Check.RIGS)
+_GATE = (Check.GATE_IMPORT, Check.TYPECHECK, Check.LANGUAGE_SUITE, Check.RIGS)
 _GOLDENS_MODULE = "tests/test_migration_characterization.py"
 
 
@@ -263,19 +314,21 @@ def _modules(
         return ("tests/test_adr_records.py",)
     if check is Check.CHANGED_TESTS:
         return tuple(sorted(r for r in why))
+    if check is Check.READERS:
+        return tuple(sorted({m for path in why for m in tree.readers(path)}))
     raise AssertionError(f"{check} runs no module list")
 
 
-def _gate_argv(check: Check, mode: Mode) -> tuple[str, ...]:
-    if check is Check.TYPECHECK:
-        return ("mypy",)
-    if check is Check.LANGUAGE_SUITE:
-        if mode is Mode.DEV:
-            return ("pytest", "-q", "-m", "not slow", "-n", "auto")
-        return ("pytest", "-q", "-n", "8")
-    if check is Check.RIGS:
-        return ("pytest", "experiments/llm_eval/tests", "-q")
-    raise AssertionError(f"{check} is not a gate check")
+_DEV_PASS = ("pytest", "-q", "-m", "not slow", "-n", "auto")
+
+
+def _gate_argv(check: Check, mode: Mode, tree: Tree) -> tuple[str, ...]:
+    if check is Check.LANGUAGE_SUITE and mode is Mode.DEV:
+        return _DEV_PASS
+    for step in tree.gate:
+        if step.check is check:
+            return step.argv
+    raise AssertionError(f"{check} is not a step of the CI workflow's check job")
 
 
 def plan(changes: tuple[Change, ...], tree: Tree, mode: Mode, root: str) -> tuple[Step, ...]:
@@ -291,7 +344,7 @@ def plan(changes: tuple[Change, ...], tree: Tree, mode: Mode, root: str) -> tupl
                 steps.append(Step(check, Disposition.IN_CI if changes else Disposition.NOT_SELECTED, why))
             else:
                 reasons = why or ("the gate runs it on every change",)
-                steps.append(Step(check, Disposition.RUN, reasons, _gate_argv(check, mode)))
+                steps.append(Step(check, Disposition.RUN, reasons, _gate_argv(check, mode, tree)))
             continue
         if not why:
             steps.append(Step(check, Disposition.NOT_SELECTED, ()))
@@ -411,22 +464,111 @@ def _consumers(root: Path) -> dict[str, frozenset[str]]:
     return out
 
 
+def _test_modules_mentioning(root: str, patterns: Sequence[str]) -> tuple[str, ...]:
+    """The test modules under tests/ whose text holds any of `patterns`, verbatim."""
+    args = [a for pattern in patterns for a in ("-e", pattern)]
+    done = subprocess.run(
+        ["git", "grep", "-lF", "--untracked", *args, "--", "tests"],
+        cwd=root, capture_output=True, text=True,
+    )
+    if done.returncode not in (0, 1):
+        raise SelectionError(f"`git grep` for {list(patterns)!r} failed: {done.stderr.strip()}")
+    return tuple(sorted(
+        p for p in done.stdout.splitlines() if Path(p).name.startswith("test_") and p.endswith(".py")
+    ))
+
+
+def _module_name(path: str) -> str:
+    parts = path[: -len(".py")].split("/")
+    return ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
+
+
+def _imports(path: str, source: str) -> set[str]:
+    """Every module name a file's imports can reach, relative imports resolved."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+    name = _module_name(path)
+    package = name if path.endswith("__init__.py") else name.rpartition(".")[0]
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                parts = package.split(".") if package else []
+                base = ".".join(parts[: len(parts) - (node.level - 1)])
+                target = f"{base}.{node.module}" if node.module else base
+            else:
+                target = node.module or ""
+            out.add(target)
+            out.update(f"{target}.{alias.name}" for alias in node.names)
+    return out
+
+
+def _importers(root: Path) -> dict[str, frozenset[str]]:
+    """Each module under tests/ or tools/, mapped to the test modules that import it, transitively."""
+    files = [p for d in ("tests", "tools") for p in sorted((root / d).rglob("*.py"))]
+    rel = {str(p.relative_to(root)): p for p in files}
+    by_name = {_module_name(r): r for r in rel}
+    imported_by: dict[str, set[str]] = {}
+    for r, p in rel.items():
+        for target in _imports(r, p.read_text(errors="replace")):
+            if target in by_name:
+                imported_by.setdefault(by_name[target], set()).add(r)
+    out: dict[str, frozenset[str]] = {}
+    for module in imported_by:
+        seen: set[str] = set()
+        todo = [module]
+        while todo:
+            for user in imported_by.get(todo.pop(), set()):
+                if user not in seen:
+                    seen.add(user)
+                    todo.append(user)
+        out[module] = frozenset(u for u in seen if Path(u).name.startswith("test_"))
+    return out
+
+
+def _reader_patterns(path: str) -> tuple[str, ...]:
+    parent, _, name = path.rpartition("/")
+    patterns = [path, name]
+    if not _is_python(path) and parent:
+        last = parent.rpartition("/")[2]
+        patterns += [parent, f'"{last}"', f"'{last}'"]
+    return tuple(patterns)
+
+
+def _mypy_files(root: Path) -> tuple[str, ...]:
+    text = (root / "pyproject.toml").read_text()
+    section = text.split("[tool.mypy]", 1)[-1] if "[tool.mypy]" in text else ""
+    m = re.search(r"^files\s*=\s*\[([^\]]*)\]", section, re.MULTILINE)
+    if not m:
+        raise SelectionError("pyproject.toml's [tool.mypy] names no `files`")
+    return tuple(re.findall(r"[\"']([^\"']+)[\"']", m.group(1)))
+
+
 def read_tree(root: str) -> Tree:
     base = Path(root)
+    importers = _importers(base)
+    test_modules = tuple(sorted(
+        str(p.relative_to(base)) for p in (base / "tests").rglob("test_*.py")
+    ))
 
     @lru_cache(maxsize=None)
     def naming(name: str) -> tuple[str, ...]:
-        done = subprocess.run(
-            ["git", "grep", "-lF", "--untracked", "-e", name, "-e", fold(name), "--", "tests"],
-            cwd=root, capture_output=True, text=True,
-        )
-        if done.returncode not in (0, 1):
-            raise SelectionError(f"`git grep` for {name!r} failed: {done.stderr.strip()}")
-        return tuple(sorted(
-            p for p in done.stdout.splitlines()
-            if Path(p).name.startswith("test_") and p.endswith(".py")
-        ))
+        return _test_modules_mentioning(root, (name, fold(name)))
 
+    @lru_cache(maxsize=None)
+    def readers(path: str) -> tuple[str, ...]:
+        found = set(_test_modules_mentioning(root, _reader_patterns(path)))
+        found |= importers.get(path, frozenset())
+        parent, _, name = path.rpartition("/")
+        if name == "conftest.py":
+            found |= {m for m in test_modules if m.startswith(f"{parent}/" if parent else "")}
+        return tuple(sorted(found))
+
+    gate, setup = read_gate((base / ".github/workflows/ci.yml").read_text())
     return Tree(
         games=frozenset(p.stem for p in (base / "docs/games").glob("*.cardlang")),
         library_consumers=_consumers(base),
@@ -434,7 +576,85 @@ def read_tree(root: str) -> Tree:
         classifier_modules=_classifier_modules(base),
         census_modules=_census_modules(base),
         tests_naming=naming,
+        readers=readers,
+        gate=gate,
+        setup_steps=setup,
+        mypy_files=_mypy_files(base),
     )
+
+
+_IMPORT_STEP = re.compile(r'python -c "import ([A-Za-z_][A-Za-z0-9_.]*)"')
+
+
+def _gate_step(text: str) -> GateStep:
+    """A single-line `run:` of the check job, as the check it is, or refused."""
+    if text == "mypy":
+        return GateStep(Check.TYPECHECK, ("mypy",), text)
+    if m := _IMPORT_STEP.fullmatch(text):
+        return GateStep(Check.GATE_IMPORT, ("import", m.group(1)), text)
+    words = shlex.split(text)
+    if words and words[0] == "pytest":
+        positional = [
+            w for i, w in enumerate(words[1:], 1)
+            if not w.startswith("-") and words[i - 1] not in ("-n", "-m", "-k")
+        ]
+        if not positional:
+            return GateStep(Check.LANGUAGE_SUITE, tuple(words), text)
+        if all(w.startswith("experiments/") for w in positional):
+            return GateStep(Check.RIGS, tuple(words), text)
+    raise SelectionError(
+        f"the CI workflow's check job runs `{text}`, a step tools/check_change.py cannot read; "
+        "teach `_gate_step` what it checks"
+    )
+
+
+def read_gate(text: str) -> tuple[tuple[GateStep, ...], tuple[str, ...]]:
+    """The check job's steps: those that run a check, and the setup steps' names.
+
+    A single-line `run:` is a check and must be one `_gate_step` reads; a
+    `uses:` step or a multi-line `run: |` block is environment setup, which
+    a local run does not repeat and the output names.
+    """
+    lines = text.splitlines()
+    try:
+        start = lines.index("  check:")
+        steps_at = lines.index("    steps:", start)
+    except ValueError:
+        raise SelectionError("the CI workflow has no `check` job with `steps:`") from None
+    items: list[dict[str, str]] = []
+    in_block = False
+    for line in lines[steps_at + 1:]:
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip(" "))
+        if not stripped or stripped.startswith("#"):
+            continue
+        if indent < 6:
+            break
+        if indent == 6 and stripped.startswith("- "):
+            items.append({})
+            stripped, indent, in_block = stripped[2:], 8, False
+        if in_block and indent > 8:
+            continue
+        if indent == 8 and ":" in stripped and items:
+            key, _, value = stripped.partition(":")
+            items[-1][key.strip()] = value.strip()
+            in_block = key.strip() == "run" and value.strip() in ("|", ">")
+    gate: list[GateStep] = []
+    setup: list[str] = []
+    for item in items:
+        run = item.get("run")
+        if run is None or run in ("|", ">"):
+            setup.append(item.get("name") or item.get("uses") or "an unnamed step")
+        else:
+            gate.append(_gate_step(run.strip('"') if run.startswith('"') and run.endswith('"') else run))
+    checks = [g.check for g in gate]
+    for check in _GATE:
+        if checks.count(check) != 1:
+            raise SelectionError(
+                f"the CI workflow's check job holds {checks.count(check)} `{check.value}` steps; "
+                "tools/check_change.py reads exactly one"
+            )
+    return tuple(gate), tuple(setup)
 
 
 def _lane_of(root: str, *args: str) -> str:
@@ -492,6 +712,7 @@ class Diff:
     description: str
     entries: tuple[tuple[Status, str], ...]
     reader: Callable[[str], str]
+    tree_note: str = ""
 
 
 def _parse_name_status(raw: str) -> list[tuple[Status, str]]:
@@ -516,7 +737,12 @@ def read_diff(root: str, range_: str | None) -> Diff:
             done = subprocess.run(["git", "show", f"{right}:{path}"], cwd=root, capture_output=True)
             return done.stdout.decode(errors="replace")
 
-        return Diff(f"range {range_}", tuple(_parse_name_status(raw)), from_commit)
+        head = _git(root, "rev-parse", "--short", "HEAD").strip()
+        note = (
+            f"tree facts (games, tables, the modules that read a path, ci.yml) come from the "
+            f"working checkout at {head}, not from {right}: this is what today's tree selects"
+        )
+        return Diff(f"range {range_}", tuple(_parse_name_status(raw)), from_commit, note)
     done = subprocess.run(
         ["git", "merge-base", "HEAD", "origin/main"], cwd=root, capture_output=True, text=True,
     )
@@ -556,7 +782,16 @@ _SUMMARY = re.compile(
     r"^(=+ )?((\d+ \w+)(, \d+ \w+)*|no tests ran) in [\d.]+s\b.*"
     r"|^Success: no issues found in \d+ source files?$"
     r"|^Found \d+ errors? in \d+ files?.*"
+    r"|^import [A-Za-z0-9_.]+: ok$"
 )
+_PASSING_SUMMARY = re.compile(
+    r"^(=+ )?(.*, )?\d+ passed\b|^Success: no issues found|^import [A-Za-z0-9_.]+: ok$"
+)
+
+
+def verdict(status: int, summary: str | None) -> bool:
+    """A run is ok only when it exits 0 and its own summary line reports a pass."""
+    return status == 0 and summary is not None and bool(_PASSING_SUMMARY.match(summary))
 
 
 def run_step(root: str, step: Step) -> tuple[int, str | None]:
@@ -582,6 +817,8 @@ def _command(step: Step) -> str:
 
 def render(diff: Diff, changes: Sequence[Change], steps: Sequence[Step], mode: Mode) -> str:
     lines = [f"check_change: {diff.description}, {len(changes)} changed paths, mode {mode.value}"]
+    if diff.tree_note:
+        lines.append(f"  {diff.tree_note}")
     for step in steps:
         lines.append(f"  {step.check.value}: {step.disposition.value}")
         for why in step.reasons[:8]:
@@ -598,6 +835,37 @@ _AUTHORITY = (
     "checks locally and is not a second gate."
 )
 _NOT_EVIDENCE = "The development pass (-m \"not slow\") is NOT evidence; quote only CI or a --full run."
+
+
+def render_results(
+    results: Sequence[tuple[Step, int, str | None]], steps: Sequence[Step], mode: Mode, tree: Tree
+) -> str:
+    """The results block: every run's own verdict, every gate step not run, and what the run is not."""
+    lines = ["check_change: results"]
+    for step, status, summary in results:
+        word = "ok" if verdict(status, summary) else "FAILED"
+        quoted = summary if summary else "no summary line printed"
+        lines.append(f"  {step.check.value}: {word} (exit {status}) -- {quoted}")
+    if not results:
+        lines.append("  nothing ran here")
+    ran = {step.check for step, _, _ in results}
+    missing = [g for g in tree.gate if g.check not in ran or (g.check is Check.LANGUAGE_SUITE and mode is Mode.DEV)]
+    for g in missing:
+        lines.append(f"  NOT RUN here: {g.check.value} (CI runs `{g.ci_text}`)")
+    for name in tree.setup_steps:
+        lines.append(f"  not repeated here: CI's setup step `{name}`")
+    if missing:
+        lines.append(
+            "This is NOT a green of the gate: it did not run "
+            + ", ".join(g.check.value for g in missing)
+            + ". The gate is CI green on its checks."
+        )
+    else:
+        lines.append("Every check step of the CI workflow's check job ran here as ci.yml writes it.")
+    if mode is Mode.DEV:
+        lines.append(_NOT_EVIDENCE)
+    lines.append(_AUTHORITY)
+    return "\n".join(lines)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -623,7 +891,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"check_change: empty diff ({diff.description}) -- nothing to check", file=sys.stderr)
             return 2
         changes = changes_of(root, diff)
-        steps = plan(changes, read_tree(root), mode, root)
+        tree = read_tree(root)
+        steps = plan(changes, tree, mode, root)
     except SelectionError as err:
         print(f"check_change: {err}", file=sys.stderr)
         return 2
@@ -642,25 +911,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             status, summary = run_step(root, step)
             results.append((step, status, summary))
 
-    print("\ncheck_change: results")
-    for step, status, summary in results:
-        verdict = "ok" if status == 0 and summary else "FAILED"
-        quoted = summary if summary else "no summary line printed -- counted as a failure"
-        print(f"  {step.check.value}: {verdict} (exit {status}) -- {quoted}")
-    if not results:
-        print("  nothing ran here; the gate's checks run in CI")
-    if mode is Mode.DEV:
-        print(_NOT_EVIDENCE)
-    print(_AUTHORITY)
+    print("\n" + render_results(results, steps, mode, tree))
     return exit_status(results)
 
 
 def exit_status(results: Sequence[tuple[Step, int, str | None]]) -> int:
-    """The first failing check's own status; a run with no summary line fails with 1."""
+    """The first failing check's own status; a run that exits 0 without a passing summary fails with 1."""
     for _, status, summary in results:
         if status != 0:
             return status
-        if summary is None:
+        if not verdict(status, summary):
             return 1
     return 0
 

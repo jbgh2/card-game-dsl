@@ -5,7 +5,9 @@
 # anything (PR #311 review). Runs mypy or pytest as a module of the
 # checkout's interpreter (never a bare `mypy` or `pytest` found on PATH,
 # which can belong to another install); pytest runs with the worktree on
-# PYTHONPATH.
+# PYTHONPATH. `import MODULE` imports one module by its dotted name, the
+# form of the CI step that proves the openspiel extra is installed, and
+# prints `import MODULE: ok`.
 #
 # The interpreter, first found wins, named on stderr:
 #   1. the .venv beside the main worktree (`git rev-parse --git-common-dir`),
@@ -15,14 +17,17 @@
 # Verify cardlang resolves into the worktree, not the main checkout, when
 # it matters.
 #
-# Usage: verify.sh mypy [args...] | verify.sh pytest [args...]
+# Usage: verify.sh mypy [args...] | verify.sh pytest [args...] | verify.sh import MODULE
 set -euo pipefail
 
-tool=${1:?usage: verify.sh mypy|pytest [args...]}
+tool=${1:?usage: verify.sh mypy|pytest [args...] | verify.sh import MODULE}
 shift
 case "$tool" in
   mypy|pytest) ;;
-  *) echo "verify.sh: only mypy and pytest are chartered (got: $tool)" >&2; exit 2 ;;
+  import)
+    [ $# -eq 1 ] && [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_.]*$ ]] \
+      || { echo "verify.sh: import takes one dotted module name" >&2; exit 2; } ;;
+  *) echo "verify.sh: only mypy, pytest and import are chartered (got: $tool)" >&2; exit 2 ;;
 esac
 
 py="" why=""
@@ -44,5 +49,8 @@ echo "verify.sh: interpreter $py ($why)" >&2
 # follows there, `tools/` among them.
 if [ "$tool" = mypy ]; then
   exec env -u PYTHONPATH "$py" -m mypy "$@"
+fi
+if [ "$tool" = import ]; then
+  exec "$py" -c "import $1; print('import $1: ok')"
 fi
 PYTHONPATH="$PWD" exec "$py" -m pytest "$@"

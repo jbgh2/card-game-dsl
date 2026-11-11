@@ -84,7 +84,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // empty' 2>/dev/null | { read -r f; case \"$f\" in */tests/*.py|*/cardlang/*.py) jq -n --arg m 'This file is under tests/ or cardlang/, so the census pins read it: the test modules that enumerate source files read it as TEXT, so mypy and a test selection by name are blind to them. A test module importing cardlang.openspiel.game dies at COLLECTION without the pyspiel extra, taking every test it holds, and an edit trips these pins as surely as a new file. Before pushing, run python3 tools/check_change.py from the worktree root: it selects the census pins with every other check this diff calls for, runs them unpiped, and quotes each summary line.' '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:$m}}' ;; esac; } 2>/dev/null || true",
+            "command": "jq -r '.tool_input.file_path // empty' 2>/dev/null | { read -r f; case \"$f\" in */tests/*.py|*/cardlang/*.py|*/tools/*.py) jq -n --arg m 'This file is under tests/, cardlang/ or tools/, so the census pins read it: the test modules that enumerate source files read it as TEXT, so mypy and a test selection by name are blind to them. A test module importing cardlang.openspiel.game dies at COLLECTION without the pyspiel extra, taking every test it holds, and an edit trips these pins as surely as a new file. Before pushing, run python3 tools/check_change.py from the worktree root: it selects the census pins with every other check this diff calls for, runs them unpiped, and quotes each summary line.' '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:$m}}' ;; esac; } 2>/dev/null || true",
             "timeout": 10
           }
         ]

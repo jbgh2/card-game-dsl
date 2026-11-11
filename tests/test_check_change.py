@@ -5,30 +5,39 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 property:   each selection rule CLAUDE.md "Verifying changes" and
             docs/maintaining.md state as a function of a diff fires for a
             diff in its path class and stays quiet for a diff outside it;
-            each mode runs what it names (`--full` the gate exactly as
-            ci.yml writes it, `--dev` the named development pass, the
-            default leaving the language suite to CI); a run's status and
-            summary line are the check's own; and `tools/verify.sh` takes
-            its interpreter from the checkout.
+            a changed path runs the test modules that read it; each mode
+            runs what it names (`--full` every check step of ci.yml's
+            `check` job as written, `--dev` the named development pass, the
+            default leaving the language suite to CI); a run is ok only on
+            its own exit status and a passing summary line, and the results
+            name every gate step not run; and `tools/verify.sh` takes its
+            interpreter from the checkout.
 domain:     every `Check` crossed with one cell per path class: every row of
             the Merge Lanes table `tools/lane-of.sh --rows` prints, plus the
             classes the rules carve inside those rows (a game, its rulebook
             twin, `_candidates.md`, a family library, a proof module, a test
             module against a helper, a `.py` against data, an `ADR-NNNN`
             citation, an unmapped root file), each at the statuses that
-            change the answer. The diff reader is probed on throwaway
+            change the answer. The readers rule is held by anchors: paths
+            crossed with one module known, by reading it, to read the path
+            by name, by directory or by import (`READER_ANCHORS`). The CI
+            reader is probed with workflows it must refuse. The diff reader
+            is probed on throwaway
             repositories: no merge base, unrelated history, an empty diff, a
             detached head, a rename, a deletion, untracked files, paths with
-            spaces, a committed range. The rules are the ones those two
+            spaces, a committed range (whose tree facts are the working
+            checkout's, and say so). The rules are the ones those two
             sources let a diff decide; the judgment rules (the audit
             trigger, two PRs green alone, whether a game edit is a RULES
             edit -- every edit of a game file is read as one) stay prose.
 registry:   rules: `tools.check_change.Check`; path classes:
             `tools/lane-of.sh --rows` over docs/harness.md "The Merge Lanes";
             games, library consumers, the classifier tables, the snippet
-            docs and the census modules: `tools.check_change.read_tree`;
-            modes: `tools.check_change.Mode`; the gate's commands: the CI
-            workflow's `check` job (`_ci_runs`).
+            docs, the census modules, the readers of a path and mypy's
+            files: `tools.check_change.read_tree`; modes:
+            `tools.check_change.Mode`; the gate's steps:
+            `tools.check_change.read_gate`, checked against a YAML parse of
+            the CI workflow's `check` job (`_ci_runs`).
 held by:    Derived and Pinned. The rule axis is an Enum `_fires` dispatches
             over exhaustively (`_never`); the path-class axis is the lane
             table, pinned by `test_every_lane_row_has_a_cell`; the rows a
@@ -40,7 +49,14 @@ does not prove:  that a rule's trigger is the right one -- the expected
             the census scan finds every module that enumerates source
             files: it reads three spellings (`walk_packages`,
             `iter_modules`, a `*.py` string literal), and a module that
-            builds its glob any other way is outside it. Nor that the local
+            builds its glob any other way is outside it. Nor that the
+            readers rule finds every module that reads a path: it finds
+            the ones that name the path, its basename, its directory or the
+            directory's last component as a string literal, import it, or
+            sit under a changed `conftest.py`; a module that reaches a path
+            any other way (a glob from the repository root, a name built at
+            run time) is outside it, and only the language suite in CI
+            covers it. Nor that the local
             environment matches CI's: an interpreter without the
             `openspiel` extra skips the readiness proofs, and a venv older
             than `pyproject.toml` can hold a package the spec dropped.
@@ -131,9 +147,6 @@ CELLS: tuple[tuple[cc.Status, str, bool, frozenset[cc.Check]], ...] = tuple(
 )
 
 
-_RED = pytest.mark.xfail(raises=AssertionError, strict=True, reason="readers and the gate import not written")
-
-
 @cache
 def _classes() -> dict[str, tuple[str, ...]]:
     return cc.lane_classes(str(REPO), tuple(sorted({path for _, path, _, _ in CELLS})))
@@ -152,10 +165,7 @@ def _fired(status: cc.Status, path: str, cites: bool) -> frozenset[cc.Check]:
 @pytest.mark.parametrize(
     ("status", "path", "cites", "check"),
     [
-        pytest.param(
-            s, p, c, check, id=f"{s.value}-{p}{'-adr' if c else ''}-{check.value}",
-            marks=[_RED] if check in (C.READERS, C.GATE_IMPORT) else [],
-        )
+        pytest.param(s, p, c, check, id=f"{s.value}-{p}{'-adr' if c else ''}-{check.value}")
         for s, p, c, _ in CELLS
         for check in cc.Check
     ],
@@ -209,7 +219,6 @@ def _run_modules(steps: dict[cc.Check, cc.Step]) -> set[str]:
     return {a for s in steps.values() if s.argv[:1] == ("pytest",) for a in s.argv if a.endswith(".py")}
 
 
-@pytest.mark.xfail(raises=AssertionError, strict=True, reason="readers not written")
 @pytest.mark.parametrize(("status", "path", "module"), READER_ANCHORS, ids=[p for _, p, _ in READER_ANCHORS])
 def test_a_changed_path_runs_the_modules_that_read_it(status: cc.Status, path: str, module: str) -> None:
     assert module in _run_modules(_steps(path, cc.Mode.TARGETED, status))
@@ -271,6 +280,16 @@ def test_a_game_change_runs_every_module_naming_it_in_either_spelling() -> None:
     assert named <= run
 
 
+def test_a_module_naming_only_the_folded_spelling_is_found() -> None:
+    """Red under: dropping `-e fold(name)` from the game-name `git grep`.
+
+    Both modules name `big_two` and never `big-two` (read by hand).
+    """
+    assert {"tests/test_asked_event.py", "tests/openspiel_ready/test_ismcts.py"} <= set(
+        _tree().tests_naming("big-two")
+    )
+
+
 # --- what each mode does with what fired ------------------------------------
 
 
@@ -281,19 +300,56 @@ def _steps(path: str, mode: cc.Mode, status: cc.Status = M) -> dict[cc.Check, cc
 
 
 def _ci_runs() -> list[str]:
+    """Every single-line `run:` of the check job, read by a YAML parser, not the module's reader."""
     import yaml
 
     workflow = yaml.safe_load((REPO / ".github/workflows/ci.yml").read_text())
     runs = [step["run"].strip() for step in workflow["jobs"]["check"]["steps"] if "run" in step]
-    return [r for r in runs if r.startswith(("mypy", "pytest"))]
+    return [r for r in runs if "\n" not in r]
 
 
-def test_full_runs_the_gate_exactly_as_ci_writes_it() -> None:
-    """Red under: `_gate_argv` returning `-n auto` for the full mode."""
+def test_full_runs_every_check_step_ci_writes() -> None:
+    """Red under: `read_gate` skipping the `python -c "import pyspiel"` step."""
     steps = _steps("docs/principles.md", cc.Mode.FULL)
-    gate = (C.TYPECHECK, C.LANGUAGE_SUITE, C.RIGS)
-    assert [" ".join(steps[c].argv) for c in gate] == _ci_runs()
-    assert all(steps[c].disposition is cc.Disposition.RUN for c in gate)
+    gate = _tree().gate
+    assert [g.ci_text for g in gate] == _ci_runs()
+    for g in gate:
+        assert steps[g.check].disposition is cc.Disposition.RUN
+        assert steps[g.check].argv == g.argv
+    assert ("import", "pyspiel") in [g.argv for g in gate]
+    assert [steps[c].argv for c in (C.TYPECHECK, C.LANGUAGE_SUITE, C.RIGS)] == [
+        ("mypy",), ("pytest", "-q", "-n", "8"), ("pytest", "experiments/llm_eval/tests", "-q"),
+    ]
+
+
+_CI_HEAD = "jobs:\n  check:\n    runs-on: x\n    steps:\n      - uses: actions/checkout@v4\n"
+_CI_GATE = (
+    '      - name: Imports\n        run: python -c "import pyspiel"\n'
+    "      - name: Types\n        run: mypy\n"
+    "      - name: Suite\n        run: pytest -q -n 8\n"
+    "      - name: Rigs\n        run: pytest experiments/llm_eval/tests -q\n"
+)
+
+
+def test_the_gate_reader_reads_setup_as_setup() -> None:
+    text = _CI_HEAD + "      - name: Venv\n        run: |\n          pip install x\n          mypy\n" + _CI_GATE
+    gate, setup = cc.read_gate(text + "  canary:\n    steps:\n      - run: echo hi\n")
+    assert [g.check for g in gate] == [C.GATE_IMPORT, C.TYPECHECK, C.LANGUAGE_SUITE, C.RIGS]
+    assert setup == ("actions/checkout@v4", "Venv")
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "      - name: Lint\n        run: ruff check .\n",
+        "      - name: Tools\n        run: pytest tools/tests -q\n",
+        "      - name: Again\n        run: mypy\n",
+    ],
+    ids=["unknown-command", "unknown-pytest-target", "doubled-step"],
+)
+def test_a_check_step_the_reader_cannot_read_is_refused(extra: str) -> None:
+    with pytest.raises(cc.SelectionError, match="check job"):
+        cc.read_gate(_CI_HEAD + _CI_GATE + extra)
 
 
 @pytest.mark.parametrize("mode", list(cc.Mode), ids=[m.value for m in cc.Mode])
@@ -317,10 +373,30 @@ def test_the_default_leaves_the_language_suite_to_ci_and_runs_no_dev_pass(path: 
     assert all("not slow" not in s.argv for s in steps.values())
 
 
+def test_the_default_runs_the_gate_checks_the_diff_reaches() -> None:
+    """Red under: `in_ci = mode is Mode.TARGETED` in `plan`."""
+    steps = _steps("cardlang/parse.py", cc.Mode.TARGETED)
+    assert steps[C.TYPECHECK].disposition is cc.Disposition.RUN
+    assert steps[C.RIGS].disposition is cc.Disposition.RUN
+    assert steps[C.GATE_IMPORT].disposition is cc.Disposition.RUN
+
+
 def test_the_default_leaves_unreached_gate_checks_to_ci() -> None:
     steps = _steps("docs/principles.md", cc.Mode.TARGETED)
     assert steps[C.TYPECHECK].disposition is cc.Disposition.IN_CI
     assert steps[C.RIGS].disposition is cc.Disposition.IN_CI
+
+
+@pytest.mark.parametrize(
+    ("path", "reason"),
+    [
+        ("cardlang/parse.py", "cardlang/parse.py"),
+        ("pyproject.toml", "pyproject.toml (mypy's configuration)"),
+        ("tools/zz_probe.py", "tools/zz_probe.py (outside mypy's `files`: checked only through a module that imports it)"),
+    ],
+)
+def test_the_type_check_never_claims_to_read_a_file_outside_its_files(path: str, reason: str) -> None:
+    assert _steps(path, cc.Mode.TARGETED)[C.TYPECHECK].reasons == (reason,)
 
 
 def test_dev_is_the_named_development_pass() -> None:
@@ -458,6 +534,15 @@ def test_paths_with_spaces_and_untracked_files_are_read_whole(repo: Path) -> Non
     assert fired[C.CHANGED_TESTS] == ("tests/sub dir/test_a b.py",)
 
 
+def test_a_range_says_its_tree_facts_are_the_working_checkouts(repo: Path) -> None:
+    (repo / "tests/test_new.py").write_text("")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "change")
+    diff = cc.read_diff(str(repo), "HEAD^..HEAD")
+    assert "come from the working checkout" in diff.tree_note and "not from HEAD" in diff.tree_note
+    assert cc.read_diff(str(repo), None).tree_note == ""
+
+
 def test_a_range_reads_only_its_commits(repo: Path) -> None:
     (repo / "tests/test_new.py").write_text("")
     _git(repo, "add", "-A")
@@ -501,11 +586,56 @@ def test_a_run_reports_its_own_status_and_summary_line(
 
 
 @pytest.mark.parametrize(
+    ("status", "summary", "ok"),
+    [
+        (0, "3 passed in 0.10s", True),
+        (0, "2912 passed, 15 skipped in 897.43s (0:14:57)", True),
+        (0, "3 passed, 10 deselected in 0.10s", True),
+        (0, "Success: no issues found in 590 source files", True),
+        (0, "import pyspiel: ok", True),
+        (0, "12 skipped in 0.50s", False),
+        (0, "10 deselected in 0.50s", False),
+        (0, "no tests ran in 0.01s", False),
+        (0, None, False),
+        (1, "1 failed, 2 passed in 1.00s", False),
+    ],
+)
+def test_a_run_is_ok_only_when_its_summary_reports_a_pass(status: int, summary: str | None, ok: bool) -> None:
+    assert cc.verdict(status, summary) is ok
+    step = cc.Step(C.TYPECHECK, cc.Disposition.RUN, (), ("mypy",))
+    block = cc.render_results([(step, status, summary)], [step], cc.Mode.TARGETED, _tree())
+    assert ("typecheck: ok" in block) is ok
+    assert ("typecheck: FAILED" in block) is not ok
+
+
+@pytest.mark.parametrize("mode", list(cc.Mode), ids=[m.value for m in cc.Mode])
+def test_the_results_name_every_gate_step_not_run(mode: cc.Mode) -> None:
+    """Red under: the results block listing only the steps that ran."""
+    steps = list(cc.plan((cc.Change(M, "docs/principles.md", ()),), _tree(), mode, str(REPO)))
+    ran = [s for s in steps if s.disposition is cc.Disposition.RUN]
+    results = [(s, 0, "3 passed in 0.1s") for s in ran]
+    block = cc.render_results(results, steps, mode, _tree())
+    if mode is cc.Mode.FULL:
+        assert "NOT a green of the gate" not in block
+    else:
+        assert "NOT RUN here: language-suite (CI runs `pytest -q -n 8`)" in block
+        assert "This is NOT a green of the gate" in block
+    if mode is cc.Mode.DEV:
+        assert "NOT evidence" in block
+
+
+def test_a_run_that_ran_nothing_says_it_is_no_green() -> None:
+    block = cc.render_results([], [], cc.Mode.TARGETED, _tree())
+    assert "nothing ran here" in block and "This is NOT a green of the gate" in block
+
+
+@pytest.mark.parametrize(
     ("results", "status"),
     [
         ([(0, "3 passed in 0.1s")], 0),
         ([(0, "3 passed in 0.1s"), (1, "1 failed in 0.1s"), (4, None)], 1),
         ([(0, None)], 1),
+        ([(0, "12 skipped in 0.5s")], 1),
         ([(137, None)], 137),
     ],
 )
@@ -585,8 +715,17 @@ def test_verify_runs_mypy_without_pythonpath_and_pytest_with_the_worktree(
         assert done.stdout.strip() == expected
 
 
+@pytest.mark.parametrize("args", [(), ("os; print(1)",), ("os", "sys")], ids=["none", "code", "two"])
+def test_verify_imports_one_dotted_name_only(verify_repo: Path, args: tuple[str, ...]) -> None:
+    done = subprocess.run(
+        ["bash", str(verify_repo / "tools/verify.sh"), "import", *args], cwd=verify_repo,
+        capture_output=True, text=True,
+    )
+    assert done.returncode == 2 and "import takes one dotted module name" in done.stderr
+
+
 def test_verify_refuses_an_unchartered_tool(verify_repo: Path) -> None:
     done = subprocess.run(
         ["bash", str(verify_repo / "tools/verify.sh"), "ruff"], cwd=verify_repo, capture_output=True, text=True,
     )
-    assert done.returncode == 2 and "only mypy and pytest are chartered" in done.stderr
+    assert done.returncode == 2 and "only mypy, pytest and import are chartered" in done.stderr
