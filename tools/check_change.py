@@ -39,7 +39,8 @@ locally and is no second gate.
 A test module reads a changed path when it names the path or its basename,
 names a non-Python path's directory (as a path, or its last component as a
 string literal), imports a changed module under `tests/` or `tools/`
-(transitively), or sits under a changed `conftest.py`.
+(transitively), imports a helper under `tests/` or `tools/` that names the
+path in one of those ways, or sits under a changed `conftest.py`.
 
 Contract
 --------
@@ -464,18 +465,25 @@ def _consumers(root: Path) -> dict[str, frozenset[str]]:
     return out
 
 
-def _test_modules_mentioning(root: str, patterns: Sequence[str]) -> tuple[str, ...]:
-    """The test modules under tests/ whose text holds any of `patterns`, verbatim."""
+def _python_mentioning(root: str, patterns: Sequence[str], *dirs: str) -> tuple[str, ...]:
+    """The `.py` files under `dirs` whose text holds any of `patterns`, verbatim."""
     args = [a for pattern in patterns for a in ("-e", pattern)]
     done = subprocess.run(
-        ["git", "grep", "-lF", "--untracked", *args, "--", "tests"],
+        ["git", "grep", "-lF", "--untracked", *args, "--", *dirs],
         cwd=root, capture_output=True, text=True,
     )
     if done.returncode not in (0, 1):
         raise SelectionError(f"`git grep` for {list(patterns)!r} failed: {done.stderr.strip()}")
-    return tuple(sorted(
-        p for p in done.stdout.splitlines() if Path(p).name.startswith("test_") and p.endswith(".py")
-    ))
+    return tuple(sorted(p for p in done.stdout.splitlines() if p.endswith(".py")))
+
+
+def _is_test_module(path: str) -> bool:
+    return Path(path).name.startswith("test_") and path.endswith(".py")
+
+
+def _test_modules_mentioning(root: str, patterns: Sequence[str]) -> tuple[str, ...]:
+    """The test modules under tests/ whose text holds any of `patterns`, verbatim."""
+    return tuple(p for p in _python_mentioning(root, patterns, "tests") if _is_test_module(p))
 
 
 def _module_name(path: str) -> str:
@@ -561,7 +569,12 @@ def read_tree(root: str) -> Tree:
 
     @lru_cache(maxsize=None)
     def readers(path: str) -> tuple[str, ...]:
-        found = set(_test_modules_mentioning(root, _reader_patterns(path)))
+        # A helper under tests/ or tools/ that names the path reads it for
+        # its importers, as `tools/decisions_index.py` reads `docs/decisions/`.
+        hits = _python_mentioning(root, _reader_patterns(path), "tests", "tools")
+        found = {h for h in hits if h.startswith("tests/") and _is_test_module(h)}
+        for helper in (h for h in hits if not _is_test_module(h)):
+            found |= importers.get(helper, frozenset())
         found |= importers.get(path, frozenset())
         parent, _, name = path.rpartition("/")
         if name == "conftest.py":

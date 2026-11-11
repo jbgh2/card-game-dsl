@@ -15,10 +15,14 @@ property:   each selection rule CLAUDE.md "Verifying changes" and
 domain:     every `Check` crossed with one cell per path class: every row of
             the Merge Lanes table `tools/lane-of.sh --rows` prints, plus the
             classes the rules carve inside those rows (a game, its rulebook
-            twin, `_candidates.md`, a family library, a proof module, a test
-            module against a helper, a `.py` against data, an `ADR-NNNN`
-            citation, an unmapped root file), each at the statuses that
-            change the answer. The readers rule is held by anchors: paths
+            twin, `_candidates.md`, a family library, a proof module, the
+            snippet docs, a test module against a helper, a `.py` against
+            data, an `ADR-NNNN` citation, an unmapped root file), each at
+            the statuses that change the answer. A row's cell, a game's, a
+            library's and a snippet doc's change a file derived from the
+            table or registry that owns it (`ROW_CELLS`, `_game_cells`);
+            every other file this module names by a literal path is pinned
+            to exist (`NAMED_FILES`), so a moved file fails as moved. The readers rule is held by anchors: paths
             crossed with one module known, by reading it, to read the path
             by name, by directory or by import (`READER_ANCHORS`). The CI
             reader is probed with workflows it must refuse. The diff reader
@@ -66,6 +70,7 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 import shutil
 import subprocess
 from functools import cache
@@ -85,66 +90,220 @@ _GAME = {C.LANGUAGE_SUITE, C.RIGS, C.GOLDENS_FULL, C.GAME_NAMED, C.CLASSIFIER_TA
 _TEST_MODULE = {C.LANGUAGE_SUITE, C.TYPECHECK, C.CENSUS_PINS, C.CHANGED_TESTS}
 _NOTHING_TARGETED = {C.LANGUAGE_SUITE}
 
-# The expected column, authored from the prose -- never computed by the
-# selector. One row per cell: (status, path, cites ADR-NNNN, the rules that
-# fire).
 # Every non-empty diff fires these, whatever its paths.
 _EVERY_DIFF = frozenset({C.LANGUAGE_SUITE, C.READERS, C.GATE_IMPORT})
 
-CELLS: tuple[tuple[cc.Status, str, bool, frozenset[cc.Check]], ...] = tuple(
-    (status, path, cites, frozenset(expected) | _EVERY_DIFF)
-    for status, path, cites, expected in (
-        (M, "cardlang/grammar/cardlang.lark", False, {C.LANGUAGE_SUITE, C.RIGS}),
-        (M, "cardlang/parse.py", False, _ENGINE),
-        (A, "cardlang/ast/zz_probe.py", False, _ENGINE),
-        (M, "cardlang/resolve.py", False, _ENGINE),
-        (M, "cardlang/typecheck.py", False, _ENGINE),
-        (M, "cardlang/types.py", False, _ENGINE),
-        (M, "cardlang/ir.py", False, _ENGINE),
-        (M, "cardlang/runtime/execute.py", False, _ENGINE),
-        (D, "cardlang/openspiel/zz_probe.py", False, _ENGINE),
-        (M, "cardlang/stdlib/rules.cardlang", False, {C.LANGUAGE_SUITE, C.RIGS}),
-        (M, "cardlang/builtins/functions.py", False, _ENGINE),
-        (M, "cardlang/cli.py", False, _ENGINE),
-        (M, "docs/games/big-two.cardlang", False, _GAME),
-        (D, "docs/games/big-two.cardlang", False, _GAME),
-        (A, "docs/games/zz-probe-game.cardlang", False, _GAME),
-        (M, "docs/games/big-two.md", False, _GAME),
-        (M, "docs/games/_candidates.md", False, {C.LANGUAGE_SUITE, C.RIGS, C.GOLDENS_FULL}),
-        (M, "docs/libraries/stud.cardlang", False, _GAME),
-        (M, "docs/decisions.md", False, {C.LANGUAGE_SUITE, C.DOC_SNIPPETS}),
-        (M, "docs/library.md", False, {C.LANGUAGE_SUITE, C.DOC_SNIPPETS}),
-        (M, "docs/model.md", False, {C.LANGUAGE_SUITE, C.DOC_SNIPPETS}),
-        (M, "docs/principles.md", False, _NOTHING_TARGETED),
-        (M, "docs/principles.md", True, {C.LANGUAGE_SUITE, C.ADR_RECORDS}),
-        (M, "docs/glossary/zz-probe.md", False, _NOTHING_TARGETED),
-        (M, "CLAUDE.md", False, _NOTHING_TARGETED),
-        (M, "docs/design-notes/zz-probe.md", False, _NOTHING_TARGETED),
-        (M, "docs/open-questions/zz-probe.md", False, _NOTHING_TARGETED),
-        (M, "docs/research/zz-probe.md", False, _NOTHING_TARGETED),
-        (M, "docs/superpowers/zz-probe.md", False, _NOTHING_TARGETED),
-        (A, "docs/adr/0999-zz-probe.md", False, {C.LANGUAGE_SUITE, C.ADR_RECORDS}),
-        (A, "tests/test_zz_probe.py", False, _TEST_MODULE),
-        (M, "tests/test_doc_references.py", False, _TEST_MODULE),
-        (D, "tests/test_zz_probe.py", False, {C.LANGUAGE_SUITE, C.TYPECHECK, C.CENSUS_PINS}),
-        (M, "tests/openspiel_ready/harness.py", False, {C.LANGUAGE_SUITE, C.TYPECHECK, C.CENSUS_PINS}),
-        (M, "tests/openspiel_ready/test_big_two.py", False,
-         _TEST_MODULE | {C.GAME_NAMED, C.CLASSIFIER_TABLES}),
-        (M, "tests/zz_probe/golden.json", False, _NOTHING_TARGETED),
-        (M, ".claude/skills/zz-probe/SKILL.md", False, _NOTHING_TARGETED),
-        (M, ".claude/settings.json", False, _NOTHING_TARGETED),
-        (M, "experiments/llm_eval/run_eval.py", False, {C.LANGUAGE_SUITE, C.TYPECHECK, C.RIGS}),
-        (M, "experiments/llm_eval/tests/test_spend.py", False,
-         {C.LANGUAGE_SUITE, C.TYPECHECK, C.RIGS}),
-        (M, "tools/lane-of.sh", False, _NOTHING_TARGETED),
-        (A, "tools/zz_probe.py", False, {C.LANGUAGE_SUITE, C.TYPECHECK, C.CENSUS_PINS}),
-        (M, ".github/workflows/ci.yml", False, _NOTHING_TARGETED),
-        (M, "pyproject.toml", False, {C.LANGUAGE_SUITE, C.TYPECHECK, C.RIGS}),
-        (M, "README.md", False, _NOTHING_TARGETED),
-        (M, "LICENSE", False, _NOTHING_TARGETED),
-        (M, "conftest.py", False, {C.LANGUAGE_SUITE, C.TYPECHECK}),
+Cell = tuple[cc.Status, str, bool, frozenset[cc.Check]]
+
+
+@cache
+def _tree() -> cc.Tree:
+    return cc.read_tree(str(REPO))
+
+
+# The expected column, authored from the prose -- never computed by the
+# selector -- one entry per Merge Lanes row CLASS: (the row's class as
+# `tools/lane-of.sh --rows` prints it, from its start; a pattern a file of the
+# row must match; the rules a change to such a file fires). The file each
+# row's cell changes is derived from the tree, so a row whose paths move keeps
+# its cell; the outcome stays authored for the class.
+ROW_CELLS: tuple[tuple[str, str, frozenset[cc.Check]], ...] = tuple(
+    (row, pattern, frozenset(expected))
+    for row, pattern, expected in (
+        ("Grammar", r"\.lark$", {C.RIGS}),
+        ("Parse builders", r"\.py$", _ENGINE),
+        ("AST nodes", r"\.py$", _ENGINE),
+        ("Resolve", r"\.py$", _ENGINE),
+        ("Typecheck", r"\.py$", _ENGINE),
+        ("IR", r"\.py$", _ENGINE),
+        ("Runtime", r"\.py$", _ENGINE),
+        ("Stdlib", r"\.cardlang$", {C.RIGS}),
+        ("docs/games/ corpus", r"^docs/games/[^_/][^/]*\.cardlang$", _GAME),
+        ("Docs — the spec", r"^docs/glossary/", set()),
+        ("Docs — exploratory", r"\.md$", set()),
+        ("Docs — rulings", r"\.md$", {C.ADR_RECORDS}),
+        ("Tests / goldens — coverage-only", r"^tests/test_[^/]*\.py$", _TEST_MODULE),
+        ("Tests / goldens — anything else", r"^tests/.*\.json$", set()),
+        (".claude/skills/", r"\.md$", set()),
+        ("experiments/ rigs", r"\.py$", {C.TYPECHECK, C.RIGS}),
+        ("tools/ harness scripts — mechanical", r"\.sh$", set()),
+        ("tools/ harness scripts — semantics", r"\.py$", {C.TYPECHECK, C.CENSUS_PINS}),
+        ("CI and infra", r"^\.github/", set()),
+        ("Public-facing", r"", set()),
     )
 )
+
+
+def _glob_re(glob: str) -> re.Pattern[str]:
+    """A Merge Lanes glob as a regex (`**` crosses `/`, `*` does not), to shortlist files.
+
+    tools/lane-of.sh confirms every file this shortlists
+    (`test_every_lane_row_has_a_cell`), so a disagreement here fails loudly.
+    """
+    out = re.escape(glob).replace(r"\*\*", "\0").replace(r"\*", "[^/]*").replace("\0", ".*")
+    return re.compile(f"^{out}$")
+
+
+@cache
+def _row_cells() -> tuple[tuple[Cell, ...], tuple[str, ...], dict[str, str]]:
+    """Each lane row's cell, the problems deriving them met, and each derived file's row."""
+    rows = cc.lane_rows(str(REPO))
+    tracked = sorted(subprocess.run(
+        ["git", "ls-files"], cwd=REPO, check=True, capture_output=True, text=True,
+    ).stdout.splitlines())
+    excluded = set(_tree().snippet_docs)
+    cells: list[Cell] = []
+    problems: list[str] = []
+    row_of: dict[str, str] = {}
+    for prefix, _, _ in ROW_CELLS:
+        if not any(cls.startswith(prefix) for _, _, cls in rows):
+            problems.append(f"ROW_CELLS names {prefix!r}, which no Merge Lanes row's class starts with")
+    for cls in sorted({cls for _, _, cls in rows}):
+        entries = [e for e in ROW_CELLS if cls.startswith(e[0])]
+        if len(entries) != 1:
+            problems.append(f"Merge Lanes row {cls!r} matches {len(entries)} ROW_CELLS entries; author one")
+            continue
+        _, pattern, expected = entries[0]
+        globs = [_glob_re(g) for _, g, c in rows if c == cls]
+        found = [
+            f for f in tracked
+            if f not in excluded and any(g.match(f) for g in globs) and re.search(pattern, f)
+        ]
+        if not found:
+            problems.append(
+                f"Merge Lanes row {cls!r} holds no tracked file matching {pattern!r}; update ROW_CELLS"
+            )
+            continue
+        row_of[found[0]] = cls
+        cells.append((M, found[0], False, expected | _EVERY_DIFF))
+    return tuple(cells), tuple(problems), row_of
+
+
+@cache
+def _game_cells() -> tuple[Cell, ...]:
+    """A game with a rulebook twin and a proof module, and a family library with a consumer game."""
+    tree = _tree()
+    game = next(
+        g for g in sorted(tree.games)
+        if (REPO / f"docs/games/{g}.md").is_file()
+        and (REPO / f"tests/openspiel_ready/test_{cc.fold(g)}.py").is_file()
+    )
+    library = next(lib for lib in sorted(tree.library_consumers) if tree.library_consumers[lib])
+    proof = _TEST_MODULE | {C.GAME_NAMED, C.CLASSIFIER_TABLES}
+    return tuple(
+        (status, path, False, frozenset(expected) | _EVERY_DIFF)
+        for status, path, expected in (
+            (M, f"docs/games/{game}.cardlang", _GAME),
+            (D, f"docs/games/{game}.cardlang", _GAME),
+            (M, f"docs/games/{game}.md", _GAME),
+            (M, f"tests/openspiel_ready/test_{cc.fold(game)}.py", proof),
+            (M, f"docs/libraries/{library}.cardlang", _GAME),
+        )
+    ) + tuple(
+        (M, doc, False, frozenset({C.DOC_SNIPPETS}) | _EVERY_DIFF) for doc in sorted(tree.snippet_docs)
+    )
+
+
+# Cells whose path is a hypothetical file (`zz_probe`) or one of the named
+# files `NAMED_FILES` pins to exist. One row per cell: (status, path, cites
+# ADR-NNNN, the rules that fire).
+_AUTHORED: tuple[Cell, ...] = tuple(
+    (status, path, cites, frozenset(expected) | _EVERY_DIFF)
+    for status, path, cites, expected in (
+        (A, "cardlang/ast/zz_probe.py", False, _ENGINE),
+        (D, "cardlang/openspiel/zz_probe.py", False, _ENGINE),
+        (M, "cardlang/zz_probe.py", False, _ENGINE),
+        (A, "docs/games/zz-probe-game.cardlang", False, _GAME),
+        (M, "docs/games/_candidates.md", False, {C.RIGS, C.GOLDENS_FULL}),
+        (M, "docs/principles.md", False, set()),
+        (M, "docs/principles.md", True, {C.ADR_RECORDS}),
+        (M, "docs/glossary/zz-probe.md", False, set()),
+        (M, "CLAUDE.md", False, set()),
+        (M, "docs/design-notes/zz-probe.md", False, set()),
+        (M, "docs/open-questions/zz-probe.md", False, set()),
+        (M, "docs/research/zz-probe.md", False, set()),
+        (M, "docs/superpowers/zz-probe.md", False, set()),
+        (A, "docs/adr/0999-zz-probe.md", False, {C.ADR_RECORDS}),
+        (A, "tests/test_zz_probe.py", False, _TEST_MODULE),
+        (D, "tests/test_zz_probe.py", False, {C.TYPECHECK, C.CENSUS_PINS}),
+        (M, "tests/openspiel_ready/harness.py", False, {C.TYPECHECK, C.CENSUS_PINS}),
+        (M, "tests/zz_probe/golden.json", False, set()),
+        (M, ".claude/skills/zz-probe/SKILL.md", False, set()),
+        (M, ".claude/settings.json", False, set()),
+        (M, "experiments/llm_eval/tests/test_spend.py", False, {C.TYPECHECK, C.RIGS}),
+        (M, "tools/lane-of.sh", False, set()),
+        (A, "tools/zz_probe.py", False, {C.TYPECHECK, C.CENSUS_PINS}),
+        (M, "pyproject.toml", False, {C.TYPECHECK, C.RIGS}),
+        (M, "conftest.py", False, {C.TYPECHECK}),
+    )
+)
+
+CELLS: tuple[Cell, ...] = tuple(
+    {(c[0], c[1], c[2]): c for c in reversed(_AUTHORED + _row_cells()[0] + _game_cells())}.values()
+)
+
+# Every file of the repository this module names by a literal path, with the
+# table that names it: a file that moves fails here as moved, never as a
+# missing lane row or a vacuous pass.
+NAMED_FILES: tuple[tuple[str, str], ...] = (
+    ("docs/games/_candidates.md", "_AUTHORED"),
+    ("docs/principles.md", "_AUTHORED"),
+    ("CLAUDE.md", "_AUTHORED and READER_ANCHORS"),
+    ("tests/openspiel_ready/harness.py", "_AUTHORED and READER_ANCHORS"),
+    (".claude/settings.json", "_AUTHORED"),
+    ("experiments/llm_eval/tests/test_spend.py", "_AUTHORED"),
+    ("tools/lane-of.sh", "_AUTHORED, READER_ANCHORS and the misuse probes"),
+    ("tools/verify.sh", "the verify.sh probes"),
+    ("docs/harness.md", "the misuse probes"),
+    (".github/workflows/ci.yml", "READER_ANCHORS and `_ci_runs`"),
+    ("pyproject.toml", "_AUTHORED"),
+    ("docs/glossary/library.md", "READER_ANCHORS"),
+    ("docs/authoring.md", "READER_ANCHORS"),
+    ("tests/rejections", "READER_ANCHORS"),
+    ("tests/golden/belote_stream_hashes.json", "READER_ANCHORS"),
+    ("tests/fixtures/blind_decisions/blind_draw.cardlang", "READER_ANCHORS"),
+    ("cardlang/grammar/cardlang.lark", "READER_ANCHORS"),
+    ("cardlang/stdlib/rules.cardlang", "READER_ANCHORS"),
+    ("tests/native_oracle.py", "READER_ANCHORS"),
+    ("tests/conftest.py", "READER_ANCHORS"),
+    ("tools/review_record.py", "READER_ANCHORS"),
+    ("tests/test_glossary.py", "READER_ANCHORS"),
+    ("tests/test_doc_references.py", "READER_ANCHORS"),
+    ("tests/test_rejections.py", "READER_ANCHORS"),
+    ("tests/test_trick_order_migration.py", "READER_ANCHORS"),
+    ("tests/openspiel_ready/test_blind_decisions.py", "READER_ANCHORS"),
+    ("tests/test_card_points.py", "READER_ANCHORS"),
+    ("tests/test_library_notes.py", "READER_ANCHORS"),
+    ("tests/test_differential_hex.py", "READER_ANCHORS"),
+    ("tests/openspiel_ready/test_spades.py", "READER_ANCHORS"),
+    ("tests/test_parse.py", "READER_ANCHORS"),
+    ("tests/test_review_record.py", "READER_ANCHORS"),
+    ("docs/games/big-two.cardlang", "the game-name, goldens and dedupe pins"),
+    ("tests/openspiel_ready/test_big_two.py", "the game-name and dedupe pins"),
+    ("docs/games/hearts.cardlang", "the dedupe pin"),
+    ("tests/test_migration_characterization.py", "the goldens and dedupe pins"),
+    ("tests/test_asked_event.py", "the folded-spelling pin"),
+    ("tests/openspiel_ready/test_ismcts.py", "the folded-spelling pin"),
+    ("tests/test_optional_pyspiel.py", "the census pin"),
+    ("tests/test_empty_axis_guard.py", "the census pin"),
+)
+
+
+@pytest.mark.parametrize(("path", "where"), NAMED_FILES, ids=[p for p, _ in NAMED_FILES])
+def test_every_file_this_module_names_exists(path: str, where: str) -> None:
+    """Red under: renaming any one of them (as the resolve split moves `cardlang/resolve.py`)."""
+    assert (REPO / path).exists(), (
+        f"{path} moved or was deleted: update {where} in tests/test_check_change.py"
+    )
+
+
+def test_the_folded_spelling_anchors_still_name_only_the_folded_spelling() -> None:
+    for module in ("tests/test_asked_event.py", "tests/openspiel_ready/test_ismcts.py"):
+        text = (REPO / module).read_text()
+        assert "big_two" in text and "big-two" not in text, (
+            f"{module} no longer names only `big_two`: re-anchor "
+            "test_a_module_naming_only_the_folded_spelling_is_found"
+        )
 
 
 @cache
@@ -152,9 +311,9 @@ def _classes() -> dict[str, tuple[str, ...]]:
     return cc.lane_classes(str(REPO), tuple(sorted({path for _, path, _, _ in CELLS})))
 
 
-@cache
-def _tree() -> cc.Tree:
-    return cc.read_tree(str(REPO))
+def _lane(path: str) -> tuple[str, ...]:
+    """A path's Merge Lanes rows, for a path no cell names as well as one that does."""
+    return _classes()[path] if path in _classes() else cc.lane_classes(str(REPO), (path,))[path]
 
 
 def _fired(status: cc.Status, path: str, cites: bool) -> frozenset[cc.Check]:
@@ -178,8 +337,15 @@ def test_a_rule_fires_exactly_on_its_path_class(
 
 
 def test_every_lane_row_has_a_cell() -> None:
+    """Red under: a row added to the Merge Lanes table with no ROW_CELLS entry."""
     rows = cc.lane_rows(str(REPO))
     assert rows, "lane-of.sh --rows printed no rows"
+    _, problems, row_of = _row_cells()
+    assert not problems, "\n".join(problems)
+    for path, cls in row_of.items():
+        assert cls in _classes()[path], (
+            f"{path} was derived for row {cls!r}, but tools/lane-of.sh places it in {_classes()[path]}"
+        )
     covered = {cls for classes in _classes().values() for cls in classes}
     missing = sorted({cls for _, _, cls in rows} - covered)
     assert not missing, f"lane-table rows with no grid cell: {missing}"
@@ -272,7 +438,7 @@ def test_the_real_libraries_reach_their_games() -> None:
 
 
 def test_a_game_change_runs_every_module_naming_it_in_either_spelling() -> None:
-    change = cc.Change(M, "docs/games/big-two.cardlang", _classes()["docs/games/big-two.cardlang"])
+    change = cc.Change(M, "docs/games/big-two.cardlang", _lane("docs/games/big-two.cardlang"))
     steps = cc.plan((change,), _tree(), cc.Mode.TARGETED, str(REPO))
     run = {a for s in steps for a in s.argv}
     named = set(_tree().tests_naming("big-two"))
@@ -294,8 +460,7 @@ def test_a_module_naming_only_the_folded_spelling_is_found() -> None:
 
 
 def _steps(path: str, mode: cc.Mode, status: cc.Status = M) -> dict[cc.Check, cc.Step]:
-    classes = _classes()[path] if path in _classes() else cc.lane_classes(str(REPO), (path,))[path]
-    change = cc.Change(status, path, classes)
+    change = cc.Change(status, path, _lane(path))
     return {s.check: s for s in cc.plan((change,), _tree(), mode, str(REPO))}
 
 
@@ -420,7 +585,7 @@ def test_a_module_runs_once_however_many_checks_select_it(path: str, module: str
 
 
 def test_a_deleted_game_names_no_proof_module() -> None:
-    change = cc.Change(D, "docs/games/zz-gone.cardlang", _classes()["docs/games/big-two.cardlang"])
+    change = cc.Change(D, "docs/games/zz-gone.cardlang", _lane("docs/games/big-two.cardlang"))
     steps = {s.check: s for s in cc.plan((change,), _tree(), cc.Mode.TARGETED, str(REPO))}
     assert C.CLASSIFIER_TABLES in cc.triggered((change,), _tree())
     assert "tests/openspiel_ready/test_zz_gone.py" not in steps[C.CLASSIFIER_TABLES].argv
