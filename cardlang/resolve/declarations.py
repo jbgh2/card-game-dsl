@@ -527,14 +527,14 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 f"'{game.deck}' is a piece set — declare it with "
                 f"`pieces: {game.deck}`, not `cards:`",
                 game.span,
-                code=Code.PIECES_ARE_NOT_CARDS,
+                code=Code.WRONG_SPELLING,
             )
         else:
             bag.error(
                 f"'{game.deck}' is a card deck — declare it with "
                 f"`cards: {game.deck}`, not `pieces:`",
                 game.span,
-                code=Code.PIECES_ARE_NOT_CARDS,
+                code=Code.WRONG_SPELLING,
             )
 
 

@@ -5,34 +5,45 @@ Completeness ledger (decisions.md "Closed-domain completeness"):
 property:        every member of `cardlang.diagnostic_codes.Code` is told by
                  an executed witness -- a rejection case, a game or library
                  text checked here, a command line run, or a runtime refusal
-                 rendered -- and no code shipped is renamed or removed: the
-                 blessed list and the registry are one set.
+                 rendered; no code shipped is renamed, removed or given
+                 another meaning: the blessed spellings and meanings and the
+                 registry are one mapping; and every rejection case tells,
+                 in order, the codes its `.codes` golden lists.
 domain:          the registry crossed with one witness per member, the axis
                  derived from `Code` itself, so a member added without a
-                 witness is a red cell rather than an unlisted one. The
-                 witnesses reach the checker through `check_dsl`,
+                 witness is a red cell rather than an unlisted one; and the
+                 whole rejection corpus, every case with its code golden.
+                 The witnesses reach the checker through `check_dsl`,
                  `parse_library` and `check_source`, the command line
                  through `cardlang.cli.main`, and the runtime through
                  `cardlang.records.refusal_diagnostic`.
-registry:        the axis -- `Code`; the blessed spellings -- `SHIPPED`;
-                 the rejection corpus -- tests/test_rejections.py::case_paths.
-held by:         Derived and Pinned. A code's spelling is a string a tool
-                 keys on outside the type checker, so the blessed list holds
-                 it; that every refusal carries a code is held a rung higher,
-                 by `Diagnostic.code` being a required field.
-does not prove:  that every report site sharing a code asks for the same
-                 kind of fix. One witness per code shows the code is told;
-                 the naming review of the registry, read whole, is what
-                 judges a site's code.
+registry:        the axis -- `Code`; the blessed spellings and meanings --
+                 `SHIPPED`; the rejection corpus --
+                 tests/test_rejections.py::case_paths.
+held by:         Derived and Pinned. A code's spelling and meaning are
+                 strings a tool keys on outside the type checker, so the
+                 blessed mapping holds them; that every refusal carries a
+                 code is held a rung higher, by `Diagnostic.code` being a
+                 required field.
+does not prove:  that a report site no rejection case reaches keeps its code:
+                 such a site can move to another code with every pin here
+                 green, unless it is its code's one witness. Measured
+                 2026-11-11, by executing the corpus (`python -m
+                 tests.test_diagnostic_codes`): 405 of 567 coded report sites. Nor that every
+                 site sharing a code asks for the same kind of fix; the
+                 naming review of the registry, read whole, judges that.
 """
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
+import os
 import random
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -53,115 +64,117 @@ from cardlang.runtime.errors import (
     ShadowGuardError,
 )
 from cardlang.runtime.state import IllegalMove
-from tests.test_rejections import REJECTIONS_DIR
+from tests.test_rejections import REJECTIONS_DIR, case_paths
+from tools.dead_surface import start_for
 from tests.resolver_package import patch_resolver
 
 _ROOT = Path(__file__).resolve().parent.parent
 
-# Every code ever shipped. A code is never removed or renamed once it is
-# here: a tool may key on it.
-SHIPPED: tuple[str, ...] = (
-    "syntax-error",
-    "misspelled-keyword",
-    "wrong-spelling",
-    "one-game-per-file",
-    "one-fenced-block",
-    "wrong-file-extension",
-    "unknown-command",
-    "unreadable-file",
-    "unknown-name",
-    "unknown-zone",
-    "unknown-state-variable",
-    "unknown-function",
-    "unknown-procedure",
-    "unknown-rule",
-    "unknown-move-type",
-    "unknown-phase",
-    "unknown-mode",
-    "unknown-outcome",
-    "unknown-rank",
-    "unknown-suit",
-    "unknown-deck",
-    "unknown-library",
-    "unknown-type",
-    "unknown-zone-type",
-    "unknown-index-domain",
-    "unknown-field",
-    "unknown-turn-direction",
-    "unknown-round-function",
-    "unknown-play-shape",
-    "unknown-primitive",
-    "unknown-board",
-    "reserved-word",
-    "name-taken",
-    "written-twice",
-    "wrong-sort-of-name",
-    "missing-declaration",
-    "unused-declaration",
-    "has-no-effect",
-    "conflicting-clauses",
-    "out-of-place",
-    "not-yet-supported",
-    "out-of-range",
-    "pieces-are-not-cards",
-    "deck-too-small",
-    "board-shape",
-    "type-mismatch",
-    "untyped-value",
-    "wrong-argument-count",
-    "wrong-argument",
-    "wrong-signature",
-    "wrong-subscript",
-    "type-not-allowed-here",
-    "constant-condition",
-    "needs-parentheses",
-    "out-of-scope",
-    "no-player-acting",
-    "reads-beyond-parameters",
-    "recursive-function",
-    "answer-reads-beyond-the-card",
-    "answer-calls-later-answer",
-    "decides-on-hidden-cards",
-    "wrong-zone-visibility",
-    "hosted-poll-reads-unpublished-state",
-    "not-writable",
-    "library-requirement-unmet",
-    "requirement-mismatch",
-    "requirement-matches-several",
-    "outside-library-contract",
-    "library-reaches-one-game",
-    "bad-requires-row",
-    "requires-what-is-provided",
-    "library-not-yet-proven",
-    "rule-never-consulted",
-    "needs-a-trick-round",
-    "mode-pairing",
-    "climb-round-queries",
-    "choose-integer-bounds",
-    "teams-must-partition-seats",
-    "use-winner-not-loser",
-    "unrankable-winner-target",
-    "ranking-incomplete",
-    "catalogue-row-names-no-play",
-    "ambiguous-play-shape",
-    "card-play-parameters",
-    "deal-distribution",
-    "wrong-zone-shape",
-    "wrong-primitive-type",
-    "missing-outcome-arm",
-    "outcome-read-before-produced",
-    "refused-during-play",
-    "game-error-raised",
-    "engine-gap",
-    "incomplete-installation",
-    "unregistrable-game",
-)
+# Every code ever shipped, with its meaning. A code is never removed or
+# renamed once it is here, and its meaning changes only by a deliberate
+# edit of this mapping: a tool may key on either.
+SHIPPED: dict[str, str] = {
+    "syntax-error": "the text does not read as the language; fix it where the message points",
+    "misspelled-keyword": "a word nearly spells a keyword the language expects there; write the keyword",
+    "wrong-spelling": "the language spells this construct another way; write the spelling the message gives",
+    "one-game-per-file": "a source holds exactly one `game { }` block; add it, or move the others to their own files",
+    "one-fenced-block": "a Markdown game file holds its game in exactly one fenced block",
+    "wrong-file-extension": "a game file's name ends in an extension the checker reads; rename the file",
+    "unknown-command": "the first word names no command and no file; write a command or a path",
+    "unreadable-file": "the file named cannot be read as text; name a readable game file",
+    "unknown-name": "a name nothing in scope declares, refused where the checker cannot tell which sort of name was meant; read the suggestions, spell a declared name, or declare it",
+    "unknown-zone": "a zone no `zones { }` entry declares; spell a declared zone, or declare it",
+    "unknown-state-variable": "a state variable no `state { }` block declares; spell a declared one, or declare it",
+    "unknown-function": "a function neither the game nor the language defines; spell a defined one, or define it",
+    "unknown-procedure": "a procedure the game does not define; spell a defined one, or define it",
+    "unknown-rule": "a rule no definition or library provides; spell a defined rule, or define it",
+    "unknown-move-type": "a move type the game does not declare; spell a declared one, or declare it",
+    "unknown-phase": "a phase that is not where the construct looks for it; name a phase that is",
+    "unknown-mode": "a mode that is not a sibling of this phase's modes; name one that is",
+    "unknown-outcome": "an outcome phase or case the game does not declare; name a declared one",
+    "unknown-rank": "a rank the game's deck does not have; write one of its ranks",
+    "unknown-suit": "a suit the game's deck does not have; write one of its suits",
+    "unknown-deck": "a deck or piece set the language does not ship; name a shipped one",
+    "unknown-library": "a family library that does not exist; name one in docs/libraries/",
+    "unknown-type": "a type name the language does not have in that position; write one it has",
+    "unknown-zone-type": "a zone type the language does not have; write one it has",
+    "unknown-index-domain": "an index domain, owner or position domain nothing declares; name one that exists",
+    "unknown-field": "a field the value does not have; read one of its fields, or read it another way",
+    "unknown-turn-direction": "a turn direction the language does not have; write one it has",
+    "unknown-round-function": "a round names a winner or predicate the language does not have; name one it has",
+    "unknown-play-shape": "a play shape no row of the game's catalogue labels; write a row's label",
+    "unknown-primitive": "a `primitives` entry nothing implements; name an implemented Primitive",
+    "unknown-board": "a board the language does not have; write a board it has",
+    "reserved-word": "the name is a word the language reserves; pick another name",
+    "name-taken": "two things share one name, or one hides another; rename one",
+    "written-twice": "one thing is written more than once; keep one",
+    "wrong-sort-of-name": "the name is of another sort than the position takes; use a name of the right sort",
+    "missing-declaration": "something reads a declaration the game does not make; add it",
+    "unused-declaration": "a declaration nothing reaches; use it, or delete it",
+    "has-no-effect": "something written changes nothing; drop it, or write what was meant",
+    "conflicting-clauses": "two clauses cannot stand together; keep one of them",
+    "out-of-place": "a clause or statement written where it cannot stand; move it where it belongs",
+    "not-yet-supported": "the language cannot express this yet; write the game another way until it can",
+    "out-of-range": "a number outside the values the position allows; write one inside them",
+    "pieces-are-not-cards": "a card's rank, suit or points read in a game played with pieces",
+    "deck-too-small": "the deck holds fewer cards than a hand deals from it",
+    "board-shape": "a board declaration the board cannot be laid out from; fix the board's shape",
+    "type-mismatch": "a value of another type than the position needs; write a value of that type",
+    "untyped-value": "a value whose type the checker cannot know where an exact type is needed; make its type plain",
+    "wrong-argument-count": "a call, a rule or a zone type is given more or fewer arguments than it takes",
+    "wrong-argument": "an argument of a shape the position does not take; write the shape the message gives",
+    "wrong-signature": "a definition's parameters or result differ from what its role requires",
+    "wrong-subscript": "a zone or variable subscripted the wrong way, or not subscripted where it must be",
+    "type-not-allowed-here": "a type the language allows only in another position; spell it there",
+    "constant-condition": "a condition that is always true or always false; write the test that was meant",
+    "needs-parentheses": "the text reads another way than it seems; add parentheses to say which",
+    "out-of-scope": "something read where it does not exist; read it where it is declared, or pass it in",
+    "no-player-acting": "the acting player is named, or a decision made, where no player is acting",
+    "reads-beyond-parameters": "a function or procedure reads what its parameters do not pass it",
+    "recursive-function": "a function calls itself, directly or through others",
+    "answer-reads-beyond-the-card": "an answer the engine asks of a card reads more than the card and public state",
+    "answer-calls-later-answer": "a Trick Order function calls one that comes after it in the Trick Order",
+    "decides-on-hidden-cards": "a seat must check or pick from cards it cannot see; read cards it sees, or announce them",
+    "wrong-zone-visibility": "a zone's type hides cards that the construct needs every seat, or its owner, to see",
+    "hosted-poll-reads-unpublished-state": "a Hosted Poll reads Round State that is not yet published",
+    "not-writable": "the target is not a state variable this text may write",
+    "library-requirement-unmet": "the game lacks what a library it uses requires; add it to the game",
+    "requirement-mismatch": "the game declares what a library requires, but not as the library requires it",
+    "requirement-matches-several": "a library requirement matches several of the game's declarations; keep one",
+    "outside-library-contract": "library text reads a name it neither defines nor requires; define it, or require it",
+    "library-reaches-one-game": "library text names what belongs to one game; take it as a parameter or a requirement",
+    "bad-requires-row": "a `requires` row the library cannot ask for in that form; write the row the message gives",
+    "requires-what-is-provided": "a library requires what a library already provides or defines; drop one of the two",
+    "library-not-yet-proven": "no game yet checks clean reaching this library text, so its refusal stands in the library's file",
+    "rule-never-consulted": "a rule no decision ever asks; constrain a move type a trick round offers, or write the condition elsewhere",
+    "needs-a-trick-round": "a construct only a trick round reads, in a game or phase with none",
+    "mode-pairing": "modes whose transitions do not pair one condition with its far side",
+    "climb-round-queries": "a climbing round's queries that do not belong together; name one engine's pair",
+    "choose-integer-bounds": "a `choose integer` whose bounds offer no value, or no fixed ceiling",
+    "teams-must-partition-seats": "`teams:` must put every seat on exactly one team",
+    "use-winner-not-loser": "`loser:` cannot decide this game's result; rank a score with `winner:`",
+    "unrankable-winner-target": "`winner:` ranks something that is not a score each player or team holds",
+    "ranking-incomplete": "a ranking leaves out ranks or suits it must order; list them all",
+    "catalogue-row-names-no-play": "a combination catalogue row no cards of the deck can make",
+    "ambiguous-play-shape": "one play fits two rows of the catalogue; settle it in the rows",
+    "card-play-parameters": "a card play's parameters or offering would make two plays look alike",
+    "deal-distribution": "an even deal written with an amount or destination it cannot distribute",
+    "wrong-zone-shape": "a single zone where a zone per player is needed, or the reverse",
+    "wrong-primitive-type": "a `primitives` entry spells a type no Primitive implementation takes",
+    "missing-outcome-arm": "a `produces:` block leaves an outcome case unhandled",
+    "outcome-read-before-produced": "an outcome is consumed before the phase producing it has run",
+    "refused-during-play": "a rule only a playout reaches refused the game",
+    "game-error-raised": "the game's own `error(...)` refused a move no player was offered",
+    "engine-gap": "the engine refused what an earlier check should have refused; the engine must change",
+    "incomplete-installation": "the checkout is missing files the engine loads; reinstall it",
+    "unregistrable-game": "a game file offered for registration cannot be registered by that name",
+}
 
 
 def test_the_blessed_list_is_the_registry() -> None:
-    """red under: a member renamed in `cardlang/diagnostic_codes.py`."""
-    assert {code.slug for code in Code} == set(SHIPPED)
-    assert len(SHIPPED) == len(set(SHIPPED))
+    """red under: a member renamed, or its meaning rewritten, in
+    `cardlang/diagnostic_codes.py`."""
+    assert {code.slug: code.meaning for code in Code} == SHIPPED
 
 
 def test_every_code_is_spelled_in_words() -> None:
@@ -333,7 +346,7 @@ WITNESSES: dict[Code, Tells] = {
     Code.OUT_OF_PLACE: _case("move_stake_after_when"),
     Code.NOT_YET_SUPPORTED: _case("movement_visibility_override"),
     Code.OUT_OF_RANGE: _case("neighbors_past_the_end"),
-    Code.PIECES_ARE_NOT_CARDS: _case("cards_names_a_piece_set"),
+    Code.PIECES_ARE_NOT_CARDS: _case("code_pieces_are_not_cards"),
     Code.DECK_TOO_SMALL: _case("deck_over_capacity"),
     Code.BOARD_SHAPE: _case("board_bad_args"),
     Code.TYPE_MISMATCH: _case("board_cell_state_var"),
@@ -413,3 +426,109 @@ def test_every_code_has_a_witness_that_tells_it(
     witness = WITNESSES.get(code)
     assert witness is not None, f"`{code.slug}` has no witness"
     assert code in witness(monkeypatch, tmp_path)
+
+
+# --- every rejection case's codes, a golden beside its text ------------------
+
+# A deliberate, reviewed act, as the text goldens' bless is
+# (tests/test_rejections.py): `CODES_BLESS=1 pytest -q tests/test_diagnostic_codes.py`.
+_BLESS = os.environ.get("CODES_BLESS") == "1"
+
+
+def _case_codes(path: Path) -> list[str]:
+    """The codes a rejection case tells, in the order the text prints them."""
+    name = path.relative_to(REJECTIONS_DIR).with_suffix("").as_posix()
+    with pytest.raises(DiagnosticError) as excinfo:
+        if start_for(path) == "library":
+            parse_library(path.read_text(), f"{name}.cardlang")
+        else:
+            check_dsl(path.read_text(), f"{name}.cardlang")
+    return [told.diagnostic.code.slug for told in excinfo.value.told]
+
+
+@pytest.mark.parametrize(
+    "path", case_paths(), ids=lambda p: p.relative_to(REJECTIONS_DIR).as_posix()
+)
+def test_a_case_tells_the_codes_its_golden_lists(path: Path) -> None:
+    """red under: a site any rejection case reaches moved to another code."""
+    golden = path.with_suffix(".codes")
+    told = "".join(f"{slug}\n" for slug in _case_codes(path))
+    if _BLESS:
+        golden.write_text(told)
+        return
+    assert told == golden.read_text(), (
+        f"{golden.relative_to(_ROOT)}: the case's codes moved -- inspect the change, "
+        "then re-run with CODES_BLESS=1 if it is intended"
+    )
+
+
+def test_every_case_has_a_code_golden_and_every_golden_a_case() -> None:
+    cases = {p.with_suffix("") for p in case_paths()}
+    goldens = {
+        p.with_suffix("")
+        for p in [*REJECTIONS_DIR.glob("*.codes"), *(REJECTIONS_DIR / "libraries").glob("*.codes")]
+    }
+    assert cases == goldens
+
+
+# --- the sites the corpus reaches, measured by running it -------------------
+
+
+def _report_sites() -> list[tuple[str, int, int]]:
+    """Every coded report site in `cardlang/` but the bag's own: file and lines."""
+    sites: list[tuple[str, int, int]] = []
+    for path in sorted((_ROOT / "cardlang").rglob("*.py")):
+        rel = path.relative_to(_ROOT).as_posix()
+        for node in ast.walk(ast.parse(path.read_text())):
+            if (
+                isinstance(node, ast.Call)
+                and any(k.arg == "code" for k in node.keywords)
+                and rel != "cardlang/diagnostics.py"
+            ):
+                sites.append((rel, node.lineno, node.end_lineno or node.lineno))
+    return sites
+
+
+def reached_sites() -> tuple[int, int]:
+    """How many report sites the rejection corpus executes, of how many."""
+    from cardlang import diagnostics
+
+    calls: set[tuple[str, int]] = set()
+
+    def recording(fn: Callable[..., object]) -> Callable[..., object]:
+        def inner(*args: object, **kwargs: object) -> object:
+            frame = sys._getframe(1)
+            calls.add((frame.f_code.co_filename, frame.f_lineno))
+            return fn(*args, **kwargs)
+
+        return inner
+
+    originals = {
+        name: getattr(diagnostics.DiagnosticBag, name) for name in ("error", "unknown")
+    }
+    original_init = diagnostics.Diagnostic.__init__
+    try:
+        for name, fn in originals.items():
+            setattr(diagnostics.DiagnosticBag, name, recording(fn))
+        setattr(diagnostics.Diagnostic, "__init__", recording(original_init))
+        pipeline._check.cache_clear()
+        for path in case_paths():
+            try:
+                _case_codes(path)
+            except BaseException:  # noqa: BLE001 - a case that checks clean is not counted
+                pass
+    finally:
+        for name, fn in originals.items():
+            setattr(diagnostics.DiagnosticBag, name, fn)
+        setattr(diagnostics.Diagnostic, "__init__", original_init)
+    sites = _report_sites()
+    reached = {
+        site for site in sites for filename, line in calls
+        if filename == str(_ROOT / site[0]) and site[1] <= line <= site[2]
+    }
+    return len(reached), len(sites)
+
+
+if __name__ == "__main__":
+    reached, total = reached_sites()
+    print(f"{total - reached} of {total} report sites reached by no rejection case")

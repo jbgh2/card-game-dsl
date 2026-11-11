@@ -5378,9 +5378,13 @@ because it would change exactly when wording improves or a pass is split,
 which is the breakage a code exists to end. A refusal whose fix cannot be
 stated in designer words is a finding about that refusal, never a reason
 for a vague code. A shipped code is never renamed, removed or given a second
-meaning; the blessed list and a witness per code hold that
-(tests/test_diagnostic_codes.py). The ruling and the options it refused are
-ADR-0022.
+meaning, and a refusal's code does not move silently: the blessed list holds
+every code's spelling and meaning, a witness per code holds that each is
+told, and every rejection case's ordered codes are a golden beside its text
+(tests/test_diagnostic_codes.py). A site no rejection case reaches can move
+to another code with no test reddening; the grid module's ledger says how
+many there are and how to count them. The ruling and the options it refused
+are ADR-0022.
 
 The code never reaches the text output: `Diagnostic.format` does not show
 it, and the rejection corpus staying byte-identical is the proof. A tool asks

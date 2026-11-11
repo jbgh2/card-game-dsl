@@ -30,6 +30,7 @@ import pytest
 
 from cardlang import cli
 from cardlang.records import read_envelope
+from cardlang.runtime.errors import GameRegistrationError
 
 _ROOT = Path(__file__).resolve().parent.parent
 HEARTS = _ROOT / "docs" / "games" / "hearts.cardlang"
@@ -95,3 +96,35 @@ def test_json_beside_emit_ir_is_a_usage_error(capsys: pytest.CaptureFixture[str]
     out, err = capsys.readouterr()
     assert (excinfo.value.code, out) == (2, "")
     assert "not allowed with" in err
+
+
+def test_a_registration_refusal_is_a_record_and_exits_2(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def refused(_path: object) -> None:
+        raise GameRegistrationError("two files claim one short name")
+
+    monkeypatch.setattr(cli, "check_source", refused)
+    exit_code, out, err = _run(["check", str(HEARTS), "--json"], capsys)
+    (record,) = json.loads(out)["diagnostics"]
+    assert (exit_code, err) == (2, "")
+    assert (record["code"], record["author"]) == ("unregistrable-game", "registration")
+
+
+def test_an_engine_failure_prints_its_envelope_and_keeps_its_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An exception outside the typed channels: the envelope tells the engine,
+    and the exception still propagates, so the exit status is Python's 1, the
+    status a game at fault also gets (issue #1104)."""
+
+    def crashed(_path: object) -> None:
+        raise AssertionError("an engine invariant")
+
+    monkeypatch.setattr(cli, "check_source", crashed)
+    with pytest.raises(AssertionError):
+        cli.main(["check", str(HEARTS), "--json"])
+    (record,) = json.loads(capsys.readouterr().out)["diagnostics"]
+    assert (record["code"], record["author"], record["message"]) == (
+        "engine-gap", "engine", "an engine invariant"
+    )

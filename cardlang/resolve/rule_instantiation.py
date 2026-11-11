@@ -239,7 +239,7 @@ def _instantiate_rules(
                         arg.name if isinstance(arg, n.NameRef) else "",
                         suits or (),
                         ref.span,
-                        code=Code.UNKNOWN_SUIT,
+                        code=Code.WRONG_ARGUMENT,
                     )
                     args_ok = False
             if not args_ok:
@@ -428,7 +428,7 @@ def _validate_removes(
                 "one of this phase's modes) — add " + named(f"`{ref.name}`") + " or " + named(f"`+{ref.name}`")
                 + " there, or delete this removal",
                 ref.span,
-                code=Code.HAS_NO_EFFECT,
+                code=Code.MISSING_DECLARATION,
             )
 
 
@@ -511,7 +511,7 @@ def _check_rule_reaches_a_reader(
                     "`applies_when:` alone selects when a rule fires, not what it "
                     "does.",
                     rule.span,
-                    code=Code.HAS_NO_EFFECT,
+                    code=Code.MISSING_DECLARATION,
                 )
         case "offer":
             bag.error(
@@ -804,7 +804,7 @@ def _refused_binder_sources(
                 f"simultaneous moves are per "
                 f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
                 nd.span,
-                code=Code.WRONG_SUBSCRIPT,
+                code=Code.WRONG_SORT_OF_NAME,
             )
             refused[id(nd)] = frozenset(role_names(SIMULTANEOUS_ROLES))
     return refused
@@ -1069,7 +1069,7 @@ def _check_domain_query(
         nd.spelled,
         _nouns_a_query_takes(nd, game, cats.flavor),
         nd.span,
-        code=Code.UNKNOWN_NAME,
+        code=Code.UNKNOWN_INDEX_DOMAIN,
     )
     return True
 

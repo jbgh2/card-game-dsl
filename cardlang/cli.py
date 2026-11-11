@@ -69,7 +69,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NoReturn, assert_never
+from typing import Any, NoReturn, assert_never, cast
 
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
@@ -101,7 +101,7 @@ from cardlang.play.session import (
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
-from cardlang.records import envelope, refusal_diagnostic
+from cardlang.records import RUNTIME_REFUSALS, RuntimeRefusal, envelope, refusal_diagnostic
 from cardlang.runtime.errors import GameDescriptionError, InstallationError
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
@@ -456,10 +456,23 @@ def _check_json(path: Path, unreadable: str | None) -> int:
             check_source(path)
         except DiagnosticError as exc:
             told, exit_code = exc.told, _EXIT_GAME_AT_FAULT
-        except (GameDescriptionError, IllegalMove) as exc:
-            told, exit_code = (refusal_diagnostic(exc),), _EXIT_GAME_AT_FAULT
-        except InstallationError as exc:
-            told, exit_code = (refusal_diagnostic(exc),), _EXIT_CANNOT_PROCEED
+        except RUNTIME_REFUSALS as exc:
+            refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
+            told = (refused,)
+            exit_code = (
+                _EXIT_CANNOT_PROCEED
+                if refused.author in (Author.INSTALLATION, Author.REGISTRATION)
+                else _EXIT_GAME_AT_FAULT
+            )
+        except Exception as exc:
+            # An engine failure outside the typed channels: the envelope says
+            # so, and the traceback and exit status stay the text output's
+            # (issue #1104).
+            crashed = Diagnostic(
+                Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP
+            )
+            print(json.dumps(envelope((Told(crashed, Author.ENGINE),)), indent=2))
+            raise
     print(json.dumps(envelope(told), indent=2))
     return exit_code
 

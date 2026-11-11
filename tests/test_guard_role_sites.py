@@ -194,9 +194,10 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
     ),
     # --- whoever hands a reader a Record Envelope ------------------------------
     ("cardlang/records.py", "UnreadableEnvelope"): (
-        3,
+        4,
         ("`read_envelope` refusing a document that is no Record Envelope of this "
-        "schema: not an object, another schema, an unknown kind. The Author is "
+        "schema: not an object, another schema, an unknown kind, a payload of "
+        "another shape than its kind's. The Author is "
         "whoever produced the document a tool reads back; no game description "
         "writes one. Its witness is "
         "tests/test_records.py::test_a_reader_refuses_what_it_cannot_read."),

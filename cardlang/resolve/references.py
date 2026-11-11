@@ -757,7 +757,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.index,
                         role_names(ZONE_INDEX_ROLES),
                         nd.span,
-                        code=Code.UNKNOWN_INDEX_DOMAIN,
+                        code=Code.WRONG_SUBSCRIPT,
                     )
                 elif _refuses(_TEAM_STATE_GATE, nd, game):
                     # A team-indexed store in a game with no teams has

@@ -74,10 +74,10 @@ def _resolve_zone(
         bag.error(
             f"zone type '{ref.name}' takes one owner argument, got {len(ref.args)}",
             ref.span,
-            code=Code.WRONG_SUBSCRIPT,
+            code=Code.WRONG_ARGUMENT_COUNT,
         )
     if not takes_owner and ref.args:
-        bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span, code=Code.WRONG_SUBSCRIPT)
+        bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span, code=Code.WRONG_ARGUMENT_COUNT)
     for arg in ref.args:
         if role_of(arg.name) not in _KNOWN_ROLES and arg.name not in positions:
             bag.unknown(

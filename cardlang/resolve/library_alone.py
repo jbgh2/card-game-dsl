@@ -1114,14 +1114,14 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 f"'{want.type_name}' takes one owner argument, got "
                 f"{len(want.type_args)}",
                 want.span,
-                code=Code.BAD_REQUIRES_ROW,
+                code=Code.WRONG_ARGUMENT_COUNT,
             )
         elif not takes_owner and want.type_args:
             bag.error(
                 cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", but zone type "
                 f"'{want.type_name}' takes no type arguments",
                 want.span,
-                code=Code.BAD_REQUIRES_ROW,
+                code=Code.WRONG_ARGUMENT_COUNT,
             )
         for arg in want.type_args:
             if want.index is None:
@@ -1132,7 +1132,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"write `{want.name}[{arg.name}] : {want.type_name}"
                     f"<{arg.name}>`",
                     want.span,
-                    code=Code.BAD_REQUIRES_ROW,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             elif arg.name != want.index:
                 bag.error(
@@ -1140,7 +1140,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"owner argument names a different domain than its index — "
                     f"write `{want.type_name}<{want.index}>`",
                     want.span,
-                    code=Code.BAD_REQUIRES_ROW,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
     _check_contract_reach(library, bag)
 
@@ -1199,7 +1199,7 @@ def _check_signature_row(
                 head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a function every game has — call "
                 f"it directly; it needs no contract row",
                 want.span,
-                code=Code.BAD_REQUIRES_ROW,
+                code=Code.REQUIRES_WHAT_IS_PROVIDED,
             )
         elif want.name in K.KERNEL_CONTRACT_NAMES:
             row = K.CONTRACTS[want.name]
@@ -1441,5 +1441,5 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
             decl.index,
             role_names(ZONE_INDEX_ROLES),
             decl.span,
-            code=Code.UNKNOWN_INDEX_DOMAIN,
+            code=Code.WRONG_SUBSCRIPT,
         )

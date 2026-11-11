@@ -585,7 +585,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # A document's version compared against the one this reader reads; a
     # number against a number, with no collection to go stale. Its witness is
     # tests/test_records.py::test_a_reader_refuses_what_it_cannot_read.
-    "records.py": ["schema != SCHEMA"],
+    "records.py": ["type(schema) is not int or schema != SCHEMA"],
     # Pins the stdlib's declared name to the constant no `uses` line spells; a
     # name compared against a name, with no collection to go stale. Its
     # witness is tests/test_play_source_grid.py::

@@ -1799,7 +1799,11 @@ def _check_enum_literal(
         bag.error(said, span, code=Code.WRONG_SPELLING)
     else:
         # A numeric value is written as a string here, a name-form one bare.
-        bag.unknown(said, lit.value, domain, span, written=lambda v: f'"{v}"' if v.isdigit() else v, code=Code.UNKNOWN_NAME)
+        bag.unknown(said, lit.value, domain, span, written=lambda v: f'"{v}"' if v.isdigit() else v, code=_ENUM_UNKNOWN.get(enum.name, Code.UNKNOWN_NAME))
+
+
+# The code of a value no member of its enum spells, by the enum it is read as.
+_ENUM_UNKNOWN: dict[str, Code] = {"Rank": Code.UNKNOWN_RANK, "Suit": Code.UNKNOWN_SUIT}
 
 
 def _library_axis_refusal(
@@ -2316,7 +2320,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             f"specific entry (`m[k] is …`) or quantify over the key domain "
             f"instead",
             e.span,
-            code=Code.TYPE_MISMATCH,
+            code=Code.WRONG_ARGUMENT,
         )
         return
     lbare = _bare(infer(e.left, env))
@@ -4264,7 +4268,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "a gather collects into one zone; `to each` is not supported — "
                 "gather to a single zone, then deal from it",
                 stmt.span,
-                code=Code.NOT_YET_SUPPORTED,
+                code=Code.WRONG_SPELLING,
             )
     if stmt.distribution is not None:
         if not stmt.dest_each:
