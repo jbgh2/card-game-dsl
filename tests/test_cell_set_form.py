@@ -73,8 +73,9 @@ domain:     {game shape} x {noun: GRID U's derived axis} (GRID U); {query
             (GRID R); the grammar rows.
 registry:   nouns: cardlang/board_domains.py::position_domains_of,
             DIRECTION_DOMAIN, BOARD_DOMAIN, LINE_NOUN;
-            cardlang/resolve/ (classifier.py::_categories, reserved.py::_RESERVED_WHY,
-            classifier.py::collection_nouns); positions:
+            cardlang/resolve/classifier.py::_categories,
+            cardlang/resolve/reserved.py::_RESERVED_WHY,
+            cardlang/resolve/classifier.py::collection_nouns; positions:
             cardlang/resolve/hidden_reads.py::HIDDEN_READ_POSITIONS, pinned total by
             tests/test_hidden_reads.py::test_every_expression_position_is_bucketed;
             hosts: tests/test_direction_lift.py::HOSTS; query kinds:
