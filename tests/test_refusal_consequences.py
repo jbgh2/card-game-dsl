@@ -28,10 +28,12 @@ registry:        axis (a) is `cardlang.resolve._BINDER_SCOPE_FIELDS`,
 covered:         the mode-role invariant (a transition target no sibling
                  mode holds withholds the never-active refusal of every mode
                  its fix could name, and the two-sources-one-target refusal
-                 of that target); the query nouns, bare and collection, and
-                 `each <role> simultaneously`, whose refused spelling binds
-                 nothing and withholds the refusal of every name its fix
-                 would bind.
+                 of that target); the query nouns, bare and collection (the
+                 membership capture's refusals included), and `each <role>
+                 simultaneously`, whose refused spelling binds nothing and
+                 withholds the refusal of every name its fix would bind; each
+                 suppression with a probe that an independent slip beside it
+                 is still told.
 residual:        `RESIDUAL`, each a strict xfail naming issue #1087: a
                  refused `run`, offer, template argument, deck, zone index or
                  simultaneous role, each followed by refusals of correct text
@@ -48,9 +50,13 @@ held by:         Derived and Pinned: a withheld name is one lexical field
 does not prove:  that a withheld refusal is a consequence in fact. A mode no
                  sibling targets, in a phase whose other transition names no
                  sibling, is withheld although the designer may have meant
-                 another mode; it is told once the target is fixed. Nor that
-                 axis (b) is complete: a check reading references as written
-                 that the framing check did not list is absent, not red.
+                 another mode; and in the body of a refused query or
+                 simultaneous block, an unresolved name spelled as a binder
+                 some fix would bind (a body `player` the designer got wrong)
+                 is withheld although it may be a mistake of its own. Each is
+                 told once the refused spelling is fixed. Nor that axis (b) is
+                 complete: a check reading references as written that the
+                 framing check did not list is absent, not red.
 """
 
 from __future__ import annotations
@@ -168,6 +174,55 @@ def test_an_independent_slip_in_the_query_body_is_still_told() -> None:
     assert got[0] == _NOUN_REFUSAL
     assert len(got) == 2 and "unresolved name 'squre'; did you mean `square`?" in got[1], got
     assert all("`cel`" not in line for line in got), got
+
+
+_CAPTURE = (
+    "demands: cards in hand where card is 2 of clubs",
+    "demands: crad in hand where card is 2 of clubs",
+)
+# `crad` bound where the clause stands, so the collection set may be a
+# membership and the capture check reads it.
+_CRAD_BOUND = ("let shooter = actor", "let shooter = actor\n    let crad = actor")
+
+
+def test_a_refused_collection_noun_withholds_its_body() -> None:
+    """The membership capture's refusal: the body's correct `card` is not
+    refused."""
+    got = errors(_HEARTS, _CAPTURE, _CRAD_BOUND)
+    assert len(got) == 1 and "unknown collection noun 'crad'" in got[0], got
+
+
+def test_an_independent_slip_beside_a_refused_collection_noun_is_still_told() -> None:
+    """red under: the unresolved-name arm withholding every unresolved name
+    in a refused query's body (`node.name in cats.withheld or cats.withheld`)."""
+    slipped = (_CAPTURE[0], _CAPTURE[1] + " and pass_dirction is left")
+    got = errors(_HEARTS, slipped, _CRAD_BOUND)
+    assert "unknown collection noun 'crad'" in got[0], got
+    assert len(got) == 2 and "unresolved name 'pass_dirction'; did you mean `pass_direction`" in got[1], got
+    assert all("`crad`" not in line for line in got), got
+
+
+def test_an_independent_slip_beside_a_singular_count_noun_is_still_told() -> None:
+    """A query told to pluralize its noun withholds nothing but its fixes'
+    binders. red under: the withholding mutation above."""
+    got = errors(
+        _TTT,
+        ("(all cells where square[cell] is not empty)", "(number of cell in cells where squre[cell] is empty) is 0"),
+    )
+    assert "needs the plural noun" in got[0], got
+    assert any("unresolved name 'squre'; did you mean `square`?" in line for line in got), got
+
+
+def test_an_independent_slip_in_a_refused_simultaneous_body_is_still_told() -> None:
+    """red under: the withholding mutation above."""
+    got = errors(
+        _HEARTS,
+        ("each player simultaneously:", "each playr simultaneously:"),
+        ("to   hand[player offset_by pass_direction]", "to   hand[player offset_by pass_dirction]"),
+    )
+    assert "`each playr simultaneously` is not runnable" in got[0], got
+    assert any("unresolved name 'pass_dirction'; did you mean `pass_direction`" in line for line in got), got
+    assert all("`playr`" not in line for line in got), got
 
 
 # --------------------------------------------------------------------------

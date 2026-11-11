@@ -43,9 +43,13 @@ held by:         Derived and Pinned. One record (`_name_positions`), built
 does not prove:  that a green offer is the name the designer meant, or that the
                  file checks clean once it is applied -- a refusal standing
                  elsewhere (a move type left unoffered, a deck a clause then
-                 refuses) is outside the property. Nor that a position no
-                 census slip reaches offers rightly: the domain is the
-                 census's slips, not every position the grammar admits.
+                 refuses) is outside the property. "At the position" is the
+                 slip's lines and the `_STATEMENT_LEAD` lines before them, so
+                 a refusal of a statement beginning further up is invisible,
+                 and an unrelated refusal within that window reads as red.
+                 Nor that a position no census slip reaches offers rightly:
+                 the domain is the census's slips, not every position the
+                 grammar admits.
 """
 
 from __future__ import annotations
@@ -100,6 +104,12 @@ POSITION_PROBES: dict[str, Slip] = {
     "a `to each` destination": Slip(
         "docs/games/hearts.cardlang", "deal 13 cards from deck to each hand",
         "deal 13 cards from deck to each hnad", "unresolved name 'hnad'", "hand"),
+    "a `to each` destination spelled near a team's family": Slip(
+        "docs/games/bridge.cardlang", "deal 13 cards from deck to each hand",
+        "deal 13 cards from deck to each captued", "unresolved name 'captued'", "hand"),
+    "a default names a seat's family bare": Slip(
+        "docs/games/bridge.cardlang", "doubled_mult      : Integer = 1",
+        "doubled_mult      : Integer = number of cards in hnad", "unresolved name 'hnad'", "1"),
 }
 
 # The refused spelling, where the slip's own edit does not show it alone.
@@ -107,6 +117,7 @@ SPELLED: dict[str, str] = {
     "resolve::_resolve_ranking::ranking: names unknown rank '{}' — not a rank of deck '{}' (": "aces hgih",
     "resolve::_check_template::rule parameter '{}: {}' has an unsupported domain — rule par": "Siut",
     "a ranking convention misspelled": "Aces Hihg",
+    "a default names a seat's family bare": "hnad",
 }
 
 # The cells whose offers a guard outside the record refuses, by the issue that
@@ -261,6 +272,8 @@ OFFERED: dict[str, list[str]] = {
     "a call-site pronoun in a procedure": ["across"],
     "a write target spelled near a zone": [],
     "a `to each` destination": ["hand"],
+    "a `to each` destination spelled near a team's family": [],
+    "a default names a seat's family bare": [],
 }
 
 
