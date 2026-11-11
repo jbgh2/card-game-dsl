@@ -1,0 +1,120 @@
+# The authoring benchmark (issue #1053): a model writes a game from its rules
+# source, `cardlang check` answers, and the rig records the loop.
+#
+#   python -m experiments.llm_eval.author_run \
+#     --config experiments/llm_eval/config_authoring.yaml --rules-dir RULES
+#
+# PREREGISTRATION_AUTHORING.md is the design this config runs; a change here
+# after the first run is a deviation the report must name.
+
+results_dir: experiments/llm_eval/results_authoring
+
+# Drafts per attempt, the first included. The model is told the limit.
+round_limit: 8
+
+# Attempts per (game, model). Each is independent: a fresh conversation.
+attempts: 2
+
+checker:
+  # `text` today; `json` waits on `cardlang check --json` (issue #1046).
+  form: text
+  timeout_seconds: 120
+
+# The real-game check: uniform-random playouts per file (author_facts.py).
+facts:
+  playouts: 100
+  seed_start: 0
+  timeout_seconds: 900
+
+# What the model is shown besides the task and the game's rules. A held-out
+# game's corpus file and rulebook twin may never appear here; the runner
+# refuses the run if one does. The examples are corpus games none of the
+# held-out games below is.
+references:
+  - docs/authoring.md
+  - docs/libraries/poker_betting.cardlang
+  - docs/libraries/smuggling.cardlang
+  - docs/libraries/stud.cardlang
+  - docs/games/spades.cardlang
+  - docs/games/gops.cardlang
+  - docs/games/cheat.cardlang
+  - docs/games/five-card-draw.cardlang
+
+# Each game's rules text is a file the operator saves into --rules-dir from
+# the source URL at run time; nothing from the source is kept in the repo.
+# The held-out set (corpus withheld, or candidate) is derived from the tree.
+# A corpus game's variant line names the variant its corpus file plays, so the
+# differential compares one game with itself.
+games:
+  - slug: hearts
+    name: Hearts
+    variant: >-
+      the American game for 4 players, as the source's main account gives it:
+      three cards passed left, then right, then across, then a hand with no
+      pass, repeating; shooting the moon as the source's main account has it;
+      hands continue until a player reaches 100 or more, and the lowest total
+      wins
+    source_url: https://www.pagat.com/reverse/hearts.html
+    rules_file: hearts.txt
+  - slug: go-fish
+    name: Go Fish
+    variant: >-
+      4 players, 5 cards each; one game, dealt once and played to the finish;
+      the game ends the moment any hand is empty or the stock runs out, and
+      the most books wins
+    source_url: https://www.pagat.com/quartet/gofish.html
+    rules_file: go-fish.txt
+  - slug: oh-hell
+    name: Oh Hell
+    variant: >-
+      4 players; 19 hands of 10 cards down to 1 and back up to 10; a card
+      turned up fixes trump; each player bids the exact number of tricks; +1
+      per trick and +10 for an exact bid; the dealer may not bid the number
+      that makes the bids total the hand size; the highest total wins
+    source_url: https://www.pagat.com/exact/ohhell.html
+    rules_file: oh-hell.txt
+  - slug: crazy-eights
+    name: Crazy Eights
+    variant: the source's basic game, for 4 players
+    source_url: https://www.pagat.com/eights/crazy8s.html
+    rules_file: crazy-eights.txt
+  - slug: euchre
+    name: Euchre
+    variant: >-
+      the source's standard four-player partnership game, 24-card deck, play
+      to 10 points
+    source_url: https://www.pagat.com/euchre/euchre.html
+    rules_file: euchre.txt
+
+# A ceiling over this results tree's spend log. Checked before every model
+# call; a run it stops reports the attempt it stopped in as stopped. The
+# estimate behind it is in the preregistration.
+token_budget:
+  max_input_tokens: 40000000
+  max_output_tokens: 3000000
+  max_cost_usd: 60.0
+  window: all
+
+roster: [frontier, mid]
+
+models:
+  # Ids and request keys as the playing rigs' configs use them. Thinking is
+  # disabled, which the playing rigs record as legal at effort `high` or
+  # below, so the whole output budget is the file. 16000 output tokens holds
+  # the largest corpus file several times over, and stays under the size the
+  # SDK refuses to send without streaming.
+  frontier:
+    kind: anthropic
+    model: claude-opus-5
+    params:
+      max_tokens: 16000
+      thinking: {type: disabled}
+      output_config: {effort: high}
+
+  mid:
+    kind: anthropic
+    model: claude-sonnet-5
+    params:
+      max_tokens: 16000
+      thinking: {type: disabled}
+      output_config: {effort: high}
