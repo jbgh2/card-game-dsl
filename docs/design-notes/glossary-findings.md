@@ -170,7 +170,7 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
   copies (bigtwo.py:68, president.py:61). Three structural `Play` classes satisfy an
   unwritten protocol consumed via `getattr(play, "ends_trick", False)`
   (mechanics.py:576).
-- **[verified]** resolve's `_KNOWN_ROLES = ZONE_INDEX_ROLES` (resolve.py:120) makes
+- **[verified]** resolve's `_KNOWN_ROLES = ZONE_INDEX_ROLES` (`resolve/zone_declarations.py`) makes
   the diagnostic at :2994 report `unknown index role 'suit'` for a role the system
   knows perfectly well — it is known but not zone-indexable.
 - `runtime/active_rules.py` runs no phases (active-rule computation only; the phase runner
@@ -227,7 +227,7 @@ code. The strongest cases, each currently expressed as repeated prose or a raw t
 twin / mirror / copy / sibling, with no defined distinctions); the glossary's check vocabulary fixes
 meanings for six and retires the rest.
 
-**F-22 ·** `_resolve_*` vs `_check_*` in resolve.py are interchangeable —
+**F-22 ·** `_resolve_*` vs `_check_*` in the resolve package are interchangeable —
 `_resolve_max_length` resolves nothing (two presence errors); `_resolve_board`
 actually *mutates* (mints and appends a `PositionDecl`) while its neighbors validate.
 

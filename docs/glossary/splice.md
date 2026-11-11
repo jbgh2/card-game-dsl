@@ -4,7 +4,7 @@ definition: Bringing a library's or template's definitions into a game. Prefer o
 layer: compiler
 status: canonical
 reserved: false
-home: `resolve.py`
+home: `cardlang/resolve/splice.py`
 see: []
 retired_spellings: []
 findings: []

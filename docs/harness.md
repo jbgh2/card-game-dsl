@@ -60,7 +60,7 @@ per-PR by preference. Two rules compose the table:
 | Grammar (`.lark`) | `cardlang/grammar/**` | A |
 | Parse builders | `cardlang/parse.py` | B |
 | AST nodes | `cardlang/ast/**` | B |
-| Resolve | `cardlang/resolve.py` | B |
+| Resolve | `cardlang/resolve/**` | B |
 | Typecheck | `cardlang/typecheck.py`, `cardlang/types.py` | B |
 | IR | `cardlang/ir.py` | B |
 | Runtime (`evaluate` / `execute` / `driver` / `state`, the OpenSpiel adapter) | `cardlang/runtime/**`, `cardlang/openspiel/**` | B |

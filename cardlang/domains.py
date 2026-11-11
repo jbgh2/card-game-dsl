@@ -32,7 +32,7 @@ the body knows who is choosing; a VALUE domain's member is a bare enum value
 and carries no actor. That fact is a column here rather than an if-chain in
 `runtime/execute.py::_for_each`, which is a table walk over it.
 
-Consumers: `resolve.py` (`_ITERATION_ROLES` = the `iterable` column,
+Consumers: `resolve/` (`_ITERATION_ROLES` = the `iterable` column,
 `_FIXED_DOMAINS` = the union of `param_domains`, the `each … simultaneously`
 gate = the `simultaneous` column), `typecheck.py` (`role_type`),
 `runtime/evaluate.py` and `runtime/execute.py` (`role_members`, `binds_actor`),

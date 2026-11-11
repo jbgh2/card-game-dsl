@@ -4,7 +4,7 @@ definition: A name introduced by a construct (`let`, loop variables, parameters,
 layer: compiler
 status: canonical
 reserved: false
-home: `resolve.py`
+home: `cardlang/resolve/binders.py`
 see: []
 retired_spellings: []
 findings: []

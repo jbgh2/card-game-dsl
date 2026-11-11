@@ -4,7 +4,7 @@ definition: A [[reads-clause]] entry that names the [[phase]] whose own `state {
 layer: compiler
 status: canonical
 reserved: false
-home: grammar `primitive_read`, `cardlang/resolve.py` (`_check_read_tail`, `_check_scoped_read_containment`)
+home: grammar `primitive_read`, `cardlang/resolve/primitive_declarations.py` (`_check_read_tail`, `_check_scoped_read_containment`)
 see: [reads-clause, primitives-block, primitive, phase]
 retired_spellings: []
 findings: []

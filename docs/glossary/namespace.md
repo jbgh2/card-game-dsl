@@ -4,7 +4,7 @@ definition: One of the closed set of name pools a bare name resolves against (st
 layer: compiler
 status: canonical
 reserved: false
-home: `resolve.py`
+home: `cardlang/resolve/classifier.py`
 see: []
 retired_spellings: []
 findings: []

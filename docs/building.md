@@ -266,7 +266,7 @@ cardlang/
   ast/nodes.py          # frozen dataclasses, closed Node union
   parse.py              # Lark + Transformer -> typed AST
   extract.py            # pull DSL from markdown fenced blocks
-  resolve.py            # lexical-scope name resolution
+  resolve/              # lexical-scope name resolution, one module per resolve step
   typecheck.py          # typed object model + exhaustiveness
   ir.py                 # type-annotated AST -> validated IR (JSON)
   diagnostics.py        # span-precise errors (Lark get_context)
