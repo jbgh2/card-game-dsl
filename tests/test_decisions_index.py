@@ -63,7 +63,11 @@ def test_every_section_file_is_read_once_in_order(path: Path) -> None:
 def test_no_other_doc_shares_a_section_files_basename(path: Path) -> None:
     """A citation may name a doc by basename, and two files sharing one make
     it unresolvable -- `tests/test_doc_references.py` `_resolve_doc` refuses
-    to guess. So a section file's name is its own across `docs/`."""
+    to guess. So a section file's name is its own across `docs/`.
+
+    red under: copy `docs/decisions/zone-capacity.md` to
+    `docs/design-notes/zone-capacity.md`.
+    """
     twins = [p for p in (ROOT / "docs").rglob(path.name) if p != path]
     assert not twins, f"{path.name} is also {twins}"
 
