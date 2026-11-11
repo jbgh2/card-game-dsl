@@ -458,6 +458,15 @@ others". A missing `}` is the usual cause of the first kind, and the line it
 names is the block's opening line, not the line further down where the grammar
 finally ran out of ways to read the file.
 
+A word that nearly spells a keyword the language accepts there is refused at
+that word, and offered the keyword, even where the language could have read
+the word as a name:
+
+```console
+$ cardlang check bad.cardlang
+bad.cardlang:52:7: error: syntax error: unexpected `shufle`; did you mean `shuffle`?
+```
+
 A refusal of a library your game `uses` is told in your file wherever your
 game is what refuses it, at your line, with the library's line as a `note:`
 under it naming the definition that holds it. A refusal the library's own text

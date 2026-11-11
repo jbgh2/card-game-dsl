@@ -16,7 +16,9 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               are, and `near_misses` the one ranking of a set's [[near-miss]]es
               by it; `DiagnosticBag.unknown` is the one way a check refuses
               a spelling absent from a set it holds, and the refusal carries
-              that set's Near Misses as data (`Diagnostic.near_misses`);
+              that set's Near Misses as data (`Diagnostic.near_misses`), as a
+              parse refusal of a misspelled keyword carries the keywords the
+              grammar accepts in its place (`cardlang.parse`);
               `Diagnostic.format` is the one place the `did you mean` clause
               is worded.
 Now illegal:  a check composing an unknown-name refusal with
