@@ -303,10 +303,14 @@ def _picks(evs: list[tuple[tuple[n.NodeKey | None, ...], int, tuple[Any, ...]]])
 
 def _unreached(path: Path, ran: set[n.NodeKey]) -> list[str]:
     _checked, answers, _runs = _answers(path)
+    sites = {
+        kind.__name__
+        for kind in (n.Transfer, n.EachSimultaneous, n.EpistemicOp, n.Offer, n.Choose, n.TrickRound, n.ClimbRound)
+    }
     return sorted(
         f"{k[3]}@{k[1]}"
         for k, a in answers.items()
-        if isinstance(a, q.Seats) and k not in ran
+        if isinstance(a, q.Seats) and k[3] in sites and k not in ran
     )
 
 
