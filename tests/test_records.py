@@ -5,9 +5,12 @@ Completeness ledger (decisions.md "Closed-domain completeness"):
 property:        every rejection case's Record Envelope, read back through
                  the text renderer, prints its golden byte for byte; every
                  record carries a code, an author and `offered`
-                 suggestions; a document of another schema or kind is
+                 suggestions; a document of another schema, a schema that is
+                 no integer, another kind, or a payload of another shape is
                  refused; every runtime refusal type becomes a told
-                 diagnostic with the code and author its type names.
+                 diagnostic with the code and author its type names; a
+                 refusal survives pickling with every told diagnostic and
+                 note it carries.
 domain:          the rejection corpus, every case; the runtime refusal
                  types, derived as every exception class
                  `cardlang.runtime.errors` defines plus `IllegalMove`; a
@@ -16,8 +19,10 @@ domain:          the rejection corpus, every case; the runtime refusal
 registry:        the corpus -- tests/test_rejections.py::case_paths; the
                  refusal types -- `cardlang.records.RuntimeRefusal`; the
                  authors -- `cardlang.diagnostics.Author`.
-held by:         Unrepresentable for the refusal types, whose match ends in
-                 `assert_never`; Derived and Pinned for the round trip.
+held by:         Derived and Pinned. The match ends in `assert_never`, but
+                 over `RuntimeRefusal`, a hand-written union: a refusal class
+                 added to `cardlang.runtime.errors` type-checks unlisted, and
+                 the walk of that module's classes here is what refuses it.
 does not prove:  that a record's code is the right kind of fix for its
                  sentence; tests/test_diagnostic_codes.py holds a witness
                  per code, and the registry's naming review judges the rest.
@@ -27,16 +32,19 @@ from __future__ import annotations
 
 import inspect
 import json
+import pickle
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
 import cardlang.runtime.errors as errors
 from cardlang.diagnostic_codes import Code
-from cardlang.diagnostics import Author, Diagnostic, DiagnosticError, Note, Severity, Span
+from cardlang.diagnostics import Author, Diagnostic, DiagnosticError, Note, Severity, Span, Told
 from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl, check_markdown
 from cardlang.records import (
+    RUNTIME_REFUSALS,
     SCHEMA,
     Kind,
     RuntimeRefusal,
@@ -101,17 +109,69 @@ def test_a_case_s_records_print_its_golden(path: Path) -> None:
         assert all(s["applicability"] == "offered" for s in record["suggestions"])
 
 
-def test_a_reader_refuses_what_it_cannot_read() -> None:
-    assert read_envelope({"schema": SCHEMA, "kind": "diagnostics"}) is Kind.DIAGNOSTICS
-    refused: tuple[object, ...] = (
-        {"schema": SCHEMA + 1, "kind": "diagnostics"},
-        {"kind": "diagnostics"},
-        {"schema": SCHEMA, "kind": "game"},
+_RECORD: dict[str, object] = {
+    "code": "unknown-name",
+    "severity": "error",
+    "author": "game",
+    "span": {"file": "g.cardlang", "line": 1, "column": 1, "length": 1},
+    "message": "unresolved name 'x'",
+    "notes": [],
+    "suggestions": [{"text": "y", "applicability": "offered"}],
+}
+
+
+def _envelope(**fields: object) -> dict[str, object]:
+    return {"schema": SCHEMA, "kind": "diagnostics", "diagnostics": [_RECORD], **fields}
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        _envelope(schema=SCHEMA + 1),
+        _envelope(schema=True),
+        _envelope(schema=1.0),
+        _envelope(schema="1"),
+        {"kind": "diagnostics", "diagnostics": []},
+        _envelope(kind="game"),
+        _envelope(diagnostics="garbage"),
+        {"schema": SCHEMA, "kind": "diagnostics"},
+        _envelope(diagnostics=[{**_RECORD, "code": 3}]),
+        _envelope(diagnostics=[{k: v for k, v in _RECORD.items() if k != "author"}]),
+        _envelope(diagnostics=[{**_RECORD, "span": {"file": "g", "line": "1"}}]),
+        _envelope(diagnostics=[{**_RECORD, "notes": [{"message": "m"}]}]),
+        _envelope(diagnostics=[{**_RECORD, "suggestions": ["y"]}]),
+        _envelope(extra=1),
         [],
+    ],
+)
+def test_a_reader_refuses_what_it_cannot_read(document: object) -> None:
+    with pytest.raises(UnreadableEnvelope):
+        read_envelope(document)
+
+
+def test_a_reader_reads_what_a_check_prints() -> None:
+    assert read_envelope(_envelope()) is Kind.DIAGNOSTICS
+    assert read_envelope(_envelope(diagnostics=[])) is Kind.DIAGNOSTICS
+
+
+def test_a_refusal_survives_pickling() -> None:
+    """red under: `DiagnosticError.__reduce__` deleted."""
+    first = Told(Diagnostic(Severity.ERROR, "one", None, code=Code.UNKNOWN_ZONE), Author.GAME)
+    second = Told(
+        Diagnostic(Severity.WARNING, "two", None, code=Code.LIBRARY_NOT_YET_PROVEN), Author.GAME
     )
-    for document in refused:
-        with pytest.raises(UnreadableEnvelope):
-            read_envelope(document)
+    exc = DiagnosticError(first, second)
+    exc.add_note("a further note")
+    back = pickle.loads(pickle.dumps(exc))
+    assert back.told == exc.told
+    assert back.diagnostic == exc.diagnostic
+    assert back.__notes__ == exc.__notes__
+    assert str(back) == str(exc)
+
+
+def test_the_refusals_caught_are_the_refusal_types() -> None:
+    """The classes `check --json` catches are the union the match covers."""
+    assert set(RUNTIME_REFUSALS) == set(get_args(RuntimeRefusal))
 
 
 def test_a_markdown_game_s_place_is_its_file_s() -> None:

@@ -56,12 +56,13 @@ from typing import get_args
 
 import pytest
 
-from cardlang import cli
+from cardlang import cli, query
 from cardlang.ast import nodes as n
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import Span, Told
 from cardlang.query import Answer, Checked, ask, ask_path, checked_text, render, scope_at, seats_at, type_at
-from cardlang.records import Kind, query_envelope, read_envelope
+from cardlang.records import Kind, UnreadableEnvelope, query_envelope, read_envelope
+from cardlang.runtime.errors import GameRegistrationError
 
 REPO = Path(__file__).resolve().parent.parent
 GAMES = REPO / "docs" / "games"
@@ -487,3 +488,55 @@ def test_ask_answers_every_position_of_a_game() -> None:
         for column in range(0, len(text) + 2):
             answer = ask(checked, line, column)
             assert answer.located is not None or answer.refused
+
+
+def test_a_registration_refusal_is_a_record_and_exits_2(monkeypatch: pytest.MonkeyPatch) -> None:
+    """As `check --json` records one."""
+
+    def refused(_path: object) -> None:
+        raise GameRegistrationError("two files claim one short name")
+
+    monkeypatch.setattr(cli, "check_source", refused)
+    code, out, err = _cli("query", str(HEARTS), "--at", "90:9", "--json")
+    document = json.loads(out)
+    (record,) = document["diagnostics"]
+    assert (code, err, document["answer"]) == (2, "", None)
+    assert (record["code"], record["author"]) == ("unregistrable-game", "registration")
+
+
+@pytest.mark.parametrize("where", ["the check", "the query's own run of the passes"])
+def test_an_engine_failure_prints_its_envelope_and_keeps_its_traceback(
+    where: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """As `check --json` records one (issue #1104), in either of the two runs
+    of the passes a query makes."""
+
+    def crashed(*_args: object) -> None:
+        raise AssertionError("an engine invariant")
+
+    if where == "the check":
+        monkeypatch.setattr(cli, "check_source", crashed)
+    else:
+        monkeypatch.setattr(query, "ask_path", crashed)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), pytest.raises(AssertionError):
+        cli.main(["query", str(HEARTS), "--at", "90:9", "--json"])
+    document = json.loads(out.getvalue())
+    assert read_envelope(document) is Kind.QUERY and document["answer"] is None
+    (record,) = document["diagnostics"]
+    assert (record["code"], record["author"], record["message"]) == (
+        "engine-gap", "engine", "an engine invariant"
+    )
+
+
+def test_a_query_envelope_of_another_shape_is_refused() -> None:
+    """The reader holds a query envelope to its kind's payload."""
+    document = query_envelope(ask_path(HEARTS, 90, 9))
+    assert read_envelope(document) is Kind.QUERY
+    for broken in (
+        {**document, "extra": 1},
+        {**document, "answer": {"part": None}},
+        {k: v for k, v in document.items() if k != "at"},
+    ):
+        with pytest.raises(UnreadableEnvelope):
+            read_envelope(broken)

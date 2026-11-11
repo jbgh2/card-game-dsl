@@ -297,6 +297,17 @@ class DiagnosticError(Exception):
         if rest:
             self.add_note("\n".join(t.diagnostic.format() for t in self.told))
 
+    def __reduce__(self) -> tuple[object, ...]:
+        # Rebuilt from its told diagnostics, every note it carries kept.
+        return (_told_again, self.told, self.__dict__)
+
+
+def _told_again(first: Told, *rest: Told) -> DiagnosticError:
+    """A `DiagnosticError` unpickled: made again from what it told."""
+    error = DiagnosticError(first, *rest)
+    error.__dict__.pop("__notes__", None)
+    return error
+
 
 @dataclass(slots=True)
 class DiagnosticBag:

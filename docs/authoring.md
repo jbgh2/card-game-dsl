@@ -479,7 +479,7 @@ instead: `cardlang check <file> --json` prints one JSON document on stdout, a
 Record Envelope, with the exit code the text would give. Each refusal is a
 record holding a Diagnostic Code naming the kind of fix (`unknown-name`,
 `written-twice`, `decides-on-hidden-cards`), its severity, the author who must
-act (`game` or `library`, or `invocation` for a path that cannot be read),
+act (one of `cardlang.diagnostics.Author`: most often `game` or `library`),
 the file, line, column and length it stands at, the message as the text
 prints it, its notes, and its Near Misses as suggestions marked `offered`,
 which a tool shows rather than applies. A game that checks clean prints an

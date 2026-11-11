@@ -14,13 +14,15 @@ Establishes:  `Code` is the closed set of Diagnostic Codes; each member
               carries its spelling (`slug`) and its one-line meaning, read
               together, and a member's spelling never changes once shipped.
 Now illegal:  a `Diagnostic` built without a code (`code` is a required
-              field, so the type checker refuses it); a code spelled in an
-              engine noun; a shipped code renamed, removed or given a second
-              meaning (tests/test_diagnostic_codes.py, the blessed list and
-              the witness grid).
+              field, so the type checker refuses it); a shipped code renamed,
+              removed, or its meaning changed (tests/test_diagnostic_codes.py,
+              the blessed list of spellings and meanings); a code no witness
+              tells (the witness grid); and a rejection case's refusal moving
+              to another code (each case's code golden).
 Held by:      Unrepresentable for "every refusal has a code"; Derived and
               Pinned for a code's stability, since a spelling a tool keys on
-              lives outside the type checker.
+              lives outside the type checker. A report site no rejection case
+              reaches can change its code with no pin reddening.
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ class Code(Enum):
     UNREADABLE_FILE = ("unreadable-file", "the file named cannot be read as text; name a readable game file")
 
     # --- names ------------------------------------------------------------
-    UNKNOWN_NAME = ("unknown-name", "a name nothing in scope declares; spell a declared name, or declare it")
+    UNKNOWN_NAME = ("unknown-name", "a name nothing in scope declares, refused where the checker cannot tell which sort of name was meant; read the suggestions, spell a declared name, or declare it")
     UNKNOWN_ZONE = ("unknown-zone", "a zone no `zones { }` entry declares; spell a declared zone, or declare it")
     UNKNOWN_STATE_VARIABLE = ("unknown-state-variable", "a state variable no `state { }` block declares; spell a declared one, or declare it")
     UNKNOWN_FUNCTION = ("unknown-function", "a function neither the game nor the language defines; spell a defined one, or define it")
@@ -80,7 +82,7 @@ class Code(Enum):
     HAS_NO_EFFECT = ("has-no-effect", "something written changes nothing; drop it, or write what was meant")
     CONFLICTING_CLAUSES = ("conflicting-clauses", "two clauses cannot stand together; keep one of them")
     OUT_OF_PLACE = ("out-of-place", "a clause or statement written where it cannot stand; move it where it belongs")
-    NOT_YET_SUPPORTED = ("not-yet-supported", "the language cannot express this yet; the message names the issue that tracks it")
+    NOT_YET_SUPPORTED = ("not-yet-supported", "the language cannot express this yet; write the game another way until it can")
     OUT_OF_RANGE = ("out-of-range", "a number outside the values the position allows; write one inside them")
     PIECES_ARE_NOT_CARDS = ("pieces-are-not-cards", "a card's rank, suit or points read in a game played with pieces")
     DECK_TOO_SMALL = ("deck-too-small", "the deck holds fewer cards than a hand deals from it")
@@ -89,7 +91,7 @@ class Code(Enum):
     # --- types and values -------------------------------------------------
     TYPE_MISMATCH = ("type-mismatch", "a value of another type than the position needs; write a value of that type")
     UNTYPED_VALUE = ("untyped-value", "a value whose type the checker cannot know where an exact type is needed; make its type plain")
-    WRONG_ARGUMENT_COUNT = ("wrong-argument-count", "a call passes more or fewer arguments than its definition takes")
+    WRONG_ARGUMENT_COUNT = ("wrong-argument-count", "a call, a rule or a zone type is given more or fewer arguments than it takes")
     WRONG_ARGUMENT = ("wrong-argument", "an argument of a shape the position does not take; write the shape the message gives")
     WRONG_SIGNATURE = ("wrong-signature", "a definition's parameters or result differ from what its role requires")
     WRONG_SUBSCRIPT = ("wrong-subscript", "a zone or variable subscripted the wrong way, or not subscripted where it must be")

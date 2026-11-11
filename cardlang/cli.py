@@ -76,7 +76,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NoReturn, assert_never
+from typing import Any, NoReturn, assert_never, cast
 
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
@@ -109,7 +109,13 @@ from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
 from cardlang import query
-from cardlang.records import envelope, query_envelope, refusal_diagnostic
+from cardlang.records import (
+    RUNTIME_REFUSALS,
+    RuntimeRefusal,
+    envelope,
+    query_envelope,
+    refusal_diagnostic,
+)
 from cardlang.runtime.errors import GameDescriptionError, InstallationError
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
@@ -478,28 +484,51 @@ def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
         print(f"  {', '.join(where)}", file=sys.stderr)
 
 
+def _checked(
+    path: Path, unreadable: str | None, crashed: Callable[[Told], None]
+) -> tuple[tuple[Told, ...], int]:
+    """What `check --json` and `query --json` record of the check: every
+    refusal it told, and the exit code the text output would give. An engine
+    failure outside the typed channels is handed to `crashed` as an
+    `engine-gap` record and re-raised, so its traceback and exit status stay
+    the text output's (issue #1104)."""
+    if unreadable is not None:
+        told = Told(
+            Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
+            Author.INVOCATION,
+        )
+        return (told,), _EXIT_CANNOT_PROCEED
+    try:
+        check_source(path)
+    except DiagnosticError as exc:
+        return exc.told, _EXIT_GAME_AT_FAULT
+    except RUNTIME_REFUSALS as exc:
+        refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
+        exit_code = (
+            _EXIT_CANNOT_PROCEED
+            if refused.author in (Author.INSTALLATION, Author.REGISTRATION)
+            else _EXIT_GAME_AT_FAULT
+        )
+        return (refused,), exit_code
+    except Exception as exc:
+        crashed(_engine_gap(exc))
+        raise
+    return (), _EXIT_OK
+
+
+def _engine_gap(exc: Exception) -> Told:
+    return Told(
+        Diagnostic(Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP),
+        Author.ENGINE,
+    )
+
+
 def _check_json(path: Path, unreadable: str | None) -> int:
     """`check --json`: one Record Envelope on stdout, whatever the outcome,
     and the exit code the text output would give."""
-    told: tuple[Told, ...] = ()
-    exit_code = _EXIT_OK
-    if unreadable is not None:
-        told = (
-            Told(
-                Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
-                Author.INVOCATION,
-            ),
-        )
-        exit_code = _EXIT_CANNOT_PROCEED
-    else:
-        try:
-            check_source(path)
-        except DiagnosticError as exc:
-            told, exit_code = exc.told, _EXIT_GAME_AT_FAULT
-        except (GameDescriptionError, IllegalMove) as exc:
-            told, exit_code = (refusal_diagnostic(exc),), _EXIT_GAME_AT_FAULT
-        except InstallationError as exc:
-            told, exit_code = (refusal_diagnostic(exc),), _EXIT_CANNOT_PROCEED
+    told, exit_code = _checked(
+        path, unreadable, lambda crash: print(json.dumps(envelope((crash,)), indent=2))
+    )
     print(json.dumps(envelope(told), indent=2))
     return exit_code
 
@@ -516,29 +545,24 @@ def _query(path: Path, at: tuple[int, int]) -> int:
 
 def _query_json(path: Path, unreadable: str | None, at: tuple[int, int]) -> int:
     """`query --json`: one Record Envelope on stdout, whatever the outcome,
-    with the exit code the text output would give."""
+    with the exit code the text output would give; an engine failure, in
+    the check or in the query's own run of the passes, as `check --json`
+    records one."""
     line, column = at
-    refused: tuple[Told, ...] = ()
-    exit_code = _EXIT_OK
-    if unreadable is not None:
-        refused = (
-            Told(
-                Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
-                Author.INVOCATION,
-            ),
-        )
-        exit_code = _EXIT_CANNOT_PROCEED
-    else:
-        try:
-            check_source(path)
-        except DiagnosticError as exc:
-            refused, exit_code = exc.told, _EXIT_GAME_AT_FAULT
-        except InstallationError as exc:
-            refused, exit_code = (refusal_diagnostic(exc),), _EXIT_CANNOT_PROCEED
+
+    def crashed(crash: Told) -> None:
+        answer = query.refused(str(path), line, column, (crash,), _EXIT_GAME_AT_FAULT)
+        print(json.dumps(query_envelope(answer), indent=2))
+
+    refused, exit_code = _checked(path, unreadable, crashed)
     if refused:
         answer = query.refused(str(path), line, column, refused, exit_code)
     else:
-        answer = query.ask_path(path, line, column)
+        try:
+            answer = query.ask_path(path, line, column)
+        except Exception as exc:
+            crashed(_engine_gap(exc))
+            raise
     print(json.dumps(query_envelope(answer), indent=2))
     return answer.exit_code
 

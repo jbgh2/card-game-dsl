@@ -4036,14 +4036,14 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                 f"'{want.type_name}' takes one owner argument, got "
                 f"{len(want.type_args)}",
                 want.span,
-                code=Code.BAD_REQUIRES_ROW,
+                code=Code.WRONG_ARGUMENT_COUNT,
             )
         elif not takes_owner and want.type_args:
             bag.error(
                 cite_library(library.name, want.span) + f" requires " + cite_where(f"`{spelled}`", want.span) + f", but zone type "
                 f"'{want.type_name}' takes no type arguments",
                 want.span,
-                code=Code.BAD_REQUIRES_ROW,
+                code=Code.WRONG_ARGUMENT_COUNT,
             )
         for arg in want.type_args:
             if want.index is None:
@@ -4054,7 +4054,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"write `{want.name}[{arg.name}] : {want.type_name}"
                     f"<{arg.name}>`",
                     want.span,
-                    code=Code.BAD_REQUIRES_ROW,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             elif arg.name != want.index:
                 bag.error(
@@ -4062,7 +4062,7 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
                     f"owner argument names a different domain than its index — "
                     f"write `{want.type_name}<{want.index}>`",
                     want.span,
-                    code=Code.BAD_REQUIRES_ROW,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
     _check_contract_reach(library, bag)
 
@@ -4121,7 +4121,7 @@ def _check_signature_row(
                 head + f", but " + cite_where(f"'{want.name}'", want.span) + f" is a function every game has — call "
                 f"it directly; it needs no contract row",
                 want.span,
-                code=Code.BAD_REQUIRES_ROW,
+                code=Code.REQUIRES_WHAT_IS_PROVIDED,
             )
         elif want.name in K.KERNEL_CONTRACT_NAMES:
             row = K.CONTRACTS[want.name]
@@ -4642,7 +4642,7 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
             decl.index,
             role_names(ZONE_INDEX_ROLES),
             decl.span,
-            code=Code.UNKNOWN_INDEX_DOMAIN,
+            code=Code.WRONG_SUBSCRIPT,
         )
 
 
@@ -5389,7 +5389,7 @@ def _instantiate_rules(
                         arg.name if isinstance(arg, n.NameRef) else "",
                         suits or (),
                         ref.span,
-                        code=Code.UNKNOWN_SUIT,
+                        code=Code.WRONG_ARGUMENT,
                     )
                     args_ok = False
             if not args_ok:
@@ -5578,7 +5578,7 @@ def _validate_removes(
                 "one of this phase's modes) — add " + named(f"`{ref.name}`") + " or " + named(f"`+{ref.name}`")
                 + " there, or delete this removal",
                 ref.span,
-                code=Code.HAS_NO_EFFECT,
+                code=Code.MISSING_DECLARATION,
             )
 
 
@@ -7510,10 +7510,10 @@ def _resolve_zone(
         bag.error(
             f"zone type '{ref.name}' takes one owner argument, got {len(ref.args)}",
             ref.span,
-            code=Code.WRONG_SUBSCRIPT,
+            code=Code.WRONG_ARGUMENT_COUNT,
         )
     if not takes_owner and ref.args:
-        bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span, code=Code.WRONG_SUBSCRIPT)
+        bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span, code=Code.WRONG_ARGUMENT_COUNT)
     for arg in ref.args:
         if role_of(arg.name) not in _KNOWN_ROLES and arg.name not in positions:
             bag.unknown(
@@ -8037,7 +8037,7 @@ def _check_rule_reaches_a_reader(
                     "`applies_when:` alone selects when a rule fires, not what it "
                     "does.",
                     rule.span,
-                    code=Code.HAS_NO_EFFECT,
+                    code=Code.MISSING_DECLARATION,
                 )
         case "offer":
             bag.error(
@@ -8858,14 +8858,14 @@ def _resolve_component_set(game: n.Game, bag: DiagnosticBag) -> None:
                 f"'{game.deck}' is a piece set — declare it with "
                 f"`pieces: {game.deck}`, not `cards:`",
                 game.span,
-                code=Code.PIECES_ARE_NOT_CARDS,
+                code=Code.WRONG_SPELLING,
             )
         else:
             bag.error(
                 f"'{game.deck}' is a card deck — declare it with "
                 f"`cards: {game.deck}`, not `pieces:`",
                 game.span,
-                code=Code.PIECES_ARE_NOT_CARDS,
+                code=Code.WRONG_SPELLING,
             )
 
 
@@ -11437,7 +11437,7 @@ def _refused_binder_sources(
                 f"simultaneous moves are per "
                 f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
                 nd.span,
-                code=Code.WRONG_SUBSCRIPT,
+                code=Code.WRONG_SORT_OF_NAME,
             )
             refused[id(nd)] = frozenset(role_names(SIMULTANEOUS_ROLES))
     return refused
@@ -13303,7 +13303,7 @@ def _check_domain_query(
         nd.spelled,
         _nouns_a_query_takes(nd, game, cats.flavor),
         nd.span,
-        code=Code.UNKNOWN_NAME,
+        code=Code.UNKNOWN_INDEX_DOMAIN,
     )
     return True
 
@@ -13722,7 +13722,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.index,
                         role_names(ZONE_INDEX_ROLES),
                         nd.span,
-                        code=Code.UNKNOWN_INDEX_DOMAIN,
+                        code=Code.WRONG_SUBSCRIPT,
                     )
                 elif _refuses(_TEAM_STATE_GATE, nd, game):
                     # A team-indexed store in a game with no teams has

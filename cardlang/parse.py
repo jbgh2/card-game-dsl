@@ -1751,7 +1751,7 @@ class _Builder(Transformer[Token, n.Game]):
                 "...`) — ask each zone on its own and combine the answers: add "
                 "the counts or sums, `or` the anys, `and` the alls",
                 self._span(meta),
-                code=Code.WRONG_SPELLING,
+                code=Code.NOT_YET_SUPPORTED,
             ), self._author)
         )
 

@@ -1,0 +1,12 @@
+game Mini {
+  players: 2
+  max_length: 1000
+  pieces: breakthrough_men
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { box : Deck  reserve[player] : PlayerPile<player>  pile : TrickPile }
+  state { score[player] : Integer = 0 }
+  phase p {
+    for each player q: score[q] := 0
+  }
+  winner: highest score
+}
