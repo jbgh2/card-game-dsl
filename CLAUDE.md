@@ -175,7 +175,8 @@ docs/
   authoring.md           Writing a game: the designer's path from empty file to OpenSpiel
   model.md               Primitives + phase/state/move-type/rule relationship
   library.md             The Trick mechanic + standard library catalogue
-  decisions.md           Settled design decisions (the load-bearing spec)
+  decisions.md           Settled design decisions (the load-bearing spec): the generated index
+  decisions/             One file per decision, with the sub-sections and rulings that bound it
   glossary.md            The shared language: what each thing is called, what each name may mean
   roadmap.md             Out-of-scope list + the checker's guards ledger
   implementation.md      Plan for building the parser + static checker (tooling)
@@ -198,7 +199,7 @@ docs/
 - **"How do I write a game?"** → `docs/authoring.md` — the designer-facing path: the smallest complete game file, the check/play loop, reading the derived information state, and reaching OpenSpiel with a game of your own
 - **"How do phases / rules / move types fit together?"** → `docs/model.md`
 - **"What's already in the standard library?"** → `docs/library.md`
-- **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
+- **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`, the index; each decision is one file under `docs/decisions/`
 - **"What is this thing called?" / "What may this word mean?"** → `docs/glossary.md` — the generated index, one line per term; the entries themselves are one file per term in `docs/glossary/`, so read the index for the whole vocabulary and open an entry only when that term is the thing in question. The naming authority. Its preamble's usage rules (full phrase, Title Case, one name one shape) bind all new code, comments, diagnostics, and issues; its reserved-words table lists the words never to use unqualified, and each term has its own entry under `docs/glossary/`. Where current code diverges: `docs/design-notes/glossary-findings.md`; renames execute via [epic #204](https://github.com/jbgh2/card-game-dsl/issues/204), when-touched unless an issue rules otherwise.
 - **"May I simplify a game to make it run?"** → "The game does not bend to the harness" (the load-bearing section above); a language gap is a witness and an issue, a harness gap is fixed in the harness
 - **"How do I write a comment / docstring?"** → "Prose states what is" (the load-bearing section above); the full law is `docs/decisions.md`, "Prose names the registry, never the cardinality"
@@ -448,8 +449,9 @@ violating them silently corrupts the spec.
    artifact.
 
 3. **Open question → decision promotion.** When an open question is settled,
-   move the content from `docs/open-questions/<name>.md` into
-   `docs/decisions.md` (rewriting from question-voice into spec-voice),
+   move the content from `docs/open-questions/<name>.md` into a decision
+   file under `docs/decisions/` (rewriting from question-voice into
+   spec-voice; `docs/maintaining.md`, "Open questions vs settled design"),
    delete the open-questions file, and update `docs/open-questions/_index.md`.
    Don't leave a "resolved" stub behind.
 
