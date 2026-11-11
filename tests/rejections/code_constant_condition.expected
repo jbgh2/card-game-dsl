@@ -1,0 +1,1 @@
+code_constant_condition.cardlang:10:18: error: `is none` on a non-optional Integer is always false — never a check worth writing

@@ -112,9 +112,9 @@ import cardlang.resolve as R
 from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.deckcheck import check_capacity
+from cardlang.diagnostics import Told as ToldDiagnostic
 from cardlang.diagnostics import (
     Author,
-    Told,
     LINE_KINDS,
     Diagnostic,
     DiagnosticBag,
@@ -1301,14 +1301,21 @@ def test_only_the_step_raises_a_bag_after_parse() -> None:
 
     A bag is raised as the diagnostics it holds, told: `DiagnosticError(*told)`.
 
-    red under: raise `DiagnosticError(*told)` in `stdlib/rules.py`."""
+    red under: raise `DiagnosticError(Told(bag.items[0], Author.LIBRARY))` in
+    `stdlib/rules.py`."""
     raisers: set[str] = set()
     for path in sorted(_PACKAGE.rglob("*.py")):
         for nd in ast.walk(ast.parse(path.read_text())):
             if (
                 isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name)
                 and nd.func.id == "DiagnosticError" and nd.args
-                and isinstance(nd.args[0], ast.Starred)
+                and (
+                    isinstance(nd.args[0], ast.Starred)
+                    or any(
+                        isinstance(sub, ast.Attribute) and sub.attr == "items"
+                        for arg in nd.args for sub in ast.walk(arg)
+                    )
+                )
             ):
                 raisers.add(path.relative_to(_PACKAGE).as_posix())
     assert raisers == {"attribution.py", "parse.py"}
@@ -1357,7 +1364,7 @@ def _told_in_the_game(monkeypatch: pytest.MonkeyPatch, witness: L.Witness) -> li
 
     def recording(
         bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()
-    ) -> tuple[Told, ...]:
+    ) -> tuple[ToldDiagnostic, ...]:
         result = real(bag, game, uses)
         if attribution._WITNESSING.get() or not attribution._holders(game) and not uses:
             return result

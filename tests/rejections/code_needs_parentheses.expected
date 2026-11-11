@@ -1,0 +1,1 @@
+code_needs_parentheses.cardlang:10:82: error: the aggregation default is Boolean — this is almost always the last disjunct of the `where` predicate, absorbed by the mandatory `or <default>` clause: parenthesize the whole `where` predicate, or supply a real default after `or`

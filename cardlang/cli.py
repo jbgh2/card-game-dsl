@@ -24,7 +24,9 @@ runtime's are both already typed, and each
 failure reaches the [[author]] who can act on it (`cardlang/runtime/errors.py`,
 Contract): a `GameDescriptionError` the game author, an `InstallationError`
 whoever installed this checkout. It never discriminates the `GameDescriptionError`
-subtypes; which ROLE of guard fired is the suite's question, not a caller's.
+subtypes; which ROLE of guard fired is the suite's question, not a caller's,
+and the Told Diagnostic it renders a refusal through names the Author the role
+implies (`cardlang.records.refusal_diagnostic`).
 
 `IllegalMove` is rendered beside them and means something else, which the
 message says: the game's own `error(...)` refused, no player was offered the

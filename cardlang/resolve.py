@@ -3777,11 +3777,11 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 + _cite_own(library, ref.name, f"'{ref.name}'") + ", which is "
                 f"{what.phrase}, not a value" + call_it,
                 ref.span,
-                code=Code.WRONG_KIND_OF_NAME,
+                code=Code.WRONG_SORT_OF_NAME,
             )
     for call in reach.refused_calls:
         if call.func in VALUE_NAMES:
-            bag.error(_callback_outside_slot(call.func), call.span, code=Code.WRONG_KIND_OF_NAME)
+            bag.error(_callback_outside_slot(call.func), call.span, code=Code.WRONG_SORT_OF_NAME)
             continue
         what = _library_own_name_is(library, call.func) or _language_name_is(
             library, call.func
@@ -3816,7 +3816,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 + _cite_own(library, call.func, f"'{call.func}'") + ", which is "
                 f"{what.phrase}, not a function",
                 call.span,
-                code=Code.WRONG_KIND_OF_NAME,
+                code=Code.WRONG_SORT_OF_NAME,
             )
     for node, name in _round_slot_primitives(library):
         at = getattr(node, "span", None)
@@ -3845,7 +3845,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
                 f"{_NAMESPACE_NOUN[leak.namespace]}, but it is {own.phrase}, not "
                 f"a {_NAMESPACE_NOUN[leak.namespace]}",
                 getattr(leak.node, "span", None),
-                code=Code.WRONG_KIND_OF_NAME,
+                code=Code.WRONG_SORT_OF_NAME,
             )
             continue
         if leak.namespace == "type" and leak.name.removesuffix("?") == COMBINATION_TYPE_NAME:
@@ -4611,7 +4611,7 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
             decl.index,
             role_names(ZONE_INDEX_ROLES),
             decl.span,
-            code=Code.UNKNOWN_INDEX,
+            code=Code.UNKNOWN_INDEX_DOMAIN,
         )
 
 
@@ -6530,10 +6530,11 @@ def _resolve_climb_engines(game: n.Game, bag: DiagnosticBag) -> n.Game:
                     code=Code.CLIMB_ROUND_QUERIES,
                 )
             elif follows in functions:
+                named = next(f for f in game.functions if f.name == follows)
                 bag.error(
-                    f"climb round `follows` names '{follows}', a function of this "
-                    f"game; the registered engine '{lead}' follows with its own "
-                    f"query '{own}'",
+                    "climb round `follows` names " + cite_named(named, f"'{follows}'")
+                    + f", a function of this game; the registered engine '{lead}' "
+                    f"follows with its own query '{own}'",
                     nd.span,
                     code=Code.CLIMB_ROUND_QUERIES,
                 )
@@ -7450,7 +7451,7 @@ def _resolve_zone(
             zone.index or "",
             (*role_names(_KNOWN_ROLES), *positions),
             zone.span,
-            code=Code.UNKNOWN_INDEX,
+            code=Code.UNKNOWN_INDEX_DOMAIN,
         )
 
     ref = zone.type_ref
@@ -7477,10 +7478,10 @@ def _resolve_zone(
         bag.error(
             f"zone type '{ref.name}' takes one owner argument, got {len(ref.args)}",
             ref.span,
-            code=Code.WRONG_INDEX,
+            code=Code.WRONG_SUBSCRIPT,
         )
     if not takes_owner and ref.args:
-        bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span, code=Code.WRONG_INDEX)
+        bag.error(f"zone type '{ref.name}' takes no type arguments", ref.span, code=Code.WRONG_SUBSCRIPT)
     for arg in ref.args:
         if role_of(arg.name) not in _KNOWN_ROLES and arg.name not in positions:
             bag.unknown(
@@ -7488,7 +7489,7 @@ def _resolve_zone(
                 arg.name,
                 (*role_names(_KNOWN_ROLES), *positions),
                 arg.span,
-                code=Code.UNKNOWN_INDEX,
+                code=Code.UNKNOWN_INDEX_DOMAIN,
             )
         elif takes_owner and zone.index is None:
             # An owned zone type has no index to key its owner by. The runtime
@@ -7502,7 +7503,7 @@ def _resolve_zone(
                 f"no index — an owned zone type must be indexed by its owner; "
                 f"write '{zone.name}[{arg.name}] : {ref.name}<{arg.name}>'",
                 zone.span,
-                code=Code.WRONG_INDEX,
+                code=Code.WRONG_SUBSCRIPT,
             )
         elif takes_owner and arg.name != zone.index:
             # Same silent-ignore: the runtime keys the family by the index, so
@@ -7517,7 +7518,7 @@ def _resolve_zone(
                 f"index, so '<{arg.name}>' would be silently ignored); write "
                 f"'{ref.name}<{zone.index}>'",
                 arg.span,
-                code=Code.WRONG_INDEX,
+                code=Code.WRONG_SUBSCRIPT,
             )
     if zone.index in positions:
         # A position-indexed family has no owner (no observer IS a column —
@@ -7817,7 +7818,7 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
                 f"names none of them: say which {index}'s, "
                 f"`{nd.name}[<{index}>]`{team}",
                 nd.span,
-                code=Code.WRONG_INDEX,
+                code=Code.WRONG_SUBSCRIPT,
             )
         for cls, field in _ZONE_SLOTS:
             if not isinstance(nd, cls):
@@ -8859,7 +8860,7 @@ def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
             game.direction,
             GAME_DIRECTIONS,
             game.span,
-            code=Code.UNKNOWN_DIRECTION,
+            code=Code.UNKNOWN_TURN_DIRECTION,
         )
 
 
@@ -9360,7 +9361,7 @@ def _check_primitive_name(
             f"mechanic's, not a parameter list; the round slots take their own "
             f"declaration form (issue #142)",
             decl.span,
-            code=Code.WRONG_KIND_OF_NAME,
+            code=Code.WRONG_SORT_OF_NAME,
         )
         return
     if unimplemented(frozenset({decl.name})):
@@ -9568,7 +9569,7 @@ def _check_primitive_reads(
                 f"`{read.name}` is a {kind.value} — it has no instances to key, "
                 f"so write `{read.name}`",
                 read.span or decl.span,
-                code=Code.WRONG_INDEX,
+                code=Code.WRONG_SUBSCRIPT,
             )
         elif read.binder not in params:
             bag.error(
@@ -9696,7 +9697,7 @@ def _check_read_tail(
             read.name,
             states_declared_in(game, phase),
             read.span or decl.span,
-            code=Code.UNKNOWN_STATE,
+            code=Code.UNKNOWN_STATE_VARIABLE,
         )
         return True
     inner = descendant_redeclarations(game, phase, read.name)
@@ -11367,7 +11368,7 @@ def _refused_binder_sources(
                 f"simultaneous moves are per "
                 f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
                 nd.span,
-                code=Code.WRONG_INDEX,
+                code=Code.WRONG_SUBSCRIPT,
             )
             refused[id(nd)] = frozenset(role_names(SIMULTANEOUS_ROLES))
     return refused
@@ -11479,10 +11480,10 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
             elif (outside := _slot_name_outside_slot(node.name)) is not None:
-                bag.error(outside, node.span, code=Code.WRONG_KIND_OF_NAME)
+                bag.error(outside, node.span, code=Code.WRONG_SORT_OF_NAME)
                 return replace(node, ref_kind=kind)
             elif node.name == "max_length":
-                bag.error(MAX_LENGTH_AS_VALUE, node.span, code=Code.WRONG_KIND_OF_NAME)
+                bag.error(MAX_LENGTH_AS_VALUE, node.span, code=Code.WRONG_SORT_OF_NAME)
                 return replace(node, ref_kind=kind)
             bag.unknown(
                 f"unresolved name '{node.name}'{hint}",
@@ -11548,7 +11549,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         plain = replace(cats, rule_clause=False)
         obj: object = node.obj
         if _classify(PLAY_SOURCE_NAME, plain) is None:
-            bag.error(_SUBSCRIPTED_PLAY_SOURCE, node.obj.span, code=Code.WRONG_INDEX)
+            bag.error(_SUBSCRIPTED_PLAY_SOURCE, node.obj.span, code=Code.WRONG_SUBSCRIPT)
         else:
             obj = _rewrite(node.obj, plain, bag)
         return replace(node, obj=obj, index=_rewrite_value(node.index, cats, bag))  # type: ignore[arg-type]
@@ -12388,7 +12389,7 @@ def _check_hosted_node(
         bag.error(
             f"{clause} may not hold {HOSTED_POLL_REFUSED[type(nd)]}" + via + f": {why_live}",
             cast(n.Stmt, nd).span,
-            code=Code.POLL_READS_UNPUBLISHED_STATE,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
         )
         return
     if isinstance(nd, n.NameRef) and nd.name == "state" and nd.ref_kind == "pronoun":
@@ -12396,7 +12397,7 @@ def _check_hosted_node(
             f"{clause} may not read `state`" + via + ": the round's state is "
             "published only once the round has ended",
             nd.span,
-            code=Code.POLL_READS_UNPUBLISHED_STATE,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
         )
     elif isinstance(nd, n.Call) and nd.func in primitives:
         bag.error(
@@ -12404,7 +12405,7 @@ def _check_hosted_node(
             f"module reads the round's live, unpublished state through its "
             f"engine facts",
             nd.span,
-            code=Code.POLL_READS_UNPUBLISHED_STATE,
+            code=Code.HOSTED_POLL_READS_UNPUBLISHED_STATE,
         )
 
 
@@ -13146,7 +13147,7 @@ def _check_domain_query(
             if nd.binder not in declared and (
                 nd.binder in _minted_directions(game) or lack is not None
             ):
-                bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span, code=Code.WRONG_KIND_OF_NAME)
+                bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span, code=Code.WRONG_SORT_OF_NAME)
                 return True
         if lack is not None:
             bag.error(f"`{head}` ranges over the board directions, but {lack}", nd.span, code=Code.MISSING_DECLARATION)
@@ -13179,7 +13180,7 @@ def _check_domain_query(
         if nd.binder not in declared and (
             nd.binder in _minted_directions(game) or lack is not None
         ):
-            bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span, code=Code.WRONG_KIND_OF_NAME)
+            bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span, code=Code.WRONG_SORT_OF_NAME)
             return True
         if game.board is not None:
             universe += f"; the board's lines: `{LINE_NOUN}`"
@@ -13200,13 +13201,13 @@ def _check_domain_query(
                     nd.spelled,
                     _nouns_a_query_takes(nd, game, cats.flavor),
                     nd.span,
-                    code=Code.UNKNOWN_INDEX,
+                    code=Code.UNKNOWN_INDEX_DOMAIN,
                 )
                 return True
     if not target_ok:
         named = _bare_noun_refusal(nd, head, game, cats, universe)
         if named is not None:
-            bag.error(named, nd.span, code=Code.WRONG_KIND_OF_NAME)
+            bag.error(named, nd.span, code=Code.WRONG_SORT_OF_NAME)
             return True
     if nd.kind != "any" and not nd.spelled.endswith("s"):
         # A singular noun under `all`/`number of`/the Set Form: guide to the
@@ -13510,7 +13511,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # claimed (issue #364).
                 outside = _slot_name_outside_slot(nd.func)
                 if outside is not None:
-                    bag.error(outside, nd.span, code=Code.WRONG_KIND_OF_NAME)
+                    bag.error(outside, nd.span, code=Code.WRONG_SORT_OF_NAME)
                 else:
                     bag.unknown(
                         f"call to unknown function '{nd.func}'"
@@ -13650,7 +13651,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.index,
                         role_names(ZONE_INDEX_ROLES),
                         nd.span,
-                        code=Code.UNKNOWN_INDEX,
+                        code=Code.UNKNOWN_INDEX_DOMAIN,
                     )
                 elif _refuses(_TEAM_STATE_GATE, nd, game):
                     # A team-indexed store in a game with no teams has
@@ -13687,7 +13688,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"build. Rename the binder; per-value stores are recorded "
                     f"in roadmap.md",
                     nd.span,
-                    code=Code.WRONG_INDEX,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             case n.Produces() if nd.phase not in outcome_phases:
                 bag.unknown(
@@ -13717,7 +13718,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.role,
                     (*role_names(_ITERATION_ROLES), *iterable_positions),
                     nd.span,
-                    code=Code.UNKNOWN_INDEX,
+                    code=Code.UNKNOWN_INDEX_DOMAIN,
                 )
             case (n.ForEach() | n.Quantifier()) if (
                 game.content_flavor == "piece" and role_of(nd.role) in CARD_AXIS_ROLES
@@ -13818,7 +13819,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 ):
                     bad = _bad_zone_endpoint(game, nd, endpoint, direction)
                     if bad is not None:
-                        bag.error(bad, nd.span, code=Code.WRONG_KIND_OF_NAME)
+                        bag.error(bad, nd.span, code=Code.WRONG_SORT_OF_NAME)
                 # The joint-selection matrix (decisions.md "Joint-predicate
                 # selection"): `jointly` is a DECISION over subsets, so it
                 # requires `chosen` — a dealt jointly-selection has no
@@ -13940,13 +13941,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # refuses anything else, exactly like the movement endpoints.
                 bad = _bad_zone_endpoint(game, nd, "zone", nd.op)
                 if bad is not None:
-                    bag.error(bad, nd.span, code=Code.WRONG_KIND_OF_NAME)
+                    bag.error(bad, nd.span, code=Code.WRONG_SORT_OF_NAME)
             case n.Winner() | n.StopResult() if (
                 nd.state_var is not None and nd.state_var not in cats.state_vars
             ):
                 outside = _slot_name_outside_slot(nd.state_var)
                 if outside is not None:
-                    bag.error(outside, nd.span, code=Code.WRONG_KIND_OF_NAME)
+                    bag.error(outside, nd.span, code=Code.WRONG_SORT_OF_NAME)
                 else:
                     bag.unknown(
                         f"{ranking_slot(nd).unknown} references unknown "
@@ -13954,7 +13955,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.state_var,
                         cats.state_vars,
                         nd.span,
-                        code=Code.UNKNOWN_STATE,
+                        code=Code.UNKNOWN_STATE_VARIABLE,
                     )
             case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:
                 # The go-again flag is ordinary game state the body's effects
@@ -13970,7 +13971,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.again,
                     cats.state_vars,
                     nd.span,
-                    code=Code.UNKNOWN_STATE,
+                    code=Code.UNKNOWN_STATE_VARIABLE,
                 )
             case n.Offer():
                 _check_offering_moves(nd.offering, defined_move_types, bag, nd.span)

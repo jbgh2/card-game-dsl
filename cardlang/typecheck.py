@@ -1204,7 +1204,7 @@ def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) ->
                     f"`{index}` index domain, so its binder is declared "
                     f"`{expected}`",
                     read.span or decl.span,
-                    code=Code.WRONG_INDEX,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
 
 
@@ -3454,7 +3454,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"zone '{obj_ref.name}' is not indexed — drop the "
                     f"brackets",
                     e.span,
-                    code=Code.WRONG_INDEX,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             else:
                 idx_t = infer(e.index, env)
@@ -3481,7 +3481,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         else:
             obj = infer(e.obj, env)
             if not subscriptable(obj):
-                bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span, code=Code.WRONG_INDEX)
+                bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span, code=Code.WRONG_SUBSCRIPT)
             elif isinstance(obj, TCollection) and obj.key is not None:
                 # A KEYED map (a per-player/team state var, an indexed `let`)
                 # is addressed by its key domain, and the checker knows both
@@ -3507,7 +3507,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"position — read them with a card query (`cards in ... "
                     f"where ...`) or `top_of(...)`",
                     e.span,
-                    code=Code.WRONG_INDEX,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             elif isinstance(obj, TCollection):
                 # A POSITIONAL collection (a `[…]` list, a board region such as
@@ -3898,7 +3898,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`{name}` holds one value, so it takes no index — write "
             f"`{name} {stmt.op} …`",
             stmt.span,
-            code=Code.WRONG_INDEX,
+            code=Code.WRONG_SUBSCRIPT,
         )
         return
     if (
@@ -3912,7 +3912,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`{name}` is one value per {per}, so `{stmt.op}` needs one of them "
             f"— write `{name}[<{per}>] {stmt.op} …`",
             stmt.span,
-            code=Code.WRONG_INDEX,
+            code=Code.WRONG_SUBSCRIPT,
         )
         return
     if stmt.index is not None and isinstance(target, TCollection):
@@ -3972,7 +3972,7 @@ def _check_rotate(stmt: n.RotateStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`rotate` cycles a variable holding one value, and `{name}` holds "
             f"one per {per}",
             stmt.span,
-            code=Code.WRONG_INDEX,
+            code=Code.WRONG_SUBSCRIPT,
         )
         return
     for value in stmt.values:
@@ -4678,7 +4678,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                     f"`transition_to:` when its event fires, never "
                                     f"jumped to",
                                     node.span,
-                                    code=Code.WRONG_KIND_OF_NAME,
+                                    code=Code.WRONG_SORT_OF_NAME,
                                 )
                             else:
                                 bag.unknown(

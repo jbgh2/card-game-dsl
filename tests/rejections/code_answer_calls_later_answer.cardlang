@@ -1,0 +1,19 @@
+
+game G {
+  players: 4
+  max_length: 2000
+  cards: standard52
+  ranking: aces high
+  
+  
+  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile  won[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0  leader : Player = 0 }
+  phase play {
+    let w = highest_by_trick_order(pile)
+    score[w] += 1
+    score[0] += 1
+  }
+  winner: highest score
+}
+function is_trump(card : Card) = card_strength(card) > 3
+

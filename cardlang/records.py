@@ -19,7 +19,8 @@ Establishes:  `envelope` is the one producer of a Record Envelope and
               `Diagnostic.near_misses`, each `offered`; `refusal_diagnostic`
               is the one way a runtime refusal becomes a told diagnostic, by
               an exhaustive match over the refusal types the command line
-              renders; `read_envelope` refuses a schema or kind it does not
+              renders, and the one place outside the tests that reads a
+              refusal's guard role, only to name its Author and code; `read_envelope` refuses a schema or kind it does not
               know rather than reading it best-effort.
 Now illegal:  a second JSON spelling of a diagnostic or a place; a record
               whose words differ from the text a designer reads
@@ -42,7 +43,6 @@ from cardlang.runtime.errors import (
     GameDescriptionError,
     GameRegistrationError,
     InstallationError,
-    OwnerGuardError,
     ShadowGuardError,
 )
 from cardlang.runtime.state import IllegalMove
@@ -141,8 +141,6 @@ def refusal_diagnostic(exc: RuntimeRefusal) -> Told:
     match exc:
         case ShadowGuardError():
             code, author, span = Code.ENGINE_GAP, Author.ENGINE, exc.span
-        case OwnerGuardError():
-            code, author, span = Code.REFUSED_DURING_PLAY, Author.GAME, exc.span
         case GameDescriptionError():
             code, author, span = Code.REFUSED_DURING_PLAY, Author.GAME, exc.span
         case IllegalMove():

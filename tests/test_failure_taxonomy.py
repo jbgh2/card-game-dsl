@@ -128,6 +128,10 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # A saved session or a harness's history that does not replay in the game
     # it is replayed against. The game is sound; the record is not its own.
     "HistoryMismatch": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: whoever produced a Record Envelope a reader is handed ------
+    # A document of another schema or kind; the game is sound and the
+    # document is not the game's.
+    "UnreadableEnvelope": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- Author: whoever named the file a session saves to -----------------
     # The file cannot be written; the game is sound and the session is not
     # the game's.

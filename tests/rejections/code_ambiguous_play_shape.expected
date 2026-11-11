@@ -1,0 +1,1 @@
+code_ambiguous_play_shape.cardlang:61:3: error: 2♣ is both a `single` and a `solo` in catalogue `climb` — settle it in the rows (`, not all one suit`, `, not in sequence`)

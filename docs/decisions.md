@@ -5363,6 +5363,41 @@ something about the code as it stands, which means a reader can check it
 and the claim can be found wrong — the same reason guards beat prose
 everywhere else in this document.
 
+### Every refusal carries its Diagnostic Code
+
+A refusal is told to a tool as well as to a designer, and the two read it
+differently: the designer reads the sentence, a tool keys on the
+[[diagnostic-code]] (`cardlang/diagnostic_codes.py`). The registry is closed,
+and `Diagnostic.code` is a required field, so a refusal made without a code
+does not type-check (Unrepresentable). A code names the **kind of fix** the
+refusal asks for, in the designer's words (`unknown-zone`, `written-twice`,
+`decides-on-hidden-cards`): two refusals share a code exactly when the
+corrective act is the same kind, never because their wording or their raise
+site is shared. A code derived from the message or the site is rejected,
+because it would change exactly when wording improves or a pass is split,
+which is the breakage a code exists to end. A refusal whose fix cannot be
+stated in designer words is a finding about that refusal, never a reason
+for a vague code. A shipped code is never renamed, removed or given a second
+meaning; the blessed list and a witness per code hold that
+(tests/test_diagnostic_codes.py). The ruling and the options it refused are
+ADR-0022.
+
+The code never reaches the text output: `Diagnostic.format` does not show
+it, and the rejection corpus staying byte-identical is the proof. A tool asks
+for it with `cardlang check --json`, which prints one [[record-envelope]]
+(`cardlang/records.py`): `schema`, `kind`, and one record per
+[[told-diagnostic]] carrying its code, severity, [[author]], place (file,
+line, column, length), message, notes and suggestions. A suggestion is a
+[[near-miss]], marked `offered`, never mechanically applicable. The record
+composes no words: its message is the diagnostic's own, and its author is
+the one the telling layer stamped (the attribution step for a pass, the raise
+for the parser and the extract step, the command line for its own refusals,
+and `refusal_diagnostic` for a runtime refusal, keyed on its type). A reader
+refuses an envelope whose `schema` or `kind` it does not know. `--json` is
+total on `check` and refused elsewhere: beside `--emit-ir` it is a usage
+error, on `play` and `demo` an unrecognised argument, and a command line
+refused before it is read is refused as text.
+
 ### Allow-list, never deny-list
 
 A consumer of a closed domain enumerates the members it **handles** and

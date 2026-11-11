@@ -48,7 +48,7 @@ class Code(Enum):
     # --- names ------------------------------------------------------------
     UNKNOWN_NAME = ("unknown-name", "a name nothing in scope declares; spell a declared name, or declare it")
     UNKNOWN_ZONE = ("unknown-zone", "a zone no `zones { }` entry declares; spell a declared zone, or declare it")
-    UNKNOWN_STATE = ("unknown-state", "a state variable no `state { }` block declares; spell a declared one, or declare it")
+    UNKNOWN_STATE_VARIABLE = ("unknown-state-variable", "a state variable no `state { }` block declares; spell a declared one, or declare it")
     UNKNOWN_FUNCTION = ("unknown-function", "a function neither the game nor the language defines; spell a defined one, or define it")
     UNKNOWN_PROCEDURE = ("unknown-procedure", "a procedure the game does not define; spell a defined one, or define it")
     UNKNOWN_RULE = ("unknown-rule", "a rule no definition or library provides; spell a defined rule, or define it")
@@ -62,9 +62,9 @@ class Code(Enum):
     UNKNOWN_LIBRARY = ("unknown-library", "a family library that does not exist; name one in docs/libraries/")
     UNKNOWN_TYPE = ("unknown-type", "a type name the language does not have in that position; write one it has")
     UNKNOWN_ZONE_TYPE = ("unknown-zone-type", "a zone type the language does not have; write one it has")
-    UNKNOWN_INDEX = ("unknown-index", "an index, owner or position domain nothing declares; name one that exists")
+    UNKNOWN_INDEX_DOMAIN = ("unknown-index-domain", "an index domain, owner or position domain nothing declares; name one that exists")
     UNKNOWN_FIELD = ("unknown-field", "a field the value does not have; read one of its fields, or read it another way")
-    UNKNOWN_DIRECTION = ("unknown-direction", "a seating direction the language does not have; write one it has")
+    UNKNOWN_TURN_DIRECTION = ("unknown-turn-direction", "a turn direction the language does not have; write one it has")
     UNKNOWN_ROUND_FUNCTION = ("unknown-round-function", "a round names a winner or predicate the language does not have; name one it has")
     UNKNOWN_PLAY_SHAPE = ("unknown-play-shape", "a play shape no row of the game's catalogue labels; write a row's label")
     UNKNOWN_PRIMITIVE = ("unknown-primitive", "a `primitives` entry nothing implements; name an implemented Primitive")
@@ -72,7 +72,7 @@ class Code(Enum):
     RESERVED_WORD = ("reserved-word", "the name is a word the language reserves; pick another name")
     NAME_TAKEN = ("name-taken", "two things share one name, or one hides another; rename one")
     WRITTEN_TWICE = ("written-twice", "one thing is written more than once; keep one")
-    WRONG_KIND_OF_NAME = ("wrong-kind-of-name", "the name is of another kind than the position takes; use a name of the right kind")
+    WRONG_SORT_OF_NAME = ("wrong-sort-of-name", "the name is of another sort than the position takes; use a name of the right sort")
 
     # --- what a game declares ---------------------------------------------
     MISSING_DECLARATION = ("missing-declaration", "something reads a declaration the game does not make; add it")
@@ -92,7 +92,7 @@ class Code(Enum):
     WRONG_ARGUMENT_COUNT = ("wrong-argument-count", "a call passes more or fewer arguments than its definition takes")
     WRONG_ARGUMENT = ("wrong-argument", "an argument of a shape the position does not take; write the shape the message gives")
     WRONG_SIGNATURE = ("wrong-signature", "a definition's parameters or result differ from what its role requires")
-    WRONG_INDEX = ("wrong-index", "a zone or variable indexed the wrong way, or not indexed where it must be")
+    WRONG_SUBSCRIPT = ("wrong-subscript", "a zone or variable subscripted the wrong way, or not subscripted where it must be")
     TYPE_NOT_ALLOWED_HERE = ("type-not-allowed-here", "a type the language allows only in another position; spell it there")
     CONSTANT_CONDITION = ("constant-condition", "a condition that is always true or always false; write the test that was meant")
     NEEDS_PARENTHESES = ("needs-parentheses", "the text reads another way than it seems; add parentheses to say which")
@@ -106,7 +106,7 @@ class Code(Enum):
     ANSWER_CALLS_LATER_ANSWER = ("answer-calls-later-answer", "a Trick Order function calls one that comes after it in the Trick Order")
     DECIDES_ON_HIDDEN_CARDS = ("decides-on-hidden-cards", "a seat must check or pick from cards it cannot see; read cards it sees, or announce them")
     WRONG_ZONE_VISIBILITY = ("wrong-zone-visibility", "a zone's type hides cards that the construct needs every seat, or its owner, to see")
-    POLL_READS_UNPUBLISHED_STATE = ("poll-reads-unpublished-state", "a Hosted Poll reads round state that is not yet published")
+    HOSTED_POLL_READS_UNPUBLISHED_STATE = ("hosted-poll-reads-unpublished-state", "a Hosted Poll reads Round State that is not yet published")
     NOT_WRITABLE = ("not-writable", "the target is not a state variable this text may write")
 
     # --- family libraries -------------------------------------------------

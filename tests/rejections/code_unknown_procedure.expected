@@ -1,0 +1,4 @@
+code_unknown_procedure.cardlang:11:5: error: run of unknown procedure 'nope'
+code_unknown_procedure.cardlang:11:5: error: run of unknown procedure 'nope'
+code_unknown_procedure.cardlang:15:1: error: procedure 'f' is never run — invoke it with `run f(…)`, or delete it (its body would otherwise be spliced nowhere, and go entirely unchecked downstream)
+code_unknown_procedure.cardlang:16:1: error: procedure 'g' is never run — invoke it with `run g(…)`, or delete it (its body would otherwise be spliced nowhere, and go entirely unchecked downstream)
