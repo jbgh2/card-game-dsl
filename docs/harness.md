@@ -645,10 +645,14 @@ that name: the table's third name, after Hoyle and Foster.
 
 Two standing facts bind the harness, and one authority stays put:
 
-- CI runs on a self-hosted runner that rides the operator's laptop:
-  a closed lid queues every run. Unattended overnight work is gated on an
-  always-on runner
-  ([#278](https://github.com/jbgh2/card-game-dsl/issues/278)).
+- The merge gate's `check` job has two lanes, and the workflow's `route`
+  job picks one per run (`tools/ci-route.sh`): the self-hosted pool on the
+  operator's laptop when the pool is awake and will finish the job first,
+  a GitHub-hosted macOS runner when the pool is asleep or full. A closed
+  lid slows the gate and does not stop it (ADR-0022). The repository
+  variable `CI_ROUTE` forces a lane (`laptop` or `hosted`), and setting it
+  is the operator's. The Standing Roles' scheduled runs still need the
+  laptop awake.
 - The repo is public with a self-hosted runner: **workflow runs from
   forks are never approved** — not by an agent, not on request, not for a
   plausible-looking contribution. First-contributor runs stay pending
