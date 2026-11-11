@@ -651,7 +651,7 @@ _SITES: dict[tuple[str, str, int], tuple[Placement, ...] | str] = {
     ("_check_produce_stmt", "expected", 0): (
         "a `produce` stands only in an outcome phase's body, which a library cannot hold"
     ),
-    ("_typecheck", "TPlayer()", 0): "the `loser:` clause, which a library cannot hold",
+    ("typecheck", "TPlayer()", 0): "the `loser:` clause, which a library cannot hold",
     ("_check_kernel_answers", "expected", 0): (
         "a Kernel Definition Contract's answer, which a library cannot hold"
     ),

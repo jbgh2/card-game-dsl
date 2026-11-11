@@ -1395,10 +1395,13 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # `positions` are what a Near Miss's position admits, read to narrow an
     # offer, never to resolve a name; `refused_binders` and `withheld` are
     # the binders a refused spelling's fix would bind, read to withhold a
-    # consequence, and resolve nothing.
+    # consequence, and resolve nothing. `scopes` is the Scope Record a
+    # Checker Query asks the walk to fill: written by the walk, read by the
+    # query, and no name resolves against it.
     game_fed = {f.name for f in fields(_Categories)} - {
         "locals", "functions", "flavor", "definitions", "rule_clause", "shapes",
         "bound_names", "zone_index", "positions", "refused_binders", "withheld",
+        "scopes",
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():
