@@ -493,6 +493,44 @@ carries its Diagnostic Code").
  "suggestions": [{"text": "hand", "applicability": "offered"}]}
 ```
 
+## Asking the checker a question
+
+Once a file checks, `cardlang query <file> --at LINE:COL` says what the checker
+knows at one place in it, without playing the game: the names a bare name
+written there would resolve to, the Type the checker gives the expression
+there, and what each seat sees when the movement or decision there runs. The
+line and column are the file's own, as `check` reports them, in a Markdown game
+too; a line's end is a column of its own.
+
+```console
+$ cardlang query hearts.cardlang --at 65:9
+hearts.cardlang:65:9: a movement: move chosen 3 cards
+names in scope:
+  bound here (a parameter, a `let`, or the binder of a query, a quantifier or a loop): player
+  State Variable: cumulative_score, leader, pass_direction
+  ...
+Type: none here -- a movement (`move chosen 3 cards`) is not an expression and has no Type; point at an expression inside it
+what each seat sees (static, from the zone types; which cards, and which seat holds a zone, are settled when the game is played):
+  who decides: each seat, for its own pick, asked and remembering each pick
+  no other seat hears the pick; the others learn of it through the movement
+  the seat holding hand[player]: sees which cards leave hand[player], and how many cards arrive at hand[player offset_by pass_direction]
+  ...
+  every other seat: sees how many cards leave hand[player], and how many cards arrive at hand[player offset_by pass_direction]
+```
+
+What each seat sees is the **static** answer: through which projection each
+kind of seat sees each side of the movement (the cards themselves, how many,
+or nothing), read from the zone types exactly as the engine reads them when it
+tells a seat what moved. Which cards, and which seat holds `hand[player]`, are
+settled only when a deal is played; `demo --view` shows a played line.
+
+Where a question has no answer at the position, the answer says so and points
+at what does: a statement has no Type, an assignment moves no card, and a
+comment or a blank line outside every declaration is no part of the game (exit
+`2`). A file the checker refuses gets the checker's refusal, exactly as `check`
+prints it, and no answer. `--json` prints the same answer as one Record
+Envelope of kind `query`, each refused answer carrying its Diagnostic Code.
+
 ## Reaching OpenSpiel with your own game
 
 The corpus registers itself from `docs/games/`, but a file of your own reaches

@@ -242,6 +242,25 @@ def _cli(argv: Callable[[Path], list[str]]) -> Tells:
     return tells
 
 
+def _query(game: str, at: str) -> Tells:
+    """A Checker Query run with `--json`: the codes of its refusals, of the
+    whole question and of each answer."""
+
+    def tells(_mp: pytest.MonkeyPatch, _tmp: Path) -> frozenset[Code]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.main(["query", str(_ROOT / "docs" / "games" / game), "--at", at, "--json"])
+        document = json.loads(out.getvalue())
+        records = list(document["diagnostics"])
+        for part in ("scope", "type", "seats"):
+            answer = (document["answer"] or {}).get(part) or {}
+            if "refused" in answer:
+                records.append(answer["refused"])
+        return frozenset(next(c for c in Code if c.slug == r["code"]) for r in records)
+
+    return tells
+
+
 def _unknown_command(_mp: pytest.MonkeyPatch, _tmp: Path) -> frozenset[Code]:
     refused = cli._normalize(["chek", "no-such-file.cardlang"])
     assert isinstance(refused, Diagnostic)
@@ -399,6 +418,11 @@ WITNESSES: dict[Code, Tells] = {
     Code.ENGINE_GAP: _constructed(lambda: ShadowGuardError("resolve", "a leaked refusal")),
     Code.INCOMPLETE_INSTALLATION: _broken_checkout,
     Code.UNREGISTRABLE_GAME: _constructed(lambda: GameRegistrationError("two files claim one short name")),
+    Code.POSITION_OUTSIDE_THE_FILE: _query("hearts.cardlang", "999:1"),
+    Code.POSITION_OUTSIDE_THE_GAME: _query("hearts.cardlang", "1:1"),
+    Code.NOT_AN_EXPRESSION: _query("hearts.cardlang", "90:9"),
+    Code.EXPRESSION_NOT_TYPED: _query("hearts.cardlang", "86:7"),
+    Code.NOTHING_SEEN_HERE: _query("hearts.cardlang", "86:14"),
 }
 
 
