@@ -24,8 +24,8 @@ refuses either, for every game in the run, before any model is called.
 
 **A refusal the model could not act on** (`FollowupStatus.STANDS`): an
 error the checker printed for one draft, standing again for the model's next
-draft under the same `refusal_key`, at a source line whose text is unchanged
-between the two drafts. The other outcomes are recorded and not counted:
+draft under the same `refusal_key`, at the same source line carried through
+the edit unchanged (`carried_line`). The other outcomes are recorded and not counted:
 gone, persisting elsewhere or on an edited line, masked (the next draft
 stopped at a syntax error, which the checker reports before any other
 stage), not edited (the model returned the same file), and no next edit.
@@ -52,6 +52,7 @@ call the budget was not checked before.
 from __future__ import annotations
 
 import argparse
+import difflib
 import hashlib
 import inspect
 import json
@@ -250,9 +251,9 @@ class RealGameVerdict(Enum):
 class FollowupStatus(Enum):
     """What became of one refusal at the model's next draft."""
 
-    #: Same refusal key, at a source line whose text the next draft left
-    #: unchanged. The one status counted as a refusal the model could not
-    #: act on.
+    #: Same refusal key, at the line the earlier refusal stood at, carried
+    #: into the next draft unedited (`carried_line`). The one status counted
+    #: as a refusal the model could not act on.
     STANDS = "stands"
     #: Same refusal key in the next draft, at another line or an edited one.
     PERSISTS = "persists"
@@ -275,7 +276,8 @@ def _syntax(refusal: Refusal) -> bool:
 
 
 def anchor(refusal: Refusal, draft: str) -> str | None:
-    """The text of the source line a refusal stands at, stripped."""
+    """The text of the source line a refusal stands at, stripped, for a
+    reader of the report."""
     if refusal.line is None:
         return None
     lines = draft.splitlines()
@@ -317,15 +319,29 @@ def followups(rounds: Sequence[Mapping[str, Any]]) -> list[Followup]:
                 next_round = None
             else:
                 next_round, next_draft, next_check = later
-                status = _status(refusal, key, here, draft, next_draft, next_check)
+                status = _status(refusal, key, draft, next_draft, next_check)
             out.append(Followup(number, next_round, refusal, key, here, status))
     return out
+
+
+def carried_line(line: int, draft: str, next_draft: str) -> int | None:
+    """Where line `line` of `draft` stands in `next_draft`, when the edit
+    left it untouched: its image inside a block the two drafts share, by
+    `difflib`'s alignment of their lines, or None for a line the edit
+    changed or removed. An alignment rather than a text match, because a
+    line like `}` recurs throughout a file and its text alone does not say
+    which one a refusal stood at."""
+    before, after = draft.splitlines(), next_draft.splitlines()
+    matcher = difflib.SequenceMatcher(None, before, after, autojunk=False)
+    for tag, i1, i2, j1, _j2 in matcher.get_opcodes():
+        if tag == "equal" and i1 <= line - 1 < i2:
+            return j1 + (line - 1 - i1) + 1
+    return None
 
 
 def _status(
     refusal: Refusal,
     key: str,
-    here: str | None,
     draft: str,
     next_draft: str,
     next_check: CheckResult,
@@ -333,7 +349,8 @@ def _status(
     if next_draft == draft:
         return FollowupStatus.NOT_EDITED
     same = [r for r in next_check.refusals if r.severity == "error" and refusal_key(r) == key]
-    if any(anchor(r, next_draft) == here for r in same):
+    image = None if refusal.line is None else carried_line(refusal.line, draft, next_draft)
+    if image is not None and any(r.line == image for r in same):
         return FollowupStatus.STANDS
     if same:
         return FollowupStatus.PERSISTS

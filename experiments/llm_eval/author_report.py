@@ -24,12 +24,12 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO, assert_never
 
-from .author_check import Refusal, refusal_key
 from .author_run import (
     AttemptOutcome,
     Followup,
     FollowupStatus,
     RealGameVerdict,
+    carried_line,
     followups,
 )
 
@@ -119,65 +119,75 @@ def _excerpt(draft: str, line: int | None, around: int = 2) -> str:
     )
 
 
-def stands(attempts: Sequence[Mapping[str, Any]]) -> list[tuple[Mapping[str, Any], Followup]]:
-    found: list[tuple[Mapping[str, Any], Followup]] = []
+Occurrence = tuple[Mapping[str, Any], Followup]
+
+
+def stands(attempts: Sequence[Mapping[str, Any]]) -> dict[str, list[Occurrence]]:
+    """Every refusal a model could not act on, grouped by refusal key in the
+    order the keys were first met: one issue per key, every occurrence
+    listed under it."""
+    found: dict[str, list[Occurrence]] = {}
     for a in attempts:
         for f in followups(a["rounds"]):
             if f.status is FollowupStatus.STANDS:
-                found.append((a, f))
+                found.setdefault(f.key, []).append((a, f))
     return found
 
 
-def filing(a: Mapping[str, Any], f: Followup, meta: Mapping[str, Any]) -> list[str]:
-    """One refusal the model could not act on, as an issue's draft."""
+def filing(group: Sequence[Occurrence], meta: Mapping[str, Any]) -> list[str]:
+    """One refusal key a model could not act on, as an issue's draft: the
+    first occurrence shown, every occurrence listed."""
+    a, f = group[0]
     drafts = {r["round"]: r["draft"] for r in a["rounds"] if r.get("draft") is not None}
     r = f.refusal
     where = f"{r.file}:{r.line}:{r.column}" if r.line is not None else "(unlocated)"
     offers = f"; offered {', '.join(r.near_misses)}" if r.near_misses else ""
-    return [
-        f"Title: a model writing {a['game']} is told `{r.message}` and its next edit leaves it standing",
+    attempts = {(o["game"], o["model_ref"], o["attempt"]) for o, _ in group}
+    games = sorted({game for game, _, _ in attempts})
+    next_line = (
+        None
+        if r.line is None or f.next_round is None
+        else carried_line(r.line, drafts.get(f.round, ""), drafts.get(f.next_round, ""))
+    )
+    lines = [
+        f"Title: a model writing {', '.join(games)} is told `{r.message}` and its next edit leaves it standing",
         "",
         "## Summary",
         "",
-        f"The authoring benchmark (#1053), run {meta.get('git_head', '?')[:10]}: "
-        f"{a['model']} writing {a['game']} ({a['held_out']}) was refused at "
-        f"draft {f.round} with the message below, and its next draft (draft "
-        f"{f.next_round}) left the line unchanged and met the same refusal "
-        f"there. Kind and reachability are the filer's to set after reading "
-        f"the rounds.",
+        f"The authoring benchmark (#1053), at commit {str(meta.get('git_head', '?'))[:10]}: "
+        f"a refusal the model's next draft left standing at the same, unedited "
+        f"line, {len(group)} time(s) in {len(attempts)} attempt(s). Kind and "
+        f"reachability are the filer's to set after reading the rounds.",
         "",
         "## Detail",
         "",
         f"    {where}: {r.severity}: {r.message}{offers}",
         "",
-        "Draft " + str(f.round) + ":",
+        f"{a['game']}/{a['model_ref']}/{a['attempt']}, draft {f.round}:",
         "",
         _indent(_excerpt(drafts.get(f.round, ""), r.line)),
         "",
         f"Draft {f.next_round}, refused again at the same line:",
         "",
-        _indent(_excerpt(drafts.get(f.next_round or 0, ""), _next_line(a, f))),
+        _indent(_excerpt(drafts.get(f.next_round or 0, ""), next_line)),
         "",
-        f"Key: `{f.key}`; anchored line: `{f.anchor}`.",
+        f"Key: `{f.key}`.",
+        "",
+        "Every occurrence:",
+        "",
+    ]
+    for o, g in group:
+        lines.append(
+            f"- {o['game']}/{o['model_ref']}/{o['attempt']} ({o['model']}), drafts "
+            f"{g.round} and {g.next_round}, line {g.refusal.line}: `{g.anchor}`"
+        )
+    lines += [
         "",
         "## Provenance",
         "",
-        f"Authoring benchmark run `{meta.get('run', '?')}`, attempt "
-        f"{a['game']}/{a['model_ref']}/{a['attempt']}, rounds {f.round} and {f.next_round}.",
+        f"Authoring benchmark run `{meta.get('run', '?')}`.",
     ]
-
-
-def _next_line(a: Mapping[str, Any], f: Followup) -> int | None:
-    """The line the standing refusal was reported at in the next draft."""
-    for r in a["rounds"]:
-        if r["round"] == f.next_round and r.get("check"):
-            for refusal in r["check"]["refusals"]:
-                if refusal_key(Refusal.from_dict(refusal)) == f.key and refusal["line"] is not None:
-                    draft = r["draft"].splitlines()
-                    line = refusal["line"]
-                    if 1 <= line <= len(draft) and draft[line - 1].strip() == f.anchor:
-                        return int(line)
-    return None
+    return lines
 
 
 def _indent(text: str) -> str:
@@ -201,11 +211,14 @@ def report(run_dir: Path, out: TextIO) -> None:
         write(line)
     found = stands(attempts)
     write()
-    write(f"Refusals a model could not act on: {len(found)}")
-    for index, (a, f) in enumerate(found, start=1):
+    write(
+        f"Refusals a model could not act on: {sum(len(g) for g in found.values())} "
+        f"occurrence(s) under {len(found)} key(s)"
+    )
+    for index, group in enumerate(found.values(), start=1):
         write()
         write(f"--- {index} " + "-" * 60)
-        for line in filing(a, f, meta):
+        for line in filing(group, meta):
             write(line)
     others = _status_counts(f for a in attempts for f in followups(a["rounds"]))
     write()

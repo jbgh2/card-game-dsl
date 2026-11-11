@@ -88,12 +88,15 @@ games:
 
 # A ceiling over this results tree's spend log. Checked before every model
 # call; a run it stops reports the attempt it stopped in as stopped. The
-# estimate behind it is in the preregistration.
+# estimate and the hard bound behind it are in the preregistration. The
+# window is a rolling day: a run restarted after a failure shares its ceiling
+# with the spend before it, and the after-diagnostics run, days later, gets
+# the same ceiling of its own.
 token_budget:
   max_input_tokens: 40000000
   max_output_tokens: 3000000
   max_cost_usd: 40.0
-  window: all
+  window: 24h
 
 roster: [frontier, mid]
 

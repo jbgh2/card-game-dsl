@@ -14,11 +14,15 @@ compares facts that survive relabelling:
 - the table: the seat count and the Component Set, exactly;
 - per playout, under uniform-random play: the choices made (decisions
   offering two or more candidates, so a forced pick one encoding offers and
-  another performs is not counted), the hands played, whether the playout
-  reached the game's `max_length` (a Length Stop), how many seats share the
-  win, and the mean number of distinct card identities the deciding seat
-  has been shown (its zones' identity views plus every card its observation
-  log names) at each of its choices.
+  another performs is not counted), whether the playout reached the game's
+  `max_length` (a Length Stop), how many seats share the win, and the mean
+  number of distinct card identities the deciding seat has been shown (its
+  zones' identity views plus every card its observation log names) at each
+  of its choices.
+
+The engine's `hands_played` is deliberately not a fact: it counts the runs
+of a phase named `scoring`, so two faithful encodings that name their phases
+differently would disagree on it.
 
 The playout facts are compared as distributions, sample against sample, by
 a two-sample Kolmogorov-Smirnov test (`ks_two_sample`), with a family-wise
@@ -71,7 +75,6 @@ from .author_check import checker_env
 #: these, so a fact cannot be extracted and never compared.
 PLAYOUT_FACTS: Final[tuple[str, ...]] = (
     "choices",
-    "hands_played",
     "length_stopped",
     "winner_count",
     "known_at_choice",
@@ -103,7 +106,6 @@ class PlayoutFacts:
 
     seed: int
     choices: int
-    hands_played: int
     length_stopped: int
     winner_count: int
     known_at_choice: float
@@ -214,7 +216,6 @@ def _playout(game: Any, seed: int) -> PlayoutFacts:
     return PlayoutFacts(
         seed=seed,
         choices=choices,
-        hands_played=result.hands_played,
         length_stopped=int(result.ended_by is EndedBy.LENGTH),
         winner_count=len(result.winners),
         known_at_choice=round(counts["known"] / choices, 6) if choices else 0.0,

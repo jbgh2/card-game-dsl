@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 import yaml
 
-from ..author_check import Checker, repo_root
+from ..author_check import DRAFT_NAME, Checker, CheckResult, CheckVerdict, Refusal, repo_root
 from ..author_facts import FactsRunner
 from ..author_prompt import (
     GameBrief,
@@ -42,6 +42,7 @@ from ..author_run import (
     withheld_paths,
 )
 from ..prompts import Prompt
+from ..run_eval import budget_of
 from ..providers import FakeProvider, Provider, Reply, Usage
 from ..spend import Billed, Spend, SpendLog
 from .test_author_check import HIGH_CARD, TWO_TYPOS
@@ -274,6 +275,27 @@ def test_an_unchanged_file_is_a_non_edit(tmp_path: Path, tree: Path, rules: Path
     assert set(fates.values()) == {FollowupStatus.NOT_EDITED}
 
 
+REPEATED_BRACES = "game A {\n  x {\n    a\n  }\n  y {\n    b\n  }\n}\n"
+
+
+def _round(number: int, draft: str, line: int) -> dict[str, Any]:
+    refusal = Refusal(DRAFT_NAME, line, 3, "error", "a refusal at a closing brace")
+    check = CheckResult(CheckVerdict.REFUSED, 1, "", "", (refusal,))
+    return {"round": number, "draft": draft, "check": check.as_dict()}
+
+
+@pytest.mark.parametrize(
+    ("next_line", "status"),
+    [(4, FollowupStatus.STANDS), (7, FollowupStatus.PERSISTS)],
+    ids=["the same brace", "another brace with the same text"],
+)
+def test_a_refusal_stands_only_at_the_line_it_stood_at(next_line: int, status: FollowupStatus) -> None:
+    edited = REPEATED_BRACES.replace("    b\n", "    b2\n")
+    rounds = [_round(1, REPEATED_BRACES, 4), _round(2, edited, next_line)]
+    [fate] = [f for f in followups(rounds) if f.round == 1]
+    assert fate.status is status
+
+
 def test_the_report_lists_each_refusal_ready_to_file(tmp_path: Path, tree: Path, rules: Path) -> None:
     replies = [block(TWO_TYPOS), block("// above\n" + ONE_TYPO), block(HIGH_CARD)]
     run_dir, _, _ = bench(tmp_path, tree, rules, replies)
@@ -281,7 +303,7 @@ def test_the_report_lists_each_refusal_ready_to_file(tmp_path: Path, tree: Path,
     printed = io.StringIO()
     report(run_dir, printed)
     text = printed.getvalue()
-    assert "Refusals a model could not act on: 1" in text
+    assert "Refusals a model could not act on: 1 occurrence(s) under 1 key(s)" in text
     assert "Title: a model writing highcard is told `unresolved name 'scroe'`" in text
     assert "if a > b { scroe[0] += 1 }" in text
 
@@ -434,3 +456,4 @@ def test_the_shipped_config_reads(tmp_path: Path) -> None:
     assert HeldOutSet.CORPUS in sets.values() and HeldOutSet.CANDIDATE in sets.values()
     context_files(shipped["references"], list(sets), ROOT)
     assert set(shipped["roster"]) <= set(shipped["models"])
+    assert budget_of(shipped).max_cost_usd > 0

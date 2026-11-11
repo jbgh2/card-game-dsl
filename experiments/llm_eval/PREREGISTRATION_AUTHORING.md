@@ -32,10 +32,10 @@ benchmark's purpose, and neither run alone is a verdict on the epic.
 | request | `max_tokens: 16000`, `thinking: {type: disabled}`, `output_config: {effort: high}` |
 | games | 3 corpus games withheld, 2 candidates (below) |
 | attempts | 2 per (game, model), each a fresh conversation |
-| round limit | 8 drafts per attempt, the first included; the model is told the limit |
+| round limit | 8 replies per attempt, the first included, a reply holding no file counted; the model is told the limit |
 | checker | `python -m cardlang check game.cardlang`, text form, this checkout |
 | real-game check | 100 uniform-random playouts per file (`author_facts.py`) |
-| ceiling | `max_cost_usd: 40` over the results tree's whole spend log (`window: all`), with token backstops |
+| ceiling | `max_cost_usd: 40` over the results tree's spend log in a rolling 24 hours (`window: 24h`), with token backstops |
 
 **Games.** The set is derived from the tree, never labelled
 (`author_run.held_out_set`):
@@ -71,7 +71,9 @@ also holds. Measured 2026-11-11 at this commit's parent, with the reference
 set above, of the three-line windows of each corpus file the references
 also hold (shared idioms, not leaks): `hearts` 4 of 121, `go-fish` 2 of 84,
 `oh-hell` 14 of 104, most of them shared with `spades`. The static part of
-the prompt is 93,863 characters before the game's rules text.
+the prompt is 93,913 characters before the game's rules text. The pin reads
+first-round prompts; a later round adds the model's own file and the
+checker's words, unscrubbed, as a designer at a terminal gets them.
 
 **Rules sources.** The operator saves each game's rules text from its
 source URL (the config's `source_url`, a Pagat page) into one directory at
@@ -96,13 +98,19 @@ Every figure is derived from the recorded rounds by `author_run` and
 - **A refusal the model could not act on** (`stands`): an error the checker
   printed for draft *k* such that the next draft checked, draft *j*, is
   different from draft *k*, and draft *j*'s check prints an error with the
-  same key at a line whose stripped text equals the stripped text of the
-  line the draft-*k* error stood at. The key is the diagnostic's code once
-  the checker reports one (#1046), and until then its message with the
-  `did you mean` offers removed. The definition is conservative on purpose:
-  it counts only a refusal that stood still while the model edited
-  something. Recorded and not counted: `persists` (the same key in draft
-  *j*, at another line or an edited one), `gone`, `masked` (draft *j*'s
+  same key at the line the draft-*k* error stood at, carried into draft *j*
+  unedited. "Carried unedited" is `difflib`'s alignment of the two drafts'
+  lines (`author_run.carried_line`): the line lies in a block the two
+  drafts share, so a line moved by an edit above it is still the same line,
+  and of two lines with the same text (two `}`) only the one the refusal
+  stood at counts. The key is the diagnostic's code once the checker
+  reports one (#1046), and until then its message with the `did you mean`
+  offers removed; a message that quotes a line number ("opened on line 9")
+  changes its key when an edit moves that line, which can only lower the
+  count. The definition is conservative on purpose: it counts only a
+  refusal that stood still while the model edited something. Recorded and
+  not counted: `persists` (the same key in draft *j*, at another line or an
+  edited one), `gone`, `masked` (draft *j*'s
   errors are all syntax errors and this one is not, so the stage that would
   report it did not run), `not_edited` (draft *j* is byte-identical: a model
   non-edit, not a diagnostic failure), `no_next_edit`. The checker's text
@@ -113,11 +121,13 @@ Every figure is derived from the recorded rounds by `author_run` and
   A corpus game's green file is compared with its corpus file on facts that
   survive relabelling (`author_facts.py`): the seat count and Component Set
   exactly, and, as distributions over 100 seeded uniform-random playouts
-  each, the choices made (decisions offering two or more candidates), hands
-  played, Length Stops, the number of seats sharing the win, and the mean
-  number of card identities the deciding seat has been shown at each of its
-  choices. Two-sample Kolmogorov-Smirnov per playout fact, family-wise level
-  0.001 split evenly across the five. A candidate's green file is played and
+  each, the choices made (decisions offering two or more candidates), Length
+  Stops, the number of seats sharing the win, and the mean number of card
+  identities the deciding seat has been shown at each of its choices.
+  Two-sample Kolmogorov-Smirnov per playout fact, family-wise level 0.001
+  split evenly across the four. The engine's hands-played count is not a
+  fact: it counts the runs of a phase named `scoring`, a name a faithful
+  encoding need not use. A candidate's green file is played and
   left to a rules read. **`diverges` and `does_not_play` are failures of the
   attempt**, whatever the checker said: a green file that is a reduced game
   is not a pass. A `diverges` that a rules read finds to be an encoding
@@ -126,8 +136,8 @@ Every figure is derived from the recorded rounds by `author_run` and
   fact, never silently. Calibration, measured 2026-11-11: each corpus file
   against itself under disjoint seed ranges, 100 playouts a side:
   all three agree on every fact, the smallest p-value 0.34 (`go-fish`,
-  `oh-hell`) against a per-fact level of 0.0002; `hearts`' 100 playouts take
-  under a minute.
+  `oh-hell`) against a per-fact level of 0.00025; `hearts`' 100 playouts take
+  between one and two minutes, well inside the facts timeout of 900 seconds.
 
 ## What counts as a finding to file against epic #1043
 
@@ -150,12 +160,24 @@ Every figure is derived from the recorded rounds by `author_run` and
 Two attempts per (game, model), fixed here before the first call. No
 re-run of an attempt for its result; no extension of the round limit on a
 near-miss. The ceiling stops the run between calls, records the attempt it
-stopped as `stopped_by_ceiling`, and the report states the partial N. Cost,
-estimated from the prompt sizes measured above at about 4 characters per
-token and an 8-round worst case per attempt: under $1.50 an attempt on
-`claude-opus-5` and under $1 on `claude-sonnet-5`, so under $25 for the 20
-attempts. The ceiling sits above that estimate so an underestimate shows as
-a partial N rather than an overrun.
+stopped as `stopped_by_ceiling`, and the report states the partial N.
+
+Cost, at list prices with the prompt cache (`providers.PRICES`):
+
+- **Estimate.** The prompt sizes measured above at about 4 characters per
+  token, a file of about 4,000 output tokens per reply, and all 8 replies
+  used: about $1.40 an attempt on `claude-opus-5` and $0.85 on
+  `claude-sonnet-5`, about $22 for the 20 attempts.
+- **Hard bound.** Every reply at the 16,000-token output limit, every
+  prompt written to the cache and none read from it, the history growing
+  by a full-limit file each round, and about 31,000 tokens before the first
+  round's history: about $7.60 an attempt on `claude-opus-5` and $4.60 on
+  `claude-sonnet-5`, about $122 for the 20.
+
+The $40 ceiling sits between the two: above the estimate, so the estimate
+being somewhat low still completes the run, and below the bound, so a run
+far from the estimate stops as a partial N rather than spending to the
+bound.
 
 ## What would make the result unusable
 

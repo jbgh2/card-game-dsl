@@ -57,8 +57,9 @@ You write the complete file. It is saved as `game.cardlang` and checked with
     cardlang check game.cardlang
 
 and everything the checker prints is shown to you. You then write the next
-complete file, and so on, for at most {rounds} files in all. The checker
-prints nothing when the file is correct; that ends the task.
+complete file, and so on, for at most {rounds} replies in all; a reply that
+holds no file still counts as one. The checker prints nothing when the file
+is correct; that ends the task.
 
 WHAT TO WRITE
 

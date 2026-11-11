@@ -137,7 +137,7 @@ def test_the_subprocess_reports_a_crash_and_a_hang(tmp_path: Path) -> None:
 
 def test_a_reference_without_facts_compares_nothing() -> None:
     nothing = FactsRecord(FactsStatus.CRASHED, detail="boom")
-    some = FactsRecord(FactsStatus.OK, 2, "standard52", (PlayoutFacts(0, 1, 0, 0, 1, 2.0),))
+    some = FactsRecord(FactsStatus.OK, 2, "standard52", (PlayoutFacts(0, 1, 0, 1, 2.0),))
     assert compare(nothing, some).verdict is DifferentialVerdict.NOT_COMPARABLE
 
 
