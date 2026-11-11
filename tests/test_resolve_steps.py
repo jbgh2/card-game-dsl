@@ -23,7 +23,7 @@ domain:          the direct import statements between modules under
                  `cardlang.resolve`, function-local imports included, as
                  `grimp` builds them, crossed by kind: root, step, shared,
                  importer by imported. Python's implied parent edge
-                 (importing `cardlang.resolve.x` runs the root) is not a
+                 (importing a module under the package runs the root) is not a
                  statement and is outside the domain.
 registry:        modules: `tests/resolver_package.py::resolver_modules`;
                  steps: `_step_modules`, the modules defining a function
