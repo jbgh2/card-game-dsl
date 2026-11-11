@@ -13,7 +13,8 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:        a refused spelling's consequences are not told where a fix
                  drawn from the set the spelling was looked up in could clear
-                 them, and a mistake no such fix clears is still told.
+                 them, nor where they read the binder the spelling as written
+                 would bind, and a mistake no such fix clears is still told.
 domain:          (a) the binders a node introduces from designer text a check
                  can refuse, over the node kinds `_BINDER_SCOPE_FIELDS` scopes
                  (axis `BINDER_SOURCES`, keyed by the registry); (b) the
@@ -211,6 +212,43 @@ def test_an_independent_slip_in_a_refused_simultaneous_body_is_still_told() -> N
     assert "`each playr simultaneously` is not runnable" in got[0], got
     assert any("unresolved name 'pass_dirction'; did you mean `pass_direction`" in line for line in got), got
     assert all("`playr`" not in line for line in got), got
+
+
+def test_a_refused_noun_withholds_the_binder_it_spells() -> None:
+    """A body using the binder the designer's own noun spells is not told
+    for the noun's refusal."""
+    got = errors(_TTT, ("all cells where square[cell] is not empty", "all spaces where square[space] is not empty"))
+    assert len(got) == 1 and "unknown position domain 'space'" in got[0], got
+
+
+def test_an_independent_slip_beside_a_spelled_binder_is_still_told() -> None:
+    """red under: the withholding mutation above."""
+    got = errors(_TTT, ("all cells where square[cell] is not empty", "all spaces where squre[space] is not empty"))
+    assert "unknown position domain 'space'" in got[0], got
+    assert len(got) == 2 and "unresolved name 'squre'; did you mean `square`?" in got[1], got
+
+
+_SUIT_BODY = ("          from hand[player]\n", "          from hand[player]\n          where card.suit is suit\n")
+
+
+def test_a_refused_simultaneous_role_withholds_the_binder_it_spells() -> None:
+    got = errors(_HEARTS, ("each player simultaneously:", "each suit simultaneously:"), _SUIT_BODY)
+    assert "`each suit simultaneously` is not runnable" in got[0], got
+    assert [line for line in got if "unresolved name" in line] == [], got
+
+
+def test_an_independent_slip_beside_a_spelled_role_is_still_told() -> None:
+    """red under: the withholding mutation above."""
+    got = errors(
+        _HEARTS,
+        ("each player simultaneously:", "each suit simultaneously:"),
+        _SUIT_BODY,
+        ("to   hand[player offset_by pass_direction]", "to   hand[player offset_by pass_dirction]"),
+    )
+    assert "`each suit simultaneously` is not runnable" in got[0], got
+    assert [line for line in got if "unresolved name" in line] == [
+        line for line in got if "unresolved name 'pass_dirction'; did you mean `pass_direction`" in line
+    ] != [], got
 
 
 # --------------------------------------------------------------------------
