@@ -520,10 +520,11 @@ def _diagnostic_copy(directory: Path, stem: str) -> Path:
 def _markdown_copy(directory: Path, stem: str, *, with_block: bool) -> Path:
     """A game file whose suffix sends it to the Markdown extractor.
 
-    `check_source` dispatches on the suffix — `.cardlang` is raw DSL, anything
-    else is Markdown holding exactly one fenced block — so a path source can
-    offer either shape. `with_block=False` is the corpus's own rulebook-twin
-    shape, which links to its `.cardlang` rather than repeating it.
+    `check_source` dispatches on the suffix by `pipeline.GAME_FILE_SHAPES`
+    (`.cardlang` is raw DSL, `.md` is Markdown holding exactly one fenced
+    block), so a path source can offer either shape. `with_block=False` is
+    the corpus's own rulebook-twin shape, which links to its `.cardlang`
+    rather than repeating it.
     """
     directory.mkdir(parents=True, exist_ok=True)
     dst = directory / f"{stem}.md"

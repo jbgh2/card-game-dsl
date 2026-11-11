@@ -32,7 +32,7 @@ from pathlib import Path
 from cardlang.ast.nodes import Game
 from cardlang.attribution import raise_where_written
 from cardlang.deckcheck import check_capacity
-from cardlang.diagnostics import DiagnosticBag
+from cardlang.diagnostics import DiagnosticBag, listed
 from cardlang.expand import expand
 from cardlang.extract import extract_single_block
 from cardlang.ir import IRValue, emit
@@ -68,17 +68,22 @@ def check_dsl(text: str, source_name: str) -> Game:
 def check_markdown(markdown: str, source_name: str) -> Game:
     """Check a Markdown game file: extract -> parse -> resolve -> typecheck.
 
-    A file with no fenced block is told the other shapes' extensions, since
-    a file holding the DSL as it is was most likely meant as one of them."""
-    renamed = " or ".join(
-        f"to end in {ext} if it holds {words}"
-        for ext, (words, check) in GAME_FILE_SHAPES.items()
-        if check is not check_markdown
-    )
-    unfenced = (
-        "a game file must contain its DSL in one block: fence the DSL, "
-        f"or rename the file {renamed}"
-    )
+    A file with no fenced block is told the game file of another shape that
+    stands beside it with its stem, a rulebook twin's game, when there is
+    one; otherwise the other shapes' extensions, since a file holding the
+    DSL as it is was most likely meant as one of them."""
+    others = [(ext, words) for ext, (words, check) in GAME_FILE_SHAPES.items() if check is not check_markdown]
+    stem = Path(source_name)
+    beside = [stem.with_suffix(ext) for ext, _words in others] if stem.name else []
+    named = next((path for path in beside if path.is_file()), None)
+    if named is not None:
+        unfenced = f"{named} stands beside it, named for the DSL itself: check that file instead"
+    else:
+        renamed = listed([f"to end in {ext} if it holds {words}" for ext, words in others])
+        unfenced = (
+            "a game file must contain its DSL in one block: fence the DSL, "
+            f"or rename the file {renamed}"
+        )
     block = extract_single_block(markdown, source_name, unfenced=unfenced)
     return _check(parse_block(block))
 
@@ -94,8 +99,7 @@ GAME_FILE_SHAPES: dict[str, tuple[str, Callable[[str, str], Game]]] = {
 def extensions_read() -> str:
     """The extensions `check_source` reads, each with its shape, as a designer
     reads them."""
-    named = [f"{ext} ({words})" for ext, (words, _check) in GAME_FILE_SHAPES.items()]
-    return ", ".join(named[:-1]) + " or " + named[-1]
+    return listed([f"{ext} ({words})" for ext, (words, _check) in GAME_FILE_SHAPES.items()])
 
 
 def check_source(path: str | Path) -> Game:

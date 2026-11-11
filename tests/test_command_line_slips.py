@@ -9,26 +9,30 @@ property:        a first word that is no command and names nothing on disk,
                  does not exist and a file that does not exist, naming the
                  commands, with the commands it nearly spells offered as Near
                  Misses; a first word that names something on disk is read
-                 as that file whatever it resembles; a game file whose
-                 extension is not one the checker reads is refused naming the
-                 extensions it reads, with the ones it nearly spells offered,
-                 before its text is read and through every consumer that
-                 reads a game file by its path; a Markdown file with no fenced
-                 block is told the extension that reads the DSL itself; a
-                 word that is no command-line option of the command is
-                 refused naming it, with the commands it is an option of, or
-                 else the command's own options it nearly spells, or else
-                 where they are listed;
+                 as that file whatever it resembles, and one whose name
+                 begins with a dash is told the spelling that names it; a
+                 game file whose extension is not one the checker reads is
+                 refused naming the extensions it reads, with the ones it
+                 nearly spells offered, before its text is read and through
+                 every consumer that reads a game file by its path; a
+                 Markdown file with no fenced block is told the game file
+                 beside it with its stem, or else the extension that reads
+                 the DSL itself; a word that is no command-line option of the
+                 command is refused naming it, with the commands that take
+                 every word of the line, or else the commands each option of
+                 the line is an option of and no offer, or else the command's
+                 own options it nearly spells, or else where they are listed;
                  a word after the file is refused as one too many, or, when it
-                 is a command, with the order that works; a line naming no
+                 is a command, with the order that takes every word, or else
+                 the commands each option is an option of; a line naming no
                  file, or an empty one, is refused for that; every refusal of
                  the line's words speaks as the command typed, or as
                  `cardlang` when none was, says when it read the line as
                  `check`, and every word it says was typed was, the path it
-                 cannot read included; each refusal keeps the CLI's exit status and
-                 failure channel, which every cell states; and an offered
-                 word, command or order, put in place of the slip, gets the
-                 line past that refusal.
+                 cannot read included; each refusal keeps the CLI's exit
+                 status and failure channel, which every cell states; and
+                 every offer, applied as the refusal prints it, gets the line
+                 past that refusal.
 domain:          the commands, crossed with the slips generated from each
                  (two letters swapped, a letter dropped, a capital), crossed
                  with what follows the first word (a file, nothing, an
@@ -47,22 +51,30 @@ domain:          the commands, crossed with the slips generated from each
                  with the extension it capitalizes offered. The words after
                  the command: every command and no command, crossed with
                  every command-line option any command declares that the
-                 command does not
-                 (spaced from its value and joined to it with `=`), with each
-                 of its own options slipped (the last two letters swapped,
-                 the second letter of the name dropped), and with words no
-                 parser declares (`-v`, `--version`) first, before the file
-                 and after it; a second file, and each command after the
-                 file; no file, an empty file, an empty first word; a value
-                 on an option or on help that takes none; a path missing,
-                 spelled with `./`; and argparse's own refusal of a missing
-                 value under each command that takes one. A slip argparse
-                 reads as a prefix of an option, and every option prefix, is
-                 issue #624's. `-h` after any line prints that command's
-                 help and refuses nothing. The property reads every line
-                 above, the command-word grid's included; a game file's own
-                 refusals name its path as Python spells it, which is issue
-                 #1099's, marked below.
+                 command does not (spaced from its value and joined to it
+                 with `=`), with each of its own options slipped (the last
+                 two letters swapped, the second letter of the name
+                 dropped), and with words no parser declares (`-v`,
+                 `--version`) first, before the file and after it; two
+                 command-line options after the file, under check and under
+                 no command, every option check does not take crossed with
+                 every other option; each command after the file, alone and
+                 after each option; a second file; a file whose name begins
+                 with a dash; no file, an empty file, an empty first word; a
+                 value on an option or on help that takes none; a path
+                 missing, spelled with `./`; argparse's own refusal of a
+                 missing value under each command that takes one; and the
+                 corpus's rulebook twins, the Markdown files of
+                 `docs/games/` with a game file beside them. The offer a slip
+                 of an option is told is authored by hand at the anchors,
+                 `_ANCHORS`, where no offer is right as well as where one is;
+                 the anchors the measure answers otherwise are marked for
+                 issue #1098. A slip argparse reads as a prefix of an option,
+                 and every option prefix, is issue #624's. `-h` after any
+                 line prints that command's help and refuses nothing. The
+                 property reads every line above, the command-word grid's
+                 included; a game file's own refusals name its path as
+                 Python spells it, which is issue #1099's, marked below.
 registry:        commands: `cardlang.cli.COMMANDS`, derived from
                  `cardlang.cli._COMMAND_TABLE`; options per command and
                  whether each takes a value: `cardlang.cli.build_parser`,
@@ -82,17 +94,18 @@ held by:         Derived and Pinned. The command word, the options, the
                  cells. The voice of a refusal has one owner,
                  `cardlang.cli._refuse`, which every refusal of the line's
                  words reaches.
-does not prove:  that a slip outside the generated shapes is offered its
-                 command, option or extension, nor that every offer is apt:
-                 the measure finds `--version` like `--decisions` and `-v`
-                 like `--vs`, which is its claim (tests/test_near_misses.py);
-                 nor that the reading of a first word that both names a file
-                 and resembles a command is the one a designer meant. The
+does not prove:  that a slip outside the generated shapes and the anchors is
+                 offered its command, option or extension, which is the
+                 measure's claim (tests/test_near_misses.py); nor that the
+                 reading of a first word that both names a file and
+                 resembles a command is the one a designer meant. The
                  property reads a refusal's subjects by the sentence shapes
-                 `_SUBJECTS` and `_ARGUMENT` name, so a refusal worded in a
-                 new shape is read for its voice alone until a shape names
-                 it; a cell whose refusal names no subject it can read fails
-                 unless the cell says it names none.
+                 `_SUBJECTS` and `_ARGUMENT` name, and the offers by the
+                 shapes `_offered_lines` and `_printed_words` read, so a
+                 refusal worded in a new shape is read for its voice alone
+                 until a shape names it; a cell whose refusal names no
+                 subject it can read fails unless the cell says it names
+                 none.
 """
 
 from __future__ import annotations
@@ -103,12 +116,10 @@ import re
 import shlex
 import shutil
 import sys
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from _pytest.mark.structures import ParameterSet
 
 from cardlang.cli import COMMANDS, build_parser, main
 from cardlang.diagnostics import DiagnosticError, near_misses
@@ -444,7 +455,6 @@ def _option_cells() -> dict[str, _Cell]:
                     f"{_subject(command)} takes no {option}; no command takes every word "
                     f"of this line: {_apart((option,))}",
                 )
-                _FLIPS[name] = frozenset({"told", "offers"})
     return cells
 
 
@@ -511,11 +521,6 @@ def _apart(options: tuple[str, ...]) -> str:
     )
 
 
-# The second round's cells, and the tests each one's designed change flips:
-# `told` is what the line is told, `offers` is whether its offer is taken.
-_FLIPS: dict[str, frozenset[str]] = {}
-
-
 def _pair_cells() -> dict[str, _Cell]:
     """Two command-line options after the file, under check and under no
     command: the first one check does not take, the second any other. The
@@ -544,10 +549,6 @@ def _pair_cells() -> dict[str, _Cell]:
                 cells[name] = _usage(
                     [*_lead(command), _F, first, *_value(first), second, *_value(second)], said
                 )
-                # Offering every command `first` belongs to is right only
-                # when each of them takes `second` too.
-                if takers != _owners(first):
-                    _FLIPS[name] = frozenset({"told", "offers"})
     return cells
 
 
@@ -567,10 +568,6 @@ def _order_cells() -> dict[str, _Cell]:
                 )
             name = f"no command: {option}, then {typed} after the file"
             cells[name] = _usage([_F, option, *_value(option), typed], said)
-            # The order offered takes every word only where the line is
-            # already read as the command named after it.
-            if not (typed == "check" and option in _DECLARED["check"]):
-                _FLIPS[name] = frozenset({"told", "offers"})
     return cells
 
 
@@ -585,7 +582,6 @@ def _dash_cells() -> dict[str, _Cell]:
         f"{_who(command)}: a file whose name begins with a dash": _usage([*_lead(command), _DASHED], said)
         for command in _WHO
     }
-    _FLIPS.update({name: frozenset({"told"}) for name in cells})
     return cells
 
 
@@ -711,17 +707,7 @@ def _told(cell: _Cell, said: _Said) -> None:
 
 
 
-_RED = pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084, second round")
-
-
-def _marked(cells: Iterable[str], test: str) -> list[ParameterSet]:
-    return [
-        pytest.param(c, marks=_RED) if test in _FLIPS.get(c, ()) else pytest.param(c)
-        for c in sorted(cells)
-    ]
-
-
-@pytest.mark.parametrize("cell", _marked(_CELLS, "told"))
+@pytest.mark.parametrize("cell", sorted(_CELLS))
 def test_each_line_is_told_what_it_typed_and_the_fix(
     cell: str, table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -861,7 +847,7 @@ def _offered_lines(argv: tuple[str, ...], err: str) -> list[tuple[str, ...]]:
     return lines
 
 
-@pytest.mark.parametrize("cell", _marked({**_CELLS, **_KEPT}, "offers"))
+@pytest.mark.parametrize("cell", sorted({**_CELLS, **_KEPT}))
 def test_every_offer_is_taken_as_printed(
     cell: str, table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -870,7 +856,9 @@ def test_every_offer_is_taken_as_printed(
     which is taken, and a word offered in place of the word refused is not
     refused itself.
 
-    red under: make `rest.remove(word)` in `cli._set_aside` do nothing."""
+    red under: have `cli._set_aside` print the order offered from `words`, the
+    command word left in, while `_takes` judges `rest`; or have it offer
+    every command an option belongs to, `takers = list(belongs)`."""
     argv = {**_CELLS, **_KEPT}[cell].argv
     refused = _run_at_table(argv, monkeypatch, capsys).err
     for line in _offered_lines(argv, refused):
@@ -955,7 +943,6 @@ _TWINS: tuple[str, ...] = tuple(
 )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084, second round")
 @pytest.mark.parametrize("twin", _TWINS)
 def test_a_rulebook_twin_is_told_the_game_file_beside_it(
     twin: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

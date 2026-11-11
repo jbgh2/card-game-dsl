@@ -445,6 +445,7 @@ from cardlang.diagnostics import (
     Sentence,
     Severity,
     Span,
+    listed,
     near_misses,
     rendered,
 )
@@ -9172,7 +9173,7 @@ def _check_primitive_reads(
 
 def _and_list(items: list[str]) -> str:
     """`a` and `b`; `a`, `b` and `c` — a list as a sentence reads it."""
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+    return listed(items, "and")
 
 
 def _check_read_tails_nest(

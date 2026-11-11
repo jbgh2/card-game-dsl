@@ -9,10 +9,12 @@
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
 spellings reach one parser rather than two code paths that can disagree about
 what `--emit-ir` means. A first word that names something on disk is that
-file, whatever it resembles. One that names nothing on disk, and either nearly
-spells a command or has another word after it, stood where a command goes, and
-is refused as neither a command nor a file, naming the commands and offering
-the ones it nearly spells.
+file, whatever it resembles, unless it begins with a dash: that word reads as
+a command-line option, and is refused with the spelling that names the file.
+One that names nothing on disk, and either nearly spells a command or has
+another word after it, stands where a command goes, and is refused as neither
+a command nor a file, naming the commands and offering the ones it nearly
+spells.
 
 Every refusal of the line's words is told by `_refuse`, which knows the line
 as typed: it speaks as the command typed, or as `cardlang` when none was,
@@ -75,7 +77,7 @@ from pathlib import Path
 from typing import Any, NoReturn, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity, near_misses
+from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity, listed, near_misses
 from cardlang.openspiel.infostate import derive, render_information_state
 from cardlang.openspiel.replay import HistoryMismatch, load, returns_for
 from cardlang.pipeline import check_source, compile_path, extensions_read, game_identity
@@ -294,7 +296,7 @@ def build_parser() -> _Parser:
         file = command.add_argument(
             "file", type=_file, help=f"game file, its name ending in {extensions_read()}"
         )
-        # The usage still shows `file` as required. `main` refuses a line
+        # The usage shows `file` as required, and `main` refuses a line
         # naming none, once argparse has set the line's other words aside,
         # so that refusal can name a word that is no command-line option of
         # the command.
@@ -327,12 +329,12 @@ def _normalize(argv: list[str]) -> _Line | Diagnostic:
     """`cardlang <file>` reads as `cardlang check <file>`, or the first word
     is refused as a command that does not exist.
 
-    `-h` still reaches the top parser and an explicit command passes through
-    untouched. Any other first word is the file when it names something on
-    disk, or is empty (which `_file` refuses as naming no file), or begins
-    with a dash, or nearly spells no command and has only command-line
-    options after it;
-    otherwise it stood where a command goes.
+    `-h` reaches the top parser and an explicit command passes through
+    untouched. Any other first word is read as the file when it names
+    something on disk, or is empty (which `_file` refuses as naming no file),
+    or begins with a dash (which argparse reads as a command-line option,
+    refused by `_set_aside`), or nearly spells no command and has only
+    command-line options after it; otherwise it stands where a command goes.
     """
     if not argv or argv[0] in COMMANDS or argv[0] in ("-h", "--help"):
         return _Line(argv, implicit=False)
@@ -353,12 +355,14 @@ def _normalize(argv: list[str]) -> _Line | Diagnostic:
     )
 
 
-def _and(names: tuple[str, ...]) -> str:
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
-
-
-def _or(names: tuple[str, ...]) -> str:
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+def _takes(argv: list[str]) -> bool:
+    """Whether the parser takes every word of `argv`: no word refused, none
+    set aside. A line naming no file still takes its words."""
+    try:
+        _args, aside = build_parser().parse_known_args(argv)
+    except _Refused:
+        return False
+    return not aside
 
 
 def _refuse(parser: _Parser, line: _Line | None, refusal: Diagnostic) -> NoReturn:
@@ -371,20 +375,69 @@ def _refuse(parser: _Parser, line: _Line | None, refusal: Diagnostic) -> NoRetur
     voice.exit(_EXIT_CANNOT_PROCEED, f"{voice.prog}: {refusal.format()}\n")
 
 
-def _set_aside(parser: _Parser, line: _Line, word: str) -> Diagnostic:
-    """The refusal of a word the command's parser set aside: one the command
-    has no command-line option for, or a word after the file."""
+def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
+    """The refusal of the words the command's parser set aside: a command
+    after the file, a file whose name reads as a command-line option, one
+    the command has no command-line option for, or a word after the file.
+
+    A line or a command it offers is one `_takes` every word of the line
+    typed; where none does, it names the commands each command-line option
+    of the line is an option of, and offers nothing."""
     command = line.argv[0]
     here = parser.commands[command]
     subject = line.subject()
-    if word.startswith("-") and len(word) > 1 and not here._negative_number_matcher.match(word):
-        name = word.split("=", 1)[0]
-        owners = tuple(c for c in COMMANDS if name in parser.commands[c].options())
-        if owners:
-            fix = f"name {_or(owners)} " + ("first" if line.implicit else f"in place of {command}")
+    words = line.argv[1:]
+
+    def option_shaped(word: str) -> bool:
+        return word.startswith("-") and len(word) > 1 and not here._negative_number_matcher.match(word)
+
+    def owners(name: str) -> tuple[str, ...]:
+        return tuple(c for c in COMMANDS if name in parser.commands[c].options())
+
+    def apart() -> str:
+        names = dict.fromkeys(w.split("=", 1)[0] for w in words if option_shaped(w))
+        return "; ".join(
+            f"{name} is an option of {listed(owners(name), 'and') if owners(name) else 'no command'}"
+            for name in names
+        )
+
+    moved = next((w for w in aside if line.implicit and w in COMMANDS), None)
+    if moved is not None:
+        rest = list(words)
+        rest.remove(moved)
+        if _takes([moved, *rest]):
             return Diagnostic(
                 Severity.ERROR,
-                f"{subject} takes no {name}; {name} is an option of {_and(owners)}, so {fix}",
+                f"{moved} comes after the file, and a command goes first: "
+                f"{shlex.join(['cardlang', moved, *rest])}",
+            )
+        return Diagnostic(
+            Severity.ERROR,
+            f"{moved} comes after the file, and a command goes first, but {moved} "
+            f"does not take every word of this line: {apart()}",
+        )
+    word = aside[0]
+    if option_shaped(word) and Path(word).exists():
+        return Diagnostic(
+            Severity.ERROR,
+            f"{word} begins with a dash, so it reads as a command-line option, not as the "
+            f"file of that name; spell the file {path_word(word)}",
+        )
+    if option_shaped(word):
+        name = word.split("=", 1)[0]
+        belongs = owners(name)
+        if belongs:
+            takers = [c for c in belongs if _takes([c, *words])]
+            if not takers:
+                return Diagnostic(
+                    Severity.ERROR,
+                    f"{subject} takes no {name}; no command takes every word of this line: {apart()}",
+                )
+            where = "first" if line.implicit else f"in place of {command}"
+            return Diagnostic(
+                Severity.ERROR,
+                f"{subject} takes no {name}; {name} is an option of {listed(belongs, 'and')}, "
+                f"so name {listed(takers)} {where}",
             )
         # The measure offers `--version` the command-line option
         # `--decisions`, and `-v` the command-line option `--vs` (issue #1098).
@@ -398,14 +451,6 @@ def _set_aside(parser: _Parser, line: _Line, word: str) -> Diagnostic:
             Severity.ERROR,
             f"{subject} takes no {name}" + ("" if near else f"; {hint}"),
             near_misses=near,
-        )
-    if line.implicit and word in COMMANDS:
-        rest = line.argv[1:]
-        rest.remove(word)
-        return Diagnostic(
-            Severity.ERROR,
-            f"{word} comes after the file, and a command goes first: "
-            f"{shlex.join(['cardlang', word, *rest])}",
         )
     return Diagnostic(
         Severity.ERROR,
@@ -459,7 +504,7 @@ def main(argv: list[str] | None = None) -> int:
         told = f"{_READ_AS_BARE}: {refused.message}" if line.implicit else refused.message
         _refuse(parser, line, Diagnostic(Severity.ERROR, told))
     if aside:
-        _refuse(parser, line, _set_aside(parser, line, aside[0]))
+        _refuse(parser, line, _set_aside(parser, line, aside))
     if args.file is None:
         _refuse(
             parser,
@@ -476,7 +521,7 @@ def main(argv: list[str] | None = None) -> int:
     if refusal is not None:
         print(f"cardlang: {refusal}", file=sys.stderr)
         if implicit:
-            # The token stood where a command may also stand, so the refusal
+            # The token stands where a command may also stand, so the refusal
             # answers both readings rather than picking one.
             print(
                 f"cardlang: if you meant a command, they are: {', '.join(COMMANDS)}",
