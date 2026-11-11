@@ -64,7 +64,18 @@ from cardlang import cli, query
 from cardlang.ast import nodes as n
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import Span, Told
-from cardlang.query import Answer, Checked, ask, ask_path, checked_text, render, scope_at, seats_at, type_at
+from cardlang.query import (
+    PROJECTION_WORDS,
+    Checked,
+    ask,
+    ask_path,
+    checked_text,
+    render,
+    scope_at,
+    seats_at,
+    type_at,
+)
+from cardlang.stdlib.zones import PROJECTION_LEVELS
 from cardlang.records import Kind, UnreadableEnvelope, query_envelope, read_envelope
 from cardlang.runtime.errors import GameRegistrationError
 
@@ -175,25 +186,30 @@ def _outcome(answer: object) -> str:
     return answer.diagnostic.code.slug if isinstance(answer, Told) else ANSWERED
 
 
-def _expected_seats(placed: Placed) -> str:
+# A part of the game that is no site, and no expression in a site's clause,
+# is refused one of these ways: it runs nothing, or it runs sites standing
+# elsewhere. Which of them, and whether it is true, is the oracle's
+# (tests/test_query_seats.py).
+_NO_SITE: frozenset[str] = frozenset({Code.NOTHING_SEEN_HERE.slug, Code.SEEN_AT_ITS_SITES.slug})
+
+
+def _expected_seats(placed: Placed) -> frozenset[str]:
     """A site, or an expression in a site's clause: the innermost node, then
     its expression-only enclosers, up to the first that is not an
     expression."""
     for node in reversed(placed.chain):
         if isinstance(node, SITE_KINDS):
-            return ANSWERED
-        if isinstance(node, n.EachSimultaneous):
-            return ANSWERED
+            return frozenset({ANSWERED})
         if not isinstance(node, EXPR_KINDS):
-            return Code.NOTHING_SEEN_HERE.slug
-    return Code.NOTHING_SEEN_HERE.slug
+            return _NO_SITE
+    return _NO_SITE
 
 
-def _expected(placed: Placed, answer: str) -> str:
+def _expected(placed: Placed, answer: str) -> frozenset[str]:
     if answer == "scope":
-        return ANSWERED
+        return frozenset({ANSWERED})
     if answer == "type":
-        return ANSWERED if isinstance(placed.node, EXPR_KINDS) else Code.NOT_AN_EXPRESSION.slug
+        return frozenset({ANSWERED if isinstance(placed.node, EXPR_KINDS) else Code.NOT_AN_EXPRESSION.slug})
     return _expected_seats(placed)
 
 
@@ -212,7 +228,7 @@ def _mismatches() -> dict[tuple[str, str], list[str]]:
                     continue
                 got = _outcome(_ASK[answer](checked, p.chain))
                 want = _expected(p, answer)
-                if got != want:
+                if got not in want:
                     span = getattr(p.node, "span")
                     out[(type(p.node).__name__, answer)].append(
                         f"{span.source_name}:{span.line}:{span.column} got {got}, want {want}"
@@ -317,7 +333,7 @@ POSITION_CELLS: dict[str, PositionCell] = {
     "a name": PositionCell(HEARTS, 66, 16, ANSWERED, "a name"),
     "an assignment's operator": PositionCell(HEARTS, 86, 14, ANSWERED, "an assignment"),
     "a rule after the game block": PositionCell(HEARTS, 122, 3, ANSWERED, "a rule"),
-    "a `uses` line": PositionCell(KUHN, 33, 3, ANSWERED, "the game"),
+    "a `uses` line": PositionCell(KUHN, 33, 3, ANSWERED, "a `uses` line"),
     "Markdown prose": PositionCell(SKELETON_MD, 3, 1, Code.POSITION_OUTSIDE_THE_GAME.slug),
     "Markdown fence": PositionCell(SKELETON_MD, 8, 1, Code.POSITION_OUTSIDE_THE_GAME.slug),
     "Markdown game text": PositionCell(SKELETON_MD, 15, 5, ANSWERED, "a zone declaration"),
@@ -373,10 +389,6 @@ def _cli(*argv: str) -> tuple[int, str, str]:
     return code, out.getvalue(), err.getvalue()
 
 
-def _seat_lines(answer: Answer) -> list[str]:
-    return [line for line in render(answer).split("\n") if line.startswith("  ")]
-
-
 def test_hearts_pass() -> None:
     """The pass: each seat decides; the holder of each hand sees the cards,
     every other seat a count."""
@@ -415,13 +427,142 @@ def test_board_game_piece_onto_a_square() -> None:
     assert "every other seat: sees which pieces leave reserve[actor], and which pieces arrive at square[at]" in text
 
 
-def test_text_and_json_are_one_answer() -> None:
-    """Every observer line the text prints is a record in the JSON, in order."""
-    answer = ask_path(HEARTS, 65, 9)
+# Positions whose answers carry every kind of per-seat fact between them: a
+# routed source, a gather, an announced and a moved pick, out-of-turn asks, a
+# site answering a position inside it, an offer running its moves' effects.
+_ONE_VALUE_CELLS: tuple[tuple[Path, int, int], ...] = (
+    (HEARTS, 65, 9),
+    (HEARTS, 51, 7),
+    (GAMES / "bridge.cardlang", 143, 9),
+    (GAMES / "tichu.cardlang", 223, 9),
+    (GAMES / "coup.cardlang", 135, 61),
+    (CHEAT, 135, 20),
+    (TIC_TAC_TOE, 55, 5),
+)
+
+
+@pytest.mark.parametrize(("path", "line", "column"), _ONE_VALUE_CELLS, ids=lambda v: str(getattr(v, "name", v)))
+def test_text_and_json_are_one_answer(path: Path, line: int, column: int) -> None:
+    """Every fact the record holds of what each seat sees is in the text, in
+    the order the record lists it: the answering site where it is not the
+    position asked, the construct, who decides, who else is asked, what the
+    others hear, where the content comes from, each movement and each kind of
+    seat's view, and what it runs next. red under: drop the `asked as:` line
+    from `query._render_seats`."""
+    answer = ask_path(path, line, column)
     record = query_envelope(answer)
-    observers = record["answer"]["seats"]["observers"]  # type: ignore[index]
-    printed = [line.split(":")[0].strip() for line in _seat_lines(answer) if ": sees" in line or "learns nothing" in line]
-    assert printed == [o["who"] for o in observers]
+    seats = record["answer"]["seats"]  # type: ignore[index]
+    text = render(answer)
+    assert record["answer"]["items"] in text  # type: ignore[index]
+    if "refused" in seats:
+        assert seats["refused"]["message"] in text
+        return
+    expected: list[str] = []
+    if (seats["span"]["line"], seats["span"]["column"]) != (line, column):
+        expected.append(f"line {seats['span']['line']}: {seats['text']}")
+    if seats["construct"] is not None:
+        expected.append(f"asked as: {seats['construct']}")
+    if seats["decider"] is not None:
+        expected.append(seats["decider"])
+    expected.extend(seats["out-of-turn"])
+    if seats["source-from"] is not None:
+        expected.append(seats["source-from"])
+    if seats["every-seat"] is not None:
+        expected.append(seats["every-seat"])
+    for move in seats["moves"]:
+        if len(seats["moves"]) > 1:
+            expected.append(f"when it moves from {move['source']['label']} to {move['destination']['label']}:")
+        expected.extend(f"{o['who']}: {o['sees']}" for o in move["observers"])
+    for place in seats["then"]:
+        expected.append(f"line {place['line']}")
+    at = 0
+    for fact in expected:
+        found = text.find(fact, at)
+        assert found >= 0, (fact, text)
+        at = found
+
+
+def test_the_projection_words_name_every_level() -> None:
+    """Every level a zone type can project has its words, so no answer meets
+    a level it cannot say. red under: delete the `"existence_only"` row of
+    `query.PROJECTION_WORDS`."""
+    assert set(PROJECTION_WORDS) == set(PROJECTION_LEVELS)
+
+
+def test_an_open_type_says_where_it_is_refused() -> None:
+    """The checker's Permissive Top passes where any value may stand and is
+    refused where an exact Type is needed, as `winner and true` is."""
+    text = render(ask_path(GAMES / "bridge.cardlang", 147, 19))
+    assert "is Any" in text and "refuses it" in text and "any value passes" not in text
+
+
+@pytest.mark.parametrize(
+    ("path", "line", "column", "facts"),
+    [
+        (GAMES / "bridge.cardlang", 143, 9, ("dummy_hand[p]", "`play_source_for`")),
+        (HEARTS, 51, 7, ("when it moves from each hand to deck:", "the seat holding each hand: sees which cards leave each hand")),
+        (GAMES / "tichu.cardlang", 223, 9, ("out of turn", "settled in play (issue #1111)")),
+    ],
+    ids=["routed trick source", "gather", "climbing round"],
+)
+def test_a_site_the_review_found_answered_wrong(path: Path, line: int, column: int, facts: tuple[str, ...]) -> None:
+    text = render(ask_path(path, line, column))
+    for fact in facts:
+        assert fact in text, (fact, text)
+
+
+@pytest.mark.parametrize(
+    ("path", "line", "column"),
+    [(GAMES / "coup.cardlang", 236, 11), (GAMES / "five-card-stud.cardlang", 211, 9)],
+    ids=["run of a game procedure", "run of a library-calling procedure"],
+)
+def test_a_run_names_where_its_sites_stand(path: Path, line: int, column: int) -> None:
+    answer = ask_path(path, line, column)
+    assert isinstance(answer.seats, Told)
+    assert answer.seats.diagnostic.code is Code.SEEN_AT_ITS_SITES
+    assert "stand at line" in answer.seats.diagnostic.message
+
+
+def test_a_uses_line_names_its_library() -> None:
+    answer = ask_path(KUHN, 33, 3)
+    assert answer.located is not None and answer.located.words == "a `uses` line"
+    assert isinstance(answer.seats, Told) and "poker_betting" in answer.seats.diagnostic.message
+
+
+@pytest.mark.parametrize(
+    "probe",
+    ["let z = discard\n    move one card from deck to z", "let h = hand[0]\n    move one card from h to deck"],
+    ids=["a let-bound destination", "a let-bound source"],
+)
+def test_an_end_only_play_names_is_settled_in_play(probe: str, tmp_path: Path) -> None:
+    """An end the query cannot name is never `learns nothing`."""
+    game = tmp_path / "probe.cardlang"
+    game.write_text(_LET_PROBE.replace("PROBE", probe.replace("\\n", "\n")))
+    statement_line = 1 + _LET_PROBE.split("PROBE")[0].count("\n") + 1
+    answer = ask_path(game, statement_line, 5)
+    assert answer.seats is not None and not isinstance(answer.seats, Told), render(answer)
+    assert "settled in play" in render(answer)
+    assert all(o.learns is not False for m in answer.seats.moves for o in m.observers)
+
+
+_LET_PROBE = """game Probe {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck : Deck
+    discard : Discard
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase p {
+    PROBE
+    for each player q: score[q] := 1
+  }
+  winner: highest score
+}
+"""
 
 
 def test_query_command_answers_on_stdout() -> None:

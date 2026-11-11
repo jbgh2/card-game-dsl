@@ -511,6 +511,7 @@ names in scope:
   ...
 the checker's Type: none here -- a movement (`move chosen 3 cards`) is not an expression and the checker gives it no Type; point at an expression inside it
 what each seat sees (static, from the zone types; which cards, and which seat holds a zone, are settled when the game is played):
+  asked as: simultaneous
   who decides: each seat, for its own pick, asked and remembering each pick
   no other seat hears the pick; the others learn of it through the movement
   the seat holding hand[player]: sees which cards leave hand[player], and how many cards arrive at hand[player offset_by pass_direction]
@@ -519,15 +520,20 @@ what each seat sees (static, from the zone types; which cards, and which seat ho
 ```
 
 What each seat sees is the **static** answer: through which projection each
-kind of seat sees each side of the movement (the cards themselves, how many,
-or nothing), read from the zone types exactly as the engine reads them when it
-tells a seat what moved. Which cards, and which seat holds `hand[player]`, are
-settled only when a deal is played; `demo --view` shows a played line.
+kind of seat sees each end of the movement (the cards themselves, how many, or
+nothing), from the zone types through the projection the engine applies when
+it tells a seat what moved. Where a movement can take more than one route (a
+trick played from the dummy's hand, cards gathered from every zone), each route
+is listed. Which cards, and which seat holds `hand[player]`, are settled only
+when a deal is played, and so is anything the file names only at play time (a
+zone a `let` holds, what the other seats hear of a climbing round's pick); the
+answer says so rather than guessing, and `demo --view` shows a played line.
 
 Where a question has no answer at the position, the answer says so and points
-at what does: the checker gives a statement no Type, an assignment moves no card, and a
-comment or a blank line outside every declaration is no part of the game (exit
-`2`). A file the checker refuses gets the checker's refusal, exactly as `check`
+at what does: the checker gives a statement no Type, an assignment moves no
+card, a `run` names the lines where its procedure's movements and decisions
+stand, and a comment or a blank line outside every declaration is no part of
+the game (exit `2`). A file the checker refuses gets the checker's refusal, exactly as `check`
 prints it, and no answer. `--json` prints the same answer as one Record
 Envelope of kind `query`, each refused answer carrying its Diagnostic Code.
 

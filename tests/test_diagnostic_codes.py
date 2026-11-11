@@ -180,6 +180,7 @@ SHIPPED: dict[str, str] = {
     "not-an-expression": "the position is on a statement or a declaration, which has no value; point at an expression inside it",
     "expression-not-typed": "the checker reads this expression without working out its own type; ask about the expression around it",
     "nothing-seen-here": "nothing at this position moves a card or asks a seat; point at a movement or a decision",
+    "seen-at-its-sites": "this moves no card itself but runs movements or decisions that stand elsewhere; ask at each of them",
 }
 
 
@@ -479,6 +480,7 @@ WITNESSES: dict[Code, Tells] = {
     Code.NOT_AN_EXPRESSION: _query("hearts.cardlang", "90:9"),
     Code.EXPRESSION_NOT_TYPED: _query("hearts.cardlang", "86:7"),
     Code.NOTHING_SEEN_HERE: _query("hearts.cardlang", "86:14"),
+    Code.SEEN_AT_ITS_SITES: _query("coup.cardlang", "236:11"),
 }
 
 

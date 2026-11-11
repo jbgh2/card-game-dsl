@@ -84,6 +84,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import shlex
 import sys
 from collections.abc import Callable
@@ -201,25 +202,44 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _position(value: str | None) -> tuple[int, int] | str:
+# A position as `query --at` reads it: two ASCII numbers, a colon between.
+_POSITION = re.compile(r"([0-9]+):([0-9]+)")
+# A word argparse would read as an option that `query --at` reads as its
+# value instead, so a dashed position is refused as no position: `-1:1`,
+# `-0:5`, `-:3`.
+_DASHED_POSITION = re.compile(r"^-[0-9]*:[0-9]*$")
+
+
+def _position(given: list[str] | None) -> tuple[int, int] | str:
     """The position `query --at` names, or why the words name none. Read
     after the line is parsed, as `demo`'s `--at` is judged beside the seat it
     needs, so that a word `demo` reads as its `--at` is a word of a line
     `query` takes too, and the refusal is the query's own."""
-    if value is None:
+    if not given:
         return "query asks about one position of the file; add --at LINE:COL, as in --at 66:16"
-    line, colon, column = value.partition(":")
-    if not colon or not line.isdigit() or not column.isdigit():
-        return f"--at {value} names no position; write LINE:COL, as in --at 66:16"
-    return int(line), int(column)
+    if len(given) > 1:
+        return (
+            f"query asks about one position, and --at names {len(given)}: "
+            f"{', '.join(given)}; give --at once"
+        )
+    found = _POSITION.fullmatch(given[0])
+    if found is None:
+        return f"--at {given[0]} names no position; write LINE:COL, as in --at 66:16"
+    return int(found.group(1)), int(found.group(2))
 
 
 def _add_query_arguments(parser: argparse.ArgumentParser) -> None:
+    # Every dashed word that is no option of this parser reads as a value,
+    # so `--at -1:1` reaches the query's own refusal.
+    parser._negative_number_matcher = re.compile(
+        f"{parser._negative_number_matcher.pattern}|{_DASHED_POSITION.pattern}"
+    )
     parser.add_argument(
         "--at",
+        action="append",
         metavar="LINE:COL",
-        help="required: the position to ask about, by the file's own lines and "
-        "columns, both counted from 1, as `check` reports them",
+        help="required, once: the position to ask about, by the file's own lines "
+        "and columns, both counted from 1, as `check` reports them",
     )
     parser.add_argument(
         "--json",

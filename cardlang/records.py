@@ -142,9 +142,10 @@ def _answer_record(answer: q.Answer) -> Record:
     assert loc is not None
     return {
         "part": {"what": loc.words, "span": span_record(loc.span), "text": loc.text},
+        "items": answer.items,
         "scope": _or_refused(answer.scope, _scope_record),
         "type": _or_refused(answer.type, _type_record),
-        "seats": _or_refused(answer.seats, _seats_record),
+        "seats": _or_refused(answer.seats, lambda seats: _seats_record(seats, answer.items)),
     }
 
 
@@ -178,32 +179,48 @@ def _type_record(typed: q.Typed) -> Record:
     }
 
 
-def _side_record(side: q.Side | None) -> Record | None:
-    return None if side is None else {"zone": side.zone, "label": side.label}
+def _side_record(side: q.Side) -> Record:
+    return {
+        "zone": side.zone,
+        "label": side.label,
+        "key": side.key,
+        "each": side.each,
+        "settled": side.settled,
+    }
 
 
-def _seats_record(seats: q.Seats) -> Record:
+def _seats_record(seats: q.Seats, items: str) -> Record:
     return {
         "form": "static",
         "span": span_record(seats.span),
+        "text": seats.text,
         "site": seats.site,
         "construct": seats.construct,
         "decider": seats.decider,
+        "out-of-turn": list(seats.out_of_turn),
         "pick": seats.pick,
-        "source": _side_record(seats.source),
-        "destination": _side_record(seats.destination),
-        "observers": [
+        "source-from": seats.source_from,
+        "moves": [
             {
-                "who": o.who,
-                "holds-source": o.holds_source,
-                "holds-destination": o.holds_destination,
-                "source": o.source,
-                "destination": o.destination,
-                "learns": o.learns,
+                "source": _side_record(move.source),
+                "destination": _side_record(move.destination),
+                "observers": [
+                    {
+                        "who": o.who,
+                        "holds-source": o.holds_source,
+                        "holds-destination": o.holds_destination,
+                        "source": o.source,
+                        "destination": o.destination,
+                        "learns": o.learns,
+                        "sees": q.sees(o, move, items),
+                    }
+                    for o in move.observers
+                ],
             }
-            for o in seats.observers
+            for move in seats.moves
         ],
         "every-seat": seats.every_seat,
+        "then": [span_record(s) for s in seats.then],
     }
 
 
@@ -285,13 +302,13 @@ def _is_payload(kind: Kind, document: dict[str, object]) -> bool:
 
 # The fields of a Checker Query's answer, and of each of its three answers
 # where it is given rather than refused.
-_ANSWER_FIELDS = frozenset({"part", "scope", "type", "seats"})
+_ANSWER_FIELDS = frozenset({"part", "items", "scope", "type", "seats"})
 _ANSWERED_FIELDS: dict[str, frozenset[str]] = {
     "scope": frozenset({"span", "names", "at-a-name"}),
     "type": frozenset({"span", "text", "types", "open"}),
     "seats": frozenset(
-        {"form", "span", "site", "construct", "decider", "pick", "source", "destination",
-         "observers", "every-seat"}
+        {"form", "span", "text", "site", "construct", "decider", "out-of-turn", "pick",
+         "source-from", "moves", "every-seat", "then"}
     ),
 }
 

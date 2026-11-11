@@ -163,24 +163,27 @@ EVENT_PAYLOADS: dict[str, tuple[str, ...]] = {
 }
 
 
-# What the seats other than the deciding seat learn of a pick, by the
-# construct asking (`delegation.CONSTRUCTS`, the word an `asked` event carries):
-# "announced", every seat hears the pick (`announce`); "moved", no seat hears
-# it, and the others learn of it only through the movement it makes, as the
-# zones' projections show it; "pass announced", a pass or a decline is
-# announced and a play is seen through its movement. The deciding seat itself
-# is always asked and remembers each pick (`chooser.decide`). Read by a
-# Checker Query (`cardlang.query`). The rung, recorded: no emission site reads
-# this table, so it is Derived and Pinned, held to what every registered game
-# emits by tests/test_query_seats.py, rather than a column the sites announce by.
-PICK_SHOWN: dict[str, Literal["announced", "moved", "pass announced"]] = {
+# What the seats other than the deciding seat hear of a pick, by the construct
+# asking (`delegation.CONSTRUCTS`, the word an `asked` event carries):
+# "announced", every seat hears every pick (`announce`); "moved", no seat hears
+# any, and the others learn of a pick only through the movement it makes, as
+# the zones' projections show it; None where neither holds of every pick (a
+# climbing round announces a pass, a decline, an announcement and a wildcard's
+# rank, and shows a play through its movement), so a reader says it is settled
+# in play. The deciding seat itself is always asked and remembers each pick
+# (`chooser.decide`). Read by a Checker Query (`cardlang.query`). The rung,
+# recorded: no emission site reads this table (the announcing sites are
+# `execute._offer`, `evaluate._choose` and the climbing form's), so it is a
+# Pin, held row by row to every pick every registered game makes by
+# tests/test_query_seats.py; making it the emitters' own is issue #1111.
+PICK_SHOWN: dict[str, Literal["announced", "moved"] | None] = {
     "transfer": "moved",
     "joint": "moved",
     "simultaneous": "moved",
     "offer": "announced",
     "choose": "announced",
     "trick": "moved",
-    "climb": "pass announced",
+    "climb": None,
 }
 
 

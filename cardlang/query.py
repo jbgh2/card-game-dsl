@@ -12,29 +12,46 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      a file `check_source` accepts; a file it refuses is answered
               with the checker's own refusal and nothing else.
-Establishes:  every answer is read from the pass that owns its fact, never
-              worked out here: the names in scope from the resolver's Scope
-              Record (`resolve(scopes=...)`, classified by the resolver's own
-              classifier), the Type from the type checker's Type Record
-              (`typecheck(types=...)`, every Type `infer` returned), and what
-              each seat sees from the zone types through the projection the
-              runtime's emitter reads (`stdlib.zones.zone_projection`), the
-              emitter's own rule for an observer learning of a movement at all
-              (`observe.movement_seen`), its rule for which zones have a
-              holder (`observe.held`), and its table of who hears a pick
-              (`observe.PICK_SHOWN`). Every position of the file gets an
+Establishes:  the names in scope are read from the resolver's Scope Record
+              (`resolve(scopes=...)`, classified by the resolver's own
+              classifier) and the Type from the type checker's Type Record
+              (`typecheck(types=...)`, every Type `infer` returned); neither
+              is worked out here. What each seat sees of a movement reads the
+              projection the emitter reads (`stdlib.zones.zone_projection`),
+              its rule for a seat learning of a movement at all
+              (`observe.movement_seen`) and for which zones have a holder
+              (`observe.held`), and what the others hear of a pick reads the
+              pick table (`observe.PICK_SHOWN`), saying it is settled in play
+              where the table holds no row. Every position of the file gets an
               answer or a told refusal carrying its Diagnostic Code, addressed
               to whoever ran the query; a refusal says what can be answered
-              nearby. The per-seat answer is the static one, and says so: the
-              projection each kind of observer sees a site through, not the
-              cards of a played line.
-Now illegal:  a scope walk, a type inference or a visibility rule of this
-              module's own; an answer about a file the checker refuses.
+              nearby, and a part of the game that runs sites standing
+              elsewhere names where they stand. The per-seat answer is the
+              static one, and says so; an end of a movement whose zone only
+              play names, and the pick of a construct the table holds no row
+              for, are said to be settled in play, never answered as nothing.
+Restates:     what this module spells of the runtime rather than reads, each
+              held by the oracle that plays every corpus game and compares
+              each delivered event with the answer
+              (tests/test_query_seats.py): the construct a movement's shape is
+              asked by (`delegation.DECISION_POINTS`' sites); who decides each
+              construct; that a reveal reaches every seat and a shuffle none
+              (`execute._epistemic`); a round's routed decider and source
+              (`delegation.decider_for`, `delegation.source_for`, for the forms
+              `delegation.ROUTED_FORMS` names); the seats a climbing round asks
+              out of turn (`primitives.climb_interrupt_decline`,
+              `primitives.climb_announcements`, its Hosted Poll); the zones a
+              source-less movement collects from (`execute._gather`); the zones
+              an end can name (each branch of a conditional, the result of a
+              function the game defines); and what a `run`, an offer or a round
+              goes on to run (`expand`'s splice, a move type's effect).
+Now illegal:  a scope walk or a type inference of this module's own; a
+              projection rule of its own; an answer about a file the checker
+              refuses.
 Held by:      Derived and Pinned: tests/test_query.py crosses every `Node`
               kind with the three answers over the corpus, and
-              tests/test_query_seats.py holds the per-seat answer to the
-              information states the OpenSpiel adapter derives and the pick
-              table to what every registered game emits.
+              tests/test_query_seats.py holds every per-seat answer a seeded
+              line reaches to what play delivers.
 """
 
 from __future__ import annotations
@@ -51,7 +68,9 @@ from cardlang.domains import role_of
 from cardlang.extract import extract_single_block
 from cardlang.parse import parse_block, parse_text
 from cardlang.resolve import NamesInScope, resolve
-from cardlang.runtime.delegation import CHOOSER_HELPER
+from cardlang.runtime import primitives
+from cardlang.runtime.delegation import CHOOSER_HELPER, HELPER_NAMES, ROUTED_FORMS, SOURCE_HELPER
+from cardlang.runtime.mechanics import ClimbForm, TrickForm
 from cardlang.runtime.observe import PICK_SHOWN, held, movement_seen
 from cardlang.runtime.values import content_noun
 from cardlang.stdlib.zones import zone_projection
@@ -79,6 +98,9 @@ class Checked:
     game: n.Game
     scopes: Mapping[n.NodeKey, NamesInScope]
     types: Mapping[n.NodeKey, Sequence[Type]]
+    # The game's `uses` lines, which the resolver splices and drops, as the
+    # parse wrote them.
+    uses: tuple[n.UsesDecl, ...] = ()
 
 
 def _file_lines(text: str) -> tuple[str, ...]:
@@ -102,7 +124,7 @@ def checked_text(text: str, source_name: str, markdown: bool) -> Checked:
     game = resolve(tree, scopes=scopes)
     typecheck(game, types=types)
     return Checked(
-        source_name, _file_lines(text), source_name, program, offset, game, scopes, types
+        source_name, _file_lines(text), source_name, program, offset, game, scopes, types, tree.uses
     )
 
 
@@ -118,6 +140,7 @@ class Located:
     words: str
     text: str
     span: Span
+    uses: n.UsesDecl | None = None
 
 
 @dataclass(frozen=True)
@@ -183,40 +206,64 @@ class Typed:
 
 @dataclass(frozen=True)
 class Side:
-    """One side of a movement: the zone, and its instance as written."""
+    """One end of a movement: the zone and its instance as written, or, where
+    only play decides the zone (a `let`-bound zone, a parameter, a value
+    worked out at play time), no zone and what decides it. `key` is the
+    instance's index as written; `each` marks every instance of a family,
+    one movement apiece (a gather)."""
 
-    zone: str
+    zone: str | None
     label: str
+    key: str | None = None
+    each: bool = False
+    settled: str | None = None
 
 
 @dataclass(frozen=True)
 class Observer:
-    """One kind of seat, and what it sees of a movement through each side's
-    projection; `learns` is False where it sees nothing of either side."""
+    """One kind of seat, and what it sees of a movement through each end's
+    projection. An end whose zone only play decides has no projection here
+    and no holding (None); `learns` is None where whether the seat learns of
+    the movement at all is settled in play."""
 
     who: str
-    holds_source: bool
-    holds_destination: bool
+    holds_source: bool | None
+    holds_destination: bool | None
     source: str | None
     destination: str | None
-    learns: bool
+    learns: bool | None
+
+
+@dataclass(frozen=True)
+class TransferRoute:
+    """One way a site can move content: its two ends, and every kind of
+    seat's view of the move."""
+
+    source: Side
+    destination: Side
+    observers: tuple[Observer, ...]
 
 
 @dataclass(frozen=True)
 class Seats:
     """What each seat sees when the site at `span` runs, from the zone types
-    (the static form): who decides and what the others hear of the pick, and
-    what each kind of seat sees of the movement it makes."""
+    (the static form): who decides, who else is asked, what the others hear
+    of the pick, each way the site can move content and what each kind of
+    seat sees of it, and where the movements and decisions it runs next
+    stand. `pick` is None where `observe.PICK_SHOWN` holds no row: what the
+    others hear is then settled in play."""
 
     span: Span
+    text: str
     site: str
     construct: str | None
     decider: str | None
+    out_of_turn: tuple[str, ...]
     pick: str | None
-    source: Side | None
-    destination: Side | None
-    observers: tuple[Observer, ...]
+    source_from: str | None
+    moves: tuple[TransferRoute, ...]
     every_seat: str | None
+    then: tuple[Span, ...]
 
 
 @dataclass(frozen=True)
@@ -322,6 +369,9 @@ def locate(checked: Checked, line: int, column: int) -> Located | Told:
     node, chain = best
     span = _span(node)
     assert span is not None
+    for uses in checked.uses:
+        if uses.span is not None and offset is not None and uses.span.start <= offset < uses.span.end:
+            return Located(chain, "a `uses` line", _excerpt(checked, uses.span), uses.span, uses)
     return Located(chain, _words(node), _excerpt(checked, span, node), span)
 
 
@@ -456,20 +506,27 @@ def _typed(checked: Checked, node: object) -> Typed | None:
 
 
 # What a projection shows, by its level, of the game's content (`{items}`:
-# "cards", or "pieces").
-_PROJECTION_WORDS: dict[str, str] = {
-    "identity": "which {items}",
-    "count_only": "how many {items}",
+# "cards", or "pieces"); one row per level of `PROJECTION_LEVELS`
+# (tests/test_query.py pins the two together).
+PROJECTION_WORDS: dict[str, str] = {
     "trivial": "nothing",
+    "existence_only": "whether any {items}",
+    "count_only": "how many {items}",
+    "count_by_type": "how many {items} of each kind",
+    "identity_set": "which {items}, not how many of each",
+    "identity": "which {items}",
 }
 
 _PICK_WORDS: dict[str, str] = {
     "announced": "every seat hears the pick",
     "moved": "no other seat hears the pick; the others learn of it through the movement",
-    "pass announced": "every seat hears a pass; a play is seen through the movement",
 }
+_PICK_SETTLED = "what the other seats hear of a pick is settled in play (issue #1111)"
 
 ON_TURN = "the seat on turn"
+
+# The round forms, by the node a `round` is (`mechanics.build_form`).
+_FORMS: dict[type, type] = {n.TrickRound: TrickForm, n.ClimbRound: ClimbForm}
 
 
 def _item(checked: Checked, *, plural: bool = False) -> str:
@@ -479,41 +536,102 @@ def _item(checked: Checked, *, plural: bool = False) -> str:
 def seats_at(checked: Checked, chain: tuple[object, ...]) -> Seats | Told:
     """What each seat sees when the innermost movement or decision enclosing
     the position runs, from the zone types: the site itself, or the one whose
-    clause the position is in."""
-    for at in range(len(chain) - 1, -1, -1):
+    clause the position is in. Elsewhere, the part of the game holding the
+    position is refused, with where the movements and decisions it runs
+    stand when it runs any."""
+    at = len(chain) - 1
+    while at >= 0:
         node = chain[at]
         site = _site(checked, node, chain[:at])
         if site is not None:
             return site
         if isinstance(node, _STMT_KINDS) or not isinstance(node, _EXPR_KINDS):
             break
-    inner = chain[-1]
-    span = _span(inner)
+        at -= 1
+    holder = chain[max(at, 0)]
+    span = _span(holder)
     assert span is not None
+    said = f"{_words(holder)} (`{_excerpt(checked, span, holder)}`)"
+    reached = _reached(checked, holder)
+    if reached:
+        return _told(
+            f"{said} moves no {_item(checked)} itself and asks no seat; the movements "
+            f"and decisions it runs stand at {_places(checked, reached, span)}; ask at each",
+            span,
+            Code.SEEN_AT_ITS_SITES,
+        )
     written = ""
-    if isinstance(inner, (n.AssignStmt, n.RotateStmt)):
+    if isinstance(holder, (n.AssignStmt, n.RotateStmt)):
         written = (
             "; what it writes is a State Variable, which every seat is shown at "
             "its next decision"
         )
-    inside = _first_site_inside(checked, inner)
-    nearby = "" if inside is None else f"; the first inside it is on line {inside.line}"
     return _told(
-        f"{_words(inner)} (`{_excerpt(checked, span, inner)}`) moves no "
-        f"{_item(checked)} and asks no seat{written}{nearby}",
+        f"{said} moves no {_item(checked)} and asks no seat{written}",
         span,
         Code.NOTHING_SEEN_HERE,
     )
 
 
-def _first_site_inside(checked: Checked, node: object) -> Span | None:
-    for inner, chain in _walk(node, ()):
-        span = _span(inner)
-        if inner is node or span is None or span.source_name != checked.source_name:
-            continue
-        if _site(checked, inner, chain[:-1]) is not None:
-            return span
-    return None
+def _is_site(node: object) -> bool:
+    return isinstance(
+        node,
+        (n.Transfer, n.EachSimultaneous, n.EpistemicOp, n.Offer, n.Choose, n.TrickRound, n.ClimbRound),
+    )
+
+
+def _reached(checked: Checked, root: object) -> tuple[Span, ...]:
+    """Where every movement and decision `root` runs stands, `root` itself
+    aside: those written inside it, inside each procedure it runs, and
+    inside the effect of each move type it offers or plays, followed as the
+    runtime follows them (a `run` splices its procedure's body; an offer or a
+    round runs its move type's effect)."""
+    procedures = {p.name: p for p in checked.game.procedures}
+    move_types = {m.name: m for m in checked.game.move_types}
+    found: dict[tuple[str, int, int], Span] = {}
+    followed: set[str] = set()
+
+    def follow(definition: object | None, name: str) -> None:
+        if definition is not None and name not in followed:
+            followed.add(name)
+            visit(definition)
+
+    def visit(start: object) -> None:
+        for node, _chain in _walk(start, ()):
+            span = _span(node)
+            if node is not root and node is not start and _is_site(node) and span is not None:
+                found.setdefault((span.source_name, span.start, span.end), span)
+            match node:
+                case n.RunStmt():
+                    follow(procedures.get(node.name), f"procedure {node.name}")
+                case n.Offer():
+                    for name in node.offering:
+                        follow(move_types.get(name), f"move {name}")
+                case n.TrickRound() | n.ClimbRound():
+                    follow(move_types.get(node.move_type), f"move {node.move_type}")
+                case _:
+                    pass
+
+    visit(root)
+    return tuple(sorted(found.values(), key=lambda s: (s.source_name != checked.source_name, s.source_name, s.start)))
+
+
+def _places(checked: Checked, spans: Sequence[Span], beside: Span | None = None, most: int = 6) -> str:
+    """Where some spans stand, as a designer reads them: a line of this file,
+    with its column where it shares a line with `beside`, or a line of a
+    family library's (asked about there as issue #1110)."""
+
+    def place(s: Span) -> str:
+        if s.source_name != checked.source_name:
+            return f"line {s.line} of {s.source_name} (issue #1110)"
+        if beside is not None and s.line == beside.line:
+            return f"line {s.line}, column {s.column}"
+        return f"line {s.line}"
+
+    named = [place(s) for s in spans]
+    named = list(dict.fromkeys(named))
+    shown = ", ".join(named[:most])
+    return shown if len(named) <= most else f"{shown} and {len(named) - most} more"
 
 
 def _site(checked: Checked, node: object, enclosing: tuple[object, ...]) -> Seats | None:
@@ -521,49 +639,98 @@ def _site(checked: Checked, node: object, enclosing: tuple[object, ...]) -> Seat
     if span is None:
         return None
     zones = {z.name: z for z in checked.game.zones}
+    text = _excerpt(checked, span, node)
     match node:
         case n.Transfer():
-            return _movement_site(checked, node, span, enclosing, zones)
+            return _movement_site(checked, node, span, text, enclosing, zones)
         case n.EachSimultaneous():
             if isinstance(node.body, n.Transfer):
-                return _movement_site(checked, node.body, span, (*enclosing, node), zones)
+                return _movement_site(checked, node.body, span, text, (*enclosing, node), zones)
             return None
         case n.EpistemicOp():
-            side = _side(checked, node.zone, zones)
-            label = side.label if side is not None else "the zone"
+            # What `execute._epistemic` emits: nothing for a shuffle; for a
+            # reveal, the card to every seat, whatever the zone shows.
+            ends = _ends(checked, node.zone, zones)
+            label = " or ".join(e.label for e in ends)
             if node.op == "shuffle":
-                return Seats(span, "shuffle", None, None, None, side, None, (),
-                             "no seat learns anything: a shuffle shows no seat the new order")
-            return Seats(span, "reveal", None, None, None, side, None, (),
-                         f"every seat sees the revealed {_item(checked)} in {label}, whatever {label} shows otherwise")
+                every = "no seat learns anything: a shuffle shows no seat the new order"
+            else:
+                every = f"every seat sees the revealed {_item(checked)} in {label}, whatever {label} shows otherwise"
+            return Seats(span, text, node.op, None, None, (), None, None, (), every, ())
         case n.Offer():
-            return _decision(span, "offer", "the seat it is offered to")
+            return Seats(
+                span, text, "offer", "offer", "the seat it is offered to", (),
+                PICK_SHOWN["offer"], None, (), None, _reached(checked, node),
+            )
         case n.Choose():
-            return _decision(span, "choose", "the acting seat")
+            return Seats(span, text, "choose", "choose", "the acting seat", (), PICK_SHOWN["choose"], None, (), None, ())
         case n.TrickRound() | n.ClimbRound():
-            construct = "trick" if isinstance(node, n.TrickRound) else "climb"
-            decider = ON_TURN
-            if construct == "trick" and any(f.name == CHOOSER_HELPER for f in checked.game.functions):
-                decider = f"the seat `{CHOOSER_HELPER}` names for {ON_TURN}"
-            source = Side(node.source_zone, f"{node.source_zone}[{ON_TURN}]")
-            dest = Side(node.play_zone, node.play_zone)
-            observers = _observers(checked, zones, source, ON_TURN, dest, None)
-            return Seats(span, construct, construct, decider, PICK_SHOWN[construct], source, dest, observers, None)
+            return _round_site(checked, node, span, text, zones)
         case _:
             return None
 
 
-def _decision(span: Span, construct: str, decider: str) -> Seats:
-    return Seats(span, construct, construct, decider, PICK_SHOWN[construct], None, None, (), None)
+def _round_site(
+    checked: Checked,
+    node: n.TrickRound | n.ClimbRound,
+    span: Span,
+    text: str,
+    zones: Mapping[str, n.ZoneDecl],
+) -> Seats:
+    """A round: its decider and source as the runtime routes them
+    (`delegation.decider_for`, `delegation.source_for`, for a form in
+    `delegation.ROUTED_FORMS` alone), and, for a climbing round, the seats a
+    registered engine asks out of turn (`primitives.climb_interrupt_decline`,
+    `primitives.climb_announcements`) and its Hosted Poll."""
+    construct = "trick" if isinstance(node, n.TrickRound) else "climb"
+    routed = _FORMS[type(node)].__name__ in ROUTED_FORMS
+    helpers = {f.name: f for f in checked.game.functions if f.name in HELPER_NAMES}
+    decider = ON_TURN
+    if routed and CHOOSER_HELPER in helpers:
+        decider = f"the seat `{CHOOSER_HELPER}` names for {ON_TURN}"
+    source_from = None
+    sources: tuple[Side, ...] = (Side(node.source_zone, f"{node.source_zone}[{ON_TURN}]", key=ON_TURN),)
+    if routed and SOURCE_HELPER in helpers:
+        helper = helpers[SOURCE_HELPER]
+        sources = _ends(checked, helper.body, zones)
+        param = helper.params[0].name if helper.params else "its argument"
+        source_from = (
+            f"the {_item(checked, plural=True)} come from the zone `{SOURCE_HELPER}` "
+            f"names for {ON_TURN} ({param} below): {' or '.join(s.label for s in sources)}"
+        )
+    out_of_turn: list[str] = []
+    if isinstance(node, n.ClimbRound):
+        if isinstance(node.engine, n.RegisteredEngine):
+            if primitives.climb_interrupt_decline(node.engine.lead) is not None:
+                out_of_turn.append(
+                    "after a play, the other seats are asked, out of turn, whether to "
+                    "beat it (the engine's interrupt window)"
+                )
+            if primitives.climb_announcements(node.engine.lead):
+                out_of_turn.append("a seat may be asked to make an announcement before it plays")
+        if node.hosted is not None:
+            out_of_turn.append(
+                f"before each ask, the `before asking` statements run for the seat about "
+                f"to be asked (line {node.hosted.span.line if node.hosted.span else span.line})"
+            )
+    dest = Side(node.play_zone, node.play_zone)
+    moves = tuple(TransferRoute(s, dest, _observers(checked, zones, s, dest)) for s in sources)
+    return Seats(
+        span, text, construct, construct, decider, tuple(out_of_turn), PICK_SHOWN[construct],
+        source_from, moves, None, _reached(checked, node),
+    )
 
 
 def _movement_site(
     checked: Checked,
     node: n.Transfer,
     span: Span,
+    text: str,
     enclosing: tuple[object, ...],
     zones: Mapping[str, n.ZoneDecl],
 ) -> Seats:
+    # The construct a chosen movement is asked by, as the decision points
+    # its shapes reach name it (`delegation.DECISION_POINTS`).
     construct: str | None = None
     decider: str | None = None
     if node.selection_mode == "chosen":
@@ -575,31 +742,64 @@ def _movement_site(
             construct, decider = "transfer", "each receiving seat, for the cards it receives"
         else:
             construct, decider = "transfer", "the acting seat"
-    source = None if node.source is None else _side(checked, node.source, zones)
+    sources = _gathered(checked, node, zones) if node.source is None else _ends(checked, node.source, zones)
     if node.dest_each and isinstance(node.dest, n.NameRef):
-        dest: Side | None = Side(node.dest.name, f"{node.dest.name}[each seat]")
-        dest_key: str | None = "each seat"
+        dests: tuple[Side, ...] = (Side(node.dest.name, f"{node.dest.name}[each seat]", key="each seat"),)
     else:
-        dest = _side(checked, node.dest, zones)
-        dest_key = None if dest is None else _key_text(checked, node.dest)
-    source_key = None if node.source is None else _key_text(checked, node.source)
-    observers = _observers(checked, zones, source, source_key, dest, dest_key)
+        dests = _ends(checked, node.dest, zones)
+    moves = tuple(
+        TransferRoute(s, d, _observers(checked, zones, s, d)) for s in sources for d in dests
+    )
     every = None
     if node.source is None:
-        every = f"the {_item(checked, plural=True)} come from every zone, each seen as its own type shows it"
+        every = (
+            f"the {_item(checked, plural=True)} come from every other zone, one movement "
+            "apiece, each seen as its own type shows it"
+        )
     pick = None if construct is None else PICK_SHOWN[construct]
-    return Seats(span, "movement", construct, decider, pick, source, dest, observers, every)
+    return Seats(span, text, "movement", construct, decider, (), pick, None, moves, every, ())
 
 
-def _side(checked: Checked, expr: n.Expr, zones: Mapping[str, n.ZoneDecl]) -> Side | None:
-    """The zone an expression names, as written; None for a zone the
-    expression decides only when it runs."""
-    name = expr.obj if isinstance(expr, n.Subscript) else expr
-    if not isinstance(name, n.NameRef) or name.ref_kind != "zone" or name.name not in zones:
-        return None
+def _gathered(checked: Checked, node: n.Transfer, zones: Mapping[str, n.ZoneDecl]) -> tuple[Side, ...]:
+    """The zones a source-less movement collects from, as `execute._gather`
+    reads them: every zone but the destination instance, a family's
+    instances one movement apiece."""
+    dests = _ends(checked, node.dest, zones)
+    single_dests = {d.zone for d in dests if d.zone is not None and d.key is None}
+    out: list[Side] = []
+    for name in sorted(zones):
+        decl = zones[name]
+        if decl.index is None:
+            if name not in single_dests:
+                out.append(Side(name, name))
+        else:
+            out.append(Side(name, f"each {name}", each=True))
+    return tuple(out)
+
+
+def _ends(
+    checked: Checked, expr: n.Expr, zones: Mapping[str, n.ZoneDecl], seen: frozenset[str] = frozenset()
+) -> tuple[Side, ...]:
+    """The zones an expression can name, each as written: a zone or a zone
+    instance, every branch of a conditional, and the result of a function the
+    game defines; anything else names its zone only when the game is
+    played."""
     span = _span(expr)
-    label = name.name if span is None else checked.program[span.start : span.end]
-    return Side(name.name, " ".join(label.split()))
+    written = "the zone" if span is None else " ".join(checked.program[span.start : span.end].split())
+    functions = {f.name: f for f in checked.game.functions}
+    match expr:
+        case n.NameRef() if expr.ref_kind == "zone" and expr.name in zones:
+            return (Side(expr.name, expr.name),)
+        case n.Subscript(obj=n.NameRef() as obj) if obj.ref_kind == "zone" and obj.name in zones:
+            return (Side(obj.name, written, key=_key_text(checked, expr)),)
+        case n.IfExpr():
+            branches = (expr.then, *(value for _cond, value in expr.elifs), expr.otherwise)
+            found = [side for b in branches for side in _ends(checked, b, zones, seen)]
+            return tuple(dict.fromkeys(found))
+        case n.Call() if expr.func in functions and expr.func not in seen:
+            return _ends(checked, functions[expr.func].body, zones, seen | {expr.func})
+        case _:
+            return (Side(None, written, settled=f"`{written}` names its zone only when the game is played"),)
 
 
 def _key_text(checked: Checked, expr: n.Expr) -> str | None:
@@ -608,53 +808,66 @@ def _key_text(checked: Checked, expr: n.Expr) -> str | None:
     return None
 
 
-def _holder(checked: Checked, zones: Mapping[str, n.ZoneDecl], side: Side | None) -> bool:
-    if side is None:
+def _holder(checked: Checked, zones: Mapping[str, n.ZoneDecl], side: Side) -> bool:
+    if side.zone is None:
         return False
-    decl = zones[side.zone]
     positions = {p.name: p for p in checked.game.positions}
-    return held(decl.index, positions)
+    return held(zones[side.zone].index, positions)
 
 
 def _holder_words(zones: Mapping[str, n.ZoneDecl], side: Side) -> str:
+    assert side.zone is not None
     index = zones[side.zone].index
     role = role_of(index) if index is not None else None
-    if role is not None and role.value == "team":
-        return f"each seat of the team holding {side.label}"
-    return f"the seat holding {side.label}"
+    team = role is not None and role.value == "team"
+    if side.each:
+        return f"each seat of the team holding one {side.zone}" if team else f"the seat holding each {side.zone}"
+    return f"each seat of the team holding {side.label}" if team else f"the seat holding {side.label}"
 
 
 def _observers(
-    checked: Checked,
-    zones: Mapping[str, n.ZoneDecl],
-    source: Side | None,
-    source_key: str | None,
-    dest: Side | None,
-    dest_key: str | None,
+    checked: Checked, zones: Mapping[str, n.ZoneDecl], source: Side, dest: Side
 ) -> tuple[Observer, ...]:
     """Every kind of seat a movement can have, by which of its two zone
-    instances the seat holds, and what each sees through the zone types."""
+    instances the seat holds, and what each sees through the zone types; an
+    end whose zone only play decides is no part of a seat's kind, and what a
+    seat sees of it is settled in play."""
     holds_s = _holder(checked, zones, source)
     holds_d = _holder(checked, zones, dest)
     kinds: list[tuple[str, bool, bool]] = []
-    if holds_s and holds_d and source is not None and dest is not None:
-        if source_key is not None and source_key == dest_key:
+    if holds_s and holds_d:
+        if source.key is not None and source.key == dest.key:
             kinds.append((f"{_holder_words(zones, source)} and {dest.label}", True, True))
         else:
             kinds.append((_holder_words(zones, source), True, False))
             kinds.append((_holder_words(zones, dest), False, True))
             kinds.append(("a seat holding both, where one seat does", True, True))
-    elif holds_s and source is not None:
+    elif holds_s:
         kinds.append((_holder_words(zones, source), True, False))
-    elif holds_d and dest is not None:
+    elif holds_d:
         kinds.append((_holder_words(zones, dest), False, True))
     kinds.append(("every other seat" if kinds else "every seat", False, False))
     out: list[Observer] = []
     for who, on_s, on_d in kinds:
-        sp = None if source is None else zone_projection(zones[source.zone].type_ref.name, on_s)
-        dp = None if dest is None else zone_projection(zones[dest.zone].type_ref.name, on_d)
-        learns = movement_seen(sp or "trivial", dp or "trivial") if sp or dp else False
-        out.append(Observer(who, on_s, on_d, sp, dp, learns))
+        sp = None if source.zone is None else zone_projection(zones[source.zone].type_ref.name, on_s)
+        dp = None if dest.zone is None else zone_projection(zones[dest.zone].type_ref.name, on_d)
+        learns: bool | None
+        if sp is not None and dp is not None:
+            learns = movement_seen(sp, dp)
+        elif (sp or "trivial") != "trivial" or (dp or "trivial") != "trivial":
+            learns = True
+        else:
+            learns = None
+        out.append(
+            Observer(
+                who,
+                None if source.zone is None else on_s,
+                None if dest.zone is None else on_d,
+                sp,
+                dp,
+                learns,
+            )
+        )
     return tuple(out)
 
 
@@ -675,7 +888,26 @@ def ask(checked: Checked, line: int, column: int) -> Answer:
         items=_item(checked, plural=True),
         scope=scope_at(checked, located.chain),
         type=type_at(checked, located.chain),
-        seats=seats_at(checked, located.chain),
+        seats=_uses_seats(checked, located) if located.uses is not None else seats_at(checked, located.chain),
+    )
+
+
+def _uses_seats(checked: Checked, located: Located) -> Told:
+    """A `uses` line runs nothing itself: the definitions it splices stand in
+    the library's file, where the query cannot answer yet."""
+    assert located.uses is not None
+    library = located.uses.name
+    spliced = [
+        s for node, _chain in _walk(checked.game, ())
+        if _is_site(node) and (s := _span(node)) is not None and s.source_name != checked.source_name
+        and library in s.source_name
+    ]
+    where = _places(checked, spliced) if spliced else "no line of it"
+    return _told(
+        f"a `uses` line moves no {_item(checked)} itself and asks no seat; it brings in "
+        f"`{library}`, whose movements and decisions that this game holds stand at {where}",
+        located.span,
+        Code.SEEN_AT_ITS_SITES,
     )
 
 
@@ -702,7 +934,7 @@ def render(answer: Answer) -> str:
     lines = [f"{answer.path}:{loc.span.line}:{loc.span.column}: {loc.words}: {loc.text}"]
     lines.extend(_render_scope(answer.scope))
     lines.extend(_render_type(answer.type))
-    lines.extend(_render_seats(answer.seats, answer.items))
+    lines.extend(_render_seats(answer.seats, answer.items, loc.span))
     return "\n".join(lines)
 
 
@@ -733,11 +965,17 @@ def _render_type(typed: Typed | Told | None) -> list[str]:
         return []
     if isinstance(typed, Told):
         return _refusal_line("the checker's Type", typed)
-    open_words = " (the checker leaves it open: any value passes)" if typed.open else ""
+    open_words = (
+        " (the checker works out nothing narrower: it passes where any value may "
+        "stand, and a position needing an exact Type, such as an `and` operand or "
+        "a condition, refuses it)"
+        if typed.open
+        else ""
+    )
     return [f"the checker's Type: `{typed.text}` is {' or '.join(typed.types)}{open_words}"]
 
 
-def _render_seats(seats: Seats | Told | None, items: str) -> list[str]:
+def _render_seats(seats: Seats | Told | None, items: str, asked: Span | None) -> list[str]:
     if seats is None:
         return []
     if isinstance(seats, Told):
@@ -746,23 +984,58 @@ def _render_seats(seats: Seats | Told | None, items: str) -> list[str]:
         f"what each seat sees (static, from the zone types; which {items}, and which "
         "seat holds a zone, are settled when the game is played):"
     ]
+    if asked is None or (seats.span.line, seats.span.column) != (asked.line, asked.column):
+        out.append(f"  answered at the {seats.site} on line {seats.span.line}: {seats.text}")
+    if seats.construct is not None:
+        out.append(f"  asked as: {seats.construct}")
     if seats.decider is not None:
         out.append(f"  who decides: {seats.decider}, asked and remembering each pick")
-    if seats.pick is not None:
-        out.append(f"  {_PICK_WORDS[seats.pick]}")
+    out.extend(f"  also asked: {words}" for words in seats.out_of_turn)
+    if seats.construct is not None:
+        out.append(f"  {_PICK_SETTLED if seats.pick is None else _PICK_WORDS[seats.pick]}")
+    if seats.source_from is not None:
+        out.append(f"  {seats.source_from}")
     if seats.every_seat is not None:
         out.append(f"  {seats.every_seat}")
-    for obs in seats.observers:
-        out.append(f"  {obs.who}: {_sees(obs, seats.source, seats.destination, items)}")
+    for move in seats.moves:
+        indent = "  "
+        if len(seats.moves) > 1:
+            out.append(f"  when it moves from {move.source.label} to {move.destination.label}:")
+            indent = "    "
+        out.extend(
+            f"{indent}{obs.who}: {sees(obs, move, items)}" for obs in move.observers
+        )
+    if seats.then:
+        out.append(f"  then it runs the movements and decisions at {', '.join(_then_places(seats))}")
     return out
 
 
-def _sees(obs: Observer, source: Side | None, dest: Side | None, items: str) -> str:
-    if not obs.learns:
+def _then_places(seats: Seats) -> list[str]:
+    file = seats.span.source_name
+    return list(
+        dict.fromkeys(
+            f"line {s.line}" if s.source_name == file else f"line {s.line} of {s.source_name} (issue #1110)"
+            for s in seats.then
+        )
+    )
+
+
+def sees(obs: Observer, move: TransferRoute, items: str) -> str:
+    """What one kind of seat sees of one movement, in a designer's words."""
+    if obs.learns is False:
         return "learns nothing of it"
     parts: list[str] = []
-    if source is not None and obs.source is not None and obs.source != "trivial":
-        parts.append(f"{_PROJECTION_WORDS[obs.source].format(items=items)} leave {source.label}")
-    if dest is not None and obs.destination is not None and obs.destination != "trivial":
-        parts.append(f"{_PROJECTION_WORDS[obs.destination].format(items=items)} arrive at {dest.label}")
-    return "sees " + ", and ".join(parts)
+    unsettled: list[str] = []
+    for side, projection, verb in (
+        (move.source, obs.source, "leave"),
+        (move.destination, obs.destination, "arrive at"),
+    ):
+        if side.zone is None:
+            unsettled.append(side.label)
+        elif projection is not None and projection != "trivial":
+            parts.append(f"{PROJECTION_WORDS[projection].format(items=items)} {verb} {side.label}")
+    said = "sees " + ", and ".join(parts) if parts else ""
+    if unsettled:
+        later = f"what it sees of {' and '.join(unsettled)} is settled in play, which names the zone"
+        said = f"{said}; {later}" if said else later
+    return said
