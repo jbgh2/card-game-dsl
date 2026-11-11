@@ -176,6 +176,12 @@ SHIPPED: dict[str, str] = {
     "engine-gap": "the engine refused what an earlier check should have refused; the engine must change",
     "incomplete-installation": "the checkout is missing files the engine loads; reinstall it",
     "unregistrable-game": "a game file offered for registration cannot be registered by that name",
+    "position-outside-the-file": "a line or column before the file's first, or past the end of its line or of the file; give a position inside the text",
+    "position-outside-the-game": "a position in a comment, a blank line or prose that no part of the game holds; point inside the game's text",
+    "not-an-expression": "the position is on a statement or a declaration, which has no value; point at an expression inside it",
+    "expression-not-typed": "the checker reads this expression without working out its own type; ask about the expression around it",
+    "nothing-seen-here": "nothing at this position moves a card or asks a seat; point at a movement or a decision",
+    "seen-at-its-sites": "this moves no card itself but runs movements or decisions that stand elsewhere; ask at each of them",
 }
 
 
@@ -255,6 +261,25 @@ def _cli(argv: Callable[[Path], list[str]]) -> Tells:
             next(c for c in Code if c.slug == r["code"])
             for r in json.loads(out.getvalue())["diagnostics"]
         )
+
+    return tells
+
+
+def _query(game: str, at: str) -> Tells:
+    """A Checker Query run with `--json`: the codes of its refusals, of the
+    whole question and of each answer."""
+
+    def tells(_mp: pytest.MonkeyPatch, _tmp: Path) -> frozenset[Code]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.main(["query", str(_ROOT / "docs" / "games" / game), "--at", at, "--json"])
+        document = json.loads(out.getvalue())
+        records = list(document["diagnostics"])
+        for part in ("scope", "type", "seats"):
+            answer = (document["answer"] or {}).get(part) or {}
+            if "refused" in answer:
+                records.append(answer["refused"])
+        return frozenset(next(c for c in Code if c.slug == r["code"]) for r in records)
 
     return tells
 
@@ -451,6 +476,12 @@ WITNESSES: dict[Code, Tells] = {
     Code.ENGINE_GAP: _constructed(lambda: ShadowGuardError("resolve", "a leaked refusal")),
     Code.INCOMPLETE_INSTALLATION: _broken_checkout,
     Code.UNREGISTRABLE_GAME: _constructed(lambda: GameRegistrationError("two files claim one short name")),
+    Code.POSITION_OUTSIDE_THE_FILE: _query("hearts.cardlang", "999:1"),
+    Code.POSITION_OUTSIDE_THE_GAME: _query("hearts.cardlang", "1:1"),
+    Code.NOT_AN_EXPRESSION: _query("hearts.cardlang", "90:9"),
+    Code.EXPRESSION_NOT_TYPED: _query("hearts.cardlang", "86:7"),
+    Code.NOTHING_SEEN_HERE: _query("hearts.cardlang", "86:14"),
+    Code.SEEN_AT_ITS_SITES: _query("coup.cardlang", "236:11"),
 }
 
 

@@ -19,6 +19,14 @@ Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
               round admits (``_winner_refusals``, the one producer the
               guards refusing a round's winner dispatch on). Held by Derived and Pinned
               (tests/test_near_miss_positions.py).
+              Asked for one (``resolve(scopes=...)``), the pass fills the
+              Scope Record: at every node the classifying walk visits, keyed by
+              ``n.node_key``, the names a bare name written there classifies
+              as, by ``_classify`` under that node's categories, less those a
+              positional Owner Guard refuses where the node is a name
+              (``_record_scope``). It is the one source of "what is in scope
+              here" outside this pass (``cardlang.query``), and recording it
+              changes nothing the pass decides.
               The step returns the categories it classified against, for the
               references step.
 """
@@ -40,17 +48,22 @@ from cardlang.resolve.scope import (
     _refused_call_site_pronouns,
 )
 from cardlang.resolve.classifier import _Categories, _NamePosition, _rewrite
-from cardlang.resolve.classifier import _categories
+from cardlang.resolve.classifier import NamesInScope, _categories
 
 
 def step(
-    game: n.Game, refused_binders: dict[int, frozenset[str]], bag: DiagnosticBag
+    game: n.Game,
+    refused_binders: dict[int, frozenset[str]],
+    bag: DiagnosticBag,
+    *,
+    scopes: dict[n.NodeKey, NamesInScope] | None = None,
 ) -> tuple[n.Game, _Categories]:
     """The classification step. Returns the classified game, and the
-    categories it was classified against."""
+    categories it was classified against; `scopes`, when given, is filled
+    with the Scope Record."""
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
-    cats = replace(_categories(game), refused_binders=refused_binders)
+    cats = replace(_categories(game), refused_binders=refused_binders, scopes=scopes)
     game = _classify_names(game, cats, bag)
     game = _stamp_follows_reads(game)
     return game, cats

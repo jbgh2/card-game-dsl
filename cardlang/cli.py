@@ -6,6 +6,7 @@
     cardlang check docs/games/hearts.cardlang --json          # its refusals as one Record Envelope
     cardlang play docs/games/hearts.cardlang --vs all=random  # take a seat and play it
     cardlang demo docs/games/hearts.cardlang                  # one uniform-random self-play
+    cardlang query docs/games/hearts.cardlang --at 66:16      # what the checker knows there
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
 spellings reach one parser rather than two code paths that can disagree about
@@ -70,6 +71,12 @@ The two are split by who must act, not by how badly it went.
 place of the text, whatever the outcome, with the same exit code; every
 refusal it records is a Told Diagnostic, the command line's own (an
 unreadable path) told to whoever ran the command.
+
+`query` answers a [[checker-query]] (`cardlang.query`) on a file the checker
+accepts, and prints the checker's refusal, as `check` does, for one it
+refuses; a position the file or its game does not hold is refused to whoever
+ran the command, exit 2. `query --json` prints the answer as one Record
+Envelope in every case, with the same exit code.
 """
 
 from __future__ import annotations
@@ -77,6 +84,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import shlex
 import sys
 from collections.abc import Callable
@@ -122,7 +130,14 @@ from cardlang.play.session import (
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
-from cardlang.records import RUNTIME_REFUSALS, RuntimeRefusal, envelope, refusal_diagnostic
+from cardlang import query
+from cardlang.records import (
+    RUNTIME_REFUSALS,
+    RuntimeRefusal,
+    envelope,
+    query_envelope,
+    refusal_diagnostic,
+)
 from cardlang.runtime.errors import GameDescriptionError, InstallationError
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
@@ -184,6 +199,52 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
         help="print what --info-state and --view show at decision N — the "
         "position just before that one choice is made — instead of at the "
         "terminal position; --decisions lists the numbers",
+    )
+
+
+# A position as `query --at` reads it: two ASCII numbers, a colon between.
+_POSITION = re.compile(r"([0-9]+):([0-9]+)")
+# A word argparse would read as an option that `query --at` reads as its
+# value instead, so a dashed position is refused as no position: `-1:1`,
+# `-0:5`, `-:3`.
+_DASHED_POSITION = re.compile(r"^-[0-9]*:[0-9]*$")
+
+
+def _position(given: list[str] | None) -> tuple[int, int] | str:
+    """The position `query --at` names, or why the words name none. Read
+    after the line is parsed, as `demo`'s `--at` is judged beside the seat it
+    needs, so that a word `demo` reads as its `--at` is a word of a line
+    `query` takes too, and the refusal is the query's own."""
+    if not given:
+        return "query asks about one position of the file; add --at LINE:COL, as in --at 66:16"
+    if len(given) > 1:
+        return (
+            f"query asks about one position, and --at names {len(given)}: "
+            f"{', '.join(given)}; give --at once"
+        )
+    found = _POSITION.fullmatch(given[0])
+    if found is None:
+        return f"--at {given[0]} names no position; write LINE:COL, as in --at 66:16"
+    return int(found.group(1)), int(found.group(2))
+
+
+def _add_query_arguments(parser: argparse.ArgumentParser) -> None:
+    # Every dashed word that is no option of this parser reads as a value,
+    # so `--at -1:1` reaches the query's own refusal.
+    parser._negative_number_matcher = re.compile(
+        f"{parser._negative_number_matcher.pattern}|{_DASHED_POSITION.pattern}"
+    )
+    parser.add_argument(
+        "--at",
+        action="append",
+        metavar="LINE:COL",
+        help="required, once: the position to ask about, by the file's own lines "
+        "and columns, both counted from 1, as `check` reports them",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the answer as one Record Envelope on stdout",
     )
 
 
@@ -291,6 +352,11 @@ _COMMAND_TABLE: dict[str, tuple[str, Callable[[argparse.ArgumentParser], None]]]
     "demo": (
         "check a game file, then play one uniform-random self-play",
         _add_demo_arguments,
+    ),
+    "query": (
+        "check a game file, then say what is in scope at a position, the Type "
+        "of the expression there, and what each seat sees when it runs",
+        _add_query_arguments,
     ),
 }
 
@@ -585,6 +651,15 @@ def main(argv: list[str] | None = None) -> int:
     refusal = _unreadable(args.file)
     if args.command == "check" and args.json:
         return _check_json(path, refusal)
+    at = _position(args.at) if args.command == "query" else None
+    if isinstance(at, str) and args.json:
+        # A query naming no position has no envelope to fill: refused as text,
+        # as every command line that cannot be read is under `--json`.
+        print(f"cardlang: {at}", file=sys.stderr)
+        return _EXIT_CANNOT_PROCEED
+    if args.command == "query" and args.json:
+        assert at is not None and not isinstance(at, str)
+        return _query_json(path, refusal, at)
     if refusal is not None:
         print(f"cardlang: {refusal}", file=sys.stderr)
         if implicit:
@@ -595,6 +670,10 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
         return _EXIT_CANNOT_PROCEED
+    if isinstance(at, str):
+        # The path is refused first, as under every command; then the position.
+        print(f"cardlang: {at}", file=sys.stderr)
+        return _EXIT_CANNOT_PROCEED
 
     try:
         if args.command == "demo":
@@ -603,6 +682,9 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "play":
             return _play(path, args.seat, args.seed, args.save, args.resume, args.vs)
+        if args.command == "query":
+            assert at is not None
+            return _query(path, at)
         return _check(path, args.emit_ir)
     except DiagnosticError as exc:
         print(exc.diagnostic.format(), file=sys.stderr)
@@ -664,43 +746,87 @@ def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
         print(f"  {', '.join(where)}", file=sys.stderr)
 
 
+def _checked(
+    path: Path, unreadable: str | None, crashed: Callable[[Told], None]
+) -> tuple[tuple[Told, ...], int]:
+    """What `check --json` and `query --json` record of the check: every
+    refusal it told, and the exit code the text output would give. An engine
+    failure outside the typed channels is handed to `crashed` as an
+    `engine-gap` record and re-raised, so its traceback and exit status stay
+    the text output's (issue #1104)."""
+    if unreadable is not None:
+        told = Told(
+            Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
+            Author.INVOCATION,
+        )
+        return (told,), _EXIT_CANNOT_PROCEED
+    try:
+        check_source(path)
+    except DiagnosticError as exc:
+        return exc.told, _EXIT_GAME_AT_FAULT
+    except RUNTIME_REFUSALS as exc:
+        refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
+        exit_code = (
+            _EXIT_CANNOT_PROCEED
+            if refused.author in (Author.INSTALLATION, Author.REGISTRATION)
+            else _EXIT_GAME_AT_FAULT
+        )
+        return (refused,), exit_code
+    except Exception as exc:
+        crashed(_engine_gap(exc))
+        raise
+    return (), _EXIT_OK
+
+
+def _engine_gap(exc: Exception) -> Told:
+    return Told(
+        Diagnostic(Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP),
+        Author.ENGINE,
+    )
+
+
 def _check_json(path: Path, unreadable: str | None) -> int:
     """`check --json`: one Record Envelope on stdout, whatever the outcome,
     and the exit code the text output would give."""
-    told: tuple[Told, ...] = ()
-    exit_code = _EXIT_OK
-    if unreadable is not None:
-        told = (
-            Told(
-                Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
-                Author.INVOCATION,
-            ),
-        )
-        exit_code = _EXIT_CANNOT_PROCEED
-    else:
-        try:
-            check_source(path)
-        except DiagnosticError as exc:
-            told, exit_code = exc.told, _EXIT_GAME_AT_FAULT
-        except RUNTIME_REFUSALS as exc:
-            refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
-            told = (refused,)
-            exit_code = (
-                _EXIT_CANNOT_PROCEED
-                if refused.author in (Author.INSTALLATION, Author.REGISTRATION)
-                else _EXIT_GAME_AT_FAULT
-            )
-        except Exception as exc:
-            # An engine failure outside the typed channels: the envelope says
-            # so, and the traceback and exit status stay the text output's
-            # (issue #1104).
-            crashed = Diagnostic(
-                Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP
-            )
-            print(json.dumps(envelope((Told(crashed, Author.ENGINE),)), indent=2))
-            raise
+    told, exit_code = _checked(
+        path, unreadable, lambda crash: print(json.dumps(envelope((crash,)), indent=2))
+    )
     print(json.dumps(envelope(told), indent=2))
     return exit_code
+
+
+def _query(path: Path, at: tuple[int, int]) -> int:
+    """`query`: the checker's refusal, as `check` prints it, for a file it
+    refuses; otherwise the Checker Query's answer, on stdout, or the refusal
+    of the position, on stderr."""
+    check_source(path)
+    answer = query.ask_path(path, *at)
+    print(query.render(answer), file=sys.stdout if answer.located is not None else sys.stderr)
+    return answer.exit_code
+
+
+def _query_json(path: Path, unreadable: str | None, at: tuple[int, int]) -> int:
+    """`query --json`: one Record Envelope on stdout, whatever the outcome,
+    with the exit code the text output would give; an engine failure, in
+    the check or in the query's own run of the passes, as `check --json`
+    records one."""
+    line, column = at
+
+    def crashed(crash: Told) -> None:
+        answer = query.refused(str(path), line, column, (crash,), _EXIT_GAME_AT_FAULT)
+        print(json.dumps(query_envelope(answer), indent=2))
+
+    refused, exit_code = _checked(path, unreadable, crashed)
+    if refused:
+        answer = query.refused(str(path), line, column, refused, exit_code)
+    else:
+        try:
+            answer = query.ask_path(path, line, column)
+        except Exception as exc:
+            crashed(_engine_gap(exc))
+            raise
+    print(json.dumps(query_envelope(answer), indent=2))
+    return answer.exit_code
 
 
 def _check(path: Path, emit_ir: bool) -> int:

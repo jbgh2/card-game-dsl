@@ -566,6 +566,7 @@ from cardlang.resolve.ranking_slots import (
 from cardlang.resolve.classifier import (
     ALWAYS_HOLDERS as ALWAYS_HOLDERS,
     MAX_LENGTH_AS_VALUE as MAX_LENGTH_AS_VALUE,
+    NamesInScope as NamesInScope,
     _ALWAYS_SITES as _ALWAYS_SITES,
     _AlwaysSite as _AlwaysSite,
     _Categories as _Categories,
@@ -582,6 +583,7 @@ from cardlang.resolve.classifier import (
     _names_bound_anywhere as _names_bound_anywhere,
     _position_refuses as _position_refuses,
     _query_nouns as _query_nouns,
+    _record_scope as _record_scope,
     _refuse_bare_always as _refuse_bare_always,
     _resolving_here as _resolving_here,
     _rewrite as _rewrite,
@@ -646,7 +648,9 @@ from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 
 
-def resolve(game: n.Game) -> n.Game:
+def resolve(game: n.Game, *, scopes: dict[n.NodeKey, NamesInScope] | None = None) -> n.Game:
+    """`scopes`, when given, is filled with the Scope Record: what a bare name
+    resolves to at every node the classifying walk visits."""
     bag = DiagnosticBag()
     # First: `uses` splices each named library's definitions but its rules in,
     # so everything below sees one flat game; `_instantiate_rules` splices the
@@ -673,7 +677,7 @@ def resolve(game: n.Game) -> n.Game:
     zone_declarations.step(game, bag, position_names)
     written = game
     game, refused_binders = rule_instantiation.step(game, library_rules, bag)
-    game, cats = classification.step(game, refused_binders, bag)
+    game, cats = classification.step(game, refused_binders, bag, scopes=scopes)
     _validate_refs(game, cats, bag)
     classified_checks.step(
         game,

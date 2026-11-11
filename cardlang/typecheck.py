@@ -38,8 +38,13 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               Downstream may assume every type Owner Guard held, but may not
               read types off the tree; a downstream consumer that needs a type
               is a signal to materialize it in this pass, never to re-infer it
-              there. The sanctioned materialization is
-              ``declared_primitive_sigs``, and the `Sig` it builds for a
+              there. Asked for one (``typecheck(types=...)``), the pass keeps
+              the Type Record: every Type ``infer`` returns during the check,
+              by the expression's ``n.node_key``, the one source of an
+              expression's type outside this pass (``cardlang.query``); an
+              expression the check never infers has no entry, and keeping the
+              record changes no verdict. The other sanctioned materialization
+              is ``declared_primitive_sigs``, and the `Sig` it builds for a
               declared collection parameter is exactly
               ``TCollection(element, key=None, zone=False)`` — the facets a
               spelling can produce are the defaults, and no other are
@@ -101,6 +106,7 @@ Verified by:  the Owner Guard test modules (operator, aggregation, context,
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum
 from typing import Literal, assert_never
@@ -697,7 +703,7 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
         "typing", reason="types a deck value, which library text cannot name"
     ),
     ("_name_type", "play_source"): ClauseRead("typing", reason="types a rule's Play Source"),
-    ("infer", "item_fields"): ClauseRead("typing", reason="types a card's field"),
+    ("_infer", "item_fields"): ClauseRead("typing", reason="types a card's field"),
     ("_call_sig", "call_sigs"): ClauseRead(
         "typing", reason="a call's signature; library text names no Primitive"
     ),
@@ -724,10 +730,10 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_check_state_default_type", "directions"): ClauseRead(
         "typing", reason="a state variable's declared type"
     ),
-    ("typecheck", "positions"): ClauseRead(
+    ("_typecheck", "positions"): ClauseRead(
         "typing", reason="a move parameter's binder and an outcome payload's type"
     ),
-    ("typecheck", "directions"): ClauseRead(
+    ("_typecheck", "directions"): ClauseRead(
         "typing", reason="a move parameter's binder and an outcome payload's type"
     ),
 }
@@ -750,7 +756,25 @@ def _untyped_operator(op: str) -> AssertionError:
     )
 
 
+#: The Type Record a Checker Query asks for (`typecheck(types=...)`): every
+#: Type `infer` returns while it is set, by the expression's `n.node_key`.
+_TYPE_RECORD: ContextVar[dict[n.NodeKey, list[Type]] | None] = ContextVar(
+    "_TYPE_RECORD", default=None
+)
+
+
 def infer(e: n.Expr, env: TypeEnv) -> Type:
+    """`_infer`, kept in the Type Record when one is being filled."""
+    t = _infer(e, env)
+    record = _TYPE_RECORD.get()
+    if record is not None and (key := n.node_key(e)) is not None:
+        kept = record.setdefault(key, [])
+        if t not in kept:
+            kept.append(t)
+    return t
+
+
+def _infer(e: n.Expr, env: TypeEnv) -> Type:
     """Infer the type of an expression. Unrefined arms return `TAny` (the
     permissive top); precision is added construct by construct.
 
@@ -1065,6 +1089,10 @@ def _type_name(t: Type) -> str:
         # recognizes in a diagnostic.
         return t.name
     return type(t).__name__[1:]  # TInteger -> "Integer", TPlayer -> "Player", …
+
+
+#: A Type as the checker's diagnostics spell it to a designer.
+type_name = _type_name
 
 
 def _state_blocks(game: Game) -> list[n.StateBlock]:
@@ -4842,7 +4870,17 @@ def _check_produces(
         )
 
 
-def typecheck(game: Game) -> Game:
+def typecheck(game: Game, *, types: dict[n.NodeKey, list[Type]] | None = None) -> Game:
+    """`types`, when given, is filled with the Type Record: every Type the
+    check infers, by the expression it is inferred for."""
+    token = _TYPE_RECORD.set(types)
+    try:
+        return _typecheck(game)
+    finally:
+        _TYPE_RECORD.reset(token)
+
+
+def _typecheck(game: Game) -> Game:
     bag = DiagnosticBag()
 
     players = game.players

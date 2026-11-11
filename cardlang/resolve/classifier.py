@@ -93,6 +93,42 @@ class _Categories:
     # fix would bind. Unresolved, such a name is a consequence of that
     # refusal and is not told.
     withheld: frozenset[str] = frozenset()
+    # The Scope Record a Checker Query asks for (`resolve(scopes=...)`),
+    # filled by `_rewrite` at every node it classifies under; None otherwise.
+    scopes: dict[n.NodeKey, NamesInScope] | None = None
+
+
+@dataclass(frozen=True)
+class NamesInScope:
+    """What a bare name written at one node would resolve to: each name this
+    pass classifies there, with its classification, less any a positional
+    Owner Guard of this pass refuses where a name stands (recorded at a name
+    only: `_name_positions` holds positional facts for names alone)."""
+
+    names: tuple[tuple[str, n.RefKind], ...]
+    at_a_name: bool
+
+
+def _record_scope(node: object, cats: _Categories) -> None:
+    """Record, in the Scope Record, what a bare name at `node` resolves to:
+    `_classify` over every name `cats` holds, with a rule clause's bare `hand`
+    the Play Source, exactly as the `NameRef` arm of `_rewrite` classifies."""
+    assert cats.scopes is not None
+    key = n.node_key(node)
+    if key is None:
+        return
+    position = cats.positions.get(id(node)) if isinstance(node, n.NameRef) else None
+    named: list[tuple[str, n.RefKind]] = []
+    for name in sorted({*cats.locals, *cats.state_vars, *cats.zones, *cats.enums, *_PRONOUNS}):
+        kind: n.RefKind | None = _classify(name, cats)
+        if cats.rule_clause and name == PLAY_SOURCE_NAME and name not in cats.locals:
+            kind = "play_source"
+        if kind is None:
+            continue
+        if position is not None and _position_refuses(position, name, kind, cats.zone_index):
+            continue
+        named.append((name, kind))
+    cats.scopes[key] = NamesInScope(tuple(named), at_a_name=position is not None)
 
 
 @dataclass(frozen=True)
@@ -343,6 +379,8 @@ def _resolving_here(node: n.NameRef, names: Sequence[str], cats: _Categories) ->
 
 
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
+    if cats.scopes is not None:
+        _record_scope(node, cats)
     if isinstance(node, n.DomainQuery) and _may_be_a_membership(node, cats):
         # The Owner Guard `_check_domain_query` leaves to the lexical scope. A
         # refused capture's predicate is written over the outer binder, so it

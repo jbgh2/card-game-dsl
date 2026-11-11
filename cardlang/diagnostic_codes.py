@@ -153,3 +153,11 @@ class Code(Enum):
     ENGINE_GAP = ("engine-gap", "the engine refused what an earlier check should have refused; the engine must change")
     INCOMPLETE_INSTALLATION = ("incomplete-installation", "the checkout is missing files the engine loads; reinstall it")
     UNREGISTRABLE_GAME = ("unregistrable-game", "a game file offered for registration cannot be registered by that name")
+
+    # --- asking the checker a question ------------------------------------
+    POSITION_OUTSIDE_THE_FILE = ("position-outside-the-file", "a line or column before the file's first, or past the end of its line or of the file; give a position inside the text")
+    POSITION_OUTSIDE_THE_GAME = ("position-outside-the-game", "a position in a comment, a blank line or prose that no part of the game holds; point inside the game's text")
+    NOT_AN_EXPRESSION = ("not-an-expression", "the position is on a statement or a declaration, which has no value; point at an expression inside it")
+    EXPRESSION_NOT_TYPED = ("expression-not-typed", "the checker reads this expression without working out its own type; ask about the expression around it")
+    NOTHING_SEEN_HERE = ("nothing-seen-here", "nothing at this position moves a card or asks a seat; point at a movement or a decision")
+    SEEN_AT_ITS_SITES = ("seen-at-its-sites", "this moves no card itself but runs movements or decisions that stand elsewhere; ask at each of them")

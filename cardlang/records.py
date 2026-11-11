@@ -9,14 +9,18 @@ Near Misses as suggestions marked `offered`. The words are the diagnostic's
 own; this module composes none and decides no author. The lines the command
 line prints around a diagnostic -- a runtime refusal's phase and zone, the
 hint that a mistyped path may have meant a command -- are not carried
-(issue #1103).
+(issue #1103). A `cardlang query --json` envelope holds one
+[[checker-query]]'s answer, with any refusal as Diagnostic Records of the
+same shape.
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      every diagnostic it is handed is told (`Told`): its file
               decided by `cardlang.attribution` or by the raise that made
               it, and its author stamped there.
-Establishes:  `envelope` is the one producer of a Record Envelope and
+Establishes:  `envelope` (a check's) and `query_envelope` (a Checker
+              Query's, from the one `query.Answer` its text is rendered from)
+              are the producers of a Record Envelope, and
               `span_record` the one encoding of a place in it; a record's
               `message` is `Diagnostic.message`, and its suggestions are
               `Diagnostic.near_misses`, each `offered`; `refusal_diagnostic`
@@ -43,10 +47,11 @@ Held by:      Derived and Pinned throughout. The match ends in
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from enum import Enum
-from typing import assert_never
+from typing import TypeVar, assert_never
 
+from cardlang import query as q
 from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import Author, Diagnostic, Severity, Span, Told
 from cardlang.runtime.errors import (
@@ -68,6 +73,7 @@ class Kind(Enum):
     """What a Record Envelope holds."""
 
     DIAGNOSTICS = "diagnostics"
+    QUERY = "query"
 
 
 class Applicability(Enum):
@@ -114,6 +120,107 @@ def envelope(told: Sequence[Told]) -> Record:
         "schema": SCHEMA,
         "kind": Kind.DIAGNOSTICS.value,
         "diagnostics": [diagnostic_record(t) for t in told],
+    }
+
+
+def query_envelope(answer: q.Answer) -> Record:
+    """The Record Envelope of a Checker Query: where it was asked, any refusal
+    of the whole question (the checker's, or the position's), and each of the
+    three answers or the refusal standing in its place -- the facts the text a
+    designer reads (`query.render`) is made from."""
+    return {
+        "schema": SCHEMA,
+        "kind": Kind.QUERY.value,
+        "at": {"file": answer.path, "line": answer.line, "column": answer.column},
+        "diagnostics": [diagnostic_record(t) for t in answer.refused],
+        "answer": None if answer.located is None else _answer_record(answer),
+    }
+
+
+def _answer_record(answer: q.Answer) -> Record:
+    loc = answer.located
+    assert loc is not None
+    return {
+        "part": {"what": loc.words, "span": span_record(loc.span), "text": loc.text},
+        "items": answer.items,
+        "scope": _or_refused(answer.scope, _scope_record),
+        "type": _or_refused(answer.type, _type_record),
+        "seats": _or_refused(answer.seats, lambda seats: _seats_record(seats, answer.items)),
+    }
+
+
+_Answered = TypeVar("_Answered")
+
+
+def _or_refused(
+    value: _Answered | Told | None, record: Callable[[_Answered], Record]
+) -> Record | None:
+    if value is None:
+        return None
+    if isinstance(value, Told):
+        return {"refused": diagnostic_record(value)}
+    return record(value)
+
+
+def _scope_record(scope: q.Scope) -> Record:
+    return {
+        "span": span_record(scope.span),
+        "names": [{"name": s.name, "sort": s.sort} for s in scope.names],
+        "at-a-name": scope.at_a_name,
+    }
+
+
+def _type_record(typed: q.Typed) -> Record:
+    return {
+        "span": span_record(typed.span),
+        "text": typed.text,
+        "types": list(typed.types),
+        "open": typed.open,
+    }
+
+
+def _side_record(side: q.Side) -> Record:
+    return {
+        "zone": side.zone,
+        "label": side.label,
+        "key": side.key,
+        "each": side.each,
+        "settled": side.settled,
+    }
+
+
+def _seats_record(seats: q.Seats, items: str) -> Record:
+    return {
+        "form": "static",
+        "span": span_record(seats.span),
+        "text": seats.text,
+        "site": seats.site,
+        "construct": seats.construct,
+        "decider": seats.decider,
+        "out-of-turn": list(seats.out_of_turn),
+        "pick": seats.pick,
+        "source-from": seats.source_from,
+        "moves": [
+            {
+                "source": _side_record(move.source),
+                "destination": _side_record(move.destination),
+                "observers": [
+                    {
+                        "who": o.who,
+                        "holds-source": o.holds_source,
+                        "holds-destination": o.holds_destination,
+                        "source": o.source,
+                        "destination": o.destination,
+                        "learns": o.learns,
+                        "sees": q.sees(o, move, items),
+                    }
+                    for o in move.observers
+                ],
+            }
+            for move in seats.moves
+        ],
+        "every-seat": seats.every_seat,
+        "then": [span_record(s) for s in seats.then],
     }
 
 
@@ -164,11 +271,73 @@ def read_envelope(document: object) -> Kind:
     if kind is None:
         raise UnreadableEnvelope(f"kind {document.get('kind')!r} is no kind of Record Envelope")
     records = document.get("diagnostics")
-    if set(document) != {"schema", "kind", "diagnostics"} or not (
-        isinstance(records, list) and all(_is_record(r) for r in records)
+    if not (
+        isinstance(records, list) and all(_is_record(r) for r in records) and _is_payload(kind, document)
     ):
-        raise UnreadableEnvelope("a diagnostics envelope holds a list of Diagnostic Records")
+        raise UnreadableEnvelope(f"a {kind.value} envelope holds {_PAYLOAD_WORDS[kind]}")
     return kind
+
+
+_PAYLOAD_WORDS: dict[Kind, str] = {
+    Kind.DIAGNOSTICS: "a list of Diagnostic Records",
+    Kind.QUERY: "where it was asked, its refusals as Diagnostic Records, and its answer",
+}
+
+
+def _is_payload(kind: Kind, document: dict[str, object]) -> bool:
+    """Whether `document`'s fields are its kind's, beside its Diagnostic
+    Records."""
+    match kind:
+        case Kind.DIAGNOSTICS:
+            return set(document) == {"schema", "kind", "diagnostics"}
+        case Kind.QUERY:
+            return (
+                set(document) == {"schema", "kind", "at", "diagnostics", "answer"}
+                and _is_query_place(document["at"])
+                and _is_query_answer(document["answer"])
+            )
+        case _:
+            assert_never(kind)
+
+
+# The fields of a Checker Query's answer, and of each of its three answers
+# where it is given rather than refused.
+_ANSWER_FIELDS = frozenset({"part", "items", "scope", "type", "seats"})
+_ANSWERED_FIELDS: dict[str, frozenset[str]] = {
+    "scope": frozenset({"span", "names", "at-a-name"}),
+    "type": frozenset({"span", "text", "types", "open"}),
+    "seats": frozenset(
+        {"form", "span", "text", "site", "construct", "decider", "out-of-turn", "pick",
+         "source-from", "moves", "every-seat", "then"}
+    ),
+}
+
+
+def _is_query_place(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and set(value) == {"file", "line", "column"}
+        and isinstance(value["file"], str)
+        and all(type(value[f]) is int for f in ("line", "column"))
+    )
+
+
+def _is_query_answer(value: object) -> bool:
+    if value is None:
+        return True
+    if not (isinstance(value, dict) and set(value) == _ANSWER_FIELDS):
+        return False
+    part = value["part"]
+    if not (isinstance(part, dict) and set(part) == {"what", "span", "text"} and _is_place(part["span"])):
+        return False
+    for name, fields in _ANSWERED_FIELDS.items():
+        answer = value[name]
+        if isinstance(answer, dict) and set(answer) == {"refused"}:
+            if not _is_record(answer["refused"]):
+                return False
+        elif not (isinstance(answer, dict) and set(answer) == fields and _is_place(answer["span"])):
+            return False
+    return True
 
 
 #: Every refusal the command line renders from a playout or a load: the
