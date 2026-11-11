@@ -57,7 +57,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           # `auto` when unset; `laptop` or `hosted` forces the lane.
-          CI_ROUTE: bogus
+          CI_ROUTE: hosted
         run: tools/ci-route.sh
 
   # The gate. One job, one name, whichever lane runs it: branch protection
