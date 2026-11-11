@@ -2768,10 +2768,11 @@ def _is_word(token: Token) -> bool:
     return _WORD_RUN.fullmatch(value) is not None and value[:1].isalpha()
 
 
-def _refused_at(parser: Lark, text: str, start: str) -> int | None:
-    """The offset `parser` refuses `text` at, or None where it derives it."""
+def _refused_at(text: str, start: str) -> int | None:
+    """The offset the main grammar refuses `text` at, or None where it
+    derives it."""
     try:
-        parser.parse(text, start=start)
+        _parser().parse(text, start=start)
     except UnexpectedInput as exc:
         reported = getattr(exc, "pos_in_stream", None)
         return len(text) if reported is None or reported < 0 else int(reported)
@@ -2779,24 +2780,25 @@ def _refused_at(parser: Lark, text: str, start: str) -> int | None:
 
 
 def _past_with(
-    parser: Lark, text: str, start: str, word: Token, past: int, names: Iterable[object]
+    text: str, start: str, word: Token, past: int, names: Iterable[object]
 ) -> tuple[str, ...]:
     """The keywords among `names` that `word` nearly spells and that, written
-    in its place, carry the parse beyond offset `past`.
+    in its place, carry the main grammar's parse beyond offset `past`.
 
     A keyword whose reading is refused at the same place is no fix for the
-    refusal, so it is not offered."""
+    refusal, so it is not offered; nor is a spelling only a twin of the
+    Diagnostic Grammar takes there, which the main grammar refuses."""
     begin, end = int(word.start_pos or 0), int(word.end_pos or 0)
     offered: list[str] = []
     for keyword in near_misses(str(word.value), _words_of(names)):
-        refused = _refused_at(parser, text[:begin] + keyword + text[end:], start)
+        refused = _refused_at(text[:begin] + keyword + text[end:], start)
         if refused is None or refused > past + len(keyword) - (end - begin):
             offered.append(keyword)
     return tuple(offered)
 
 
 def _misspelled_keyword(
-    exc: UnexpectedInput, parser: Lark, text: str, pos: int, start: str
+    exc: UnexpectedInput, text: str, pos: int, start: str
 ) -> tuple[Token, tuple[str, ...]] | None:
     """The word a refusal at `pos` stands on when it is a misspelled keyword,
     with the keywords it is offered.
@@ -2811,7 +2813,7 @@ def _misspelled_keyword(
     if after and after[0].start_pos == pos and _is_word(after[0]):
         following = int(after[1].start_pos or 0) if len(after) > 1 else len(text)
         names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
-        offered = _past_with(parser, text, start, after[0], following, names)
+        offered = _past_with(text, start, after[0], following, names)
         if offered:
             return after[0], offered
     before = [t for t in tokens if (t.end_pos or 0) <= pos]
@@ -2821,10 +2823,12 @@ def _misspelled_keyword(
     if not near_misses(str(word.value), _keyword_words()):
         return None
     try:
-        parser.parse(text[: word.start_pos] + "\x00", start=start)
+        _parser().parse(text[: word.start_pos] + "\x00", start=start)
     except UnexpectedInput as at_word:
+        if getattr(at_word, "pos_in_stream", None) != word.start_pos:
+            return None
         names = getattr(at_word, "allowed", None) or getattr(at_word, "expected", None) or ()
-        offered = _past_with(parser, text, start, word, pos, names)
+        offered = _past_with(text, start, word, pos, names)
         if offered:
             return word, offered
     return None
@@ -3180,15 +3184,11 @@ def parse_to_tree(
     try:
         tree = _parser().parse(text, start=start)
     except UnexpectedInput as exc:
-        main_error, main_pos = _syntax_error(
-            exc, _parser(), text, source_name, line_offset, start
-        )
+        main_error, main_pos = _syntax_error(exc, text, source_name, line_offset, start)
         try:
             composed = _diagnostic_parser().parse(text, start=start)
         except UnexpectedInput as later:
-            later_error, later_pos = _syntax_error(
-                later, _diagnostic_parser(), text, source_name, line_offset, start
-            )
+            later_error, later_pos = _syntax_error(later, text, source_name, line_offset, start)
             raise DiagnosticError(later_error if later_pos > main_pos else main_error) from exc
         # Every twin's builder method raises, and `compare` raises on the
         # operators `COMP_OP` gains (tools.dead_surface.refusing_methods and
@@ -3202,15 +3202,9 @@ def parse_to_tree(
 
 
 def _syntax_error(
-    exc: UnexpectedInput,
-    parser: Lark,
-    text: str,
-    source_name: str,
-    line_offset: int,
-    start: str,
+    exc: UnexpectedInput, text: str, source_name: str, line_offset: int, start: str
 ) -> tuple[Diagnostic, int]:
-    """The designer's syntax error for ``exc``, raised by ``parser``, and the
-    offset ``parser`` refused the text at.
+    """The designer's syntax error for ``exc``, and the offset it stands at.
 
     The expectations are rendered through the MAIN grammar's terminal table
     whichever parser raised ``exc``: a terminal only the diagnostic grammar
@@ -3226,7 +3220,7 @@ def _syntax_error(
     reported: int | None = getattr(exc, "pos_in_stream", None)
     at_end = reported is None or reported < 0
     pos: int = len(text) if at_end else int(reported or 0)
-    slip = _misspelled_keyword(exc, parser, text, pos, start)
+    slip = _misspelled_keyword(exc, text, pos, start)
     if slip is not None:
         word, offered = slip
         begin = int(word.start_pos or 0)

@@ -33,8 +33,7 @@ domain:          every block item position -- each element of a repetition in
                  offered nothing. A misspelled keyword the grammar reads as
                  a name and DERIVES (`deal som cards`, `els: 2` in
                  `card_points`) raises no syntax error, and is the pass's that
-                 refuses the name it reads as (tests/test_near_misses.py),
-                 which offers it no keyword (issue #1079).
+                 refuses the name it reads as (tests/test_near_misses.py).
 registry:        positions: `_positions` over `cardlang.parse._parser().rules`
                  (the repetition helpers' elements and their first-word
                  sets); spellings: `cardlang.parse._designer_word`; hosts:
@@ -44,12 +43,9 @@ held by:         Derived and Pinned. A refusal's offer is data on one
                  `Diagnostic` built at one site (`cardlang.parse._syntax_error`),
                  but which words a position takes is the grammar's, read off
                  the compiled rules at failure time, and no type can hold it.
-does not prove:  that a slip further than one word before the place the
-                 parser fails is offered (`let n = al players where x` fails
-                 at `where`, two words on, issue #1079); nor that every
-                 keyword position inside a production's fixed sequence or an
-                 expression is offered, which the probes sample and the grid
-                 does not enumerate.
+does not prove:  that every keyword position inside a production's fixed
+                 sequence or an expression is offered, which the probes
+                 sample and the grid does not enumerate.
 """
 
 from __future__ import annotations
@@ -65,6 +61,7 @@ from lark.grammar import NonTerminal, Symbol, Terminal
 
 from cardlang import parse
 from cardlang.diagnostics import Diagnostic, DiagnosticError
+from cardlang.pipeline import check_dsl
 
 _ROOT = Path(__file__).resolve().parent.parent
 _HOLE = "@@"
@@ -385,6 +382,17 @@ def test_a_slip_whose_keyword_does_not_get_past_is_offered_nothing(probe: str) -
     assert "expected " in refused.format(), refused.format()
 
 
+def test_a_spelling_only_a_twin_takes_is_never_offered() -> None:
+    """The game-level `trump:` is a retired clause the Diagnostic Grammar
+    takes in order to refuse it; past an earlier retired block the composed
+    parser reads further and its expectation holds `trump`. red under: gating
+    `cardlang.parse._past_with` on the parser that raised the failure."""
+    text = "game g {\n  players: 4\n  trick_order { }\n  trmp: hearts\n}\n"
+    refused = _refusal("start", text)
+    assert refused is not None
+    assert "trump" not in refused.near_misses, refused.format()
+
+
 def test_a_word_resembling_no_keyword_keeps_the_parser_s_expectation() -> None:
     """Born green. red under: setting `NEAR_MISS_CUTOFF` to 0 in
     `cardlang.diagnostics`."""
@@ -392,3 +400,25 @@ def test_a_word_resembling_no_keyword_keeps_the_parser_s_expectation() -> None:
     assert refused is not None
     assert refused.near_misses == ()
     assert "unexpected `deck`; expected " in refused.format(), refused.format()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="issue #1079: a slip two words before the parse failure is not considered",
+)
+def test_a_slip_two_words_before_the_failure_is_offered() -> None:
+    _assert_offered("start", _GAME.replace(_HOLE, "let n = al players where x"), "al", "all")
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="issue #1079: a slip the grammar derives as a name is refused as an unknown name",
+)
+def test_a_slip_the_grammar_derives_as_a_name_is_offered_the_keyword() -> None:
+    text = (_ROOT / "docs/games/hearts.cardlang").read_text()
+    assert "deal 13 cards" in text
+    with pytest.raises(DiagnosticError) as refused:
+        check_dsl(text.replace("deal 13 cards", "deal som cards", 1), "hearts.cardlang")
+    assert "some" in refused.value.diagnostic.near_misses, refused.value.diagnostic.format()
