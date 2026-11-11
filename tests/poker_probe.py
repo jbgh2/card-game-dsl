@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 from unittest import mock
 
@@ -45,12 +46,19 @@ def probe_library_text() -> str:
     return head + _OPENER + brace + tail
 
 
+@cache
+def _probe_library() -> n.Library:
+    """The probe library, parsed once per process: its text is fixed for a run."""
+    return parse_library(probe_library_text(), str(_LIBRARY))
+
+
 @contextmanager
 def probe_betting() -> Iterator[None]:
     """Resolve `uses poker_betting` to the probe library while the block runs.
-    The checker memoizes on the game's tree, which names the probe opener, so
-    no verdict crosses between the real library and the probe."""
-    library = parse_library(probe_library_text(), str(_LIBRARY))
+    The checker's memo keys on the game's tree and not on library content
+    (issue #186), so the block clears it on entry and on exit: a verdict
+    reached under one library never answers for the other."""
+    library = _probe_library()
 
     def load(name: str) -> n.Library:
         return library if name == "poker_betting" else load_library(name)
