@@ -93,7 +93,15 @@ from cardlang.attribution import (
     naming_library,
     cite_where,
 )
-from cardlang.diagnostics import DiagnosticBag, LibraryCitation, Said, Sentence, Severity, Span
+from cardlang.diagnostics import (
+    DiagnosticBag,
+    LibraryCitation,
+    Said,
+    Sentence,
+    Severity,
+    Span,
+    listed,
+)
 from cardlang.domains import index_phrase, role_of
 from cardlang.libraries import library_names, load_library
 from cardlang.runtime.errors import OwnerGuardError

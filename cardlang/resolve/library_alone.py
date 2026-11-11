@@ -32,7 +32,7 @@ from cardlang.builtins.functions import BUILTIN_CALL_FUNCS, PRIMITIVE_CALL_FUNCS
 from cardlang import kernel_contracts as K
 from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR, walled_namespace_of
 from cardlang.attribution import cite_library, cite_named, cite_where
-from cardlang.diagnostics import Diagnostic, DiagnosticBag, Said, Span
+from cardlang.diagnostics import Diagnostic, DiagnosticBag, Said, Span, listed
 from cardlang.domains import ZONE_INDEX_ROLES, role_names, role_of
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES

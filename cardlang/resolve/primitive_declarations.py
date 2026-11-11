@@ -75,7 +75,7 @@ from cardlang.primitives_block import (
 )
 from cardlang import primitives_block
 from cardlang.attribution import cite_named, cite_origin
-from cardlang.diagnostics import DiagnosticBag, Said
+from cardlang.diagnostics import DiagnosticBag, Said, listed
 from cardlang.resolve.walk import _child_nodes, _walk
 from cardlang.resolve.slots import _MOVE_TYPE_SLOT_OFFERS, slot_strings
 from cardlang.resolve.crossings import _cite_in
@@ -487,7 +487,7 @@ def _check_primitive_reads(
 
 def _and_list(items: list[str]) -> str:
     """`a` and `b`; `a`, `b` and `c` — a list as a sentence reads it."""
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+    return listed(items, "and")
 
 
 def _check_read_tails_nest(

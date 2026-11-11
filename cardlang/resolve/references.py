@@ -63,7 +63,7 @@ from cardlang.builtins.functions import (
 from cardlang import kernel_contracts as K
 from cardlang.primitives_block import Regime, call_namespace, regime
 from cardlang.attribution import cite_library, cite_named, cite_origin
-from cardlang.diagnostics import DiagnosticBag, LibraryCitation, Said, Sentence, Span
+from cardlang.diagnostics import DiagnosticBag, LibraryCitation, Said, Sentence, Span, listed
 from cardlang.domains import (
     CARD_AXIS_ROLES,
     CARD_PARAM_DOMAINS,
