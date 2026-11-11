@@ -235,8 +235,8 @@ def library() -> Iterator[dict[str, str]]:
         return parse_library(LIBRARY.format(**holder), "docs/libraries/sizes.cardlang")
 
     names = library_names() | {"sizes"}
-    with mock.patch("cardlang.resolve.load_library", load), mock.patch(
-        "cardlang.resolve.library_names", lambda: names
+    with mock.patch("cardlang.resolve.splice.load_library", load), mock.patch(
+        "cardlang.resolve.splice.library_names", lambda: names
     ):
         pipeline._check.cache_clear()
         try:

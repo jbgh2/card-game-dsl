@@ -63,7 +63,7 @@ def probe_betting() -> Iterator[None]:
     def load(name: str) -> n.Library:
         return library if name == "poker_betting" else load_library(name)
 
-    with mock.patch("cardlang.resolve.load_library", load):
+    with mock.patch("cardlang.resolve.splice.load_library", load):
         pipeline._check.cache_clear()
         try:
             yield
