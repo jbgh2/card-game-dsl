@@ -707,7 +707,7 @@ def test_a_line_number_in_the_sentence_is_the_file_s_own(sentence: str) -> None:
 def test_a_large_expected_set_is_summarized() -> None:
     """Every game clause is legal after `players: 2`, which is far more than a
     designer can read. The clause names the closest few and says so."""
-    message = _render("game G {\n  players: 2\n  maxlength: 10\n}\n").diagnostic.message
+    message = _render("game G {\n  players: 2\n  max: 10\n}\n").diagnostic.message
     assert "among others" in message, message
     assert "`max_length`" in message, (
         f"the closest spelling to what was typed leads the list: {message}"

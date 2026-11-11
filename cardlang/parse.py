@@ -30,7 +30,14 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               reports a syntax error rendered in the main grammar's words —
               the main parser's, or the composed parser's where that read
               further, past a twin's slip, before failing — so no expectation
-              it lists names a retired spelling. No semantic claims —
+              it lists names a retired spelling. A word that nearly spells a
+              keyword the grammar accepts in its place — at the failure, or
+              just before it where the grammar read the word as a name — is
+              refused standing on that word, its Near Misses those keywords
+              that, written there, carry the parse past the failure
+              (``_misspelled_keyword``; Derived and Pinned, by
+              tests/test_keyword_near_misses.py, since which words a position
+              takes is the grammar's and no type holds it). No semantic claims —
               names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
               nothing is typed. The `primitives { }` entry's own production
@@ -112,6 +119,7 @@ from cardlang.diagnostics import (
     DiagnosticError,
     Severity,
     Span,
+    near_misses,
     resemblance,
 )
 from cardlang.extract import FencedBlock
@@ -2738,6 +2746,90 @@ def _character_name(char: str) -> str:
         return f"U+{ord(char):04X}"
 
 
+def _words_of(names: Iterable[object]) -> frozenset[str]:
+    """The one-word spellings of the terminals in `names`, each read from its
+    designer's word."""
+    return frozenset(
+        spelling
+        for name in names
+        for spelling in re.findall(r"`([^`]*)`", _designer_word(str(getattr(name, "name", name))))
+        if _WORD_RUN.fullmatch(spelling) and spelling[:1].isalpha()
+    )
+
+
+@cache
+def _keyword_words() -> frozenset[str]:
+    """Every one-word spelling the grammar has."""
+    return _words_of(_parser().terminals)
+
+
+def _is_word(token: Token) -> bool:
+    value = str(token.value)
+    return _WORD_RUN.fullmatch(value) is not None and value[:1].isalpha()
+
+
+def _refused_at(parser: Lark, text: str, start: str) -> int | None:
+    """The offset `parser` refuses `text` at, or None where it derives it."""
+    try:
+        parser.parse(text, start=start)
+    except UnexpectedInput as exc:
+        reported = getattr(exc, "pos_in_stream", None)
+        return len(text) if reported is None or reported < 0 else int(reported)
+    return None
+
+
+def _past_with(
+    parser: Lark, text: str, start: str, word: Token, past: int, names: Iterable[object]
+) -> tuple[str, ...]:
+    """The keywords among `names` that `word` nearly spells and that, written
+    in its place, carry the parse beyond offset `past`.
+
+    A keyword whose reading is refused at the same place is no fix for the
+    refusal, so it is not offered."""
+    begin, end = int(word.start_pos or 0), int(word.end_pos or 0)
+    offered: list[str] = []
+    for keyword in near_misses(str(word.value), _words_of(names)):
+        refused = _refused_at(parser, text[:begin] + keyword + text[end:], start)
+        if refused is None or refused > past + len(keyword) - (end - begin):
+            offered.append(keyword)
+    return tuple(offered)
+
+
+def _misspelled_keyword(
+    exc: UnexpectedInput, parser: Lark, text: str, pos: int, start: str
+) -> tuple[Token, tuple[str, ...]] | None:
+    """The word a refusal at `pos` stands on when it is a misspelled keyword,
+    with the keywords it is offered.
+
+    The slip is the word AT the refusal where the grammar takes no name
+    there, or the word BEFORE it where the grammar read the slip as a name
+    and refused what follows (`shufle deck` is refused at `deck`). Either is
+    offered the keywords the grammar accepts in its place that it nearly
+    spells and that carry the parse past the word after it."""
+    tokens = _scan(text).tokens
+    after = [t for t in tokens if (t.start_pos or 0) >= pos]
+    if after and after[0].start_pos == pos and _is_word(after[0]):
+        following = int(after[1].start_pos or 0) if len(after) > 1 else len(text)
+        names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
+        offered = _past_with(parser, text, start, after[0], following, names)
+        if offered:
+            return after[0], offered
+    before = [t for t in tokens if (t.end_pos or 0) <= pos]
+    if not before or not _is_word(before[-1]):
+        return None
+    word = before[-1]
+    if not near_misses(str(word.value), _keyword_words()):
+        return None
+    try:
+        parser.parse(text[: word.start_pos] + "\x00", start=start)
+    except UnexpectedInput as at_word:
+        names = getattr(at_word, "allowed", None) or getattr(at_word, "expected", None) or ()
+        offered = _past_with(parser, text, start, word, pos, names)
+        if offered:
+            return word, offered
+    return None
+
+
 #: How many characters no terminal admits a scan steps over before it gives
 #: up. Each one costs a re-scan of the whole text, and past a handful the file
 #: has a problem the failure's own sentence already names. A designed
@@ -3088,11 +3180,15 @@ def parse_to_tree(
     try:
         tree = _parser().parse(text, start=start)
     except UnexpectedInput as exc:
-        main_error, main_pos = _syntax_error(exc, text, source_name, line_offset, start)
+        main_error, main_pos = _syntax_error(
+            exc, _parser(), text, source_name, line_offset, start
+        )
         try:
             composed = _diagnostic_parser().parse(text, start=start)
         except UnexpectedInput as later:
-            later_error, later_pos = _syntax_error(later, text, source_name, line_offset, start)
+            later_error, later_pos = _syntax_error(
+                later, _diagnostic_parser(), text, source_name, line_offset, start
+            )
             raise DiagnosticError(later_error if later_pos > main_pos else main_error) from exc
         # Every twin's builder method raises, and `compare` raises on the
         # operators `COMP_OP` gains (tools.dead_surface.refusing_methods and
@@ -3106,18 +3202,43 @@ def parse_to_tree(
 
 
 def _syntax_error(
-    exc: UnexpectedInput, text: str, source_name: str, line_offset: int, start: str
+    exc: UnexpectedInput,
+    parser: Lark,
+    text: str,
+    source_name: str,
+    line_offset: int,
+    start: str,
 ) -> tuple[Diagnostic, int]:
-    """The designer's syntax error for ``exc``, and the offset it stands at.
+    """The designer's syntax error for ``exc``, raised by ``parser``, and the
+    offset ``parser`` refused the text at.
 
     The expectations are rendered through the MAIN grammar's terminal table
     whichever parser raised ``exc``: a terminal only the diagnostic grammar
-    knows has no designer's word there and so is never listed."""
+    knows has no designer's word there and so is never listed.
+
+    A misspelled keyword (``_misspelled_keyword``) is refused at the word the
+    designer wrote, with the keywords it nearly spells as its Near Misses and
+    nothing else: each one is shown to carry the parse past this refusal, so
+    the parser's expectation, the file's structure and a clause's reminder
+    all describe a failure the offer already answers."""
     # End of input is not a position: lark reports line and column as -1
     # there, so the end of the text is the honest span.
     reported: int | None = getattr(exc, "pos_in_stream", None)
     at_end = reported is None or reported < 0
     pos: int = len(text) if at_end else int(reported or 0)
+    slip = _misspelled_keyword(exc, parser, text, pos, start)
+    if slip is not None:
+        word, offered = slip
+        begin = int(word.start_pos or 0)
+        at = Span(
+            source_name,
+            begin,
+            int(word.end_pos or begin),
+            int(word.line or 1) + line_offset,
+            int(word.column or 1),
+        )
+        message = f"syntax error: unexpected `{word.value}`"
+        return Diagnostic(Severity.ERROR, message, at, near_misses=offered), pos
     raw_line: int = _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
     column: int = (
         pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
