@@ -112,9 +112,18 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.extract import FencedBlock, extract_blocks
 from cardlang.pipeline import check_dsl
 from tests.empty_axis import may_be_empty
+from tools.decisions_index import section_paths
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
 DOC_NAMES = ("decisions.md", "library.md", "model.md")
+
+
+def _doc_sources(name: str) -> list[tuple[str, str]]:
+    """(source name, text) of each file a spec doc's blocks live in. The
+    decisions spec is its section files; its index holds none of their text."""
+    if name == "decisions.md":
+        return [(f"decisions/{p.name}", p.read_text()) for p in section_paths()]
+    return [(name, (DOCS_DIR / name).read_text())]
 
 # The closed tag vocabulary (docs/maintaining.md "Doc snippet tagging"). A
 # fenced block whose info string is not in this set — including the empty
@@ -620,8 +629,8 @@ BAD_FRAGMENT_SMOKE: dict[str, str] = {}
 def _load_blocks() -> list[FencedBlock]:
     blocks: list[FencedBlock] = []
     for name in DOC_NAMES:
-        text = (DOCS_DIR / name).read_text()
-        blocks.extend(extract_blocks(text, name))
+        for source, text in _doc_sources(name):
+            blocks.extend(extract_blocks(text, source))
     return blocks
 
 
@@ -636,7 +645,7 @@ def test_the_block_domain_is_the_size_the_recipes_define() -> None:
     wrong answer — it counts fence LINES, and misses blocks indented inside
     list items. `extract_blocks` is the authority.)"""
     per_doc = {
-        name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
+        name: sum(len(extract_blocks(text, source)) for source, text in _doc_sources(name))
         for name in DOC_NAMES
     }
     assert per_doc == {"decisions.md": 62, "library.md": 20, "model.md": 5}
