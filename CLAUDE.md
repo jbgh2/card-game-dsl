@@ -237,13 +237,15 @@ the leak-freeness pins the LLM harness advertises could go red while CI stayed
 green. Keep them a separate step rather than widening `testpaths`: both
 properties are wanted.
 
-Locally, run what the change can affect while CI runs concurrently:
-**`python3 tools/check_change.py`** reads the branch's diff against its
-merge base with `origin/main`, selects every check the rules below let a
-diff decide, runs them unpiped through `tools/verify.sh`, and prints what
-it ran, why, and each run's own summary line (`--list` selects without
-running; `--full` is the gate in CI's form; its docstring holds the rest).
-When quoting local evidence, run the checks as written. In particular:
+Locally, run what the change can affect while CI runs concurrently.
+**`python3 tools/check_change.py`** is how the checks the rules below name
+are selected and run: it reads the branch's diff against its merge base
+with `origin/main`, runs those checks unpiped through `tools/verify.sh`,
+and prints what it ran, why, and each run's own summary line (`--list`
+selects without running; `--full` is the gate in CI's form; its docstring
+holds the rest). Anything else the change can affect is still the
+author's to run. When quoting local evidence, run the checks as written.
+In particular:
 
 - Type-check the whole configured tree, as the script does
   (`python -m mypy` under the checkout's interpreter), **never** `mypy
