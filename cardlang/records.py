@@ -254,22 +254,33 @@ def read_envelope(document: object) -> Kind:
     if kind is None:
         raise UnreadableEnvelope(f"kind {document.get('kind')!r} is no kind of Record Envelope")
     records = document.get("diagnostics")
-    if not (isinstance(records, list) and all(_is_record(r) for r in records)):
-        raise UnreadableEnvelope(f"a {kind.value} envelope holds a list of Diagnostic Records")
+    if not (
+        isinstance(records, list) and all(_is_record(r) for r in records) and _is_payload(kind, document)
+    ):
+        raise UnreadableEnvelope(f"a {kind.value} envelope holds {_PAYLOAD_WORDS[kind]}")
+    return kind
+
+
+_PAYLOAD_WORDS: dict[Kind, str] = {
+    Kind.DIAGNOSTICS: "a list of Diagnostic Records",
+    Kind.QUERY: "where it was asked, its refusals as Diagnostic Records, and its answer",
+}
+
+
+def _is_payload(kind: Kind, document: dict[str, object]) -> bool:
+    """Whether `document`'s fields are its kind's, beside its Diagnostic
+    Records."""
     match kind:
         case Kind.DIAGNOSTICS:
-            if set(document) != {"schema", "kind", "diagnostics"}:
-                raise UnreadableEnvelope("a diagnostics envelope holds a list of Diagnostic Records")
+            return set(document) == {"schema", "kind", "diagnostics"}
         case Kind.QUERY:
-            if set(document) != {"schema", "kind", "at", "diagnostics", "answer"} or not (
-                _is_query_place(document["at"]) and _is_query_answer(document["answer"])
-            ):
-                raise UnreadableEnvelope(
-                    "a query envelope holds where it was asked, its refusals, and its answer"
-                )
+            return (
+                set(document) == {"schema", "kind", "at", "diagnostics", "answer"}
+                and _is_query_place(document["at"])
+                and _is_query_answer(document["answer"])
+            )
         case _:
             assert_never(kind)
-    return kind
 
 
 # The fields of a Checker Query's answer, and of each of its three answers

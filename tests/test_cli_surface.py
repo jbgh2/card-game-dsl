@@ -22,8 +22,9 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  take one — are crossed separately, in the probes below; the
                  `play` command's value classes and combinations are
                  tests/test_play_session.py's, and its `--vs` values
-                 tests/test_play_opponents.py's. `--at`
-                 numbers decision nodes, one per candidate a Chooser call
+                 tests/test_play_opponents.py's; the `query` command's
+                 `--at LINE:COL` and its positions are tests/test_query.py's.
+                 `demo`'s `--at` numbers decision nodes, one per candidate a Chooser call
                  takes, which is the unit the game tree branches on, the unit
                  the adapter replays and the unit `max_length` bounds — so the
                  listing, the summary's `decisions` line and the adapter's
@@ -454,7 +455,7 @@ def test_command_option_cell(
         *(_COMPANION.get(option, []) if own_sample is None else []),
         *(
             []
-            if option in _NAMES_ITS_OWN_OPPONENTS or own_sample is not None
+            if (command == "play" and option in _NAMES_ITS_OWN_OPPONENTS) or own_sample is not None
             else _COMMAND_COMPANION.get(command, [])
         ),
     ]

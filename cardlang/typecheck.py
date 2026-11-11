@@ -703,7 +703,7 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
         "typing", reason="types a deck value, which library text cannot name"
     ),
     ("_name_type", "play_source"): ClauseRead("typing", reason="types a rule's Play Source"),
-    ("infer", "item_fields"): ClauseRead("typing", reason="types a card's field"),
+    ("_infer", "item_fields"): ClauseRead("typing", reason="types a card's field"),
     ("_call_sig", "call_sigs"): ClauseRead(
         "typing", reason="a call's signature; library text names no Primitive"
     ),
@@ -730,10 +730,10 @@ CLAUSE_READS: dict[tuple[str, str], ClauseRead] = {
     ("_check_state_default_type", "directions"): ClauseRead(
         "typing", reason="a state variable's declared type"
     ),
-    ("typecheck", "positions"): ClauseRead(
+    ("_typecheck", "positions"): ClauseRead(
         "typing", reason="a move parameter's binder and an outcome payload's type"
     ),
-    ("typecheck", "directions"): ClauseRead(
+    ("_typecheck", "directions"): ClauseRead(
         "typing", reason="a move parameter's binder and an outcome payload's type"
     ),
 }

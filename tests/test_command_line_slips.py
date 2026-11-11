@@ -394,12 +394,16 @@ def test_the_extension_is_refused_before_the_file_is_read(tmp_path: Path) -> Non
     _names_what_is_read(_refusal(path), path)
 
 
+# What a command cannot be run without, beside its file.
+_REQUIRED: dict[str, list[str]] = {"query": ["--at", "1:1"]}
+
+
 @pytest.mark.parametrize("command", COMMANDS)
 def test_every_command_tells_a_slipped_extension(
     command: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     path = _copy(tmp_path, ".cardlang", "hearts.cardlnag")
-    said = _run([command, str(path)], capsys)
+    said = _run([command, str(path), *_REQUIRED.get(command, [])], capsys)
     assert said.code == 1, said.err
     assert said.err.startswith(f"error: {path} ends in .cardlnag"), said.err
     assert "; did you mean `.cardlang`?" in said.err
