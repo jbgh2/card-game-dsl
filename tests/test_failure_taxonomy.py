@@ -132,6 +132,10 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # The file cannot be written; the game is sound and the session is not
     # the game's.
     "SaveFailed": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: whoever typed the command line ----------------------------
+    # The line's words, refused before any game file is read; `cli.main`
+    # catches it where argparse raises it and tells it as a usage error.
+    "_Refused": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- not a defect at all: the game is working as written ---------------
     # The author wrote `error(...)`; refusing the move IS the rule.
     "IllegalMove": {"in_game_description_tree": False, "is_runtime_error": False},

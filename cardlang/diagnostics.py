@@ -33,7 +33,7 @@ Held by:      Derived and Pinned -- a refusal's sentence is a `str`, which no
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 from enum import Enum
@@ -165,9 +165,13 @@ def near_misses(spelled: str, among: Iterable[str]) -> tuple[str, ...]:
     return tuple(name for score, name in scored if -score >= NEAR_MISS_CUTOFF)[:NEAR_MISS_LIMIT]
 
 
+def listed(words: Sequence[str], conjunction: str = "or") -> str:
+    """`words` as a sentence lists them: `a`, `a or b`, `a, b or c`."""
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + f" {conjunction} " + words[-1]
+
+
 def _or_list(names: tuple[str, ...]) -> str:
-    quoted = [f"`{name}`" for name in names]
-    return quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + " or " + quoted[-1]
+    return listed([f"`{name}`" for name in names])
 
 
 def rendered(message: Said) -> tuple[str, tuple[Span, ...]]:
