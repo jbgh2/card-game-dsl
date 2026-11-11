@@ -335,8 +335,9 @@ SEEDS_BY_GAME: dict[str, int] = {}
 # So set `CARDLANG_GOLDEN_SEEDS=full` and every capture here sweeps its golden's
 # WHOLE width. That is the run whose green means "the vector did not move"; the
 # default run's green means only "the first `DEFAULT_SEEDS` did not". The rule
-# and the command live in CLAUDE.md, "Verifying changes"; this switch is what
-# makes obeying it one word rather than a discipline.
+# lives in CLAUDE.md, "Verifying changes", and `tools/check_change.py` sets the
+# switch for the diffs it names; this switch is what makes obeying it one word
+# rather than a discipline.
 #
 # The switch takes that one word and nothing else. Unset — or set and cleared,
 # which is how a shell spells the same thing — is the dial; every other value is
