@@ -19,12 +19,14 @@ property:        a first word that is no command and names nothing on disk,
                  beside it with its stem, or else the extension that reads
                  the DSL itself; a word that is no command-line option of the
                  command is refused naming it, with the commands that take
-                 every word of the line, or else the commands each option of
-                 the line is an option of and no offer, or else the command's
-                 own options it nearly spells, or else where they are listed;
-                 a word after the file is refused as one too many, or, when it
-                 is a command, with the order that takes every word, or else
-                 the commands each option is an option of; a line naming no
+                 every word of the line, or else, offering nothing, what the
+                 command declaring every option of the line refuses in it, or
+                 the commands each option is an option of when none declares
+                 them all, or else the command's own options it nearly
+                 spells, or else where they are listed; a word after the file
+                 is refused as one too many, or, when it is a command, with
+                 the order that takes every word, or else what that command
+                 refuses, or the commands each option is an option of; a line naming no
                  file, or an empty one, is refused for that; every refusal of
                  the line's words speaks as the command typed, or as
                  `cardlang` when none was, says when it read the line as
@@ -56,10 +58,12 @@ domain:          the commands, crossed with the slips generated from each
                  two letters swapped, the second letter of the name
                  dropped), and with words no parser declares (`-v`,
                  `--version`) first, before the file and after it; two
-                 command-line options after the file, under check and under
-                 no command, every option check does not take crossed with
-                 every other option; each command after the file, alone and
-                 after each option; a second file; a file whose name begins
+                 command-line options after the file, under every command
+                 and under none, every option the command does not take
+                 crossed with every other option; each command after the
+                 file, alone, after each option and after a second file; a
+                 second file, alone and beside every option the command does
+                 not take; a file whose name begins
                  with a dash; no file, an empty file, an empty first word; a
                  value on an option or on help that takes none; a path
                  missing, spelled with `./`; argparse's own refusal of a
@@ -425,10 +429,6 @@ def _who(command: str | None) -> str:
     return "no command" if command is None else command
 
 
-# The cells this round's refinement turns, red until it lands.
-_RED_CELLS: set[str] = set()
-
-
 def _option_cells() -> dict[str, _Cell]:
     """An option of another command, after the file, under every command and
     under none, spaced from its value and joined to it."""
@@ -461,7 +461,6 @@ def _option_cells() -> dict[str, _Cell]:
                     f"{_subject(command)} takes no {option}; {option} is an option of "
                     f"{_and(owners)}, and {owners[0]} refuses this line too: argument {option}:",
                 )
-                _RED_CELLS.add(name)
     return cells
 
 
@@ -598,7 +597,6 @@ def _second_file_cells() -> dict[str, _Cell]:
                 f"and {owners[0]} refuses this line too: {owners[0]} reads one game file and no "
                 f"other word, {extra}",
             )
-            _RED_CELLS.add(name)
     for typed in COMMANDS:
         name = f"no command: a second file, then {typed} after the file"
         cells[name] = _usage(
@@ -606,7 +604,6 @@ def _second_file_cells() -> dict[str, _Cell]:
             f"{typed} comes after the file, and a command goes first, but {typed} refuses this "
             f"line too: {typed} reads one game file and no other word, {extra}",
         )
-        _RED_CELLS.add(name)
     return cells
 
 
@@ -747,12 +744,7 @@ def _told(cell: _Cell, said: _Said) -> None:
 
 
 
-_RED = pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084, review round")
-
-
-@pytest.mark.parametrize(
-    "cell", [pytest.param(c, marks=_RED) if c in _RED_CELLS else pytest.param(c) for c in sorted(_CELLS)]
-)
+@pytest.mark.parametrize("cell", sorted(_CELLS))
 def test_each_line_is_told_what_it_typed_and_the_fix(
     cell: str, table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

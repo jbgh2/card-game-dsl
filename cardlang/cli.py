@@ -381,8 +381,9 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
     the command has no command-line option for, or a word after the file.
 
     A line or a command it offers is one `_takes` every word of the line
-    typed; where none does, it names the commands each command-line option
-    of the line is an option of, and offers nothing."""
+    typed. Where none does, it offers nothing: it tells what a command that
+    declares every command-line option of the line refuses in it, or, when
+    no command declares them all, the commands each is an option of."""
     command = line.argv[0]
     here = parser.commands[command]
     subject = line.subject()
@@ -394,12 +395,24 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
     def owners(name: str) -> tuple[str, ...]:
         return tuple(c for c in COMMANDS if name in parser.commands[c].options())
 
+    names = list(dict.fromkeys(w.split("=", 1)[0] for w in words if option_shaped(w)))
+    # The commands that declare every command-line option the line names.
+    declarers = [c for c in COMMANDS if all(n in parser.commands[c].options() for n in names)]
+
     def apart() -> str:
-        names = dict.fromkeys(w.split("=", 1)[0] for w in words if option_shaped(w))
         return "; ".join(
             f"{name} is an option of {listed(owners(name), 'and') if owners(name) else 'no command'}"
             for name in names
         )
+
+    def why(other: str) -> str:
+        """What `other`, which declares every option of the line, refuses
+        in the line put under it."""
+        try:
+            _args, left = build_parser().parse_known_args([other, *words])
+        except _Refused as refused:
+            return refused.message
+        return _set_aside(parser, _Line([other, *words], implicit=False), left).message
 
     moved = next((w for w in aside if line.implicit and w in COMMANDS), None)
     if moved is not None:
@@ -410,6 +423,12 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
                 Severity.ERROR,
                 f"{moved} comes after the file, and a command goes first: "
                 f"{shlex.join(['cardlang', moved, *rest])}",
+            )
+        if moved in declarers:
+            return Diagnostic(
+                Severity.ERROR,
+                f"{moved} comes after the file, and a command goes first, but {moved} "
+                f"refuses this line too: {why(moved)}",
             )
         return Diagnostic(
             Severity.ERROR,
@@ -428,6 +447,12 @@ def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
         belongs = owners(name)
         if belongs:
             takers = [c for c in belongs if _takes([c, *words])]
+            if not takers and declarers:
+                return Diagnostic(
+                    Severity.ERROR,
+                    f"{subject} takes no {name}; {name} is an option of {listed(belongs, 'and')}, "
+                    f"and {declarers[0]} refuses this line too: {why(declarers[0])}",
+                )
             if not takers:
                 return Diagnostic(
                     Severity.ERROR,
