@@ -100,12 +100,15 @@ from __future__ import annotations
 import argparse
 import io
 import re
+import shlex
 import shutil
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from _pytest.mark.structures import ParameterSet
 
 from cardlang.cli import COMMANDS, build_parser, main
 from cardlang.diagnostics import DiagnosticError, near_misses
@@ -217,16 +220,19 @@ def test_the_offered_command_gets_past_the_refusal(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The offer is a claim: the line with the command in place of the slip
-    meets some other answer, or none.
+    """The offer is a claim: the line with each command offered, as the
+    refusal prints it, in place of the slip meets some other answer, or none.
 
     red under: drop `argv[0] in COMMANDS` from `cli._normalize`'s
     pass-through."""
     monkeypatch.chdir(tmp_path)
-    said = _run([command, *_FOLLOWS[follows]], capsys)
-    assert "is not a command" not in said.err, said.err
-    if follows == "a file" and command == "check":
-        assert said.code == 0, said.err
+    offered = _printed_words(_run([slip, *_FOLLOWS[follows]], capsys).err)
+    assert command in offered, offered
+    for word in offered:
+        said = _run([word, *_FOLLOWS[follows]], capsys)
+        assert "is not a command" not in said.err, said.err
+        if follows == "a file" and word == "check":
+            assert said.code == 0, said.err
 
 
 @pytest.mark.parametrize("follows", sorted(_FOLLOWS))
@@ -427,9 +433,18 @@ def _option_cells() -> dict[str, _Cell]:
                 [*_lead(command), _F, option, *value], said
             )
             joined = f"{option}={_VALUE.get(option, '1')}"
-            cells[f"{_who(command)}: {option}, joined"] = _usage(
-                [*_lead(command), _F, joined], said
-            )
+            name = f"{_who(command)}: {option}, joined"
+            if option in _TAKES_VALUE:
+                cells[name] = _usage([*_lead(command), _F, joined], said)
+            else:
+                # An option that takes no value, given one: no command
+                # takes the word as typed.
+                cells[name] = _usage(
+                    [*_lead(command), _F, joined],
+                    f"{_subject(command)} takes no {option}; no command takes every word "
+                    f"of this line: {_apart((option,))}",
+                )
+                _FLIPS[name] = frozenset({"told", "offers"})
     return cells
 
 
@@ -473,20 +488,104 @@ def _hint(command: str | None) -> str:
 
 def _undeclared_cells() -> dict[str, _Cell]:
     """A word no parser declares, first and after the file, under every
-    command and under none. What is offered is the measure's: the command's
-    own options it nearly spells, or the help that lists them."""
+    command and under none. What each is offered is `_ANCHORS`'."""
     cells: dict[str, _Cell] = {}
     for command in _WHO:
-        here = "check" if command is None else command
         for word in _UNDECLARED:
-            near = near_misses(word, (*_DECLARED[here], "-h", "--help"))
-            tail = (
-                f"; did you mean {_or(tuple(f'`{n}`' for n in near))}?" if near else f"; {_hint(command)}"
-            )
-            said = f"{_subject(command)} takes no {word}{tail}"
+            said = f"{_subject(command)} takes no {word}"
             cells[f"{_who(command)}: {word} alone"] = _usage([*_lead(command), word], said)
             cells[f"{_who(command)}: {word} after the file"] = _usage([*_lead(command), _F, word], said)
             cells[f"{_who(command)}: {word} before the file"] = _usage([*_lead(command), word, _F], said)
+    return cells
+
+
+def _value(option: str) -> list[str]:
+    return [_VALUE.get(option, "1")] if option in _TAKES_VALUE else []
+
+
+def _apart(options: tuple[str, ...]) -> str:
+    """The commands each option is one of, as a refusal naming no command
+    that takes them all says it."""
+    return "; ".join(
+        f"{o} is an option of {_and(_owners(o)) if _owners(o) else 'no command'}" for o in options
+    )
+
+
+# The second round's cells, and the tests each one's designed change flips:
+# `told` is what the line is told, `offers` is whether its offer is taken.
+_FLIPS: dict[str, frozenset[str]] = {}
+
+
+def _pair_cells() -> dict[str, _Cell]:
+    """Two command-line options after the file, under check and under no
+    command: the first one check does not take, the second any other. The
+    offer is a command that takes both, or none."""
+    cells: dict[str, _Cell] = {}
+    for command in ("check", None):
+        for first in _EVERY_OPTION:
+            if first in _DECLARED["check"]:
+                continue
+            for second in _EVERY_OPTION:
+                if second == first:
+                    continue
+                takers = tuple(c for c in COMMANDS if first in _DECLARED[c] and second in _DECLARED[c])
+                if takers:
+                    where = "first" if command is None else "in place of check"
+                    said = (
+                        f"{_subject(command)} takes no {first}; {first} is an option of "
+                        f"{_and(_owners(first))}, so name {_or(takers)} {where}"
+                    )
+                else:
+                    said = (
+                        f"{_subject(command)} takes no {first}; no command takes every word "
+                        f"of this line: {_apart((first, second))}"
+                    )
+                name = f"{_who(command)}: {first} with {second}"
+                cells[name] = _usage(
+                    [*_lead(command), _F, first, *_value(first), second, *_value(second)], said
+                )
+                # Offering every command `first` belongs to is right only
+                # when each of them takes `second` too.
+                if takers != _owners(first):
+                    _FLIPS[name] = frozenset({"told", "offers"})
+    return cells
+
+
+def _order_cells() -> dict[str, _Cell]:
+    """A command after the file, under no command, with each command-line
+    option before it: the order offered takes every word, or none is."""
+    cells: dict[str, _Cell] = {}
+    for typed in COMMANDS:
+        for option in _EVERY_OPTION:
+            if option in _DECLARED[typed]:
+                line = shlex.join(["cardlang", typed, _F, option, *_value(option)])
+                said = f"{typed} comes after the file, and a command goes first: {line}"
+            else:
+                said = (
+                    f"{typed} comes after the file, and a command goes first, but {typed} "
+                    f"does not take every word of this line: {_apart((option,))}"
+                )
+            name = f"no command: {option}, then {typed} after the file"
+            cells[name] = _usage([_F, option, *_value(option), typed], said)
+            # The order offered takes every word only where the line is
+            # already read as the command named after it.
+            if not (typed == "check" and option in _DECLARED["check"]):
+                _FLIPS[name] = frozenset({"told", "offers"})
+    return cells
+
+
+def _dash_cells() -> dict[str, _Cell]:
+    """A file whose name begins with a dash, named as the file, under every
+    command and under none."""
+    said = (
+        f"{_DASHED} begins with a dash, so it reads as a command-line option, not as the "
+        f"file of that name; spell the file ./{_DASHED}"
+    )
+    cells = {
+        f"{_who(command)}: a file whose name begins with a dash": _usage([*_lead(command), _DASHED], said)
+        for command in _WHO
+    }
+    _FLIPS.update({name: frozenset({"told"}) for name in cells})
     return cells
 
 
@@ -557,6 +656,9 @@ def _argparse_cells() -> dict[str, _Cell]:
     return cells
 
 
+# A game file whose name begins with a dash, which every table holds.
+_DASHED = "-dash.cardlang"
+
 _SLIPPED = _slipped_option_cells()
 _CELLS: dict[str, _Cell] = {
     **_option_cells(),
@@ -564,13 +666,27 @@ _CELLS: dict[str, _Cell] = {
     **_undeclared_cells(),
     **_word_cells(),
     **_file_cells(),
+    **_pair_cells(),
+    **_order_cells(),
+    **_dash_cells(),
 }
 # The cells that keep what the tree already says.
 _KEPT: dict[str, _Cell] = _argparse_cells()
 
 
-def _run_in_repo(argv: tuple[str, ...], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> _Said:
-    monkeypatch.chdir(REPO)
+@pytest.fixture
+def table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Where each line runs: a directory holding the game file the lines
+    name, at the path they name it by, and a game file named with a dash. A
+    line `play` carries out saves its game here."""
+    (tmp_path / "docs" / "games").mkdir(parents=True)
+    shutil.copy(KUHN, tmp_path / _F)
+    shutil.copy(KUHN, tmp_path / _DASHED)
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def _run_at_table(argv: tuple[str, ...], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> _Said:
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     return _run(list(argv), capsys)
 
@@ -595,19 +711,29 @@ def _told(cell: _Cell, said: _Said) -> None:
 
 
 
-@pytest.mark.parametrize("cell", sorted(_CELLS))
+_RED = pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084, second round")
+
+
+def _marked(cells: Iterable[str], test: str) -> list[ParameterSet]:
+    return [
+        pytest.param(c, marks=_RED) if test in _FLIPS.get(c, ()) else pytest.param(c)
+        for c in sorted(cells)
+    ]
+
+
+@pytest.mark.parametrize("cell", _marked(_CELLS, "told"))
 def test_each_line_is_told_what_it_typed_and_the_fix(
-    cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    cell: str, table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _told(_CELLS[cell], _run_in_repo(_CELLS[cell].argv, monkeypatch, capsys))
+    _told(_CELLS[cell], _run_at_table(_CELLS[cell].argv, monkeypatch, capsys))
 
 
 @pytest.mark.parametrize("cell", sorted(_KEPT))
 def test_argparse_s_own_refusal_under_the_command_typed(
-    cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    cell: str, table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """red under: have `cli._refuse` always speak as the top parser."""
-    _told(_KEPT[cell], _run_in_repo(_KEPT[cell].argv, monkeypatch, capsys))
+    _told(_KEPT[cell], _run_at_table(_KEPT[cell].argv, monkeypatch, capsys))
 
 
 # The voices a refusal speaks in, and the words it says were typed. Every
@@ -622,6 +748,7 @@ _SUBJECTS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^cardlang: error: (\S+) is not a command", re.MULTILINE),
     re.compile(r"^error: (\S+) ends in ", re.MULTILINE),
     re.compile(r"^error: (\S+) has no extension", re.MULTILINE),
+    re.compile(r"error: (\S+) begins with a dash"),
 )
 # argparse names an option by every spelling it has, `-h/--help`.
 _ARGUMENT = re.compile(r"argument (-\S+?): ")
@@ -669,7 +796,7 @@ def _names_only_what_was_typed(argv: tuple[str, ...], said: _Said, names: bool) 
 
 @pytest.mark.parametrize("cell", sorted(_PROPERTY))
 def test_no_refusal_names_a_word_never_typed(
-    cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    cell: str, table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The property, over every line of the grid: the command a refusal
     speaks as is the one typed, and each word it says was typed was.
@@ -678,7 +805,7 @@ def test_no_refusal_names_a_word_never_typed(
     or have `cli._refuse` speak as `line.argv[0]`, the command parsed; or have
     `cli._normalize`'s refusal name `word.casefold()`."""
     argv, names = _PROPERTY[cell]
-    _names_only_what_was_typed(argv, _run_in_repo(argv, monkeypatch, capsys), names)
+    _names_only_what_was_typed(argv, _run_at_table(argv, monkeypatch, capsys), names)
 
 
 @pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1099")
@@ -693,46 +820,122 @@ def test_a_slipped_extension_is_named_as_typed(
 
 
 
-@pytest.mark.parametrize("cell", sorted(_SLIPPED))
-def test_the_offered_option_gets_past_the_refusal(
-    cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+# The offers a refusal prints: a whole line, commands to name first or in
+# place of the one typed, a file's spelling, and words in place of the word
+# it refused.
+_OFFERED_LINE = re.compile(r"a command goes first: (.+)$", re.MULTILINE)
+_OFFERED_COMMANDS = re.compile(r"so name (.+?) (first|in place of \S+)$", re.MULTILINE)
+_OFFERED_SPELLING = re.compile(r"spell the file (\S+)$", re.MULTILINE)
+_OFFERED_WORDS = re.compile(r"did you mean (.+)\?$", re.MULTILINE)
+
+
+def _printed_words(err: str) -> tuple[str, ...]:
+    """The words a refusal's `did you mean` offers, as printed."""
+    return tuple(w for clause in _OFFERED_WORDS.findall(err) for w in re.findall(r"`([^`]+)`", clause))
+
+
+def _subjects(err: str) -> list[str]:
+    return [m for pattern in _SUBJECTS for m in pattern.findall(err)]
+
+
+def _in_place(argv: tuple[str, ...], refused: str, offered: str) -> tuple[str, ...]:
+    """`argv` with the word the refusal named replaced by the one offered,
+    keeping a value joined to it."""
+    return tuple(
+        offered + w[len(refused):] if w == refused or w.startswith(refused + "=") else w for w in argv
+    )
+
+
+def _offered_lines(argv: tuple[str, ...], err: str) -> list[tuple[str, ...]]:
+    """Every line a refusal offers whole, built from what it prints."""
+    lines: list[tuple[str, ...]] = []
+    for printed in _OFFERED_LINE.findall(err):
+        words = shlex.split(printed)
+        assert words[0] == "cardlang", printed
+        lines.append(tuple(words[1:]))
+    for names, where in _OFFERED_COMMANDS.findall(err):
+        for name in re.split(r", | or ", names):
+            lines.append((name, *argv) if where == "first" else (name, *argv[1:]))
+    for spelling in _OFFERED_SPELLING.findall(err):
+        lines.append(_in_place(argv, _subjects(err)[0], spelling))
+    return lines
+
+
+@pytest.mark.parametrize("cell", _marked({**_CELLS, **_KEPT}, "offers"))
+def test_every_offer_is_taken_as_printed(
+    cell: str, table: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    line, option = _SLIPPED[cell]
-    slip = next(w for w in line.argv if w.startswith("-"))
-    assert option in near_misses(slip, _DECLARED[_typed_command(line.argv) or "check"])
-    fixed = tuple(option if w == slip else w for w in line.argv)
-    said = _run_in_repo(fixed, monkeypatch, capsys)
-    assert "takes no" not in said.err, said.err
-    said = _run_in_repo(line.argv, monkeypatch, capsys)
-    assert f"`{option}`" in said.err, said.err
+    """Each offer, applied as the refusal prints it, gets past it: a line,
+    a command or a file's spelling offered whole is a line every word of
+    which is taken, and a word offered in place of the word refused is not
+    refused itself.
+
+    red under: make `rest.remove(word)` in `cli._set_aside` do nothing."""
+    argv = {**_CELLS, **_KEPT}[cell].argv
+    refused = _run_at_table(argv, monkeypatch, capsys).err
+    for line in _offered_lines(argv, refused):
+        said = _run_at_table(line, monkeypatch, capsys)
+        assert "usage:" not in said.err, (line, said.err)
+    words = _printed_words(refused)
+    if words:
+        subject = _subjects(refused)[0]
+        for word in words:
+            said = _run_at_table(_in_place(argv, subject, word), monkeypatch, capsys)
+            assert word not in _subjects(said.err), (word, said.err)
 
 
+# The offer a slip is told, authored by hand: a command and the word typed
+# after the file. An empty offer means the help is named instead.
+_ANCHORS: dict[tuple[str | None, str], tuple[str, ...]] = {
+    (None, "--emitir"): ("--emit-ir",),
+    ("check", "--emitir"): ("--emit-ir",),
+    ("demo", "--sed"): ("--seed",),
+    ("demo", "--veiw"): ("--view",),
+    ("demo", "--decisons"): ("--decisions",),
+    ("play", "--resmue"): ("--resume",),
+    ("play", "--sed"): ("--seed",),
+    (None, "-v"): (),
+    (None, "--version"): (),
+    ("check", "-v"): (),
+    ("check", "--version"): (),
+    ("demo", "-v"): (),
+    ("demo", "--version"): (),
+    ("demo", "-x"): (),
+    ("demo", "--emit"): (),
+    ("play", "-v"): (),
+    ("play", "--version"): (),
+}
+# The anchors the measure answers otherwise (issue #1098).
+_MEASURE_ERRS: frozenset[tuple[str | None, str]] = frozenset(
+    {("play", "--sed"), ("demo", "--version"), ("demo", "--emit"), ("play", "-v"), ("play", "--version")}
+)
 
-@pytest.mark.parametrize("option", [o for o in _EVERY_OPTION if o not in _DECLARED["check"]])
-def test_naming_the_command_an_option_belongs_to_gets_past_the_refusal(
-    option: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+
+@pytest.mark.parametrize(
+    "anchor",
+    [
+        pytest.param(
+            a,
+            id=f"{_who(a[0])} {a[1]}",
+            marks=[pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1098")]
+            if a in _MEASURE_ERRS
+            else [],
+        )
+        for a in _ANCHORS
+    ],
+)
+def test_an_anchor_slip_is_offered_what_was_meant(
+    anchor: tuple[str | None, str],
+    table: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`cardlang FILE --seed 1` is offered `demo` and `play`: each, put first,
-    meets some other answer, or none."""
-    value = [_VALUE.get(option, "1")] if option in _TAKES_VALUE else []
-    said = _run_in_repo((_F, option, *value), monkeypatch, capsys)
-    assert f"so name {_or(_owners(option))} first" in said.err, said.err
-    for owner in _owners(option):
-        said = _run_in_repo((owner, _F, option, *value), monkeypatch, capsys)
-        assert "takes no" not in said.err, said.err
-
-
-
-@pytest.mark.parametrize("command", COMMANDS)
-def test_the_offered_order_gets_past_the_refusal(
-    command: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    said = _run_in_repo((_F, command), monkeypatch, capsys)
-    assert f"a command goes first: cardlang {command} {_F}" in said.err, said.err
-    said = _run_in_repo((command, _F), monkeypatch, capsys)
-    assert "comes after the file" not in said.err, said.err
-    if command == "check":
-        assert said.code == 0, said.err
+    command, word = anchor
+    said = _run_at_table((*_lead(command), _F, word), monkeypatch, capsys)
+    assert f"takes no {word}" in said.err, said.err
+    assert _printed_words(said.err) == _ANCHORS[anchor], said.err
+    if not _ANCHORS[anchor]:
+        assert _hint(command) in said.err, said.err
 
 
 def test_every_generated_option_slip_resembles_its_option() -> None:
@@ -744,6 +947,37 @@ def test_every_generated_option_slip_resembles_its_option() -> None:
         slip = next(w for w in line.argv if w.startswith("-"))
         assert option in near_misses(slip, _DECLARED[_typed_command(line.argv) or "check"]), slip
 
+
+
+# The corpus's Markdown files with a game file of the DSL itself beside them.
+_TWINS: tuple[str, ...] = tuple(
+    sorted(p.name for p in (REPO / "docs" / "games").glob("*.md") if p.with_suffix(".cardlang").exists())
+)
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1084, second round")
+@pytest.mark.parametrize("twin", _TWINS)
+def test_a_rulebook_twin_is_told_the_game_file_beside_it(
+    twin: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`check docs/games/hearts.md` names `docs/games/hearts.cardlang`, which
+    checks, rather than advising a rename that would overwrite it."""
+    monkeypatch.chdir(REPO)
+    path = f"docs/games/{twin}"
+    beside = path.removesuffix(".md") + ".cardlang"
+    said = _run(["check", path], capsys)
+    assert said.code == 1 and not said.raised, said.err
+    assert said.err.startswith(
+        f"{path}:1:1: error: no fenced code block found; {beside} stands beside it, "
+        "named for the DSL itself: check that file instead"
+    ), said.err
+    found = re.search(r"found; (\S+) stands beside it", said.err)
+    assert found is not None
+    assert _run(["check", found.group(1)], capsys).code == 0
+
+
+def test_the_corpus_has_rulebook_twins() -> None:
+    assert _TWINS
 
 
 def test_a_markdown_file_with_no_fence_is_told_the_dsl_may_stand_alone(
