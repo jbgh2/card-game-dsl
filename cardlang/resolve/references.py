@@ -1,4 +1,51 @@
-"""Resolve step: references on the classified tree."""
+"""Resolve step: references on the classified tree.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the classified tree, read-only, and the categories it was
+              classified against.
+Establishes:  every call, card literal and rotate/winner target names what
+              its namespace or registry holds (``_validate_refs``).
+              A move parameter's
+              domain, a function parameter's type and an outcome payload's
+              type name the direction domain only where the board minted it
+              (``_minted_directions``, the one gate each of them reads), so a
+              later pass may look any such name up in the position or the
+              direction source and find it. A ``state`` variable's declared
+              type names a value type or one of the game's named-member
+              position domains (``_declared_type_universe``, the one set the
+              ``StateDecl`` arm reads and a function parameter's set
+              extends); an integer position domain, ``dir`` and ``cell`` in
+              a game with no ``board:`` are refused there
+              (``_state_type_refusal``), each naming a declaration that checks
+              in that game. A board verb stands only on a
+              board whose family declares what the verb reads
+              (``BOARD_VERB_NEEDS``; ``_check_board_call`` for the game's
+              call, the ``_BOARD_NEED_GATES`` rows on the ``uses`` line for a
+              library's), so the runtime may read the board entry's edges,
+              lines or frame behind any board verb it meets; held by Derived
+              and Pinned, one table pinned total against
+              ``BOARD_ONLY_CALL_FUNCS``.
+Now illegal:  a round
+              ``trump`` clause on a winner whose body reads no
+              trump (the winner-slot arm of ``_validate_refs``; the
+              partition is ``TRUMP_READING_WINNERS``). The round clause's TYPE (``Suit?``)
+              is typecheck's (``_check_round_trump``); its presence against
+              its winner is settled here, with the winner namespace.
+              A call, in a game that writes no ``primitives { }`` block,
+              to any Primitive (``PRIMITIVE_CALL_FUNCS``, the declared-only
+              arm of ``_validate_refs``): the name is in the corpus-wide
+              namespace, so the unknown-name arm cannot speak for it, and a
+              declaration is its only route to Python.
+              ``typecheck``'s ``Call`` arm is the Shadow Guard behind this —
+              no table states such a call's signature — with
+              ``runtime/evaluate.py``'s ``native_call`` refusal behind that.
+              A Stake row no seat
+              can read on a ``Card``-parameterized move type,
+              whose action id is its card's (``_check_move_params``). Every
+              row reaching a Seat Policy is therefore on a move type whose
+              action ids name it.
+"""
 
 from __future__ import annotations
 

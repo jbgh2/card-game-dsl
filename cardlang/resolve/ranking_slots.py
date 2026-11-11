@@ -1,4 +1,12 @@
-"""Result rankings: the `winner:` clause and Stop Results."""
+"""Result rankings: the `winner:` clause and Stop Results.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  each result ranking's slot (``ranking_slot``), read by
+              every step that judges a result ranking.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,45 @@
-"""Resolve step: rule instantiation and rule references."""
+"""Resolve step: rule instantiation, query nouns, and rule references.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the library rules the splice held aside; the zones checked.
+              The rule names it judges ``active_rules:`` against are taken
+              from the tree before instantiation, which drops a local
+              template that fails to instantiate.
+Establishes:  Every library's rules — a family
+              library's and ``library stdlib``'s — are spliced into
+              ``game.rules`` only where an ``active_rules:`` reference
+              names them, after the game's own.
+              Every rule in ``game.rules`` is a concrete, parameter-free
+              definition. The step returns the refused binder sources, for
+              classification.
+              A ``DomainQuery`` noun is validated here, before classification,
+              so its unknown-noun refusal reports before the unresolved names
+              a wrong noun would cause.
+              A refused spelling's
+              consequences are withheld where a fix drawn from the set it was
+              looked up in could clear them, and only there: a node whose
+              binder source is refused binds nothing, and a name in its scope
+              spelled as a binder a fix would bind is not told
+              (``_refused_binder_sources``, ``_membership_capture``); a
+              phase's modes are judged after its transition targets resolve,
+              and a target no sibling holds leaves undecided the role of every
+              mode it could name (``_check_modes``). Held by Derived and
+              Pinned: a withheld name is one lexical field (``withheld``), set
+              where a binder is scoped and read by the one unresolved-name arm
+              (tests/test_refusal_consequences.py).
+              A bare
+              ``DomainQuery`` noun names a declared position domain or, for a
+              query kind in ``n.DIRECTION_QUERY_KINDS``, the direction domain the board
+              minted; a Set Form's noun names a Position Domain alone, held by
+              Derived and Pinned (the noun is a designer's string until this
+              pass classifies it against ``game.positions``;
+              tests/test_cell_set_form.py's noun grid).
+Now illegal:  a subset source that
+              names the same zone twice (``_check_subset_source``) -- a
+              spelling fact, settled beside the other subset-shape guard.
+              A rule parameter named ``hand`` (``_refuse_play_source_params``).
+"""
 
 from __future__ import annotations
 

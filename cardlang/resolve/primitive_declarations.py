@@ -1,4 +1,45 @@
-"""Resolve step: the `primitives { }` block and its scoped reads."""
+"""Resolve step: the `primitives { }` block and its scoped reads.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the board has minted its domains, since an entry's type slot
+              may spell any of the game's position domains; ``expand`` has
+              not run, so every ``run`` site a procedure body is judged at
+              still stands.
+Establishes:  every `primitives { }` entry's
+              declared types are SHAPES the block's registries admit — the
+              head from `declarable_type_names`, a collection's element from
+              `COLLECTION_ELEMENT_NAMES`.
+Now illegal:  an entry's collection element outside the block's allow-list
+              reaching the type layer.
+              A ``primitives { }`` entry whose ``reads`` clause names a
+              declaration the game states in more than one of the four
+              namespaces such a name can be declared in — the game's own
+              ``state { }``, a phase's, an indexed ``zones { }`` declaration,
+              an unindexed one (``_check_primitive_reads``, over
+              ``primitives_block``'s three collision predicates). Every name
+              reaching ``classify_read`` is therefore single-membership,
+              which is what lets ``runtime/driver``'s materialization call
+              the same classifier with no refusal of its own.
+              For a read carrying a [[phase-scoped-read]]'s ``in <phase>``
+              tail: the tail names a real phase of the game, that phase's own
+              ``state { }`` declares the name, no STRICT DESCENDANT of it
+              re-declares the name, the phases ONE entry's clause names lie on
+              one ancestor path — so their subtrees nest and the entry's
+              REGION is the innermost's subtree, which is the intersection of
+              the named subtrees — and every call of that entry sits inside
+              that region, or in a game move type every offering mention of
+              which does, or at a ``run`` site that does
+              (``_check_read_tail``, ``_check_read_tails_nest``,
+              ``_check_scoped_read_containment``). Like
+              the actor-alias rule this is a SCOPE fact, not a type fact, so
+              it is settled here; and necessarily before ``expand``, which
+              erases the ``run`` sites a procedure body is judged at.
+              ``runtime/driver`` may therefore assume EVERY named phase's
+              frame stands, and holds its name, at every call this pass
+              admits, and defends a scoped read with nothing but an
+              Owner-naming [[shadow-guard]].
+"""
 
 from __future__ import annotations
 

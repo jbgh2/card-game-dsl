@@ -1,4 +1,12 @@
-"""The winners a trick round admits, and the refusals of the rest."""
+"""The winners a trick round admits, and the refusals of the rest.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  ``_winner_refusals``, the one producer every guard
+              refusing a round's winner dispatches on.
+"""
 
 from __future__ import annotations
 

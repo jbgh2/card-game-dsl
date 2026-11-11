@@ -1,4 +1,12 @@
-"""Names that provably denote the acting seat."""
+"""Names that provably denote the acting seat.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  the binders and lets that alias the acting seat, read by
+              the actor-alias comparison check and the hidden-read walk.
+"""
 
 from __future__ import annotations
 

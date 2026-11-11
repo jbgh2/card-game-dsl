@@ -1,4 +1,15 @@
-"""Resolve step: position domains and the board's minted domains."""
+"""Resolve step: position domains and the board's minted domains.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      one flat game, its declarations checked.
+Establishes:  the declared position domains are valid, and the board's
+              `cell` and direction domains are minted into
+              ``game.positions``; this is the one minting site, so from here
+              ``game.positions`` is the union. No name declared or minted at
+              any of the sites in ``RESERVATION_SITES`` takes a spelling one of
+              ``POSITION_NAME_SOURCES`` already holds.
+"""
 
 from __future__ import annotations
 

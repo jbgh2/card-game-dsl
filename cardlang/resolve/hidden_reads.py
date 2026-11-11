@@ -1,4 +1,45 @@
-"""Resolve step: hidden reads at deciding positions."""
+"""Resolve step: hidden reads at deciding positions.
+
+The compile-time face of the Observation domain: what a deciding seat may
+read is judged here against the declared zone projections.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the classified tree, read-only; the bare-family check has
+              run into the same bag, so a bare read is the acting seat's own
+              instance.
+Now illegal:  a zone read that its deciders cannot make, at a position
+              ``HIDDEN_READ_POSITIONS`` classes as deciding, however the read
+              is reached -- a ``let``, a function, a procedure, a phase
+              outcome, a Primitive's ``reads``, a Builtin
+              (``BUILTIN_ARGUMENT_READS``, ``BUILTIN_READS_NOTHING``,
+              ``BUILTIN_IMPLICIT_READS``) -- judged by the declared zone
+              projections (``stdlib.zones.reveals``, ``PROJECTION_LEVELS``)
+              in ``_check_hidden_reads``: where no seat is deciding, a read
+              not every seat can make; where a seat is deciding, a read that
+              seat cannot make, being neither of a zone every seat sees nor
+              of the deciding seat's own instance of a zone its owner sees.
+              The refusal names the announcement the rules are missing; one
+              reached through the game's answer to a library's call of a
+              Definition Contract (``Call.contract``) is located in the
+              game's text, at the last node the game wrote on the way to the
+              read, and names the library, the row and the library's
+              decision. The runtime's decision sites may therefore assume every zone read
+              at those positions is visible to the seat deciding there:
+              under Delegated Play a rule's clauses are judged against
+              ``chooser_for(actor)``, since every rule is asked at the trick
+              round's card decision, the one decision it routes, and the
+              Play Source, or a trick round's source family named bare,
+              reads the routed pool, whose visibility to that seat is the
+              runtime Owner Guard ``runtime/delegation.check_decider_sees``'s.
+              A refusal of a decision's seat the hidden-read walk makes in a
+              library procedure's body, where the game's text runs it,
+              carries that `run` when some caller meets the procedure
+              (``_HiddenReads._meeting_callers``), with the first meeting
+              caller that passes written in place of that `run` as its fix,
+              and no run where none does; where no caller meets it, it carries
+              none. A read the run's own arguments make carries the `run`.
+"""
 
 from __future__ import annotations
 

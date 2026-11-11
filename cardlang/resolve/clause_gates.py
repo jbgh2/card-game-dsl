@@ -1,4 +1,14 @@
-"""The clause gates: what a game clause admits, and the test each gate asks."""
+"""The clause gates: what a game clause admits, and the test each gate asks.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  ``_CLAUSE_GATES``, one row per gated Builtin or construct,
+              each stating the clause it gates, its role and its test;
+              the splice asks the rows on the ``uses`` line, and the
+              steps after it ask them of the game.
+"""
 
 from __future__ import annotations
 

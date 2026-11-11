@@ -18,6 +18,33 @@ On success an immutably rewritten :class:`Game` flows on (rule templates
 instantiated, every name classified). On any error it raises with every
 diagnostic collected, not just the first.
 
+The pass is a package: one module per Resolve Step, which `resolve()` below
+calls in a named sequence, and the shared modules the steps read. Each
+module states its own Contract Block; the pass establishes their
+conjunction, and each clause is stated once, in the module whose check
+holds it. In sequence order:
+
+- `splice` -- the library splice (`uses`), and the early raise;
+- `declarations` -- the game's declarations: components, ranking, card
+  points, suit ranking, climb engines, names, `max_length`, teams;
+- `positions` -- the position domains, and the board's minted domains;
+- `primitive_declarations` -- the `primitives { }` block and its scoped
+  reads;
+- `zone_declarations` -- the zones, against the minted positions;
+- `rule_instantiation` -- rule instantiation, query nouns, rule references;
+- `classification` -- every name classified;
+- `references` -- the classified tree's references;
+- `classified_checks` -- the checks that read the classified tree;
+- `hidden_reads` -- hidden reads at deciding positions;
+- `result` -- the result clauses, and the offered move types.
+
+The shared modules: `walk`, `binders`, `reserved`, `slots`, `declared`,
+`scope`, `crossings`, `seat_aliases`, `clause_gates`, `round_winners`,
+`ranking_slots`, `classifier` (the one classifier, driven by
+`classification` for the game and by `library_alone` for a library), and
+`library_alone` (driven by `splice` per `uses` line, and by the standard
+library's loader).
+
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      a parsed AST (spans present, ``NameRef.ref_kind`` still
@@ -26,80 +53,11 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               rule templates are instantiated into concrete rules; every
               structural reference names a real declaration. This is the
               ONLY pass that classifies names — downstream dispatches on
-              ``ref_kind``, never re-derives it. A rule clause's bare
-              ``hand`` (not a ``Subscript``'s object, not a binder the
-              clause introduces) is ``ref_kind == "play_source"``: the
-              trick round's Play Source, so no later pass learns it from
-              the spelling ``hand``. Every library's rules — a family
-              library's and ``library stdlib``'s — are spliced into
-              ``game.rules`` only where an ``active_rules:`` reference
-              names them, after the game's own. ``game.ranking`` is the
-              operative strength order: a ``ranking:`` convention keyword
-              is expanded against the deck here (``_expand_ranking``), so
-              no later pass may branch on ``ranking_convention`` for
-              semantics — it survives only as the source-form record
-              ``ir.emit`` prints. Also: every `primitives { }` entry's
-              declared types are SHAPES the block's registries admit — the
-              head from `declarable_type_names`, a collection's element from
-              `COLLECTION_ELEMENT_NAMES` — and no name declared or minted at
-              any of the sites in ``RESERVATION_SITES`` takes a spelling one of
-              ``POSITION_NAME_SOURCES`` already holds. And every result
-              ranking -- a ``winner:`` clause, a Stop Result's ranking --
-              carries its target declaration's index role
-              (``Winner.keyed_by``, ``StopResult.keyed_by``), so no later pass
-              walks state declarations to learn how the result is keyed, and
-              an ``as it stands`` Stop Result sits only on a game with a
-              ``winner:`` clause. A bare
-              ``DomainQuery`` noun names a declared position domain or, for a
-              query kind in ``n.DIRECTION_QUERY_KINDS``, the direction domain the board
-              minted; a Set Form's noun names a Position Domain alone, held by
-              Derived and Pinned (the noun is a designer's string until this
-              pass classifies it against ``game.positions``;
-              tests/test_cell_set_form.py's noun grid). A move parameter's
-              domain, a function parameter's type and an outcome payload's
-              type name the direction domain only where the board minted it
-              (``_minted_directions``, the one gate each of them reads), so a
-              later pass may look any such name up in the position or the
-              direction source and find it. A ``state`` variable's declared
-              type names a value type or one of the game's named-member
-              position domains (``_declared_type_universe``, the one set the
-              ``StateDecl`` arm reads and a function parameter's set
-              extends); an integer position domain, ``dir`` and ``cell`` in
-              a game with no ``board:`` are refused there
-              (``_state_type_refusal``), each naming a declaration that checks
-              in that game. A board verb stands only on a
-              board whose family declares what the verb reads
-              (``BOARD_VERB_NEEDS``; ``_check_board_call`` for the game's
-              call, the ``_BOARD_NEED_GATES`` rows on the ``uses`` line for a
-              library's), so the runtime may read the board entry's edges,
-              lines or frame behind any board verb it meets; held by Derived
-              and Pinned, one table pinned total against
-              ``BOARD_ONLY_CALL_FUNCS``. Every piece of
-              library text spliced into the game -- a family library's move
-              types, functions, procedures and provided state declarations,
-              and every library rule a game activates, the standard
-              library's included -- carries its ``n.LibraryOrigin``, and no
-              game text carries one: it is the only record of where spliced
-              text came from that any check, this pass's included, may read.
+              ``ref_kind``, never re-derives it.
               No check here decides which file a refusal of library text is
               told in: every refusal stands where the text it refuses stands,
-              and ``attribution.raise_if_errors`` tells it. A refusal that the
-              Kernel Definition Contract answer walk, the play-source walk or the no-acting-seat
-              walk reaches through a call from the game's text into a library
-              function, that the Hosted Poll walk reaches through a call,
-              `run` or offer into library text, or that a library rule the
-              game activates earns from the game's rounds, carries that
-              crossing (``Route``, at the node ``_library_entry`` names), and
-              names the library and its definition; a statement the reached
-              definition may hold in no game (``_NEVER_HELD``) carries none. A
-              refusal of a decision's seat the hidden-read walk makes in a
-              library procedure's body, where the game's text runs it,
-              carries that `run` when some caller meets the procedure
-              (``_HiddenReads._meeting_callers``), with the first meeting
-              caller that passes written in place of that `run` as its fix,
-              and no run where none does; where no caller meets it, it carries
-              none. A read the run's own arguments make carries the `run`. A
-              refusal of spliced library text that a game declaration its
+              and ``attribution.raise_if_errors`` tells it.
+              A refusal of spliced library text that a game declaration its
               contract does not name decides -- a ``Card`` parameter's
               ``CARD_PARAMETER_FAMILY`` absent, not kept per player, or
               hidden from its owner, a ``BUILTIN_IMPLICIT_READS`` family's
@@ -109,262 +67,32 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               naming the library and its definition. An `actor` read and a
               refusal reached through the game's answer to a Definition
               Contract stand at their own locations.
-              Every Near Miss the bare-name and round `trump` refusals offer
-              classifies where the refusal stands and is admitted there by
-              every positional Owner Guard that refuses by the position record
-              (``_name_positions``, read off the tree's shape alone, and
-              ``_position_refuses``, the disjunction of the guards'
-              predicates); a trick round's winner is offered the winners that
-              round admits (``_winner_refusals``, the one producer the
-              guards refusing a round's winner dispatch on). Held by Derived and Pinned
-              (tests/test_near_miss_positions.py). A refused spelling's
-              consequences are withheld where a fix drawn from the set it was
-              looked up in could clear them, and only there: a node whose
-              binder source is refused binds nothing, and a name in its scope
-              spelled as a binder a fix would bind is not told
-              (``_refused_binder_sources``, ``_membership_capture``); a
-              phase's modes are judged after its transition targets resolve,
-              and a target no sibling holds leaves undecided the role of every
-              mode it could name (``_check_modes``). Held by Derived and
-              Pinned: a withheld name is one lexical field (``withheld``), set
-              where a binder is scoped and read by the one unresolved-name arm
-              (tests/test_refusal_consequences.py).
+              The sequence: the steps run in the order ``resolve()`` names
+              them, so report order is the order of the sequence (bag order
+              is report order). The pass raises twice: once after the splice,
+              with every diagnostic the splice collected, and once after the
+              last step. A value one step produces and a later step reads
+              (the game's own procedure, rule and move-type names, the
+              library rules held aside, the tree as written before
+              instantiation, the refused reader clauses, the refused binder
+              sources, the classified categories, the position domain names)
+              is a local of ``resolve()``, handed to its readers as an
+              argument.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
-              zone/rule/move-type/phase reference reaching a later pass; an entry's
-              collection element outside the block's allow-list reaching the
-              type layer; an undeclared ``always`` standing as the whole
-              predicate of a clause ``_ALWAYS_SITES`` names, refused with
-              the fix by ``_refuse_bare_always`` (its Owner Guard) where the
-              predicate is classified, and read off the classified tree by
-              ``_library_reach`` for a library's clauses;
+              zone/rule/move-type/phase reference reaching a later pass;
               the runtime hard-fails on an unclassified name
-              (``runtime/evaluate.py``, ``_name``) as its Shadow Guard. Also
-              a ``state { }`` default that cannot be evaluated where it
-              is written — one reading state not yet declared, calling a
-              function, or containing a ``choose``
-              (``_check_state_default_scope``). ``runtime/driver``'s
-              ``_declare_state`` may therefore assume every default
-              evaluates against the frames standing at that moment. And an
-              equality comparison whose two operands are names that
-              provably denote the same acting player — the binder of a
-              construct that rebinds ``acting_as`` against the ``actor``
-              pronoun, or against a ``let`` transitively bound to either
-              (``_check_actor_alias_comparisons``, decisions.md "Naming
-              the acting player twice"). This is a scope fact, not a type
-              fact — both operands are ``Player`` — so it is settled here
-              rather than in the type layer. And a subset source that
-              names the same zone twice (``_check_subset_source``) -- a
-              spelling fact, settled beside the other subset-shape guard.
-              And a Kernel Definition Contract answered other than by the
-              game's own one definition at the row's one Card parameter, or
-              an answer that is not hermetic by reach — a pronoun, a
-              `choose`, a zone not public to every observer, a bare
-              per-player family, a phase's state, a Primitive, a Builtin
-              outside `TRICK_ORDER_ROW_CALLS`, a later Trick Order answer
-              (``_check_kernel_answers``, ``_check_answer_hermeticity``); the
-              presence of a Trick Order is asked of ``kernel_contracts`` and
-              of nothing else.
-              And, for a game that ``uses`` a
-              library, a game-introduced binder or declaration parameter
-              spelled like a variable the library PROVIDES, where the game
-              does not already bind that spelling at declaration level
-              (``_check_provided_shadowed_by_binder``, decisions.md "Family
-              libraries"). Like every other rule about provided state it is
-              settled inside ``_apply_uses``, before the splice — afterwards
-              the two are one flat declaration block and the distinction no
-              longer exists to check. And, for a game that ``uses`` a
-              library, anything the library brings in that a game clause the
-              game lacks (or holds) gates — a Builtin call or a construct, by
-              every row of ``_CLAUSE_GATES``, plus a literal ``lines(k)`` past
-              the board — refused on the game's ``uses`` line
-              (``_check_library_clause_gates``) before the splice, so the
-              gates downstream meet it only as its Shadow Guards. Each row's
-              test is the one its gate asks, and each row states the clause it
-              gates and its role (``_ClauseGate.clause``, ``.role``). A
-              library rule the game does not
-              activate is not brought in, and is not judged against the game;
-              nor is a library ``check_library_alone`` refuses, whose own
-              author speaks first and alone.
-              And a Primitive named by family-library text, as a call or in
-              a ``round``'s query slot, refused to the library's author
-              (``_check_library_encapsulation``) before the splice; the
-              slot registries are ``_ROUND_QUERY_REGISTRIES``, which
-              ``_validate_refs`` reads for every round. And a round
-              ``trump`` clause on a winner whose body reads no
-              trump (the winner-slot arm of ``_validate_refs``; the
-              partition is ``TRUMP_READING_WINNERS``). And a game clause
-              some ``_CLAUSE_GATES`` row reads (``role == "reader"``),
-              written and refused by no Owner Guard of its own, that nothing
-              in the written text -- the game's own text, every spliced
-              definition and provided declaration, every activated library
-              or stdlib rule, the clause's own body excluded -- meets with
-              any of its reader rows' tests (``_check_unread_clauses``); an
-              instrument read (the driver's card census, the OpenSpiel
-              ranked policy's trump fallback) is no reader. Typecheck may
-              therefore assume every reader clause it meets is read by
-              written text. The round clause's TYPE (``Suit?``)
-              is typecheck's (``_check_round_trump``); its presence against
-              its winner is settled here, with the winner namespace. And a
-              result ranking's target (``ranking_slot``) that is not a
-              per-member score — unindexed, optional, or declared outside
-              ``Integer``/``Boolean`` (``_check_winner_target``, decisions.md "Game result:
-              `winner:` and `loser:`"); ``runtime/driver`` may therefore
-              assume the target reads as a map from member to score, and
-              hard-fails on one this pass did not admit as its Shadow Guard.
-              And a ``teams:`` list that does not PARTITION the seats
-              (``_check_teams``); every consumer building ``{p: ti for ti,
-              members in enumerate(game.teams) for p in members}`` — the
-              driver, the returns path, and the readiness proofs — may
-              therefore read it as one.
-              And a call, in a game that writes no ``primitives { }`` block,
-              to any Primitive (``PRIMITIVE_CALL_FUNCS``, the declared-only
-              arm of ``_validate_refs``): the name is in the corpus-wide
-              namespace, so the unknown-name arm cannot speak for it, and a
-              declaration is its only route to Python.
-              ``typecheck``'s ``Call`` arm is the Shadow Guard behind this —
-              no table states such a call's signature — with
-              ``runtime/evaluate.py``'s ``native_call`` refusal behind that.
-              And a ``primitives { }`` entry whose ``reads`` clause names a
-              declaration the game states in more than one of the four
-              namespaces such a name can be declared in — the game's own
-              ``state { }``, a phase's, an indexed ``zones { }`` declaration,
-              an unindexed one (``_check_primitive_reads``, over
-              ``primitives_block``'s three collision predicates). Every name
-              reaching ``classify_read`` is therefore single-membership,
-              which is what lets ``runtime/driver``'s materialization call
-              the same classifier with no refusal of its own.
-              And, for a read carrying a [[phase-scoped-read]]'s ``in <phase>``
-              tail: the tail names a real phase of the game, that phase's own
-              ``state { }`` declares the name, no STRICT DESCENDANT of it
-              re-declares the name, the phases ONE entry's clause names lie on
-              one ancestor path — so their subtrees nest and the entry's
-              REGION is the innermost's subtree, which is the intersection of
-              the named subtrees — and every call of that entry sits inside
-              that region, or in a game move type every offering mention of
-              which does, or at a ``run`` site that does
-              (``_check_read_tail``, ``_check_read_tails_nest``,
-              ``_check_scoped_read_containment``). Like
-              the actor-alias rule this is a SCOPE fact, not a type fact, so
-              it is settled here; and necessarily before ``expand``, which
-              erases the ``run`` sites a procedure body is judged at.
-              ``runtime/driver`` may therefore assume EVERY named phase's
-              frame stands, and holds its name, at every call this pass
-              admits, and defends a scoped read with nothing but an
-              Owner-naming [[shadow-guard]].
-              And a zone read that its deciders cannot make, at a position
-              ``HIDDEN_READ_POSITIONS`` classes as deciding, however the read
-              is reached -- a ``let``, a function, a procedure, a phase
-              outcome, a Primitive's ``reads``, a Builtin
-              (``BUILTIN_ARGUMENT_READS``, ``BUILTIN_READS_NOTHING``,
-              ``BUILTIN_IMPLICIT_READS``) -- judged by the declared zone
-              projections (``stdlib.zones.reveals``, ``PROJECTION_LEVELS``)
-              in ``_check_hidden_reads``: where no seat is deciding, a read
-              not every seat can make; where a seat is deciding, a read that
-              seat cannot make, being neither of a zone every seat sees nor
-              of the deciding seat's own instance of a zone its owner sees.
-              The refusal names the announcement the rules are missing; one
-              reached through the game's answer to a library's call of a
-              Definition Contract (``Call.contract``) is located in the
-              game's text, at the last node the game wrote on the way to the
-              read, and names the library, the row and the library's
-              decision. The runtime's decision sites may therefore assume every zone read
-              at those positions is visible to the seat deciding there:
-              under Delegated Play a rule's clauses are judged against
-              ``chooser_for(actor)``, since every rule is asked at the trick
-              round's card decision, the one decision it routes, and the
-              Play Source, or a trick round's source family named bare,
-              reads the routed pool, whose visibility to that seat is the
-              runtime Owner Guard ``runtime/delegation.check_decider_sees``'s.
-              And, beside a rule clause reading the Play Source: a zone
-              named ``hand`` not kept per player, a state variable named
-              ``hand``, a game that runs no trick round, and a function a
-              rule clause reaches that reads bare ``hand`` or a trick
-              round's source family (``_check_play_source``); and a rule
-              parameter named ``hand`` (``_refuse_play_source_params``).
-              ``runtime/evaluate``'s ``play_source`` arm and its
-              ``_hermetic_ctx``, which keeps no Play Source in a function
-              body, are the Shadow Guards behind them. And a ``uses``
-              line naming the standard library, whose rules need none.
-              And an implicit decision pool -- one the kernel builds from a
-              declared zone with no expression to read, the round-source and
-              ``Card``-parameter rows of ``DECISION_POOLS`` -- whose family's
-              type does not show its owner the cards in it
-              (``_check_implicit_pools``). ``runtime/mechanics``' trick and
-              climb forms and its parameter domains may therefore assume the
-              deciding seat sees every card they offer from its own
-              instance.
-              And one of the game's own move types that no reachable
-              ``offer`` presents, with or without a
-              Stake row on it (``_check_unoffered_move_types``; a library's
-              move types are exempt, since a game importing a library need
-              not present every move type it offers); every game move type after this
-              pass is one some reachable offering presents. And a Stake row no seat
-              can read on a ``Card``-parameterized move type,
-              whose action id is its card's (``_check_move_params``). Every
-              row reaching a Seat Policy is therefore on a move type whose
-              action ids name it. And, in a game with a climbing round, a
-              move type spelled like one of the engine's own actions
-              (``_check_climb_action_names``, over
-              ``primitives.engine_actions``): the action space's name block
-              and every rendering may therefore assume no move type and no
-              climb action share a word.
-              And, anywhere in what a [[hosted-poll]] body can execute — its
-              own statements and every definition reachable from them by
-              name (``HOSTED_REACH_POOLS``: a procedure it runs, a move type
-              it offers, guard and effect, a function it calls, each
-              transitively, by ``_definition_closure``) — a statement kind
-              outside ``HOSTED_POLL_ALLOWED``, the ``state`` pronoun, or a call of a
-              Primitive the game's namespace holds; and a Hosted Poll binder spelled like a name
-              already classifiable where the clause is written
-              (``_check_hosted_polls``, ``_check_hosted_binder``).
-              ``runtime/mechanics``' ``run_decision_round`` may therefore
-              assume a hosted body, and all it runs, moves no card, starts no
-              round of the trick or climbing form, raises no outcome or jump
-              out of the round, and reads no live Round State.
-              And, wherever the engine keys a zone family by the acting seat
-              -- a bare zone ``NameRef``, a round's ``source``, a Builtin in
-              ``BUILTIN_IMPLICIT_READS`` -- a family not indexed by player,
-              and for such a Builtin a family the game does not declare;
-              and a round's ``into`` naming a family
-              (``_check_bare_family_refs``). ``runtime/evaluate``'s ``_name``,
-              ``runtime/mechanics``' round forms and ``runtime/reads``'
-              ``magic_hand`` may therefore assume a seat is a key of every
-              family they resolve that way, and ``_check_hidden_reads`` may
-              credit a bare read as the acting seat's own instance.
-              And, for a library's ``requires { }``: a row is a keyed
-              declaration (state, zone) or a Definition Contract of a kind
-              in ``CONTRACT_KINDS`` — derived, so a rule, which no library
-              text can name, is never one — and every Definition Contract is
-              answered by exactly one of the game's own definitions of its
-              kind, at its parameters' positions and exact type spellings
-              (``_check_definition_requirement``). Illegal after this pass: a
-              row whose shape no game could answer, a library both defining
-              and requiring a definition, a row answered by another library's
-              definition, a function row spelled like a native name or a
-              round callback, a procedure row a library procedure runs, and a
-              move or procedure row the library never reaches
-              (``_check_contract_shapes``, ``_check_definition_claims``). The
-              splice records each answer: the game's answering function or
-              procedure carries every row it answers (``contracts``), and
-              every library call of a contracted function carries its own
-              row (``Call.contract``), each stamp with the row's own span
-              (``ContractStamp.row_span``), which a refusal naming the row
-              cites —
-              ``typecheck`` reads both, and nothing else about imports;
-              ``_check_hidden_reads``, ``_check_play_source`` and the
-              no-acting-seat walk read them to tell the game's author. A
-              library ``run`` of a contracted procedure carries no stamp: its
-              arity and parameter types are the row's by the check above, and
-              a refusal there raises before ``typecheck`` runs. ``expand``
-              needs no delta: a contracted procedure is a game procedure, run
-              from a library move type's effect.
+              (``runtime/evaluate.py``, ``_name``) as its Shadow Guard.
+              Within the package: a step importing another step, a shared
+              module importing a step, any module importing the package
+              root, an import cycle, and a definition in the root other than
+              ``resolve``.
+Held by:      the import direction: Derived and Pinned, the step set derived
+              from the calls ``resolve()`` makes (tests/test_resolve_steps.py).
+              A cross-step value's order: Unrepresentable, since a local of
+              ``resolve()`` read before its producer runs is a static error.
+              Report order: Born-Green Pin, the rejection snapshots under
+              tests/rejections/.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
-              For the declare-time rule, the grid in
-              ``tests/test_state_default_scope.py`` — which PLAYS every
-              accepted cell rather than only resolving it, since
-              "accepted" was exactly the assertion that hid the defect
-              the grid was written for. For the Definition Contracts, the grid
-              in ``tests/test_definition_contracts.py``.
 """
 
 from __future__ import annotations

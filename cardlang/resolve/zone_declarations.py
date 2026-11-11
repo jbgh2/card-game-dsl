@@ -1,4 +1,11 @@
-"""Resolve step: zone declarations against the position domains."""
+"""Resolve step: zone declarations against the position domains.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the position domain names, declared and minted.
+Establishes:  every zone's type names a known zone type, parameterized and
+              indexed against the game's roles and position domains.
+"""
 
 from __future__ import annotations
 

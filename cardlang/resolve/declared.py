@@ -1,4 +1,12 @@
-"""Facts the resolver reads off the game's declarations."""
+"""Facts the resolver reads off the game's declarations.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  the deck, the board, the minted directions and the declared
+              types as every step reads them, each derived once here.
+"""
 
 from __future__ import annotations
 

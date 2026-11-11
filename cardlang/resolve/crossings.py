@@ -1,4 +1,13 @@
-"""Library crossings: the definitions a name reaches, and the route a refusal carries."""
+"""Library crossings: the definitions a name reaches, and the route a refusal carries.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  the definitions reachable from a body by name
+              (``_definition_closure``) and the crossing a refusal
+              reached through library text carries (``_LibraryEntry``).
+"""
 
 from __future__ import annotations
 

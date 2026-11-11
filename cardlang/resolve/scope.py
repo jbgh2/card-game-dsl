@@ -1,4 +1,12 @@
-"""Where a state read or a pronoun is in scope."""
+"""Where a state read or a pronoun is in scope.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  the scope predicates the classifier and the scope checks
+              both read, so the two cannot disagree.
+"""
 
 from __future__ import annotations
 

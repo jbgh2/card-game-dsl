@@ -1,4 +1,13 @@
-"""The binders a node introduces, and the fields they scope."""
+"""The binders a node introduces, and the fields they scope.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  the binders each node kind introduces (``_node_binders``,
+              ``_introduced_binders``), and the fields each binder scopes
+              (``_BINDER_SCOPE_FIELDS``).
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,26 @@
-"""The checks a library is held to on its own, before any game uses it."""
+"""The checks a library is held to on its own, before any game uses it.
+
+A shared module with two drivers: the splice runs ``check_library_alone`` on
+each library a game `uses`, and the standard library's loader runs it on
+`library stdlib` (`cardlang/stdlib/rules.py`). Its refusals are told to the
+library's author.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      a parsed library, judged with no game beside it; the
+              standard library's rule index (``stdlib_rules``), read here
+              with no ``resolve()`` above it when the loader is the driver.
+Establishes:  a library this module refuses is not judged against any game
+              (the splice's Contract Block states the consequence).
+Now illegal:  a Primitive named by family-library text, as a call or in
+              a ``round``'s query slot, refused to the library's author
+              (``_check_library_encapsulation``) before the splice; the
+              slot registries are ``_ROUND_QUERY_REGISTRIES``, which
+              ``_validate_refs`` reads for every round.
+              A library's Definition Contract rows whose shape no game could
+              answer (``_check_contract_shapes``; the row law is the
+              splice's Contract Block's).
+"""
 
 from __future__ import annotations
 

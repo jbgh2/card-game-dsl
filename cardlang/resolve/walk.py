@@ -1,4 +1,14 @@
-"""The resolver's tree walk."""
+"""The resolver's tree walk.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      an AST node for ``_walk``, which yields nothing for a tuple;
+              a field value, tuple or node, for ``_child_nodes``.
+Establishes:  every node beneath it, by its dataclass fields, spans
+              skipped, and the one-level rebuilding descent (``_traverse``).
+"""
 
 from __future__ import annotations
 
@@ -9,7 +19,7 @@ from cardlang.diagnostics import Span
 
 def _traverse(node: object, step: Callable[[str, object], object]) -> object:
     """The immutable one-level descent shared by every default-arm traversal
-    in this module (`substitute`'s default arm, `_rewrite`'s default arm, and
+    in the resolve package (`substitute`'s default arm, `_rewrite`'s default arm, and
     `_rewrite`'s per-field binder-scoping dispatch below): every dataclass
     field — guarded against `Span`, a leaf the walk must not open — is handed
     to `step` along with its field name, and replaced only where `step`

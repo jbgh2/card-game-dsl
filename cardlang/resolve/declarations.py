@@ -1,4 +1,28 @@
-"""Resolve step: the game's declarations, before positions and rules."""
+"""Resolve step: the game's declarations, before positions and rules.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      one flat game: the splice has run and raised.
+Establishes:  ``game.ranking`` is the
+              operative strength order: a ``ranking:`` convention keyword
+              is expanded against the deck here (``_expand_ranking``), so
+              no later pass may branch on ``ranking_convention`` for
+              semantics — it survives only as the source-form record
+              ``ir.emit`` prints.
+              The step returns the reader clauses whose declarations its
+              Owner Guards refused, for ``_check_unread_clauses``.
+Now illegal:  a ``teams:`` list that does not PARTITION the seats
+              (``_check_teams``); every consumer building ``{p: ti for ti,
+              members in enumerate(game.teams) for p in members}`` — the
+              driver, the returns path, and the readiness proofs — may
+              therefore read it as one.
+              In a game with a climbing round, a
+              move type spelled like one of the engine's own actions
+              (``_check_climb_action_names``, over
+              ``primitives.engine_actions``): the action space's name block
+              and every rendering may therefore assume no move type and no
+              climb action share a word.
+"""
 
 from __future__ import annotations
 

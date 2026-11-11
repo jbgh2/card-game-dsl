@@ -1,4 +1,19 @@
-"""The name classifier: the one walk that stamps `ref_kind`."""
+"""The name classifier: the one walk that stamps `ref_kind`.
+
+A shared module with two drivers: the classification step runs it over the
+game, and `library_alone` over a library judged alone. Classification is the
+resolve pass's alone, and within the pass this module's alone.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the categories a tree is classified against (``_categories``).
+Establishes:  every ``NameRef`` the walk meets carries its ``ref_kind``.
+Now illegal:  an undeclared ``always`` standing as the whole
+              predicate of a clause ``_ALWAYS_SITES`` names, refused with
+              the fix by ``_refuse_bare_always`` (its Owner Guard) where the
+              predicate is classified, and read off the classified tree by
+              ``_library_reach`` for a library's clauses.
+"""
 
 from __future__ import annotations
 

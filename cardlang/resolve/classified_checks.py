@@ -1,4 +1,103 @@
-"""Resolve step: the checks that read the classified tree."""
+"""Resolve step: the checks that read the classified tree.
+
+Independent checks over one tree state, run in the order this step names
+them; only ``_check_kernel_answers`` and ``_check_answer_hermeticity`` feed
+another (the clauses they refuse, which ``_check_unread_clauses`` reads).
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the classified tree, read-only; the game's own rule and
+              procedure names from before the splice; the tree as written
+              before instantiation; the reader clauses the declarations step
+              refused.
+Now illegal:  a ``state { }`` default that cannot be evaluated where it
+              is written — one reading state not yet declared, calling a
+              function, or containing a ``choose``
+              (``_check_state_default_scope``). ``runtime/driver``'s
+              ``_declare_state`` may therefore assume every default
+              evaluates against the frames standing at that moment.
+              An equality comparison whose two operands are names that
+              provably denote the same acting player — the binder of a
+              construct that rebinds ``acting_as`` against the ``actor``
+              pronoun, or against a ``let`` transitively bound to either
+              (``_check_actor_alias_comparisons``, decisions.md "Naming
+              the acting player twice"). This is a scope fact, not a type
+              fact — both operands are ``Player`` — so it is settled here
+              rather than in the type layer.
+              A Kernel Definition Contract answered other than by the
+              game's own one definition at the row's one Card parameter, or
+              an answer that is not hermetic by reach — a pronoun, a
+              `choose`, a zone not public to every observer, a bare
+              per-player family, a phase's state, a Primitive, a Builtin
+              outside `TRICK_ORDER_ROW_CALLS`, a later Trick Order answer
+              (``_check_kernel_answers``, ``_check_answer_hermeticity``); the
+              presence of a Trick Order is asked of ``kernel_contracts`` and
+              of nothing else.
+              A game clause
+              some ``_CLAUSE_GATES`` row reads (``role == "reader"``),
+              written and refused by no Owner Guard of its own, that nothing
+              in the written text -- the game's own text, every spliced
+              definition and provided declaration, every activated library
+              or stdlib rule, the clause's own body excluded -- meets with
+              any of its reader rows' tests (``_check_unread_clauses``); an
+              instrument read (the driver's card census, the OpenSpiel
+              ranked policy's trump fallback) is no reader. Typecheck may
+              therefore assume every reader clause it meets is read by
+              written text.
+              Beside a rule clause reading the Play Source: a zone
+              named ``hand`` not kept per player, a state variable named
+              ``hand``, a game that runs no trick round, and a function a
+              rule clause reaches that reads bare ``hand`` or a trick
+              round's source family (``_check_play_source``).
+              ``runtime/evaluate``'s ``play_source`` arm and its
+              ``_hermetic_ctx``, which keeps no Play Source in a function
+              body, are the Shadow Guards behind them.
+              An implicit decision pool -- one the kernel builds from a
+              declared zone with no expression to read, the round-source and
+              ``Card``-parameter rows of ``DECISION_POOLS`` -- whose family's
+              type does not show its owner the cards in it
+              (``_check_implicit_pools``). ``runtime/mechanics``' trick and
+              climb forms and its parameter domains may therefore assume the
+              deciding seat sees every card they offer from its own
+              instance.
+              Anywhere in what a [[hosted-poll]] body can execute — its
+              own statements and every definition reachable from them by
+              name (``HOSTED_REACH_POOLS``: a procedure it runs, a move type
+              it offers, guard and effect, a function it calls, each
+              transitively, by ``_definition_closure``) — a statement kind
+              outside ``HOSTED_POLL_ALLOWED``, the ``state`` pronoun, or a call of a
+              Primitive the game's namespace holds; and a Hosted Poll binder spelled like a name
+              already classifiable where the clause is written
+              (``_check_hosted_polls``, ``_check_hosted_binder``).
+              ``runtime/mechanics``' ``run_decision_round`` may therefore
+              assume a hosted body, and all it runs, moves no card, starts no
+              round of the trick or climbing form, raises no outcome or jump
+              out of the round, and reads no live Round State.
+              Wherever the engine keys a zone family by the acting seat
+              -- a bare zone ``NameRef``, a round's ``source``, a Builtin in
+              ``BUILTIN_IMPLICIT_READS`` -- a family not indexed by player,
+              and for such a Builtin a family the game does not declare;
+              and a round's ``into`` naming a family
+              (``_check_bare_family_refs``). ``runtime/evaluate``'s ``_name``,
+              ``runtime/mechanics``' round forms and ``runtime/reads``'
+              ``magic_hand`` may therefore assume a seat is a key of every
+              family they resolve that way, and ``_check_hidden_reads`` may
+              credit a bare read as the acting seat's own instance.
+              A refusal that the
+              Kernel Definition Contract answer walk, the play-source walk or the no-acting-seat
+              walk reaches through a call from the game's text into a library
+              function, that the Hosted Poll walk reaches through a call,
+              `run` or offer into library text, or that a library rule the
+              game activates earns from the game's rounds, carries that
+              crossing (``Route``, at the node ``_library_entry`` names), and
+              names the library and its definition; a statement the reached
+              definition may hold in no game (``_NEVER_HELD``) carries none.
+Verified by:  for the declare-time rule, the grid in
+              ``tests/test_state_default_scope.py`` — which PLAYS every
+              accepted cell rather than only resolving it, since
+              "accepted" was exactly the assertion that hid the defect
+              the grid was written for.
+"""
 
 from __future__ import annotations
 

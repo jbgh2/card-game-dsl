@@ -1,4 +1,27 @@
-"""Resolve step: name classification."""
+"""Resolve step: name classification.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the instantiated tree, and the binder sources the rule
+              instantiation step refused.
+Establishes:  every ``NameRef`` of the game's tree carries its ``ref_kind``,
+              stamped by ``classifier._rewrite``. A rule clause's bare
+              ``hand`` (not a ``Subscript``'s object, not a binder the
+              clause introduces) is ``ref_kind == "play_source"``: the
+              trick round's Play Source, so no later pass learns it from
+              the spelling ``hand``.
+              Every Near Miss the bare-name and round `trump` refusals offer
+              classifies where the refusal stands and is admitted there by
+              every positional Owner Guard that refuses by the position record
+              (``_name_positions``, read off the tree's shape alone, and
+              ``_position_refuses``, the disjunction of the guards'
+              predicates); a trick round's winner is offered the winners that
+              round admits (``_winner_refusals``, the one producer the
+              guards refusing a round's winner dispatch on). Held by Derived and Pinned
+              (tests/test_near_miss_positions.py).
+              The step returns the categories it classified against, for the
+              references step.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,13 @@
-"""The reference slots: which AST field names which namespace."""
+"""The reference slots: which AST field names which namespace.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  every AST field that names a declaration, with the namespace
+              it names (``_REFERENCE_SLOTS``) and the census tables that
+              account for every other string field.
+"""
 
 from __future__ import annotations
 

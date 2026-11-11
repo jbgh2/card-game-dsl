@@ -1,4 +1,82 @@
-"""Resolve step: the library splice (`uses`)."""
+"""Resolve step: the library splice (`uses`).
+
+The first step: each library a game `uses` is checked against the game and
+spliced in, its definitions with it, and its rules held aside for the rule
+instantiation step. The splice's own errors (an unknown library, a
+collision, an unmet `requires`) make the spliced game unrepresentative, so
+the root raises them, as a complete set, before any later step runs.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the parsed game, and the library source the loader hands it
+              (``library_names``, ``load_library``, read here and nowhere
+              else in the pass); ``check_library_alone`` has judged each
+              library before the game is judged against it, and wrote its
+              refusals into the same bag, which ``_apply_uses`` and
+              ``_check_requires`` read to skip what it refused.
+Establishes:  one flat game, its library definitions spliced and its
+              library rules returned beside it, not spliced.
+              Every piece of library text spliced into the game -- a family
+              library's move types, functions, procedures and provided state
+              declarations, and every library rule a game activates, the
+              standard library's included -- carries its ``n.LibraryOrigin``,
+              and no game text carries one: it is the only record of where
+              spliced text came from that any check, this pass's included,
+              may read.
+Now illegal:  for a game that ``uses`` a
+              library, a game-introduced binder or declaration parameter
+              spelled like a variable the library PROVIDES, where the game
+              does not already bind that spelling at declaration level
+              (``_check_provided_shadowed_by_binder``, decisions.md "Family
+              libraries"). Like every other rule about provided state it is
+              settled inside ``_apply_uses``, before the splice — afterwards
+              the two are one flat declaration block and the distinction no
+              longer exists to check.
+              For a game that ``uses`` a
+              library, anything the library brings in that a game clause the
+              game lacks (or holds) gates — a Builtin call or a construct, by
+              every row of ``_CLAUSE_GATES``, plus a literal ``lines(k)`` past
+              the board — refused on the game's ``uses`` line
+              (``_check_library_clause_gates``) before the splice, so the
+              gates downstream meet it only as its Shadow Guards. Each row's
+              test is the one its gate asks, and each row states the clause it
+              gates and its role (``_ClauseGate.clause``, ``.role``). A
+              library rule the game does not
+              activate is not brought in, and is not judged against the game;
+              nor is a library ``check_library_alone`` refuses, whose own
+              author speaks first and alone.
+              A ``uses``
+              line naming the standard library, whose rules need none.
+              For a library's ``requires { }``: a row is a keyed
+              declaration (state, zone) or a Definition Contract of a kind
+              in ``CONTRACT_KINDS`` — derived, so a rule, which no library
+              text can name, is never one — and every Definition Contract is
+              answered by exactly one of the game's own definitions of its
+              kind, at its parameters' positions and exact type spellings
+              (``_check_definition_requirement``). Illegal after this pass: a
+              row whose shape no game could answer, a library both defining
+              and requiring a definition, a row answered by another library's
+              definition, a function row spelled like a native name or a
+              round callback, a procedure row a library procedure runs, and a
+              move or procedure row the library never reaches
+              (``_check_contract_shapes``, ``_check_definition_claims``). The
+              splice records each answer: the game's answering function or
+              procedure carries every row it answers (``contracts``), and
+              every library call of a contracted function carries its own
+              row (``Call.contract``), each stamp with the row's own span
+              (``ContractStamp.row_span``), which a refusal naming the row
+              cites —
+              ``typecheck`` reads both, and nothing else about imports;
+              ``_check_hidden_reads``, ``_check_play_source`` and the
+              no-acting-seat walk read them to tell the game's author. A
+              library ``run`` of a contracted procedure carries no stamp: its
+              arity and parameter types are the row's by the check above, and
+              a refusal there raises before ``typecheck`` runs. ``expand``
+              needs no delta: a contracted procedure is a game procedure, run
+              from a library move type's effect.
+Verified by:  for the Definition Contracts, the grid
+              in ``tests/test_definition_contracts.py``.
+"""
 
 from __future__ import annotations
 

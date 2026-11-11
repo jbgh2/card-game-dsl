@@ -1,4 +1,12 @@
-"""Spellings the resolver reserves: pronouns, value names, the Play Source."""
+"""Spellings the resolver reserves: pronouns, value names, the Play Source.
+
+A shared module: the steps read it, and it imports no step.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Establishes:  the reserved spellings every step refuses a declaration or
+              binder by, each named once here.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +17,7 @@ from cardlang.ast import nodes as n
 from cardlang.attribution import cite_named
 from cardlang.diagnostics import DiagnosticBag
 
-# The three domain-registry views this module gates on, all derived from the one
+# The three domain-registry views the resolve pass gates on, all derived from the one
 # table in `cardlang.domains` (which also owns typecheck's binder typing and the
 # runtime's member enumerators, so the sites can't drift):
 #

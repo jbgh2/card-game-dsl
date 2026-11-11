@@ -1,4 +1,34 @@
-"""Resolve step: the game's result clauses and its offered move types."""
+"""Resolve step: the game's result clauses and its offered move types.
+
+The last step, after every sharper diagnostic: a fixture written to probe
+one construct need not also carry a result clause or present every move
+type.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      the classified tree; the game's own move types, named before
+              the splice added a library's.
+Establishes:  every result
+              ranking -- a ``winner:`` clause, a Stop Result's ranking --
+              carries its target declaration's index role
+              (``Winner.keyed_by``, ``StopResult.keyed_by``), so no later pass
+              walks state declarations to learn how the result is keyed, and
+              an ``as it stands`` Stop Result sits only on a game with a
+              ``winner:`` clause.
+Now illegal:  a
+              result ranking's target (``ranking_slot``) that is not a
+              per-member score — unindexed, optional, or declared outside
+              ``Integer``/``Boolean`` (``_check_winner_target``, decisions.md "Game result:
+              `winner:` and `loser:`"); ``runtime/driver`` may therefore
+              assume the target reads as a map from member to score, and
+              hard-fails on one this pass did not admit as its Shadow Guard.
+              One of the game's own move types that no reachable
+              ``offer`` presents, with or without a
+              Stake row on it (``_check_unoffered_move_types``; a library's
+              move types are exempt, since a game importing a library need
+              not present every move type it offers); every game move type after this
+              pass is one some reachable offering presents.
+"""
 
 from __future__ import annotations
 
