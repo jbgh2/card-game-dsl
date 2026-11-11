@@ -11,8 +11,11 @@ call site still exists (cardlang/expand.py), and before deck-capacity because
 every stage downstream of it — capacity, IR, runtime, OpenSpiel — is entitled to
 assume a procedure-free tree.
 
-Game files come in two shapes: Markdown (`.md`, DSL inside a fenced block) and
-raw DSL (`.cardlang`). The extract step applies only to Markdown.
+Game files come in the shapes `GAME_FILE_SHAPES` names, each by its
+extension: raw DSL (`.cardlang`) and Markdown (`.md`, DSL inside a fenced
+block). The extract step applies only to Markdown. `check_source` is the Owner
+Guard for a game file's name: a file with any other extension is refused, its
+Near Misses among the extensions offered, before its text is read.
 
 Each stage raises :class:`~cardlang.diagnostics.DiagnosticError` on failure;
 callers decide how to render it.
@@ -28,6 +31,7 @@ from pathlib import Path
 
 from cardlang.ast.nodes import Game
 from cardlang.deckcheck import check_capacity
+from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.expand import expand
 from cardlang.extract import extract_single_block
 from cardlang.ir import IRValue, emit
@@ -82,12 +86,24 @@ def extensions_read() -> str:
 
 
 def check_source(path: str | Path) -> Game:
-    """Check a game file on disk, dispatching on its extension."""
+    """Check a game file on disk, dispatching on its extension.
+
+    The extension is compared as typed, on every platform, as every glob that
+    collects game files compares it; the refusal names the file rather than a
+    place in its text."""
     p = Path(path)
-    text = p.read_text()
-    if p.suffix == ".cardlang":
-        return check_dsl(text, str(p))
-    return check_markdown(text, str(p))
+    shape = GAME_FILE_SHAPES.get(p.suffix)
+    if shape is None:
+        named = f"{p} ends in {p.suffix}" if p.suffix else f"{p} has no extension"
+        bag = DiagnosticBag()
+        bag.unknown(
+            f"{named}, and a game file's name ends in {extensions_read()}",
+            p.suffix,
+            GAME_FILE_SHAPES,
+        )
+        raise DiagnosticError(bag.items[0])
+    _words, check = shape
+    return check(p.read_text(), str(p))
 
 
 def compile_markdown(markdown: str, source_name: str) -> dict[str, IRValue]:

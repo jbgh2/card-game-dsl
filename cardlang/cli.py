@@ -8,7 +8,11 @@
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
 spellings reach one parser rather than two code paths that can disagree about
-what `--emit-ir` means.
+what `--emit-ir` means. A first word that names something on disk is that
+file, whatever it resembles. One that names nothing on disk, and either nearly
+spells a command or has another word after it, stood where a command goes, and
+is refused as neither a command nor a file, naming the commands and offering
+the ones it nearly spells.
 
 This module owns one defect class — the values a caller supplies, which no
 earlier layer sees: the path argument, the seats `--info-state`, `--view` and
@@ -55,14 +59,15 @@ import json
 import random
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, assert_never
 
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity
+from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity, near_misses
 from cardlang.openspiel.infostate import derive, render_information_state
 from cardlang.openspiel.replay import HistoryMismatch, load, returns_for
-from cardlang.pipeline import check_source, compile_path, game_identity
+from cardlang.pipeline import check_source, compile_path, extensions_read, game_identity
 from cardlang.play.opponents import (
     ALL,
     EXAMPLE,
@@ -246,21 +251,45 @@ def build_parser() -> argparse.ArgumentParser:
     for name, (help_text, add_arguments) in _COMMAND_TABLE.items():
         command = commands.add_parser(name, help=help_text)
         command.add_argument(
-            "file", help="game file (.cardlang raw DSL, or .md with a fenced DSL block)"
+            "file", help=f"game file, its name ending in {extensions_read()}"
         )
         add_arguments(command)
     return parser
 
 
-def _normalize(argv: list[str]) -> list[str]:
-    """`cardlang <file>` reads as `cardlang check <file>`.
+@dataclass(frozen=True)
+class _Line:
+    """The line the parser reads, and whether `check` was put at its head."""
 
-    Only a first token that could not be a command is rewritten, so `-h` still
-    reaches the top parser and an explicit command passes through untouched.
+    argv: list[str]
+    implicit: bool
+
+
+def _normalize(argv: list[str]) -> _Line | Diagnostic:
+    """`cardlang <file>` reads as `cardlang check <file>`, or the first word
+    is refused as a command that does not exist.
+
+    `-h` still reaches the top parser and an explicit command passes through
+    untouched. Any other first word is the file when it names something on
+    disk, or begins with a dash, or nearly spells no command and has only
+    options after it; otherwise it stood where a command goes.
     """
     if not argv or argv[0] in COMMANDS or argv[0] in ("-h", "--help"):
-        return argv
-    return ["check", *argv]
+        return _Line(argv, implicit=False)
+    word, rest = argv[0], argv[1:]
+    near = near_misses(word, COMMANDS)
+    if (
+        Path(word).exists()
+        or word.startswith("-")
+        or (not near and all(w.startswith("-") for w in rest))
+    ):
+        return _Line(["check", *argv], implicit=True)
+    return Diagnostic(
+        Severity.ERROR,
+        f"{word} is not a command, and no file has that name; "
+        f"the commands are: {', '.join(COMMANDS)}",
+        near_misses=near,
+    )
 
 
 def _unreadable(path: Path) -> str | None:
@@ -293,8 +322,16 @@ def _unreadable(path: Path) -> str | None:
 
 def main(argv: list[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
-    args = build_parser().parse_args(_normalize(raw))
-    implicit = bool(raw) and raw[0] not in COMMANDS and raw[0] not in ("-h", "--help")
+    parser = build_parser()
+    line = _normalize(raw)
+    if isinstance(line, Diagnostic):
+        # argparse's own shape for a usage error: the usage line, then the
+        # refusal under the program's name.
+        parser.print_usage(sys.stderr)
+        print(f"cardlang: {line.format()}", file=sys.stderr)
+        return _EXIT_CANNOT_PROCEED
+    args = parser.parse_args(line.argv)
+    implicit = line.implicit
 
     path = Path(args.file)
     refusal = _unreadable(path)
