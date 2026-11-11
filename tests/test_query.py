@@ -39,7 +39,11 @@ does not prove:  that an answer is the RIGHT one at a position no corpus game
                  a slot no game uses is unrun for it. Nodes the parse builder
                  lowers from one row of text (a `card_points { }` row) share
                  that row's span, and the query answers at the innermost of
-                 them, which is text nobody wrote.
+                 them, which is text nobody wrote. The seats column's rule
+                 for which enclosing part answers (a site, or an expression in
+                 a site's clause) is the one `cardlang.query.seats_at` reads by, so a
+                 wrong rule passes here; that each answer is what the engine
+                 shows a seat is tests/test_query_seats.py's claim.
 """
 
 from __future__ import annotations
@@ -304,6 +308,8 @@ POSITION_CELLS: dict[str, PositionCell] = {
     "an empty line inside the game": PositionCell(HEARTS, 37, 1, ANSWERED, "the game"),
     "the end of a line": PositionCell(HEARTS, 24, 13, ANSWERED, "the game"),
     "past the end of the file": PositionCell(HEARTS, 10_000, 1, Code.POSITION_OUTSIDE_THE_FILE.slug),
+    "the line a final newline would start": PositionCell(HEARTS, 149, 1, Code.POSITION_OUTSIDE_THE_FILE.slug),
+    "the file's last line, a comment": PositionCell(HEARTS, 148, 1, Code.POSITION_OUTSIDE_THE_GAME.slug),
     "indentation inside the game": PositionCell(HEARTS, 24, 1, ANSWERED, "the game"),
     "a comment inside a block": PositionCell(HEARTS, 39, 9, ANSWERED, "a declaration"),
     "a keyword of a statement": PositionCell(HEARTS, 65, 10, ANSWERED, "a movement"),
@@ -396,7 +402,7 @@ def test_hearts_trick_and_hidden_hand() -> None:
 def test_cheat_face_down_play_and_announced_count() -> None:
     """Cheat's claim count is announced; the cards go face down."""
     count = render(ask_path(CHEAT, 135, 20))
-    assert "Type: `choose integer" in count and "is Integer" in count
+    assert "the checker's Type: `choose integer" in count and "is Integer" in count
     assert "every seat hears the pick" in count
     play = render(ask_path(CHEAT, 137, 5))
     assert "the seat holding hand[actor]: sees which cards leave hand[actor], and how many cards arrive at played" in play

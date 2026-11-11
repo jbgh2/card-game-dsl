@@ -218,8 +218,8 @@ def _add_query_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--at",
         metavar="LINE:COL",
-        help="the position to ask about, by the file's own lines and columns, "
-        "both counted from 1, as `check` reports them",
+        help="required: the position to ask about, by the file's own lines and "
+        "columns, both counted from 1, as `check` reports them",
     )
     parser.add_argument(
         "--json",

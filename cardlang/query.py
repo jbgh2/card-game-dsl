@@ -81,6 +81,13 @@ class Checked:
     types: Mapping[n.NodeKey, Sequence[Type]]
 
 
+def _file_lines(text: str) -> tuple[str, ...]:
+    """The file's lines as `check` numbers them: a final newline ends the
+    last line rather than starting another."""
+    lines = text.split("\n")
+    return tuple(lines[:-1] if len(lines) > 1 and lines[-1] == "" else lines)
+
+
 def checked_text(text: str, source_name: str, markdown: bool) -> Checked:
     """The passes run again over text the checker has accepted, this time
     keeping their records. Not through the pipeline's memo, which would skip
@@ -95,7 +102,7 @@ def checked_text(text: str, source_name: str, markdown: bool) -> Checked:
     game = resolve(tree, scopes=scopes)
     typecheck(game, types=types)
     return Checked(
-        source_name, tuple(text.split("\n")), source_name, program, offset, game, scopes, types
+        source_name, _file_lines(text), source_name, program, offset, game, scopes, types
     )
 
 
@@ -404,7 +411,7 @@ def type_at(checked: Checked, chain: tuple[object, ...]) -> Typed | Told:
     if not isinstance(inner, _EXPR_KINDS):
         return _told(
             f"{_words(inner)} (`{_excerpt(checked, span, inner)}`) is not an expression "
-            "and has no Type; point at an expression inside it",
+            "and the checker gives it no Type; point at an expression inside it",
             span,
             Code.NOT_AN_EXPRESSION,
         )
@@ -725,9 +732,9 @@ def _render_type(typed: Typed | Told | None) -> list[str]:
     if typed is None:
         return []
     if isinstance(typed, Told):
-        return _refusal_line("Type", typed)
+        return _refusal_line("the checker's Type", typed)
     open_words = " (the checker leaves it open: any value passes)" if typed.open else ""
-    return [f"Type: `{typed.text}` is {' or '.join(typed.types)}{open_words}"]
+    return [f"the checker's Type: `{typed.text}` is {' or '.join(typed.types)}{open_words}"]
 
 
 def _render_seats(seats: Seats | Told | None, items: str) -> list[str]:

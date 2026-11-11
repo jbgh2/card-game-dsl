@@ -509,7 +509,7 @@ names in scope:
   bound here (a parameter, a `let`, or the binder of a query, a quantifier or a loop): player
   State Variable: cumulative_score, leader, pass_direction
   ...
-Type: none here -- a movement (`move chosen 3 cards`) is not an expression and has no Type; point at an expression inside it
+the checker's Type: none here -- a movement (`move chosen 3 cards`) is not an expression and the checker gives it no Type; point at an expression inside it
 what each seat sees (static, from the zone types; which cards, and which seat holds a zone, are settled when the game is played):
   who decides: each seat, for its own pick, asked and remembering each pick
   no other seat hears the pick; the others learn of it through the movement
@@ -525,7 +525,7 @@ tells a seat what moved. Which cards, and which seat holds `hand[player]`, are
 settled only when a deal is played; `demo --view` shows a played line.
 
 Where a question has no answer at the position, the answer says so and points
-at what does: a statement has no Type, an assignment moves no card, and a
+at what does: the checker gives a statement no Type, an assignment moves no card, and a
 comment or a blank line outside every declaration is no part of the game (exit
 `2`). A file the checker refuses gets the checker's refusal, exactly as `check`
 prints it, and no answer. `--json` prints the same answer as one Record
