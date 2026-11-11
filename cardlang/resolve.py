@@ -349,7 +349,7 @@ Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence, Set
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from typing import (
     Literal,
@@ -7831,7 +7831,6 @@ def _resolve_phase_level(
     """
     sibling_names = {p.name for p in phases}
     for phase in phases:
-        _check_modes(phase, bag)
         # Combination validity (decisions.md "Surface totality"): the runtime
         # declares only a phase's FIRST state block and runs the lifecycle
         # hooks only on a `repeat until` phase — reject what it would
@@ -7858,8 +7857,16 @@ def _resolve_phase_level(
         for item in phase.items:
             scope = mode_names if isinstance(item, n.Mode) else sibling_names
             _resolve_phase_item(item, scope, known_rule_names, bag)
+        # After the transitions it reads are resolved, so a refused target is
+        # told before any role it leaves a mode in.
+        _check_modes(phase, bag)
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
         _resolve_phase_level(children, known_rule_names, bag)
+
+
+def _transition_targets(mode_names: Set[str], source: str) -> frozenset[str]:
+    """The modes a transition declared in `source` may name: its siblings."""
+    return frozenset(mode_names) - {source}
 
 
 def _resolve_transition(
@@ -7871,7 +7878,7 @@ def _resolve_transition(
             f"of this phase — a transition ends one condition and begins "
             f"another, so its target is a `mode` declared beside this one",
             transition.mode,
-            mode_names - {source},
+            _transition_targets(mode_names, source),
             transition.span,
         )
     if transition.event.move_type not in LIBRARY_MOVE_TYPES:
@@ -7908,7 +7915,18 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
       `active_rules:` silently never apply.
     """
     modes = [i for i in phase.items if isinstance(i, n.Mode)]
-    targeted = {t.mode for m in modes for t in m.transitions}
+    mode_names = {m.name for m in modes}
+    # A target no sibling holds is refused where it is written; what it would
+    # name once fixed -- any mode `_transition_targets` admits -- is unknown,
+    # so no role it leaves undecided is told.
+    targeted = {t.mode for m in modes for t in m.transitions if t.mode in mode_names}
+    undecided = {
+        name
+        for m in modes
+        for t in m.transitions
+        if t.mode not in mode_names
+        for name in _transition_targets(mode_names, m.name)
+    }
 
     # A target belongs to ONE condition. Two sources naming the same target
     # read as "two conditions that happen to end together", but the runtime
@@ -7921,6 +7939,8 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
     claimed_by: dict[str, str] = {}
     for mode in modes:
         for transition in mode.transitions:
+            if transition.mode not in mode_names:
+                continue
             owner = claimed_by.setdefault(transition.mode, mode.name)
             if owner != mode.name:
                 bag.error(
@@ -7943,7 +7963,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                 f"through three or more stages",
                 mode.span,
             )
-        elif not is_source and not is_target:
+        elif not is_source and not is_target and mode.name not in undecided:
             bag.error(
                 f"mode '{mode.name}' is never active: nothing transitions to "
                 f"it and it declares no transition of its own, so its "
