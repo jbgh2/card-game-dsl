@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 
@@ -63,6 +64,21 @@ def check_markdown(markdown: str, source_name: str) -> Game:
     """Check a Markdown game file: extract -> parse -> resolve -> typecheck."""
     block = extract_single_block(markdown, source_name)
     return _check(parse_block(block))
+
+
+# The game file shapes the checker reads, keyed by the extension that names
+# each, with the words that describe the shape to a designer.
+GAME_FILE_SHAPES: dict[str, tuple[str, Callable[[str, str], Game]]] = {
+    ".cardlang": ("the DSL itself", check_dsl),
+    ".md": ("Markdown with the DSL in one fenced block", check_markdown),
+}
+
+
+def extensions_read() -> str:
+    """The extensions `check_source` reads, each with its shape, as a designer
+    reads them."""
+    named = [f"{ext} ({words})" for ext, (words, _check) in GAME_FILE_SHAPES.items()]
+    return ", ".join(named[:-1]) + " or " + named[-1]
 
 
 def check_source(path: str | Path) -> Game:
