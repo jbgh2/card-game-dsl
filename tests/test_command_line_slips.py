@@ -24,8 +24,8 @@ property:        a first word that is no command and names nothing on disk,
                  file, or an empty one, is refused for that; every refusal of
                  the line's words speaks as the command typed, or as
                  `cardlang` when none was, says when it read the line as
-                 `check`, and every word it says was typed was, a path
-                 included; each refusal keeps the CLI's exit status and
+                 `check`, and every word it says was typed was, the path it
+                 cannot read included; each refusal keeps the CLI's exit status and
                  failure channel, which every cell states; and an offered
                  word, command or order, put in place of the slip, gets the
                  line past that refusal.
@@ -59,7 +59,10 @@ domain:          the commands, crossed with the slips generated from each
                  value under each command that takes one. A slip argparse
                  reads as a prefix of an option, and every option prefix, is
                  issue #624's. `-h` after any line prints that command's
-                 help and refuses nothing.
+                 help and refuses nothing. The property reads every line
+                 above, the command-word grid's included; a game file's own
+                 refusals name its path as Python spells it, which is issue
+                 #1099's, marked below.
 registry:        commands: `cardlang.cli.COMMANDS`, derived from
                  `cardlang.cli._COMMAND_TABLE`; options per command and
                  whether each takes a value: `cardlang.cli.build_parser`,
@@ -617,28 +620,38 @@ _SUBJECTS: tuple[re.Pattern[str], ...] = (
     re.compile(r"so (\S+) is one too many"),
     re.compile(r"(\S+) comes after the file"),
     re.compile(r"^cardlang: error: (\S+) is not a command", re.MULTILINE),
+    re.compile(r"^error: (\S+) ends in ", re.MULTILINE),
+    re.compile(r"^error: (\S+) has no extension", re.MULTILINE),
 )
 # argparse names an option by every spelling it has, `-h/--help`.
 _ARGUMENT = re.compile(r"argument (-\S+?): ")
 
 
+def _command_word_lines() -> dict[str, tuple[str, ...]]:
+    """The command-word grid's lines above, run where no file has a slip's
+    name: each slipped command and each word resembling none, before each
+    thing that may follow it, and `<command>.md`."""
+    follows: dict[str, list[str]] = {**_FOLLOWS, "a file": [_F]}
+    lines: dict[str, tuple[str, ...]] = {}
+    for _command, shape, slip in _SLIPS:
+        for after, words in follows.items():
+            lines[f"the command word {slip} ({shape}), then {after}"] = (slip, *words)
+    for word in _UNLIKE:
+        for after, words in follows.items():
+            lines[f"the word {word}, then {after}"] = (word, *words)
+    for command in COMMANDS:
+        lines[f"the word {command}.md"] = (f"{command}.md",)
+    return lines
 
 
-@pytest.mark.parametrize(
-    "cell",
-    sorted({**_CELLS, **_KEPT}),
-)
-def test_no_refusal_names_a_word_never_typed(
-    cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """The property, over every line of the grid: the command a refusal
-    speaks as is the one typed, and each word it says was typed was.
+# Every line the property reads, and whether its refusal names a word of it.
+_PROPERTY: dict[str, tuple[tuple[str, ...], bool]] = {
+    **{name: (cell.argv, cell.names) for name, cell in {**_CELLS, **_KEPT}.items()},
+    **{name: (argv, True) for name, argv in _command_word_lines().items()},
+}
 
-    red under: have `cli._unreadable` name `Path(word)` rather than the word;
-    or have `cli._refuse` speak as `line.argv[0]`, the command parsed."""
-    line = {**_CELLS, **_KEPT}[cell]
-    argv = line.argv
-    said = _run_in_repo(argv, monkeypatch, capsys)
+
+def _names_only_what_was_typed(argv: tuple[str, ...], said: _Said, names: bool) -> None:
     assert said.code != 0, said.err
     typed = _typed_command(argv)
     for spoken in _VOICE.findall(said.err):
@@ -647,11 +660,35 @@ def test_no_refusal_names_a_word_never_typed(
     words = set(argv) | {w.split("=", 1)[0] for w in argv}
     found = [m for pattern in _SUBJECTS for m in pattern.findall(said.err)]
     spelled = _ARGUMENT.findall(said.err)
-    assert bool(found or spelled) is line.names, f"the words named: {found + spelled}: {said.err}"
+    assert bool(found or spelled) is names, f"the words named: {found + spelled}: {said.err}"
     for subject in found:
         assert subject in words, (subject, said.err)
     for subject in spelled:
         assert any(spelling in words for spelling in subject.split("/")), (subject, said.err)
+
+
+@pytest.mark.parametrize("cell", sorted(_PROPERTY))
+def test_no_refusal_names_a_word_never_typed(
+    cell: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The property, over every line of the grid: the command a refusal
+    speaks as is the one typed, and each word it says was typed was.
+
+    red under: have `cli._unreadable` name `Path(word)` rather than the word;
+    or have `cli._refuse` speak as `line.argv[0]`, the command parsed."""
+    argv, names = _PROPERTY[cell]
+    _names_only_what_was_typed(argv, _run_in_repo(argv, monkeypatch, capsys), names)
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #1099")
+def test_a_slipped_extension_is_named_as_typed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`./game.cardlnag` is refused naming `./game.cardlnag`, the word typed."""
+    monkeypatch.chdir(tmp_path)
+    _copy(tmp_path, ".cardlang", "game.cardlnag")
+    argv = ("check", "./game.cardlnag")
+    _names_only_what_was_typed(argv, _run(list(argv), capsys), True)
 
 
 

@@ -425,7 +425,8 @@ def _unreadable(word: str) -> str | None:
     the last two answerable here instead of there. An empty name is `_file`'s
     to refuse and a line naming no file is `main`'s, both as usage errors.
     An `OSError` that `Path.exists` itself raises, a directory that cannot
-    be listed or a name too long, escapes as a traceback (issue #1097).
+    be listed or a name too long, escapes as a traceback (issue #1097). The
+    refusals past this one name the file as `Path` spells it (issue #1099).
 
     Its result is discarded and the file is read a second time by the pipeline,
     deliberately: threading the text through `check_source` would change a
