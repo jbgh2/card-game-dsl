@@ -650,8 +650,8 @@ here.
 *Status: overtaken by the landed migration. The Reizen runs on the UNMODIFIED
 auction form — role-guarded moves over a two-participant ring, with the
 exhausted-ladder auto-pass folded into `until` (so even this section's
-forced-`["pass"]`-draw caveat does not arise) — see decisions.md, "The auction
-form of `round`", the call-and-response bullet. The analysis below validated
+forced-`["pass"]`-draw caveat does not arise) — see decisions.md, "Auctions,
+polls and betting rings are `turns` plus `offer`", the call-and-response bullet. The analysis below validated
 the six-hook lowering before that configuration was found; its conclusion that
 call-and-response "cannot reuse the `offering` clause" did not survive contact
 with the probe.*

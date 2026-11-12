@@ -61,7 +61,8 @@ domain:          every ledger in the tree -- a docstring or a `#` comment
                  prose this module cuts rather than reads, so the exclusion
                  loses no must-exist claim.
 registry:        the row axis is DERIVED by `_fence_labels` from the two
-                 templates that define it, the `decisions.md` fence under "the
+                 templates that define it, the
+                 `docs/decisions/closed-domain-completeness.md` fence under "the
                  **completeness ledger** in the grid module's docstring:" and
                  the `surface-totality-audit` skill's two fences -- reconciled
                  by `test_the_row_axis_is_derived_from_its_two_templates` and
@@ -194,7 +195,7 @@ def _fence_labels(path: str, anchor: str) -> tuple[str, ...]:
     )
 
 
-_DECISIONS = "docs/decisions.md"
+_DECISIONS = "docs/decisions/closed-domain-completeness.md"
 _SKILL = ".claude/skills/surface-totality-audit/SKILL.md"
 
 COMPLETENESS_ROWS = _fence_labels(
