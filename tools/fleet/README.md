@@ -54,7 +54,8 @@ launchctl kickstart gui/$(id -u)/com.cardlang.warden
 ## Residuals, named
 
 - Runs require the operator's login session (gh auth, SSH key, Keychain)
-  and an awake machine — the always-on box is issue #278.
+  and an awake machine. A closed lid stops the roles; only the merge gate
+  has a lane off the laptop (docs/harness.md, "The physical layer").
 - The fleet clone must be a trusted workspace
   (`projects["…/cardlang-fleet"].hasTrustDialogAccepted` in
   ~/.claude.json), or the charter's allowlist is ignored and every

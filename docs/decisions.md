@@ -5384,7 +5384,7 @@ told, and every rejection case's ordered codes are a golden beside its text
 (tests/test_diagnostic_codes.py). A site no rejection case reaches can move
 to another code with no test reddening; the grid module's ledger says how
 many there are and how to count them. The ruling and the options it refused
-are ADR-0022.
+are ADR-0023.
 
 The code never reaches the text output: `Diagnostic.format` does not show
 it, and the rejection corpus staying byte-identical is the proof. A tool asks

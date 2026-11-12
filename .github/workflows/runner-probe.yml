@@ -1,0 +1,32 @@
+name: runner-probe
+
+# One step on the self-hosted pool. The gate's `route` job
+# (tools/ci-route.sh) starts it to learn whether the pool is awake and idle:
+# a pool that is asleep or busy does not start it, and the route cancels it.
+# The route starts it at the `ci-probe-anchor` tag, so its check lands on a
+# commit that is no pull request's head and not main's tip. The file that
+# runs is the one at the tag: a change here takes effect when the tag moves
+# to a commit that holds it. Pushing the tag runs it once, so a moved anchor
+# proves itself.
+run-name: probe ${{ inputs.nonce }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      nonce:
+        description: The asking run, so the route finds its own probe.
+        required: true
+        type: string
+  push:
+    tags: [ci-probe-anchor]
+
+# The job proves a runner started it and touches nothing, so its token
+# holds no permission.
+permissions: {}
+
+jobs:
+  answer:
+    runs-on: [self-hosted, cardlang]
+    timeout-minutes: 2
+    steps:
+      - run: "true"
