@@ -5,7 +5,7 @@ limits 2 before the draw and 4 after, four aggressive actions per betting round,
 and a discard of zero to three cards.
 **Players:** 2. **Deck:** standard 52. **Executable spec:**
 [five-card-draw.cardlang](five-card-draw.cardlang). **Rules source:**
-https://www.pagat.com/poker/variants/5draw.html (fetched live).
+<https://www.pagat.com/poker/variants/5draw.html>.
 
 Aces are high. The corpus's first **draw**-family poker game: where
 [Seven-Card Stud](seven-card-stud.md) and the two Hold'em variants

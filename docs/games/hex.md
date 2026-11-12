@@ -9,7 +9,9 @@ pinned here: 2 players on an 11x11 rhombus of hexagons, 61 black stones and
 placing one stone on an empty cell; the first player to join their two edges
 with an unbroken chain of their own stones wins.** There is no draw.
 
-Rules sources, read 2026-11-01:
+**Rules source:** <https://en.wikipedia.org/wiki/Hex_(board_game)>.
+
+The sources, read 2026-11-01:
 
 - The rules body is Wikipedia's [Hex (board
   game)](https://en.wikipedia.org/wiki/Hex_(board_game)), "Rules": a stone per

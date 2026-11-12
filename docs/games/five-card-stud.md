@@ -2,7 +2,8 @@
 
 The companion formal file is [five-card-stud.cardlang](five-card-stud.cardlang);
 this is the readable twin. Five-Card Stud in the **formal casino form**, fixed
-limit. Source: [Pagat](https://www.pagat.com/poker/variants/5stud.html).
+limit. **Rules source:**
+<https://www.pagat.com/poker/variants/5stud.html>.
 **Players:** 3. **Deck:** standard 52. **Chips:** one unit is $0.50, so Pagat's
 $0.50 / $2 / $5 / $10 example ladder is exactly ante 1, bring-in 4, small bet
 10, big bet 20. Each player starts with 200 units ($100).

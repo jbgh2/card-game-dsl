@@ -3,8 +3,9 @@
 The companion formal file is [tichu.cardlang](tichu.cardlang); this is the
 readable twin. A four-player team **climbing** game on a 56-card deck (the
 standard 52 plus four special cards: Mahjong, Dog, Phoenix, Dragon). First
-team to **1000** wins. Rules: Fata Morgana English edition, the source
-Pagat's Commercial Card Games index names for Tichu.
+team to **1000** wins. **Rules source:**
+<https://fatamorgana.ch/fatamorgana/tichu/english-rules>, the Fata Morgana
+English edition Pagat's Commercial Card Games index names for Tichu.
 
 Each hand:
 

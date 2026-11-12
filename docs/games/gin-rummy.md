@@ -4,7 +4,7 @@
 layoffs, undercut +10, gin +20, game to 100, boxes at 20).
 **Players:** 2. **Deck:** standard 52. **Executable spec:**
 [gin-rummy.cardlang](gin-rummy.cardlang). **Rules source:**
-https://www.pagat.com/rummy/ginrummy.html (fetched live).
+<https://www.pagat.com/rummy/ginrummy.html>.
 
 Aces are low everywhere: A-2-3 of a suit is a run; Q-K-A is not. Card points
 are ace 1, pips face value, courts 10.

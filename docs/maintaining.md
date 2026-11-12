@@ -169,6 +169,18 @@ opening with the variant, the player count, the deck, a link to the
 what the game file has no room for — the departures from that source, the
 scoring tables, the worked examples.
 
+The rules source is one line in the rulebook's opening, spelled
+`**Rules source:** <URL>`, where the URL is any document holding a written
+copy of the rules: a Pagat page, a publisher's rulebook, an encyclopaedia's
+account, a paper. It names the version of the game the `.cardlang` is held
+to, so a divergence is a defect against that document ("this file does not
+play these rules") rather than against the game's name. The line is a
+pointer and claims nothing more: the link between a file and its source
+cannot be proven, and whether a game has been read against its source is
+recorded on the tracker, not on the line (ADR-0023). Prose qualifying the
+source, such as which account on the page or which house variants are
+excluded, follows the closing bracket.
+
 The rulebook LINKS to its `.cardlang` rather than repeating the DSL. An
 embedded fenced copy is a second copy of the game and drifts from the first
 exactly as "Cross-references" above says two copies of any fact do, with the
@@ -203,6 +215,12 @@ since what each classifies is the game's behavior.
   the short name, the filename, and the measured bounds. This whole package
   is skipped without the `openspiel` extra, so its reds are CI's and a core
   install stays green on a game with no proof module.
+- **The rules source — always.** The rulebook's `**Rules source:** <URL>`
+  line ("The rulebook twin", above), pinned over the `.cardlang` glob by
+  `test_every_rulebook_names_its_rules_source`
+  (`tests/test_rules_source.py`). A new game's cell is red until its
+  rulebook names its source, and a line in any other spelling is refused
+  with the spelling to write. It proves a source is named and nothing more.
 - **`PROSE_ONLY_TWINS`** (`tests/test_typecheck_corpus.py`) — the rulebook
   twins carrying no fenced block, which the type-check gate therefore cannot
   cover. A linking rulebook joins; a twin that gains a block leaves. The

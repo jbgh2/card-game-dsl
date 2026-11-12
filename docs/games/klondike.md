@@ -10,7 +10,7 @@ exposed face-down card is flipped face up immediately.** Pagat has no
 standalone Klondike page (its patience section links out to solitaire
 sites); this pin follows the classic rules Pagat's Klondike-derived entries
 (e.g. [Double Solitaire](https://www.pagat.com/patience/double.html))
-assume.
+assume. **Rules source:** <https://en.wikipedia.org/wiki/Klondike_(solitaire)>.
 
 Setup and play:
 

@@ -5,7 +5,7 @@ the readable twin. Schnapsen is a two-player Ace-Ten point-trick game on a
 20-card deck (A 10 K Q J in four suits; the `card_points` table prices it
 A=11, 10=10, K=4, Q=3, J=2, so the deck holds 120 points). Each hand is a race to **66 card points**; the
 match is played to **7 game points scored downward** — the first player to reach
-0 wins. Source: [Pagat](https://www.pagat.com/marriage/schnaps.html).
+0 wins. **Rules source:** <https://www.pagat.com/marriage/schnaps.html>.
 
 How a hand goes:
 

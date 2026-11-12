@@ -38,7 +38,7 @@ import pytest
 GAMES = Path(__file__).parent.parent / "docs" / "games"
 CORPUS = sorted(GAMES.glob("*.cardlang"))
 
-_SECTION = "docs/maintaining.md, \"The rulebook twin\""
+_SECTION = 'docs/maintaining.md, "The rulebook twin"'
 _LINE = re.compile(r"\*\*Rules source:\*\*\s+<(?P<url>https?://[^\s<>]+)>")
 _ANY_LABEL = re.compile(r"rules?\s+sources?", re.IGNORECASE)
 

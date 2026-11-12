@@ -6,7 +6,7 @@ each of A 10 K Q J 9 per suit; 10 ranks between K and A), four players in fixed
 teams sitting across. First team to **1500** wins — and when both sides pass
 1500 on the same hand the game goes to the side that won the bidding, whatever
 the totals. **Rules source:**
-https://www.pagat.com/marriage/pinmain.html (fetched live), the page's main
+<https://www.pagat.com/marriage/pinmain.html>, the page's main
 account throughout — the four-card pass rather than the cutthroat variation,
 and the main text's run-extras table (a run with an extra king 190, an extra
 queen 190, an extra marriage 230) rather than the Variations paragraph's.

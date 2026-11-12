@@ -8,7 +8,7 @@ players often agree (Pagat notes it). One rubber is played (first side
 to two games), and play stops after twelve deals if the rubber is not finished
 by then; the side with the higher total wins. **Players:** 4, in fixed
 partnerships sitting across. **Deck:** standard 52. **Rules source:**
-[Pagat, Contract Bridge](https://www.pagat.com/auctionwhist/bridge.html).
+<https://www.pagat.com/auctionwhist/bridge.html>.
 
 Each hand:
 

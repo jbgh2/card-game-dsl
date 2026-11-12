@@ -6,7 +6,7 @@ three, play to +500 / out backwards at −500.
 **Players:** 4, partners sitting across. **Deck:** 43 cards — `A K Q J 10 9
 8 7 6 5` in the black suits, the same plus the `4` in the red suits, and one
 joker. **Executable spec:** [five-hundred.cardlang](five-hundred.cardlang).
-**Rules source:** https://www.pagat.com/euchre/500.html (fetched live).
+**Rules source:** <https://www.pagat.com/euchre/500.html>.
 
 ## The deal
 

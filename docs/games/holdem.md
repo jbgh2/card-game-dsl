@@ -2,8 +2,8 @@
 
 The companion formal file is [holdem.cardlang](holdem.cardlang); this is the
 readable twin. Fixed-limit Texas Hold'em, three players — the corpus's second
-**side-pot** game and its first with a **community board**. Source:
-[Pagat](https://www.pagat.com/poker/variants/texasholdem.html). **Players:** 3.
+**side-pot** game and its first with a **community board**. **Rules source:**
+<https://www.pagat.com/poker/variants/texasholdem.html>. **Players:** 3.
 **Deck:** standard 52. **Chips:** each player starts with 100.
 
 Each hand:

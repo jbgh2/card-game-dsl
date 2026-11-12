@@ -4,8 +4,9 @@ The companion formal file is [kuhn-poker.cardlang](kuhn-poker.cardlang); this
 is the readable twin. Kuhn poker is the canonical toy poker for **two
 players** — three cards, one betting round, and a game tree small enough to
 solve by hand, which is why it is the standard first target for every
-imperfect-information algorithm. Source: Kuhn's 1950 *Simplified Two-Person
-Poker*; this corpus entry is configured to match OpenSpiel's native
+imperfect-information algorithm. **Rules source:**
+<https://en.wikipedia.org/wiki/Kuhn_poker>, the game of Kuhn's 1950 *Simplified
+Two-Person Poker*; this corpus entry is configured to match OpenSpiel's native
 `kuhn_poker` at two players, tree for tree and payoff for payoff.
 
 A hand:

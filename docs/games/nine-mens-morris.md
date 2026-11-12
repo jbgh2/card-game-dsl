@@ -16,7 +16,8 @@ knowledge. The native differential against OpenSpiel's `nine_mens_morris` is
 walks, and it stops comparing at that implementation's turn cap
 (`kMaxNumTurns`, 200 completed turns), which is not a rule of the game.
 
-**Rules source.** The rules body is the Welt-Mühlespiel-Dachverband (WMD).
+**Rules source:** <https://de.wikipedia.org/wiki/M%C3%BChle_(Spiel)>, German
+Wikipedia's account of the rules of the Welt-Mühlespiel-Dachverband (WMD).
 Its own pages did not resolve when the file was written (2026-11-01:
 `muehlespiel.eu` serves unrelated content), and Pagat, the repo's usual
 authority, does not cover the game (its alphabetical index, 2026-11-01). The

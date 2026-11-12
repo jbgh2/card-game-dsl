@@ -5,8 +5,8 @@ is the readable twin. Tic-tac-toe is the walking skeleton of the board-game
 axis: two players, a 3x3 grid, and nine marks (five X, four O). **Variant
 pinned here: X (player 0) moves first; players alternate placing one mark on an
 empty cell; three of your own marks in a line — row, column, or diagonal — wins
-the instant the line completes; a full board with no line is a draw.** Rules are
-common knowledge, and the differential oracle is OpenSpiel's native
+the instant the line completes; a full board with no line is a draw.** **Rules source:**
+<https://en.wikipedia.org/wiki/Tic-tac-toe>; the differential oracle is OpenSpiel's native
 `tic_tac_toe`.
 
 Setup and play:

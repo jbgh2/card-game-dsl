@@ -4,8 +4,8 @@ The companion formal file is [leduc-poker.cardlang](leduc-poker.cardlang);
 this is the readable twin. Leduc is the standard step up from Kuhn for
 **two players**: still tiny enough to solve exactly, but with a community
 card, two betting rounds and a real raise, so the strategies it produces
-are recognisably poker. Source: Southey et al., *Bayes' Bluff* (2005); this
-corpus entry is configured to match OpenSpiel's native `leduc_poker` at two
+are recognisably poker. **Rules source:** <https://arxiv.org/pdf/1207.1411>,
+Southey et al., *Bayes' Bluff* (2005); this corpus entry is configured to match OpenSpiel's native `leduc_poker` at two
 players.
 
 A hand:

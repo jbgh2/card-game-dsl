@@ -7,8 +7,8 @@ the readable twin. A **five-player climbing / shedding** game on the standard
 whole hand first: the first player out each hand is the **President**, the
 second the **Vice-President**, and the last player left holding cards is the
 **Scum**. Points accumulate across hands; the first game-ending hand crowns the
-highest total. Rules:
-[Pagat](https://www.pagat.com/climbing/president.html) (Basic Game +
+highest total. **Rules source:**
+<https://www.pagat.com/climbing/president.html> (Basic Game +
 "Transparent cards").
 
 **Card order.** Ranks run, high to low: **2 A K Q J 10 9 8 7 6 5 4 3**. Suits

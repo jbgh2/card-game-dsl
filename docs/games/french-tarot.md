@@ -6,8 +6,8 @@ Tarot deck — four 14-card suits (K Q Cavalier J 10…1), 21 atouts (trumps), a
 the Excuse. One player (the *taker*) plays alone against the other three, trying
 to take enough card points in tricks to beat a threshold set by how many *bouts*
 (the 1 of atouts, the 21, and the Excuse) they capture. Thirty-six hands are
-played; the highest score wins. Source:
-[Pagat](https://www.pagat.com/tarot/frtarot.html).
+played; the highest score wins. **Rules source:**
+<https://www.pagat.com/tarot/frtarot.html>.
 
 Each hand:
 

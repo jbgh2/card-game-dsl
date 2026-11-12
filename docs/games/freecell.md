@@ -8,7 +8,7 @@ foundations, one card moved at a time. (The multi-card "supermove" of the
 Microsoft implementation is interface shorthand for a sequence of
 single-card moves through free cells and empty cascades, not a separate
 rule, so the atomic single-card rule is what is modeled. Cell-to-cell moves
-are excluded — they change nothing.)
+are excluded — they change nothing.) **Rules source:** <https://en.wikipedia.org/wiki/FreeCell>.
 
 Setup and play:
 
