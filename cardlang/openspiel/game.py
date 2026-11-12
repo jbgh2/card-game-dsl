@@ -535,11 +535,12 @@ def register_game_file(path: str | Path) -> str:
 
     The way in for a game that does not live in `docs/games/`. The file gets
     the same static check a corpus game gets (`cardlang.pipeline.check_source`,
-    so a `.cardlang` file is raw DSL and any other suffix is read as Markdown
-    holding one fenced block), the same naming rule
+    so a `.cardlang` file is raw DSL, a `.md` file is Markdown holding one
+    fenced block, and any other extension is refused), the same naming rule
     (`cardlang.openspiel.registry`), and the same tree. A check failure raises
-    the checker's own `DiagnosticError`, addressed to the game's author with a
-    span; nothing about the file's provenance reaches that channel.
+    the checker's own `DiagnosticError`, addressed to the game's author, with a
+    span wherever it refuses a place in the file's text; nothing about the
+    file's provenance reaches that channel.
 
     Registering the same file twice is a no-op returning the same name, so a
     caller may offer a directory's worth of games without tracking which it has
