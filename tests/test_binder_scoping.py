@@ -1,4 +1,4 @@
-"""Lexical binder scoping in the resolve pass (`cardlang/resolve.py`).
+"""Lexical binder scoping in the resolve pass (`cardlang/resolve/`).
 
 Collected into one flat game-wide `locals` set, binders would let a stray
 `card` anywhere in the file resolve as `local` and fail only at runtime

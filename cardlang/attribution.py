@@ -670,13 +670,13 @@ _CERTIFICATES: dict[object, _Certificate] = {}
 
 
 def _certificate(library: str) -> _Certificate:
-    from cardlang import resolve
+    from cardlang.resolve import splice
 
-    load = getattr(resolve, "load_library")
+    load = getattr(splice, "load_library")
     sources = witness_sources(library)
     # The text of every library a Library Witness uses, never one none uses.
     used = {library} | {m for _label, text in sources for m in _USES_LINE.findall(text)}
-    names = sorted(used & getattr(resolve, "library_names")())
+    names = sorted(used & getattr(splice, "library_names")())
     key = (library, tuple(_fingerprint(load, name) for name in names), sources)
     found = _CERTIFICATES.get(key)
     if found is None:

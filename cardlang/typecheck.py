@@ -267,7 +267,7 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 # `rs.ranks` falls back to deck order), so an ungated member would check
 # clean and be refused only at playout, by `values.rank_strength`'s
 # no-`ranking:` arm — the Shadow Guard behind these gates, whose firing is
-# an engine gap. resolve.py already gates a bare `Rank` move-parameter
+# an engine gap. resolve already gates a bare `Rank` move-parameter
 # domain on the same `has_ranking` condition (`_check_move_params`); these
 # are the analogous compile-time gates for the three positions a member can
 # be named from. Registries, not `if`s, so the next ranking-dependent
@@ -1321,7 +1321,7 @@ def _ambient_env(game: Game) -> TypeEnv:
 
     zones: dict[str, Type] = {z.name: zone_content(z) for z in game.zones}
     # `ZoneDecl.index` is `None` (a singleton zone) or one of the closed index
-    # roles resolve.py validates (the domain table's `ZONE_INDEX_ROLES`, plus
+    # roles resolve validates (the domain table's `ZONE_INDEX_ROLES`, plus
     # the game's declared position domains — integer-keyed); a family's
     # subscript key types as the index domain's binder type — the same
     # table cell `for each <role>` reads, so `hand[p]` and `captured[t]` key by

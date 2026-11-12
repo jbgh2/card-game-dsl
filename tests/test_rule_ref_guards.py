@@ -187,8 +187,8 @@ def test_add_x_library_param_args_clean() -> None:
 
 
 def test_arity_mismatch_no_longer_piles_an_undefined_rule_note() -> None:
-    # Regression for the root-cause fix: `known_rule_names` (resolve.py
-    # `resolve()`) is captured from the ORIGINAL `game.rules` union the
+    # Regression for the root-cause fix: `known_rule_names` (resolve's rule
+    # instantiation step) is captured from the ORIGINAL `game.rules` union the
     # library, before instantiation — so a real name with a real, separately
     # reported mismatch is never ALSO flagged undefined.
     report = _rejects(

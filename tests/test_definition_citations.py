@@ -76,6 +76,7 @@ import tests.test_library_boundary_ledger as L
 import tests.test_library_notes as LN
 from tests.test_library_attribution import _cells
 from tests.test_rejections import REJECTIONS_DIR, case_paths
+from tests.resolver_package import patch_resolver
 
 _ROOT = Path(__file__).resolve().parent.parent
 _PACKAGE = _ROOT / "cardlang"
@@ -175,12 +176,12 @@ def _instrumented(monkeypatch: pytest.MonkeyPatch, census: _Census) -> None:
 
     def applying(game: n.Game, bag: D.DiagnosticBag) -> tuple[n.Game, dict[str, n.RuleDef]]:
         libraries = tuple(
-            getattr(R, "load_library")(u.name) for u in game.uses if u.name in getattr(R, "library_names")()
+            getattr(R.splice, "load_library")(u.name) for u in game.uses if u.name in getattr(R.splice, "library_names")()
         )
         census.definitions = census.definitions | _definitions(game, libraries)
         return real_uses(game, bag)  # type: ignore[no-any-return]
 
-    monkeypatch.setattr(R, "_apply_uses", applying)
+    patch_resolver(monkeypatch, "_apply_uses", applying)
 
     def error(self: D.DiagnosticBag, message: D.Said, span: Span | None = None, **kw: object) -> None:
         census.record(message, kw.get("for_game"))
@@ -193,7 +194,7 @@ def _library_texts(text: str) -> tuple[n.Library, ...]:
     out: list[n.Library] = []
     for name in re.findall(r"^\s*uses\s+([A-Za-z_][A-Za-z0-9_]*)", text, re.M):
         try:
-            out.append(getattr(R, "load_library")(name))
+            out.append(getattr(R.splice, "load_library")(name))
         except Exception:
             continue
     return tuple(out)

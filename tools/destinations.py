@@ -350,8 +350,12 @@ def after_splice_sites(sites: Mapping[str, int], passes: Iterable[str], step: st
     """The construction sites in the passes that run after a library is
     spliced, other than the attribution step itself: a raise there that the
     step does not decide is a refusal told where it happens to stand."""
-    names = {f"{p}.py" for p in passes}
-    return {m: n for m, n in sites.items() if m in names and m != step}
+    names = set(passes)
+    return {
+        m: n
+        for m, n in sites.items()
+        if m != step and (m.removesuffix(".py") in names or m.split("/", 1)[0] in names)
+    }
 
 
 def clean_witnesses(sources: Iterable[tuple[str, str]], check: Callable[[str, str], object]) -> tuple[int, int]:

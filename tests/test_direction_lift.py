@@ -155,6 +155,7 @@ from cardlang.stdlib.boards import BOARD_FAMILIES, board_entry
 from cardlang.typecheck import TypeEnv, _domain_query_binder_type, _type_name
 from cardlang.types import TAny, TBoolean, TCell, TCollection, TDir, TOptional, TPlayer, Type
 from tests.test_cell_queries import _board_ctx, _checked_board_expr, _unused_chooser
+from tests.resolver_package import patch_resolver
 
 KINDS = n.DOMAIN_QUERY_KINDS
 
@@ -760,8 +761,8 @@ def test_a_library_naming_dir_is_refused_in_its_own_file(
     `_check_signature_row`'s function-row domain (requires row) -- the last
     moves the first refusal to the game's `uses` line."""
     library = parse_library(f"library {_LIB} {{\n{body}\n}}\n", f"docs/libraries/{_LIB}.cardlang")
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(board_game().replace("  players: 2\n", f"  uses {_LIB}\n  players: 2\n", 1), "lift.cardlang")
     first = exc.value.diagnostic.format()

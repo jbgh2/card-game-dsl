@@ -1,4 +1,4 @@
-// Guard: resolve.py `_check_bare_family_refs`. `player_holding` finds the
+// Guard: resolve/classified_checks.py `_check_bare_family_refs`. `player_holding` finds the
 // player holding a card by searching `hand[player]`, and hands back the key
 // it found as a seat, so `hand` must be kept per player. The runtime refusal
 // in `reads.magic_hand` is the Shadow Guard.

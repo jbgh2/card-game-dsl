@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_rules_reach_a_trick`. A rule is asked only at a
+// Guard: resolve/rule_instantiation.py's `_check_rules_reach_a_trick`. A rule is asked only at a
 // trick round's card decision, and the bidding phase runs none, so its
 // `active_rules:` would never apply; the trick round runs in `play`.
 game RulesWhereNoTrickRoundRuns {

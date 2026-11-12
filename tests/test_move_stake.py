@@ -96,6 +96,7 @@ from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _REFERENCE_SLOTS, _walk
 from cardlang.runtime import primitives
+from tests.resolver_package import patch_resolver
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
 GRAMMAR = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
@@ -223,8 +224,8 @@ def _checked(site: str, move: str, presenter: str, monkeypatch: pytest.MonkeyPat
             f"library {name} {{\nrequires {{ tally[player] : Integer  done : Integer }}\n{move}\n}}",
             f"{name}.cardlang",
         )
-        monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({name}))
-        monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+        patch_resolver(monkeypatch, "library_names", lambda: frozenset({name}))
+        patch_resolver(monkeypatch, "load_library", lambda name: library)
     return check_dsl(_game(site, move, presenter, board), "mini.cardlang")
 
 
@@ -512,8 +513,8 @@ def test_a_move_type_spelled_like_a_climb_token_is_refused(
     else:
         name = _library_name(move + token)
         library = parse_library(f"library {name} {{\n{move.replace('quiet += 0', '')}}}", f"{name}.cardlang")
-        monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({name}))
-        monkeypatch.setattr("cardlang.resolve.load_library", lambda _: library)
+        patch_resolver(monkeypatch, "library_names", lambda: frozenset({name}))
+        patch_resolver(monkeypatch, "load_library", lambda _: library)
         text = text.replace("game Tichu {", f"game Tichu {{\n  uses {name}", 1)
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(text, f"tichu-{token}-{presenter}-{row}.cardlang")

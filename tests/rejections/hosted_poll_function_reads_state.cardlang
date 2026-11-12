@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hosted_polls`, over what the body can execute.
+// Guard: resolve/classified_checks.py's `_check_hosted_polls`, over what the body can execute.
 // A function the body calls is evaluated inside the live trick, so its read
 // of the round's unpublished `state.` is refused as if written inline.
 game HostedPollFunctionReadsState {

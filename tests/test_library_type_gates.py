@@ -95,6 +95,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.ast import nodes as n
 from cardlang.runtime.values import COMPONENT_SETS, DECKS, build_deck
 from cardlang.stdlib.enums import rank_names, suit_names
+from tests.resolver_package import patch_resolver
 
 _LIB = "probe_lib"
 _LIB_FILE = f"docs/libraries/{_LIB}.cardlang"
@@ -208,8 +209,8 @@ def _line_of(text: str, needle: str) -> int:
 
 def _with_library(monkeypatch: pytest.MonkeyPatch, body: str) -> None:
     library = parse_library(f"library {_LIB} {{\n{body}\n}}\n", _LIB_FILE)
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
 
 
 def _tag(*parts: object) -> str:
@@ -1100,8 +1101,8 @@ def test_two_libraries_are_each_told_on_their_own_line(monkeypatch: pytest.Monke
         f"library {_LIB} {{ function probe_fn(c : Card) = c.suit is c.suit }}", _LIB_FILE
     )
     libraries = {"probe_other": clean, _LIB: reading}
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset(libraries))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: libraries[name])
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset(libraries))
+    patch_resolver(monkeypatch, "load_library", lambda name: libraries[name])
     text = _game(_BREAKTHROUGH, tag="TwoLibraries", uses=True).replace(
         f"  uses {_LIB}", f"  uses probe_other\n  uses {_LIB}"
     )
@@ -1129,7 +1130,7 @@ def test_a_standard_library_rule_is_held_to_the_same_law(monkeypatch: pytest.Mon
         'demands: cards in hand where card.rank is "10"  if_impossible: hand } }',
         _STDLIB_FILE,
     )
-    monkeypatch.setattr(resolve_module, "stdlib_rules", lambda: {r.name: r for r in library.rules})
+    patch_resolver(monkeypatch, "stdlib_rules", lambda: {r.name: r for r in library.rules})
     text = _game(_FOUR, tag="StdlibRule", uses=False, statement=f"active_rules: [ProbeRule]\n    {_ROUND}")
     rendered = _rendered(text)
     assert rendered is not None

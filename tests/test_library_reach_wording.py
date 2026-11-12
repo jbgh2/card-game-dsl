@@ -89,6 +89,7 @@ from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import KNOWN_TYPE_NAMES
+from tests.resolver_package import patch_resolver
 
 _LIB = "probelib"
 
@@ -323,8 +324,8 @@ def _five_hundred_with(
     library_text: str, edits: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     library = parse_library(library_text, _LIBRARY_FILE)
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     text = _FIVE_HUNDRED.read_text().replace("  players: 4", f"  uses {_LIB}\n  players: 4", 1)
     for old, new in edits.items():
         assert text.count(old) == 1, f"the probe's anchor {old!r} moved in five-hundred.cardlang"

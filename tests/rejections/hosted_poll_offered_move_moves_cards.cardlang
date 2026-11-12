@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hosted_polls`, over what the body can execute.
+// Guard: resolve/classified_checks.py's `_check_hosted_polls`, over what the body can execute.
 // The body's own text only offers a move, but the move's effect runs inside
 // the live trick, so a card movement there is refused as if written inline.
 game HostedPollOfferedMoveMovesCards {

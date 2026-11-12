@@ -8,7 +8,7 @@ field pair lives in one `CARD_FIELDS` registry rather than at two sites that
 can drift; `action.card.*` and the bare `actor` pronoun are typed from
 `ACTION_FIELDS` rather than left as `TAny` and silently `False`; and
 `rank_value` is gated on a declared `ranking:` by `RANKING_GATED_FUNCS`,
-mirroring resolve.py's `Rank`-move-param gate on the same condition.
+mirroring resolve's `Rank`-move-param gate on the same condition.
 
 Completeness ledger
 --------------------
@@ -26,7 +26,7 @@ domain:    every `ZoneDecl` (index role) x every operation that can consume
            rather than held to a stricter "index must be exactly Player-typed"
            rule — gops.md's asymmetric two-hand setup has no symbolic
            alternative and relies on the coercion.
-registry:  `ZoneDecl.index` over `game.zones` (resolve.py's `_KNOWN_ROLES =
+registry:  `ZoneDecl.index` over `game.zones` (resolve/zone_declarations.py's `_KNOWN_ROLES =
            {"player", "team"}` is the closed index-role domain); the
            ranking-gated call registries `RANKING_GATED_FUNCS`,
            `RANKING_GATED_WINNERS` and `RANKING_GATED_CLIMB_QUERIES`, in

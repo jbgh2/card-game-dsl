@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hidden_reads`, where a seat is deciding. A
+// Guard: resolve/hidden_reads.py's `_check_hidden_reads`, where a seat is deciding. A
 // chosen movement's source is the pool its chooser picks from, so the chooser
 // must see it; Old Maid's blind draw from another player's hand is refused
 // until a pick by position exists (issue #756).

@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hidden_reads`, where no seat is deciding. A
+// Guard: resolve/hidden_reads.py's `_check_hidden_reads`, where no seat is deciding. A
 // mode's `transition_to` trigger changes the rules for every later seat, so
 // every seat must be able to check it; this one reads seat 0's concealed
 // hand, where Hearts reads the card as it is played.

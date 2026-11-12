@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_read_tail`. A tail on a name the GAME declares:
+// Guard: resolve/primitive_declarations.py's `_check_read_tail`. A tail on a name the GAME declares:
 // meaningless rather than harmless, since a game-level declaration stands
 // wherever the game runs. Accepting it would be the accepted-but-ignored class
 // one slot over, so it is refused and told to drop the tail.

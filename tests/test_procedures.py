@@ -40,7 +40,7 @@ procedures", "Surface totality", "Closed-domain completeness").
                 so neither joins the class. The parameter domains are the same
                 shape of boundary: the accepted set grows one forcing game at a
                 time, and every domain outside it is a loud unsupported-domain
-                refusal (issue #134, cited at the guard in `resolve.py`).
+                refusal (issue #134, cited at the guard in `resolve/`).
 
     registry:   A. `cardlang.typecheck.KNOWN_TYPE_NAMES` and
                    `cardlang.typecheck.POSITIVE_PARAM_DOMAIN` vs

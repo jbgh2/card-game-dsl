@@ -75,6 +75,7 @@ from tests.bare_family_axes import (
     ExprRow,
     role_decl,
 )
+from tests.resolver_package import patch_resolver
 
 REPO = Path(__file__).resolve().parent.parent
 GAMES = REPO / "docs" / "games"
@@ -140,7 +141,7 @@ def diagnostics(text: str) -> list[str]:
 
 def _static_off(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove the check-time Owner Guards, leaving the runtime to answer."""
-    monkeypatch.setattr(resolve_mod, "_check_bare_family_refs", lambda *a, **k: None)
+    patch_resolver(monkeypatch, "_check_bare_family_refs", lambda *a, **k: None)
 
 
 def unguarded_play_failure(text: str) -> BaseException | None:
@@ -596,8 +597,8 @@ def test_procedure_body_bare_team_family_is_refused() -> None:
 def test_library_body_bare_team_family_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     """The refusal locates the library's own line: the library's author wrote it."""
     library = parse_library(_TEAM_LIBRARY, "teamlib")
-    monkeypatch.setattr(resolve_mod, "library_names", lambda: frozenset({"teamlib"}))
-    monkeypatch.setattr(resolve_mod, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({"teamlib"}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     text = TEMPLATE.format(
         decl=role_decl("team"), body="for each player p: as p { run stash() }", extra=""
     ).replace("  positions {", "  uses teamlib\n  positions {", 1)

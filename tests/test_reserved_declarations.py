@@ -15,7 +15,7 @@ run clean against the pre-fix resolver):
     2. `state { score[player] : Integer = 0  true : Boolean = false }` plus
        `let x = true` resolves clean, and the `let` value is a NameRef
        classified `ref_kind="bool"` — the literal — never `ref_kind=
-       "state_var"`. `_classify` (resolve.py) intercepts the bare spelling
+       "state_var"`. `_classify` (resolve/classifier.py) intercepts the bare spelling
        `true` before it ever reaches `cats.state_vars`: the declaration is
        unreachable by any bare reference, by construction.
 
@@ -37,7 +37,7 @@ general expression position: state variables (game-level and phase-local),
 zones, functions, function/move-type/rule parameters, `let` names and
 indexes, `for each` binders, and `each … simultaneously` binders.
 
-Registry: `RESERVED_VALUE_NAMES` itself (cardlang/resolve.py, next to
+Registry: `RESERVED_VALUE_NAMES` itself (cardlang/resolve/reserved.py, next to
 `_PRONOUNS`) and `_introduced_binders` (the one registry of which node kinds
 bind names, reused here via `_check_reserved_binders` rather than
 re-enumerated).
@@ -227,7 +227,7 @@ function f(state: Integer) = state
 
 def test_function_parameter_named_actor_action_winner_stays_legal() -> None:
     # The one exception to `RESERVED_VALUE_NAMES` (module docstring, and
-    # `_check_reserved_params`'s docstring in resolve.py): a function body is
+    # `_check_reserved_params`'s docstring in resolve/declarations.py): a function body is
     # already forbidden from READING `actor`/`action`/`winner` (the runtime
     # clears them before a hermetic call), so naming a parameter after one of
     # them is not a hijack — it is the prescribed fix for that hermeticity

@@ -107,6 +107,7 @@ from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.stdlib import zones as Z
 from tests.climb_asks import SETS_CATALOGUE
+from tests.resolver_package import patch_resolver
 from tools.decisions_index import spec_text
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -970,8 +971,8 @@ def test_every_route_a_read_takes_is_followed(
     uses = ""
     if library:
         lib = parse_library(_LIBRARY, "lib.cardlang")
-        monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"lib"}))
-        monkeypatch.setattr("cardlang.resolve.load_library", lambda name: lib)
+        patch_resolver(monkeypatch, "library_names", lambda: frozenset({"lib"}))
+        patch_resolver(monkeypatch, "load_library", lambda name: lib)
         uses = "uses lib\n"
     source = _game(body, defs, primitives=primitives).replace(
         "game Probe {", "game Probe {\n  " + uses, 1

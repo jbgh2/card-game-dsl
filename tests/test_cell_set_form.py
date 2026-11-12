@@ -73,9 +73,10 @@ domain:     {game shape} x {noun: GRID U's derived axis} (GRID U); {query
             (GRID R); the grammar rows.
 registry:   nouns: cardlang/board_domains.py::position_domains_of,
             DIRECTION_DOMAIN, BOARD_DOMAIN, LINE_NOUN;
-            cardlang/resolve.py::_categories, _RESERVED_WHY,
-            collection_nouns; positions:
-            cardlang/resolve.py::HIDDEN_READ_POSITIONS, pinned total by
+            cardlang/resolve/classifier.py::_categories,
+            cardlang/resolve/reserved.py::_RESERVED_WHY,
+            cardlang/resolve/classifier.py::collection_nouns; positions:
+            cardlang/resolve/hidden_reads.py::HIDDEN_READ_POSITIONS, pinned total by
             tests/test_hidden_reads.py::test_every_expression_position_is_bucketed;
             hosts: tests/test_direction_lift.py::HOSTS; query kinds:
             cardlang/ast/nodes.py::DOMAIN_QUERY_KINDS; the phrase table:
@@ -143,6 +144,7 @@ from tests.test_cell_queries import (
     board_game,
     card_game,
 )
+from tests.resolver_package import patch_resolver
 
 DIRECTION_REFUSAL = f"`{DIRECTION_DOMAIN}` is the board direction domain, not a position domain"
 SYNTAX_ERROR = "syntax error: unexpected `where`"
@@ -941,8 +943,8 @@ def test_a_library_naming_cells_is_refused_in_its_own_file(monkeypatch: pytest.M
     its own file, as its `number of cells where` is."""
     body = "function lib_set(p : Player) = cells where true"
     library = parse_library(f"library {_LIB} {{\n{body}\n}}\n", f"docs/libraries/{_LIB}.cardlang")
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(board_game().replace("  players: 2\n", f"  uses {_LIB}\n  players: 2\n", 1), "set.cardlang")
     first = exc.value.diagnostic.format()
@@ -1300,8 +1302,8 @@ def test_a_librarys_collection_form_over_a_game_domain_is_refused_in_its_file(
     library = parse_library(
         f"library {_LIB} {{\nfunction lib_f(p : Player) = {body}\n}}\n", f"docs/libraries/{_LIB}.cardlang"
     )
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(host.replace("  players:", f"  uses {_LIB}\n  players:", 1), "set.cardlang")
     first = exc.value.diagnostic.format()
@@ -1316,8 +1318,8 @@ def test_a_librarys_lines_collection_is_its_own_to_write(monkeypatch: pytest.Mon
         f"library {_LIB} {{\nfunction lib_f(p : Player) = number of lines in lines(3) where true\n}}\n",
         f"docs/libraries/{_LIB}.cardlang",
     )
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     check_dsl(board_game().replace("  players:", f"  uses {_LIB}\n  players:", 1), "set.cardlang")
 
 

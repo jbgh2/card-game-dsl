@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hosted_polls`. A Hosted Poll's body runs while
+// Guard: resolve/classified_checks.py's `_check_hosted_polls`. A Hosted Poll's body runs while
 // its climbing round is live, and a round's `state.` is published only once
 // the round has ended, so the body may not read it.
 game HostedPollStateRead {

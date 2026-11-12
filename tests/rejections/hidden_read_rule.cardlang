@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hidden_reads`, where a seat is deciding. A
+// Guard: resolve/hidden_reads.py's `_check_hidden_reads`, where a seat is deciding. A
 // rule's clauses decide what the acting seat may play, so the acting seat
 // must be able to check them; this one reads the next seat's concealed hand.
 game HiddenReadRule {

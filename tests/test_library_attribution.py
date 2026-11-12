@@ -61,6 +61,7 @@ from cardlang.parse import parse_library, parse_text
 from cardlang.typecheck import typecheck
 import tests.test_library_boundary_ledger as L
 import tests.test_library_declaration_gates as D
+from tests.resolver_package import pass_tree, patch_resolver
 
 _ROOT = Path(__file__).resolve().parent.parent
 _PACKAGE = _ROOT / "cardlang"
@@ -408,8 +409,8 @@ def _alone(
 
     sources = tuple((f"witness-{at}.cardlang", text) for at, text in enumerate(witnesses))
     with monkeypatch.context() as mp:
-        mp.setattr(R, "library_names", lambda: frozenset({L._LIB, other}))
-        mp.setattr(R, "load_library", load)
+        patch_resolver(mp, "library_names", lambda: frozenset({L._LIB, other}))
+        patch_resolver(mp, "load_library", load)
         mp.setattr(attribution, "witness_sources", lambda name: sources)
         try:
             check_capacity(expand(typecheck(R.resolve(parse_text(cell.game, L._GAME_FILE)))))
@@ -477,7 +478,7 @@ _USES_SPAN_READERS = frozenset({
 def _qualified_reads(attr: str) -> set[str]:
     found: set[str] = set()
     for module in (*_PASSES, "attribution"):
-        tree = ast.parse((_PACKAGE / f"{module}.py").read_text())
+        tree = pass_tree(module)
         for top in tree.body:
             for nd in ast.walk(top):
                 if isinstance(nd, ast.Attribute) and nd.attr == attr and isinstance(nd.ctx, ast.Load):
@@ -496,7 +497,7 @@ def test_no_check_moves_a_refusal_itself() -> None:
     helper tells one on the `uses` line.
 
     red under: restore `_UsesLineTeller`."""
-    tree = ast.parse((_PACKAGE / "resolve.py").read_text())
+    tree = pass_tree("resolve")
     names = {
         nd.name for nd in tree.body if isinstance(nd, (ast.ClassDef, ast.FunctionDef))
     }
@@ -513,7 +514,7 @@ def test_every_raise_after_the_splice_runs_the_step() -> None:
     red under: construct `DiagnosticError(bag.items[0])` in typecheck."""
     raising = set()
     for module in _PASSES:
-        tree = ast.parse((_PACKAGE / f"{module}.py").read_text())
+        tree = pass_tree(module)
         for nd in ast.walk(tree):
             if (
                 isinstance(nd, ast.Call)

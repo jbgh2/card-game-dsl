@@ -35,7 +35,7 @@ this suite first.
 ## Shape
 
 Transforms are pure `Game -> Game` functions over the *parsed* AST (the
-`dataclasses.replace` walk idiom of `cardlang/resolve.py` and
+`dataclasses.replace` walk idiom of `cardlang/resolve/` and
 `cardlang/expand.py`), applied before resolve; each variant then runs the
 ordinary pipeline once (parse → resolve → typecheck → expand →
 deck-capacity). Re-running the checkers on an already-checked tree is not an

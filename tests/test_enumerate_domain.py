@@ -1,7 +1,7 @@
 """`enumerate_domain` — the static (declaration-time) member enumerator of the
 quantifiable-domain registry — pinned against the gate that admits its inputs.
 
-`_FIXED_DOMAINS` (cardlang/resolve.py) is the static totality gate: it decides
+`_FIXED_DOMAINS` (cardlang/resolve/) is the static totality gate: it decides
 which move-parameter domain spellings reach a real game at all (a
 `_check_move_params` diagnostic rejects anything else before a game ever plays).
 `enumerate_domain` (cardlang/domains.py) is what actually enumerates each

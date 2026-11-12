@@ -95,7 +95,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 
 # The passes whose refusals of a spelling this module pins.
 _SCRAPED: tuple[str, ...] = (
-    "cardlang/resolve.py",
+    "cardlang/resolve",
     "cardlang/typecheck.py",
     "cardlang/catalogue_pass.py",
 )
@@ -119,13 +119,25 @@ def _template(expr: ast.expr) -> str:
     return "{}"
 
 
+def _scraped_files() -> list[tuple[str, Path]]:
+    """Each scraped module with the pass it belongs to: a package pass (the
+    resolve package) contributes every module under it, keyed by the pass."""
+    out: list[tuple[str, Path]] = []
+    for rel in _SCRAPED:
+        path = _ROOT / rel
+        files = sorted(path.glob("*.py")) if path.is_dir() else [path]
+        out.extend((Path(rel).stem, f) for f in files)
+    return out
+
+
 def _calls(method: str) -> list[tuple[str, str, int, str]]:
     """Every `<x>.<method>(sentence, ...)` call in `_SCRAPED`, as its key
     (module, innermost enclosing function, the sentence's template cut to 60
     characters), its module and line, and the whole template."""
     found: list[tuple[str, str, int, str]] = []
-    for rel in _SCRAPED:
-        tree = ast.parse((_ROOT / rel).read_text())
+    for stem, path in _scraped_files():
+        rel = path.relative_to(_ROOT).as_posix()
+        tree = ast.parse(path.read_text())
         owner: dict[int, str] = {}
         for fn in ast.walk(tree):
             if isinstance(fn, ast.FunctionDef | ast.AsyncFunctionDef):
@@ -139,7 +151,7 @@ def _calls(method: str) -> list[tuple[str, str, int, str]]:
                 and node.args
             ):
                 template = _template(node.args[0])
-                key = f"{Path(rel).stem}::{owner.get(id(node), '<module>')}::{template[:60]}"
+                key = f"{stem}::{owner.get(id(node), '<module>')}::{template[:60]}"
                 found.append((key, rel, node.lineno, template))
     return found
 

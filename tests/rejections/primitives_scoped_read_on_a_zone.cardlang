@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_read_tail`. A tail on a ZONE. Zones are
+// Guard: resolve/primitive_declarations.py's `_check_read_tail`. A tail on a ZONE. Zones are
 // game-level in this language — there is no phase-local `zones { }` form — so
 // the tail has nothing to denote, and the diagnostic says the game declares
 // the name itself rather than leaving the designer to guess.

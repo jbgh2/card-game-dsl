@@ -42,7 +42,7 @@ offset/signed `[lo, hi]` minting `hi - lo + 1` ids, and a width cap nobody has
 sized), plus the enumeration wiring in
 `enumerate_domain` / `param_domain` that `Suit`/`Rank`/`Player` already have and
 that a bounded-Integer parameter is currently rejected before reaching
-(`resolve.py`, `_check_move_params`).
+(`resolve/references.py`, `_check_move_params`).
 
 ## The options
 

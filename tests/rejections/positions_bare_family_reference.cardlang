@@ -1,4 +1,4 @@
-// Guard: resolve.py `_check_bare_family_refs`. A family named bare is the
+// Guard: resolve/classified_checks.py `_check_bare_family_refs`. A family named bare is the
 // acting player's own instance, and no player owns a position's zone, so a
 // position family named bare is refused with the subscript to write. The
 // runtime refusal in `evaluate._name` is the Shadow Guard.

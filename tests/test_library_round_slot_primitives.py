@@ -88,6 +88,7 @@ from cardlang.resolve import (
 )
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
+from tests.resolver_package import patch_resolver
 
 _LIB = "probelib"
 _LIBRARY_FILE = f"docs/libraries/{_LIB}.cardlang"
@@ -254,8 +255,8 @@ def _diagnostics(text: str, name: str) -> list[tuple[str | None, str]]:
 
 def _patch(monkeypatch: pytest.MonkeyPatch, library_text: str) -> None:
     library = parse_library(library_text, _LIBRARY_FILE)
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
 
 
 def _fills(slot: tuple[type, str], name: str) -> dict[str, str | None]:

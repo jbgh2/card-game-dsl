@@ -155,6 +155,7 @@ from cardlang.types import (
     TString,
     Type,
 )
+from tests.resolver_package import patch_resolver
 
 _LIB = "probe_lib"
 _LIB_FILE = f"docs/libraries/{_LIB}.cardlang"
@@ -511,8 +512,8 @@ def _check(
     statement = "run probe_fn()" if definition.startswith("procedure") else ""
     if through_library:
         library = parse_library(_library_text(probe), _LIB_FILE)
-        monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-        monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+        patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+        patch_resolver(monkeypatch, "load_library", lambda name: library)
         text = _game_text(clauses, uses=True, game_fn="", tag=tag, statement=statement)
     else:
         text = _game_text(clauses, uses=False, game_fn=definition, tag=tag, statement=statement)
@@ -806,8 +807,8 @@ def test_every_definition_kind_is_refused_on_the_uses_line(
         f"  {_KIND_TEMPLATES[field].format(pred=pred)}\n}}\n",
         _LIB_FILE,
     )
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     rounds = (
         "active_rules: [probe_rule]\n    "
         "round play_to_trick from 0 over all players source hand into pile "
@@ -838,8 +839,8 @@ def _library_alone_refusal(
     library_text: str, clauses: Clauses, tag: str, monkeypatch: pytest.MonkeyPatch
 ) -> str:
     library = parse_library(library_text, _LIB_FILE)
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     rendered = _rendered(_game_text(clauses, uses=True, game_fn="", tag=tag))
     assert rendered is not None
     return rendered
@@ -957,8 +958,8 @@ def _with_libraries(
         name: parse_library(text, f"docs/libraries/{name}.cardlang")
         for name, text in libraries.items()
     }
-    monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset(parsed))
-    monkeypatch.setattr(resolve_module, "load_library", lambda name: parsed[name])
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset(parsed))
+    patch_resolver(monkeypatch, "load_library", lambda name: parsed[name])
 
 
 _RANK_LIB = "library probe_lib { function probe_fn(c : Card) = rank_value(c) }"
@@ -1553,8 +1554,8 @@ def _check_node(
     _install_probe_board(monkeypatch)
     if through_library:
         library = parse_library(_node_library_text(member), _LIB_FILE)
-        monkeypatch.setattr(resolve_module, "library_names", lambda: frozenset({_LIB}))
-        monkeypatch.setattr(resolve_module, "load_library", lambda name: library)
+        patch_resolver(monkeypatch, "library_names", lambda: frozenset({_LIB}))
+        patch_resolver(monkeypatch, "load_library", lambda name: library)
     text = _node_game_text(member, game, through_library=through_library, tag=tag)
     return text, _rendered(text)
 
@@ -1691,7 +1692,10 @@ def test_each_node_gate_asks_its_rows_test(
     refused = _rendered(text)
     assert refused is not None and _GATE_REFUSALS[member.gate] in refused, refused
     for module, name, value in _homes(member.gate):
-        monkeypatch.setattr(module, name, value)
+        if module is resolve_module:
+            patch_resolver(monkeypatch, name, value)
+        else:
+            monkeypatch.setattr(module, name, value)
     emptied = _rendered(text.replace("game Home", "game Emptied", 1))
     assert emptied is None or _GATE_REFUSALS[member.gate] not in emptied, emptied
 

@@ -87,6 +87,7 @@ from cardlang.stdlib.moves import (
     RULE_ENFORCED_MOVE_TYPE,
     KernelMoveForm,
 )
+from tests.resolver_package import patch_resolver
 
 _LIBRARY = "docs/libraries/lib.cardlang"
 
@@ -196,8 +197,8 @@ class Game:
         if library_body:
             name = f"lib_{tag}"
             library = parse_library(f"library {name} {{ {' '.join(library_body)} }}", _LIBRARY)
-            monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({name}))
-            monkeypatch.setattr("cardlang.resolve.load_library", lambda _: library)
+            patch_resolver(monkeypatch, "library_names", lambda: frozenset({name}))
+            patch_resolver(monkeypatch, "load_library", lambda _: library)
             uses = f"uses {name}"
         activate = f"    active_rules: [{self.activate}]\n" if self.activate else ""
         return _HOST.format(

@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_rule_reaches_a_reader`, its unknown arm.
+// Guard: resolve/rule_instantiation.py's `_check_rule_reaches_a_reader`, its unknown arm.
 // `nonesuch_move` names no library move type and no move type the game or a
 // family library declares, so the rule's `constrains:` target is unknown.
 game ConstrainsUnknownMoveType {

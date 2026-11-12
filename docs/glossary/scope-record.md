@@ -4,7 +4,7 @@ definition: The resolver's record, kept only when a caller asks for it (`resolve
 layer: compiler
 status: canonical
 reserved: false
-home: `cardlang/resolve.py` (`NamesInScope`, `_record_scope`)
+home: `cardlang/resolve/classifier.py` (`NamesInScope`, `_record_scope`)
 see: [checker-query, type-record, resolve, ref-kind]
 retired_spellings: []
 findings: []

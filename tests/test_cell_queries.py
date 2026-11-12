@@ -11,7 +11,7 @@ read through. This is the rung-1 guard lift decisions.md "Position domains
 and positional zones" and "Boards and cells" describe; the grammar, resolve,
 typecheck, runtime, and stdlib surfaces are `cardlang/grammar/cardlang.lark`
 (`q_any_domain`/`q_all_domain`/`q_count_domain`/`q_any_in`/`q_all_in`),
-`cardlang/resolve.py` (`_check_domain_query`, `_check_board_call`),
+`cardlang/resolve/` (`_check_domain_query`, `_check_board_call`),
 `cardlang/typecheck.py` (`_domain_query_binder_type`), `cardlang/runtime/
 evaluate.py` (`_domain_query`), and `cardlang/builtins/{functions,signatures}.py`
 + `cardlang/runtime/builtins.py` (`lines`, `BOARD_ONLY_CALL_FUNCS`).
@@ -44,7 +44,7 @@ domain:     {bare, collection} x {kind: any, all, count, set (each query
             aggregation over a cell/line collection, `agg_query` staying
             fixed to `"cards" "in" zone_expr`, a syntax error where a
             designer meets it (issue #111).
-registry:   cardlang/resolve.py::collection_nouns (the collection forms'
+registry:   cardlang/resolve/classifier.py::collection_nouns (the collection forms'
             nouns: the game's position domains and
             cardlang/board_domains.py::LINE_NOUN), typed by
             cardlang/typecheck.py::_collection_member_type;

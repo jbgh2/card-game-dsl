@@ -640,7 +640,7 @@ def _scoped_state(
             f"the state variable {name!r}, declared `{name} in {phase}` in "
             f"{r.game_file}'s `primitives {{ }}` block, is not in the live "
             f"runtime state — phase `{phase}` is not running here, which "
-            f"resolve's containment check (cardlang/resolve.py, "
+            f"resolve's containment check (cardlang/resolve/primitive_declarations.py, "
             f"`_check_scoped_read_containment`) is the Owner Guard for"
         ) from None
 

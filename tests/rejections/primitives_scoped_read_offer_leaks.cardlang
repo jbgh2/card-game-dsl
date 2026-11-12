@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_scoped_read_containment`, the offering arm. The
+// Guard: resolve/primitive_declarations.py's `_check_scoped_read_containment`, the offering arm. The
 // maintenance hazard this diagnostic exists for: a move type calling a scoped
 // entry was offered only inside the declaring phase, and a later edit offered
 // it from somewhere else. The span is the offending OFFER, because that is

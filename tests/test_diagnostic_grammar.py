@@ -64,6 +64,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.resolve import ALWAYS_HOLDERS
 from tests.test_rejections import case_paths
 from tools.dead_surface import LIVE_TIERS, default_sources, refusing_methods, start_for
+from tests.resolver_package import patch_resolver
 
 
 
@@ -321,8 +322,8 @@ _LIBRARY_HOLDERS: dict[str, str] = {
 
 def _check_with_library(library_text: str, monkeypatch: pytest.MonkeyPatch) -> object:
     library = parse_module.parse_library(library_text, "docs/libraries/leaky.cardlang")
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset({"leaky"}))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({"leaky"}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     return check_dsl(_LIBRARY_HOST, "h.cardlang")
 
 

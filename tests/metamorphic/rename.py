@@ -9,7 +9,7 @@ state-variable case; there is nothing left over for a third category.
 
 Why a blind textual rename of every matching `NameRef` is sound here, pre-
 resolve, with no scope information available yet: `resolve._classify`
-(`cardlang/resolve.py`) resolves a bare name against ONE flat, ordered set of
+(`cardlang/resolve/`) resolves a bare name against ONE flat, ordered set of
 namespaces — locals, then state vars, then zones, then enum values, then
 pronouns, then native functions — and only ZONES and STATE VARIABLES are
 declared here (rule/move-type/procedure/function names live in
@@ -74,7 +74,7 @@ run.
 
 **`hand` is the magic name where a construct reads the zone by that spelling.**
 decisions.md "Declared parameter domains": a `Card`-typed move parameter
-enumerates "the acting player's live hand", and `resolve.py` requires a
+enumerates "the acting player's live hand", and `resolve/` requires a
 `hand[player]` zone for one (`_check_card_offering`), which the kernel's
 move-parameter enumerator (`runtime/mechanics.py::param_domain`) reads by that
 exact name; the Builtin `player_holding` reads it the same way

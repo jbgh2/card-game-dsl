@@ -1,4 +1,4 @@
-// Guard: resolve.py's integer-`choose` exclusion check (docs/decisions.md,
+// Guard: resolve's integer-`choose` exclusion check (docs/decisions.md,
 // "The integer `choose` domain"). The excluded value 7 lies outside the
 // values the choose can offer (0 .. 5), so the `excluding` clause could
 // never act — a clause that never acts is accepted-but-ignored wearing a

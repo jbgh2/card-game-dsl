@@ -1,4 +1,4 @@
-// Guard: resolve.py's integer-`choose` exclusion check (docs/decisions.md,
+// Guard: resolve's integer-`choose` exclusion check (docs/decisions.md,
 // "The integer `choose` domain", "No implicit actions"). The range holds one
 // value and the `excluding` clause names it, so the choice would always be
 // empty — refused statically rather than at the first playout.

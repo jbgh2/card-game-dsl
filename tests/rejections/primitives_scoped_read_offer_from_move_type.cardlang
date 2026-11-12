@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_scoped_read_containment`, the offering arm's
+// Guard: resolve/primitive_declarations.py's `_check_scoped_read_containment`, the offering arm's
 // wall. An offering site's POSITION is where the offer happens, not where its
 // text sits — and an offer made from inside another move type's body has none
 // this analysis derives, since it would be the offering move type's own, itself

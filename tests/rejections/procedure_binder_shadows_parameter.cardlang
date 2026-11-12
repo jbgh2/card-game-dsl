@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_procedures` binder-shadow check
+// Guard: resolve/classified_checks.py's `_check_procedures` binder-shadow check
 // (cardlang/expand.py's docstring: "the one hygiene guard that remains").
 // `bump`'s body binds a `let who` that shares its own parameter `who`'s
 // name — both classify as `local`, so substitution cannot tell them apart.

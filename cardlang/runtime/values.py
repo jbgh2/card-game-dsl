@@ -470,7 +470,7 @@ def expand_ranking_convention(convention: str, deck_name: str) -> tuple[str, ...
     """A convention's operative ranking for a deck: the template filtered to
     the deck's real ranks, order preserved. Total for every deck whose ranks
     are all French — the resolver's Owner Guard rejects the rest
-    (`resolve.py::_expand_ranking`) before this runs, so filtering can never
+    (`resolve/declarations.py::_expand_ranking`) before this runs, so filtering can never
     silently drop a deck rank."""
     members = set(deck_ranks(deck_name))
     return tuple(r for r in RANKING_CONVENTIONS[convention] if r in members)

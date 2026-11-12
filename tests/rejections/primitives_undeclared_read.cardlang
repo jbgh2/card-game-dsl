@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_primitive_reads`. A `primitives { }` entry's
+// Guard: resolve/primitive_declarations.py's `_check_primitive_reads`. A `primitives { }` entry's
 // `reads` clause names the game's own zones and state variables; `skat` is
 // neither here, so the declaration claims a coupling that does not exist.
 game PrimitivesUndeclaredRead {

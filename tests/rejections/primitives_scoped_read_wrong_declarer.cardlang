@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_read_tail`. The near miss: `outer` is a real
+// Guard: resolve/primitive_declarations.py's `_check_read_tail`. The near miss: `outer` is a real
 // phase of this game, and the variable is declared one phase over. The
 // diagnostic names the phase that DOES declare it rather than reporting an
 // unknown name.

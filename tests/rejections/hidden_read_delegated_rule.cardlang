@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_hidden_reads`, under Delegated Play. Seat 0
+// Guard: resolve/hidden_reads.py's `_check_hidden_reads`, under Delegated Play. Seat 0
 // plays seat 2's cards, so seat 0 decides seat 2's trick: a rule clause
 // reading `hand[actor]` reads a hand the chooser cannot see. The bare `hand`
 // reads the pool the chooser plays from.

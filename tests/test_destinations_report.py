@@ -181,9 +181,9 @@ def test_clean_witnesses_counts_only_the_games_that_check() -> None:
 
 
 def test_after_splice_sites_keeps_the_passes_and_drops_the_step() -> None:
-    sites = {"parse.py": 40, "resolve.py": 2, "attribution.py": 3, "deckcheck.py": 1, "cli.py": 1}
+    sites = {"parse.py": 40, "resolve/splice.py": 2, "attribution.py": 3, "deckcheck.py": 1, "cli.py": 1}
     assert d.after_splice_sites(sites, ("resolve", "typecheck", "expand", "deckcheck", "ir", "attribution")) == {
-        "resolve.py": 2,
+        "resolve/splice.py": 2,
         "deckcheck.py": 1,
     }
 

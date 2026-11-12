@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_read_tails_nest`. The phases an entry's `reads`
+// Guard: resolve/primitive_declarations.py's `_check_read_tails_nest`. The phases an entry's `reads`
 // clause names lie on ONE ancestor path, and the entry is callable only where
 // the innermost of them runs. `outer` and `later` are siblings: a phase's
 // frame is popped when the phase ends, so no position in this game runs both

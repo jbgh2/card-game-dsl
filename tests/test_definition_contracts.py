@@ -99,6 +99,7 @@ from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import KNOWN_TYPE_NAMES, POSITIVE_PARAM_DOMAIN, typecheck
 from tests.test_family_libraries import _reachable_reference_namespaces
 from tests.test_game_clause_guards import _clause_keyword
+from tests.resolver_package import patch_resolver
 
 _LIB_FILE = "docs/libraries/contractlib.cardlang"
 _GAME_FILE = "host.cardlang"
@@ -262,8 +263,8 @@ def _host(
 
 def _patch(monkeypatch: pytest.MonkeyPatch, *libraries: n.Library) -> None:
     table = {lib.name: lib for lib in libraries}
-    monkeypatch.setattr("cardlang.resolve.library_names", lambda: frozenset(table))
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: table[name])
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset(table))
+    patch_resolver(monkeypatch, "load_library", lambda name: table[name])
 
 
 def _check(text: str) -> n.Game:

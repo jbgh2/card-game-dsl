@@ -281,6 +281,7 @@ from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
 from cardlang.types import TCollection, TEnum, TInteger, TOptional, TPlayer, Type
+from tests.resolver_package import resolver_text
 
 # --- the probe game ----------------------------------------------------------
 #
@@ -1173,7 +1174,7 @@ def test_the_only_minted_position_domain_source_is_the_board() -> None:
     if a second minting site appeared."""
     import re
 
-    source = (ROOT_DIR / "cardlang" / "resolve.py").read_text()
+    source = resolver_text()
     minting = re.findall(r"replace\((?:game|result), positions=[^)]*\)", source)
     assert len(minting) == 1, (
         f"resolve mints into `game.positions` at {len(minting)} sites — the "
@@ -1952,7 +1953,7 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
     registry defines the class. The census below is the set every such site
     keys, read off the two passes that hold them:
 
-        grep -n '\\.func in \\|\\.func not in ' cardlang/resolve.py \\
+        grep -rn '\\.func in \\|\\.func not in ' cardlang/resolve/ \\
             cardlang/typecheck.py
 
     Sites keying a set of the GAME's own names (`fn_names`,

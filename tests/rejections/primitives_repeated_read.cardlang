@@ -1,4 +1,4 @@
-// Guard: resolve.py's `_check_primitive_reads`, the multiset arm. A `reads`
+// Guard: resolve/primitive_declarations.py's `_check_primitive_reads`, the multiset arm. A `reads`
 // clause is a SET: the row it becomes is keyed by name, and so is the per-call
 // key map, so naming one declaration twice is not additive — one entry wins
 // silently. This sentence is the sharpest member, because it PLAYS: without

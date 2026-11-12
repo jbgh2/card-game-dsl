@@ -65,6 +65,7 @@ from cardlang.parse import parse_library, parse_text
 from cardlang.pipeline import check_dsl
 
 import cardlang.resolve as _resolve_mod
+from tests.resolver_package import patch_resolver
 
 # --- the SLOT axis, derived from the reference-slot registry -----------------
 #
@@ -259,10 +260,8 @@ def _run_require_index(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
 }}""",
         "probe_lib.cardlang",
     )
-    monkeypatch.setattr(
-        "cardlang.resolve.library_names", lambda: frozenset({"probe_lib"})
-    )
-    monkeypatch.setattr("cardlang.resolve.load_library", lambda name: library)
+    patch_resolver(monkeypatch, "library_names", lambda: frozenset({"probe_lib"}))
+    patch_resolver(monkeypatch, "load_library", lambda name: library)
     base = _base_for(value)
     source = base(state="q[player] : Integer = 0", stmt="run bump()")
     source = source.replace("  zones {", "  uses probe_lib\n  zones {", 1)

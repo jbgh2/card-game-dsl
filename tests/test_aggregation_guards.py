@@ -125,7 +125,7 @@ def test_the_headline_misparse_is_rejected() -> None:
     # resolve-level fix, and this is the case that proves it: a misparsed
     # default that does NOT reference `card` — any Boolean expression valid
     # in the outer scope, e.g. a plain state var — resolves cleanly
-    # regardless of resolve.py's scoping and reaches typecheck unchallenged.
+    # regardless of resolve's scoping and reaches typecheck unchallenged.
     # This probe is pinned to the guard's own message, since nothing outside
     # this module can catch it.
     _rejects(
