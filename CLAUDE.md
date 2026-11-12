@@ -239,13 +239,22 @@ the leak-freeness pins the LLM harness advertises could go red while CI stayed
 green. Keep them a separate step rather than widening `testpaths`: both
 properties are wanted.
 
-Locally, run what the change can affect while CI runs concurrently; when
-quoting local evidence, run the checks as written. In particular:
+Locally, run what the change can affect while CI runs concurrently.
+**`python3 tools/check_change.py`** is how the checks the rules below name
+are selected and run: it reads the branch's diff against its merge base
+with `origin/main`, runs those checks unpiped through `tools/verify.sh`,
+and prints what it ran, why, and each run's own summary line (`--list`
+selects without running; `--full` is the gate in CI's form; its docstring
+holds the rest). Anything else the change can affect is still the
+author's to run. When quoting local evidence, run the checks as written.
+In particular:
 
-- Run **`mypy`** (bare), **never** `mypy cardlang` — the latter checks only the
-  package and silently skips strict-mode errors in `tests/` (missing annotations,
-  untyped helpers, bare `dict`), which then fail CI. Test code is held to the same
-  `--strict` bar as the front end.
+- Type-check the whole configured tree, as the script does
+  (`python -m mypy` under the checkout's interpreter), **never** `mypy
+  cardlang` — the latter checks only the package and silently skips
+  strict-mode errors in `tests/` (missing annotations, untyped helpers, bare
+  `dict`), which then fail CI. Test code is held to the same `--strict` bar
+  as the front end.
 - A green suite means the **full** selection, not a subset — the corpus harness
   and golden/characterization tests catch regressions a narrow run misses.
   `-n` does not change the selection or the evidence: pass/skip/xfail counts
@@ -270,27 +279,21 @@ quoting local evidence, run the checks as written. In particular:
   `tests/test_migration_characterization.py` is a sampling dial, sized to notice
   that something moved. That is the wrong instrument for the question a game
   change asks, which is whether anything moved that was not meant to, and a dial
-  green answers it only for the slice it swept:
-
-  ```bash
-  CARDLANG_GOLDEN_SEEDS=full pytest tests/test_migration_characterization.py -q
-  ```
-
-  Sampling stays the default, including in CI, where the dial is a regression
-  gate and the cost is charged every run. Full width is the working rule: any
-  change under `docs/games/` or `docs/libraries/` sweeps it before the change is
-  reported as green, and REGENERATES at the golden's own width — never at the
-  dial's, which writes a vector stale everywhere the dial did not look.
+  green answers it only for the slice it swept. Sampling stays the default,
+  including in CI, where the dial is a regression gate and the cost is
+  charged every run. Full width is the working rule: any change under
+  `docs/games/` or `docs/libraries/` sweeps it (`CARDLANG_GOLDEN_SEEDS=full`,
+  which the script sets) before the change is reported as green, and
+  REGENERATES at the golden's own width — never at the dial's, which writes a
+  vector stale everywhere the dial did not look.
 - **A change to a game's RULES also runs every test module that names the
   game.** The hand-authored tables that classify a game (its buckets, its
   pinned action-id lines, the state variables a test names) are keyed by the
   game's name, so no glob or census selects them, and they fire on a rules
   change exactly as on the game's arrival
-  (docs/maintaining.md, "The pins a new game joins"):
-
-  ```bash
-  git grep -ln "<game>" -- tests
-  ```
+  (docs/maintaining.md, "The pins a new game joins"). The script runs the
+  modules `git grep` finds for the game's name, and those tables whole, since
+  a table does not name a game it has yet to classify.
 - **Two PRs green alone can be red together.** PRs that touch one
   diagnostic, guard or census table each pass on their own base and fail
   once both land. The second to merge merges main forward and re-runs its

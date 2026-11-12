@@ -9,16 +9,24 @@
 # matching no row is reported unmapped and defaults to Merge Lane B (the
 # table's missing-class rule).
 #
-# Usage: lane-of.sh --range BASE..HEAD   |   lane-of.sh FILE...
+# Usage: lane-of.sh --range BASE..HEAD   |   lane-of.sh FILE...   |   lane-of.sh --rows
 # Output: one line per file (lane, matched classes or "unmapped->B"),
 # then "lane: X" and "agent-mergeable: yes|no" (yes iff X is C or D).
+# --rows prints the parsed table instead, one "LANE<TAB>GLOB<TAB>CLASS"
+# line per glob, for consumers that need the path classes themselves
+# (tools/check_change.py).
 set -euo pipefail
 
 HARNESS="$(cd "$(dirname "$0")/.." && pwd)/docs/harness.md"
 
+usage="usage: lane-of.sh --range BASE..HEAD | lane-of.sh FILE... | lane-of.sh --rows"
 files=()
-if [ "${1:-}" = "--range" ]; then
-  [ $# -eq 2 ] || { echo "usage: lane-of.sh --range BASE..HEAD | lane-of.sh FILE..." >&2; exit 2; }
+rows_only=0
+if [ "${1:-}" = "--rows" ]; then
+  [ $# -eq 1 ] || { echo "$usage" >&2; exit 2; }
+  rows_only=1
+elif [ "${1:-}" = "--range" ]; then
+  [ $# -eq 2 ] || { echo "$usage" >&2; exit 2; }
   # --no-renames: a rename must contribute BOTH paths (rename detection
   # collapses to the destination and would launder a stricter lane).
   # Capture before iterating: a failed diff must kill the run, not
@@ -26,10 +34,10 @@ if [ "${1:-}" = "--range" ]; then
   diff_raw=$(git diff --name-only --no-renames "$2")
   while IFS= read -r f; do [ -n "$f" ] && files+=("$f"); done <<<"$diff_raw"
 else
-  [ $# -ge 1 ] || { echo "usage: lane-of.sh --range BASE..HEAD | lane-of.sh FILE..." >&2; exit 2; }
+  [ $# -ge 1 ] || { echo "$usage" >&2; exit 2; }
   files=("$@")
 fi
-[ "${#files[@]}" -ge 1 ] || { echo "empty diff — nothing to classify" >&2; exit 2; }
+[ "$rows_only" -eq 1 ] || [ "${#files[@]}" -ge 1 ] || { echo "empty diff — nothing to classify" >&2; exit 2; }
 
 # Parse the lane table: emit "LANE<TAB>GLOB<TAB>CLASS" per glob.
 rows=$(awk -F'|' '
@@ -49,6 +57,7 @@ rows=$(awk -F'|' '
   t && !/^\|/ { t = 0 }
 ' "$HARNESS")
 [ -n "$rows" ] || { echo "no Paths rows parsed from $HARNESS — table moved?" >&2; exit 2; }
+if [ "$rows_only" -eq 1 ]; then printf '%s\n' "$rows"; exit 0; fi
 
 glob_to_re() {
   # ** crosses /, * does not; dots are literal.
