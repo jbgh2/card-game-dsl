@@ -67,11 +67,18 @@ def extract_blocks(markdown: str, source_name: str) -> list[FencedBlock]:
     return blocks
 
 
-def extract_single_block(markdown: str, source_name: str) -> FencedBlock:
+def extract_single_block(
+    markdown: str,
+    source_name: str,
+    *,
+    unfenced: str = "a game file must contain its DSL in one block",
+) -> FencedBlock:
     """Return the one fenced block, erroring if there is not exactly one.
 
     A game file is a single DSL unit; multiple or missing blocks are a
     structural problem the caller should surface loudly rather than guess at.
+    `unfenced` is what a file with no block is told to do, which the caller
+    says because it knows the game file shapes other than Markdown.
     """
     blocks = extract_blocks(markdown, source_name)
     if len(blocks) == 1:
@@ -79,7 +86,7 @@ def extract_single_block(markdown: str, source_name: str) -> FencedBlock:
 
     span = Span(source_name, 0, 0, 1, 1)
     if not blocks:
-        message = "no fenced code block found; a game file must contain its DSL in one block"
+        message = f"no fenced code block found; {unfenced}"
     else:
         message = (
             f"expected exactly one fenced code block, found {len(blocks)}; "
