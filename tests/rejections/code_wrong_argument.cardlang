@@ -1,0 +1,19 @@
+
+game G {
+  players: 4
+  max_length: 2000
+  cards: standard52
+  ranking: aces high
+  
+  
+  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile  won[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0  leader : Player = 0 }
+  phase play {
+    let w = highest_trump_or_led_suit(5, hearts)
+    score[w] += 1
+    score[0] += 1
+  }
+  winner: highest score
+}
+
+

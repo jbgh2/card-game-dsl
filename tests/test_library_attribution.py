@@ -53,6 +53,7 @@ import pytest
 
 import cardlang.attribution as attribution
 import cardlang.resolve as R
+from cardlang.diagnostic_codes import Code
 from cardlang.deckcheck import check_capacity
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Route, Span
 from cardlang.expand import expand
@@ -227,13 +228,14 @@ def _emitted_routes(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[st
         message: str,
         span: Span | None = None,
         *,
+        code: Code,
         route: Route | None = None,
         for_game: str | None = None,
         stands_on: Span | None = None,
     ) -> None:
         if route is not None:
             kinds.add(route.kind)
-        original(self, message, span, route=route, for_game=for_game, stands_on=stands_on)
+        original(self, message, span, code=code, route=route, for_game=for_game, stands_on=stands_on)
 
     monkeypatch.setattr(DiagnosticBag, "error", spy)
     L._cell_bag(monkeypatch, cell)
@@ -342,13 +344,14 @@ def _routed_lines(monkeypatch: pytest.MonkeyPatch, cell: L.Crossing) -> set[int]
         message: str,
         span: Span | None = None,
         *,
+        code: Code,
         route: Route | None = None,
         for_game: str | None = None,
         stands_on: Span | None = None,
     ) -> None:
         if route is not None and span is not None and span.source_name == L._LIB_FILE:
             lines.add(span.line)
-        original(self, message, span, route=route, for_game=for_game, stands_on=stands_on)
+        original(self, message, span, code=code, route=route, for_game=for_game, stands_on=stands_on)
 
     with monkeypatch.context() as mp:
         mp.setattr(DiagnosticBag, "error", spy)

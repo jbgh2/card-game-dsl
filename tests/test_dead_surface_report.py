@@ -61,7 +61,7 @@ import re
 
 import pytest
 
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import Author, DiagnosticError
 from cardlang.parse import _Builder, _parser, _transform, parse_to_tree
 from tools import dead_surface as ds
 
@@ -268,7 +268,7 @@ def test_every_node_an_accepted_tree_carries_is_on_the_axis() -> None:
         try:
             tree = parse_to_tree(source.text, source.name, start=source.start)
             names = {str(sub.data) for sub in tree.iter_subtrees()}
-            _transform(_Builder(source.name, 0), tree)
+            _transform(_Builder(source.name, 0, author=Author.LIBRARY), tree)
         except DiagnosticError:
             continue
         for name in names - axis:

@@ -3,23 +3,40 @@
     cardlang docs/games/hearts.cardlang                       # check only; silent on success
     cardlang docs/games/hearts.cardlang --emit-ir             # check, then print the IR JSON
     cardlang check docs/games/hearts.cardlang                 # the same check, named
+    cardlang check docs/games/hearts.cardlang --json          # its refusals as one Record Envelope
     cardlang play docs/games/hearts.cardlang --vs all=random  # take a seat and play it
     cardlang demo docs/games/hearts.cardlang                  # one uniform-random self-play
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
 spellings reach one parser rather than two code paths that can disagree about
-what `--emit-ir` means.
+what `--emit-ir` means. A first word that names something on disk is that
+file, whatever it resembles, unless it begins with a dash: that word reads as
+a command-line option, and is refused with the spelling that names the file.
+One that names nothing on disk, and either nearly spells a command or has
+another word after it, stands where a command goes, and is refused as neither
+a command nor a file, naming the commands and offering the ones it nearly
+spells.
+
+Every refusal of the line's words is told by `_refuse`, which knows the line
+as typed: it speaks as the command typed, or as `cardlang` when none was,
+and says that a line naming no command is read as `check`. A word that is
+no command-line option of the command is named as typed, with the commands
+it is an option of, or the command's own options it nearly spells; a word after the
+file is named as one too many, or, when it is a command, with the order
+that would work. argparse's own refusals of a value keep argparse's words.
 
 This module owns one defect class — the values a caller supplies, which no
-earlier layer sees: the path argument, the seats `--info-state`, `--view` and
-`--seat` name, the files `--save` and `--resume` name, and the opponents `--vs`
+earlier layer sees: the command word, the path argument, the seats
+`--info-state`, `--view` and `--seat` name, the files `--save` and `--resume` name, and the opponents `--vs`
 seats (read and seated by `cardlang.play.opponents`). Everything else it
 RENDERS rather than decides. The compile stages' [[failure-channel]] and the
 runtime's are both already typed, and each
 failure reaches the [[author]] who can act on it (`cardlang/runtime/errors.py`,
 Contract): a `GameDescriptionError` the game author, an `InstallationError`
 whoever installed this checkout. It never discriminates the `GameDescriptionError`
-subtypes; which ROLE of guard fired is the suite's question, not a caller's.
+subtypes; which ROLE of guard fired is the suite's question, not a caller's,
+and the Told Diagnostic it renders a refusal through names the Author the role
+implies (`cardlang.records.refusal_diagnostic`).
 
 `IllegalMove` is rendered beside them and means something else, which the
 message says: the game's own `error(...)` refused, no player was offered the
@@ -44,8 +61,15 @@ it, which the sizing rule says it does not; 2 when the
 invocation cannot be carried out — an unreadable path, a seat the game does
 not seat, opponents that do not seat every other seat once, a saved game that
 cannot be resumed or saved, a game whose decisions the action space cannot
-number, a broken checkout, an argparse usage error.
+number, a broken checkout, a refusal of the line's words. That last is told
+by `_refuse` and leaves through argparse's own exit, `SystemExit`, as
+argparse's usage errors do.
 The two are split by who must act, not by how badly it went.
+
+`check --json` prints one Record Envelope (`cardlang.records`) on stdout in
+place of the text, whatever the outcome, with the same exit code; every
+refusal it records is a Told Diagnostic, the command line's own (an
+unreadable path) told to whoever ran the command.
 """
 
 from __future__ import annotations
@@ -53,16 +77,27 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import shlex
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NoReturn, assert_never
+from typing import Any, NoReturn, assert_never, cast
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity
+from cardlang.diagnostics import (
+    Author,
+    Diagnostic,
+    DiagnosticError,
+    Severity,
+    Told,
+    listed,
+    near_misses,
+)
 from cardlang.openspiel.infostate import derive, render_information_state
 from cardlang.openspiel.replay import HistoryMismatch, load, returns_for
-from cardlang.pipeline import check_source, compile_path, game_identity
+from cardlang.pipeline import check_source, compile_path, extensions_read, game_identity
 from cardlang.play.opponents import (
     ALL,
     EXAMPLE,
@@ -87,17 +122,29 @@ from cardlang.play.session import (
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import EndedBy, GameResult, play_game, stop_result_words
-from cardlang.runtime.errors import GameDescriptionError, InstallationError, Located
+from cardlang.records import RUNTIME_REFUSALS, RuntimeRefusal, envelope, refusal_diagnostic
+from cardlang.runtime.errors import GameDescriptionError, InstallationError
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
 
 
 def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+    # One JSON document on stdout: the IR, or the Record Envelope, never both.
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument(
         "--emit-ir",
         action="store_true",
         help="print the validated IR as JSON on success",
+    )
+    output.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "print every refusal as a Diagnostic Record, in one JSON document on "
+            "stdout (an empty list when the game checks clean); a command line "
+            "that cannot be read is still refused as text"
+        ),
     )
 
 
@@ -150,6 +197,32 @@ def _file(value: str) -> str:
     if not value:
         _usage("an empty name names no file")
     return value
+
+
+class _Refused(Exception):
+    """argparse refusing the line, raised in place of its own exit so that
+    `main` tells the refusal knowing the line as typed."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
+class _Parser(argparse.ArgumentParser):
+    """An argparse parser whose refusals reach `main` rather than the exit.
+
+    `commands` holds each command's own parser, on the top parser only."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.commands: dict[str, _Parser] = {}
+
+    def error(self, message: str) -> NoReturn:
+        raise _Refused(message)
+
+    def options(self) -> tuple[str, ...]:
+        """Every command-line option this parser declares."""
+        return tuple(o for action in self._actions for o in action.option_strings)
 
 
 def _item(value: str) -> Item:
@@ -223,85 +296,299 @@ _COMMAND_TABLE: dict[str, tuple[str, Callable[[argparse.ArgumentParser], None]]]
 
 COMMANDS: tuple[str, ...] = tuple(_COMMAND_TABLE)
 
+# The command a line naming none is read as.
+_BARE = "check"
+_READ_AS_BARE = f"no command is named, so the line is read as {_BARE}"
+
 _EXIT_OK = 0
 _EXIT_GAME_AT_FAULT = 1
 _EXIT_CANNOT_PROCEED = 2
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser() -> _Parser:
     """The parser for every accepted invocation.
 
     Public because the surface grid derives its axes from it rather than from
     a second list that could drift out of step with the parser it describes.
     """
-    parser = argparse.ArgumentParser(
+    parser = _Parser(
         prog="cardlang",
         description="Check a card-game description, or play one through.",
     )
     # No `metavar`: argparse then spells the choices into every usage line it
     # prints, so a refusal that shows usage — a command in the wrong slot, a
     # command omitted — names what is valid without the message saying so.
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
 
     for name, (help_text, add_arguments) in _COMMAND_TABLE.items():
         command = commands.add_parser(name, help=help_text)
-        command.add_argument(
-            "file", help="game file (.cardlang raw DSL, or .md with a fenced DSL block)"
+        file = command.add_argument(
+            "file", type=_file, help=f"game file, its name ending in {extensions_read()}"
         )
+        # The usage shows `file` as required, and `main` refuses a line
+        # naming none, once argparse has set the line's other words aside,
+        # so that refusal can name a word that is no command-line option of
+        # the command.
+        file.required = False
         add_arguments(command)
+        parser.commands[name] = command
     return parser
 
 
-def _normalize(argv: list[str]) -> list[str]:
-    """`cardlang <file>` reads as `cardlang check <file>`.
+@dataclass(frozen=True)
+class _Line:
+    """The line the parser reads, and whether `check` was put at its head."""
 
-    Only a first token that could not be a command is rewritten, so `-h` still
-    reaches the top parser and an explicit command passes through untouched.
+    argv: list[str]
+    implicit: bool
+
+    @property
+    def typed(self) -> str | None:
+        """The command the line names, as typed; None when it names none."""
+        if self.implicit or not self.argv or self.argv[0] not in COMMANDS:
+            return None
+        return self.argv[0]
+
+    def subject(self) -> str:
+        """The command whose words the line is, as a refusal names it."""
+        return f"{_READ_AS_BARE}, which" if self.implicit else self.argv[0]
+
+
+def _normalize(argv: list[str]) -> _Line | Diagnostic:
+    """`cardlang <file>` reads as `cardlang check <file>`, or the first word
+    is refused as a command that does not exist.
+
+    `-h` reaches the top parser and an explicit command passes through
+    untouched. Any other first word is read as the file when it names
+    something on disk, or is empty (which `_file` refuses as naming no file),
+    or begins with a dash (which argparse reads as a command-line option,
+    refused by `_set_aside`), or nearly spells no command and has only
+    command-line options after it; otherwise it stands where a command goes.
     """
     if not argv or argv[0] in COMMANDS or argv[0] in ("-h", "--help"):
-        return argv
-    return ["check", *argv]
+        return _Line(argv, implicit=False)
+    word, rest = argv[0], argv[1:]
+    near = near_misses(word, COMMANDS)
+    if (
+        not word
+        or Path(word).exists()
+        or word.startswith("-")
+        or (not near and all(w.startswith("-") for w in rest))
+    ):
+        return _Line([_BARE, *argv], implicit=True)
+    return Diagnostic(
+        Severity.ERROR,
+        f"{word} is not a command, and no file has that name; "
+        f"the commands are: {', '.join(COMMANDS)}",
+        near_misses=near,
+        code=Code.UNKNOWN_COMMAND,
+    )
 
 
-def _unreadable(path: Path) -> str | None:
-    """Why the front end cannot read `path`, or None when it can.
+def _takes(argv: list[str]) -> bool:
+    """Whether the parser takes every word of `argv`: no word refused, none
+    set aside. A line naming no file still takes its words."""
+    try:
+        _args, aside = build_parser().parse_known_args(argv)
+    except _Refused:
+        return False
+    return not aside
 
-    The Owner Guard for the path argument, and it covers that argument's whole
+
+def _refuse(parser: _Parser, line: _Line | None, refusal: Diagnostic) -> NoReturn:
+    """Tell a refusal of the line's words in argparse's shape for a usage
+    error: the usage line, then the refusal under the voice of the command
+    typed, or of `cardlang` when none was."""
+    typed = None if line is None else line.typed
+    voice = parser if typed is None else parser.commands[typed]
+    voice.print_usage(sys.stderr)
+    voice.exit(_EXIT_CANNOT_PROCEED, f"{voice.prog}: {refusal.format()}\n")
+
+
+def _set_aside(parser: _Parser, line: _Line, aside: list[str]) -> Diagnostic:
+    """The refusal of the words the command's parser set aside: a command
+    after the file, a file whose name reads as a command-line option, one
+    the command has no command-line option for, or a word after the file.
+
+    A line or a command it offers is one `_takes` every word of the line
+    typed. Where none does, it offers nothing: it tells what a command that
+    declares every command-line option of the line refuses in it, or, when
+    no command declares them all, the commands each is an option of."""
+    command = line.argv[0]
+    here = parser.commands[command]
+    subject = line.subject()
+    words = line.argv[1:]
+
+    def option_shaped(word: str) -> bool:
+        return word.startswith("-") and len(word) > 1 and not here._negative_number_matcher.match(word)
+
+    def owners(name: str) -> tuple[str, ...]:
+        return tuple(c for c in COMMANDS if name in parser.commands[c].options())
+
+    names = list(dict.fromkeys(w.split("=", 1)[0] for w in words if option_shaped(w)))
+    # The commands that declare every command-line option the line names.
+    declarers = [c for c in COMMANDS if all(n in parser.commands[c].options() for n in names)]
+
+    def apart() -> str:
+        return "; ".join(
+            f"{name} is an option of {listed(owners(name), 'and') if owners(name) else 'no command'}"
+            for name in names
+        )
+
+    def why(other: str) -> str:
+        """What `other`, which declares every option of the line, refuses
+        in the line put under it."""
+        try:
+            _args, left = build_parser().parse_known_args([other, *words])
+        except _Refused as refused:
+            return refused.message
+        return _set_aside(parser, _Line([other, *words], implicit=False), left).message
+
+    moved = next((w for w in aside if line.implicit and w in COMMANDS), None)
+    if moved is not None:
+        rest = list(words)
+        rest.remove(moved)
+        if _takes([moved, *rest]):
+            return Diagnostic(
+                Severity.ERROR,
+                f"{moved} comes after the file, and a command goes first: "
+                f"{shlex.join(['cardlang', moved, *rest])}",
+                code=Code.COMMAND_GOES_FIRST,
+            )
+        if moved in declarers:
+            return Diagnostic(
+                Severity.ERROR,
+                f"{moved} comes after the file, and a command goes first, but {moved} "
+                f"refuses this line too: {why(moved)}",
+                code=Code.COMMAND_GOES_FIRST,
+            )
+        return Diagnostic(
+            Severity.ERROR,
+            f"{moved} comes after the file, and a command goes first, but {moved} "
+            f"does not take every word of this line: {apart()}",
+            code=Code.COMMAND_GOES_FIRST,
+        )
+    word = aside[0]
+    if option_shaped(word) and Path(word).exists():
+        return Diagnostic(
+            Severity.ERROR,
+            f"{word} begins with a dash, so it reads as a command-line option, not as the "
+            f"file of that name; spell the file {path_word(word)}",
+            code=Code.FILE_NAME_READS_AS_OPTION,
+        )
+    if option_shaped(word):
+        name = word.split("=", 1)[0]
+        belongs = owners(name)
+        if belongs:
+            takers = [c for c in belongs if _takes([c, *words])]
+            if not takers and declarers:
+                return Diagnostic(
+                    Severity.ERROR,
+                    f"{subject} takes no {name}; {name} is an option of {listed(belongs, 'and')}, "
+                    f"and {declarers[0]} refuses this line too: {why(declarers[0])}",
+                    code=Code.OPTION_OF_ANOTHER_COMMAND,
+                )
+            if not takers:
+                return Diagnostic(
+                    Severity.ERROR,
+                    f"{subject} takes no {name}; no command takes every word of this line: {apart()}",
+                    code=Code.OPTION_OF_ANOTHER_COMMAND,
+                )
+            where = "first" if line.implicit else f"in place of {command}"
+            return Diagnostic(
+                Severity.ERROR,
+                f"{subject} takes no {name}; {name} is an option of {listed(belongs, 'and')}, "
+                f"so name {listed(takers)} {where}",
+                code=Code.OPTION_OF_ANOTHER_COMMAND,
+            )
+        # The measure offers `--version` the command-line option
+        # `--decisions`, and `-v` the command-line option `--vs` (issue #1098).
+        near = near_misses(name, here.options())
+        hint = (
+            "cardlang -h lists the commands, and cardlang <command> -h the options each takes"
+            if line.implicit
+            else f"cardlang {command} -h lists the options it takes"
+        )
+        return Diagnostic(
+            Severity.ERROR,
+            f"{subject} takes no {name}" + ("" if near else f"; {hint}"),
+            near_misses=near,
+            code=Code.UNKNOWN_OPTION,
+        )
+    return Diagnostic(
+        Severity.ERROR,
+        f"{subject} reads one game file and no other word, so {word} is one too many",
+        code=Code.EXTRA_WORD,
+    )
+
+
+def _unreadable(word: str) -> str | None:
+    """Why the front end cannot read the file `word` names, or None when it
+    can; the refusal names the file as typed.
+
+    The Owner Guard for a path the line names, and it covers that argument's
     failure class rather than its commonest member: a name that is nothing, a
     name that is a directory, and a file the process cannot decode as text all
     reach `pipeline.check_source`'s unguarded `read_text` otherwise, where they
     surface as a traceback addressed to nobody. The probe read is what makes
-    the last two answerable here instead of there.
+    the last two answerable here instead of there. An empty name is `_file`'s
+    to refuse and a line naming no file is `main`'s, both as usage errors.
+    An `OSError` that `Path.exists` itself raises, a directory that cannot
+    be listed or a name too long, escapes as a traceback (issue #1097). The
+    refusals past this one name the file as `Path` spells it (issue #1099).
 
     Its result is discarded and the file is read a second time by the pipeline,
     deliberately: threading the text through `check_source` would change a
     pipeline signature — and the extension dispatch that reads it — for one
     caller's convenience, at a cost no game file's size makes worth paying.
     """
+    path = Path(word)
     if not path.exists():
-        return f"cannot read {path}: no such file"
+        return f"cannot read {word}: no such file"
     if not path.is_file():
-        return f"cannot read {path}: not a file"
+        return f"cannot read {word}: not a file"
     try:
         path.read_text()
     except OSError as exc:
-        return f"cannot read {path}: {exc.strerror or exc}"
+        return f"cannot read {word}: {exc.strerror or exc}"
     except UnicodeDecodeError:
-        return f"cannot read {path}: not text this front end can decode"
+        return f"cannot read {word}: not text this front end can decode"
     return None
 
 
 def main(argv: list[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
-    args = build_parser().parse_args(_normalize(raw))
-    implicit = bool(raw) and raw[0] not in COMMANDS and raw[0] not in ("-h", "--help")
+    parser = build_parser()
+    line = _normalize(raw)
+    if isinstance(line, Diagnostic):
+        _refuse(parser, None, line)
+    try:
+        args, aside = parser.parse_known_args(line.argv)
+    except _Refused as refused:
+        told = f"{_READ_AS_BARE}: {refused.message}" if line.implicit else refused.message
+        _refuse(parser, line, Diagnostic(Severity.ERROR, told, code=Code.COMMAND_LINE_USAGE))
+    if aside:
+        _refuse(parser, line, _set_aside(parser, line, aside))
+    if args.file is None:
+        _refuse(
+            parser,
+            line,
+            Diagnostic(
+                Severity.ERROR,
+                f"{line.subject()} needs a game file, its name ending in {extensions_read()}",
+                code=Code.MISSING_GAME_FILE,
+            ),
+        )
+    implicit = line.implicit
 
     path = Path(args.file)
-    refusal = _unreadable(path)
+    refusal = _unreadable(args.file)
+    if args.command == "check" and args.json:
+        return _check_json(path, refusal)
     if refusal is not None:
         print(f"cardlang: {refusal}", file=sys.stderr)
         if implicit:
-            # The token stood where a command may also stand, so the refusal
+            # The token stands where a command may also stand, so the refusal
             # answers both readings rather than picking one.
             print(
                 f"cardlang: if you meant a command, they are: {', '.join(COMMANDS)}",
@@ -355,7 +642,7 @@ def main(argv: list[str] | None = None) -> int:
         return _EXIT_CANNOT_PROCEED
 
 
-def _print_refusal(exc: Located) -> None:
+def _print_refusal(exc: GameDescriptionError | IllegalMove) -> None:
     """A refusal, at the sentence that refused.
 
     Rendered through the checker's own `Diagnostic`, so the two halves of the
@@ -368,13 +655,52 @@ def _print_refusal(exc: Located) -> None:
     if exc.span is None:
         print(f"  {exc}", file=sys.stderr)
     else:
-        print(Diagnostic(Severity.ERROR, str(exc), exc.span).format(), file=sys.stderr)
+        print(refusal_diagnostic(exc).diagnostic.format(), file=sys.stderr)
     where = [w for w in (
         None if exc.phase is None else f"in phase {exc.phase}",
         None if exc.zone is None else f"moving from {exc.zone}",
     ) if w is not None]
     if where:
         print(f"  {', '.join(where)}", file=sys.stderr)
+
+
+def _check_json(path: Path, unreadable: str | None) -> int:
+    """`check --json`: one Record Envelope on stdout, whatever the outcome,
+    and the exit code the text output would give."""
+    told: tuple[Told, ...] = ()
+    exit_code = _EXIT_OK
+    if unreadable is not None:
+        told = (
+            Told(
+                Diagnostic(Severity.ERROR, unreadable, code=Code.UNREADABLE_FILE),
+                Author.INVOCATION,
+            ),
+        )
+        exit_code = _EXIT_CANNOT_PROCEED
+    else:
+        try:
+            check_source(path)
+        except DiagnosticError as exc:
+            told, exit_code = exc.told, _EXIT_GAME_AT_FAULT
+        except RUNTIME_REFUSALS as exc:
+            refused = refusal_diagnostic(cast(RuntimeRefusal, exc))
+            told = (refused,)
+            exit_code = (
+                _EXIT_CANNOT_PROCEED
+                if refused.author in (Author.INSTALLATION, Author.REGISTRATION)
+                else _EXIT_GAME_AT_FAULT
+            )
+        except Exception as exc:
+            # An engine failure outside the typed channels: the envelope says
+            # so, and the traceback and exit status stay the text output's
+            # (issue #1104).
+            crashed = Diagnostic(
+                Severity.ERROR, str(exc) or type(exc).__name__, code=Code.ENGINE_GAP
+            )
+            print(json.dumps(envelope((Told(crashed, Author.ENGINE),)), indent=2))
+            raise
+    print(json.dumps(envelope(told), indent=2))
+    return exit_code
 
 
 def _check(path: Path, emit_ir: bool) -> int:

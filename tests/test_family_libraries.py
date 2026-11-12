@@ -215,7 +215,7 @@ from cardlang.ast import nodes as n
 from cardlang.attribution import is_library_warning
 from cardlang.board_domains import BOARD_DOMAIN, LINE_NOUN
 from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, line_kind
+from cardlang.diagnostics import Author, DiagnosticBag, DiagnosticError, line_kind
 from cardlang.domains import DOMAINS, SIMULTANEOUS_ROLES, Role, role_names
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import (
@@ -534,7 +534,7 @@ def test_an_unhandled_library_item_is_loud() -> None:
     # author-facing channel and this is not. `game()`'s arm surfaces the same
     # way, which is what "the equivalent arm" means here.
     with pytest.raises(VisitError) as exc:
-        _transform(_Builder("L.cardlang", 0), tree)
+        _transform(_Builder("L.cardlang", 0, author=Author.LIBRARY), tree)
     assert isinstance(exc.value.orig_exc, AssertionError)
     assert "unexpected library item" in str(exc.value.orig_exc)
 
@@ -1390,10 +1390,14 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # subset of `enums` (where a bare label resolves), read for one
     # refusal's wording. `bound_names` is every name the game binds, read
     # by the membership-capture check at a collection set to know a capture
-    # may be there; no reference resolves against it.
+    # may be there; no reference resolves against it. `zone_index` and
+    # `positions` are what a Near Miss's position admits, read to narrow an
+    # offer, never to resolve a name; `refused_binders` and `withheld` are
+    # the binders a refused spelling's fix would bind, read to withhold a
+    # consequence, and resolve nothing.
     game_fed = {f.name for f in fields(_Categories)} - {
         "locals", "functions", "flavor", "definitions", "rule_clause", "shapes",
-        "bound_names",
+        "bound_names", "zone_index", "positions", "refused_binders", "withheld",
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():

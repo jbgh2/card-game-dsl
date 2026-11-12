@@ -493,6 +493,31 @@ records, gzipped as the transcripts are, the audit text scored from them, and
 `gap_posterior`'s own log, which is where a dropped or unconverged window is
 on the record.
 
+## The authoring benchmark: a model writing a game
+
+Every study above measures a model *playing* a corpus game. The authoring
+benchmark (issue #1053, epic #1043) measures a model *writing* one: given a
+game's rules text and `docs/authoring.md` with a fixed set of reference files,
+the model drafts a `.cardlang` file, `cardlang check` answers, the checker's
+words go back verbatim, and the loop runs to green, a give-up or the round
+limit. It records whether the first draft checks green, how many fix rounds
+green took, every refusal the model's next edit left standing at an unchanged
+line, and whether the green file is the real game. Its design, definitions and
+the first run's games and models are
+[`PREREGISTRATION_AUTHORING.md`](PREREGISTRATION_AUTHORING.md); its config is
+`config_authoring.yaml`, its output tree `results_authoring/`. It shares the
+providers, the budget and the spend log with the playing rigs.
+
+```bash
+# Each game's rules text, saved by the operator from its source URL into one
+# directory, as the config's `rules_file` names it. Nothing from the source is
+# kept in the repo.
+python -m experiments.llm_eval.author_run --rules-dir RULES --dry-run   # no model call
+python -m experiments.llm_eval.author_run --rules-dir RULES --smoke     # one call per model
+python -m experiments.llm_eval.author_run --rules-dir RULES
+python -m experiments.llm_eval.author_report experiments/llm_eval/results_authoring/runs/<stamp>
+```
+
 ## Adding an experiment
 
 Add a matchup to `config.yaml`. To vary the response format, add a `ResponseArm`
@@ -567,6 +592,18 @@ Hold'em's half:
 holdem.py      Rules text, information-state parser, a coarse hand read, the
                tight-aggressive baseline, per-decision facts and aggregation
 config_holdem.yaml   Matchups, N, seeds, models, token caps
+```
+
+The authoring benchmark's:
+
+```
+author_run.py     CLI, held-out sets, the draft-check loop, provenance
+author_prompt.py  The prompt (pure, cache-shaped) and the reading of a reply
+author_check.py   `cardlang check` as a subprocess, read into typed refusals
+author_facts.py   The real-game check: playout facts and the differential
+author_report.py  The table and the refusals a model could not act on
+config_authoring.yaml        Games, references, round limit, models, caps
+PREREGISTRATION_AUTHORING.md The first run's design, dated before any model ran
 ```
 
 **`verify.py` is the single audit entry point for all three games.** It reads the

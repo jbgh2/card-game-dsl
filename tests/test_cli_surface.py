@@ -54,10 +54,10 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  plain playout does; a shape outside that function's declared
                  renderings raises there, in the engine maintainer's channel,
                  which is why the rendering happens only for a line that will
-                 be shown. Which file shapes exist is
-                 `pipeline.check_source`'s question, answered in the pipeline
-                 suite: `.cardlang` is raw DSL and every other suffix routes
-                 to the Markdown extractor. What the checker decides about a
+                 be shown. Which file shapes exist, and what a slipped
+                 extension or a slipped command word is told, is
+                 tests/test_command_line_slips.py's claim. What the checker
+                 decides about a
                  game and what a playout scores belong to those suites, and
                  are exercised here only far enough to tell an accepted
                  invocation from a refused one.
@@ -76,7 +76,7 @@ registry:        commands and options: `cardlang.cli.build_parser` via
                  diagnostic rendering shared with the checker:
                  tests/test_rejections.py; the runtime failure hierarchy this
                  module renders: tests/test_failure_taxonomy.py; the file-shape
-                 dispatch: tests/test_pipeline_cardlang.py; the append-only
+                 dispatch: tests/test_command_line_slips.py; the append-only
                  observation log a mid-hand view is projected from:
                  tests/openspiel_ready/harness.py; the text `--view` prints,
                  `cardlang.play.view.render_view`, certified by
@@ -229,6 +229,7 @@ def _play_option_subsets() -> tuple[tuple[str, ...], ...]:
 # names a decision it reaches on every seed.
 _SAMPLE_VALUE: dict[str, list[str]] = {
     "--emit-ir": [],
+    "--json": [],
     "--seed": ["7"],
     "--info-state": ["0"],
     "--view": ["0"],
@@ -281,6 +282,7 @@ _NAMES_ITS_OWN_OPPONENTS = ("--vs", "--resume")
 # passing unexamined.
 _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--emit-ir"): "accepted",
+    ("check", "--json"): "accepted",
     ("check", "--seed"): "refused",
     ("check", "--info-state"): "refused",
     ("check", "--at"): "refused",
@@ -291,6 +293,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--resume"): "refused",
     ("check", "--vs"): "refused",
     ("demo", "--emit-ir"): "refused",
+    ("demo", "--json"): "refused",
     ("demo", "--seed"): "accepted",
     ("demo", "--info-state"): "accepted",
     ("demo", "--at"): "accepted",
@@ -301,6 +304,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("demo", "--resume"): "refused",
     ("demo", "--vs"): "refused",
     ("play", "--emit-ir"): "refused",
+    ("play", "--json"): "refused",
     ("play", "--seed"): "accepted",
     ("play", "--info-state"): "refused",
     ("play", "--at"): "refused",
@@ -385,9 +389,9 @@ def test_a_file_named_for_a_command_needs_the_explicit_command(
     """A path whose name is a command's spelling is reachable, and only the
     explicit form reaches it: the first token of an implicit invocation is read
     as a command whenever it could be one, so the bare name is refused as a
-    command with no file, never checked as the file."""
-    # Markdown content, because a name with no `.cardlang` suffix routes to the
-    # extractor — the file-shape dispatch, which this cell is not about.
+    command with no file, never checked as the file. Under the explicit
+    command the file is read, and refused for its name, which has no
+    extension."""
     game = tmp_path / command
     game.write_text(MARKDOWN.read_text())
     monkeypatch.chdir(tmp_path)
@@ -395,7 +399,8 @@ def test_a_file_named_for_a_command_needs_the_explicit_command(
         main([command])
     assert exit_info.value.code == 2
     assert "file" in capsys.readouterr().err
-    assert main(["check", str(game)]) == 0
+    assert main(["check", str(game)]) == 1
+    assert f"{game} has no extension" in capsys.readouterr().err
 
 
 def test_the_parser_and_the_dispatch_cannot_disagree_about_the_commands() -> None:

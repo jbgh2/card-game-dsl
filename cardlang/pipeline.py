@@ -11,8 +11,11 @@ call site still exists (cardlang/expand.py), and before deck-capacity because
 every stage downstream of it — capacity, IR, runtime, OpenSpiel — is entitled to
 assume a procedure-free tree.
 
-Game files come in two shapes: Markdown (`.md`, DSL inside a fenced block) and
-raw DSL (`.cardlang`). The extract step applies only to Markdown.
+Game files come in the shapes `GAME_FILE_SHAPES` names, each by its
+extension: raw DSL (`.cardlang`) and Markdown (`.md`, DSL inside a fenced
+block). The extract step applies only to Markdown. `check_source` is the Owner
+Guard for a game file's extension: a file with any other extension is refused, its
+Near Misses among the extensions offered, before its text is read.
 
 Each stage raises :class:`~cardlang.diagnostics.DiagnosticError` on failure;
 callers decide how to render it.
@@ -22,11 +25,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast.nodes import Game
+from cardlang.attribution import raise_where_written
 from cardlang.deckcheck import check_capacity
+from cardlang.diagnostics import Author, DiagnosticBag, listed
 from cardlang.expand import expand
 from cardlang.extract import extract_single_block
 from cardlang.ir import IRValue, emit
@@ -60,18 +67,61 @@ def check_dsl(text: str, source_name: str) -> Game:
 
 
 def check_markdown(markdown: str, source_name: str) -> Game:
-    """Check a Markdown game file: extract -> parse -> resolve -> typecheck."""
-    block = extract_single_block(markdown, source_name)
+    """Check a Markdown game file: extract -> parse -> resolve -> typecheck.
+
+    A file with no fenced block is told the game file of another shape that
+    stands beside it with its stem, a rulebook twin's game, when there is
+    one; otherwise the other shapes' extensions, since a file holding the
+    DSL as it is was most likely meant as one of them."""
+    others = [(ext, words) for ext, (words, check) in GAME_FILE_SHAPES.items() if check is not check_markdown]
+    stem = Path(source_name)
+    beside = [stem.with_suffix(ext) for ext, _words in others] if stem.name else []
+    named = next((path for path in beside if path.is_file()), None)
+    if named is not None:
+        unfenced = f"{named} stands beside it, named for the DSL itself: check that file instead"
+    else:
+        renamed = listed([f"to end in {ext} if it holds {words}" for ext, words in others])
+        unfenced = (
+            "a game file must contain its DSL in one block: fence the DSL, "
+            f"or rename the file {renamed}"
+        )
+    block = extract_single_block(markdown, source_name, unfenced=unfenced)
     return _check(parse_block(block))
 
 
+# The game file shapes the checker reads, keyed by the extension that names
+# each, with the words that describe the shape to a designer.
+GAME_FILE_SHAPES: dict[str, tuple[str, Callable[[str, str], Game]]] = {
+    ".cardlang": ("the DSL itself", check_dsl),
+    ".md": ("Markdown with the DSL in one fenced block", check_markdown),
+}
+
+
+def extensions_read() -> str:
+    """The extensions `check_source` reads, each with its shape, as a designer
+    reads them."""
+    return listed([f"{ext} ({words})" for ext, (words, _check) in GAME_FILE_SHAPES.items()])
+
+
 def check_source(path: str | Path) -> Game:
-    """Check a game file on disk, dispatching on its extension."""
+    """Check a game file on disk, dispatching on its extension.
+
+    The extension is compared as typed, on every platform, as every glob that
+    collects game files compares it; the refusal names the file rather than a
+    place in its text."""
     p = Path(path)
-    text = p.read_text()
-    if p.suffix == ".cardlang":
-        return check_dsl(text, str(p))
-    return check_markdown(text, str(p))
+    bag = DiagnosticBag()
+    if p.suffix not in GAME_FILE_SHAPES:
+        named = f"{p} ends in {p.suffix}" if p.suffix else f"{p} has no extension"
+        bag.unknown(
+            f"{named}, and a game file's name ends in {extensions_read()}",
+            p.suffix,
+            GAME_FILE_SHAPES,
+            code=Code.WRONG_FILE_EXTENSION,
+        )
+    raise_where_written(bag, Author.GAME)
+    _words, check = GAME_FILE_SHAPES[p.suffix]
+    return check(p.read_text(), str(p))
 
 
 def compile_markdown(markdown: str, source_name: str) -> dict[str, IRValue]:

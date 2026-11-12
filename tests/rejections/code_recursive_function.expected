@@ -1,0 +1,1 @@
+code_recursive_function.cardlang:18:1: error: function 'is_trump' is recursive; functions must be non-recursive

@@ -16,25 +16,35 @@ Establishes:  `resemblance` is the one measure of how alike two spellings
               are, and `near_misses` the one ranking of a set's [[near-miss]]es
               by it; `DiagnosticBag.unknown` is the one way a check refuses
               a spelling absent from a set it holds, and the refusal carries
-              that set's Near Misses as data (`Diagnostic.near_misses`);
+              that set's Near Misses as data (`Diagnostic.near_misses`), as a
+              parse refusal of a misspelled keyword carries the keywords the
+              grammar accepts in its place (`cardlang.parse`);
               `Diagnostic.format` is the one place the `did you mean` clause
-              is worded.
+              is worded. Every diagnostic carries its Diagnostic Code
+              (`cardlang.diagnostic_codes.Code`), which `format` never shows;
+              a `DiagnosticError` carries every diagnostic it tells as a
+              Told Diagnostic (`Told`), each with its Author, and renders the
+              text a designer reads from them.
 Now illegal:  a check composing an unknown-name refusal with
               `DiagnosticBag.error` (tests/test_near_misses.py census), a
               second resemblance measure, and a Near Miss applied to a
               designer's text for them: it can name the wrong declared
-              thing, so it is only ever offered.
-Held by:      Derived and Pinned -- a refusal's sentence is a `str`, which no
-              union tells apart, so the census holds the routing.
+              thing, so it is only ever offered; a diagnostic made without a
+              code, and a `DiagnosticError` raised without an author.
+Held by:      Derived and Pinned for the routing -- a refusal's sentence is a
+              `str`, which no union tells apart, so the census holds it;
+              Unrepresentable for the code and the author, required fields.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 from enum import Enum
+
+from cardlang.diagnostic_codes import Code
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +71,18 @@ class Span:
 class Severity(Enum):
     ERROR = "error"
     WARNING = "warning"
+
+
+class Author(Enum):
+    """Whose artifact must change for a refusal to clear: the [[author]] a
+    told diagnostic addresses."""
+
+    GAME = "game"
+    LIBRARY = "library"
+    ENGINE = "engine"
+    INSTALLATION = "installation"
+    REGISTRATION = "registration"
+    INVOCATION = "invocation"
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,9 +185,13 @@ def near_misses(spelled: str, among: Iterable[str]) -> tuple[str, ...]:
     return tuple(name for score, name in scored if -score >= NEAR_MISS_CUTOFF)[:NEAR_MISS_LIMIT]
 
 
+def listed(words: Sequence[str], conjunction: str = "or") -> str:
+    """`words` as a sentence lists them: `a`, `a or b`, `a, b or c`."""
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + f" {conjunction} " + words[-1]
+
+
 def _or_list(names: tuple[str, ...]) -> str:
-    quoted = [f"`{name}`" for name in names]
-    return quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + " or " + quoted[-1]
+    return listed([f"`{name}`" for name in names])
 
 
 def rendered(message: Said) -> tuple[str, tuple[Span, ...]]:
@@ -223,7 +249,11 @@ class Diagnostic:
 
     `near_misses` are the declared names a refused spelling nearly spells
     (`near_misses`), offered by `format` and carried through every retelling;
-    never mechanically applicable."""
+    never mechanically applicable.
+
+    `code` is the kind of fix the refusal asks for (`Code`), required where
+    the diagnostic is made and kept by every retelling; `format` never
+    shows it."""
 
     severity: Severity
     message: str
@@ -233,6 +263,7 @@ class Diagnostic:
     notes: tuple[Note, ...] = ()
     stands_on: tuple[Span, ...] = ()
     near_misses: tuple[str, ...] = ()
+    code: Code = field(kw_only=True)
 
     def format(self) -> str:
         message = self.message
@@ -243,16 +274,43 @@ class Diagnostic:
         return "\n".join(lines)
 
 
+@dataclass(frozen=True, slots=True)
+class Told:
+    """A diagnostic as told: in the file the attribution step decided, to
+    the author who must act on it. Made only where a refusal is told --
+    `cardlang.attribution`, the parser's and the extract step's own raises,
+    the command line, and `cardlang.records.refusal_diagnostic`."""
+
+    diagnostic: Diagnostic
+    author: Author
+
+
 class DiagnosticError(Exception):
     """Raised when a stage cannot continue past a diagnostic.
 
-    Carries the structured :class:`Diagnostic` so the CLI and harness can
-    render it consistently rather than parsing exception strings.
+    Carries every told diagnostic as data (`told`), the first also as
+    `diagnostic`, so the CLI and harness can render them consistently rather
+    than parsing exception strings. Where it tells more than one, the rendering
+    of them all is attached as a note, the text a designer reads.
     """
 
-    def __init__(self, diagnostic: Diagnostic) -> None:
-        super().__init__(diagnostic.format())
-        self.diagnostic = diagnostic
+    def __init__(self, first: Told, *rest: Told) -> None:
+        super().__init__(first.diagnostic.format())
+        self.diagnostic = first.diagnostic
+        self.told: tuple[Told, ...] = (first, *rest)
+        if rest:
+            self.add_note("\n".join(t.diagnostic.format() for t in self.told))
+
+    def __reduce__(self) -> tuple[object, ...]:
+        # Rebuilt from its told diagnostics, every note it carries kept.
+        return (_told_again, self.told, self.__dict__)
+
+
+def _told_again(first: Told, *rest: Told) -> DiagnosticError:
+    """A `DiagnosticError` unpickled: made again from what it told."""
+    error = DiagnosticError(first, *rest)
+    error.__dict__.pop("__notes__", None)
+    return error
 
 
 @dataclass(slots=True)
@@ -266,12 +324,13 @@ class DiagnosticBag:
         message: Said,
         span: Span | None = None,
         *,
+        code: Code,
         route: Route | None = None,
         for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
     ) -> None:
-        """`stands_on` is library text the refusal reached that its sentences
-        do not name; the library text they name, in `message` and in
+        """`code` is the kind of fix the refusal asks for. `stands_on` is
+        library text the refusal reached that its sentences do not name; the library text they name, in `message` and in
         `for_game`, stands on their citations."""
         on = (stands_on,) if isinstance(stands_on, Span) else stands_on or ()
         words, cited = rendered(message)
@@ -280,7 +339,9 @@ class DiagnosticBag:
             game_words, game_cited = rendered(for_game)
             cited += game_cited
         self.items.append(
-            Diagnostic(Severity.ERROR, words, span, route, game_words, stands_on=on + cited)
+            Diagnostic(
+                Severity.ERROR, words, span, route, game_words, stands_on=on + cited, code=code
+            )
         )
 
     def unknown(
@@ -290,6 +351,7 @@ class DiagnosticBag:
         among: Iterable[str],
         span: Span | None = None,
         *,
+        code: Code,
         route: Route | None = None,
         for_game: Said | None = None,
         stands_on: Span | tuple[Span, ...] | None = None,
@@ -299,14 +361,13 @@ class DiagnosticBag:
         `error`, with the set's Near Misses carried as data, each as `written`
         spells it where the refusal stands (a numeric rank in a string
         position is written quoted)."""
-        self.error(message, span, route=route, for_game=for_game, stands_on=stands_on)
+        self.error(
+            message, span, code=code, route=route, for_game=for_game, stands_on=stands_on
+        )
         near = near_misses(spelled, among)
         if written is not None:
             near = tuple(written(name) for name in near)
         self.items[-1] = replace(self.items[-1], near_misses=near)
-
-    def warning(self, message: str, span: Span | None = None) -> None:
-        self.items.append(Diagnostic(Severity.WARNING, message, span))
 
     @property
     def has_errors(self) -> bool:

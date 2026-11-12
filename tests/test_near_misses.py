@@ -22,11 +22,10 @@ property:        a refusal of a name absent from the set the checker looked
                  measure is one function, shared with the parse layer's
                  ranking of what the grammar expected; a refusal the
                  attribution step retells keeps its Near Misses.
-                 Where a check's set is wider than what resolves at the
-                 position -- game-wide state at a phase's position, the
-                 call-site pronouns in a function body, a literal where a
-                 zone is wanted -- a Near Miss can name a name refused there
-                 (issue #1063).
+                 A bare name's Near Misses are the names that resolve where
+                 it stands (tests/test_near_miss_positions.py); one of the
+                 wrong type for its position can still be offered (issue
+                 #1088).
 domain:          every refusal site in the resolve, typecheck and catalogue
                  passes that refuses a designer-written spelling because the
                  set it was looked up in lacks it, each witnessed by one slip
@@ -38,11 +37,11 @@ domain:          every refusal site in the resolve, typecheck and catalogue
                  word) or that resolves to the wrong kind or the wrong scope
                  refuse what the name denotes, not its spelling, and are
                  told their own sentence. The parse layer's syntax errors
-                 rank the grammar's expected words by the same measure and
-                 are the grammar's to word (issue #1045 for statement
-                 keywords). Command-line and play-session arguments list
-                 their whole set already, and runtime refusals speak the
-                 runtime channel.
+                 rank the grammar's expected words by the same measure, and
+                 offer a misspelled keyword the keywords it nearly spells
+                 (tests/test_keyword_near_misses.py). Command-line and
+                 play-session arguments list their whole set already, and
+                 runtime refusals speak the runtime channel.
 registry:        sites: `_owner_sites` (an AST scrape of every
                  `DiagnosticBag.unknown` call in `_SCRAPED`) against
                  `WITNESSES`; re-spelled refusals: `_respelled_sites` over
@@ -85,6 +84,7 @@ from typing import get_args
 
 import pytest
 
+from cardlang.diagnostic_codes import Code
 from cardlang import diagnostics
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
@@ -679,8 +679,12 @@ def test_near_misses_are_ranked_most_alike_first_then_alphabetically_at_most_thr
 def test_a_diagnostic_renders_its_near_misses_as_one_clause() -> None:
     span = diagnostics.Span("g.cardlang", 0, 1, 3, 5)
     error = diagnostics.Severity.ERROR
-    one = diagnostics.Diagnostic(error, "unknown thing 'x'", span, near_misses=("a",))
-    three = diagnostics.Diagnostic(error, "unknown thing 'x'", span, near_misses=("a", "b", "c"))
+    one = diagnostics.Diagnostic(
+        error, "unknown thing 'x'", span, near_misses=("a",), code=Code.UNKNOWN_NAME
+    )
+    three = diagnostics.Diagnostic(
+        error, "unknown thing 'x'", span, near_misses=("a", "b", "c"), code=Code.UNKNOWN_NAME
+    )
     assert one.format() == "g.cardlang:3:5: error: unknown thing 'x'; did you mean `a`?"
     assert three.format() == "g.cardlang:3:5: error: unknown thing 'x'; did you mean `a`, `b` or `c`?"
 

@@ -31,7 +31,12 @@ Establishes:  `raise_if_errors` is the only way a pass after the splice raises
               its diagnostics, `raise_where_written` the only way a library
               checked alone raises its own, and `tell` the one place a
               diagnostic's file is decided and its notes made; a refusal
-              it tells again (`_retold`) keeps the Near Misses it offers. The words
+              it tells again (`_retold`) keeps the Near Misses it offers and
+              its Diagnostic Code. Each diagnostic `tell` tells is a Told
+              Diagnostic addressed to a library's Author where it is told in
+              the library's file, and to the game's otherwise;
+              `raise_where_written` tells each to the Author its caller
+              names. The words
               naming a library or its definitions in any sentence are made
               here. A refusal carrying a route is told
               at the route's game text, with its crossing kind's sentence
@@ -81,7 +86,9 @@ from dataclasses import dataclass, fields, is_dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from cardlang.diagnostic_codes import Code
 from cardlang.diagnostics import (
+    Author,
     Diagnostic,
     DiagnosticBag,
     DiagnosticError,
@@ -90,6 +97,7 @@ from cardlang.diagnostics import (
     Said,
     Severity,
     Span,
+    Told,
     line_kind,
     rendered,
 )
@@ -156,44 +164,45 @@ def raise_if_errors(
     longer names them (a spliced game)."""
     if not bag.has_errors:
         return
-    tell(bag, game, uses)
-    _raise(bag)
+    _raise(tell(bag, game, uses))
 
 
-def raise_where_written(bag: DiagnosticBag) -> None:
-    """Raise `bag`'s diagnostics, each told where it stands, when it holds an
-    error: a library checked alone, before any game is read."""
+def raise_where_written(bag: DiagnosticBag, author: Author) -> None:
+    """Raise `bag`'s diagnostics, each told where it stands to `author`, when
+    it holds an error: a library checked alone, told to its author, or a game
+    file's extension refused before any game is read, told to the game's."""
     if not bag.has_errors:
         return
     bag.items[:] = [_bare(d) for d in bag.items]
-    _raise(bag)
+    _raise(tuple(Told(d, author) for d in bag.items))
 
 
-def _raise(bag: DiagnosticBag) -> None:
-    error = DiagnosticError(bag.items[0])
-    if len(bag.items) > 1:
-        error.add_note(bag.format())
-    raise error
+def _raise(told: tuple[Told, ...]) -> None:
+    raise DiagnosticError(*told)
 
 
 def keep_where_written(
     bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()
-) -> None:
+) -> tuple[Told, ...]:
     """Every diagnostic told where it stands: what `tell` reduces to while a
     Library Witness is checked, since its verdict is all that is asked of
-    it."""
+    it, and so all of it told to the game's author."""
     bag.items[:] = [_bare(d) for d in bag.items]
+    return tuple(Told(d, Author.GAME) for d in bag.items)
 
 
 # Whether a Library Witness is being checked: its verdict only, nothing told.
 _WITNESSING: ContextVar[bool] = ContextVar("_WITNESSING", default=False)
 
 
-def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) -> None:
-    """Decide the file of every diagnostic in `bag`, in place."""
+def tell(
+    bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()
+) -> tuple[Told, ...]:
+    """Decide the file of every diagnostic in `bag`, in place, and return
+    each as told: to a library's author where it is told in the library's
+    file, to the game's author otherwise."""
     if _WITNESSING.get():
-        keep_where_written(bag, game, uses)
-        return
+        return keep_where_written(bag, game, uses)
     holders = _holders(game)
     lines = _uses_lines(game, uses, holders)
     standing = _standing(game, holders, lines)
@@ -238,10 +247,25 @@ def tell(bag: DiagnosticBag, game: n.Game, uses: tuple[n.UsesDecl, ...] = ()) ->
         )
         told[seen[key]] = replace(kept, notes=kept.notes + extra)
     for library, at in unproven.items():
-        told.append(Diagnostic(Severity.WARNING, unproven_warning(library), at))
+        told.append(
+            Diagnostic(
+                Severity.WARNING, unproven_warning(library), at, code=Code.LIBRARY_NOT_YET_PROVEN
+            )
+        )
     for (library, where), at in unreached.items():
-        told.append(Diagnostic(Severity.WARNING, unreached_warning(library, where), at))
+        told.append(
+            Diagnostic(
+                Severity.WARNING,
+                unreached_warning(library, where),
+                at,
+                code=Code.LIBRARY_NOT_YET_PROVEN,
+            )
+        )
     bag.items[:] = told
+    return tuple(
+        Told(d, Author.LIBRARY if _in_library(d.span, holders, lines) else Author.GAME)
+        for d in told
+    )
 
 
 # What the warning beside an unproven library's refusals begins with, and the
@@ -281,9 +305,7 @@ def _bare(
     text it stands on as its notes: each distinct library line of where it
     was raised and of `stands_on`, in that order, outside the file `d` is
     told in; none where `d` is told in a library's file."""
-    in_library = d.span is not None and (
-        _holder(d.span, holders or []) is not None or _library_of(d.span, lines or {}) is not None
-    )
+    in_library = _in_library(d.span, holders or [], lines or {})
 
     def noted(spans: tuple[Span | None, ...]) -> tuple[Note, ...]:
         found: dict[tuple[str, int], Note] = {}
@@ -297,6 +319,14 @@ def _bare(
     if d.route is None and d.for_game is None and not d.stands_on and not notes:
         return d
     return _retold(d, d.message, d.span, notes)
+
+
+def _in_library(span: Span | None, holders: list[_Holder], lines: dict[str, Span]) -> bool:
+    """Whether `span` stands in a library's text: a spliced definition, or a
+    library's own file."""
+    return span is not None and (
+        _holder(span, holders) is not None or _library_of(span, lines) is not None
+    )
 
 
 def _note(
@@ -387,7 +417,9 @@ def _retold(
     """`d` told again, in `message` at `span` with `notes`: what it refuses,
     and the Near Misses it offers, unchanged; the route, the game's sentence
     and the library text it stood on spent here."""
-    return Diagnostic(d.severity, message, span, notes=notes, near_misses=d.near_misses)
+    return Diagnostic(
+        d.severity, message, span, notes=notes, near_misses=d.near_misses, code=d.code
+    )
 
 
 def _routed(d: Diagnostic) -> Diagnostic:

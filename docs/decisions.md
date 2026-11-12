@@ -81,6 +81,7 @@ Open questions — designs that aren't yet committed — live in
 - [Interactive decisions: a kernel and an in-DSL standard library](decisions/interactive-decisions-a-kernel-and-an-in-dsl-standard-library.md) -- The structure of a game (zones, phases, dealing), trick-taking, and scoring are directly expressible.
 - [Surface totality](decisions/surface-totality.md) -- The corpus-first gate ([principles.md](principles.md), "Three implementations before abstracting") governs *admission*: a construct or axis enters the language only when games demonstrate the need.
 - [Closed-domain completeness](decisions/closed-domain-completeness.md) -- Surface totality's principle, applied below the grammar.
+  - [Every refusal carries its Diagnostic Code](decisions/closed-domain-completeness.md#every-refusal-carries-its-diagnostic-code)
   - [Allow-list, never deny-list](decisions/closed-domain-completeness.md#allow-list-never-deny-list)
   - [Pin the derivation, not just the instance](decisions/closed-domain-completeness.md#pin-the-derivation-not-just-the-instance)
   - [Prefer the guard you cannot need](decisions/closed-domain-completeness.md#prefer-the-guard-you-cannot-need)

@@ -1,0 +1,13 @@
+
+game Mini {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
+  state { score[player] : Integer = 0 flag_a : Boolean = false  flag_b : Boolean = true }
+  phase p {
+    let probe = lowest rank_value(card) over cards in trick_pile where flag_a or flag_b
+  }
+  winner: highest score
+}

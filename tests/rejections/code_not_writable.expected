@@ -1,0 +1,1 @@
+code_not_writable.cardlang:11:5: error: cannot assign to 'deck': it is a zone, and only a declared state variable can be written. A binder is a bound value, not a variable — and if a state variable of the same name exists, the two would not agree anyway (a read here means the binder; a write always goes to state)
