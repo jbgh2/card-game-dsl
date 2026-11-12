@@ -1,0 +1,3 @@
+code_teams_must_partition_seats.cardlang:1:1: error: `teams:` puts seat 1 on more than one team (teams 0, 1) — the engine keeps only the last, so this seat would score for a team you did not put it on
+code_teams_must_partition_seats.cardlang:1:1: error: `teams:` puts seat 1 on more than one team (teams 0, 1) — the engine keeps only the last, so this seat would score for a team you did not put it on
+code_teams_must_partition_seats.cardlang:1:1: error: `teams:` leaves seat 3 on no team, but the game declares 4 player(s) — every seat must belong to exactly one team

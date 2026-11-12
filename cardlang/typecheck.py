@@ -38,8 +38,13 @@ Establishes:  type validity only. A ``play_source`` read types as the join
               Downstream may assume every type Owner Guard held, but may not
               read types off the tree; a downstream consumer that needs a type
               is a signal to materialize it in this pass, never to re-infer it
-              there. The sanctioned materialization is
-              ``declared_primitive_sigs``, and the `Sig` it builds for a
+              there. Asked for one (``typecheck(types=...)``), the pass keeps
+              the Type Record: every Type ``infer`` returns during the check,
+              by the expression's ``n.node_key``, the one source of an
+              expression's type outside this pass (``cardlang.query``); an
+              expression the check never infers has no entry, and keeping the
+              record changes no verdict. The other sanctioned materialization
+              is ``declared_primitive_sigs``, and the `Sig` it builds for a
               declared collection parameter is exactly
               ``TCollection(element, key=None, zone=False)`` — the facets a
               spelling can produce are the defaults, and no other are
@@ -100,11 +105,14 @@ Verified by:  the Owner Guard test modules (operator, aggregation, context,
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextvars import ContextVar
+from functools import wraps
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum
-from typing import Literal, assert_never
+from typing import Literal, Protocol, assert_never
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game, library_origins
 from cardlang.board_domains import LINE_NOUN, directions_of
@@ -749,6 +757,33 @@ def _untyped_operator(op: str) -> AssertionError:
     )
 
 
+#: The Type Record a Checker Query asks for (`typecheck(types=...)`): every
+#: Type `infer` returns while it is set, by the expression's `n.node_key`.
+_TYPE_RECORD: ContextVar[dict[n.NodeKey, list[Type]] | None] = ContextVar(
+    "_TYPE_RECORD", default=None
+)
+
+
+def _kept_in_the_type_record(
+    inferring: Callable[[n.Expr, TypeEnv], Type],
+) -> Callable[[n.Expr, TypeEnv], Type]:
+    """`infer`, keeping each Type it returns in the Type Record when one is
+    being filled; the definition, its name and its source stay `infer`'s."""
+
+    @wraps(inferring)
+    def kept(e: n.Expr, env: TypeEnv) -> Type:
+        t = inferring(e, env)
+        record = _TYPE_RECORD.get()
+        if record is not None and (key := n.node_key(e)) is not None:
+            types = record.setdefault(key, [])
+            if t not in types:
+                types.append(t)
+        return t
+
+    return kept
+
+
+@_kept_in_the_type_record
 def infer(e: n.Expr, env: TypeEnv) -> Type:
     """Infer the type of an expression. Unrefined arms return `TAny` (the
     permissive top); precision is added construct by construct.
@@ -1066,6 +1101,10 @@ def _type_name(t: Type) -> str:
     return type(t).__name__[1:]  # TInteger -> "Integer", TPlayer -> "Player", …
 
 
+#: A Type as the checker's diagnostics spell it to a designer.
+type_name = _type_name
+
+
 def _state_blocks(game: Game) -> list[n.StateBlock]:
     # The walk lives with the AST (`nodes.state_blocks`) because it answers a
     # structural question two passes ask — this table, and the OpenSpiel returns
@@ -1177,6 +1216,7 @@ def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) ->
                 f"authored separately, so agreeing that the name EXISTS is only "
                 f"half the check",
                 decl.span,
+                code=Code.WRONG_SIGNATURE,
             )
         params = {p.name: p for p in decl.params}
         for read in decl.reads:
@@ -1202,6 +1242,7 @@ def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) ->
                     f"`{index}` index domain, so its binder is declared "
                     f"`{expected}`",
                     read.span or decl.span,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
 
 
@@ -1698,6 +1739,7 @@ def _check_contracted_results(game: Game, env: TypeEnv, bag: DiagnosticBag) -> N
                     + cite_library(stamp.library, stamp.row_span)
                     + f"'s calls read it as {_type_name(want)}",
                     stamp.uses_span,
+                    code=Code.REQUIREMENT_MISMATCH,
                 )
 
 
@@ -1776,7 +1818,7 @@ def _check_enum_literal(
     message and span, which the refusal leads with; a comparison has none."""
     origin = env.origins.get(id(lit))
     if origin is not None and enum.name in env.axis_enums:
-        bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span)
+        bag.error(_library_axis_refusal(origin, enum, lit.value, env, lit.span), lit.span, code=Code.LIBRARY_REACHES_ONE_GAME)
         return
     domain = _enum_domain(env, enum.name)
     if lit.value not in domain:
@@ -1792,10 +1834,14 @@ def _check_enum_literal(
     said: Said = problem if site is None else site[0] + f": {problem}"
     span = lit.span if site is None else site[1]
     if lit.value in domain:
-        bag.error(said, span)
+        bag.error(said, span, code=Code.WRONG_SPELLING)
     else:
         # A numeric value is written as a string here, a name-form one bare.
-        bag.unknown(said, lit.value, domain, span, written=lambda v: f'"{v}"' if v.isdigit() else v)
+        bag.unknown(said, lit.value, domain, span, written=lambda v: f'"{v}"' if v.isdigit() else v, code=_ENUM_UNKNOWN.get(enum.name, Code.UNKNOWN_NAME))
+
+
+# The code of a value no member of its enum spells, by the enum it is read as.
+_ENUM_UNKNOWN: dict[str, Code] = {"Rank": Code.UNKNOWN_RANK, "Suit": Code.UNKNOWN_SUIT}
 
 
 def _library_axis_refusal(
@@ -1840,6 +1886,7 @@ def _check_enum_operand(
                 f"comparing {enum.name} with {other_bare.name} can never be "
                 f"equal",
                 other.span,
+                code=Code.TYPE_MISMATCH,
             )
         return
     if isinstance(other_bare, TInteger):
@@ -1851,6 +1898,7 @@ def _check_enum_operand(
         bag.error(
             f"comparing {enum.name} with Integer can never be equal{hint}",
             other.span,
+            code=Code.TYPE_MISMATCH,
         )
         return
     if isinstance(other, n.StrLit):
@@ -1879,6 +1927,7 @@ def _check_enum_operand(
         f"comparing {enum.name} with {_type_name(other_bare)} can never be "
         f"equal{hint}",
         other.span,
+        code=Code.TYPE_MISMATCH,
     )
 
 
@@ -2010,6 +2059,7 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
             f"(`cards in play`) and their shape (`play.shape`) — never as "
             f"wholes",
             e.span,
+            code=Code.TYPE_MISMATCH,
         )
         return
     if isinstance(lbare, TEnum):
@@ -2026,6 +2076,7 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
             f"equal"
             + _key_hint(lbare, rbare, _name_of(e.left), _name_of(e.right), symmetric=True),
             e.span,
+            code=Code.TYPE_MISMATCH,
         )
 
 
@@ -2072,23 +2123,27 @@ def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
                 f"'{e.op}' compares Integers, and a play is no number — "
                 f"count its cards with `number of cards in play`",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
                 f"'{e.op}' compares Integers — enum values have no "
                 "arithmetic order — compare strength via rank_value(...)",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum):
             bag.error(
                 f"'{e.op}' compares Integers — {bare.name} enum values have "
                 "no arithmetic order",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
         else:
             bag.error(
                 f"'{e.op}' compares Integers, got {_type_name(bare)}",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
 
 
@@ -2149,29 +2204,34 @@ def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
                 f"'{word}' expects Integer operands, and a play is no number — "
                 f"count its cards with `number of cards in play`",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
                 f"'{word}' expects Integer operands — enum values have no "
                 "numeric value — compare strength via rank_value(...)",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum) and e.op in ("+", "-", "*"):
             bag.error(
                 f"'{word}' expects Integer operands, got {bare.name} — an "
                 "enum value concatenates as a string at runtime, not adds",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
         elif isinstance(bare, TEnum):
             bag.error(
                 f"'{word}' expects Integer operands, got {bare.name} — an "
                 "enum value has no numeric value",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
         else:
             bag.error(
                 f"'{word}' expects Integer operands, got {_type_name(bare)}",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
 
 
@@ -2196,6 +2256,7 @@ def _check_choose_operands(e: n.Choose, env: TypeEnv, bag: DiagnosticBag) -> Non
         bag.error(
             f"`choose integer` expects an Integer {label}, got {_type_name(bare)}",
             operand.span,
+            code=Code.TYPE_MISMATCH,
         )
 
 
@@ -2223,11 +2284,13 @@ def _check_logical_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> Non
                 f"Boolean whatever its operands are, so nothing above catches "
                 f"a non-Boolean here and the game plays on",
                 operand.span,
+                code=Code.UNTYPED_VALUE,
             )
         elif not isinstance(bare, TBoolean):
             bag.error(
                 f"'{e.op}' expects Boolean operands, got {_type_name(bare)}",
                 operand.span,
+                code=Code.TYPE_MISMATCH,
             )
 
 
@@ -2255,6 +2318,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             "whatever its operands are and a membership that can never be true "
             "is silent",
             e.span,
+            code=Code.UNTYPED_VALUE,
         )
         return
     right_t = infer(e.right, env)
@@ -2265,6 +2329,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
                 f"the left-hand side of `in` a Combination is a card, got "
                 f"{_type_name(lbare)}",
                 e.span,
+                code=Code.TYPE_MISMATCH,
             )
         return
     if not isinstance(right_t, (TCollection, TAny)):
@@ -2272,6 +2337,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             "the right-hand side of `in` must be a collection (a zone or "
             f"a `[…]` list), got {_type_name(right_t)}",
             e.span,
+            code=Code.TYPE_MISMATCH,
         )
         return
     if isinstance(right_t, TCollection) and right_t.key is not None:
@@ -2292,6 +2358,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             f"specific entry (`m[k] is …`) or quantify over the key domain "
             f"instead",
             e.span,
+            code=Code.WRONG_ARGUMENT,
         )
         return
     lbare = _bare(infer(e.left, env))
@@ -2316,6 +2383,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
                 symmetric=True,
             ),
             e.span,
+            code=Code.TYPE_MISMATCH,
         )
 
 
@@ -2340,6 +2408,7 @@ def _library_field_gate(
         + cite_where(origin.where, e.span) + f"), but {lacks} — "
         + naming_library(fix, origin.library, None),
         origin.uses_span,
+        code=Code.LIBRARY_REQUIREMENT_UNMET,
     )
     # One refusal per field and definition, standing on each read of it.
     told = bag.items.pop()
@@ -2366,6 +2435,7 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
             "'offset_by' rotates a Player around the seating ring — the "
             f"left operand must be a Player, got {_type_name(lbare)}",
             e.left.span,
+            code=Code.TYPE_MISMATCH,
         )
     rbare = _bare(infer(e.right, env))
     if isinstance(rbare, TAny):
@@ -2389,6 +2459,7 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
                 f"its own `{taken}`, which the library's `{taken}` then reads — "
                 f"rename this game's `{taken}`"
             ),
+            code=Code.TYPE_MISMATCH,
         )
 
 
@@ -2536,6 +2607,7 @@ def _check_card_source(
                 f"no subset source — a play is one set of cards; read its cards "
                 f"with `cards in`, `any card in` or `number of cards in`",
                 source.span,
+                code=Code.TYPE_MISMATCH,
             )
         return
     if not isinstance(bare_src, TCollection):
@@ -2551,6 +2623,7 @@ def _check_card_source(
             f"'cards in ...' expects a zone or collection of cards, got "
             f"{_type_name(src_t)}{hint}",
             source.span,
+            code=Code.TYPE_MISMATCH,
         )
         return
     ebare = _bare(bare_src.element)
@@ -2569,6 +2642,7 @@ def _check_card_source(
             f"'cards in ...' expects a zone or collection of cards, got "
             f"{_type_name(src_t)}{hint}",
             source.span,
+            code=Code.TYPE_MISMATCH,
         )
         return
     _check_operand(
@@ -2606,6 +2680,7 @@ def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> N
             f"{content_kind_clause(env.flavor, env.deck)} -- a subset query "
             f"reads a zone as cards; a piece set has no such form",
             e.span,
+            code=Code.PIECES_ARE_NOT_CARDS,
         )
         return
     _check_expr(e.count, env, bag)
@@ -2620,6 +2695,7 @@ def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> N
             f"a subset size is {e.count.value}: a subset holds at least one "
             f"card, so this size names no subset — write 1 or more",
             e.count.span,
+            code=Code.OUT_OF_RANGE,
         )
     for member in e.source:
         _check_expr(member, env, bag)
@@ -2679,11 +2755,13 @@ def _check_agg_body(
             f"'{e.agg}' aggregates a numeric strength — rank_value(card) — "
             f"not the enum value itself ({runtime_note})",
             e.body.span,
+            code=Code.TYPE_MISMATCH,
         )
         return
     bag.error(
         f"'{e.agg}' expects an Integer body, got {_type_name(bare)}",
         e.body.span,
+        code=Code.TYPE_MISMATCH,
     )
 
 
@@ -2710,6 +2788,7 @@ def _check_agg_default(
             "mandatory `or <default>` clause: parenthesize the whole `where` "
             "predicate, or supply a real default after `or`",
             e.default.span,
+            code=Code.NEEDS_PARENTHESES,
         )
         return
     bbare = _bare(infer(e.body, scoped))
@@ -2720,6 +2799,7 @@ def _check_agg_default(
             f"'{e.agg}' aggregation default type mismatch: the body is "
             f"{_type_name(bbare)}, the default is {_type_name(dbare)}",
             e.default.span,
+            code=Code.TYPE_MISMATCH,
         )
 
 
@@ -2740,6 +2820,7 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"least one card — at a lead no play stands, which reads "
                 f"`standing is none`",
                 e.operand.span,
+                code=Code.CONSTANT_CONDITION,
             )
             return
         _check_operand(
@@ -2756,6 +2837,7 @@ def _check_is_check(e: n.IsCheck, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`{surface}` on a non-optional {_type_name(bare)} is {always} "
             "— never a check worth writing",
             e.operand.span,
+            code=Code.CONSTANT_CONDITION,
         )
 
 
@@ -2865,7 +2947,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
         return
     origin = env.origins.get(id(index))
     if origin is not None and isinstance(bare, (TPlayer, TTeam)):
-        bag.error(_library_role_refusal(origin, index.value, bare, index.span), index.span)
+        bag.error(_library_role_refusal(origin, index.value, bare, index.span), index.span, code=Code.LIBRARY_REACHES_ONE_GAME)
         return
     if isinstance(bare, TPlayer):
         # A game always declares `players:`, so `max_players` is the real seat
@@ -2891,6 +2973,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
                 f"team {index.value} names a team, but this game declares no "
                 f"`teams:` — declare the partnerships (`teams: [[0, 2], [1, 3]]`)",
                 index.span,
+                code=Code.MISSING_DECLARATION,
             )
             return
         ids = f"0..{bound - 1}" if bound > 1 else ("0" if bound == 1 else "none")
@@ -2898,6 +2981,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
             f"{label} {index.value} is out of range: the game has "
             f"{bound} {noun}(s) ({ids})",
             index.span,
+            code=Code.OUT_OF_RANGE,
         )
 
 
@@ -2975,6 +3059,7 @@ def _check_operand(
             + _card_field_hint(got, expected, _name_of(node), call, env)
             + _numeric_rank_hint(node, got, bare, env),
             span,
+            code=Code.TYPE_MISMATCH,
         )
     _check_role_literal(node, expected, env, bag)
 
@@ -3041,6 +3126,7 @@ def _check_follows_signature(
             f"the follows function {name} takes two parameters, the play and the "
             f"play it beats: {shape}",
             stmt.span,
+            code=Code.WRONG_SIGNATURE,
         )
         return
     play_t, standing_t = sig.params
@@ -3049,6 +3135,7 @@ def _check_follows_signature(
             f"the follows function {name}'s first parameter is the play a hand "
             f"holds, a `Combination`: {shape}",
             stmt.span,
+            code=Code.WRONG_SIGNATURE,
         )
     if standing_t == TCombination():
         bag.error(
@@ -3056,18 +3143,21 @@ def _check_follows_signature(
             f"beats, and at a lead no play stands, so it is `none` there: its "
             f"type is `Combination?`",
             stmt.span,
+            code=Code.WRONG_SIGNATURE,
         )
     elif standing_t != TOptional(TCombination()):
         bag.error(
             f"the follows function {name}'s second parameter is the play it "
             f"beats, a `Combination?` (`none` at a lead): {shape}",
             stmt.span,
+            code=Code.WRONG_SIGNATURE,
         )
     if not isinstance(_bare(sig.ret), TBoolean):
         bag.error(
             f"the follows function {name} answers whether the play follows, a "
             f"Boolean, and its body is {_type_name(sig.ret)}",
             stmt.span,
+            code=Code.WRONG_SIGNATURE,
         )
 
 
@@ -3086,7 +3176,7 @@ def _check_round_ranking(
         return
     for slot, name in ranking_gated_slots(stmt):
         instead = f"name {min(TRICK_ORDER_GATED_WINNERS)} as the winner"
-        bag.error(_ranking_refusal(f"{slot} {name}", name, instead), stmt.span)
+        bag.error(_ranking_refusal(f"{slot} {name}", name, instead), stmt.span, code=Code.MISSING_DECLARATION)
 
 
 def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -3127,6 +3217,7 @@ def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> Non
                 f"read); the kernel reads `{row.spelled}` as exactly "
                 f"{_type_name(expected)}",
                 span,
+                code=Code.UNTYPED_VALUE,
             )
             continue
         message: Said = (
@@ -3137,7 +3228,7 @@ def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> Non
         if isinstance(expected, TOptional):
             _check_operand(answer.body, got, expected, answer_env, bag, message, span)
         elif got != expected:
-            bag.error(message, span)
+            bag.error(message, span, code=Code.TYPE_MISMATCH)
     if K.has_trick_order(game) and K.answer(game, "card_strength") is None and not env.has_ranking:
         # The unanswered row defaults to `rank_value(card)` (the driver's
         # closure), which reads `ranking:` — so the default silently demands a
@@ -3153,6 +3244,7 @@ def _check_kernel_answers(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> Non
             "declares no `ranking:`; declare one, or write "
             "`function card_strength(card : Card) = …`",
             is_trump.span or game.span,
+            code=Code.MISSING_DECLARATION,
         )
 
 
@@ -3211,6 +3303,7 @@ def _check_round_trump(stmt: n.TrickRound, env: TypeEnv, bag: DiagnosticBag) -> 
             "no card's suit can match an untyped value and the hand would "
             "silently play as no-trump while the rules still enforce trump",
             stmt.trump.span or stmt.span,
+            code=Code.UNTYPED_VALUE,
         )
         return
     _check_operand(
@@ -3290,6 +3383,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"(`{e.kind}`) reads a zone as cards; count/scan pieces with the "
                 f"generic collection forms",
                 e.span,
+                code=Code.PIECES_ARE_NOT_CARDS,
             )
             return
         _check_expr(e.source, env, bag)
@@ -3321,6 +3415,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"over `cards in ...` reads a zone as cards; a piece set has no "
                 f"such form",
                 e.span,
+                code=Code.PIECES_ARE_NOT_CARDS,
             )
             return
         _check_expr(e.source, env, bag)
@@ -3354,6 +3449,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     _named(env, "function", e.func, f"{e.func}()")
                     + f" expects {len(sig.params)} argument(s), got {len(args)}",
                     e.span,
+                    code=Code.WRONG_ARGUMENT_COUNT,
                 )
             else:
                 for arg, param in zip(args, sig.params):
@@ -3362,7 +3458,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         e.func, got, param, builtin=e.func not in env.functions
                     )
                     if combination is not None:
-                        bag.error(combination, arg.span or e.span)
+                        bag.error(combination, arg.span or e.span, code=Code.TYPE_MISMATCH)
                         continue
                     _check_operand(
                         arg, got, param, env, bag,
@@ -3385,7 +3481,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 if e.args and isinstance(e.args[0], n.NameRef)
                 else f"call `{winner}` over the trick pile instead"
             )
-            bag.error(_ranking_refusal(f"{e.func}()", e.func, instead), e.span)
+            bag.error(_ranking_refusal(f"{e.func}()", e.func, instead), e.span, code=Code.MISSING_DECLARATION)
     elif isinstance(e, n.Subscript):
         obj_ref = e.obj
         if isinstance(obj_ref, n.NameRef) and obj_ref.ref_kind == "zone":
@@ -3400,6 +3496,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"zone '{obj_ref.name}' is not indexed — drop the "
                     f"brackets",
                     e.span,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             else:
                 idx_t = infer(e.index, env)
@@ -3421,11 +3518,12 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"which runs {lo}..{hi} — key `{obj_ref.name}` by a member "
                         f"of `{domain}`",
                         e.span,
+                        code=Code.OUT_OF_RANGE,
                     )
         else:
             obj = infer(e.obj, env)
             if not subscriptable(obj):
-                bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span)
+                bag.error(f"cannot index {_type_name(obj)} (not a collection)", e.span, code=Code.WRONG_SUBSCRIPT)
             elif isinstance(obj, TCollection) and obj.key is not None:
                 # A KEYED map (a per-player/team state var, an indexed `let`)
                 # is addressed by its key domain, and the checker knows both
@@ -3451,6 +3549,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"position — read them with a card query (`cards in ... "
                     f"where ...`) or `top_of(...)`",
                     e.span,
+                    code=Code.WRONG_SUBSCRIPT,
                 )
             elif isinstance(obj, TCollection):
                 # A POSITIONAL collection (a `[…]` list, a board region such as
@@ -3474,12 +3573,14 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"exactly Integer, because a wrong position is "
                         f"otherwise found only when the game is played",
                         e.index.span or e.span,
+                        code=Code.UNTYPED_VALUE,
                     )
                 if isinstance(e.index, n.IntLit) and e.index.value < 0:
                     bag.error(
                         f"position {e.index.value} is before the first: a "
                         f"position in " + what + f" counts from 0",
                         e.index.span or e.span,
+                        code=Code.OUT_OF_RANGE,
                     )
     elif isinstance(e, n.Member):
         obj_ref = e.obj
@@ -3503,6 +3604,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 e.field,
                 ROUND_STATE_FIELDS,
                 e.span,
+                code=Code.UNKNOWN_FIELD,
             )
             return
         obj = infer(e.obj, env)
@@ -3523,6 +3625,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     e.field,
                     env.item_fields,
                     e.span,
+                    code=Code.UNKNOWN_FIELD,
                 )
         elif isinstance(bare, TCombination):
             # A climbing play's fields are `COMBINATION_FIELDS`: its shape is
@@ -3535,6 +3638,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     e.field,
                     COMBINATION_FIELDS,
                     e.span,
+                    code=Code.UNKNOWN_FIELD,
                 )
             elif COMBINATION_FIELDS[e.field] is None:
                 bag.error(
@@ -3543,6 +3647,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                     f"issue #989 holds "
                     f"wild cards in a combination",
                     e.span,
+                    code=Code.NOT_YET_SUPPORTED,
                 )
         elif isinstance(bare, TCollection):
             # A zone-family subscript (`hand[p]`) is typed as the zone's
@@ -3554,6 +3659,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "a collection has no fields — aggregate over it ('sum of … "
                 "over cards in …') or take a specific card",
                 e.span,
+                code=Code.UNKNOWN_FIELD,
             )
         elif isinstance(bare, _INDEXABLE_RECEIVERS):
             # The dot form is object-member access only (Card, Move, and
@@ -3565,6 +3671,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"form is object-member access only — index with brackets "
                 f"('{e.field}[...]') instead",
                 e.span,
+                code=Code.UNKNOWN_FIELD,
             )
         elif isinstance(bare, _FIELDLESS_RECEIVERS):
             # The fieldless value types: a position (TCell), a movement
@@ -3586,6 +3693,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"form is object-member access only (Card, Move, and struct "
                 f"fields) — a {_type_name(obj)} has no fields",
                 e.span,
+                code=Code.UNKNOWN_FIELD,
             )
     elif isinstance(e, n.BinOp):
         _check_binop(e, env, bag)
@@ -3614,9 +3722,10 @@ def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: Said) -> Non
             f"type exactly Boolean, because nothing downstream catches a "
             f"non-Boolean here: every value is truthy and the game plays on",
             e.span,
+            code=Code.UNTYPED_VALUE,
         )
     elif not isinstance(t, TBoolean):
-        bag.error(where + f" must be Boolean, got {_type_name(t)}", e.span)
+        bag.error(where + f" must be Boolean, got {_type_name(t)}", e.span, code=Code.TYPE_MISMATCH)
 
 
 def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -3642,6 +3751,7 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
             f"runtime drops a fallback it cannot recognise instead of refusing "
             f"it, taking the rule's own refusal with it",
             expr.span or rule.span,
+            code=Code.UNTYPED_VALUE,
         )
         return
     message = (
@@ -3650,7 +3760,7 @@ def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> N
         f"{_type_name(got)}"
     )
     if not (isinstance(got, TCollection) and isinstance(got.element, (TCard, TAny))):
-        bag.error(message, expr.span or rule.span)
+        bag.error(message, expr.span or rule.span, code=Code.TYPE_MISMATCH)
         return
     _check_operand(expr, got, _UNKEYED_COLLECTION, env, bag, message, expr.span or rule.span)
 
@@ -3782,6 +3892,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "procedure " + _named(env, "procedure", s.name, f"'{s.name}'")
                 + f" expects {len(sig.params)} argument(s), got {len(s.args)}",
                 s.span,
+                code=Code.WRONG_ARGUMENT_COUNT,
             )
         else:
             for arg, param in zip(s.args, sig.params):
@@ -3829,6 +3940,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`{name}` holds one value, so it takes no index — write "
             f"`{name} {stmt.op} …`",
             stmt.span,
+            code=Code.WRONG_SUBSCRIPT,
         )
         return
     if (
@@ -3842,6 +3954,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`{name}` is one value per {per}, so `{stmt.op}` needs one of them "
             f"— write `{name}[<{per}>] {stmt.op} …`",
             stmt.span,
+            code=Code.WRONG_SUBSCRIPT,
         )
         return
     if stmt.index is not None and isinstance(target, TCollection):
@@ -3870,6 +3983,7 @@ def _check_assign(stmt: n.AssignStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`{name} {stmt.op}` needs an Integer, and `{name}` is "
             f"{_type_name(target)} — {fits}",
             stmt.span,
+            code=Code.TYPE_MISMATCH,
         )
         return
     if stmt.op in ("+=", "-="):
@@ -3900,6 +4014,7 @@ def _check_rotate(stmt: n.RotateStmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"`rotate` cycles a variable holding one value, and `{name}` holds "
             f"one per {per}",
             stmt.span,
+            code=Code.WRONG_SUBSCRIPT,
         )
         return
     for value in stmt.values:
@@ -3983,6 +4098,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                     f"'{stmt.op}' target must be a zone, got "
                     f"{_type_name(t)}{_zone_hint(t, filterable=False)}",
                     stmt.span,
+                    code=Code.TYPE_MISMATCH,
                 )
         case n.AsBlock():
             # The block binds the acting player to one player, so its expression
@@ -4024,6 +4140,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                         f"`again {stmt.again}`: the go-again flag must be "
                         f"Boolean, got {_type_name(at)}",
                         stmt.span,
+                        code=Code.TYPE_MISMATCH,
                     )
         case n.Offer():
             # `offer to <player>` names the acting player. Before the operand
@@ -4107,6 +4224,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"movement {what} must be a zone, got "
                 f"{_type_name(t)}{_zone_hint(t, filterable)}",
                 stmt.span,
+                code=Code.TYPE_MISMATCH,
             )
     if not isinstance(stmt.amount, str):
         amount_t = infer(stmt.amount, env)
@@ -4124,6 +4242,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 f"untyped read); it must type exactly Integer, because a "
                 f"wrong count is otherwise found only when the game is played",
                 stmt.amount.span or stmt.span,
+                code=Code.UNTYPED_VALUE,
             )
         if (
             isinstance(stmt.amount, n.IntLit)
@@ -4135,12 +4254,14 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "nothing is not a decision — choose 1 or more, or guard the "
                 "movement instead",
                 stmt.amount.span or stmt.span,
+                code=Code.OUT_OF_RANGE,
             )
         if isinstance(stmt.amount, n.IntLit) and stmt.amount.value < 0:
             bag.error(
                 f"a movement's amount is {stmt.amount.value}: no movement "
                 f"moves fewer than none — write a count of 0 or more",
                 stmt.amount.span or stmt.span,
+                code=Code.OUT_OF_RANGE,
             )
     own = (content_noun(env.flavor, plural=False), content_noun(env.flavor, plural=True))
     other_flavor: Flavor = "card" if env.flavor == "piece" else "piece"
@@ -4151,6 +4272,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
             f"{content_kind_clause(env.flavor, env.deck)} -- move its {own[1]} "
             f"(`move ... {own[1]} ...`), not '{stmt.item}'",
             stmt.span,
+            code=Code.PIECES_ARE_NOT_CARDS,
         )
     elif stmt.item not in own:
         # A truly unknown noun (`chips`, `coins`): the deferred-resource Owner Guard,
@@ -4161,6 +4283,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
             stmt.item,
             own,
             stmt.span,
+            code=Code.NOT_YET_SUPPORTED,
         )
     if stmt.visibility is not None:
         bag.error(
@@ -4168,6 +4291,7 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
             "runtime — visibility derives from the declared zone types "
             "(roadmap.md)",
             stmt.span,
+            code=Code.NOT_YET_SUPPORTED,
         )
     if stmt.source is None:  # a gather
         if stmt.amount != "all" or stmt.selection_mode is not None:
@@ -4175,12 +4299,14 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "a gather (`move ... to <zone>` with no `from`) collects every "
                 "card: write `move all cards to <zone>`",
                 stmt.span,
+                code=Code.WRONG_SPELLING,
             )
         if stmt.dest_each:
             bag.error(
                 "a gather collects into one zone; `to each` is not supported — "
                 "gather to a single zone, then deal from it",
                 stmt.span,
+                code=Code.WRONG_SPELLING,
             )
     if stmt.distribution is not None:
         if not stmt.dest_each:
@@ -4188,24 +4314,28 @@ def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "`as-equally-as-possible` distributes a `to each` deal; it has "
                 "no meaning with a single destination",
                 stmt.span,
+                code=Code.DEAL_DISTRIBUTION,
             )
         if stmt.amount != "all":
             bag.error(
                 "an `as-equally-as-possible` deal distributes the whole source "
                 "(or the whole `where` pool): the amount must be `all`",
                 stmt.span,
+                code=Code.DEAL_DISTRIBUTION,
             )
         if stmt.selection_mode is not None:
             bag.error(
                 f"`as-equally-as-possible` deals round-robin; a `{stmt.selection_mode}` "
                 "selection cannot combine with it",
                 stmt.span,
+                code=Code.DEAL_DISTRIBUTION,
             )
     elif stmt.dest_each and stmt.amount == "all":
         bag.error(
             "`deal all ... to each` would give the whole source to the first "
             "player; use `as-equally-as-possible` to distribute it",
             stmt.span,
+            code=Code.DEAL_DISTRIBUTION,
         )
 
 
@@ -4215,7 +4345,7 @@ def _check_produce_stmt(
     """One `produce` names a declared outcome and supplies payloads of the
     declared arity and types."""
     if sub.tag not in outcome.cases:
-        bag.unknown(f"{owner} produces unknown outcome case '{sub.tag}'", sub.tag, outcome.cases, sub.span)
+        bag.unknown(f"{owner} produces unknown outcome case '{sub.tag}'", sub.tag, outcome.cases, sub.span, code=Code.UNKNOWN_OUTCOME)
         return
     payload_types = outcome.cases[sub.tag]
     if len(sub.payloads) != len(payload_types):
@@ -4223,6 +4353,7 @@ def _check_produce_stmt(
             f"outcome case '{sub.tag}' takes {len(payload_types)} payload(s), "
             f"got {len(sub.payloads)}",
             sub.span,
+            code=Code.WRONG_ARGUMENT_COUNT,
         )
         return
     for expr, expected in zip(sub.payloads, payload_types):
@@ -4245,7 +4376,7 @@ def _check_misplaced_produce(
         for s in move_type.effect:
             for sub in _stmt_tree(s):
                 if isinstance(sub, n.Produce):
-                    bag.error("'produce' may only appear in an outcome-phase body", sub.span)
+                    bag.error("'produce' may only appear in an outcome-phase body", sub.span, code=Code.OUT_OF_PLACE)
     for phase in game.phases:
         _check_phase_produces(phase, None, outcomes, env, bag)
 
@@ -4405,6 +4536,7 @@ def _check_single_outcome_consumer(game: Game, bag: DiagnosticBag) -> None:
                     f"phase outcome '{sub.phase}' is consumed by more than one "
                     "produces: block",
                     sub.span,
+                    code=Code.WRITTEN_TWICE,
                 )
             seen.add(sub.phase)
 
@@ -4419,7 +4551,8 @@ def _check_outcome_name_collisions(game: Game, bag: DiagnosticBag) -> None:
             continue
         if phase.name in seen:
             bag.error(
-                f"duplicate outcome phase name '{phase.name}'", phase.span
+                f"duplicate outcome phase name '{phase.name}'", phase.span,
+                code=Code.NAME_TAKEN,
             )
         seen.add(phase.name)
 
@@ -4452,6 +4585,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                     f"produces names phase '{stmt.phase}', which is not an earlier "
                     "sibling that has run",
                     stmt.span,
+                    code=Code.OUTCOME_READ_BEFORE_PRODUCED,
                 )
             for arm in stmt.arms:
                 for s in arm.body:
@@ -4569,6 +4703,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 "'continue to' / 'skip to next hand' is not allowed "
                                 "in a before_each/after_each hook",
                                 node.span,
+                                code=Code.OUT_OF_PLACE,
                             )
                         elif isinstance(node, n.ContinueTo) and node.phase not in later:
                             # A mode name reaching here is the phase/mode
@@ -4585,6 +4720,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                     f"`transition_to:` when its event fires, never "
                                     f"jumped to",
                                     node.span,
+                                    code=Code.WRONG_SORT_OF_NAME,
                                 )
                             else:
                                 bag.unknown(
@@ -4593,12 +4729,14 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                     node.phase,
                                     later,
                                     node.span,
+                                    code=Code.UNKNOWN_PHASE,
                                 )
                         elif isinstance(node, n.SkipToNextHand) and not here_loop:
                             bag.error(
                                 "'skip to next hand' must be inside a `repeat until` "
                                 "hand loop",
                                 node.span,
+                                code=Code.OUT_OF_PLACE,
                             )
                     check_produces_scope(s, avail)
 
@@ -4634,6 +4772,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                     "'continue to' / 'skip to next hand' may only appear in a phase "
                     "body",
                     node.span,
+                    code=Code.OUT_OF_PLACE,
                 )
 
 
@@ -4659,13 +4798,13 @@ def _check_phase_produces(
             for s in item.body:
                 for sub in _stmt_tree(s):
                     if isinstance(sub, n.Produce):
-                        bag.error("'produce' may not appear in a before_each/after_each hook", sub.span)
+                        bag.error("'produce' may not appear in a before_each/after_each hook", sub.span, code=Code.OUT_OF_PLACE)
         else:
             for sub, sub_binders in _stmt_tree_scoped(item, current):
                 if not isinstance(sub, n.Produce):
                     continue
                 if owner is None:
-                    bag.error("'produce' may only appear in an outcome-phase body", sub.span)
+                    bag.error("'produce' may only appear in an outcome-phase body", sub.span, code=Code.OUT_OF_PLACE)
                 else:
                     _check_produce_stmt(
                         sub,
@@ -4700,10 +4839,11 @@ def _check_produces(
                 arm.tag,
                 outcome.cases,
                 arm.span,
+                code=Code.UNKNOWN_OUTCOME,
             )
             continue
         if arm.tag in seen:
-            bag.error(f"duplicate arm '{arm.tag}' in produces", arm.span)
+            bag.error(f"duplicate arm '{arm.tag}' in produces", arm.span, code=Code.WRITTEN_TWICE)
         seen.add(arm.tag)
         payload_types = outcome.cases[arm.tag]
         if len(arm.binders) != len(payload_types):
@@ -4711,6 +4851,7 @@ def _check_produces(
                 f"arm '{arm.tag}' binds {len(arm.binders)} value(s), "
                 f"expected {len(payload_types)}",
                 arm.span,
+                code=Code.WRONG_ARGUMENT_COUNT,
             )
         arm_env = env
         for binder, t in zip(arm.binders, payload_types):
@@ -4722,7 +4863,7 @@ def _check_produces(
             if isinstance(sub, n.Produce):
                 # `_stmt_tree` does not descend into `produces:` arms, so the
                 # outer misplaced-produce walk never sees this — reject it here.
-                bag.error("'produce' may not appear in a produces: arm", sub.span)
+                bag.error("'produce' may not appear in a produces: arm", sub.span, code=Code.OUT_OF_PLACE)
             if isinstance(sub, n.Produces):
                 # Nested consumer: check it with the enclosing arm binders in
                 # scope (so outer payload binders are typed, not TAny).
@@ -4735,15 +4876,37 @@ def _check_produces(
             f"produces on '{stmt.phase}' is not exhaustive: missing "
             f"{', '.join(missing)}",
             stmt.span,
+            code=Code.MISSING_OUTCOME_ARM,
         )
 
 
+class _TypeCheck(Protocol):
+    def __call__(self, game: Game, *, types: dict[n.NodeKey, list[Type]] | None = None) -> Game: ...
+
+
+def _filling_the_type_record(checking: Callable[[Game], Game]) -> _TypeCheck:
+    """`typecheck`, filling `types`, when it is given, with the Type Record:
+    every Type the check infers, by the expression it is inferred for. The
+    definition, its name and its source stay `typecheck`'s."""
+
+    @wraps(checking)
+    def filling(game: Game, *, types: dict[n.NodeKey, list[Type]] | None = None) -> Game:
+        token = _TYPE_RECORD.set(types)
+        try:
+            return checking(game)
+        finally:
+            _TYPE_RECORD.reset(token)
+
+    return filling
+
+
+@_filling_the_type_record
 def typecheck(game: Game) -> Game:
     bag = DiagnosticBag()
 
     players = game.players
     if players.count < 1:
-        bag.error(f"a game needs at least one player, got {players.count}", players.span)
+        bag.error(f"a game needs at least one player, got {players.count}", players.span, code=Code.OUT_OF_RANGE)
 
     env = replace(env_from_game(game), functions=function_registry(game, bag))
     _check_contracted_results(game, env, bag)

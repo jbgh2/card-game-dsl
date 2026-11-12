@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Callable, Iterator
 
+from cardlang.diagnostic_codes import Code
 from cardlang.ast import nodes as n
 from cardlang.catalogue import ENUMERATED_UNIVERSE_BOUND, SHAPE_QUALIFIERS, ShapeQualifierKind
 from cardlang.diagnostics import DiagnosticBag
@@ -82,17 +83,18 @@ def check_catalogues(
                 f"catalogue declares a climbing round's plays; name it in the "
                 f"round's `combinations` slot",
                 cat.span,
+                code=Code.UNUSED_DECLARATION,
             )
         seen: dict[str, n.ShapeRow] = {}
         admissible = True
         for row in cat.rows:
             if row.label in seen:
-                bag.error(f"`{row.label}` labels two rows of `{cat.name}` — each row's label is its own, so it is written once, not twice", row.span)
+                bag.error(f"`{row.label}` labels two rows of `{cat.name}` — each row's label is its own, so it is written once, not twice", row.span, code=Code.WRITTEN_TWICE)
                 admissible = False
             seen[row.label] = row
             other = names(row.label)
             if other is not None:
-                bag.error(f"row label `{row.label}` is already {other} of this game — a row's label names its shape and nothing else", row.span)
+                bag.error(f"row label `{row.label}` is already {other} of this game — a row's label names its shape and nothing else", row.span, code=Code.NAME_TAKEN)
                 admissible = False
             if not _check_row(row, game.deck, widest, sequence, bag):
                 admissible = False
@@ -111,6 +113,7 @@ def check_catalogues(
                 f"numbered over standard cards; issue #989 holds a climbing "
                 f"deck with special cards",
                 cat.span,
+                code=Code.NOT_YET_SUPPORTED,
             )
             admissible = False
         if admissible and (sequence is not None or not any(_reads_sequence(r) for r in cat.rows)):
@@ -136,6 +139,7 @@ def _check_sequence(
                 f"`sequence:` — write `sequence: <its ranks, lowest place first>`, "
                 f"the order a run reads",
                 reading[0].span,
+                code=Code.MISSING_DECLARATION,
             )
         return None
     ok = True
@@ -144,16 +148,18 @@ def _check_sequence(
             "`sequence:` declares an order no row reads — a row reads it with "
             "`in sequence`; drop the clause, or write the row",
             seq.span,
+            code=Code.UNUSED_DECLARATION,
         )
         ok = False
     if len(seq.ranks) < 2:
-        bag.error("`sequence:` names at least 2 ranks, the shortest run's places", seq.span)
+        bag.error("`sequence:` names at least 2 ranks, the shortest run's places", seq.span, code=Code.RANKING_INCOMPLETE)
         ok = False
     deck_ranks = rank_names(game.deck)
     for r in seq.ranks:
         if r not in deck_ranks:
             bag.unknown(
-                f"`sequence:` names `{r}`, which is no rank of `{game.deck}`", r, deck_ranks, seq.span
+                f"`sequence:` names `{r}`, which is no rank of `{game.deck}`", r, deck_ranks, seq.span,
+                code=Code.UNKNOWN_RANK,
             )
             ok = False
     counts = Counter(seq.ranks)
@@ -164,6 +170,7 @@ def _check_sequence(
                 f"`sequence:` names `{r}` twice — a rank may stand at both ends "
                 f"(the ace low and high) and nowhere else twice",
                 seq.span,
+                code=Code.WRITTEN_TWICE,
             )
             ok = False
     return seq.ranks if ok else None
@@ -181,29 +188,31 @@ def _check_row(
         said = _PHRASE[part.kind].format(n=part.count)
         match part.kind:
             case "shape_card" if part.count != 1:
-                bag.error(f"`{said}` is written `{part.count} cards`", row.span)
+                bag.error(f"`{said}` is written `{part.count} cards`", row.span, code=Code.WRONG_SPELLING)
                 ok = False
             case "shape_cards" if part.count == 1:
-                bag.error("`1 cards` is written `1 card`", row.span)
+                bag.error("`1 cards` is written `1 card`", row.span, code=Code.WRONG_SPELLING)
                 ok = False
             case "shape_of_a_kind" if part.count == 1:
-                bag.error("`1 of a kind` is written `1 card`", row.span)
+                bag.error("`1 of a kind` is written `1 card`", row.span, code=Code.WRONG_SPELLING)
                 ok = False
             case "shape_of_a_kind" if part.count > widest:
                 bag.error(
                     f"`{said}` names no play: no rank of `{deck}` holds "
                     f"{part.count} cards",
                     row.span,
+                    code=Code.CATALOGUE_ROW_NAMES_NO_PLAY,
                 )
                 ok = False
             case "shape_in_sequence" if part.count < 2:
-                bag.error(f"`{said}` names no run — a sequence holds at least 2 cards", row.span)
+                bag.error(f"`{said}` names no run — a sequence holds at least 2 cards", row.span, code=Code.CATALOGUE_ROW_NAMES_NO_PLAY)
                 ok = False
             case "shape_in_sequence" if sequence is not None and part.count > len(sequence):
                 bag.error(
                     f"`{said}` is longer than the game's `sequence:`, which has "
                     f"{len(sequence)} places",
                     row.span,
+                    code=Code.CATALOGUE_ROW_NAMES_NO_PLAY,
                 )
                 ok = False
             case _:
@@ -213,11 +222,12 @@ def _check_row(
             "`1 card with 1 card` is two cards of two ranks — write `2 cards`, "
             "and settle what it must not be in the row's qualifiers",
             row.span,
+            code=Code.WRONG_SPELLING,
         )
         ok = False
     for q, k in Counter(row.qualifiers).items():
         if k > 1:
-            bag.error(f"`{SHAPE_QUALIFIERS[q].strip('`')}` is said twice in `{row.label}`'s row", row.span)
+            bag.error(f"`{SHAPE_QUALIFIERS[q].strip('`')}` is said twice in `{row.label}`'s row", row.span, code=Code.WRITTEN_TWICE)
             ok = False
     return ok
 
@@ -238,6 +248,7 @@ def _check_universe(cat: n.CombinationCatalogue, deck: str, sequence: tuple[str,
                     f"needs its plays numbered arithmetically from its rows, which "
                     f"issue #989 holds",
                     cat.span,
+                    code=Code.NOT_YET_SUPPORTED,
                 )
                 return
             first = owner.setdefault(cards, row.label)
@@ -248,10 +259,11 @@ def _check_universe(cat: n.CombinationCatalogue, deck: str, sequence: tuple[str,
                     f"catalogue `{cat.name}` — settle it in the rows (`, not all "
                     f"one suit`, `, not in sequence`)",
                     row.span,
+                    code=Code.AMBIGUOUS_PLAY_SHAPE,
                 )
                 return
         if named == 0:
-            bag.error(f"`{row.label}: {phrase(row)}` names no play of `{deck}`", row.span)
+            bag.error(f"`{row.label}: {phrase(row)}` names no play of `{deck}`", row.span, code=Code.CATALOGUE_ROW_NAMES_NO_PLAY)
             continue
         for q in row.qualifiers:
             if _removes_nothing(row, q, pool, sequence):
@@ -260,6 +272,7 @@ def _check_universe(cat: n.CombinationCatalogue, deck: str, sequence: tuple[str,
                     f"`{row.label}`'s plays — every one of them already is that; "
                     f"drop it",
                     row.span,
+                    code=Code.HAS_NO_EFFECT,
                 )
 
 

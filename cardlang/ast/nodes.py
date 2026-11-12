@@ -1801,6 +1801,22 @@ def state_blocks(game: Game) -> list[StateBlock]:
     return blocks
 
 
+#: Where a node stands: the source it was written in, its offsets, and its
+#: node class, so two nodes sharing one span are told apart. The key a pass's
+#: record of what it computed at a node is read by (the resolver's Scope
+#: Record, the type checker's Type Record), and stable across the passes'
+#: rebuilding of the tree, which keeps every span.
+NodeKey: TypeAlias = tuple[str, int, int, str]
+
+
+def node_key(node: object) -> NodeKey | None:
+    """`node`'s key, None for a node with no span."""
+    span = getattr(node, "span", None)
+    if not isinstance(span, Span):
+        return None
+    return (span.source_name, span.start, span.end, type(node).__name__)
+
+
 def library_origins(game: Game) -> dict[int, LibraryOrigin]:
     """Every node of the library text `resolve` spliced into `game`, by
     identity, mapped to the `LibraryOrigin` stamped on the definition that

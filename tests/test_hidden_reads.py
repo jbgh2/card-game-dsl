@@ -107,6 +107,7 @@ from cardlang.parse import parse_library
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.stdlib import zones as Z
 from tests.climb_asks import SETS_CATALOGUE
+from tools.decisions_index import spec_text
 
 _REPO = Path(__file__).resolve().parent.parent
 
@@ -123,7 +124,7 @@ class _Accepted(AssertionError):
 
 def _lattice() -> tuple[str, ...]:
     """decisions.md's lattice line, least informative first."""
-    text = (_REPO / "docs" / "decisions.md").read_text()
+    text = spec_text()
     match = re.search(r"^identity > [a-z_ >]+$", text, re.MULTILINE)
     assert match is not None, "decisions.md no longer states the lattice line"
     return tuple(reversed(match.group(0).split(" > ")))

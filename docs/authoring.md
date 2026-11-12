@@ -474,6 +474,69 @@ causes stays in the library's file, and a warning on your `uses` line says
 why: no game yet checks clean with the library, or none reaches the definition
 refused (decisions.md, "Family libraries").
 
+A tool, or a model writing a game for you, can ask for the refusals as data
+instead: `cardlang check <file> --json` prints one JSON document on stdout, a
+Record Envelope, with the exit code the text would give. Each refusal is a
+record holding a Diagnostic Code naming the kind of fix (`unknown-name`,
+`written-twice`, `decides-on-hidden-cards`), its severity, the author who must
+act (one of `cardlang.diagnostics.Author`: most often `game` or `library`),
+the file, line, column and length it stands at, the message as the text
+prints it, its notes, and its Near Misses as suggestions marked `offered`,
+which a tool shows rather than applies. A game that checks clean prints an
+empty list. The text output never shows a code (decisions.md, "Every refusal
+carries its Diagnostic Code").
+
+```json
+{"code": "unknown-name", "severity": "error", "author": "game",
+ "span": {"file": "hearts.cardlang", "line": 66, "column": 16, "length": 12},
+ "message": "unresolved name 'hnad'", "notes": [],
+ "suggestions": [{"text": "hand", "applicability": "offered"}]}
+```
+
+## Asking the checker a question
+
+Once a file checks, `cardlang query <file> --at LINE:COL` says what the checker
+knows at one place in it, without playing the game: the names a bare name
+written there would resolve to, the Type the checker gives the expression
+there, and what each seat sees when the movement or decision there runs. The
+line and column are the file's own, as `check` reports them, in a Markdown game
+too; a line's end is a column of its own.
+
+```console
+$ cardlang query hearts.cardlang --at 65:9
+hearts.cardlang:65:9: a movement: move chosen 3 cards
+names in scope:
+  bound here (a parameter, a `let`, or the binder of a query, a quantifier or a loop): player
+  State Variable: cumulative_score, leader, pass_direction
+  ...
+the checker's Type: none here -- a movement (`move chosen 3 cards`) is not an expression and the checker gives it no Type; point at an expression inside it
+what each seat sees (static, from the zone types; which cards, and which seat holds a zone, are settled when the game is played):
+  asked as: simultaneous
+  who decides: each seat, for its own pick, asked and remembering each pick
+  no other seat hears the pick; the others learn of it through the movement
+  the seat holding hand[player]: sees which cards leave hand[player], and how many cards arrive at hand[player offset_by pass_direction]
+  ...
+  every other seat: sees how many cards leave hand[player], and how many cards arrive at hand[player offset_by pass_direction]
+```
+
+What each seat sees is the **static** answer: through which projection each
+kind of seat sees each end of the movement (the cards themselves, how many, or
+nothing), from the zone types through the projection the engine applies when
+it tells a seat what moved. Where a movement can take more than one route (a
+trick played from the dummy's hand, cards gathered from every zone), each route
+is listed. Which cards, and which seat holds `hand[player]`, are settled only
+when a deal is played, and so is anything the file names only at play time (a
+zone a `let` holds, what the other seats hear of a climbing round's pick); the
+answer says so rather than guessing, and `demo --view` shows a played line.
+
+Where a question has no answer at the position, the answer says so and points
+at what does: the checker gives a statement no Type, an assignment moves no
+card, a `run` names the lines where its procedure's movements and decisions
+stand, and a comment or a blank line outside every declaration is no part of
+the game (exit `2`). A file the checker refuses gets the checker's refusal, exactly as `check`
+prints it, and no answer. `--json` prints the same answer as one Record
+Envelope of kind `query`, each refused answer carrying its Diagnostic Code.
+
 ## Reaching OpenSpiel with your own game
 
 The corpus registers itself from `docs/games/`, but a file of your own reaches

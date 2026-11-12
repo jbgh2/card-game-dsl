@@ -215,7 +215,7 @@ from cardlang.ast import nodes as n
 from cardlang.attribution import is_library_warning
 from cardlang.board_domains import BOARD_DOMAIN, LINE_NOUN
 from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, line_kind
+from cardlang.diagnostics import Author, DiagnosticBag, DiagnosticError, line_kind
 from cardlang.domains import DOMAINS, SIMULTANEOUS_ROLES, Role, role_names
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import (
@@ -534,7 +534,7 @@ def test_an_unhandled_library_item_is_loud() -> None:
     # author-facing channel and this is not. `game()`'s arm surfaces the same
     # way, which is what "the equivalent arm" means here.
     with pytest.raises(VisitError) as exc:
-        _transform(_Builder("L.cardlang", 0), tree)
+        _transform(_Builder("L.cardlang", 0, author=Author.LIBRARY), tree)
     assert isinstance(exc.value.orig_exc, AssertionError)
     assert "unexpected library item" in str(exc.value.orig_exc)
 
@@ -1394,10 +1394,13 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     # `positions` are what a Near Miss's position admits, read to narrow an
     # offer, never to resolve a name; `refused_binders` and `withheld` are
     # the binders a refused spelling's fix would bind, read to withhold a
-    # consequence, and resolve nothing.
+    # consequence, and resolve nothing. `scopes` is the Scope Record a
+    # Checker Query asks the walk to fill: written by the walk, read by the
+    # query, and no name resolves against it.
     game_fed = {f.name for f in fields(_Categories)} - {
         "locals", "functions", "flavor", "definitions", "rule_clause", "shapes",
         "bound_names", "zone_index", "positions", "refused_binders", "withheld",
+        "scopes",
     }
     covered: set[str] = set()
     for reached in _AXIS_NAMESPACE.values():

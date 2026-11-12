@@ -193,6 +193,16 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         "step — there is nothing to convert it to. Where the class sits: "
         "tests/test_failure_taxonomy.py; who must act: the class's own docstring."),
     ),
+    # --- whoever hands a reader a Record Envelope ------------------------------
+    ("cardlang/records.py", "UnreadableEnvelope"): (
+        4,
+        ("`read_envelope` refusing a document that is no Record Envelope of this "
+        "schema: not an object, another schema, an unknown kind, a payload of "
+        "another shape than its kind's. The Author is "
+        "whoever produced the document a tool reads back; no game description "
+        "writes one. Its witness is "
+        "tests/test_records.py::test_a_reader_refuses_what_it_cannot_read."),
+    ),
     # --- check authors ---------------------------------------------------------
     ("cardlang/diagnostics.py", "TypeError"): (
         4,

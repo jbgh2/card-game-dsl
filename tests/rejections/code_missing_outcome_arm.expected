@@ -1,0 +1,1 @@
+code_missing_outcome_arm.cardlang:13:5: error: produces on 'declare' is not exhaustive: missing bid_abandoned

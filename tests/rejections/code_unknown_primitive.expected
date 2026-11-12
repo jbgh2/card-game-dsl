@@ -1,0 +1,1 @@
+code_unknown_primitive.cardlang:6:16: error: nothing implements the Primitive `probe_fn` — a `primitives` entry names Python the engine can find (cardlang/primitives_block.py, PRIMITIVE_IMPLEMENTATIONS); check the spelling, or register the implementation

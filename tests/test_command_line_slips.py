@@ -368,6 +368,15 @@ _TAKES_VALUE: frozenset[str] = frozenset(
     for opt in sub_action.option_strings
 )
 _VALUE: dict[str, str] = {"--vs": "all=random", "--save": "saved.json", "--resume": "saved.json"}
+# The option pairs a command declares and refuses together (a mutually
+# exclusive group), walked from the built parser.
+_EXCLUSIVE: frozenset[frozenset[str]] = frozenset(
+    frozenset(opt for a in group._group_actions for opt in a.option_strings)
+    for action in build_parser()._actions
+    if isinstance(action, argparse._SubParsersAction)
+    for sub in action.choices.values()
+    for group in sub._mutually_exclusive_groups
+)
 
 
 def _and(names: tuple[str, ...]) -> str:
@@ -541,7 +550,13 @@ def _pair_cells() -> dict[str, _Cell]:
                 if second == first:
                     continue
                 takers = tuple(c for c in COMMANDS if first in _DECLARED[c] and second in _DECLARED[c])
-                if takers:
+                if takers and frozenset({first, second}) in _EXCLUSIVE:
+                    said = (
+                        f"{_subject(command)} takes no {first}; {first} is an option of "
+                        f"{_and(_owners(first))}, and {takers[0]} refuses this line too: "
+                        f"argument {second}: not allowed with argument {first}"
+                    )
+                elif takers:
                     where = "first" if command is None else f"in place of {command}"
                     said = (
                         f"{_subject(command)} takes no {first}; {first} is an option of "
@@ -932,7 +947,15 @@ _ANCHORS: dict[tuple[str | None, str], tuple[str, ...]] = {
 }
 # The anchors the measure answers otherwise (issue #1098).
 _MEASURE_ERRS: frozenset[tuple[str | None, str]] = frozenset(
-    {("play", "--sed"), ("demo", "--version"), ("demo", "--emit"), ("play", "-v"), ("play", "--version")}
+    {
+        ("play", "--sed"),
+        ("demo", "--version"),
+        ("demo", "--emit"),
+        ("play", "-v"),
+        ("play", "--version"),
+        (None, "--version"),
+        ("check", "--version"),
+    }
 )
 
 
@@ -1139,12 +1162,16 @@ def test_the_extension_is_refused_before_the_file_is_read(tmp_path: Path) -> Non
     _names_what_is_read(_refusal(path), path)
 
 
+# What a command cannot be run without, beside its file.
+_REQUIRED: dict[str, list[str]] = {"query": ["--at", "1:1"]}
+
+
 @pytest.mark.parametrize("command", COMMANDS)
 def test_every_command_tells_a_slipped_extension(
     command: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     path = _copy(tmp_path, ".cardlang", "hearts.cardlnag")
-    said = _run([command, str(path)], capsys)
+    said = _run([command, str(path), *_REQUIRED.get(command, [])], capsys)
     assert said.code == 1, said.err
     assert said.err.startswith(f"error: {path} ends in .cardlnag"), said.err
     assert "; did you mean `.cardlang`?" in said.err
