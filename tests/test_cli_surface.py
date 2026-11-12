@@ -22,8 +22,9 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  take one — are crossed separately, in the probes below; the
                  `play` command's value classes and combinations are
                  tests/test_play_session.py's, and its `--vs` values
-                 tests/test_play_opponents.py's. `--at`
-                 numbers decision nodes, one per candidate a Chooser call
+                 tests/test_play_opponents.py's; the `query` command's
+                 `--at LINE:COL` and its positions are tests/test_query.py's.
+                 `demo`'s `--at` numbers decision nodes, one per candidate a Chooser call
                  takes, which is the unit the game tree branches on, the unit
                  the adapter replays and the unit `max_length` bounds — so the
                  listing, the summary's `decisions` line and the adapter's
@@ -272,8 +273,16 @@ _COMPANION: dict[str, list[str]] = {"--at": ["--info-state", "0"]}
 # The same, for what a command needs beside every option: `play` refuses a
 # game with other seats until they are named, except one resumed from the file
 # that names them.
-_COMMAND_COMPANION: dict[str, list[str]] = {"play": ["--vs", "all=random"]}
+_COMMAND_COMPANION: dict[str, list[str]] = {
+    "play": ["--vs", "all=random"],
+    "query": ["--at", "76:24"],
+}
 _NAMES_ITS_OWN_OPPONENTS = ("--vs", "--resume")
+
+# `query`'s `--at` names a position, LINE:COL in the file, where `demo`'s names
+# a decision: one spelling, two value grammars, each its own command's. The
+# position is Kuhn's deal.
+_COMMAND_SAMPLE: dict[tuple[str, str], list[str]] = {("query", "--at"): ["76:24"]}
 
 # The authored expected column. Written as decisions, never derived from the
 # parser: a grid whose expectations come from the same object it measures
@@ -314,6 +323,17 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("play", "--save"): "accepted",
     ("play", "--resume"): "accepted",
     ("play", "--vs"): "accepted",
+    ("query", "--emit-ir"): "refused",
+    ("query", "--json"): "accepted",
+    ("query", "--seed"): "refused",
+    ("query", "--info-state"): "refused",
+    ("query", "--at"): "accepted",
+    ("query", "--decisions"): "refused",
+    ("query", "--view"): "refused",
+    ("query", "--seat"): "refused",
+    ("query", "--save"): "refused",
+    ("query", "--resume"): "refused",
+    ("query", "--vs"): "refused",
 }
 
 # The authored expected column for the combination cross. `--at` is refused
@@ -426,13 +446,18 @@ def test_command_option_cell(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    own_sample = _COMMAND_SAMPLE.get((command, option))
     argv = [
         command,
         str(KUHN),
         option,
-        *_sample(option, tmp_path),
-        *_COMPANION.get(option, []),
-        *([] if option in _NAMES_ITS_OWN_OPPONENTS else _COMMAND_COMPANION.get(command, [])),
+        *(_sample(option, tmp_path) if own_sample is None else own_sample),
+        *(_COMPANION.get(option, []) if own_sample is None else []),
+        *(
+            []
+            if (command == "play" and option in _NAMES_ITS_OWN_OPPONENTS) or own_sample is not None
+            else _COMMAND_COMPANION.get(command, [])
+        ),
     ]
     # `play` reads the person's picks; an empty stream is a person who leaves
     # at the first decision.

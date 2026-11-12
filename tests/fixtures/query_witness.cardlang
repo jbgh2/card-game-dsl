@@ -1,0 +1,41 @@
+// A witness for the Checker Query's per-seat answer at the movements no corpus
+// game makes: one whose ends both show nothing (muck to burn), one into a zone
+// a `let` names, and a team's concealed pile filled and emptied. Not a game
+// anyone plays; tests/test_query_seats.py plays it beside the corpus.
+
+game QueryWitness {
+  players: 4
+  teams: [[0, 2], [1, 3]]
+  max_length: 100
+
+  cards: standard52
+  ranking: aces high
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    muck         : Muck
+    burn         : Burn
+    discard      : Discard
+    stash[team]  : HiddenPile<team>
+  }
+
+  state {
+    score[team] : Integer = 0
+  }
+
+  phase setup {
+    shuffle deck
+    deal 3 cards from deck to each hand
+    move one card from deck to muck
+    let z = discard
+    move one card from muck to z
+    move one card from deck to muck
+    move all cards from muck to burn
+    for each player p: move one card from deck to stash[team_of(p)]
+    for each player p: move all cards from stash[team_of(p)] to hand[p]
+    for each player p: score[team_of(p)] := 1
+  }
+
+  winner: highest score
+}
