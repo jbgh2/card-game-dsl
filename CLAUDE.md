@@ -218,8 +218,9 @@ docs/
 
 ## Verifying changes — MANDATORY before every merge
 
-CI (`.github/workflows/ci.yml`) runs three checks on the self-hosted pool,
-about 12 minutes end to end. **The merge gate is CI green on all three.
+CI (`.github/workflows/ci.yml`) runs three checks, on the self-hosted pool
+or on a hosted runner when the pool is asleep or full (`docs/harness.md`,
+"The physical layer"). **The merge gate is CI green on all three.
 Push early and freely — a push starts the run and costs nothing — but never
 merge, and never report a change as done, on less than a green gate.**
 The gate is lane-invariant; *who* performs a merge is the Merge Lane's

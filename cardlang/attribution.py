@@ -162,7 +162,8 @@ def raise_if_errors(
 
 def raise_where_written(bag: DiagnosticBag) -> None:
     """Raise `bag`'s diagnostics, each told where it stands, when it holds an
-    error: a library checked alone, before any game is read."""
+    error: a library checked alone, or a game file's extension refused,
+    before any game is read."""
     if not bag.has_errors:
         return
     bag.items[:] = [_bare(d) for d in bag.items]

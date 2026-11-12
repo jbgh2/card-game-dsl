@@ -109,6 +109,26 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               naming the library and its definition. An `actor` read and a
               refusal reached through the game's answer to a Definition
               Contract stand at their own locations.
+              Every Near Miss the bare-name and round `trump` refusals offer
+              classifies where the refusal stands and is admitted there by
+              every positional Owner Guard that refuses by the position record
+              (``_name_positions``, read off the tree's shape alone, and
+              ``_position_refuses``, the disjunction of the guards'
+              predicates); a trick round's winner is offered the winners that
+              round admits (``_winner_refusals``, the one producer the
+              guards refusing a round's winner dispatch on). Held by Derived and Pinned
+              (tests/test_near_miss_positions.py). A refused spelling's
+              consequences are withheld where a fix drawn from the set it was
+              looked up in could clear them, and only there: a node whose
+              binder source is refused binds nothing, and a name in its scope
+              spelled as a binder a fix would bind is not told
+              (``_refused_binder_sources``, ``_membership_capture``); a
+              phase's modes are judged after its transition targets resolve,
+              and a target no sibling holds leaves undecided the role of every
+              mode it could name (``_check_modes``). Held by Derived and
+              Pinned: a withheld name is one lexical field (``withheld``), set
+              where a binder is scoped and read by the one unresolved-name arm
+              (tests/test_refusal_consequences.py).
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; an entry's
               collection element outside the block's allow-list reaching the
@@ -349,7 +369,7 @@ Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence, Set
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from typing import (
     Literal,
@@ -445,6 +465,7 @@ from cardlang.diagnostics import (
     Sentence,
     Severity,
     Span,
+    listed,
     near_misses,
     rendered,
 )
@@ -1862,6 +1883,51 @@ def _unstated_trump_slots(node: object, game: n.Game) -> tuple[str, ...]:
     ):
         return (f"round winner `{node.winner_fn}`",)
     return ()
+
+
+#: Why a trick round refuses the winner it names, by the guard that tells it:
+#: a piece game (`_check_piece_rounds`), the presence partition's winner arms
+#: (`_check_trick_order_partition`), and a `trump` clause the winner ignores
+#: (`_validate_refs`).
+_WinnerRefusal = Literal[
+    "reads a deck card",
+    "reads an absent Trick Order",
+    "reads an unstated trump",
+    "replaced by the Trick Order",
+    "early beside the Trick Order",
+    "ignores the trump clause",
+]
+
+
+def _winner_refusals(rnd: n.TrickRound, game: n.Game) -> tuple[_WinnerRefusal, ...]:
+    """Every reason `rnd` refuses its own winner, in the order its guards
+    tell them: the one producer each guard dispatches on and the winner
+    site's Near Misses read."""
+    out: list[_WinnerRefusal] = []
+    if game.content_flavor != "card":
+        if _refuses(_CARD_CONTENT_GATE, rnd, game):
+            out.append("reads a deck card")
+    elif not K.has_trick_order(game):
+        if _trick_order_reading_slots(rnd, game):
+            out.append("reads an absent Trick Order")
+        elif _unstated_trump_slots(rnd, game):
+            out.append("reads an unstated trump")
+    else:
+        if _trick_order_excluded_winners(rnd, game):
+            out.append("replaced by the Trick Order")
+        if (
+            rnd.early_termination is not None
+            and rnd.early_termination not in TRICK_ORDER_EARLY_PREDICATES
+            and rnd.winner_fn in TRICK_ORDER_GATED_WINNERS
+        ):
+            out.append("early beside the Trick Order")
+    if (
+        rnd.trump is not None
+        and rnd.winner_fn not in TRICK_ORDER_GATED_WINNERS
+        and rnd.winner_fn not in TRUMP_READING_WINNERS
+    ):
+        out.append("ignores the trump clause")
+    return tuple(out)
 
 
 def _trick_order_excluded_winners(node: object, game: n.Game) -> tuple[str, ...]:
@@ -4775,12 +4841,7 @@ def resolve(game: n.Game) -> n.Game:
     # `_instantiate_rules`, so instantiated rule bodies are covered too, and
     # before a rule's clause shapes are read, so a noun naming something else
     # is told what it names before its clause is judged by the query's shape.
-    noun_cats = _categories(game)
-    for dq in _walk(game):
-        if isinstance(dq, n.DomainQuery):
-            _check_domain_query(dq, game, noun_cats, bag)
-        elif isinstance(dq, n.SubsetQuery):
-            _check_subset_source(dq, bag)
+    refused_binders = _refused_binder_sources(game, _categories(game), bag)
 
     rule_move_types = {m.name: m for m in game.move_types}
     for rule in game.rules:
@@ -4791,7 +4852,7 @@ def resolve(game: n.Game) -> n.Game:
 
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
-    cats = _categories(game)
+    cats = replace(_categories(game), refused_binders=refused_binders)
     game = _classify_names(game, cats, bag)
     game = _stamp_follows_reads(game)
     _validate_refs(game, cats, bag)
@@ -5474,91 +5535,120 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
     by running every member of the union in default position (the grid in
     `tests/test_state_default_scope.py` carries the outcome per member)."""
 
-    player_families = frozenset(
-        z.name for z in game.zones if z.index is not None and role_of(z.index) is Role.PLAYER
-    )
+    zone_index = {z.name: z.index for z in game.zones}
+    keyed = _keyed_ids(game)
+    for decl, node, in_scope in _default_reads(game):
+        if isinstance(node, n.NameRef) and _bare_seat_family_in_default(
+            zone_index, node.name, node.ref_kind, id(node) in keyed
+        ):
+            bag.error(
+                "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" "
+                f"names `{node.name}` bare: a default is evaluated where it is "
+                f"written, outside any player's turn, so the acting "
+                f"player's `{node.name}` is no one's. Say whose: "
+                f"`{node.name}[<player>]`",
+                node.span or decl.span,
+            )
+        elif isinstance(node, n.Choose):
+            bag.error(
+                "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
+                f"`choose`: a default is evaluated where it is written, "
+                f"outside any player's turn, so there is no one to make "
+                f"the decision — and a decision with no actor has no "
+                f"information set to attach to. Move it into a phase",
+                node.span or decl.span,
+            )
+        elif isinstance(node, n.NameRef) and _pronoun_refused(
+            node.name, node.ref_kind, _DEFAULT_REFUSED_PRONOUNS
+        ):
+            bag.error(
+                "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
+                f"read `actor`: a default is evaluated where it is "
+                f"written, outside any player's turn, so `actor` names "
+                f"no one. Use a seat number, or set the variable during "
+                f"play",
+                node.span or decl.span,
+            )
+        elif isinstance(node, n.Call):
+            bag.error(
+                "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
+                "call " + _cite_in(game, "function", node.func, f"'{node.func}'")
+                + ": a default is evaluated while the "
+                f"`state {{ }}` block is still being declared, and a "
+                f"function body can reach a variable that does not "
+                f"exist yet — use a literal here and compute the value "
+                f"in the phase that needs it",
+                node.span or decl.span,
+            )
+        elif isinstance(node, n.NameRef) and _state_out_of_scope(
+            node.name, node.ref_kind, in_scope
+        ):
+            bag.error(
+                "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" reads "
+                f"'{node.name}', which is not declared yet: a default "
+                f"can only read state declared before it — earlier in "
+                f"the same `state {{ }}` block, or in an enclosing one",
+                node.span or decl.span,
+            )
+
+
+def _default_reads(game: n.Game) -> Iterator[tuple[n.StateDecl, object, frozenset[str]]]:
+    """Every node of every `state { }` default, with its declaration and the
+    state a default may read there: the names declared earlier in the same
+    block and every name of an enclosing block. The one walk
+    `_check_state_default_scope` refuses by and `_name_positions` records."""
 
     def declared(
         block: n.StateBlock | None, enclosing: frozenset[str]
-    ) -> frozenset[str]:
+    ) -> Iterator[tuple[n.StateDecl, object, frozenset[str]]]:
         if block is None:
-            return enclosing
+            return
         in_scope = enclosing
         for decl in block.decls:
-            keyed = {id(nd.obj) for nd in _walk(decl.default) if isinstance(nd, n.Subscript)}
             for node in _walk(decl.default):
-                if (
-                    isinstance(node, n.NameRef)
-                    and node.ref_kind == "zone"
-                    and node.name in player_families
-                    and id(node) not in keyed
-                ):
-                    bag.error(
-                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" "
-                        f"names `{node.name}` bare: a default is evaluated where it is "
-                        f"written, outside any player's turn, so the acting "
-                        f"player's `{node.name}` is no one's. Say whose: "
-                        f"`{node.name}[<player>]`",
-                        node.span or decl.span,
-                    )
-                elif isinstance(node, n.Choose):
-                    bag.error(
-                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
-                        f"`choose`: a default is evaluated where it is written, "
-                        f"outside any player's turn, so there is no one to make "
-                        f"the decision — and a decision with no actor has no "
-                        f"information set to attach to. Move it into a phase",
-                        node.span or decl.span,
-                    )
-                elif (
-                    isinstance(node, n.NameRef)
-                    and node.ref_kind == "pronoun"
-                    and node.name == "actor"
-                ):
-                    bag.error(
-                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
-                        f"read `actor`: a default is evaluated where it is "
-                        f"written, outside any player's turn, so `actor` names "
-                        f"no one. Use a seat number, or set the variable during "
-                        f"play",
-                        node.span or decl.span,
-                    )
-                elif isinstance(node, n.Call):
-                    bag.error(
-                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" cannot "
-                        "call " + _cite_in(game, "function", node.func, f"'{node.func}'")
-                        + ": a default is evaluated while the "
-                        f"`state {{ }}` block is still being declared, and a "
-                        f"function body can reach a variable that does not "
-                        f"exist yet — use a literal here and compute the value "
-                        f"in the phase that needs it",
-                        node.span or decl.span,
-                    )
-                elif (
-                    isinstance(node, n.NameRef)
-                    and node.ref_kind == "state_var"
-                    and node.name not in in_scope
-                ):
-                    bag.error(
-                        "the default of state variable " + cite_named(decl, f"'{decl.name}'") + f" reads "
-                        f"'{node.name}', which is not declared yet: a default "
-                        f"can only read state declared before it — earlier in "
-                        f"the same `state {{ }}` block, or in an enclosing one",
-                        node.span or decl.span,
-                    )
+                yield decl, node, in_scope
             in_scope = in_scope | {decl.name}
-        return in_scope
 
-    def descend(phase: n.Phase, enclosing: frozenset[str]) -> None:
+    def descend(
+        phase: n.Phase, enclosing: frozenset[str]
+    ) -> Iterator[tuple[n.StateDecl, object, frozenset[str]]]:
         block = next((i for i in phase.items if isinstance(i, n.StateBlock)), None)
-        inner = declared(block, enclosing)
+        yield from declared(block, enclosing)
+        inner = enclosing | _phase_state_names(phase)
         for item in phase.items:
             if isinstance(item, n.Phase):
-                descend(item, inner)
+                yield from descend(item, inner)
 
-    top = declared(game.state, frozenset())
+    yield from declared(game.state, frozenset())
+    top = _game_state_names(game)
     for phase in game.phases:
-        descend(phase, top)
+        yield from descend(phase, top)
+
+
+#: The pronoun a `state { }` default may not read: it is evaluated outside any
+#: player's turn.
+_DEFAULT_REFUSED_PRONOUNS = frozenset({"actor"})
+
+
+def _pronoun_refused(name: str, kind: n.RefKind | None, refused: frozenset[str]) -> bool:
+    """Whether a name of `kind` is a pronoun its position refuses."""
+    return kind == "pronoun" and name in refused
+
+
+def _bare_seat_family_in_default(
+    zone_index: Mapping[str, str | None], name: str, kind: n.RefKind | None, keyed: bool
+) -> bool:
+    """Whether a name is a zone kept per player, named bare in a default."""
+    index = zone_index.get(name)
+    return kind == "zone" and not keyed and index is not None and role_of(index) is Role.PLAYER
+
+
+def _keyed_ids(game: n.Game) -> frozenset[int]:
+    """The bare zone names a subscript keys, or a `to each` movement names
+    whole: neither names one zone of a family by the acting seat."""
+    return frozenset(
+        id(nd.obj) for nd in _walk(game) if isinstance(nd, n.Subscript)
+    ) | frozenset(id(nd.dest) for nd in _walk(game) if isinstance(nd, n.Transfer) and nd.dest_each)
 
 
 # `Game` fields `_check_state_scope` does not walk at game level, split by WHY —
@@ -5597,6 +5687,71 @@ _GAME_LEVEL_UNCHECKED = frozenset(
 _GAME_LEVEL_SKIP = _GAME_LEVEL_OWNED_BY_ANOTHER_GUARD | _GAME_LEVEL_UNCHECKED
 
 
+def _phase_state_names(phase: n.Phase) -> frozenset[str]:
+    """The state names `phase` declares."""
+    block = next((i for i in phase.items if isinstance(i, n.StateBlock)), None)
+    return frozenset(d.name for d in block.decls) if block else frozenset()
+
+
+def _game_state_names(game: n.Game) -> frozenset[str]:
+    """The state names the game declares at game level."""
+    return frozenset(d.name for d in game.state.decls) if game.state else frozenset()
+
+
+def _phase_scoped_names(game: n.Game) -> Iterator[tuple[n.NameRef, frozenset[str]]]:
+    """Every bare name the state-scope rule judges, with the state live where
+    it stands: a phase body's names (its qualifier and outcome cases
+    included) against the game's state and every enclosing phase's, and a
+    game-level clause's against the game's alone. A `state { }` default is
+    `_default_reads`', and a callable body is outside the rule (issue #242).
+    The one walk `_check_state_scope` refuses by and `_name_positions` records."""
+
+    def descend(phase: n.Phase, enclosing: frozenset[str]) -> Iterator[tuple[n.NameRef, frozenset[str]]]:
+        inner = enclosing | _phase_state_names(phase)
+        for item in phase.items:
+            if isinstance(item, n.Phase):
+                yield from descend(item, inner)
+            elif isinstance(item, n.StateBlock):
+                continue  # `_check_state_default_scope` owns defaults
+            else:
+                for node in _walk(item):
+                    if isinstance(node, n.NameRef):
+                        yield node, inner
+        # The qualifier and the outcome cases are part of THIS phase, so its
+        # own state is live in them.
+        for owned in (phase.qualifier, *phase.outcome_cases):
+            for node in _walk(owned):
+                if isinstance(node, n.NameRef):
+                    yield node, inner
+
+    top = _game_state_names(game)
+    for phase in game.phases:
+        yield from descend(phase, top)
+
+    # Game-level clauses run outside every phase — every frame has been popped
+    # by then — so they see game-level state only. DERIVED, not listed: walk the
+    # `Game` node's own fields and skip the ones another guard owns, so a clause
+    # added later is covered the day it exists rather than the day someone
+    # remembers it.
+    for field in game.__dataclass_fields__:
+        if field in _GAME_LEVEL_SKIP:
+            continue
+        # `_child_nodes`, not `_walk`: most of these fields hold a TUPLE of
+        # nodes, and `_walk` returns immediately on anything that is not a
+        # dataclass. Walking them with `_walk` visits nothing at all and the
+        # loop looks total while checking only the handful of single-node
+        # fields.
+        for node in _child_nodes(getattr(game, field, None)):
+            if isinstance(node, n.NameRef):
+                yield node, top
+
+
+def _state_out_of_scope(name: str, kind: n.RefKind | None, in_scope: frozenset[str] | None) -> bool:
+    """Whether a name of `kind` is a state variable outside `in_scope`, the
+    state live where it stands; None is a position no scope rule judges."""
+    return kind == "state_var" and in_scope is not None and name not in in_scope
+
+
 def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     """A state reference names a variable live at its lexical position.
 
@@ -5629,16 +5784,22 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     """
     declared_at: dict[str, list[str]] = {}
 
-    def phase_names(phase: n.Phase) -> frozenset[str]:
-        """The state names this phase declares. Pure: the declaration record is
-        `collect`'s job, because this runs once per phase per traversal and
-        would otherwise record every name as many times as it is called."""
-        block = next((i for i in phase.items if isinstance(i, n.StateBlock)), None)
-        return frozenset(d.name for d in block.decls) if block else frozenset()
+    # Collect every declaration first, so a diagnostic can name a declaring
+    # phase that appears LATER in the file than the reference it explains.
+    def collect(phase: n.Phase) -> None:
+        for name in sorted(_phase_state_names(phase)):
+            declared_at.setdefault(name, []).append(phase.name)
+        for item in phase.items:
+            if isinstance(item, n.Phase):
+                collect(item)
 
-    def report(node: n.NameRef, in_scope: frozenset[str]) -> None:
-        if node.ref_kind != "state_var" or node.name in in_scope:
-            return
+    for phase in game.phases:
+        collect(phase)
+    top = _game_state_names(game)
+
+    for node, in_scope in _phase_scoped_names(game):
+        if not _state_out_of_scope(node.name, node.ref_kind, in_scope):
+            continue
         where = declared_at.get(node.name, [])
         # Name the declaring phase: "not in scope" alone sends the author
         # looking in the wrong place for a variable they can see on the page.
@@ -5651,58 +5812,6 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
             f"both, or move this reference into {home}",
             node.span,
         )
-
-    def descend(phase: n.Phase, enclosing: frozenset[str]) -> None:
-        inner = enclosing | phase_names(phase)
-        for item in phase.items:
-            if isinstance(item, n.Phase):
-                descend(item, inner)
-            elif isinstance(item, n.StateBlock):
-                continue  # `_check_state_default_scope` owns defaults
-            else:
-                for node in _walk(item):
-                    if isinstance(node, n.NameRef):
-                        report(node, inner)
-        # The qualifier and the outcome cases are part of THIS phase, so its
-        # own state is live in them (measured: `repeat until <own state>` runs).
-        for owned in (phase.qualifier, *phase.outcome_cases):
-            for node in _walk(owned):
-                if isinstance(node, n.NameRef):
-                    report(node, inner)
-
-    top = frozenset(d.name for d in game.state.decls) if game.state else frozenset()
-
-    # Collect every declaration first, so a diagnostic can name a declaring
-    # phase that appears LATER in the file than the reference it explains.
-    def collect(phase: n.Phase) -> None:
-        for name in sorted(phase_names(phase)):
-            declared_at.setdefault(name, []).append(phase.name)
-        for item in phase.items:
-            if isinstance(item, n.Phase):
-                collect(item)
-
-    for phase in game.phases:
-        collect(phase)
-    for phase in game.phases:
-        descend(phase, top)
-
-    # Game-level clauses run outside every phase — every frame has been popped
-    # by then — so they see game-level state only. DERIVED, not listed: walk the
-    # `Game` node's own fields and skip the ones another guard owns, so a clause
-    # added later is covered the day it exists rather than the day someone
-    # remembers it. `loser:` was found missing here by review, and it was found
-    # because it had been enumerated by hand.
-    for field in game.__dataclass_fields__:
-        if field in _GAME_LEVEL_SKIP:
-            continue
-        # `_child_nodes`, not `_walk`: most of these fields hold a TUPLE of
-        # nodes, and `_walk` returns immediately on anything that is not a
-        # dataclass. Walking them with `_walk` visits nothing at all and the
-        # loop looks total while checking only the handful of single-node
-        # fields.
-        for node in _child_nodes(getattr(game, field, None)):
-            if isinstance(node, n.NameRef):
-                report(node, top)
 
     # A result ranking's target needs naming separately: `state_var` is a bare
     # `str` and never becomes a `NameRef` (issue #243), so the walk above cannot
@@ -7567,22 +7676,14 @@ def _check_bare_family_refs(game: n.Game, bag: DiagnosticBag) -> None:
         index = index_of[name]
         return index is not None and role_of(index) is Role.PLAYER
 
-    whole = {
-        id(nd.dest)
-        for nd in _walk(game)
-        if isinstance(nd, n.Transfer) and nd.dest_each
-    }
-    subscripted = {id(nd.obj) for nd in _walk(game) if isinstance(nd, n.Subscript)}
+    keyed = _keyed_ids(game)
     origins = n.library_origins(game)
     for nd in _walk(game):
         index = index_of.get(nd.name) if isinstance(nd, n.NameRef) else None
         if (
             isinstance(nd, n.NameRef)
-            and nd.ref_kind == "zone"
             and index is not None
-            and role_of(index) is not Role.PLAYER
-            and id(nd) not in subscripted
-            and id(nd) not in whole
+            and _bare_family_refused(index_of, nd.name, nd.ref_kind, id(nd) in keyed)
         ):
             team = (
                 " (`team_of(<player>)` is a player's team)"
@@ -7831,7 +7932,6 @@ def _resolve_phase_level(
     """
     sibling_names = {p.name for p in phases}
     for phase in phases:
-        _check_modes(phase, bag)
         # Combination validity (decisions.md "Surface totality"): the runtime
         # declares only a phase's FIRST state block and runs the lifecycle
         # hooks only on a `repeat until` phase — reject what it would
@@ -7858,8 +7958,16 @@ def _resolve_phase_level(
         for item in phase.items:
             scope = mode_names if isinstance(item, n.Mode) else sibling_names
             _resolve_phase_item(item, scope, known_rule_names, bag)
+        # After the transitions it reads are resolved, so a refused target is
+        # told before any role it leaves a mode in.
+        _check_modes(phase, bag)
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
         _resolve_phase_level(children, known_rule_names, bag)
+
+
+def _transition_targets(mode_names: Set[str], source: str) -> frozenset[str]:
+    """The modes a transition declared in `source` may name: its siblings."""
+    return frozenset(mode_names) - {source}
 
 
 def _resolve_transition(
@@ -7871,7 +7979,7 @@ def _resolve_transition(
             f"of this phase — a transition ends one condition and begins "
             f"another, so its target is a `mode` declared beside this one",
             transition.mode,
-            mode_names - {source},
+            _transition_targets(mode_names, source),
             transition.span,
         )
     if transition.event.move_type not in LIBRARY_MOVE_TYPES:
@@ -7908,7 +8016,18 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
       `active_rules:` silently never apply.
     """
     modes = [i for i in phase.items if isinstance(i, n.Mode)]
-    targeted = {t.mode for m in modes for t in m.transitions}
+    mode_names = {m.name for m in modes}
+    # A target no sibling holds is refused where it is written; what it would
+    # name once fixed -- any mode `_transition_targets` admits -- is unknown,
+    # so no role it leaves undecided is told.
+    targeted = {t.mode for m in modes for t in m.transitions if t.mode in mode_names}
+    undecided = {
+        name
+        for m in modes
+        for t in m.transitions
+        if t.mode not in mode_names
+        for name in _transition_targets(mode_names, m.name)
+    }
 
     # A target belongs to ONE condition. Two sources naming the same target
     # read as "two conditions that happen to end together", but the runtime
@@ -7921,6 +8040,8 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
     claimed_by: dict[str, str] = {}
     for mode in modes:
         for transition in mode.transitions:
+            if transition.mode not in mode_names:
+                continue
             owner = claimed_by.setdefault(transition.mode, mode.name)
             if owner != mode.name:
                 bag.error(
@@ -7943,7 +8064,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
                 f"through three or more stages",
                 mode.span,
             )
-        elif not is_source and not is_target:
+        elif not is_source and not is_target and mode.name not in undecided:
             bag.error(
                 f"mode '{mode.name}' is never active: nothing transitions to "
                 f"it and it declares no transition of its own, so its "
@@ -8041,6 +8162,104 @@ class _Categories:
     # capture check reads at a collection set's node.
     collection_nouns: frozenset[str] = frozenset()
     bound_names: frozenset[str] = frozenset()
+    # Each zone's index role, None for a single zone: what the bare-family and
+    # `to each` positions read of a zone a Near Miss names.
+    zone_index: Mapping[str, str | None] = field(default_factory=dict)
+    # What a bare name may denote where it stands, by the name's node
+    # (`_name_positions`), over the tree `_classify_names` classifies.
+    positions: Mapping[int, _NamePosition] = field(default_factory=dict)
+    # The names a node's refused binder source would bind were it fixed, by
+    # the node (`_refused_binder_sources`): the node binds nothing, and a
+    # name in its scope spelled as one of them is withheld.
+    refused_binders: Mapping[int, frozenset[str]] = field(default_factory=dict)
+    # Lexical, like `locals`: names in scope that a refused binder source's
+    # fix would bind. Unresolved, such a name is a consequence of that
+    # refusal and is not told.
+    withheld: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class _NamePosition:
+    """What a bare name may denote where it stands: the facts the positional
+    Owner Guards of this pass refuse a classified name by, each recorded from
+    the walk its guard refuses by.
+
+    `live_state` is the state live at a phase-scoped position
+    (`_phase_scoped_names`, `_check_state_scope`) or at a `state { }` default
+    (`_default_reads`, `_check_state_default_scope`), None where no scope rule
+    judges (a callable body, issue #242). `refused_pronouns` are the pronouns
+    the enclosing definition or default may not read
+    (`_refused_call_site_pronouns`, `_DEFAULT_REFUSED_PRONOUNS`). `slot` is the
+    kinds the name slot the name roots takes (`_NAME_SLOTS`), `each_destination`
+    marks a `to each` destination, `keyed` a name a subscript keys or a
+    `to each` names whole (`_keyed_ids`), and `in_default` a default's name."""
+
+    live_state: frozenset[str] | None = None
+    refused_pronouns: frozenset[str] = frozenset()
+    slot: frozenset[n.RefKind] | None = None
+    each_destination: bool = False
+    keyed: bool = False
+    in_default: bool = False
+
+
+def _position_refuses(
+    position: _NamePosition, name: str, kind: n.RefKind, zone_index: Mapping[str, str | None]
+) -> bool:
+    """Whether some positional Owner Guard of this pass refuses a name of
+    `kind` at `position`: each disjunct is the predicate its guard refuses by."""
+    return (
+        _state_out_of_scope(name, kind, position.live_state)
+        or _pronoun_refused(name, kind, position.refused_pronouns)
+        or (position.slot is not None and _slot_refuses(position.slot, kind))
+        or (position.each_destination and _each_destination_refuses(zone_index, name, kind))
+        or _bare_family_refused(zone_index, name, kind, position.keyed)
+        or (position.in_default and _bare_seat_family_in_default(zone_index, name, kind, position.keyed))
+    )
+
+
+def _name_positions(game: n.Game) -> dict[int, _NamePosition]:
+    """Every bare name of `game`, by its node, with what may denote it where
+    it stands. Read off the tree's shape and declarations alone, never its
+    classification, so the record over a tree before classification is the
+    record over it after."""
+    live: dict[int, frozenset[str]] = {}
+    for ref, in_scope in _phase_scoped_names(game):
+        live[id(ref)] = in_scope
+    in_default: set[int] = set()
+    for _decl, node, in_scope in _default_reads(game):
+        if isinstance(node, n.NameRef):
+            live[id(node)] = in_scope
+            in_default.add(id(node))
+    pronouns: dict[int, frozenset[str]] = {}
+    definitions: tuple[n.FunctionDef | n.ProcedureDef, ...] = (*game.functions, *game.procedures)
+    for definition in definitions:
+        refused = _refused_call_site_pronouns(definition)
+        for node in _child_nodes(definition.body):
+            if isinstance(node, n.NameRef):
+                pronouns[id(node)] = refused
+    slots: dict[int, frozenset[n.RefKind]] = {}
+    each: set[int] = set()
+    for node in _walk(game):
+        for (kind, slot), takes in _NAME_SLOTS.items():
+            if isinstance(node, kind) and (root := _slot_root(getattr(node, slot))) is not None:
+                slots[id(root)] = takes
+        if isinstance(node, n.Transfer) and node.dest_each and isinstance(node.dest, n.NameRef):
+            each.add(id(node.dest))
+    keyed = _keyed_ids(game)
+    return {
+        id(ref): _NamePosition(
+            live_state=live.get(id(ref)),
+            refused_pronouns=(
+                _DEFAULT_REFUSED_PRONOUNS if id(ref) in in_default else pronouns.get(id(ref), frozenset())
+            ),
+            slot=slots.get(id(ref)),
+            each_destination=id(ref) in each,
+            keyed=id(ref) in keyed,
+            in_default=id(ref) in in_default,
+        )
+        for ref in _walk(game)
+        if isinstance(ref, n.NameRef)
+    }
 
 
 def _walk(node: object) -> Iterator[object]:
@@ -8093,6 +8312,7 @@ def _categories(game: n.Game) -> _Categories:
         shapes=shape_labels(game),
         collection_nouns=collection_nouns(game),
         bound_names=_names_bound_anywhere(game),
+        zone_index={z.name: z.index for z in game.zones},
     )
 
 
@@ -9172,7 +9392,7 @@ def _check_primitive_reads(
 
 def _and_list(items: list[str]) -> str:
     """`a` and `b`; `a`, `b` and `c` — a list as a sentence reads it."""
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+    return listed(items, "and")
 
 
 def _check_read_tails_nest(
@@ -9965,7 +10185,8 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
         # `_check_library_clause_gates`'s, which this loop shadows.
         spliced = n.library_origins(game)
         for rnd in _trick_order_rounds(game):
-            if _trick_order_reading_slots(rnd, game):
+            refusals = _winner_refusals(rnd, game)
+            if "reads an absent Trick Order" in refusals:
                 others = ", ".join(sorted(TRICK_WINNER_NAMES - TRICK_ORDER_GATED_WINNERS))
                 bag.error(
                     f"round winner {rnd.winner_fn} reads the game's Trick "
@@ -9973,7 +10194,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                     f"or name {others}",
                     rnd.span,
                 )
-            elif _unstated_trump_slots(rnd, game):
+            elif "reads an unstated trump" in refusals:
                 # The round-configured twin of a Trick Order's required
                 # `is_trump`: a winner reading a trump the round never states
                 # would play no-trump.
@@ -10025,7 +10246,8 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 + " is the trump; drop the clause",
                 rnd.span,
             )
-        if _trick_order_excluded_winners(rnd, game):
+        refusals = _winner_refusals(rnd, game)
+        if "replaced by the Trick Order" in refusals:
             gated = ", ".join(sorted(TRICK_ORDER_GATED_WINNERS))
             bag.error(
                 f"round winner {rnd.winner_fn} beside " + named + " — it declares "
@@ -10034,11 +10256,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag, refused: set[
                 f"{_drop_trick_order(game)}",
                 rnd.span,
             )
-        if (
-            rnd.early_termination is not None
-            and rnd.early_termination not in TRICK_ORDER_EARLY_PREDICATES
-            and rnd.winner_fn in TRICK_ORDER_GATED_WINNERS
-        ):
+        if "early beside the Trick Order" in refusals:
             bag.error(
                 f"`early` clause on winner {rnd.winner_fn} — `early` "
                 f"predicates read the literal led suit, and a Trick Order's "
@@ -10077,9 +10295,10 @@ def _check_piece_rounds(game: n.Game, bag: DiagnosticBag) -> None:
     game for a `ranking:` a piece game cannot declare. Spliced from a library,
     `_check_library_clause_gates` has refused it first."""
     for nd in _walk(game):
-        if not isinstance(nd, (n.TrickRound, n.ClimbRound)):
-            continue
-        if not _refuses(_CARD_CONTENT_GATE, nd, game):
+        if isinstance(nd, n.TrickRound):
+            if "reads a deck card" not in _winner_refusals(nd, game):
+                continue
+        elif not isinstance(nd, n.ClimbRound) or not _refuses(_CARD_CONTENT_GATE, nd, game):
             continue
         for phrase in card_content_forms(nd):
             bag.error(
@@ -10719,7 +10938,7 @@ def _classify(name: str, cats: _Categories) -> n.RefKind | None:
 def _classify_names(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> n.Game:
     """Immutably rewrite every NameRef with its classification, recording an
     error for any name that resolves to nothing."""
-    result = _rewrite(game, cats, bag)
+    result = _rewrite(game, replace(cats, positions=_name_positions(game)), bag)
     assert isinstance(result, n.Game)
     return result
 
@@ -10891,13 +11110,80 @@ def _unknown_shape_label(node: n.BinOp, cats: _Categories) -> n.NameRef | None:
     return None
 
 
+def _rewrite_refused_binder(
+    node: object, fixes: frozenset[str], cats: _Categories, bag: DiagnosticBag
+) -> object:
+    """Rewrite a node whose binder source is refused: it binds nothing, and
+    the fields its binder would scope withhold `fixes`, the binders a fix of
+    the source would bind, and the binder the source as written would bind,
+    so the names they read are not refused for the source's refusal."""
+    scope_fields = _BINDER_SCOPE_FIELDS[type(node)]
+    written = frozenset(_introduced_binders(node, cats.flavor))
+    withheld = replace(cats, withheld=cats.withheld | fixes | written)
+    return _traverse(
+        node, lambda f, v: _rewrite_value(v, withheld if f in scope_fields else cats, bag)
+    )
+
+
+def _refused_binder_sources(
+    game: n.Game, cats: _Categories, bag: DiagnosticBag
+) -> dict[int, frozenset[str]]:
+    """Validate every binder source a check refuses before names are
+    classified -- a query's noun, a simultaneous block's role -- and return,
+    by node, the binders the fixes of each refused source would bind. A
+    collection set that may be a membership is `_rewrite`'s, which holds the
+    lexical scope."""
+    refused: dict[int, frozenset[str]] = {}
+    for nd in _walk(game):
+        if isinstance(nd, n.DomainQuery):
+            if _check_domain_query(nd, game, cats, bag):
+                refused[id(nd)] = _binders_a_query_takes(nd, game, cats.flavor)
+        elif isinstance(nd, n.SubsetQuery):
+            _check_subset_source(nd, bag)
+        elif isinstance(nd, n.EachSimultaneous) and _simultaneous_role_refused(nd):
+            bag.error(
+                f"`each {nd.role} simultaneously` is not runnable — "
+                f"simultaneous moves are per "
+                f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
+                nd.span,
+            )
+            refused[id(nd)] = frozenset(role_names(SIMULTANEOUS_ROLES))
+    return refused
+
+
+def _simultaneous_role_refused(nd: n.EachSimultaneous) -> bool:
+    """Whether a simultaneous block's role is no seat domain: the registry's
+    `simultaneous` column, since a value domain has no actor to move."""
+    return role_of(nd.role) not in SIMULTANEOUS_ROLES
+
+
+def _resolving_here(node: n.NameRef, names: Sequence[str], cats: _Categories) -> tuple[str, ...]:
+    """The `names` that resolve where `node` stands: each classifies there and
+    no positional Owner Guard refuses it at `node`'s position."""
+    position = cats.positions.get(id(node), _NamePosition())
+    out: list[str] = []
+    for name in names:
+        kind: n.RefKind | None = (
+            "play_source"
+            if cats.rule_clause and name == PLAY_SOURCE_NAME and name not in cats.locals
+            else _classify(name, cats)
+        )
+        if kind is not None and not _position_refuses(position, name, kind, cats.zone_index):
+            out.append(name)
+    return tuple(out)
+
+
 def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     if isinstance(node, n.DomainQuery) and _may_be_a_membership(node, cats):
         # The Owner Guard `_check_domain_query` leaves to the lexical scope. A
         # refused capture's predicate is written over the outer binder, so it
         # is not read under the captured noun.
-        if _membership_capture(node, cats, bag):
+        fixes = _membership_capture(node, cats, bag)
+        if fixes is None:
             return node
+        return _rewrite_refused_binder(node, fixes, cats, bag)
+    if id(node) in cats.refused_binders:
+        return _rewrite_refused_binder(node, cats.refused_binders[id(node)], cats, bag)
     if isinstance(node, n.AppliesWhen) and _refuse_bare_always(
         node.pred, _ALWAYS_SITES[n.AppliesWhen].clause, cats, bag
     ):
@@ -10916,7 +11202,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             f"this deck ({', '.join(sorted(cats.suits))}) nor a state variable — "
             f"write the suit, or a `Suit?` state variable the game sets",
             node.trump.name,
-            (*cats.suits, *cats.state_vars),
+            _resolving_here(node.trump, (*cats.suits, *cats.state_vars), cats),
             node.trump.span,
         )
         rest = _rewrite(replace(node, trump=None), cats, bag)
@@ -10951,6 +11237,8 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         if cats.rule_clause and node.name == PLAY_SOURCE_NAME and node.name not in cats.locals:
             return replace(node, ref_kind="play_source")
         kind = _classify(node.name, cats)
+        if kind is None and node.name in cats.withheld:
+            return node
         if kind is None:
             hint = ""
             noun = content_noun(cats.flavor, plural=False)
@@ -10972,15 +11260,17 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
             elif node.name == "max_length":
                 bag.error(MAX_LENGTH_AS_VALUE, node.span)
                 return replace(node, ref_kind=kind)
-            # Ranked against the game-wide categories, which can be wider than
-            # what resolves here (issue #1063).
             bag.unknown(
                 f"unresolved name '{node.name}'{hint}",
                 node.name,
-                (
-                    *cats.locals, *cats.state_vars, *cats.zones, *cats.enums,
-                    *_PRONOUNS, "none", "true", "false",
-                    *((PLAY_SOURCE_NAME,) if cats.rule_clause else ()),
+                _resolving_here(
+                    node,
+                    (
+                        *cats.locals, *cats.state_vars, *cats.zones, *cats.enums,
+                        *_PRONOUNS, "none", "true", "false",
+                        *((PLAY_SOURCE_NAME,) if cats.rule_clause else ()),
+                    ),
+                    cats,
                 ),
                 node.span,
             )
@@ -11197,7 +11487,6 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                 f"the language's `{fn.name}` and never calls this function — rename it",
                 fn.span,
             )
-        is_answer = fn.name in K.KERNEL_CONTRACT_NAMES and fn.origin is None
         allowed = {p.name for p in fn.params}
         for nd in _walk(fn.body):  # binders the body itself introduces are in scope
             allowed.update(_introduced_binders(nd))
@@ -11210,11 +11499,7 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
                     f"its parameters or a binding in its body",
                     nd.span,
                 )
-            elif (
-                nd.ref_kind == "pronoun"
-                and nd.name in _CALL_SITE_PRONOUNS
-                and not is_answer
-            ):
+            elif _pronoun_refused(nd.name, nd.ref_kind, _refused_call_site_pronouns(fn)):
                 # An answer's pronoun is `_check_answer_hermeticity`'s, which
                 # refuses every pronoun in it. The list is RENDERED from the
                 # registry, not spelled out: a
@@ -11235,6 +11520,20 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
         if _reaches(fn.name, fn.name, calls):
             library_functions = {f.name: f for f in game.functions if f.origin is not None}
             _report_recursion(fn, calls, library_functions, bag)
+
+
+def _refused_call_site_pronouns(definition: n.FunctionDef | n.ProcedureDef) -> frozenset[str]:
+    """The call-site pronouns `definition`'s body may not read: every one,
+    since its body runs wherever it is called or run from, but for a game
+    function answering a Kernel Definition Contract, whose pronouns are
+    `_check_answer_hermeticity`'s."""
+    if (
+        isinstance(definition, n.FunctionDef)
+        and definition.name in K.KERNEL_CONTRACT_NAMES
+        and definition.origin is None
+    ):
+        return frozenset()
+    return _CALL_SITE_PRONOUNS
 
 
 def _contracted_remedy(contracts: tuple[n.ContractStamp, ...]) -> Said:
@@ -11530,6 +11829,56 @@ _WRITE_TARGET_KINDS: dict[str, str] = {
 }
 
 
+#: The name slots whose root name must be of a kind the slot takes, by node
+#: kind and field: a movement's endpoints and a shuffle or reveal target take
+#: a zone (or a binder holding one, whose type typecheck judges), a write
+#: target a state variable. `_bad_zone_endpoint` and `_bad_write_target` refuse
+#: by it, and `_name_positions` records it.
+_ZONE_SLOT_KINDS: frozenset[n.RefKind] = frozenset({"zone", "local"})
+_NAME_SLOTS: dict[tuple[type, str], frozenset[n.RefKind]] = {
+    (n.Transfer, "source"): _ZONE_SLOT_KINDS,
+    (n.Transfer, "dest"): _ZONE_SLOT_KINDS,
+    (n.EpistemicOp, "zone"): _ZONE_SLOT_KINDS,
+    (n.AssignStmt, "target"): frozenset({"state_var"}),
+    (n.RotateStmt, "target"): frozenset({"state_var"}),
+}
+
+
+def _slot_root(expr: object) -> n.NameRef | None:
+    """The name a slot's expression is rooted at, through its subscripts and
+    fields, or None for an expression no name roots."""
+    root = expr
+    while isinstance(root, (n.Subscript, n.Member)):
+        root = root.obj
+    return root if isinstance(root, n.NameRef) else None
+
+
+def _slot_refuses(takes: frozenset[n.RefKind], kind: n.RefKind | None) -> bool:
+    """Whether a slot taking `takes` refuses a root name of `kind`; an
+    unresolved name is the classifier's."""
+    return kind is not None and kind not in takes
+
+
+def _each_destination_refuses(
+    zone_index: Mapping[str, str | None], name: str, kind: n.RefKind | None
+) -> bool:
+    """Whether `to each <name>` refuses a name of `kind`: it deals into the
+    family named by name, one zone per player."""
+    if kind is None:
+        return False
+    index = zone_index.get(name)
+    return kind != "zone" or index is None or role_of(index) is not Role.PLAYER
+
+
+def _bare_family_refused(
+    zone_index: Mapping[str, str | None], name: str, kind: n.RefKind | None, keyed: bool
+) -> bool:
+    """Whether a name is a zone family not kept per player, named bare where
+    the engine would key it by the acting seat."""
+    index = zone_index.get(name)
+    return kind == "zone" and not keyed and index is not None and role_of(index) is not Role.PLAYER
+
+
 def _named_ref(game: n.Game, ref: n.NameRef) -> Said:
     """`ref` quoted, cited at the provided state it reads where it reads
     some."""
@@ -11546,10 +11895,10 @@ def _bad_write_target(game: n.Game, node: n.AssignStmt | n.RotateStmt) -> Said |
     """Why this write target is illegal, or None if it is a state variable."""
     verb = "assign to" if isinstance(node, n.AssignStmt) else "rotate"
     kind = node.target.ref_kind
-    if kind == "state_var":
-        return None
     if kind is None:
         return None  # unresolved: `_classify` has already reported it, by name
+    if not _slot_refuses(_NAME_SLOTS[(type(node), "target")], kind):
+        return None
     what = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     return (
         f"cannot {verb} " + _named_ref(game, node.target) + f": it is {what}, and only a declared state "
@@ -11559,7 +11908,7 @@ def _bad_write_target(game: n.Game, node: n.AssignStmt | n.RotateStmt) -> Said |
     )
 
 
-def _bad_zone_endpoint(game: n.Game, expr: n.Expr | None, what: str) -> Said | None:
+def _bad_zone_endpoint(game: n.Game, node: n.Transfer | n.EpistemicOp, slot: str, what: str) -> Said | None:
     """Why this zone-position expression (a movement's `from <here>` /
     `to <here>`, an epistemic op's target) is illegal, or None. The same move
     as `_bad_write_target`, one grammar position over: the position is
@@ -11576,14 +11925,14 @@ def _bad_zone_endpoint(game: n.Game, expr: n.Expr | None, what: str) -> Said | N
     inferred type (decisions.md, "`let` bindings scope forward and carry
     their type"). The executor's typed error remains the Owner Guard for the
     deliberately-loose initializers (`outcome`, unregistered action fields)."""
-    root = expr
-    while isinstance(root, (n.Subscript, n.Member)):
-        root = root.obj
-    if not isinstance(root, n.NameRef):
+    root = _slot_root(getattr(node, slot))
+    if root is None:
         return None  # not name-rooted: nothing to classify here
     kind = root.ref_kind
-    if kind is None or kind in ("zone", "local"):
-        return None  # None: unresolved, already reported by the classifier
+    if kind is None:
+        return None  # unresolved, already reported by the classifier
+    if not _slot_refuses(_NAME_SLOTS[(type(node), slot)], kind):
+        return None
     what_it_is = _WRITE_TARGET_KINDS.get(kind, f"a {kind}")
     if kind == "state_var":
         what_it_is = "a state variable"
@@ -11943,7 +12292,7 @@ def _check_procedures(
                             f"is not one of its parameters or a binding in its body",
                             nd.span,
                         )
-                    elif nd.ref_kind == "pronoun" and nd.name in _CALL_SITE_PRONOUNS:
+                    elif _pronoun_refused(nd.name, nd.ref_kind, _refused_call_site_pronouns(proc)):
                         remedy = (
                             _contracted_remedy(proc.contracts)
                             if proc.contracts
@@ -12490,8 +12839,9 @@ def _player_register_spelling(kind: n.DomainQueryKind) -> str:
 
 def _check_domain_query(
     nd: n.DomainQuery, game: n.Game, cats: _Categories, bag: DiagnosticBag
-) -> None:
-    """Validate a positional-quantifier noun (decisions.md "Boards and cells").
+) -> bool:
+    """Validate a positional-quantifier noun (decisions.md "Boards and cells"),
+    True where the noun is refused.
 
     A BARE form (`source is None`) ranges over a declared position domain,
     and a query kind in `n.DIRECTION_QUERY_KINDS` also over the direction
@@ -12533,10 +12883,10 @@ def _check_domain_query(
                 nd.binder in _minted_directions(game) or lack is not None
             ):
                 bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
-                return
+                return True
         if lack is not None:
             bag.error(f"`{head}` ranges over the board directions, but {lack}", nd.span)
-            return
+            return True
         if directions:
             universe += (
                 "; the board direction domain: "
@@ -12561,12 +12911,12 @@ def _check_domain_query(
             # spelled with `of`. Calling the word unknown would be false, and
             # would send a designer looking for a declaration to add.
             bag.error(_subset_refusal(nd.kind, head), nd.span)
-            return
+            return True
         if nd.binder not in declared and (
             nd.binder in _minted_directions(game) or lack is not None
         ):
             bag.error(_direction_is_no_position(nd.kind, head, nd.binder, universe), nd.span)
-            return
+            return True
         if game.board is not None:
             universe += f"; the board's lines: `{LINE_NOUN}`"
         target_ok = nd.binder in collection_nouns(game)
@@ -12574,7 +12924,7 @@ def _check_domain_query(
         if _may_be_a_membership(nd, cats):
             # `x in <noun>s where …` with no parentheses: `_rewrite`, which
             # holds the lexical scope, tells a membership from a noun.
-            return
+            return False
         if not target_ok:
             zone = _zone_source(nd.source, game)
             if zone is not None and cats.flavor == "card":
@@ -12587,12 +12937,12 @@ def _check_domain_query(
                     _nouns_a_query_takes(nd, game, cats.flavor),
                     nd.span,
                 )
-                return
+                return True
     if not target_ok:
         named = _bare_noun_refusal(nd, head, game, cats, universe)
         if named is not None:
             bag.error(named, nd.span)
-            return
+            return True
     if nd.kind != "any" and not nd.spelled.endswith("s"):
         # A singular noun under `all`/`number of`/the Set Form: guide to the
         # plural if the singular names a real target, else fall through to
@@ -12605,17 +12955,19 @@ def _check_domain_query(
                 else f"{n.collection_query_head(nd.kind, plural)} in …"
             )
             bag.error(f"`{head}` needs the plural noun -- write `{fixed}`", nd.span)
-            return
+            return True
         refused: str | None = nd.spelled
     else:
         refused = None if target_ok else nd.binder
-    if refused is not None:
-        bag.unknown(
-            f"unknown {noun_kind} '{refused}' -- {universe}",
-            nd.spelled,
-            _nouns_a_query_takes(nd, game, cats.flavor),
-            nd.span,
-        )
+    if refused is None:
+        return False
+    bag.unknown(
+        f"unknown {noun_kind} '{refused}' -- {universe}",
+        nd.spelled,
+        _nouns_a_query_takes(nd, game, cats.flavor),
+        nd.span,
+    )
+    return True
 
 
 def _nouns_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> frozenset[str]:
@@ -12625,6 +12977,14 @@ def _nouns_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> fro
     kind ranges over them and the keyword nouns the grammar gives `any` and
     `all` (player, team, suit, rank), `players` alone for the others; in the
     collection form, the board lines and the content noun."""
+    return frozenset(
+        noun if nd.kind == "any" else noun + "s" for noun in _binders_a_query_takes(nd, game, flavor)
+    )
+
+
+def _binders_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> frozenset[str]:
+    """The singular of every noun `_nouns_a_query_takes` names: the binder a
+    query of `nd`'s form and kind binds for each."""
     nouns = {p.name for p in game.positions}
     if nd.source is None:
         if nd.kind in n.DIRECTION_QUERY_KINDS:
@@ -12633,7 +12993,7 @@ def _nouns_a_query_takes(nd: n.DomainQuery, game: n.Game, flavor: Flavor) -> fro
         nouns |= set(role_names(roles) if nd.kind in ("any", "all") else [Role.PLAYER.value])
     else:
         nouns |= collection_nouns(game) | {content_noun(flavor, plural=False)}
-    return frozenset(noun if nd.kind == "any" else noun + "s" for noun in nouns)
+    return frozenset(nouns)
 
 
 def _subset_refusal(kind: n.DomainQueryKind, head: str) -> str:
@@ -12721,17 +13081,20 @@ def _may_be_a_membership(nd: n.DomainQuery, cats: _Categories) -> bool:
     )
 
 
-def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag) -> bool:
+def _membership_capture(
+    nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
+) -> frozenset[str] | None:
     """A collection set over a noun nothing ranges by, read in the noun's
     lexical scope: where the noun names a value there, it is `x in <query>`
     written without its parentheses, and the refusal names the sentence that
-    checks; elsewhere the noun is unknown. True where the refusal is the
-    capture's."""
+    checks; elsewhere the noun is refused. None where the refusal is the
+    capture's, else the binders the refused noun's fixes would bind."""
     assert nd.source is not None
+    fixes = frozenset((*cats.collection_nouns, content_noun(cats.flavor, plural=False)))
     if _classify(nd.spelled, cats) is None and nd.binder in cats.collection_nouns:
         plural = n.collection_query_head(nd.kind, nd.spelled + "s")
         bag.error(f"`{nd.spelled} in …` needs the plural noun -- write `{plural} in …`", nd.span)
-        return False
+        return fixes
     if _classify(nd.spelled, cats) is None:
         universe = (
             f"declared position domains: {', '.join(sorted(cats.collection_nouns - {LINE_NOUN}))}"
@@ -12743,10 +13106,10 @@ def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
         bag.unknown(
             f"unknown collection noun '{nd.binder}' -- {universe}",
             nd.spelled,
-            {noun + "s" for noun in (*cats.collection_nouns, content_noun(cats.flavor, plural=False))},
+            {noun + "s" for noun in fixes},
             nd.span,
         )
-        return False
+        return fixes
     source = n.short_spelling(nd.source)
     if isinstance(nd.source, n.NameRef) and nd.source.name in _query_nouns(cats):
         # `cells`, `players`: the source is a query's own noun, so the query
@@ -12761,7 +13124,7 @@ def _membership_capture(nd: n.DomainQuery, cats: _Categories, bag: DiagnosticBag
         f"condition is joined with `and`: write `{fixed}`",
         nd.span,
     )
-    return True
+    return None
 
 
 def _query_nouns(cats: _Categories) -> frozenset[str]:
@@ -13100,17 +13463,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"over players",
                     nd.span,
                 )
-            case n.EachSimultaneous() if role_of(nd.role) not in SIMULTANEOUS_ROLES:
-                # The registry's `simultaneous` column, not a bare `!= "player"`:
-                # the roles that admit a simultaneous block are exactly the seat
-                # domains (a value domain has no actor to move simultaneously),
-                # and both the gate and the message it prints come from the rows.
-                bag.error(
-                    f"`each {nd.role} simultaneously` is not runnable — "
-                    f"simultaneous moves are per "
-                    f"{' or '.join(role_names(SIMULTANEOUS_ROLES))}",
-                    nd.span,
-                )
+            case n.EachSimultaneous() if _simultaneous_role_refused(nd):
+                pass  # refused by `_refused_binder_sources`, before names are classified
             case n.EachSimultaneous() if n.simultaneous_body_error(nd.body) is not None:
                 # The form gated its DOMAIN (above) and not its BODY. The executor
                 # implements exactly one body shape, so everything else compiled and
@@ -13169,10 +13523,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(bad, nd.span)
             case n.Transfer():
                 for endpoint, direction in (
-                    (nd.source, "move cards from"),
-                    (nd.dest, "move cards to"),
+                    ("source", "move cards from"),
+                    ("dest", "move cards to"),
                 ):
-                    bad = _bad_zone_endpoint(game, endpoint, direction)
+                    bad = _bad_zone_endpoint(game, nd, endpoint, direction)
                     if bad is not None:
                         bag.error(bad, nd.span)
                 # The joint-selection matrix (decisions.md "Joint-predicate
@@ -13239,9 +13593,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # Intrinsic: `to each` deals one share per PLAYER, so the
                     # destination family must be player-keyed whatever else the
                     # table gains.
-                    if nd.dest.ref_kind == "zone" and (
-                        idx is None or role_of(idx) is not Role.PLAYER
-                    ):
+                    each_refused = _each_destination_refuses(zone_index, nd.dest.name, nd.dest.ref_kind)
+                    if each_refused and nd.dest.ref_kind == "zone":
                         what_z = (
                             "a singleton zone"
                             if idx is None
@@ -13254,7 +13607,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                             f"target one instance directly",
                             nd.span,
                         )
-                    elif nd.dest.ref_kind is not None and nd.dest.ref_kind != "zone":
+                    elif each_refused and nd.dest.ref_kind is not None:
                         # The executor consumes the NAME (`zones.instance(X,
                         # player)`), not a zone value — so unlike the generic
                         # endpoints, a binder can never stand here even when it
@@ -13288,7 +13641,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # `reveal one card from turn` checked clean and then reached an
                 # executor that requires an actual Zone as the op's target and
                 # refuses anything else, exactly like the movement endpoints.
-                bad = _bad_zone_endpoint(game, nd.zone, nd.op)
+                bad = _bad_zone_endpoint(game, nd, "zone", nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
             case n.Winner() | n.StopResult() if (
@@ -13401,7 +13754,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"trick round winner '{nd.winner_fn}' is not a trick "
                         f"winner function",
                         nd.winner_fn,
-                        _ROUND_QUERY_REGISTRIES[(n.TrickRound, "winner_fn")],
+                        {
+                            name
+                            for name in _ROUND_QUERY_REGISTRIES[(n.TrickRound, "winner_fn")]
+                            if not _winner_refusals(replace(nd, winner_fn=name), game)
+                        },
                         nd.span,
                     )
                 elif nd.winner_fn in TRICK_ORDER_GATED_WINNERS:
@@ -13411,7 +13768,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # to ask. `_check_trick_order_partition` owns both cells,
                     # with a Trick Order and without one.
                     pass
-                elif nd.trump is not None and nd.winner_fn not in TRUMP_READING_WINNERS:
+                elif "ignores the trump clause" in _winner_refusals(nd, game):
                     # The winner contract carries a `trump` argument for every
                     # member, but only TRUMP_READING_WINNERS' bodies read it:
                     # on the others the round's `trump` clause was evaluated,

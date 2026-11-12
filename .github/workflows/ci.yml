@@ -24,25 +24,68 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # The gate. Runs on the self-hosted pool (`cardlang` label) — persistent
-  # hardware, so the per-run costs the hosted runner re-paid every time
-  # (the OpenSpiel wheel install, a cold strict-mypy cache) are one-time.
-  check:
+  # Picks the runner for `check` (tools/ci-route.sh; docs/harness.md, "The
+  # physical layer"): the self-hosted pool when it is awake and will finish
+  # the job first, a hosted runner when it is asleep or full.
+  route:
     # Drafts don't run: agents can push work-in-progress freely without
     # burning the runner queue. Marking the PR ready (or pushing while
     # ready) triggers the run.
     #
     # The head-repo equality clause is a security wall, not an optimization:
-    # this job runs on a self-hosted machine, and the repo is public, so a
+    # `check` can run on a self-hosted machine, and the repo is public, so a
     # fork PR carries untrusted code. Same-repo branches only — a fork PR
-    # gets no run here under ANY approval flow. Keep the clause ahead of any
-    # future trigger change.
+    # gets no run here under ANY approval flow, and `check` runs only where
+    # this job ran. Keep the clause ahead of any future trigger change.
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: [self-hosted, cardlang]
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # `actions: write` starts and cancels the probe run; nothing else here
+    # writes.
+    permissions:
+      actions: write
+      contents: read
+    outputs:
+      lane: ${{ steps.pick.outputs.lane }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/ci-route.sh
+          sparse-checkout-cone-mode: false
+      - name: Pick the runner
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # `auto` when unset; `laptop` or `hosted` forces the lane.
+          CI_ROUTE: ${{ vars.CI_ROUTE }}
+        run: tools/ci-route.sh
+
+  # The gate. One job, one name, whichever lane runs it: branch protection
+  # requires `check`. On the self-hosted pool (`cardlang` label) the hardware
+  # is persistent, so the per-run costs a hosted runner pays every time (the
+  # OpenSpiel wheel install, a cold strict-mypy cache) are one-time. The
+  # hosted lane is macOS like the pool, so a green means the same on both:
+  # the same tests run, and none is skipped for its platform.
+  check:
+    needs: route
+    # Runs whenever `route` ran, a failed `route` included: a job skipped
+    # behind a failed need reports to branch protection as passing, so the
+    # first step fails the gate instead. A draft or a fork skips `route`,
+    # and `check` with it.
+    if: ${{ !cancelled() && needs.route.result != 'skipped' }}
+    # Only the lane `laptop` reaches the self-hosted pool. Anything that is
+    # not a lane lands on a hosted runner, where the first step fails.
+    runs-on: ${{ needs.route.outputs.lane == 'laptop' && fromJSON('["self-hosted", "cardlang"]') || needs.route.outputs.lane == 'hosted' && 'macos-latest' || 'ubuntu-latest' }}
+    timeout-minutes: ${{ needs.route.outputs.lane == 'laptop' && 60 || 180 }}
+    steps:
+      - name: The route picked a lane
+        if: needs.route.result != 'success' || (needs.route.outputs.lane != 'laptop' && needs.route.outputs.lane != 'hosted')
+        run: |
+          echo "::error title=check::the route job picked no lane (result: ${{ needs.route.result }}), so the gate did not run"
+          exit 1
+      - uses: actions/checkout@v4
       - name: Venv (rebuilt whenever the dependency spec changes)
+        if: needs.route.outputs.lane == 'laptop'
         # Keyed to pyproject.toml by content stamp: any spec change rebuilds
         # the venv from empty, so a package installed under an earlier ref's
         # spec cannot survive into a ref that stopped declaring it — `pip
@@ -68,21 +111,28 @@ jobs:
           fi
           echo "$VENV/bin" >> "$GITHUB_PATH"
           echo "MYPY_CACHE_DIR=$RUNNER_TOOL_CACHE/cardlang-mypy-cache" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        if: needs.route.outputs.lane == 'hosted'
+        with:
+          python-version: "3.11"
+      - name: Install
+        if: needs.route.outputs.lane == 'hosted'
+        run: python -m pip install -e ".[dev,openspiel]"
       # The readiness proofs importorskip pyspiel; a broken install would
       # silently skip them all. Fail loudly instead.
       - name: OpenSpiel importable (the readiness proofs must not skip)
         run: python -c "import pyspiel"
       - name: Type check (mypy --strict)
         run: mypy
-      # `-n 8`, not `auto`: the pool's first runner shares its 10 cores with
-      # its owner's interactive sessions, so the gate leaves two. Selection
+      # `-n 8`, not `auto`, on the pool: its first runner shares its 10 cores
+      # with its owner's interactive sessions, so the gate leaves two. A
+      # hosted runner is the job's alone, so it takes every core. Selection
       # and evidence are unchanged by `-n` — counts are byte-identical to a
       # serial run and the partition-coverage record is executor-invariant
       # (tests/test_partition_record_modes.py pins it). The canary below
-      # stays serial: it is the bare-reference form, and its 2-core hosted
-      # runner was measured slower under xdist.
+      # stays serial: it is the bare-reference form.
       - name: Tests (corpus harness + units)
-        run: pytest -q -n 8
+        run: pytest -q -n ${{ needs.route.outputs.lane == 'laptop' && '8' || 'auto' }}
       # `testpaths = ["tests"]` deliberately keeps the experiment rigs out of the
       # language's own gate, so a bare `pytest -q` does not collect these. That
       # left them run by nobody: the leak-freeness pins REVIEWER.md cites — the
@@ -93,12 +143,10 @@ jobs:
       - name: Tests (experiment rigs — the leak-freeness pins)
         run: pytest experiments/llm_eval/tests -q
 
-  # The weekly hosted-Linux run. Two jobs the gate cannot do for itself:
-  # it keeps the suite honest on a second platform (the gate runs on macOS,
-  # whose default filesystem is case-insensitive, so a filename-case
-  # mismatch would pass the gate and break Linux), and it keeps a known-good
-  # hosted lane warm — if the self-hosted pool is down, flipping `check`'s
-  # `runs-on` back to `ubuntu-latest` is the whole fallback.
+  # The weekly hosted-Linux run. It keeps the suite honest on a second
+  # platform: the gate runs on macOS on either lane, whose default
+  # filesystem is case-insensitive, so a filename-case mismatch would pass
+  # the gate and break Linux.
   canary:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
